@@ -169,13 +169,15 @@ evaluate perform evaluateCase = evaluate_
             where
             evaluateApp (WLam f)   =
                 -- call-by-name:
-                caseBind f $ \x f' ->
-                    push (SLet x (Thunk e2) []) f' evaluate_
+                caseBind f $ \x f' -> do
+                    i <- getIndices
+                    push (SLet x (Thunk e2) i) f' evaluate_
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
-        Let_ :$ e1 :* e2 :* End ->
+        Let_ :$ e1 :* e2 :* End -> do
+            i <- getIndices
             caseBind e2 $ \x e2' ->
-                push (SLet x (Thunk e1) []) e2' evaluate_
+                push (SLet x (Thunk e1) i) e2' evaluate_
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
         UnsafeFrom_ c :$ e1 :* End -> coerceFrom c <$> evaluate_ e1

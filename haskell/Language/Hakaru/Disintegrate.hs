@@ -331,6 +331,18 @@ perform = \e0 ->
         caseBind e2 $ \x e2' -> do
             i <- getIndices
             push (SBind x (Thunk e1) i) e2' perform
+
+    performTerm (Plate :$ e1 :* e2 :* End) =  do
+        caseBind e2 $ \x e2' -> do
+            inds <- getIndices
+            p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
+            i    <- freshInd e1
+            push (SBind p (Thunk $ rename x (indVar i) e2')
+                            (extendIndices i inds)) (var p) $ \x' ->
+               caseVarSyn x' (\x1 ->  let x2 = x1 {varType = SArray (varType x1)}
+                                      in  return (Neutral (var x2)))
+                             (error "performTerm{Plate} was not given a variable")
+
     performTerm (Superpose_ pes) = do
         -- TODO: we should combine the multiple traversals of @pes@/@pes'@
         pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
@@ -677,55 +689,24 @@ patternOfDatum =
 constrainVariable
     :: (ABT Term abt) => abt '[] a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
-    case varType x of
-      SArray a -> do mn <- checkIfMultiLoc x -- refactor into fromMultiLoc
-                     case mn of
-                       Just n ->  do
-                        i@(v,_) <- freshInd n
-                        -- adjust type of variable x
-                        let x' = x { varType = a}
-                        adjustLoc x' $ \(Assoc x'' (Loc is)) ->
-                          Assoc x'' (Loc (extendIndices i is))
-                        constrainVariable (v0 P.! var v) x'
-                       Nothing -> freeOrLoc
-      _ -> freeOrLoc
-
-  where freeOrLoc =
     -- If we get 'Nothing', then it turns out @x@ is a free variable.
     -- If @x@ is a free variable, then it's a neutral term; and we
     -- return 'bot' for neutral terms
-         (maybe bot return =<<) . select x $ \s ->
-              case s of
-                SBind y e i -> do
-                     Refl <- varEq x y
-                     Just $ do
-                         constrainOutcome v0 (fromLazy e)
-                         unsafePush (SLet x (Whnf_ (Neutral v0)) i)
-                SLet y e i -> do
-                     Refl <- varEq x y
-                     Just $ do
-                         constrainValue v0 (fromLazy e)
-                         unsafePush (SLet x (Whnf_ (Neutral v0)) i)
-                SWeight _ _ -> Nothing
-                SGuard ys pat scrutinee i ->
-                     error "TODO: constrainVariable{SGuard}"
-
--- possibly cleanup
-checkIfMultiLoc
-    :: (ABT Term abt)
-    => Variable ('HArray a)
-    -> Dis abt (Maybe (abt '[] 'HNat))
-checkIfMultiLoc x = do
-  locs <- getLocs
-  case lookupAssoc x locs of
-    Just (Loc is) -> do 
-        ss <- getStatements
-        return $ foldl sizeInnermost Nothing ss
-    Nothing       -> return Nothing
-  where sizeInnermost mn s = case mn of
-                               Nothing -> x `isBoundBy` s >> 
-                                          Just (snd (head (statementInds s)))
-                               _ -> mn
+    (maybe bot return =<<) . select x $ \s ->
+         case s of
+           SBind y e i -> do
+                Refl <- varEq x y
+                Just $ do
+                    constrainOutcome v0 (fromLazy e)
+                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+           SLet y e i -> do
+                Refl <- varEq x y
+                Just $ do
+                    constrainValue v0 (fromLazy e)
+                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+           SWeight _ _ -> Nothing
+           SGuard ys pat scrutinee i ->
+                error "TODO: constrainVariable{SGuard}"
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
@@ -1121,12 +1102,12 @@ constrainOutcome v0 e0 =
             inds <- getIndices
             p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
             i    <- freshInd e1
-            push (SBind p (Thunk $ rename x (fst i) e2')
+            push (SBind p (Thunk $ rename x (indVar i) e2')
                             (extendIndices i inds)) (var p) $
-              constrainValue (v0 P.! var (fst i))
+              constrainValue (v0 P.! var (indVar i))
 
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
-    go (WReject typ)         = error "TODO: constrainOutcome{Reject}"
+    go (WReject typ)         = emit_ $ \m -> P.reject (typeOf m)
     go (WSuperpose pes) =
         case pes of
         (p,e) :| [] -> do
@@ -1138,7 +1119,6 @@ constrainOutcome v0 e0 =
             pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
             emitFork_ (P.superpose . getCompose)
                 (constrainOutcome v0 <$> Compose pes')
-
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
 --

@@ -54,7 +54,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
-    -- * Overrides from Evaluation.Types
+    -- * Overrides for original in Evaluation.Types
     , push
     , pushes
     -- * For Arrays/Plate
@@ -211,10 +211,6 @@ runDis (Dis m) es =
 
     i0 = maxNextFree es
 
-getIndices :: (ABT Term abt)
-           => Dis abt [Index (abt '[])]
-getIndices =  Dis $ \c h i l -> c i h i l
-
 extendIndices
     :: (ABT Term abt)
     => Index (abt '[])
@@ -225,7 +221,12 @@ extendIndices = (:)
 
 -- give better name
 statementInds :: Statement abt p -> [Index (abt '[])]
-statementInds = undefined
+statementInds (SBind   _ _   i) = i
+statementInds (SLet    _ _   i) = i
+statementInds (SWeight _     i) = i
+statementInds (SGuard  _ _ _ i) = i
+statementInds (SStuff0 _     i) = i
+statementInds (SStuff1 _ _   i) = i
 
 getLocs :: (ABT Term abt)
         => Dis abt (Assocs (Loc (abt '[])))
@@ -251,6 +252,24 @@ adjustLoc :: (ABT Term abt)
 adjustLoc x f = do
     locs <- getLocs
     putLocs $ adjustAssoc x f locs
+
+-- possibly cleanup
+checkIfMultiLoc
+    :: (ABT Term abt)
+    => Variable ('HArray a)
+    -> Dis abt (Maybe (abt '[] 'HNat))
+checkIfMultiLoc x = do
+  locs <- getLocs
+  case lookupAssoc x locs of
+    Just (Loc is) -> do 
+        ss <- getStatements
+        return $ foldl sizeInnermost Nothing ss
+    Nothing       -> return Nothing
+  where sizeInnermost mn s =
+            case mn of
+              Nothing -> x `isBoundBy` s >> 
+                         Just (snd (head (statementInds s)))
+              _ -> mn
 
 -- | Modified version of push from Types which also updates Loc
 push
@@ -303,6 +322,8 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
     freshNat =
         Dis $ \c (ListContext i ss) ->
             c i (ListContext (i+1) ss)
+
+    getIndices =  Dis $ \c h i l -> c i h i l
 
     unsafePush s =
         Dis $ \c (ListContext i ss) ->

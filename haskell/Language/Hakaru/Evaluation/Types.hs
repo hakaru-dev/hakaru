@@ -43,7 +43,8 @@ module Language.Hakaru.Evaluation.Types
     , getLazyLiteral,  isLazyLiteral
 
     -- * The monad for partial evaluation
-    , Purity(..), Index, Statement(..), isBoundBy
+    , Purity(..), Statement(..), isBoundBy
+    , Index, indVar
 #ifdef __TRACE_DISINTEGRATE__
     , ppStatement
     , pretty_Statements
@@ -477,6 +478,9 @@ data Purity = Pure | Impure | ExpectP
 
 type Index ast = (Variable 'HNat, ast 'HNat)
 
+indVar :: Index ast -> Variable 'HNat
+indVar = fst
+
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
 -- 'MBind' (or 'Let_') together with the variable bound in the
@@ -659,6 +663,13 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- not the 'varID' of any free variable in the expressions of
     -- interest, and isn't a number we've returned previously.
     freshNat :: m Nat
+
+    -- | Returns the current Indices. Currently, this is only
+    -- applicable to the Disintegration Monad, but could be
+    -- relevant as other partial evaluators begin to handle
+    -- Plate and Array
+    getIndices :: m [Index (abt '[])]
+    getIndices =  return []
 
     -- | Add a statement to the top of the context. This is unsafe
     -- because it may allow confusion between variables with the
