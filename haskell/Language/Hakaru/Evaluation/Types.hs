@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -44,6 +44,7 @@ module Language.Hakaru.Evaluation.Types
 
     -- * The monad for partial evaluation
     , Purity(..), Statement(..), isBoundBy
+    , Index, indVar, indSize
 #ifdef __TRACE_DISINTEGRATE__
     , ppStatement
     , pretty_Statements
@@ -54,10 +55,11 @@ module Language.Hakaru.Evaluation.Types
     , freshenVar
     , Hint(..), freshVars
     , freshenVars
+    , freshInd
     {- TODO: should we expose these?
     , freshenStatement
-    , push_
     -}
+    , push_
     , push
     , pushes
     ) where
@@ -72,12 +74,13 @@ import           Control.Applicative  (Applicative(..))
 import           Control.Arrow        ((***))
 import qualified Data.Foldable        as F
 import           Data.List.NonEmpty   (NonEmpty(..))
+import qualified Data.Text            as T
 import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
 import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing)
+import Language.Hakaru.Types.Sing    (Sing(..))
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
@@ -128,7 +131,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WArray :: !(abt '[] 'HNat) -> !(abt '[ 'HNat] a) -> Head abt ('HArray a)
     WLam   :: !(abt '[ a ] b) -> Head abt (a ':-> b)
 
-    -- Measure heads (not just anything of 'HMeasure' type)
+    -- Measure heads (N.B., not simply @abt '[] ('HMeasure _)@)
     WMeasureOp
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(MeasureOp typs a)
@@ -291,6 +294,8 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     | Neutral !(abt '[] a)
     -- TODO: would it be helpful to track which variable it's blocked
     -- on? To do so we'd need 'GotStuck' to return that info...
+    --
+    -- TODO: is there some /clean/ way to ensure that the neutral term is exactly a chain of blocked redexes? That is, we want to be able to pull out neutral 'Case_' terms; so we want to make sure they're not wrapped in let-bindings, coercions, etc.
 
 -- | Forget that something is a WHNF.
 fromWhnf :: (ABT Term abt) => Whnf abt a -> abt '[] a
@@ -360,6 +365,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
             Neutral . maybe (P.coerceTo_ c e) id
                 $ caseVarSyn e (const Nothing) $ \t ->
                     case t of
+                    -- BUG: literals should never be neutral in the first place; but even if we got one, we shouldn't call it neutral after coercing it.
                     Literal_ x          -> Just $ P.literal_ (coerceTo c x)
                     -- UnsafeFrom_ c' :$ es' -> TODO: cancellation
                     CoerceTo_ c' :$ es' ->
@@ -380,6 +386,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
             Neutral . maybe (P.unsafeFrom_ c e) id
                 $ caseVarSyn e (const Nothing) $ \t ->
                     case t of
+                    -- BUG: literals should never be neutral in the first place; but even if we got one, we shouldn't call it neutral after coercing it.
                     Literal_ x -> Just $ P.literal_ (coerceFrom c x)
                     -- CoerceTo_ c' :$ es' -> TODO: cancellation
                     UnsafeFrom_ c' :$ es' ->
@@ -461,13 +468,21 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 
 ----------------------------------------------------------------
 
--- TODO: better names?
 -- | A kind for indexing 'Statement' to know whether the statement
 -- is pure (and thus can be evaluated in any ambient monad) vs
 -- impure (i.e., must be evaluated in the 'HMeasure' monad).
+--
+-- TODO: better names!
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
+type Index ast = (Variable 'HNat, ast 'HNat)
+
+indVar :: Index ast -> Variable 'HNat
+indVar = fst
+
+indSize :: Index ast -> ast 'HNat
+indSize = snd
 
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
@@ -495,6 +510,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         :: forall abt (a :: Hakaru)
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt ('HMeasure a))
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
     -- A variable bound by 'Let_' to an expression.
@@ -502,6 +518,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         :: forall abt p (a :: Hakaru)
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt a)
+        -> [Index (abt '[])]
         -> Statement abt p
 
 
@@ -511,6 +528,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     SWeight
         :: forall abt
         .  !(Lazy abt 'HProb)
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
     -- A monadic guard statement. If the scrutinee matches the
@@ -524,18 +542,24 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         .  !(List1 Variable xs)
         -> !(Pattern xs a)
         -> !(Lazy abt a)
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
-    -- TODO: a real name for this. Also, generalize for all multibinders
     -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
+    --
+    -- TODO: real names for these.
+    -- TODO: generalize to use a 'VarSet' so we can collapse these
+    -- TODO: defunctionalize? These break pretty printing...
     SStuff0
         :: forall abt
         .  (abt '[] 'HProb -> abt '[] 'HProb)
+        -> [Index (abt '[])]
         -> Statement abt 'ExpectP
     SStuff1
         :: forall abt (a :: Hakaru)
         . {-# UNPACK #-} !(Variable a)
         -> (abt '[] 'HProb -> abt '[] 'HProb)
+        -> [Index (abt '[])]
         -> Statement abt 'ExpectP
 
 
@@ -548,15 +572,15 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
 -- and use some @boolToMaybe@ function to do the coercion wherever
 -- needed.
 isBoundBy :: Variable (a :: Hakaru) -> Statement abt p -> Maybe ()
-x `isBoundBy` SBind  y _    = const () <$> varEq x y
-x `isBoundBy` SLet   y _    = const () <$> varEq x y
-_ `isBoundBy` SWeight  _    = Nothing
-x `isBoundBy` SGuard ys _ _ =
+x `isBoundBy` SBind  y  _ _   = const () <$> varEq x y
+x `isBoundBy` SLet   y  _ _   = const () <$> varEq x y
+_ `isBoundBy` SWeight   _ _   = Nothing
+x `isBoundBy` SGuard ys _ _ _ =
     if memberVarSet x (toVarSet1 ys) -- TODO: just check membership directly, rather than going through VarSet
     then Just ()
     else Nothing
-_ `isBoundBy` SStuff0   _   = Nothing
-x `isBoundBy` SStuff1 y _   = const () <$> varEq x y
+_ `isBoundBy` SStuff0   _ _   = Nothing
+x `isBoundBy` SStuff1 y _ _   = const () <$> varEq x y
 
 
 -- TODO: remove this CPP guard, provided we don't end up with a cyclic dependency...
@@ -586,31 +610,31 @@ parens False ds = ds
 ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
 ppStatement p s =
     case s of
-    SBind x e ->
+    SBind x e _ ->
         PP.sep $ ppFun p "SBind"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
             ]
-    SLet x e ->
+    SLet x e _ ->
         PP.sep $ ppFun p "SLet"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
             ]
-    SWeight e ->
+    SWeight e _ ->
         PP.sep $ ppFun p "SWeight"
             [ PP.sep $ prettyPrec_ 11 e
             ]
-    SGuard xs pat e ->
+    SGuard xs pat e _ ->
         PP.sep $ ppFun p "SGuard"
             [ PP.sep $ ppVariables xs
             , PP.sep $ prettyPrec_ 11 pat
             , PP.sep $ prettyPrec_ 11 e
             ]
-    SStuff0   _ ->
+    SStuff0   _ _ ->
         PP.sep $ ppFun p "SStuff0"
             [ PP.text "TODO: ppStatement{SStuff0}"
             ]
-    SStuff1 _ _ ->
+    SStuff1 _ _ _ ->
         PP.sep $ ppFun p "SStuff1"
             [ PP.text "TODO: ppStatement{SStuff1}"
             ]
@@ -643,6 +667,13 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- interest, and isn't a number we've returned previously.
     freshNat :: m Nat
 
+    -- | Returns the current Indices. Currently, this is only
+    -- applicable to the Disintegration Monad, but could be
+    -- relevant as other partial evaluators begin to handle
+    -- Plate and Array
+    getIndices :: m [Index (abt '[])]
+    getIndices =  return []
+
     -- | Add a statement to the top of the context. This is unsafe
     -- because it may allow confusion between variables with the
     -- same name but different scopes (thus, may allow variable
@@ -670,7 +701,22 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     --
     -- N.B., the statement @s@ itself is popped! Thus, it is up to
     -- the continuation to make sure to push new statements that
-    -- bind all the variables bound by @s@!
+    -- bind /all/ the variables bound by @s@!
+    --
+    -- TODO: pass the continuation more detail, so it can avoid
+    -- needing to be in the 'Maybe' monad due to the redundant call
+    -- to 'varEq' in the continuation. In particular, we want to
+    -- do this so that we can avoid the return type @m (Maybe (Maybe r))@
+    -- while still correctly handling statements like 'SStuff1'
+    -- which (a) do bind variables and thus should shadow bindings
+    -- further up the 'ListContext', but which (b) offer up no
+    -- expression the variable is bound to, and thus cannot be
+    -- altered by forcing etc. To do all this, we need to pass the
+    -- 'TypeEq' proof from (the 'varEq' call in) the 'isBoundBy'
+    -- call in the instance; but that means we also need some way
+    -- of tying it together with the existential variable in the
+    -- 'Statement'. Perhaps we should have an alternative statement
+    -- type which exposes the existential?
     select
         :: Variable (a :: Hakaru)
         -> (Statement abt p -> Maybe (m r))
@@ -685,23 +731,23 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
 freshenStatement
     :: (ABT Term abt, EvaluationMonad abt m p)
     => Statement abt p
-    -> m (Statement abt p, Assocs (abt '[]))
+    -> m (Statement abt p, Assocs (Variable :: Hakaru -> *))
 freshenStatement s =
     case s of
-    SWeight _    -> return (s, mempty)
-    SBind x body -> do
+    SWeight _ _    -> return (s, mempty)
+    SBind x body i -> do
         x' <- freshenVar x
-        return (SBind x' body, singletonAssocs x (var x'))
-    SLet x body -> do
+        return (SBind x' body i, singletonAssocs x x')
+    SLet  x body i -> do
         x' <- freshenVar x
-        return (SLet x' body, singletonAssocs x (var x'))
-    SGuard xs pat scrutinee -> do
+        return (SLet x' body i, singletonAssocs x x')
+    SGuard xs pat scrutinee i -> do
         xs' <- freshenVars xs
-        return (SGuard xs' pat scrutinee, toAssocs xs (fmap11 var xs'))
-    SStuff0   _ -> return (s, mempty)
-    SStuff1 x f -> do
+        return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
+    SStuff0   _ _ -> return (s, mempty)
+    SStuff1 x f i -> do
         x' <- freshenVar x
-        return (SStuff1 x' f, singletonAssocs x (var x'))
+        return (SStuff1 x' f i, singletonAssocs x x')
 
 
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?
@@ -765,6 +811,14 @@ freshenVars = go dnil1
         go (k `dsnoc1` x') xs -- BUG: type error....
 -}
 
+-- | Given a size, generate a fresh Index
+freshInd :: (EvaluationMonad abt m p)
+         => abt '[] 'HNat
+         -> m (Index (abt '[]))
+freshInd s = do
+  x <- freshVar T.empty SNat
+  return (x, s)
+
 
 -- | Add a statement to the top of the context, renaming any variables
 -- the statement binds and returning the substitution mapping the
@@ -776,7 +830,7 @@ freshenVars = go dnil1
 push_
     :: (ABT Term abt, EvaluationMonad abt m p)
     => Statement abt p
-    -> m (Assocs (abt '[]))
+    -> m (Assocs (Variable :: Hakaru -> *))
 push_ s = do
     (s',rho) <- freshenStatement s
     unsafePush s'
@@ -801,7 +855,7 @@ push
     -> m r               -- ^ the final result
 push s e k = do
     rho <- push_ s
-    k (substs rho e)
+    k (renames rho e)
 
 
 -- | Call 'push' repeatedly. (N.B., is more efficient than actually
@@ -817,7 +871,7 @@ pushes
 pushes ss e k = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
-    k (substs rho e)
+    k (renames rho e)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

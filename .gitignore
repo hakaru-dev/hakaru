@@ -4,3 +4,4 @@ cabal.sandbox.config
 Language/Hakaru/Paths.hs
 *.o
 *.hi
+site

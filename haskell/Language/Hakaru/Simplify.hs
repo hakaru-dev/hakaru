@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.18
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Simplify
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -25,6 +25,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Simplify
     ( simplify
+    , simplifyDebug
     , MapleException(MapleException)
     ) where
 
@@ -34,17 +35,20 @@ import qualified Language.Hakaru.Pretty.Maple as Maple
 
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.AST (Name)
-import Language.Hakaru.Parser.SymbolResolve (resolveAST', fromVarSet)
+import qualified Language.Hakaru.Parser.SymbolResolve as SR (resolveAST', fromVarSet)
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
+import Language.Hakaru.Evaluation.ConstantPropagation
+
 import Data.Typeable (Typeable)
 
 import Data.Text (pack)
 import System.MapleSSH (maple)
+import System.IO
 
 ----------------------------------------------------------------
 
@@ -69,12 +73,13 @@ simplify
 simplify e = do
     let slo = Maple.pretty e
     let typ = typeOf e          
-    hakaru <- maple ("use Hakaru, NewSLO in timelimit(15, RoundTrip("
-      ++ slo ++ ", " ++ Maple.mapleType typ ++ ")) end use;")
-    either (throw . MapleException slo) return $ do
+    hakaru <- maple ("use Hakaru, NewSLO in timelimit(30, RoundTrip("
+      ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;")
+    either (throw  . MapleException slo)
+           (return . constantPropagation) $ do
         past <- leftShow $ parseMaple (pack hakaru)
         let m = checkType typ
-                 (resolveAST' (getNames e) (maple2AST past))
+                 (SR.resolveAST' (getNames e) (maple2AST past))
         leftShow $ unTCM m (freeVars e) UnsafeMode
             
     where
@@ -83,7 +88,37 @@ simplify e = do
     leftShow (Right x)  = Right x
 
     getNames :: abt '[] a -> [Name]
-    getNames = fromVarSet . freeVars
+    getNames = SR.fromVarSet . freeVars
+
+simplifyDebug
+    :: forall abt a
+    .  (ABT Term abt) 
+    => abt '[] a
+    -> IO (abt '[] a)
+simplifyDebug e = do
+    let slo = Maple.pretty e
+    hPutStrLn stderr ("Sent to Maple: " ++ slo)
+    let typ = typeOf e          
+    hakaru <- maple ("use Hakaru, NewSLO in timelimit(30, RoundTrip("
+      ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;")
+    ret  <- maple ("FromInert(" ++ hakaru ++ ")")
+    hPutStr stderr ("Returning from Maple: " ++ ret) 
+
+    either (throw  . MapleException slo)
+           (return . constantPropagation) $ do
+        past <- leftShow $ parseMaple (pack hakaru)
+        let m = checkType typ
+                 (SR.resolveAST' (getNames e) (maple2AST past))
+        leftShow $ unTCM m (freeVars e) UnsafeMode
+            
+    where
+    leftShow :: forall b c. Show b => Either b c -> Either String c
+    leftShow (Left err) = Left (show err)
+    leftShow (Right x)  = Right x
+
+    getNames :: abt '[] a -> [Name]
+    getNames = SR.fromVarSet . freeVars
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

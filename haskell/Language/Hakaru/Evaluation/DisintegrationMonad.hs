@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -31,7 +31,8 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     (
     -- * The disintegration monad
     -- ** List-based version
-      ListContext(..), Ans, Dis(..), runDis
+      getStatements
+    , ListContext(..), Ans, Dis(..), runDis
     -- ** TODO: IntMap-based version
     
     -- * Operators on the disintegration monad
@@ -53,6 +54,19 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
+    -- * Overrides for original in Evaluation.Types
+    , push
+    , pushes
+    -- * For Arrays/Plate
+    , getIndices
+    , extendIndices
+    , statementInds
+    -- * Locs
+    , Loc(..)
+    , getLocs
+    , putLocs
+    , insertLoc
+    , adjustLoc
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -62,88 +76,38 @@ import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
+import           Data.Maybe
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
-import qualified Data.List.NonEmpty   as L
+import qualified Data.List.NonEmpty   as NE
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
 import Language.Hakaru.Syntax.IClasses
-import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing    (Sing, sUnMeasure, sUnPair)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
-import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.Types hiding (push, pushes)
+import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 import Language.Hakaru.Evaluation.Lazy (reifyPair)
 
 #ifdef __TRACE_DISINTEGRATE__
 import Debug.Trace (trace)
 #endif
 
+getStatements :: Dis abt [Statement abt 'Impure]
+getStatements = Dis $ \c h -> c (statements h) h
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- | An ordered collection of statements representing the context
--- surrounding the current focus of our program transformation.
--- That is, since some transformations work from the bottom up, we
--- need to keep track of the statements we passed along the way
--- when reaching for the bottom.
---
--- The tail of the list takes scope over the head of the list. Thus,
--- the back\/end of the list is towards the top of the program,
--- whereas the front of the list is towards the bottom.
---
--- This type was formerly called @Heap@ (presumably due to the
--- 'Statement' type being called @Binding@) but that seems like a
--- misnomer to me since this really has nothing to do with allocation.
--- However, it is still like a heap inasmuch as it's a dependency
--- graph and we may wish to change the topological sorting or remove
--- \"garbage\" (subject to correctness criteria).
---
--- TODO: Figure out what to do with 'SWeight' so that we can use
--- an @IntMap (Statement abt)@ in order to speed up the lookup times
--- in 'select'. (Assuming callers don't use 'unsafePush' unsafely:
--- we can recover the order things were inserted from their 'varID'
--- since we've freshened them all and therefore their IDs are
--- monotonic in the insertion order.)
-data ListContext (abt :: [Hakaru] -> Hakaru -> *) (p :: Purity) =
-    ListContext
-    { nextFreshNat :: {-# UNPACK #-} !Nat
-    , statements   :: [Statement abt p]
-    }
-
-
-{-
--- BUG: this declaration works fine, but because we can't
--- guarantee\/prove it's injective, it doesn't actually work out
--- in practice. E.g., when we adjust the types of 'residualizeListContext'
--- we start running into abscure \"ambiguity\" issues. If we can
--- get things to work for 'residualizeListContext' then we can
--- generalize 'Ans' to be polymorphic in the purity, and so can
--- generalize 'Dis' to also be polymorphic in the purity; thus
--- allowing us to reuse 'Dis' for constant propagation, rather than
--- needing to copy everything over for the definition of the @Eval@
--- type.
---
--- TODO: how to make it work out? If we had some way of naming the
--- type level identity function (i.e., the actual identity function,
--- not a hack like using the @Identity@ newtype) then we could be
--- parameterized just on @p@ which is what we actually want.
-
-type family PurityMonad (p :: Purity) (a :: Hakaru) :: Hakaru where
-    PurityMonad 'Pure   a = a
-    PurityMonad 'Impure a = 'HMeasure a
--}
-
--- TODO: generalize to non-measure types too! See the note above
--- re the @PurityMonad@ type family.
---
 -- | Plug a term into a context. That is, the 'statements' of the
 -- context specifies a program with a hole in it; so we plug the
 -- given term into that hole, returning the complete program.
@@ -164,10 +128,10 @@ residualizeListContext =
         -> abt '[] ('HMeasure a)
     step e s =
         case s of
-        SBind x body ->
+        SBind x body _ ->
             -- TODO: if @body@ is dirac, then treat as 'SLet'
             syn (MBind :$ fromLazy body :* bind x e :* End)
-        SLet x body
+        SLet x body _
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
@@ -178,14 +142,18 @@ residualizeListContext =
                     Just v  -> subst x (syn $ Literal_ v) e
                     Nothing ->
                         syn (Let_ :$ fromLazy body :* bind x e :* End)
-        SGuard xs pat scrutinee ->
+        SGuard xs pat scrutinee _ ->
             syn $ Case_ (fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild (P.reject $ typeOf e)
                 ]
-        SWeight body -> syn $ Superpose_ ((fromLazy body, e) :| [])
+        SWeight body _ -> syn $ Superpose_ ((fromLazy body, e) :| [])
 
 ----------------------------------------------------------------
+-- A location is a variable *use* instantiated at some list of indices.
+data Loc ast (a :: Hakaru) = Loc [Index ast]
+
+
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that
 -- type is a WHNF (via 'WMeasure') so that's a trivial statement
@@ -194,7 +162,11 @@ residualizeListContext =
 --
 -- Also, we add the list in order to support "lub" without it living in the AST.
 -- TODO: really we should use LogicT...
-type Ans abt a = ListContext abt 'Impure -> [abt '[] ('HMeasure a)]
+type Ans abt a
+  =  ListContext abt 'Impure
+  -> [Index (abt '[])]
+  -> Assocs (Loc (abt '[]))
+  -> [abt '[] ('HMeasure a)]
 
 
 ----------------------------------------------------------------
@@ -233,12 +205,95 @@ runDis :: (ABT Term abt, F.Foldable f)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
 runDis (Dis m) es =
-    m c0 (ListContext i0 [])
+    m c0 (ListContext i0 []) [] emptyAssocs
     where
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
-    c0 e ss = [residualizeListContext ss (syn(Dirac :$ e :* End))]
+    c0 e ss _ _ = [residualizeListContext ss (syn(Dirac :$ e :* End))]
 
     i0 = maxNextFree es
+
+extendIndices
+    :: (ABT Term abt)
+    => Index (abt '[])
+    -> [Index (abt '[])]
+    -> [Index (abt '[])]
+-- TODO: check all Indices are unique
+extendIndices = (:)
+
+-- give better name
+statementInds :: Statement abt p -> [Index (abt '[])]
+statementInds (SBind   _ _   i) = i
+statementInds (SLet    _ _   i) = i
+statementInds (SWeight _     i) = i
+statementInds (SGuard  _ _ _ i) = i
+statementInds (SStuff0 _     i) = i
+statementInds (SStuff1 _ _   i) = i
+
+getLocs :: (ABT Term abt)
+        => Dis abt (Assocs (Loc (abt '[])))
+getLocs = Dis $ \c h i l -> c l h i l
+
+putLocs :: (ABT Term abt)
+        => Assocs (Loc (abt '[]))
+        -> Dis abt ()
+putLocs l = Dis $ \c h i _ -> c () h i l
+
+insertLoc :: (ABT Term abt)
+          => Variable a
+          -> Loc (abt '[]) a
+          -> Dis abt ()
+insertLoc v loc = 
+  Dis $ \c h i l -> c () h i $
+    insertAssoc (Assoc v loc) l
+
+adjustLoc :: (ABT Term abt)
+          => Variable (a :: Hakaru)
+          -> (Assoc (Loc (abt '[])) -> Assoc (Loc (abt '[])))
+          -> Dis abt ()
+adjustLoc x f = do
+    locs <- getLocs
+    putLocs $ adjustAssoc x f locs
+
+-- possibly cleanup
+checkIfMultiLoc
+    :: (ABT Term abt)
+    => Variable ('HArray a)
+    -> Dis abt (Maybe (abt '[] 'HNat))
+checkIfMultiLoc x = do
+  locs <- getLocs
+  case lookupAssoc x locs of
+    Just (Loc is) -> do 
+        ss <- getStatements
+        return . listToMaybe . flip mapMaybe ss $ \s -> do
+                     x `isBoundBy` s
+                     return . indSize . head $ statementInds s
+
+-- | Modified version of push from Types which also updates Loc
+push
+    :: (ABT Term abt, EvaluationMonad abt (Dis abt) p)
+    => Statement abt p   
+    -> abt xs a          
+    -> (abt xs a -> Dis abt r) 
+    -> Dis abt r               
+push s e k = do
+    rho <- push_ s
+    F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
+        insertLoc x (Loc (statementInds s))
+    k (renames rho e)
+
+-- | Modified version of pushes from Types which also updates Loc
+pushes
+    :: (ABT Term abt, EvaluationMonad abt (Dis abt) p)
+    => [Statement abt p] 
+    -> abt xs a          
+    -> (abt xs a -> Dis abt r) 
+    -> Dis abt r               
+pushes ss e k = do
+    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
+    rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
+    F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
+        insertLoc x (Loc [])
+    k (renames rho e)
 
 
 instance Functor (Dis abt) where
@@ -253,8 +308,8 @@ instance Monad (Dis abt) where
     Dis m >>= k = Dis $ \c -> m $ \x -> unDis (k x) c
 
 instance Alternative (Dis abt) where
-    empty           = Dis $ \_ _ -> []
-    Dis m <|> Dis n = Dis $ \c h -> m c h ++ n c h
+    empty           = Dis $ \_ _ _ _ -> []
+    Dis m <|> Dis n = Dis $ \c h i l -> m c h i l ++ n c h i l
 
 instance MonadPlus (Dis abt) where
     mzero = empty -- aka "bot"
@@ -264,6 +319,8 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
     freshNat =
         Dis $ \c (ListContext i ss) ->
             c i (ListContext (i+1) ss)
+
+    getIndices =  Dis $ \c h i l -> c i h i l
 
     unsafePush s =
         Dis $ \c (ListContext i ss) ->
@@ -276,15 +333,24 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
             c () (ListContext i (reverse ss ++ ss'))
 
     select x p = loop []
+        {-  -- The following causes snippet causes programs
+            -- which bot to instead infinite loop
+
+        do locs <- getLocs
+           let mx = lookupAssoc x locs
+           case mx of
+             Just (Loc is) -> loop [] 
+             Nothing       -> return Nothing
+        -}
         where
         -- TODO: use a DList to avoid reversing inside 'unsafePushes'
         loop ss = do
             ms <- unsafePop
             case ms of
-                Nothing -> do
+                Nothing      -> do
                     unsafePushes ss
                     return Nothing
-                Just s  ->
+                Just s ->
                     -- Alas, @p@ will have to recheck 'isBoundBy'
                     -- in order to grab the 'Refl' proof we erased;
                     -- but there's nothing to be done for it.
@@ -298,10 +364,10 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
 unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
 unsafePop =
-    Dis $ \c h@(ListContext i ss) ->
+    Dis $ \c h@(ListContext i ss) ind loc ->
         case ss of
-        []    -> c Nothing  h
-        s:ss' -> c (Just s) (ListContext i ss')
+        []    -> c Nothing  h ind loc
+        s:ss' -> c (Just s) (ListContext i ss') ind loc
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -314,7 +380,7 @@ unsafePop =
 -- TODO: add some sort of trace information so we can get a better
 -- idea what caused a disintegration to fail.
 bot :: (ABT Term abt) => Dis abt a
-bot = Dis $ \_ _ -> []
+bot = Dis $ \_ _ _ _ -> []
 
 
 -- | The empty measure is a solution to the constraints.
@@ -336,7 +402,7 @@ emit
     -> Dis abt (Variable a)
 emit hint typ f = do
     x <- freshVar hint typ
-    Dis $ \c h -> (f . bind x) <$> c x h
+    Dis $ \c h i l -> (f . bind x) <$> c x h i l
 
 
 -- This function was called @lift@ in the finally-tagless code.
@@ -403,14 +469,14 @@ emitUnpair_ x y = loop
 #ifdef __TRACE_DISINTEGRATE__
         trace "-- emitUnpair: done (term is not Datum_ nor Case_)" $
 #endif
-        Dis $ \c h ->
+        Dis $ \c h i l ->
             ( syn
             . Case_ e
             . (:[])
             . Branch (pPair PVar PVar)
             . bind x
             . bind y
-            ) <$> c (var x, var y) h
+            ) <$> c (var x, var y) h i l
 
     loop :: abt '[] (HPair a b) -> Dis abt (abt '[] a, abt '[] b)
     loop e0 =
@@ -450,7 +516,7 @@ emit_
     :: (ABT Term abt)
     => (forall r. abt '[] ('HMeasure r) -> abt '[] ('HMeasure r))
     -> Dis abt ()
-emit_ f = Dis $ \c h -> f <$> c () h
+emit_ f = Dis $ \c h i l -> f <$> c () h i l
 
 
 -- | Emit an 'MBind' that discards its result (i.e., \"@m >>@\").
@@ -491,7 +557,7 @@ emitFork_
     => (forall r. t (abt '[] ('HMeasure r)) -> abt '[] ('HMeasure r))
     -> t (Dis abt a)
     -> Dis abt a
-emitFork_ f ms = Dis $ \c h -> f <$> T.traverse (\m -> unDis m c h) ms
+emitFork_ f ms = Dis $ \c h i l -> f <$> T.traverse (\m -> unDis m c h i l) ms
 
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
@@ -502,49 +568,14 @@ emitSuperpose
 emitSuperpose []  = error "TODO: emitSuperpose[]"
 emitSuperpose [e] = emitMBind e
 emitSuperpose es  =
-    emitMBind . P.superpose . L.map ((,) P.one) $ L.fromList es
+    emitMBind . P.superpose . NE.map ((,) P.one) $ NE.fromList es
 
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
 choose :: (ABT Term abt) => [Dis abt a] -> Dis abt a
 choose []  = error "TODO: choose[]"
 choose [m] = m
-choose ms  = emitFork_ (P.superpose . L.map ((,) P.one) . L.fromList) ms
-
-
--- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
--- | A generalization of the 'Branch' type to allow a \"body\" of
--- any Haskell type.
-data GBranch (a :: Hakaru) (r :: *)
-    = forall xs. GBranch
-        !(Pattern xs a)
-        !(List1 Variable xs)
-        r
-
-fromGBranch
-    :: (ABT Term abt)
-    => GBranch a (abt '[] b)
-    -> Branch a abt b
-fromGBranch (GBranch pat vars e) =
-    Branch pat (binds_ vars e)
-
-{-
-toGBranch
-    :: (ABT Term abt)
-    => Branch a abt b
-    -> GBranch a (abt '[] b)
-toGBranch (Branch pat body) =
-    uncurry (GBranch pat) (caseBinds body)
--}
-
-instance Functor (GBranch a) where
-    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
-
-instance F.Foldable (GBranch a) where
-    foldMap f (GBranch _ _ x) = f x
-
-instance T.Traversable (GBranch a) where
-    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
+choose ms  = emitFork_ (P.superpose . NE.map ((,) P.one) . NE.fromList) ms
 
 
 -- | Given some function we can call on the bodies of the branches,
@@ -572,13 +603,13 @@ emitCaseWith f e bs = do
     gms <- T.for bs $ \(Branch pat body) ->
         let (vars, body') = caseBinds body
         in  (\vars' ->
-                let rho = toAssocs vars (fmap11 var vars')
+                let rho = toAssocs1 vars (fmap11 var vars')
                 in  GBranch pat vars' (f $ substs rho body')
             ) <$> freshenVars vars
-    Dis $ \c h ->
+    Dis $ \c h i l ->
         (syn . Case_ e) <$> T.for gms (\gm ->
             fromGBranch <$> T.for gm (\m ->
-                unDis m c h))
+                unDis m c h i l))
 {-# INLINE emitCaseWith #-}
 
 

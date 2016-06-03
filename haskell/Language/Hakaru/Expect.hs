@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE CPP
+           , GADTs
            , EmptyCase
            , KindSignatures
            , DataKinds
@@ -10,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.03.24
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -19,7 +20,7 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- TODO: Switch everything over to using "Language.Hakaru.Evaluation.Lazy" for getting rid of redexes, instead of the current NBE-based approach.
+--
 ----------------------------------------------------------------
 module Language.Hakaru.Expect
     ( normalize
@@ -27,361 +28,357 @@ module Language.Hakaru.Expect
     , expect
     ) where
 
-import           Prelude   (($), (.), flip, map, error, Either(..))
-import qualified Data.Text as Text
-import qualified Data.List.NonEmpty as L
+import           Prelude               (($), (.), error, reverse)
+import qualified Data.Text             as Text
+import           Data.Functor          ((<$>))
+import qualified Data.Foldable         as F
+import qualified Data.Traversable      as T
+import qualified Data.List.NonEmpty    as NE
+import           Control.Monad
 
+import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..), Functor11(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
-import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumABT
+import Language.Hakaru.Syntax.AST               hiding (Expect)
+import qualified Language.Hakaru.Syntax.AST     as AST
+import Language.Hakaru.Syntax.TypeOf            (typeOf)
+import qualified Language.Hakaru.Syntax.Prelude as P
+import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.ExpectMonad
+
+#ifdef __TRACE_DISINTEGRATE__
+import Prelude                          (show, (++))
+import qualified Text.PrettyPrint       as PP
+import Language.Hakaru.Pretty.Haskell   (pretty)
+import Language.Hakaru.Evaluation.Types (ppStatement)
+import Debug.Trace                      (trace)
+#endif
 
 ----------------------------------------------------------------
 
 -- | Convert an arbitrary measure into a probability measure; i.e.,
 -- reweight things so that the total weight\/mass is 1.
 normalize
-    :: (ABT Term abt)
-    => abt '[] ('HMeasure a)
-    -> abt '[] ('HMeasure a)
-normalize m = withWeight (recip $ total m) m
+    :: (ABT Term abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
+normalize m = P.withWeight (P.recip $ total m) m
 
 
 -- | Compute the total weight\/mass of a measure.
 total :: (ABT Term abt) => abt '[] ('HMeasure a) -> abt '[] 'HProb
-total m = expect m $ \_ -> prob_ 1
+total m =
+    expect m . binder Text.empty (sUnMeasure $ typeOf m) $ \_ -> P.one
 
-
--- | Convert a measure into its integrator.
+-- TODO: is it actually a _measurable_ function from measurable-functions
+-- to probs? If so, shouldn't we also capture that in the types?
+--
+-- | Convert a measure into its integrator. N.B., the second argument
+-- is (a representation of) a measurable function from @a@ to
+-- 'HProb@. We represent it as a binding form rather than as @abt
+-- '[] (a ':-> 'HProb)@ in order to avoid introducing administrative
+-- redexes. We could, instead, have used a Haskell function @abt
+-- '[] a -> abt '[] 'HProb@ to eliminate the administrative redexes,
+-- but that would introduce other implementation difficulties we'd
+-- rather avoid.
 expect
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
-    -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
-expect e = apM $ expectSynDir ImpureMeasure e emptyAssocs
--- TODO: we should prolly grab the @c@ here and pass it down through 'expectSynDir'; rather than gluing things together with just the 'Expect' data type. Maybe that'll make it easier to handle 'Case_'
-
-----------------------------------------------------------------
--- | Explicit proof that a given Hakaru type is impure. We use this
--- to eliminate unreachable branches in 'expectTerm'.
-data ImpureType :: Hakaru -> * where
-    ImpureMeasure :: ImpureType ('HMeasure a)
-    ImpureFun     :: !(ImpureType a) -> ImpureType (b ':-> a)
-    ImpureArray   :: !(ImpureType a) -> ImpureType ('HArray a)
-
--- | Lazily pattern match on the 'ImpureFun' constructor.
-unImpureFun :: ImpureType (b ':-> a) -> ImpureType a
-unImpureFun (ImpureFun p) = p
-
--- | Lazily pattern match on the 'ImpureArray' constructor.
-unImpureArray :: ImpureType ('HArray a) -> ImpureType a
-unImpureArray (ImpureArray p) = p
+    -> abt '[a] 'HProb
+    -> abt '[] 'HProb
+expect e f = runExpect (expectTerm e) f [Some2 e, Some2 f]
 
 
-----------------------------------------------------------------
--- | @Expect abt a@ gives the expectation-semantic interpretation
--- of @abt '[] a@, where @a@ is some 'ImpureType'. The only \"real\"
--- change is interpreting measures as linear functionals; all the
--- other interpretations are just for performing
--- normalization-by-evaluation in order to construct that linear
--- functional with a minimum of administrative redexes.
-data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <https://github.com/hakaru-dev/hakaru/issues/6>
-
-    -- The whole goal of this module is to provide the following
-    -- interpretation for measures.
-    ExpectMeasure
-        :: ((abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb)
-        -> Expect abt ('HMeasure a)
-
-    -- We interpret functions so we can (easily) interpret our
-    -- parameterized measures. This interpretation allows us to
-    -- evaluate 'App_' as needed; which is especially helpful for
-    -- the case where it's a beta-redex with 'Lam_'.
-    --
-    -- We keep track of the user-supplied variable name hint (if
-    -- any), so that we can reify things back into @abt@ as necessary.
-    ExpectFun
-        :: Text.Text
-        -> (abt '[] a -> Expect abt b)
-        -> Expect abt (a ':-> b)
-
-    -- We interpret arrays so that we can evaluate 'Index' and
-    -- 'Reduce' as needed.
-    --
-    -- We keep track of the user-supplied variable name hint (if
-    -- any), so that we can reify things back into @abt@ as necessary.
-    ExpectArray
-        :: Text.Text
-        -> abt '[] 'HNat
-        -> (abt '[] 'HNat -> Expect abt a)
-        -> Expect abt ('HArray a)
-
-    -- TODO: interpret 'HData', so we can NBE 'Case_' of 'Datum_'?
-
-
--- | Apply a measure's integrator to a given function, removing
--- administrative redexes if possible.
-apM :: (ABT Term abt)
-    => Expect abt ('HMeasure a)
-    -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
-apM (ExpectMeasure f) c = f c
-
--- This function is only used once, for 'expectTerm' of 'App_'.
--- | Apply a function, removing administrative redexes if possible.
-apF :: (ABT Term abt)
-    => Expect abt (a ':-> b)
-    -> abt '[] a -> Expect abt b
-apF (ExpectFun _ e1) e2 = e1 e2
-
--- This function is only used once, for 'expectTerm' of the 'Index' primop.
--- | Index into an array, removing administrative redexes if possible.
--- This macro does not insert any sort of bounds checking. We assume
--- the functional component of the 'ExpectArray' already does that
--- wherever is appropriate.
-apA :: (ABT Term abt)
-    => Expect abt ('HArray a)
-    -> abt '[] 'HNat -> Expect abt a
-apA (ExpectArray _ _ e2) ei = e2 ei
-
-
-----------------------------------------------------------------
--- N.B., in the ICFP 2015 pearl paper, we took the expectation of bound variables prior to taking the expectation of their scope. E.g., @expect(let_ v e1 e2) xs c = expect e1 xs $ \x -> expect e2 (insertAssoc v x xs) c@. Whereas here, I'm being lazier and performing the expectation on variable lookup. This delayed evaluation preserves the expectation semantics (ICFP 2015, §5.6.0) whenever (1) the variable is never used (by wasted computation), or (2) used exactly once (by Tonelli's theorem); so we only need to worry if (3) the variable is used more than once, in which case we'll have to worry about whether the various integrals commute/exchange with one another. More generally, cf. Bhat et al.'s \"active variables\"
-
-
--- BUG: Make sure our use of Assocs has the correct capture-avoiding behavior!!
-
-----------------------------------------------------------------
--- | Perform a syntax-directed reflection of a term into it's
--- expectation semantics. This function will perform whatever
--- evaluation it needs to in order to expose the things being
--- reflected.
---
--- N.B., if the expression is blocked on some free variable, then
--- we're stuck producing a lambda for the second argument to the
--- 'Expect' primop.
-expectSynDir
+residualizeExpect
     :: (ABT Term abt)
-    => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
-    -> abt '[] a
-    -> Assocs (abt '[])
-    -> Expect abt a
-expectSynDir p e xs =
-    case resolveVar e xs of
-    Right t -> expectTerm p t xs
-    Left  x -> expectTypeDir p (varType x) (var x)
+    => abt '[] ('HMeasure a)
+    -> Expect abt (abt '[] a)
+residualizeExpect e = do
+    -- BUG: is this what we really mean? or do we actually mean the old 'emit' version?
+    x <- freshVar Text.empty (sUnMeasure $ typeOf e)
+    unsafePush (SStuff1 x (\c ->
+        syn (AST.Expect :$ e :* bind x c :* End)) [])
+    return $ var x
+{-
+residualizeExpect e = do
+    var <$> emit Text.empty (sUnMeasure $ typeOf e)
+        (\c -> syn (AST.Expect :$ e :* c :* End))
+-}
 
+-- This version checks whether the first argument is a variable or not, avoiding the extraneous let binding as appropriate. We also avoid using 'binder', which is good because it constructs the term more directly, but is bad because we make no guarantees about hygiene! We expect callers to handle that.
+-- TODO: move this elsewhere, so that 'runExpect' can use it.
+-- TODO: make even smarter so that we drop the let binding in case @f@ doesn't actually use it?
+let_ :: (ABT Term abt) => abt '[] a -> abt '[a] b -> abt '[] b
+let_ e f =
+    caseVarSyn e
+        (\x -> caseBind f $ \y f' -> subst y (var x) f')
+        (\_ -> syn (Let_ :$ e :* f :* End))
 
--- | Perform type-directed reflection in order to lift an expression
--- into its expectation semantics without actually looking at it. That is,
---
--- * for measure types, we wrap the expression with an explicit
---   call to the 'Expect' primop.
--- * for function types, we take the NBE interpretation (i.e.,
---   \"eta-expand\" them with a Haskell lambda and a Hakaru
---   application), so that we can rebuild the context around a
---   blocked expression. Ultimately inserting the explicit call to
---   the 'Expect' primop around the whole expression of the function
---   applied to its arguments.
--- * for array types, we take their NBE interpretation as well.
---   Again, this ensures that the explicit call to the 'Expect'
---   primop ends up in the right place.
-expectTypeDir
+    
+expectCase
     :: (ABT Term abt)
-    => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
-    -> Sing a
-    -> abt '[] a
-    -> Expect abt a
-expectTypeDir p SNat         _ = case p of {}
-expectTypeDir p SInt         _ = case p of {}
-expectTypeDir p SProb        _ = case p of {}
-expectTypeDir p SReal        _ = case p of {}
-expectTypeDir p (SData  _ _) _ = case p of {}
-expectTypeDir p (SArray   a) e =
-    ExpectArray Text.empty (arrayOp1_ (Size a) e) $ \ei ->
-    expectTypeDir (unImpureArray p) a (arrayOp2_ (Index a) e ei)
-    -- TODO: is there any way of @Let_@-binding the @e@ expression, to guarantee we can't possibly duplicate it by someone wanting to reify the @ExpectArray@ back into a plain Hakaru array?
-expectTypeDir p (SFun   _ a) e =
-    ExpectFun Text.empty $ \e2 ->
-    expectTypeDir (unImpureFun p) a (e `app` e2)
-expectTypeDir _ (SMeasure a) e =
-    ExpectMeasure $ \c ->
-    syn (Expect :$ e :* binder Text.empty a c :* End)
+    => abt '[] a
+    -> [Branch a abt ('HMeasure b)]
+    -> Expect abt (abt '[] b)
+expectCase scrutinee bs = do
+    -- Get the current context and then clear it.
+    ctx <- Expect $ \c h -> c h (h {statements = []})
+    -- Emit the old "current" context.
+    Expect $ \c h -> residualizeExpectListContext (c () h) ctx
+    -- @emitCaseWith@
+    gms <- T.for bs $ \(Branch pat body) ->
+        let (vars, body') = caseBinds body
+        in  (\vars' ->
+                let rho = toAssocs1 vars (fmap11 var vars')
+                in  GBranch pat vars' (expectTerm $ substs rho body')
+            ) <$> freshenVars vars
+    Expect $ \c h ->
+        syn $ Case_ scrutinee
+            [ fromGBranch $ fmap (\m -> unExpect m c h) gm
+            | gm <- gms
+            ]
+
+----------------------------------------------------------------
+-- BUG: really rather than using 'pureEvaluate' itself, we should
+-- have our own similar version which pushes the @expect _ c@ under
+-- the branches; in lieu of allowing 'defaultCaseEvaluator' to
+-- return a 'Neutral' term. How can we get this to work right? Seems
+-- like a common problem to have since the backwards disintegrator(s)
+-- have to do it too.
+
+
+-- N.B., in the ICFP 2015 pearl paper, we took the expectation of
+-- bound variables prior to taking the expectation of their scope.
+-- E.g., @expect(let_ v e1 e2) xs c = expect e1 xs $ \x -> expect
+-- e2 (insertAssoc v x xs) c@. Whereas here, I'm being lazier and
+-- performing the expectation on variable lookup. This delayed
+-- evaluation preserves the expectation semantics (ICFP 2015, §5.6.0)
+-- whenever (1) the variable is never used (by wasted computation),
+-- or (2) used exactly once (by Tonelli's theorem); so we only need
+-- to worry if (3) the variable is used more than once, in which
+-- case we'll have to worry about whether the various integrals
+-- commute/exchange with one another. More generally, cf. Bhat et
+-- al.'s \"active variables\"
+
+-- TODO: do we want to move this to the public API of
+-- "Language.Hakaru.Evaluation.DisintegrationMonad"?
+#ifdef __TRACE_DISINTEGRATE__
+getStatements :: Expect abt [Statement abt 'ExpectP]
+getStatements = Expect $ \c h -> c (statements h) h
+#endif
 
 
 expectTerm
     :: (ABT Term abt)
-    => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
-    -> Term abt a
-    -> Assocs (abt '[])
-    -> Expect abt a
-expectTerm p (Lam_ :$ es) xs =
-    case es of
-    e1 :* End ->
-        caseBind e1 $ \x e' ->
-        ExpectFun (varHint x) $ \e2 ->
-        expectSynDir (unImpureFun p) e' $ insertAssoc (Assoc x e2) xs
-    _ -> error "expectTerm: the impossible happened"
-
-expectTerm p (App_ :$ es) xs =
-    case es of
-    e1 :* e2 :* End ->
-        expectSynDir (ImpureFun p) e1 xs `apF` e2
-    _ -> error "expectTerm: the impossible happened"
-
-expectTerm p (Let_ :$ es) xs =
-    case es of
-    e1 :* e2 :* End ->
-        caseBind e2 $ \x e' ->
-        expectSynDir p e' $ insertAssoc (Assoc x e1) xs
-    _ -> error "expectTerm: the impossible happened"
-
-expectTerm p (PrimOp_ _ :$ _) _ = case p of {}
-expectTerm p (ArrayOp_ o :$ es) xs =
-    case o of
-    Index _ ->
-        case es of
-        arr :* ei :* End -> expectSynDir (ImpureArray p) arr xs `apA` ei
-        _ -> error "expectTerm: the impossible happened"
-
-    Reduce a -> error "TODO: expectTerm{Reduce}"
-    
-    _ -> case p of {}
-
-expectTerm p (NaryOp_     _ _)    _ = case p of {}
-expectTerm p (Literal_    _)      _ = case p of {}
-expectTerm p (CoerceTo_   _ :$ _) _ = case p of {}
-expectTerm p (UnsafeFrom_ _ :$ _) _ = case p of {}
-expectTerm _ (Empty_ _)           _ =
-    ExpectArray Text.empty (nat_ 0)
-        $ error "expect: indexing an empty array"
-    -- TODO: should we instead emit the AST for buggily indexing an empty array?
-expectTerm p (Array_ e1 e2) xs =
-    caseBind e2 $ \x e' ->
-    ExpectArray (varHint x) e1 $ \ei ->
-    -- BUG: we should wrap this in a guard that @ei < e1@, instead of just performing the substitution arbitrarily.
-    expectSynDir (unImpureArray p) e' $ insertAssoc (Assoc x ei) xs
-
-expectTerm p (Datum_ _)    _  = case p of {}
-expectTerm p (Case_  e bs) xs =
-    -- TODO: doing case analysis on @p@ is just a hack to try and get at least some things to work. We can probably get everything to work by doing induction on @p@, but it'd be better if we could grab the type of the whole case expression and do induction on that...
-    case p of
-    ImpureMeasure ->
-        ExpectMeasure $ \c ->
-        -- TODO: for some reason we can't get 'fmap21' to typecheck here in order to clean up the mapping over @body@
-        syn . Case_ e . (`Prelude.map` bs) $ \(Branch pat body) ->
-            Branch pat . expectBranch c p xs $ viewABT body
-    _ -> error "TODO: expect{Case_}"
-
-    -- We're just treating the pattern-bound variables as if they were free variables, that way we'll insert an explicit call to the 'Expect' primop around any expressions blocked on those variables.
-    -- Of course, it'd be nice to use NBE to reduce @Case_@-of-@Datum_@ redexes along the way... That'd look something like this according to Lazy.tex:
-    -- > expect (Case_ e bs) xs c =
-    -- >     foreach bs $ \(pat,body) ->
-    -- >         case tryMatching pat (denotation e xs) of
-    -- >         Matches ys   -> expect body (ys ++ xs) c
-    -- >         Doesn'tMatch -> 0 -- == expect (superpose[]) xs c
-    -- where @denotation e xs@ is the constant interpretation for non-measures, and the @expect@ integrator interpretation for measures
-    -- We can avoid some of that administrative stuff, by using @let_@ to name the @denotation e xs@ stuff and then use Hakaru's @Case_@ on that.
-
-expectTerm p (MeasureOp_ o :$ es) xs = expectMeasure p o es xs
-expectTerm _ (Dirac :$ es) _ =
-    case es of
-    a :* End ->
-        ExpectMeasure $ \c -> c a
-    _ -> error "expectTerm: the impossible happened"
-
-expectTerm p (MBind :$ es) xs =
-    case es of
-    e1 :* e2 :* End ->
-        ExpectMeasure $ \c ->
-        expectSynDir ImpureMeasure e1 xs `apM` \a ->
-        caseBind e2 $ \x e' ->
-        (expectSynDir p e' $ insertAssoc (Assoc x a) xs) `apM` c
-    _ -> error "expectTerm: the impossible happened"
-
-expectTerm p (Superpose_ es) xs =
-    ExpectMeasure $ \c ->
-    sum [ e1 * (expectSynDir p e2 xs `apM` c) | (e1, e2) <- L.toList es ]
-    -- TODO: in the Lazy.tex paper, we use @denotation e1 xs@ and guard against that interpretation being negative...
-    -- TODO: if @es@ is null, then automatically simplify to just 0
-
-expectTerm p (Reject_ _) xs = ExpectMeasure $ \c -> zero
-
-expectTerm p (Expect    :$ _) _ = case p of {}
-expectTerm p (Integrate :$ _) _ = case p of {}
-expectTerm p (Summate   :$ _) _ = case p of {}
-expectTerm p (Plate     :$ _) _ = error "TODO: expectTerm{Plate}"
-expectTerm p (Chain     :$ _) _ = error "TODO: expectTerm{Chain}"
+    => abt '[] ('HMeasure a)
+    -> Expect abt (abt '[] a)
+expectTerm e = do
+#ifdef __TRACE_DISINTEGRATE__
+    ss <- getStatements
+    trace ("\n-- expectTerm --\n"
+        ++ show (pretty_Statements_withTerm ss e)
+        ++ "\n") $ return ()
+#endif
+    w <- pureEvaluate e
+    case w of
+        -- TODO: if the neutral term is a 'Case_' then we want to go under it
+        Neutral e'              ->
+            caseVarSyn e' (residualizeExpect . var) $ \t ->
+                case t of
+                Case_ e1 bs -> expectCase e1 bs
+                _           -> residualizeExpect e'
+        Head_ (WLiteral    _)   -> error "expect: the impossible happened"
+        Head_ (WCoerceTo   _ _) -> error "expect: the impossible happened"
+        Head_ (WUnsafeFrom _ _) -> error "expect: the impossible happened"
+        Head_ (WMeasureOp o es) -> expectMeasureOp o es
+        Head_ (WDirac e1)       -> return e1
+        Head_ (WMBind e1 e2)    -> do
+            v1 <- expectTerm e1
+            expectTerm (let_ v1 e2)
+        Head_ (WPlate _ _)     -> error "TODO: expect{Plate}"
+        Head_ (WChain _ _ _)   -> error "TODO: expect{Chain}"
+        Head_ (WReject    _)   -> expectSuperpose []
+        Head_ (WSuperpose pes) -> expectSuperpose (NE.toList pes)
 
 
-expectBranch
+-- N.B., we guarantee that each @e@ is called with the same heap
+-- @h@ and continuation @c@.
+expectSuperpose
     :: (ABT Term abt)
-    => (abt '[] a -> abt '[] 'HProb)
-    -> ImpureType ('HMeasure a)
-    -> Assocs (abt '[])
-    -> View (Term abt) xs ('HMeasure a)
-    -> abt xs 'HProb
-expectBranch c p xs (Syn  t)    = expectTerm   p      t  xs `apM` c
-expectBranch c p xs (Var  x)    = expectSynDir p (var x) xs `apM` c
-expectBranch c p xs (Bind x e') = bind x $ expectBranch c p xs e'
+    => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
+    -> Expect abt (abt '[] a)
+expectSuperpose pes = do
+#ifdef __TRACE_DISINTEGRATE__
+    ss <- getStatements
+    trace ("\n-- expectSuperpose --\n"
+        ++ show (pretty_Statements_withTerm ss (syn $ Superpose_ (NE.fromList pes)))
+        ++ "\n") $ return ()
+#endif
+    -- First, emit the current heap (so that each @p@ is emissible)
+    emitExpectListContext
+    -- Then emit the 'sum', and call the same continuation on each @e@
+    Expect $ \c h ->
+        P.sum [ p P.* unExpect (expectTerm e) c h | (p,e) <- pes]
+    -- TODO: if @pes@ is null, then automatically simplify to just 0
+    -- TODO: in the Lazy.tex paper, we guard against that interpretation being negative...
+
+emitExpectListContext :: forall abt. (ABT Term abt) => Expect abt ()
+emitExpectListContext = do
+    ss <- Expect $ \c h -> c (statements h) (h {statements = []})
+    F.traverse_ step (reverse ss) -- TODO: use composition tricks to avoid reversing @ss@
+    where
+    step :: Statement abt 'ExpectP -> Expect abt ()
+    step s =
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("\n-- emitExpectListContext: " ++ show (ppStatement 0 s)) $
+#endif
+        case s of
+        SLet x body _ ->
+            -- TODO: be smart about dropping unused let-bindings and inlining trivial let-bindings
+            Expect $ \c h ->
+                syn (Let_ :$ fromLazy body :* bind x (c () h) :* End)
+        SStuff0   f _ -> Expect $ \c h -> f (c () h)
+        SStuff1 _ f _ -> Expect $ \c h -> f (c () h)
 
 
--- TODO: right now we just use the Assocs in a hackish way in order
--- to (hopefully) guarantee correctness. Really we should do something
--- more efficient rather than calling 'substs' repeatedly everywhere.
--- One possible option would be to residualize the Assocs directly
--- as a bunch of let bindings (or whatever) in the generated program
-expectMeasure
-    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
-    => ImpureType ('HMeasure a)
-    -> MeasureOp typs a
+pushIntegrate
+    :: (ABT Term abt)
+    => abt '[] 'HReal
+    -> abt '[] 'HReal
+    -> Expect abt (Variable 'HReal)
+pushIntegrate lo hi = do
+    x <- freshVar Text.empty SReal
+    unsafePush (SStuff1 x (\c ->
+        syn (Integrate :$ lo :* hi :* bind x c :* End)) [])
+    return x
+{-
+-- BUG: we assume the arguments are emissible!
+emitIntegrate lo hi =
+    emit Text.empty SReal (\c ->
+        syn (Integrate :$ lo :* hi :* c :* End))
+-}
+
+pushSummate
+    :: (ABT Term abt)
+    => abt '[] 'HReal
+    -> abt '[] 'HReal
+    -> Expect abt (Variable 'HInt)
+pushSummate lo hi = do
+    x <- freshVar Text.empty SInt
+    unsafePush (SStuff1 x (\c ->
+        syn (Summate :$ lo :* hi :* bind x c :* End)) [])
+    return x
+{-
+-- BUG: we assume the arguments are emissible!
+emitSummate lo hi =
+    emit Text.empty SInt (\c ->
+        syn (Summate :$ lo :* hi :* c :* End))
+-}
+
+-- TODO: can we / would it help to, reuse 'let_'?
+-- BUG: we assume the argument is emissible!
+pushLet :: (ABT Term abt) => abt '[] a -> Expect abt (Variable a)
+pushLet e =
+    caseVarSyn e return $ \_ -> do
+        x <- freshVar Text.empty (typeOf e)
+        unsafePush (SStuff1 x (\c ->
+            syn (Let_ :$ e :* bind x c :* End)) [])
+        return x
+{-
+emitLet e =
+    caseVarSyn e return $ \_ ->
+        emit Text.empty (typeOf e) $ \f ->
+            syn (Let_ :$ e :* f :* End)
+-}
+
+
+-- TODO: introduce HProb variants of integrate\/summate so we can avoid the need for 'unsafeProb' here
+expectMeasureOp
+    :: forall abt typs args a
+    .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => MeasureOp typs a
     -> SArgs abt args
-    -> Assocs (abt '[])
-    -> Expect abt ('HMeasure a)
-expectMeasure _ Lebesgue = \End rho ->
-    ExpectMeasure $ \c ->
-    integrate negativeInfinity infinity (substs rho . c)
-expectMeasure _ Counting = \End rho ->
-    ExpectMeasure $ \c ->
-    summate negativeInfinity infinity (substs rho . c)
-expectMeasure _ Categorical = \(ps :* End) rho ->
-    ExpectMeasure $ \c ->
-    let ps' = substs rho ps in
+    -> Expect abt (abt '[] a)
+expectMeasureOp Lebesgue = \End ->
+    var <$> pushIntegrate P.negativeInfinity P.infinity
+expectMeasureOp Counting = \End ->
+    var <$> pushSummate P.negativeInfinity P.infinity
+expectMeasureOp Categorical = \(ps :* End) -> do
+    ps' <- var <$> pushLet ps
+    tot <- var <$> pushLet (P.summateV ps')
+    unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< tot) c P.zero) [])
+    i <- freshVar Text.empty SNat
+    Expect $ \c h ->
+        P.summateV
+            (syn (Array_ (P.size ps') (bind i ((ps' P.! var i) P.* c (var i) h))))
+            P./ tot
+    {-
+    let_ ps $ \ps' ->
     let_ (summateV ps') $ \tot ->
-    flip (if_ (prob_ 0 < tot)) (prob_ 0)
-        $ summateV (mapWithIndex (\i p -> p * substs rho (c i)) ps') / tot
-expectMeasure _ Uniform = \(lo :* hi :* End) rho ->
-    ExpectMeasure $ \c ->
-    let lo' = substs rho lo
-        hi' = substs rho hi
-    in
+    if_ (zero < tot)
+        (summateV (mapWithIndex (\i p -> p * inst c i) ps') / tot)
+        zero
+    -}
+expectMeasureOp Uniform = \(lo :* hi :* End) -> do
+    -- BUG: @(let_ zero $ \y -> uniform y one)@ doesn't work as desired; *drops* the @SLet y zero@ binding entirely!!
+    lo' <- var <$> pushLet lo
+    hi' <- var <$> pushLet hi
+    x   <- var <$> pushIntegrate lo' hi'
+    unsafePush (SStuff0 (\c -> P.densityUniform lo' hi' x P.* c) [])
+    return x
+    {-
+    let_ lo $ \lo' ->
+    let_ hi $ \hi' ->
     integrate lo' hi' $ \x ->
-        densityUniform lo' hi' x * substs rho (c x)
-expectMeasure _ Normal = \(mu :* sd :* End) rho ->
-    -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * integrate$\x -> c x * exp (negate (norm_n (x - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
-    ExpectMeasure $ \c ->
-    integrate negativeInfinity infinity $ \x ->
-        densityNormal (substs rho mu) (substs rho sd) x * substs rho (c x)
-expectMeasure _ Poisson = \(l :* End) rho ->
-    ExpectMeasure $ \c ->
-    let l' = substs rho l in
-    flip (if_ (prob_ 0 < l')) (prob_ 0)
-        $ summate (real_ 0) infinity $ \x ->
+        densityUniform lo' hi' x * inst c x
+    -}
+expectMeasureOp Normal = \(mu :* sd :* End) -> do
+    -- HACK: for some reason w need to break apart the 'emit' and the 'emit_' or else we get a "<<loop>>" exception. Not entirely sure why, but it prolly indicates a bug somewhere.
+    x <- var <$> pushIntegrate P.negativeInfinity P.infinity
+    unsafePush (SStuff0 (\c -> P.densityNormal mu sd x P.* c) [])
+    return x
+    {-
+    \c ->
+        P.integrate P.negativeInfinity P.infinity $ \x ->
+            P.densityNormal mu sd x P.* let_ x c)
+    -}
+expectMeasureOp Poisson = \(l :* End) -> do
+    l' <- var <$> pushLet l
+    unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< l') c P.zero) [])
+    x  <- var <$> pushSummate P.zero P.infinity
+    x_ <- var <$> pushLet (P.unsafeFrom_ signed x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
+    unsafePush (SStuff0 (\c -> P.densityPoisson l' x_ P.* c) [])
+    return x_
+    {-
+    let_ l $ \l' ->
+    if_ (zero < l')
+        (summate zero infinity $ \x ->
             let x_ = unsafeFrom_ signed x in
-            densityPoisson l' x_ * substs rho (c x_)
-expectMeasure _ Gamma = \(shape :* scale :* End) rho ->
-    ExpectMeasure $ \c ->
-    integrate (real_ 0) infinity $ \x ->
+            densityPoisson l' x_ * inst c x_)
+        zero
+    -}
+expectMeasureOp Gamma = \(shape :* scale :* End) -> do
+    x  <- var <$> pushIntegrate P.zero P.infinity
+    x_ <- var <$> pushLet (P.unsafeProb x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
+    unsafePush (SStuff0 (\c -> P.densityGamma shape scale x_ P.* c) [])
+    return x_
+    {-
+    integrate zero infinity $ \x ->
         let x_ = unsafeProb x in
-        densityGamma (substs rho shape) (substs rho scale) x_ * substs rho (c x_)
-expectMeasure _ Beta = \(a :* b :* End) rho ->
-    ExpectMeasure $ \c ->
-    integrate (real_ 0) (real_ 1) $ \x ->
+        densityGamma shape scale x_ * inst c x_
+    -}
+expectMeasureOp Beta = \(a :* b :* End) -> do
+    x  <- var <$> pushIntegrate P.zero P.one
+    x_ <- var <$> pushLet (P.unsafeProb x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
+    unsafePush (SStuff0 (\c -> P.densityBeta a b x_ P.* c) [])
+    return x_
+    {-
+    integrate zero one $ \x ->
         let x_ = unsafeProb x in
-        densityBeta (substs rho a) (substs rho b) x_ * substs rho (c x_)
+        densityBeta a b x_ * inst c x_
+    -}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

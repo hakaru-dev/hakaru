@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.05
+--                                                    2016.04.24
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -52,8 +52,10 @@ module Language.Hakaru.Syntax.ABT
     , underBinders
     , maxNextFree
     , maxNextBind
+    , maxNextFreeOrBind
     -- ** Capture avoiding substitution for any 'ABT'
     , rename
+    , renames
     , subst
     , substs
     -- ** Constructing first-order trees with a HOAS-like API
@@ -74,7 +76,7 @@ module Language.Hakaru.Syntax.ABT
     ) where
 
 import           Data.Text         (Text)
-import qualified Data.IntMap       as IM
+--import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid       (Monoid(..))
@@ -230,6 +232,8 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
     -- variables without the need for a name supply. In particular,
     -- it's used to ensure that the generated variable don't capture
     -- any free variables in the term.
+    --
+    -- * /Default:/ @nextFree = 'nextVarID' . 'freeVars'@
     nextFree :: abt xs a -> Nat
     nextFree = nextVarID . freeVars
 
@@ -245,6 +249,23 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
     -- it's used to ensure that the generated variable won't be
     -- captured or shadowed by bindings already in the term.
     nextBind :: abt xs a -> Nat
+
+
+    -- | Return the maximum of 'nextFree' and 'nextBind'. For when
+    -- you want to be really paranoid about choosing new variable
+    -- IDs. In principle this shouldn't be necessary since we should
+    -- always freshen things when going under binders; but for some
+    -- reason only using 'nextFree' keeps leading to bugs in
+    -- transformations like disintegration and expectation.
+    --
+    -- /N.B./, it is impossible to implement this function such
+    -- that it is lazy in the bound variables like 'nextBind' is.
+    -- Thus, it cannot be used for knot-tying tricks like 'nextBind'
+    -- can.
+    --
+    -- * /Default:/ @nextFreeOrBind e = 'nextFree' e `max` 'nextBind' e@
+    nextFreeOrBind :: abt xs a -> Nat
+    nextFreeOrBind e = nextFree e `max` nextBind e
 
 
     -- TODO: add a function for checking alpha-equivalence? Refreshing all variable IDs to be in some canonical form? Other stuff?
@@ -313,10 +334,14 @@ underBinders f e =
 maxNextFree :: (ABT syn abt, F.Foldable f) => f (Some2 abt) -> Nat
 maxNextFree = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextFree e)
 
-
 -- | Call 'nextBind' on all the terms and return the maximum.
 maxNextBind :: (ABT syn abt, F.Foldable f) => f (Some2 abt) -> Nat
 maxNextBind = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextBind e)
+
+-- | Call 'nextFreeOrBind' on all the terms and return the maximum.
+maxNextFreeOrBind :: (ABT syn abt, F.Foldable f) => f (Some2 abt) -> Nat
+maxNextFreeOrBind =
+    unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextFreeOrBind e)
 
 
 ----------------------------------------------------------------
@@ -374,6 +399,17 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
         go :: Nat -> View (syn (TrivialABT syn)) xs a -> Nat
         go n (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . go n . viewABT) t
         go n (Var  _)   = n -- We musn't look at variable *uses*!
+        go n (Bind x v) = go (n `max` (1 + varID x)) v
+
+
+    -- Deforest the intermediate 'VarSet' of the default 'nextFree'
+    -- implementation, and fuse the two passes of 'nextFree' and
+    -- 'nextBind' into a single pass.
+    nextFreeOrBind = go 0 . viewABT
+        where
+        go :: Nat -> View (syn (TrivialABT syn)) xs a -> Nat
+        go n (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . go n . viewABT) t
+        go n (Var  x)   = n `max` (1 + varID x)
         go n (Bind x v) = go (n `max` (1 + varID x)) v
 
 
@@ -635,6 +671,24 @@ subst x e = start
             caseBind f $ \_ f' ->
                 bind z' . loop f' . viewABT $ rename z z' f'
 
+
+renames
+    :: forall
+        (syn :: ([k] -> k -> *) -> k -> *)
+        (abt :: [k] -> k -> *)
+        (xs  :: [k])
+        (a   :: k)
+    .   ( ABT syn abt
+        , JmEq1 (Sing :: k -> *)
+        , Show1 (Sing :: k -> *)
+        , Functor21 syn
+        )
+    => Assocs (Variable :: k -> *)
+    -> abt xs a
+    -> abt xs a
+renames rho0 =
+    -- Guaranteed correct (since 'subst' is correct) but very inefficient
+    \e0 -> F.foldl (\e (Assoc x v) -> rename x v e) e0 (unAssocs rho0)
 
 {-
 -- called (//) in Jon's abt library. We use this textual name so we can also have 'insts' for the n-ary version, rather than iterating the unary version. Or we could use something like (!) and (!!), albeit those names tend to be used to mean other things. It'd be nice to do (@) and (@@), but the first one is illegal.

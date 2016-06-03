@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -66,11 +66,14 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches, matchTopPattern)
+import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches, MatchState(..), matchTopPattern)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
+{-
+-- BUG: can't import this because of cyclic dependency
 import qualified Language.Hakaru.Expect         as E
+-}
 
 #ifdef __TRACE_DISINTEGRATE__
 import Language.Hakaru.Pretty.Haskell (pretty)
@@ -166,13 +169,15 @@ evaluate perform evaluateCase = evaluate_
             where
             evaluateApp (WLam f)   =
                 -- call-by-name:
-                caseBind f $ \x f' ->
-                    push (SLet x $ Thunk e2) f' evaluate_
+                caseBind f $ \x f' -> do
+                    i <- getIndices
+                    push (SLet x (Thunk e2) i) f' evaluate_
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
-        Let_ :$ e1 :* e2 :* End ->
+        Let_ :$ e1 :* e2 :* End -> do
+            i <- getIndices
             caseBind e2 $ \x e2' ->
-                push (SLet x $ Thunk e1) e2' evaluate_
+                push (SLet x (Thunk e1) i) e2' evaluate_
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
         UnsafeFrom_ c :$ e1 :* End -> coerceFrom c <$> evaluate_ e1
@@ -185,8 +190,12 @@ evaluate perform evaluateCase = evaluate_
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
         Expect :$ e1 :* e2 :* End ->
+            error "TODO: evaluate{Expect}: unclear how to handle this without cyclic dependencies"
+        {-
+        -- BUG: can't call E.expect because of cyclic dependency
             evaluate_ . E.expect e1 $ \e3 ->
                 syn (Let_ :$ e3 :* e2 :* End)
+        -}
 
         Case_ e bs -> evaluateCase_ e bs
 
@@ -233,16 +242,14 @@ defaultCaseEvaluator evaluate_ = evaluateCase_
                 -- instead capture the possibility of failure in
                 -- the 'EvaluationMonad' monad.
                 error "defaultCaseEvaluator: non-exhaustive patterns in case!"
-            Just (GotStuck, _) ->
+            Just GotStuck ->
                 return . Neutral . syn $ Case_ e bs
-            Just (Matched ss Nil1, body) ->
+            Just (Matched ss body) ->
                 pushes (toStatements ss) body evaluate_
 
 
-type DList a = [a] -> [a]
-
-toStatements :: DList (Assoc (abt '[])) -> [Statement abt p]
-toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
+toStatements :: Assocs (abt '[]) -> [Statement abt p]
+toStatements = map (\(Assoc x e) -> SLet x (Thunk e) []) . fromAssocs
 
 
 ----------------------------------------------------------------
@@ -265,30 +272,31 @@ update perform evaluate_ = \x ->
     -- If we get 'Nothing', then it turns out @x@ is a free variable
     fmap (maybe (Neutral $ var x) id) . select x $ \s ->
         case s of
-        SBind y e -> do
+        SBind y e i -> do
             Refl <- varEq x y
             Just $ do
                 w <- perform $ caseLazy e fromWhnf id
-                unsafePush (SLet x $ Whnf_ w)
+                unsafePush (SLet x (Whnf_ w) i)
 #ifdef __TRACE_DISINTEGRATE__
                 trace ("-- updated "
                     ++ show (ppStatement 11 s)
                     ++ " to "
-                    ++ show (ppStatement 11 (SLet x $ Whnf_ w))
+                    ++ show (ppStatement 11 (SLet x (Whnf_ w) i))
                     ) $ return ()
 #endif
                 return w
-        SLet y e -> do
+        SLet y e i -> do
             Refl <- varEq x y
             Just $ do
                 w <- caseLazy e return evaluate_
-                unsafePush (SLet x $ Whnf_ w)
+                unsafePush (SLet x (Whnf_ w) i)
                 return w
-        SWeight   _ -> Nothing
-        SStuff0   _ -> Nothing
-        SStuff1 _ _ -> Nothing
-        SGuard ys pat scrutinee ->
-            error "TODO: update{SGuard}"
+        -- These two don't bind any variables, so they definitely can't match.
+        SWeight   _ _ -> Nothing
+        SStuff0   _ _ -> Nothing
+        -- These two do bind variables, but there's no expression we can return for them because the variables are untouchable\/abstract.
+        SStuff1 _ _ _ -> Just . return . Neutral $ var x
+        SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
 
 
 ----------------------------------------------------------------
@@ -335,7 +343,7 @@ instance Interp HUnit () where
     reify v = runIdentity $ do
         match <- matchTopPattern identifyDatum (fromHead v) pUnit Nil1
         case match of
-            Just (Matched _ss Nil1) -> return ()
+            Just (Matched_ _ss Nil1) -> return ()
             _ -> error "reify{HUnit}: the impossible happened"
 
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
@@ -345,12 +353,12 @@ instance Interp HBool Bool where
     reify v = runIdentity $ do
         matchT <- matchTopPattern identifyDatum (fromHead v) pTrue Nil1
         case matchT of
-            Just (Matched _ss Nil1) -> return True
-            Just GotStuck -> error "reify{HBool}: the impossible happened"
+            Just (Matched_ _ss Nil1) -> return True
+            Just GotStuck_ -> error "reify{HBool}: the impossible happened"
             Nothing -> do
                 matchF <- matchTopPattern identifyDatum (fromHead v) pFalse Nil1
                 case matchF of
-                    Just (Matched _ss Nil1) -> return False
+                    Just (Matched_ _ss Nil1) -> return False
                     _ -> error "reify{HBool}: the impossible happened"
 
 
@@ -368,7 +376,7 @@ reifyPair v =
     in runIdentity $ do
         match <- matchTopPattern identifyDatum e0 (pPair PVar PVar) (Cons1 x (Cons1 y Nil1))
         case match of
-            Just (Matched ss Nil1) ->
+            Just (Matched_ ss Nil1) ->
                 case ss [] of
                 [Assoc x' e1, Assoc y' e2] ->
                     maybe impossible id $ do
@@ -550,9 +558,8 @@ evaluateArrayOp evaluate_ = go
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
             Head_   v1  ->
                 case head2array v1 of
-                Nothing             -> error "TODO: evaluateArrayOp{Size}: use bot"
-                Just WAEmpty        -> return . Head_ $ WLiteral (LNat 0)
-                Just (WAArray e3 _) -> evaluate_ e3
+                WAEmpty      -> return . Head_ $ WLiteral (LNat 0)
+                WAArray e3 _ -> evaluate_ e3
 
     go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
         error "TODO: evaluateArrayOp{Reduce}"
@@ -565,10 +572,9 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> !(abt '[ 'HNat] a)
         -> ArrayHead abt a
 
-head2array :: Head abt ('HArray a) -> Maybe (ArrayHead abt a)
-head2array (WEmpty _)     = Just WAEmpty
-head2array (WArray e1 e2) = Just (WAArray e1 e2)
-head2array _              = error "head2array: the impossible happened"
+head2array :: Head abt ('HArray a) -> ArrayHead abt a
+head2array (WEmpty _)     = WAEmpty
+head2array (WArray e1 e2) = WAArray e1 e2
 
 
 ----------------------------------------------------------------
@@ -682,7 +688,6 @@ evaluatePrimOp evaluate_ = go
 
     -- HACK: these aren't actually neutral!
     go Infinity         End        = return $ Neutral P.infinity
-    go NegativeInfinity End        = return $ Neutral P.negativeInfinity
     
     go GammaFunc   (e1 :* End)            = neu1 P.gammaFunc e1
     go BetaFunc    (e1 :* e2 :* End)      = neu2 P.betaFunc  e1 e2
@@ -711,6 +716,9 @@ evaluatePrimOp evaluate_ = go
         case theFractional of
         HFractional_Prob -> rr1 recip  P.recip  e1
         HFractional_Real -> rr1 recip  P.recip  e1
+    go (NatRoot theRadical) (e1 :* e2 :* End) =
+        case theRadical of
+        HRadical_Prob -> neu2 (flip P.thRootOf) e1 e2
     {-
     go (NatRoot theRadical) (e1 :* e2 :* End) =
         case theRadical of

@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.15
+--                                                    2016.05.28
 -- |
 -- Module      :  Language.Hakaru.Pretty.Concrete
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -32,15 +32,17 @@ module Language.Hakaru.Pretty.Concrete
     ) where
 
 import           System.Console.ANSI
-import           Text.PrettyPrint (Doc, (<>), (<+>))
-import qualified Text.PrettyPrint as PP
-import qualified Data.Foldable    as F
-import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as L
-import qualified Data.Text        as Text
-import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import           Text.PrettyPrint                (Doc, (<>), (<+>))
+import qualified Text.PrettyPrint                as PP
+import qualified Data.Foldable                   as F
+import           Data.List.NonEmpty              (NonEmpty(..))
+import qualified Data.List.NonEmpty              as L
+import qualified Data.Text                       as Text
+
+-- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import qualified Data.Sequence                   as Seq
+
 import qualified Data.Vector                     as V
-import           Data.Proxy
 
 import           Data.Number.Natural  (fromNatural, fromNonNegativeRational)
 import           Data.Number.Nat
@@ -56,7 +58,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Value
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Pretty.Haskell
-    (prettyAssoc, prettyPrecAssoc, Associativity(..))
+    (ppRatio, prettyAssoc, prettyPrecAssoc, Associativity(..))
 
 ----------------------------------------------------------------
 -- | Pretty-print a term.
@@ -133,21 +135,21 @@ ppBinder2 e = unpackVarTypes $ go [] (viewABT e)
 -- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
 instance (ABT Term abt) => Pretty (LC_ abt) where
   prettyPrec_ p (LC_ e) =
-    caseVarSyn e ((:[]) . ppVariable) $ \t -> 
+    caseVarSyn e ((:[]) . ppVariable) $ \t ->
         case t of
         o :$ es      -> ppSCon p o es
         NaryOp_ o es ->
             -- TODO: make sure these ops actually have those precedences in the Prelude!!
-            let prettyNaryOp :: NaryOp a -> (String, Int, Maybe String)
-                prettyNaryOp And  = ("&& ", 3, Just "true")
-                prettyNaryOp Or   = ("||", 2, Just "false")
-                prettyNaryOp Xor  = ("`xor`", 0, Just "false")
+            let prettyNaryOp :: NaryOp a -> (String, Maybe Int, Maybe String)
+                prettyNaryOp And  = ("&& ", Just 3, Just "true")
+                prettyNaryOp Or   = ("|| ", Just 2, Just "false")
+                prettyNaryOp Xor  = ("!= ", Just 0, Just "false")
                 -- BUG: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
-                prettyNaryOp Iff      = ("`iff`", 0, Just "true")
-                prettyNaryOp (Min  _) = ("`min`", 5, Nothing)
-                prettyNaryOp (Max  _) = ("`max`", 5, Nothing)
-                prettyNaryOp (Sum  _) = ("+ ",     6, Just "zero")
-                prettyNaryOp (Prod _) = ("* ",     7, Just "one")
+                prettyNaryOp Iff      = ("iff", Nothing, Just "true")
+                prettyNaryOp (Min  _) = ("min", Nothing, Nothing)
+                prettyNaryOp (Max  _) = ("max", Nothing, Nothing)
+                prettyNaryOp (Sum  _) = ("+ ",   Just 6, Just "zero")
+                prettyNaryOp (Prod _) = ("* ",   Just 7, Just "one")
             in
             let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
             if Seq.null es
@@ -161,10 +163,14 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                             , PP.text "(Seq.fromList [])"
                             ]]
             else
-                parens (p > opPrec)
-                    . PP.punctuate (PP.space <> PP.text opName)
-                    . map (prettyPrec opPrec)
-                    $ F.toList es
+                case opPrec of
+                Just opPrec' ->
+                     parens (p > opPrec')
+                     . PP.punctuate (PP.space <> PP.text opName)
+                     . map (prettyPrec opPrec')
+                     $ F.toList es
+                Nothing      -> [F.foldl1 (\a b -> toDoc $ ppFun p opName [a, b])
+                                          (fmap (toDoc . ppArg) es)]
 
         Literal_ v    -> prettyPrec_ p v
         Empty_   _    -> [PP.text "empty"]
@@ -178,18 +184,18 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             , PP.nest 1 (toDoc body)]
 
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
-        Case_  e1 bs  ->
+        Case_  e1 bs  -> parens True $
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
             [ PP.text "match"
               <+> (toDoc $ ppArg e1)
               <> PP.colon <> PP.space
             , PP.nest 1 (PP.vcat (map (toDoc . prettyPrec_ 0) bs))
             ]
-        Superpose_ pes -> 
+        Superpose_ pes ->
             PP.punctuate (PP.text " <|> ") $ L.toList $ fmap ppWeight pes
           where ppWeight (w,m)
-                    | (PP.render $ pretty w) == "1.0" =
-                        pretty m
+                    | (PP.render $ pretty w) == "1" =
+                        toDoc $ parens True (ppArg m)
                     | otherwise                 =
                         toDoc $ ppFun p "weight" [pretty w, pretty m]
 
@@ -233,35 +239,7 @@ ppSCon _ MBind = \(e1 :* e2 :* End) ->
     [toDoc vars <+> PP.text "<~" <+> toDoc (ppArg e1)
         PP.$$ (toDoc body)]
 
-ppSCon p Expect = \(e1 :* e2 :* End) ->
-    let (vars, types, body) = ppBinder2 e2 in
-    [ PP.text "expect"
-      <+> toDoc vars
-      <+> (toDoc $ ppArg e1)
-      <> PP.colon
-    , PP.nest 1 (toDoc body)
-    ]
-
-ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
-    let (vars, types, body) = ppBinder2 e3 in
-    [ PP.text "integrate"
-      <+> toDoc vars
-      <+> PP.text "from"
-      <+> (toDoc $ ppArg e1)
-      <+> PP.text "to"
-      <+> (toDoc $ ppArg e2)
-      <> PP.colon
-    , PP.nest 1 (toDoc body)
-    ]
-
-ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
-    ppFun p "summate"
-        [ toDoc $ ppArg e1
-        , toDoc $ ppArg e2
-        , toDoc $ parens True (ppBinder e3)
-        ]
-
-ppSCon p Plate = \(e1 :* e2 :* End) -> 
+ppSCon p Plate = \(e1 :* e2 :* End) ->
     let (vars, types, body) = ppBinder2 e2 in
     [ PP.text "plate"
       <+> toDoc vars
@@ -278,14 +256,54 @@ ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
         , toDoc $ ppBinder e2
         ]
 
+ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
+    let (vars, types, body) = ppBinder2 e3 in
+    [ PP.text "integrate"
+      <+> toDoc vars
+      <+> PP.text "from"
+      <+> (toDoc $ ppArg e1)
+      <+> PP.text "to"
+      <+> (toDoc $ ppArg e2)
+      <> PP.colon <> PP.space
+    , PP.nest 1 (toDoc body)
+    ]
+
+ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
+    let (vars, types, body) = ppBinder2 e3 in
+    [ PP.text "summate"
+      <+> toDoc vars
+      <+> PP.text "from"
+      <+> (toDoc $ ppArg e1)
+      <+> PP.text "to"
+      <+> (toDoc $ ppArg e2)
+      <> PP.colon <> PP.space
+    , PP.nest 1 (toDoc body)
+    ]
+
+ppSCon p Expect = \(e1 :* e2 :* End) ->
+    let (vars, types, body) = ppBinder2 e2 in
+    [ PP.text "expect"
+      <+> toDoc vars
+      <+> (toDoc . parens True $ ppArg e1)
+      <> PP.colon
+    , PP.nest 1 (toDoc body)
+    ]
+
+ppSCon p Observe = \(e1 :* e2 :* End) ->
+    [ PP.text "observe"
+      <+> (toDoc $ ppArg e1)
+      <+> (toDoc $ ppArg e2)
+    ]
+
+
 ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Docs
 ppCoerceTo =
     -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
     \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
     where
-    prettyShow (CCons (Signed HRing_Real) CNil)           = "fromProb"
+    prettyShow (CCons (Signed HRing_Real) CNil)           = "prob2real"
     prettyShow (CCons (Signed HRing_Int)  CNil)           = "nat2int"
-    prettyShow (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
+    prettyShow (CCons (Continuous HContinuous_Real) CNil) = "int2real"
     prettyShow (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
     prettyShow (CCons (Continuous HContinuous_Prob)
         (CCons (Signed HRing_Real) CNil))                 = "nat2real"
@@ -299,8 +317,8 @@ ppUnsafeFrom =
     -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
     \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
     where
-    prettyShow (CCons (Signed HRing_Real) CNil) = "unsafeProb"
-    prettyShow (CCons (Signed HRing_Int)  CNil) = "unsafeNat"
+    prettyShow (CCons (Signed HRing_Real) CNil) = "real2prob"
+    prettyShow (CCons (Signed HRing_Int)  CNil) = "int2nat"
     prettyShow c = "unsafeFrom_ " ++ showsPrec 11 c ""
 
 
@@ -315,18 +333,21 @@ prettyType p (SArray   a) = PP.text "array" <> PP.parens (prettyType p a)
 prettyType p (SFun   a b) = prettyType p a <+> PP.text "->" <+> prettyType p b  
 prettyType p typ          =
     case typ of
-      SData (STyCon sym `STyApp` a `STyApp` b) _ ->
-          case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
-            Just Refl -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
+    SData (STyCon sym `STyApp` a `STyApp` b) _ ->
+        case jmEq1 sym sSymbol_Pair of
+        Just Refl -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
+        Nothing   ->
+            case jmEq1 sym sSymbol_Either of
+            Just Refl -> toDoc $ ppFun p "either" [prettyType p a, prettyType p b]
             Nothing   -> PP.text (showsPrec 11 typ "")
-      SData (STyCon sym) _ ->
-          case jmEq1 sym (SingSymbol Proxy :: Sing "Bool") of
-            Just Refl -> PP.text "bool"
-            Nothing   ->
-                case jmEq1 sym (SingSymbol Proxy :: Sing "Unit") of
-                  Just Refl -> PP.text "unit"
-                  Nothing   -> PP.text (showsPrec 11 typ "")
-      _ -> PP.text (showsPrec 11 typ "")
+    SData (STyCon sym) _ ->
+        case jmEq1 sym sSymbol_Bool of
+        Just Refl -> PP.text "bool"
+        Nothing   ->
+            case jmEq1 sym sSymbol_Unit of
+            Just Refl -> PP.text "unit"
+            Nothing   -> PP.text (showsPrec 11 typ "")
+    _ -> PP.text (showsPrec 11 typ "")
     -- TODO: make this prettier. Add hints to the singletons?typ
 
 
@@ -367,8 +388,7 @@ ppPrimOp p Atanh     = \(e1 :* End)       -> ppApply1 p "atanh" e1
 ppPrimOp p RealPow   = \(e1 :* e2 :* End) -> ppBinop "**" 8 RightAssoc p e1 e2
 ppPrimOp p Exp       = \(e1 :* End)       -> ppApply1 p "exp"   e1
 ppPrimOp p Log       = \(e1 :* End)       -> ppApply1 p "log"   e1
-ppPrimOp _ Infinity         = \End        -> [PP.text "∞"]
-ppPrimOp _ NegativeInfinity = \End        -> [PP.text "-∞"]
+ppPrimOp _ Infinity  = \End               -> [PP.text "∞"]
 ppPrimOp p GammaFunc = \(e1 :* End)       -> ppApply1 p "gammaFunc" e1
 ppPrimOp p BetaFunc  = \(e1 :* e2 :* End) -> ppApply2 p "betaFunc" e1 e2
 
@@ -418,9 +438,9 @@ ppMeasureOp p Beta    = \(e1 :* e2 :* End) -> ppApply2 p "beta"        e1 e2
 instance Pretty Literal where
     prettyPrec_ _ (LNat  n) = [PP.integer (fromNatural n)]
     prettyPrec_ _ (LInt  i) = [PP.integer i]
-    prettyPrec_ _ (LProb l) =
-        [PP.double $ fromRational $ fromNonNegativeRational l]
-    prettyPrec_ _ (LReal r) = [PP.double $ fromRational r]
+    prettyPrec_ p (LProb l) =
+        [ppRatio p $ fromNonNegativeRational l]
+    prettyPrec_ p (LReal r) = [ppRatio p r]
 
 instance Pretty Value where
     prettyPrec_ _ (VNat  n)    = [PP.int (fromNat n)]
@@ -507,9 +527,23 @@ type DList a = [a] -> [a]
 
 prettyApps :: (ABT Term abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
 prettyApps = \ e1 e2 ->
-    let (d, vars) = collectApps e1 (pretty e2 :) in
-    [d <> ppTuple (vars [])]
+    case reduceLams e1 e2 of
+    Just e2' -> ppArg e2'
+    Nothing  ->
+      let (d, vars) = collectApps e1 (pretty e2 :) in
+      [d <> ppTuple (vars [])]
     where
+    reduceLams
+        :: (ABT Term abt)
+        => abt '[] (a ':-> b) -> abt '[] a -> Maybe (abt '[] b)
+    reduceLams e1 e2 =
+        caseVarSyn e1 (const Nothing) $ \t ->
+            case t of
+            Lam_ :$ e1 :* End ->
+              caseBind e1 $ \x e1' ->
+                Just (subst x e2 e1')
+            _                 -> Nothing
+
     collectApps
         :: (ABT Term abt)
         => abt '[] (a ':-> b) -> DList Doc -> (Doc, DList Doc)
@@ -577,7 +611,7 @@ ppBinop op p0 assoc =
             LeftAssoc  -> (p0, 1 + p0)
             RightAssoc -> (1 + p0, p0)
             NonAssoc   -> (1 + p0, 1 + p0)
-    in \p e1 e2 -> 
+    in \p e1 e2 ->
         parens (p > p0)
             [ prettyPrec p1 e1
             , PP.space <> PP.text op <> PP.space

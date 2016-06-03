@@ -12,7 +12,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Pretty.Haskell  (pretty)
-import Language.Hakaru.Expect2
+import Language.Hakaru.Expect
 import Language.Hakaru.Evaluation.ConstantPropagation (constantPropagation)
 import Language.Hakaru.Disintegrate (disintegrateWithVar)
 

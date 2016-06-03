@@ -26,7 +26,7 @@ NewSLO := module ()
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, bind, weight,
         reduce_IntSum, reduce_IntsSums, get_indicators,
-        elim_intsum, do_elim_intsum, elim_metric, banish,
+        elim_intsum, do_elim_intsum, banish,
         reduce_pw, nub_piecewise, piecewise_if,
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
@@ -120,7 +120,11 @@ NewSLO := module ()
 
   applyintegrand := proc(h, x, $)
     if h :: 'Integrand(name, anything)' then
-      eval(op(2,h), op(1,h) = x)
+      if x :: {`<`,`<=`} then
+        eval(subs((op(1,h)=true) = op(1,h), op(2,h)), op(1,h) = x)
+      else
+        eval(op(2,h), op(1,h) = x)
+      end if;
     elif h :: appliable then
       h(x)
     else
@@ -149,7 +153,7 @@ NewSLO := module ()
       res := eval(op(3,m), op(2,m) = mk_idx(op(2,m), loops));
       res := eval(Integrand(op(2,m), 'integrate'(res, x, loops)), x=h);
       integrate(op(1,m), res, loops);
-    elif m :: 'specfunc(Msum)' and nops(loops) = 0 then
+    elif m :: 'specfunc(Msum)' and (nops(loops) = 0 or nops(m) = 1) then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
       foldl(product, op(1,m), op(loops)) * integrate(op(2,m), h, loops)
@@ -245,11 +249,11 @@ NewSLO := module ()
         assuming op(kb_to_assumptions(kb1));
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
-        (w, w0) := factorize(op(2,recognition), x);
+        (w, w0) := factorize(op(2,recognition), x, kb1);
         weight(w0, bind(op(1,recognition), x, weight(w, m)))
       else
         # Recognition failed
-        (w, w0) := factorize(w, x);
+        (w, w0) := factorize(w, x, kb1);
         m := weight(w, m);
         if hi <> infinity then
           m := piecewise(x < hi, m, Msum())
@@ -268,7 +272,7 @@ NewSLO := module ()
       recognition := recognize_discrete(w, x, lo, hi)
         assuming op(kb_to_assumptions(kb1));
       if recognition :: 'Recognized(anything, anything)' then
-        (w, w0) := factorize(op(2,recognition), x);
+        (w, w0) := factorize(op(2,recognition), x, kb1);
         weight(w0, bind(op(1,recognition), x, weight(w, m)))
       else error "recognize_discrete is never supposed to fail" end if
     elif e :: 'And'('specfunc({Ints,ints,Sums,sums})',
@@ -333,7 +337,7 @@ NewSLO := module ()
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,e), x), kb));
-      (w, w0) := factorize(w, x);
+      (w, w0) := factorize(w, x, kb);
       weight(w0, bind(op(1,e), x, weight(w, m)))
     else
       # Failure: return residual LO
@@ -556,13 +560,20 @@ NewSLO := module ()
     end if;
   end proc;
 
-  factorize := proc(w, x, $)
+  factorize := proc(w, x, kb, $)
+    local s, r;
     if w :: `*` then
-      selectremove(depends, w, x)
+      s, r := selectremove(depends, w, x)
     elif depends(w, x) then
-      (w, 1)
+      s, r := w, 1
     else
-      (1, w)
+      s, r := 1, w
+    end if;
+    # Try to keep s positive, because s is about to become a weight
+    if simplify_assuming('signum'(s), kb) = -1 then
+      -s, -r
+    else
+      s, r
     end if
   end proc;
 
@@ -689,9 +700,9 @@ NewSLO := module ()
     else
       w := 1;
     end if;
-    e := make(`if`(dom_spec=[], e, piecewise(And(op(dom_spec)), e, 0)),
+    e := make(w * `if`(dom_spec=[], e, piecewise(And(op(dom_spec)), e, 0)),
               var=new_rng);
-    e := w*elim_intsum(e, h, kb0);
+    e := elim_intsum(e, h, kb0);
     e := mul(Indicator(i), i in rest)*e;
     e
   end proc;
@@ -736,22 +747,18 @@ NewSLO := module ()
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, ((e,x,r,l)->ints(e,x,r,l,kb)),
-                       applyintegrand(hh,var), op(2..4,e)));
+        m := LO(hh, my(kb, ints, applyintegrand(hh,var), op(2..4,e), kb));
       elif e :: Sums(anything, name, range, list(name=range)) and
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, ((e,x,r,l)->sums(e,x,r,l,kb)),
-                       applyintegrand(hh,var), op(2..4,e)));
+        m := LO(hh, my(kb, sums, applyintegrand(hh,var), op(2..4,e), kb));
       else
         break;
       end if;
       # try to eliminate unused var
       elim := eval(banish(m, var, h, op(1,e), infinity), my=do_elim_intsum);
-      if has(elim, {MeijerG, undefined})
-         or elim_metric(elim,h) >= elim_metric(e,h) then
-        # Maple was too good at integration
+      if has(elim, {MeijerG, undefined, FAIL}) then
         break;
       end if;
       e := elim;
@@ -759,17 +766,17 @@ NewSLO := module ()
     e;
   end proc;
 
-  do_elim_intsum := proc(kb, f, ee)
+  do_elim_intsum := proc(kb, f, ee, v)
     local e;
     e := simplify_assuming(ee,kb);
-    e := simplify_assuming(f(e,_rest), kb);
-    subs(int=Int, ints=Ints, sum=Sum, sums=Sums, e)
-  end proc;
-
-  elim_metric := proc(e, h::name, $)
-    numboccur(e, select(hastype,
-      indets(e, specfunc({Int,Sum,int,sum,Ints,Sums,ints,sums})),
-      'applyintegrand'('identical'(h), 'anything')))
+    e := simplify_assuming(f(e,v,_rest),kb);
+    `if`(hastype(e, And(specfunc(f),
+                        patfunc(anything,
+                                `if`(v::`=`, identical(lhs(v))=anything,
+                                             identical(v)),
+                                anything))),
+         FAIL,
+         e)
   end proc;
 
   Banish := proc(e :: Int(anything, name=anything), h :: name,
@@ -1100,7 +1107,7 @@ NewSLO := module ()
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x), kb));
-      (w, w0) := factorize(w, x);
+      (w, w0) := factorize(w, x, kb);
       weight(w0, bind(op(1,integral), x, weight(w, m)))
     else
       # Failure

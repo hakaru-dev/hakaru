@@ -1,0 +1,21 @@
+h1.logo {
+  font-family: "OstrichSans";
+  font-size: 72px;
+  color:#eee;
+  padding:10px 0 10px 20px;
+  margin:5px;
+  background-color:#333;
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "OstrichSans";
+  src: url('static/OstrichSans-Medium.otf');
+  font-weight: normal;
+  font-style: normal;
+}
+
+ul.navbar-nav:nth-child(1) > li:nth-child(1) {
+    display: none;
+}

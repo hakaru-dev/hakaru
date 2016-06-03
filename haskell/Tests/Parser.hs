@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DataKinds #-}
+{-# LANGUAGE CPP, OverloadedStrings, DataKinds #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
 
 module Tests.Parser where
@@ -9,16 +9,18 @@ import Language.Hakaru.Parser.Parser
 import Language.Hakaru.Parser.AST
 
 import Data.Text
-import Data.Ratio
 import Test.HUnit
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
-import Control.Applicative
 
-arbNat  :: Gen (Positive Int)
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative   (Applicative(..), (<$>))
+#endif
+
+arbNat  :: Gen (Positive Integer)
 arbNat  = arbitrary
 
-arbProb :: Gen (Positive (Ratio Integer))
+arbProb :: Gen (Positive Rational)
 arbProb = arbitrary
 
 instance Arbitrary Text where
@@ -63,7 +65,6 @@ instance Arbitrary a => Arbitrary (AST' a) where
         , ( 1, If  <$> arbitrary <*> arbitrary <*> arbitrary)
         , ( 1, Ann <$> arbitrary <*> arbitrary)
         , ( 1, return Infinity')
-        , ( 1, return NegInfinity')
         , ( 1, ULiteral <$> arbitrary)
         --, ( 1, NaryOp <$> arbitrary)
         , ( 1, return Empty)
@@ -435,9 +436,35 @@ array1AST :: AST' Text
 array1AST = Array "x" (ULiteral (Nat 12))
             (NaryOp Sum [Var "x", ULiteral (Nat 1)])
 
+array2 :: Text
+array2 = "2 + x[3][4]"
+
+array2AST :: AST' Text
+array2AST = NaryOp Sum
+            [ ULiteral (Nat 2)
+            , Index (Index (Var "x")
+                     (ULiteral (Nat 3)))
+              (ULiteral (Nat 4))
+            ]
+
+array3 :: Text
+array3 = "[4, 0, 9]"
+
+array3AST :: AST' Text
+array3AST = Array "" (ULiteral (Nat 3))
+            (If (App (App (Var "equal") (Var ""))
+                 (ULiteral (Nat 0)))
+             (ULiteral (Nat 4))
+             (If (App (App (Var "equal") (Var ""))
+                  (ULiteral (Nat 1)))
+              (ULiteral (Nat 0))
+              (ULiteral (Nat 9))))
+
 testArray :: Test
 testArray = test
     [ testParse array1 array1AST
+    , testParse array2 array2AST
+    , testParse array3 array3AST
     ]
 
 easyRoad1 :: Text

@@ -18,7 +18,6 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.IClasses
 
 import Data.Text
-import Data.Ratio
 import Text.Parsec (SourcePos)
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
@@ -55,10 +54,10 @@ data Meta = Meta !SourcePos !SourcePos
     deriving (Eq, Show)
 
 data Literal'
-    = Nat  Int
-    | Int  Int
-    | Prob (Ratio Integer)
-    | Real (Ratio Integer)
+    = Nat  Integer
+    | Int  Integer
+    | Prob Rational
+    | Real Rational
     deriving (Eq, Show)
 
 data NaryOp
@@ -83,7 +82,6 @@ data AST' a
     | If  (AST' a) (AST' a) (AST' a)
     | Ann (AST' a) TypeAST'
     | Infinity'
-    | NegInfinity'
     | ULiteral Literal'
     | NaryOp NaryOp [AST' a]
     | Unit
@@ -97,7 +95,9 @@ data AST' a
     | Plate a  (AST' a) (AST' a)
     | Chain a  (AST' a) (AST' a) (AST' a)
     | Integrate a (AST' a) (AST' a) (AST' a)
+    | Summate   a (AST' a) (AST' a) (AST' a)
     | Expect a (AST' a) (AST' a)
+    | Observe  (AST' a) (AST' a)
     | Msum  [AST' a]
     | Data  a [TypeAST']
     | WithMeta (AST' a) Meta
@@ -107,8 +107,8 @@ data AST' a
 ----------------------------------------------------------------
 
 val :: Literal' -> Some1 Literal
-val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
-val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
+val (Nat  n) = Some1 $ LNat  (N.unsafeNatural n)
+val (Int  n) = Some1 $ LInt  n
 val (Prob n) = Some1 $ LProb (N.unsafeNonNegativeRational n)
 val (Real n) = Some1 $ LReal n
 
@@ -120,8 +120,7 @@ data PrimOp
     | Sinh       | Cosh   | Tanh
     | Asinh      | Acosh  | Atanh
     | RealPow    | NatPow
-    | Exp        | Log
-    | Infinity   | NegativeInfinity
+    | Exp        | Log    | Infinity
     | GammaFunc  | BetaFunc
     | Equal      | Less
     | Negate     | Recip
@@ -195,7 +194,9 @@ data AST
     | Plate_      Name    AST AST
     | Chain_      Name    AST AST AST
     | Integrate_  Name    AST AST AST
+    | Summate_    Name    AST AST AST
     | Expect_     Name    AST AST
+    | Observe_            AST AST
     | Superpose_  [(AST, AST)]
     | Reject_
 

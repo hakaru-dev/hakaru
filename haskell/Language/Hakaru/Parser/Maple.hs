@@ -74,6 +74,8 @@ symTable =
     , ("Pi",        "pi")
     , ("ln",        "log")
     , ("GAMMA",     "gammaFunc")
+    , ("csgn",      "signum")
+    , ("NegativeBinomial", "neg_binomial")
     -- Type symbols
     , ("Real",     "real")
     , ("Prob",     "prob")
@@ -322,6 +324,18 @@ maple2AST (InertArgs Func
     NaryOp Max (map maple2AST es)
 
 maple2AST (InertArgs Func
+        [InertName "min", InertArgs ExpSeq es]) =
+    NaryOp Min (map maple2AST es)
+
+maple2AST (InertArgs Func
+        [InertName "Ei", InertArgs ExpSeq [e1, e2]]) =
+    Integrate "t" (maple2AST e2) Infinity'
+    (NaryOp Prod [ App (Var "exp")   (App (Var "negate") (Var "t"))
+                 , App (Var "recip")
+                       (App (App (Var "^") (Var "t")) (maple2AST e1))
+                 ])
+
+maple2AST (InertArgs Func
         [ InertName "case"
         , InertArgs ExpSeq
             [e1, InertArgs Func
@@ -338,6 +352,33 @@ maple2AST (InertArgs Func
     NaryOp And (map maple2AST es)
 
 maple2AST (InertArgs Func
+        [ InertName "int"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Integrate x (maple2AST lo) (maple2AST hi) (maple2AST f)
+
+maple2AST (InertArgs Func
+        [ InertName "Int"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Integrate x (maple2AST lo) (maple2AST hi) (maple2AST f)
+
+maple2AST (InertArgs Func
+        [ InertName "sum"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Summate x (maple2AST lo) (maple2AST hi) (maple2AST f)
+
+maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
 
@@ -351,7 +392,10 @@ maple2AST (InertArgs Less es)  =
 maple2AST (InertArgs Equal es) =
     foldl App (Var "equal") (map maple2AST es)
 
--- Add special case for NatPow for Power
+maple2AST (InertArgs Power [x, InertNum Pos y]) =
+    App (App (Var "^")  (maple2AST x)) (maple2AST (InertNum Pos y))
+maple2AST (InertArgs Power [x, InertNum Neg (-1)]) =
+    App (Var "recip")  (maple2AST x)
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
 maple2AST (InertArgs Rational [InertNum Pos x, InertNum Pos y]) =
@@ -364,12 +408,10 @@ maple2AST x = error $ "Can't handle: " ++ show x
 ----------------------------------------------------------------
 
 mapleDatum2AST :: Text -> InertExpr -> AST' Text
-mapleDatum2AST "pair" d = let [x, y] = unPairDatum d in
-                          Pair (maple2AST x) (maple2AST y)
-mapleDatum2AST "unit" _ = Unit
-mapleDatum2AST h _ = error $ "TODO: mapleDatum " ++ Text.unpack h
-
-
+mapleDatum2AST h d = case (h, maple2DCode d) of
+  ("pair", [x,y]) -> Pair x y
+  ("unit", []   ) -> Unit
+  _               -> error $ "TODO: mapleDatum2AST " ++ Text.unpack h
     
 maple2Type :: InertExpr -> TypeAST'
 maple2Type (InertArgs Func
@@ -403,6 +445,34 @@ maple2Type (InertArgs Func
              [InertArgs Func
               [InertName "DatumStruct",
                InertArgs ExpSeq
+               [InertName "unit",
+                InertArgs List
+                [InertArgs ExpSeq []]]]]])
+     = TypeVar "unit"
+
+maple2Type (InertArgs Func
+            [InertName "HData",
+             InertArgs ExpSeq
+             [InertArgs Func
+              [InertName "DatumStruct",
+               InertArgs ExpSeq
+               [InertName "true",
+                InertArgs List
+                [InertArgs ExpSeq []]]],
+              InertArgs Func
+              [InertName "DatumStruct",
+               InertArgs ExpSeq
+               [InertName "false",
+                InertArgs List
+                [InertArgs ExpSeq []]]]]])
+     = TypeVar "bool"
+
+maple2Type (InertArgs Func
+            [InertName "HData",
+             InertArgs ExpSeq
+             [InertArgs Func
+              [InertName "DatumStruct",
+               InertArgs ExpSeq
                [InertName "pair",
                 InertArgs List
                 [InertArgs ExpSeq
@@ -413,6 +483,18 @@ maple2Type (InertArgs Func
                   [InertName "Konst",
                    InertArgs ExpSeq [y]]]]]]]])
      = TypeApp "pair" (map maple2Type [x, y])
+
+maple2Type (InertArgs Func
+            [InertName "HArray",
+             InertArgs ExpSeq
+             [x]])
+     = TypeApp "array" [maple2Type x]
+
+maple2Type (InertArgs Func
+            [InertName "HMeasure",
+             InertArgs ExpSeq
+             [x]])
+     = TypeApp "measure" [maple2Type x]
 
 maple2Type x = error ("TODO: maple2Type " ++ show x)
 
@@ -433,57 +515,20 @@ maple2Pattern (InertArgs Func
 maple2Pattern (InertArgs Func
                [InertName "PDatum",
                 InertArgs ExpSeq
-                [InertName "pair", args]]) =
-    PData' (DV "pair" (map maple2Pattern (unpairPat args)))
-maple2Pattern (InertArgs Func
-               [InertName "PDatum",
-                InertArgs ExpSeq
-                [InertName "true", _]]) =
-    PData' (DV "true" [])
-maple2Pattern (InertArgs Func
-               [InertName "PDatum",
-                InertArgs ExpSeq
-                [InertName "false", _]]) =
-    PData' (DV "false" [])
+                [InertName hint, args]]) =
+    PData' (DV hint (maple2Patterns args))
 maple2Pattern e = error $ "TODO: maple2AST{pattern} " ++ show e
 
+maple2DCode :: InertExpr -> [AST' Text]
+maple2DCode (InertArgs Func [InertName "Inl", InertArgs ExpSeq [e]]) = maple2DCode e
+maple2DCode (InertArgs Func [InertName "Inr", InertArgs ExpSeq [e]]) = maple2DCode e
+maple2DCode (InertArgs Func [InertName "Et" , InertArgs ExpSeq [InertArgs Func [InertName "Konst", InertArgs ExpSeq [x]], e]]) = maple2AST x : maple2DCode e
+maple2DCode (InertName "Done") = []
+maple2DCode e = error $ "maple2DCode: " ++ show e ++ " not InertExpr of a datum"
 
-unPairDatum :: InertExpr -> [InertExpr]
-unPairDatum (InertArgs Func [InertName "Inl",
- InertArgs ExpSeq
- [InertArgs Func
-  [InertName "Et",
-   InertArgs ExpSeq
-   [InertArgs Func
-    [InertName "Konst",
-     InertArgs ExpSeq [x]],
-    InertArgs Func
-    [InertName "Et",
-     InertArgs ExpSeq
-     [InertArgs Func
-      [InertName "Konst",
-       InertArgs ExpSeq [y]],
-      InertName "Done"]]]]]]) = [x,y]
-
-unPairDatum _ = error "pair has malformed constructors"
-
-unpairPat :: InertExpr -> [InertExpr]
-unpairPat (InertArgs Func [InertName "PInl",
- InertArgs ExpSeq
- [InertArgs Func
-  [InertName "PEt",
-   InertArgs ExpSeq
-   [InertArgs Func
-    [InertName "PKonst",
-     InertArgs ExpSeq [x]],
-    InertArgs Func
-    [InertName "PEt",
-     InertArgs ExpSeq
-     [InertArgs Func
-      [InertName "PKonst",
-       InertArgs ExpSeq [y]],
-      InertName "PDone"]]]]]]) = [x,y]
- 
-unpairPat x =
-    error $ "unpairPat: " ++ show x ++ " not InertExpr of a pair pattern"
-
+maple2Patterns :: InertExpr -> [Pattern' Text]
+maple2Patterns (InertArgs Func [InertName "PInl", InertArgs ExpSeq [e]]) = maple2Patterns e
+maple2Patterns (InertArgs Func [InertName "PInr", InertArgs ExpSeq [e]]) = maple2Patterns e
+maple2Patterns (InertArgs Func [InertName "PEt" , InertArgs ExpSeq [InertArgs Func [InertName "PKonst", InertArgs ExpSeq [x]], e]]) = maple2Pattern x : maple2Patterns e
+maple2Patterns (InertName "PDone") = []
+maple2Patterns e = error $ "maple2Patterns: " ++ show e ++ " not InertExpr of a pattern"

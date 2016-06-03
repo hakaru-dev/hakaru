@@ -75,7 +75,6 @@ sing_PrimOp RealPow    = (sing `Cons1` sing `Cons1` Nil1, sing)
 sing_PrimOp Exp        = (sing `Cons1` Nil1, sing)
 sing_PrimOp Log        = (sing `Cons1` Nil1, sing)
 sing_PrimOp Infinity   = (Nil1, sing)
-sing_PrimOp NegativeInfinity = (Nil1, sing)
 sing_PrimOp GammaFunc  = (sing `Cons1` Nil1, sing)
 sing_PrimOp BetaFunc   = (sing `Cons1` sing `Cons1` Nil1, sing)
 -- Mere case analysis isn't enough for the rest of these, because

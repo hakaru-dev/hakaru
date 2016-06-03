@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.09
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.Variable
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -36,7 +36,9 @@ module Language.Hakaru.Syntax.Variable
     , VarSet(..)
     , emptyVarSet
     , singletonVarSet
-    , toVarSet, toVarSet1
+    , fromVarSet
+    , toVarSet
+    , toVarSet1
     , insertVarSet
     , deleteVarSet
     , memberVarSet
@@ -46,9 +48,12 @@ module Language.Hakaru.Syntax.Variable
     , Assocs(..) -- TODO: hide the data constructors
     , emptyAssocs
     , singletonAssocs
+    , fromAssocs
     , toAssocs
+    , toAssocs1
     , insertAssoc
     , lookupAssoc
+    , adjustAssoc
     ) where
 
 import           Data.Proxy        (KProxy(..))
@@ -300,7 +305,7 @@ instance Show1 (Sing :: k -> *) => Show (VarSet (kproxy :: KProxy k)) where
     showsPrec p (VarSet xs) =
         showParen (p > 9)
             ( showString "VarSet "
-            . showsPrec 11 xs
+            . showsPrec  11 xs
             )
 
 -- | Return the successor of the largest 'varID' of all the variables
@@ -321,7 +326,16 @@ singletonVarSet :: Variable a -> VarSet (KindOf a)
 singletonVarSet x =
     VarSet $ IM.singleton (fromNat $ varID x) (SomeVariable x)
 
+fromVarSet :: VarSet kproxy -> [SomeVariable kproxy]
+fromVarSet (VarSet xs) = IM.elems xs
 
+-- | Convert a list of variables into a variable set.
+--
+-- In the event that multiple variables have conflicting 'varID',
+-- the latter variable will be kept. This generally won't matter
+-- because we're treating the list as a /set/. In the cases where
+-- it would matter, chances are you're going to encounter a
+-- 'VarEqTypeError' sooner or later anyways.
 toVarSet :: [SomeVariable kproxy] -> VarSet kproxy
 toVarSet = VarSet . go IM.empty
     where
@@ -333,9 +347,17 @@ toVarSet = VarSet . go IM.empty
     someVarID (SomeVariable x) = varID x
 
 
+-- | Convert a list of variables into a variable set.
+--
+-- In the event that multiple variables have conflicting 'varID',
+-- the latter variable will be kept. This generally won't matter
+-- because we're treating the list as a /set/. In the cases where
+-- it would matter, chances are you're going to encounter a
+-- 'VarEqTypeError' sooner or later anyways.
 toVarSet1 :: List1 Variable (xs :: [k]) -> VarSet (kproxy :: KProxy k)
 toVarSet1 = toVarSet . someVariables
     where
+    -- N.B., this conversion maintains the variable ordering.
     someVariables
         :: List1 Variable (xs :: [k])
         -> [SomeVariable (kproxy :: KProxy k)]
@@ -394,6 +416,17 @@ data Assoc (ast :: k -> *)
         {-# UNPACK #-} !(Variable a)
         !(ast a)
 
+instance (Show1 (Sing :: k -> *), Show1 (ast :: k -> *))
+    => Show (Assoc ast)
+    where
+    showsPrec p (Assoc x e) =
+        showParen (p > 9)
+            ( showString "Assoc "
+            . showsPrec1 11 x
+            . showString " "
+            . showsPrec1 11 e
+            )
+
 
 -- BUG: since multiple 'varEq'-distinct variables could have the
 -- same ID, we should really have the elements be a list of
@@ -409,26 +442,53 @@ data Assoc (ast :: k -> *)
 -- then the implementation must be updated.
 newtype Assocs ast = Assocs { unAssocs :: IntMap (Assoc ast) }
 
+instance (Show1 (Sing :: k -> *), Show1 (ast :: k -> *))
+    => Show (Assocs ast)
+    where
+    showsPrec p rho =
+        showParen (p > 9)
+            ( showString "toAssocs "
+            . showListWith shows (fromAssocs rho)
+            )
 
 -- | The empty set of associations.
 emptyAssocs :: Assocs abt
 emptyAssocs = Assocs IM.empty
 
-
-singletonAssocs :: Variable a -> abt '[] a -> Assocs (abt '[])
+-- | A single association.
+singletonAssocs :: Variable a -> f a -> Assocs f
 singletonAssocs x e =
     Assocs $ IM.singleton (fromNat $ varID x) (Assoc x e)
 
+-- | Convert an association list into a list of associations.
+fromAssocs :: Assocs ast -> [Assoc ast]
+fromAssocs (Assocs rho) = IM.elems rho
 
-toAssocs :: List1 Variable xs -> List1 ast xs -> Assocs ast
-toAssocs = \xs es -> Assocs (go xs es)
+-- | Convert a list of associations into an association list. In
+-- the event of conflict, later associations override earlier ones.
+toAssocs :: [Assoc ast] -> Assocs ast
+toAssocs = Assocs . foldl step IM.empty
     where
-    go :: List1 Variable xs -> List1 ast xs -> IntMap (Assoc ast)
+    step :: IntMap (Assoc ast) -> Assoc ast -> IntMap (Assoc ast)
+    step xes xe@(Assoc x _) = IM.insert (fromNat $ varID x) xe xes
+
+
+-- TODO: Do we also want a zipped curried variant: @List1 (Pair1 Variable ast) xs@?
+-- | Convert an unzipped list of curried associations into an
+-- association list. In the event of conflict, later associations
+-- override earlier ones.
+toAssocs1 :: List1 Variable xs -> List1 ast xs -> Assocs ast
+toAssocs1 = \xs es -> Assocs (go IM.empty xs es)
+    where
+    go  :: IntMap (Assoc ast)
+        -> List1 Variable xs
+        -> List1 ast xs
+        -> IntMap (Assoc ast)
     -- BUG: GHC claims the patterns are non-exhaustive here
-    go Nil1         Nil1         = IM.empty
-    go (Cons1 x xs) (Cons1 e es) =
-        IM.insert (fromNat $ varID x) (Assoc x e) (go xs es)
-    go _ _ = error "toAssocs: the impossible happened"
+    go m Nil1         Nil1         = m
+    go m (Cons1 x xs) (Cons1 e es) =
+        go (IM.insert (fromNat $ varID x) (Assoc x e) m) xs es
+    go _ _ _ = error "toAssocs1: the impossible happened"
 
 
 instance Monoid (Assocs abt) where
@@ -449,12 +509,20 @@ instance Monoid (Assocs abt) where
 -- sort of continuation to decide between (a) replacing the old
 -- binding, (b) throwing an exception, or (c) safely wrapping the
 -- result up with 'Maybe'
-insertAssoc :: Assoc abt -> Assocs abt -> Assocs abt
+insertAssoc :: Assoc ast -> Assocs ast -> Assocs ast
 insertAssoc v@(Assoc x _) (Assocs xs) =
     case IM.insertLookupWithKey (\_ v' _ -> v') (fromNat $ varID x) v xs of
     (Nothing, xs') -> Assocs xs'
     (Just _,  _)   -> error "insertAssoc: variable is already assigned!"
 
+-- | Adjust an association so existing variable refers to different
+-- value. Does nothing if variable not present.
+adjustAssoc :: Variable (a :: k)
+            -> (Assoc ast -> Assoc ast)
+            -> Assocs ast
+            -> Assocs ast
+adjustAssoc x f (Assocs xs) =
+    Assocs $ IM.adjust f (fromNat $ varID x) xs
 
 -- | Look up a variable and return the associated term.
 --

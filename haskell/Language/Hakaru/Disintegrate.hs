@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -102,7 +102,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches)
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.Types hiding (push, pushes)
 import Language.Hakaru.Evaluation.Lazy
 import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -149,7 +149,7 @@ disintegrateWithVar
     -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)]
 disintegrateWithVar hint typ m =
-    let x = Variable hint (nextFree m `max` nextBind m) typ
+    let x = Variable hint (nextFreeOrBind m) typ
     in map (lam_ x) . flip runDis [Some2 m, Some2 (var x)] $ do
         ab <- perform m
 #ifdef __TRACE_DISINTEGRATE__
@@ -303,19 +303,12 @@ evaluateCase evaluate_ = evaluateCase_
         where
         evaluateBranch (Branch pat body) =
             let (vars,body') = caseBinds body
-            in push (SGuard vars pat (Thunk e)) body' evaluate_
+            in getIndices >>= \i ->
+                push (SGuard vars pat (Thunk e) i) body' evaluate_
 
 
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
-
-
--- TODO: do we want to move this to the public API of
--- "Language.Hakaru.Evaluation.DisintegrationMonad"?
-#ifdef __TRACE_DISINTEGRATE__
-getStatements :: Dis abt [Statement abt 'Impure]
-getStatements = Dis $ \c h -> c (statements h) h
-#endif
 
 -- | Simulate performing 'HMeasure' actions by simply emiting code
 -- for those actions, returning the bound variable.
@@ -335,17 +328,33 @@ perform = \e0 ->
     performTerm (Dirac :$ e1 :* End)       = evaluate_ e1
     performTerm (MeasureOp_ o :$ es)       = performMeasureOp o es
     performTerm (MBind :$ e1 :* e2 :* End) =
-        caseBind e2 $ \x e2' ->
-            push (SBind x $ Thunk e1) e2' perform
+        caseBind e2 $ \x e2' -> do
+            i <- getIndices
+            push (SBind x (Thunk e1) i) e2' perform
+
+    performTerm (Plate :$ e1 :* e2 :* End) =  do
+        caseBind e2 $ \x e2' -> do
+            inds <- getIndices
+            p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
+            i    <- freshInd e1
+            push (SBind p (Thunk $ rename x (indVar i) e2')
+                            (extendIndices i inds)) (var p) $ \x' ->
+               caseVarSyn x' (\x1 ->  let x2 = x1 {varType = SArray (varType x1)}
+                                      in  return (Neutral (var x2)))
+                             (error "performTerm{Plate} was not given a variable")
+
     performTerm (Superpose_ pes) = do
-        -- TODO: we should combine the multiple traversals of @pes@/@pes'@
-        pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
-        emitFork_ (P.superpose . getCompose) (perform <$> Compose pes')
+        i <- getIndices
+        if not (null i) && L.length pes > 1 then bot else
+          emitFork_ (P.superpose . fmap ((,) P.one))
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e perform)
+                          pes)
 
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
-        caseBind e2 $ \x e2' ->
-            push (SLet x $ Thunk e1) e2' perform
+        caseBind e2 $ \x e2' -> do
+            i <- getIndices
+            push (SLet x (Thunk e1) i) e2' perform
 
     -- TODO: we could optimize this by calling some @evaluateTerm@
     -- directly, rather than calling 'syn' to rebuild @e0@ from
@@ -390,6 +399,7 @@ perform = \e0 ->
         -> Dis abt (Whnf abt a)
     performMeasureOp = \o es -> nice o es <|> complete o es
         where
+        -- Try to generate nice pretty output.
         nice
             :: MeasureOp typs a
             -> SArgs abt args
@@ -399,6 +409,7 @@ perform = \e0 ->
             x   <- emitMBind $ syn (MeasureOp_ o :$ es')
             return (Neutral $ var x)
 
+        -- Try to be as complete as possible (i.e., 'bot' as little as possible), no matter how ugly the output code gets.
         complete
             :: MeasureOp typs a
             -> SArgs abt args
@@ -466,12 +477,12 @@ atomizeCore e = do
 
 -- TODO: move this to Types.hs
 statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
-statementVars (SBind x _)     = singletonVarSet x
-statementVars (SLet  x _)     = singletonVarSet x
-statementVars (SWeight _)     = emptyVarSet
-statementVars (SGuard xs _ _) = toVarSet1 xs
-statementVars (SStuff0   _)   = emptyVarSet
-statementVars (SStuff1 x _)   = singletonVarSet x
+statementVars (SBind x _ _)     = singletonVarSet x
+statementVars (SLet  x _ _)     = singletonVarSet x
+statementVars (SWeight _ _)     = emptyVarSet
+statementVars (SGuard xs _ _ _) = toVarSet1 xs
+statementVars (SStuff0   _ _)   = emptyVarSet
+statementVars (SStuff1 x _ _)   = singletonVarSet x
 
 -- HACK: if we really want to go through with this approach, then
 -- we should memoize the set of heap-bound variables in the
@@ -536,7 +547,7 @@ constrainValue v0 e0 =
         Reject_ _                -> bot -- giving up.
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push (SLet x $ Thunk e1) e2' (constrainValue v0)
+                push (SLet x (Thunk e1) []) e2' (constrainValue v0)
 
         CoerceTo_   c :$ e1 :* End ->
             -- TODO: we need to insert some kind of guard that says
@@ -575,10 +586,10 @@ constrainValue v0 e0 =
                         -- that always crashes, instead of throwing a
                         -- Haskell error.
                         error "constrainValue{Case_}: nothing matched!"
-                    Just (GotStuck, _) ->
+                    Just GotStuck ->
                         constrainBranches v0 e bs
-                    Just (Matched ss Nil1, body) ->
-                        pushes (toStatements ss) body (constrainValue v0)
+                    Just (Matched rho body) ->
+                        pushes (toStatements rho) body (constrainValue v0)
             <|> constrainBranches v0 e bs
 
         _ :$ _ -> error "constrainValue: the impossible happened"
@@ -605,7 +616,7 @@ constrainBranches v0 e = choose . map constrainBranch
     where
     constrainBranch (Branch pat body) =
         let (vars,body') = caseBinds body
-        in push (SGuard vars pat (Thunk e)) body' (constrainValue v0)
+        in push (SGuard vars pat (Thunk e) []) body' (constrainValue v0)
 
 
 constrainDatum
@@ -684,21 +695,20 @@ constrainVariable v0 x =
     -- If @x@ is a free variable, then it's a neutral term; and we
     -- return 'bot' for neutral terms
     (maybe bot return =<<) . select x $ \s ->
-        case s of
-        SBind y e -> do
-            Refl <- varEq x y
-            Just $ do
-                constrainOutcome v0 (fromLazy e)
-                unsafePush (SLet x $ Whnf_ (Neutral v0))
-        SLet y e -> do
-            Refl <- varEq x y
-            Just $ do
-                constrainValue v0 (fromLazy e)
-                unsafePush (SLet x $ Whnf_ (Neutral v0))
-        SWeight _ -> Nothing
-        SGuard ys pat scrutinee ->
-            error "TODO: constrainVariable{SGuard}"
-
+         case s of
+           SBind y e i -> do
+                Refl <- varEq x y
+                Just $ do
+                    constrainOutcome v0 (fromLazy e)
+                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+           SLet y e i -> do
+                Refl <- varEq x y
+                Just $ do
+                    constrainValue v0 (fromLazy e)
+                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+           SWeight _ _ -> Nothing
+           SGuard ys pat scrutinee i ->
+                error "TODO: constrainVariable{SGuard}"
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
@@ -779,6 +789,11 @@ constrainNaryOp v0 o =
             emitWeight $ P.recip (toProb_abs theSemi u')
             v <- evaluate_ $ P.unsafeDiv_ theSemi v0 u'
             constrainValue (fromWhnf v) e
+    Max theOrd ->
+        chooseSeq $ \es1 e es2 -> do
+            u <- atomize $ syn (NaryOp_ (Max theOrd) (es1 S.>< es2))
+            emitGuard $ P.primOp2_ (Less theOrd) (fromWhnf u) v0
+            constrainValue v0 e
     _ -> error $ "TODO: constrainNaryOp{" ++ show o ++ "}"
 
 
@@ -801,6 +816,18 @@ lubSeq f = go S.empty
         case S.viewl ys of
         S.EmptyL   -> empty
         y S.:< ys' -> f xs y ys' <|> go (xs S.|> y) ys'
+
+chooseSeq :: (ABT Term abt)
+          => (Seq a -> a -> Seq a -> Dis abt b)
+          -> Seq a
+          -> Dis abt b
+chooseSeq f = choose  . go S.empty
+    where
+    go xs ys =
+        case S.viewl ys of
+        S.EmptyL   -> []
+        y S.:< ys' -> f xs y ys' : go (xs S.|> y) ys'
+
 
 ----------------------------------------------------------------
 -- HACK: for a lot of these, we can't use the prelude functions
@@ -932,7 +959,6 @@ constrainPrimOp v0 = go
         constrainValue exp_x0 e1
 
     go Infinity         = \End               -> error_TODO "Infinity" -- scalar0
-    go NegativeInfinity = \End               -> error_TODO "NegativeInfinity" -- scalar0
     go GammaFunc        = \(e1 :* End)       -> error_TODO "GammaFunc" -- scalar1
     go BetaFunc         = \(e1 :* e2 :* End) -> error_TODO "BetaFunc" -- scalar2
     go (Equal  theOrd)  = \(e1 :* e2 :* End) -> error_TODO "Equal"
@@ -1070,23 +1096,26 @@ constrainOutcome v0 e0 =
     go (WMeasureOp o es)     = constrainOutcomeMeasureOp v0 o es
     go (WDirac e1)           = constrainValue v0 e1
     go (WMBind e1 e2)        =
-        caseBind e2 $ \x e2' ->
-            push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
-    go (WPlate e1 e2)        = error "TODO: constrainOutcome{Plate}"
-    go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
-    go (WReject typ)         = error "TODO: constrainOutcome{Reject}"
-    go (WSuperpose pes) =
-        case pes of
-        (p,e) :| [] -> do
-            p' <- fromWhnf <$> atomize p
-            emitWeight p'
-            constrainOutcome v0 e
-        _ -> do
-            -- TODO: we should combine the multiple traversals of @pes@/@pes'@
-            pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
-            emitFork_ (P.superpose . getCompose)
-                (constrainOutcome v0 <$> Compose pes')
+        caseBind e2 $ \x e2' -> do
+            i <- getIndices
+            push (SBind x (Thunk e1) i) e2' (constrainOutcome v0)
+    go (WPlate e1 e2)        = do
+        caseBind e2 $ \x e2' -> do
+            inds <- getIndices
+            p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
+            i    <- freshInd e1
+            push (SBind p (Thunk $ rename x (indVar i) e2')
+                            (extendIndices i inds)) (var p) $
+              constrainValue (v0 P.! var (indVar i))
 
+    go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
+    go (WReject typ)         = emit_ $ \m -> P.reject (typeOf m)
+    go (WSuperpose pes) = do
+        i <- getIndices
+        if not (null i) && L.length pes > 1 then bot else
+          emitFork_ (P.superpose . fmap ((,) P.one))
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e (constrainOutcome v0))
+                          pes)
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
 --

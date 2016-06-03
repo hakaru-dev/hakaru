@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Evaluation.EvalMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -44,19 +44,20 @@ import qualified Data.Foldable        as F
 import Language.Hakaru.Syntax.IClasses (Some2(..))
 import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.ABT      (ABT(..), subst, maxNextFree)
+import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
-import Language.Hakaru.Evaluation.DisintegrationMonad (ListContext(..))
+import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 
 -- The rest of these are just for the emit code, which isn't currently exported.
 import           Data.Text             (Text)
 import qualified Data.Text             as Text
 import qualified Data.Traversable      as T
-import Language.Hakaru.Syntax.IClasses (Functor11(..), List1(..))
-import Language.Hakaru.Syntax.Variable (Variable(), toAssocs)
-import Language.Hakaru.Syntax.ABT      (caseVarSyn, caseBinds, binds_, substs)
+import Language.Hakaru.Syntax.IClasses (Functor11(..))
+import Language.Hakaru.Syntax.Variable (Variable(), toAssocs1)
+import Language.Hakaru.Syntax.ABT      (caseVarSyn, caseBinds, substs)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing      (Sing, sUnPair)
 import Language.Hakaru.Syntax.TypeOf   (typeOf)
@@ -126,7 +127,7 @@ residualizePureListContext e0 =
     step :: abt '[] a -> Statement abt 'Pure -> abt '[] a
     step e s =
         case s of
-        SLet x body
+        SLet x body _
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
@@ -316,40 +317,6 @@ emitFork_ f ms =
     Eval $ \c h -> f $ fmap (\m -> unEval m c h) ms
 
 
--- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
--- | A generalization of the 'Branch' type to allow a \"body\" of
--- any Haskell type.
-data GBranch (a :: Hakaru) (r :: *)
-    = forall xs. GBranch
-        !(Pattern xs a)
-        !(List1 Variable xs)
-        r
-
-fromGBranch
-    :: (ABT Term abt)
-    => GBranch a (abt '[] b)
-    -> Branch a abt b
-fromGBranch (GBranch pat vars e) =
-    Branch pat (binds_ vars e)
-
-{-
-toGBranch
-    :: (ABT Term abt)
-    => Branch a abt b
-    -> GBranch a (abt '[] b)
-toGBranch (Branch pat body) =
-    uncurry (GBranch pat) (caseBinds body)
--}
-
-instance Functor (GBranch a) where
-    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
-
-instance F.Foldable (GBranch a) where
-    foldMap f (GBranch _ _ x) = f x
-
-instance T.Traversable (GBranch a) where
-    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
-
 emitCaseWith
     :: (ABT Term abt)
     => (abt '[] b -> Eval abt r)
@@ -360,7 +327,7 @@ emitCaseWith f e bs = do
     gms <- T.for bs $ \(Branch pat body) ->
         let (vars, body') = caseBinds body
         in  (\vars' ->
-                let rho = toAssocs vars (fmap11 var vars')
+                let rho = toAssocs1 vars (fmap11 var vars')
                 in  GBranch pat vars' (f $ substs rho body')
             ) <$> freshenVars vars
     Eval $ \c h ->

@@ -12,7 +12,7 @@ import qualified Control.Monad                 as M
 import           Data.Functor.Identity
 import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
-import           Data.Ratio                    ()
+import           Data.Ratio                    ((%))
 import           Data.Char                     (digitToInt)
 import           Text.Parsec                   hiding (Empty)
 import           Text.Parsec.Text              () -- instances only
@@ -28,8 +28,8 @@ import Language.Hakaru.Parser.AST
 ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_", "<|>"]
 types = ["->"]
-names = ["def","fn", "if","else","inf", "∞", "expect",
-         "return", "match", "integrate", "data"]
+names = ["def","fn", "if", "else", "∞", "expect", "observe",
+         "return", "match", "integrate", "summate", "data"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -140,12 +140,27 @@ reservedOp = Tok.reservedOp lexer
 symbol :: Text -> Parser Text
 symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
+-- | Smart constructor for divide
+divide :: AST' Text -> AST' Text -> AST' Text
+divide (ULiteral x) (ULiteral y) = ULiteral (go x y)
+  where go :: Literal' -> Literal' -> Literal'
+        go (Nat  x) (Nat  y) = Prob (x % y)
+        go x        y        = Real (litToRat x / litToRat y)
+
+        litToRat :: Literal' -> Rational
+        litToRat (Nat  x) = toRational x
+        litToRat (Int  x) = toRational x
+        litToRat (Prob x) = toRational x
+        litToRat (Real x) = toRational x
+divide x y = NaryOp Prod [x, Var "recip" `App` y]
+        
+
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
 binop s x y
     | s == "+"   = NaryOp Sum  [x, y]
     | s == "-"   = NaryOp Sum  [x, Var "negate" `App` y]
     | s == "*"   = NaryOp Prod [x, y]
-    | s == "/"   = NaryOp Prod [x, Var "recip" `App` y]
+    | s == "/"   = x `divide` y
     | s == "<"   = Var "less"  `App` x `App` y
     | s == ">"   = Var "less"  `App` y `App` x
     | s == "=="  = Var "equal" `App` x `App` y
@@ -159,9 +174,12 @@ binary s = Ex.Infix (binop (Text.pack s) <$ reservedOp s)
 prefix :: String -> (a -> a) -> Operator a 
 prefix s f = Ex.Prefix (f <$ reservedOp s)
 
+postfix :: Parser (a -> a) -> Operator a
+postfix p = Ex.Postfix . chainl1 p . return $ flip (.)
+
 table :: OperatorTable (AST' Text)
 table =
-    [ [ Ex.Postfix array_index ]
+    [ [ postfix array_index ]
     , [ prefix "+"  id ]
     , [ binary "^"  Ex.AssocRight
       , binary "**" Ex.AssocRight]
@@ -172,7 +190,7 @@ table =
       , prefix "-"  (App (Var "negate"))]
     -- TODO: add "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
-    , [ Ex.Postfix ann_expr ]
+    , [ postfix ann_expr ]
     , [ binary "<|>" Ex.AssocRight]
     , [ binary "<"   Ex.AssocLeft
       , binary ">"   Ex.AssocLeft
@@ -190,8 +208,8 @@ int = do
     n <- integer
     return $
         if n < 0
-        then ULiteral $ Int (fromInteger n)
-        else ULiteral $ Nat (fromInteger n)
+        then ULiteral $ Int n
+        else ULiteral $ Nat n
 
 floating :: Parser (AST' a)
 floating = do
@@ -204,14 +222,7 @@ floating = do
         _   -> error "floating: the impossible happened"
 
 inf_ :: Parser (AST' Text)
-inf_ = do
-    s <- option '+' (oneOf "-")
-    reserved "inf" <|> reserved "∞"
-    return $
-        case s of
-        '-' -> NegInfinity'
-        '+' -> Infinity'
-        _   -> error "inf_: the impossible happened"
+inf_ = reserved "∞" *> return Infinity'
 
 var :: Parser (AST' Text)
 var = Var <$> identifier
@@ -306,6 +317,18 @@ integrate_expr =
         <*> semiblockExpr
         )
 
+summate_expr :: Parser (AST' Text)
+summate_expr =
+    reserved "summate"
+    *> (Summate
+        <$> identifier
+        <*  symbol "from"        
+        <*> expr
+        <*  symbol "to"
+        <*> expr     
+        <*> semiblockExpr
+        )
+
 expect_expr :: Parser (AST' Text)
 expect_expr =
     reserved "expect"
@@ -313,6 +336,14 @@ expect_expr =
         <$> identifier
         <*> expr
         <*> semiblockExpr
+        )
+
+observe_expr :: Parser (AST' Text)
+observe_expr =
+    reserved "observe"
+    *> (Observe
+        <$> expr
+        <*> expr
         )
 
 array_expr :: Parser (AST' Text)
@@ -327,6 +358,19 @@ array_expr =
 
 array_index :: Parser (AST' Text -> AST' Text)
 array_index = flip Index <$> brackets expr
+
+array_literal :: Parser (AST' Text)
+array_literal = checkEmpty <$> brackets (commaSep expr)
+  where checkEmpty [] = Empty
+        checkEmpty xs = Array "" (ULiteral . Nat . fromIntegral . length $ xs)
+                        (go 0 xs)
+
+        go _ []      = error "the impossible happened"
+        go _ [x]     = x
+        go n (x:xs)  = If (Var "equal" `App` (Var "") `App` (ULiteral $ Nat n))
+                          x
+                          (go (n + 1) xs)
+                
 
 plate_expr :: Parser (AST' Text)
 plate_expr =
@@ -416,13 +460,16 @@ term =  try if_expr
     <|> try match_expr
     -- <|> try data_expr
     <|> try integrate_expr
+    <|> try summate_expr
     <|> try expect_expr
+    <|> try observe_expr
     <|> try array_expr
     <|> try plate_expr
     <|> try chain_expr
     <|> try let_expr
     <|> try bind_expr
     <|> try call_expr
+    <|> try array_literal
     <|> try floating
     <|> try inf_
     <|> try unit_

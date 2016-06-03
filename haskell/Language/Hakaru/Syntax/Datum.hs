@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.21
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -22,6 +22,15 @@
 -- At present we only support regular-recursive polynomial data
 -- types. Reduction of case analysis on data types is in
 -- "Language.Hakaru.Syntax.Datum".
+--
+-- /Developers note:/ many of the 'JmEq1' instances in this file
+-- don't actually work because of problems with matching existentially
+-- quantified types in the basis cases. For now I've left the
+-- partially-defined code in place, but turned it off with the
+-- @__PARTIAL_DATUM_JMEQ__@ CPP macro. In the future we should
+-- either (a) remove this unused code, or (b) if the instances are
+-- truly necessary then we should add the 'Sing' arguments everywhere
+-- to make things work :(
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Datum
     (
@@ -56,6 +65,8 @@ module Language.Hakaru.Syntax.Datum
     , pLeft, pRight
     , pNil, pCons
     , pNothing, pJust
+    -- ** Generalized branches
+    , GBranch(..)
     ) where
 
 import qualified Data.Text     as Text
@@ -64,8 +75,11 @@ import           Data.Text     (Text)
 import Data.Monoid             (Monoid(..))
 import Control.Applicative
 #endif
+import qualified Data.Foldable    as F
+import qualified Data.Traversable as T
 
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.Variable (Variable(..))
 -- TODO: make things polykinded so we can make our ABT implementation
 -- independent of Hakaru's type system.
 import Language.Hakaru.Types.DataKind
@@ -73,8 +87,17 @@ import Language.Hakaru.Types.Sing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: add @Sing (HData' t)@ to the Datum constructor?
--- TODO: change the kind to @(Hakaru -> *) -> HakaruCon -> *@ so we can avoid the use of GADTs? Would that allow us to actually UNPACK?
+
+#if __PARTIAL_DATUM_JMEQ__
+cannotProve :: String -> a
+cannotProve fun =
+    error $ "Language.Hakaru.Syntax.Datum." ++ fun ++ ": Cannot prove Refl because of phantomness"
+#endif
+
+
+-- TODO: change the kind to @(Hakaru -> *) -> HakaruCon -> *@ so
+-- we can avoid the use of GADTs? Would that allow us to actually
+-- UNPACK?
 --
 -- | A fully saturated data constructor, which recurses as @ast@.
 -- We define this type as separate from 'DatumCode' for two reasons.
@@ -101,11 +124,14 @@ datumHint (Datum hint _ _) = hint
 datumType :: Datum ast (HData' t) -> Sing (HData' t)
 datumType (Datum _ typ _) = typ
 
-instance JmEq1 ast => JmEq1 (Datum ast) where
+-- N.B., This doesn't require jmEq on 'DatumCode' nor on @ast@. The
+-- jmEq on the singleton is sufficient.
+instance Eq1 ast => JmEq1 (Datum ast) where
     jmEq1 (Datum _ typ1 d1) (Datum _ typ2 d2) =
-        jmEq1 typ1 typ2 >>= \Refl ->
-        jmEq1 d1   d2   >>= \Refl ->
-        Just Refl
+        case jmEq1 typ1 typ2 of
+        Just proof@Refl
+            | eq1 d1 d2 -> Just proof
+        _               -> Nothing
 
 instance Eq1 ast => Eq1 (Datum ast) where
     eq1 (Datum _ _ d1) (Datum _ _ d2) = eq1 d1 d2
@@ -116,9 +142,8 @@ instance Eq1 ast => Eq (Datum ast a) where
 -- TODO: instance Read (Datum ast a)
 
 instance Show1 ast => Show1 (Datum ast) where
-    showsPrec1 p (Datum hint _typ d) =
-        -- TODO: show the type as well...
-        showParen_01 p "Datum" hint d
+    showsPrec1 p (Datum hint typ d) =
+        showParen_011 p "Datum" hint typ d
 
 instance Show1 ast => Show (Datum ast a) where
     showsPrec = showsPrec1
@@ -161,10 +186,13 @@ data DatumCode :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
 -- codes, and (2) the code is always getting smaller; so we have
 -- a good enough inductive hypothesis from polymorphism alone.
 
+#if __PARTIAL_DATUM_JMEQ__
+-- This instance works, but recurses into non-working instances.
 instance JmEq1 ast => JmEq1 (DatumCode xss ast) where
     jmEq1 (Inr c) (Inr d) = jmEq1 c d
     jmEq1 (Inl c) (Inl d) = jmEq1 c d
     jmEq1 _       _       = Nothing
+#endif
 
 instance Eq1 ast => Eq1 (DatumCode xss ast) where
     eq1 (Inr c) (Inr d) = eq1 c d
@@ -182,6 +210,7 @@ instance Show1 ast => Show1 (DatumCode xss ast) where
 
 instance Show1 ast => Show (DatumCode xss ast a) where
     showsPrec = showsPrec1
+    show      = show1
 
 instance Functor11 (DatumCode xss) where
     fmap11 f (Inr d) = Inr (fmap11 f d)
@@ -210,17 +239,16 @@ data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
     Done :: DatumStruct '[] abt a
 
 
+#if __PARTIAL_DATUM_JMEQ__
 instance JmEq1 ast => JmEq1 (DatumStruct xs ast) where
-    jmEq1 (Et c1 c2) (Et d1 d2) = do
+    jmEq1 (Et c1 Done) (Et d1 Done) = jmEq1 c1 d1 -- HACK: to handle 'Done' in the cases where we can.
+    jmEq1 (Et c1 c2)   (Et d1 d2)   = do
         Refl <- jmEq1 c1 d1
         Refl <- jmEq1 c2 d2
         Just Refl
-    jmEq1 Done       Done       =
-        error "TODO: JmEq1@DatumStruct{Done}"
-        {- BUG: type error due to phantomness of the type index in 'Done'
-        Just Refl
-        -}
-    jmEq1 _          _          = Nothing
+    jmEq1 Done Done = Just (cannotProve "jmEq1@DatumStruct{Done}")
+    jmEq1 _    _    = Nothing
+#endif
 
 instance Eq1 ast => Eq1 (DatumStruct xs ast) where
     eq1 (Et c1 c2) (Et d1 d2) = eq1 c1 d1 && eq1 c2 d2
@@ -238,6 +266,7 @@ instance Show1 ast => Show1 (DatumStruct xs ast) where
 
 instance Show1 ast => Show (DatumStruct xs ast a) where
     showsPrec = showsPrec1
+    show      = show1
 
 instance Functor11 (DatumStruct xs) where
     fmap11 f (Et d1 d2) = Et (fmap11 f d1) (fmap11 f d2)
@@ -264,14 +293,14 @@ data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
     Ident :: !(ast a) -> DatumFun 'I     ast a
 
 
+#if __PARTIAL_DATUM_JMEQ__
 instance JmEq1 ast => JmEq1 (DatumFun x ast) where
-    jmEq1 (Konst e) (Konst f) =
-        error "TODO: JmEq1@DatumFun{Konst}"
-        {- BUG: type error due to @TypeEq b1 b2@ not implying @TypeEq a1 a2@
-        jmEq1 e f >>= \Refl -> Just Refl
-        -}
+    jmEq1 (Konst e) (Konst f) = do
+        Refl <- jmEq1 e f -- This 'Refl' should be free because @x@ is fixed
+        Just (cannotProve "jmEq1@DatumFun{Konst}")
     jmEq1 (Ident e) (Ident f) = jmEq1 e f
     jmEq1 _         _         = Nothing
+#endif
 
 instance Eq1 ast => Eq1 (DatumFun x ast) where
     eq1 (Konst e) (Konst f) = eq1 e f
@@ -289,6 +318,7 @@ instance Show1 ast => Show1 (DatumFun x ast) where
 
 instance Show1 ast => Show (DatumFun x ast a) where
     showsPrec = showsPrec1
+    show      = show1
 
 instance Functor11 (DatumFun x) where
     fmap11 f (Konst e) = Konst (f e)
@@ -413,35 +443,54 @@ data Pattern :: [Hakaru] -> Hakaru -> * where
         -> !(PDatumCode (Code t) vars (HData' t))
         -> Pattern vars (HData' t)
 
+
+#if __PARTIAL_DATUM_JMEQ__
+instance JmEq2 Pattern where
+    jmEq2 PWild PWild = Just (Refl, cannotProve "jmEq2@Pattern{PWild}")
+    jmEq2 PVar  PVar  = Just (cannotProve "jmEq2@Pattern{PVar}", cannotProve "jmEq2@Pattern{PVar}")
+    jmEq2 (PDatum _ d1) (PDatum _ d2) =
+        jmEq2_fake d1 d2
+        where
+        jmEq2_fake
+            :: PDatumCode xss  vars1 a1
+            -> PDatumCode xss' vars2 a2
+            -> Maybe (TypeEq vars1 vars2, TypeEq a1 a2)
+        jmEq2_fake =
+            error "jmEq2@Pattern{PDatum}: can't recurse because Code isn't injective" -- so @xss@ and @xss'@ aren't guaranteed to be the same
+    jmEq2 _ _ = Nothing
+
 instance JmEq1 (Pattern vars) where
-    jmEq1 = error "TODO: JmEq1@Pattern"
-    {-
-    -- BUG: neither the 'PWild' nor 'PVar' cases typecheck, due to the phantomness of their indices. And the 'PDatum' case doesn't typecheck because of 'Code' being a typefamily.
-    jmEq1 PWild         PWild         = Just Refl
-    jmEq1 PVar          PVar          = Just Refl
-    jmEq1 (PDatum _ d1) (PDatum _ d2) = jmEq1 d1 d2
-    jmEq1 _           _               = Nothing
-    -}
+    jmEq1 p1 p2 = jmEq2 p1 p2 >>= \(_,proof) -> Just proof
+#endif
+
+instance Eq2 Pattern where
+    eq2 PWild         PWild         = True
+    eq2 PVar          PVar          = True
+    eq2 (PDatum _ d1) (PDatum _ d2) = eq2 d1 d2
+    eq2 _           _               = False
 
 instance Eq1 (Pattern vars) where
-    eq1 PWild         PWild         = True
-    eq1 PVar          PVar          = True
-    eq1 (PDatum _ d1) (PDatum _ d2) = eq1 d1 d2
-    eq1 _           _               = False
+    eq1 = eq2
 
 instance Eq (Pattern vars a) where
     (==) = eq1
 
 -- TODO: instance Read (Pattern vars a)
 
+instance Show2 Pattern where
+    showsPrec2 _ PWild           = showString     "PWild"
+    showsPrec2 _ PVar            = showString     "PVar"
+    showsPrec2 p (PDatum hint d) = showParen_02 p "PDatum" hint d
+
 instance Show1 (Pattern vars) where
-    showsPrec1 _ PWild           = showString     "PWild"
-    showsPrec1 _ PVar            = showString     "PVar"
-    showsPrec1 p (PDatum hint d) = showParen_01 p "PDatum" hint d
+    showsPrec1 = showsPrec2
+    show1      = show2
 
 instance Show (Pattern vars a) where
     showsPrec = showsPrec1
     show      = show1
+
+-- TODO: as necessary Functor22, Foldable22, Traversable22
 
 
 ----------------------------------------------------------------
@@ -449,25 +498,46 @@ data PDatumCode :: [[HakaruFun]] -> [Hakaru] -> Hakaru -> * where
     PInr :: !(PDatumCode  xss vars a) -> PDatumCode (xs ': xss) vars a
     PInl :: !(PDatumStruct xs vars a) -> PDatumCode (xs ': xss) vars a
 
+
+#if __PARTIAL_DATUM_JMEQ__
+instance JmEq2 (PDatumCode xss) where
+    jmEq2 (PInr c) (PInr d) = jmEq2 c d
+    jmEq2 (PInl c) (PInl d) = jmEq2 c d
+    jmEq2 _        _        = Nothing
+
+-- This instance works, but recurses into non-working instances.
 instance JmEq1 (PDatumCode xss vars) where
     jmEq1 (PInr c) (PInr d) = jmEq1 c d
     jmEq1 (PInl c) (PInl d) = jmEq1 c d
     jmEq1 _        _        = Nothing
+#endif
+
+instance Eq2 (PDatumCode xss) where
+    eq2 (PInr c) (PInr d) = eq2 c d
+    eq2 (PInl c) (PInl d) = eq2 c d
+    eq2 _        _        = False
 
 instance Eq1 (PDatumCode xss vars) where
-    eq1 (PInr c) (PInr d) = eq1 c d
-    eq1 (PInl c) (PInl d) = eq1 c d
-    eq1 _        _        = False
+    eq1 = eq2
+
+instance Eq (PDatumCode xss vars a) where
+    (==) = eq1
 
 -- TODO: instance Read (PDatumCode xss vars a)
 
+instance Show2 (PDatumCode xss) where
+    showsPrec2 p (PInr d) = showParen_2 p "PInr" d
+    showsPrec2 p (PInl d) = showParen_2 p "PInl" d
+
 instance Show1 (PDatumCode xss vars) where
-    showsPrec1 p (PInr d) = showParen_1 p "PInr" d
-    showsPrec1 p (PInl d) = showParen_1 p "PInl" d
+    showsPrec1 = showsPrec2
+    show1      = show2
 
 instance Show (PDatumCode xss vars a) where
     showsPrec = showsPrec1
+    show      = show1
 
+-- TODO: as necessary Functor22, Foldable22, Traversable22
 
 ----------------------------------------------------------------
 data PDatumStruct :: [HakaruFun] -> [Hakaru] -> Hakaru -> * where
@@ -477,30 +547,30 @@ data PDatumStruct :: [HakaruFun] -> [Hakaru] -> Hakaru -> * where
 
     PDone :: PDatumStruct '[] '[] a
 
-{-
--- This code typechecks, and may offer some way forward towards
--- implementing @Eq1 (PDatumStruct xs vars)@. The only lingering
--- problem is the 'PVar' case of 'jmEq_P'. We could eliminate that
--- problem if we had these functions jus return a proof that the
--- /lengths/ of @vs@ and @ws@ are the same; from which, given the
--- top-level proof that we started with the same list of hakaru
--- types, the equality of lengths tells us where we need to split
--- things. Unfortunately, without some sort of type-level @take@
--- and @drop@ functions, we prolly can't exploit that avenue of
--- reasoning...
 
+-- This block of recursive functions are analogous to 'JmEq2' except
+-- we only return the equality proof for the penultimate index
+-- rather than both the penultimate and ultimate index. (Because
+-- we /can/ return proofs for the penultimate index, but not for
+-- the ultimate.) This is necessary for defining the @Eq1 (PDatumStruct
+-- xs vars)@ and @Eq1 (Branch a abt)@ instances, since we need to
+-- make sure the existential @vars@ match up.
+
+-- N.B., that we can use 'Refl' in the 'PVar' case relies on the
+-- fact that the @a@ parameter is fixed to be the same in both
+-- patterns.
 jmEq_P :: Pattern vs a -> Pattern ws a -> Maybe (TypeEq vs ws)
 jmEq_P PWild         PWild         = Just Refl
-jmEq_P PVar          PVar          = Just (error "Cannot Prove")
-jmEq_P (PDatum _ p1) (PDatum _ p2) = jmEq_PCode p1 p2 >>= \Refl -> Just Refl
+jmEq_P PVar          PVar          = Just Refl
+jmEq_P (PDatum _ p1) (PDatum _ p2) = jmEq_PCode p1 p2
 jmEq_P _             _             = Nothing
 
 jmEq_PCode
     :: PDatumCode xss vs a
     -> PDatumCode xss ws a
     -> Maybe (TypeEq vs ws)
-jmEq_PCode (PInr p1) (PInr p2) = jmEq_PCode   p1 p2 >>= \Refl -> Just Refl
-jmEq_PCode (PInl p1) (PInl p2) = jmEq_PStruct p1 p2 >>= \Refl -> Just Refl
+jmEq_PCode (PInr p1) (PInr p2) = jmEq_PCode   p1 p2
+jmEq_PCode (PInl p1) (PInl p2) = jmEq_PStruct p1 p2
 jmEq_PCode _         _         = Nothing
 
 jmEq_PStruct
@@ -515,42 +585,48 @@ jmEq_PStruct PDone PDone = Just Refl
 jmEq_PStruct _     _     = Nothing
 
 jmEq_PFun :: PDatumFun f vs a -> PDatumFun f ws a -> Maybe (TypeEq vs ws)
-jmEq_PFun (PKonst p1) (PKonst p2) = jmEq_P p1 p2 >>= \Refl -> Just Refl
-jmEq_PFun (PIdent p1) (PIdent p2) = jmEq_P p1 p2 >>= \Refl -> Just Refl
+jmEq_PFun (PKonst p1) (PKonst p2) = jmEq_P p1 p2
+jmEq_PFun (PIdent p1) (PIdent p2) = jmEq_P p1 p2
 jmEq_PFun _           _           = Nothing
--}
+
+
+#if __PARTIAL_DATUM_JMEQ__
+instance JmEq2 (PDatumStruct xs) where
+    jmEq2 (PEt c1 c2) (PEt d1 d2) = do
+        (Refl, Refl) <- jmEq2 c1 d1
+        (Refl, Refl) <- jmEq2 c2 d2
+        Just (Refl, Refl)
+    jmEq2 PDone PDone = Just (Refl, cannotProve "jmEq2@PDatumStruct{PDone}")
+    jmEq2 _     _     = Nothing
 
 instance JmEq1 (PDatumStruct xs vars) where
-    jmEq1 = error "TODO: JmEq1@PDatumStruct"
-    {-
-    -- BUG: type error due to phantomness of the type index in 'Done'. Also, the 'PEt' case has other issues about ensuring the existentials line up
-    jmEq1 (PEt c1 c2) (PEt d1 d2) = do
-        Refl <- jmEq1 c1 d1
-        Refl <- jmEq1 c2 d2
-        Just Refl
-    jmEq1 PDone       PDone       = Just Refl
-    jmEq1 _           _           = Nothing
-    -}
+    jmEq1 p1 p2 = jmEq2 p1 p2 >>= \(_,proof) -> Just proof
+#endif
+
+instance Eq2 (PDatumStruct xs) where
+    eq2 p1 p2 = maybe False (const True) $ jmEq_PStruct p1 p2
 
 instance Eq1 (PDatumStruct xs vars) where
-    eq1 (PEt c1 c2) (PEt d1 d2) =
-        error "TODO: Eq1{PEt}: make sure existentials match up"
-        -- > eq1 c1 d1 && eq1 c2 d2
-        -- BUG: we can't just do it with a 'JmEq1' instance instead, since we can't always return @Just Refl@ for comparing 'PDone' to itself, since they may be at different types. Also, the real problem with doing that is it's not given how we should be splitting @vars@ in two as we recurse... Really, we need @vars1@ and @vars2@ to be considered \"output\" variables...
-    eq1 PDone       PDone       = True
-    eq1 _           _           = False
+    eq1 = eq2
 
 instance Eq (PDatumStruct xs vars a) where
     (==) = eq1
 
 -- TODO: instance Read (PDatumStruct xs vars a)
 
+instance Show2 (PDatumStruct xs) where
+    showsPrec2 p (PEt d1 d2) = showParen_22 p "PEt" d1 d2
+    showsPrec2 _ PDone       = showString     "PDone"
+
 instance Show1 (PDatumStruct xs vars) where
-    showsPrec1 p (PEt d1 d2) = showParen_11 p "PEt" d1 d2
-    showsPrec1 _ PDone       = showString     "PDone"
+    showsPrec1 = showsPrec2
+    show1      = show2
 
 instance Show (PDatumStruct xs vars a) where
     showsPrec = showsPrec1
+    show      = show1
+
+-- TODO: as necessary Functor22, Foldable22, Traversable22
 
 
 ----------------------------------------------------------------
@@ -558,31 +634,49 @@ data PDatumFun :: HakaruFun -> [Hakaru] -> Hakaru -> * where
     PKonst :: !(Pattern vars b) -> PDatumFun ('K b) vars a
     PIdent :: !(Pattern vars a) -> PDatumFun 'I     vars a
 
+
+#if __PARTIAL_DATUM_JMEQ__
+instance JmEq2 (PDatumFun x) where
+    jmEq2 (PKonst p1) (PKonst p2) = do
+        (Refl, Refl) <- jmEq2 p1 p2
+        Just (Refl, cannotProve "jmEq2@PDatumFun{PKonst}")
+    jmEq2 (PIdent p1) (PIdent p2) = jmEq2 p1 p2
+    jmEq2 _ _ = Nothing
+
 instance JmEq1 (PDatumFun x vars) where
-    jmEq1 (PKonst e) (PKonst f) =
-        error "TODO: JmEq1@PDatumFun{Konst}"
-        {- BUG: type error due to @TypeEq b1 b2@ not implying @TypeEq a1 a2@
-        jmEq1 e f >>= \Refl -> Just Refl
-        -}
+    jmEq1 (PKonst e) (PKonst f) = do
+        Refl <- jmEq1 e f
+        Just (cannotProve "jmEq1@PDatumFun{PKonst}")
     jmEq1 (PIdent e) (PIdent f) = jmEq1 e f
     jmEq1 _          _          = Nothing
+#endif
+
+instance Eq2 (PDatumFun x) where
+    eq2 (PKonst e) (PKonst f) = eq2 e f
+    eq2 (PIdent e) (PIdent f) = eq2 e f
+    eq2 _          _          = False
 
 instance Eq1 (PDatumFun x vars) where
-    eq1 (PKonst e) (PKonst f) = eq1 e f
-    eq1 (PIdent e) (PIdent f) = eq1 e f
-    eq1 _          _          = False
+    eq1 = eq2
 
 instance Eq (PDatumFun x vars a) where
     (==) = eq1
 
 -- TODO: instance Read (PDatumFun x vars a)
 
+instance Show2 (PDatumFun x) where
+    showsPrec2 p (PKonst e) = showParen_2 p "PKonst" e
+    showsPrec2 p (PIdent e) = showParen_2 p "PIdent" e
+
 instance Show1 (PDatumFun x vars) where
-    showsPrec1 p (PKonst e) = showParen_1 p "PKonst" e
-    showsPrec1 p (PIdent e) = showParen_1 p "PIdent" e
+    showsPrec1 = showsPrec2
+    show1      = show2
 
 instance Show (PDatumFun x vars a) where
     showsPrec = showsPrec1
+    show      = show1
+
+-- TODO: as necessary Functor22, Foldable22, Traversable22
 
 
 ----------------------------------------------------------------
@@ -593,7 +687,8 @@ pFalse = PDatum tdFalse . PInr . PInl $ PDone
 pUnit  :: Pattern '[] HUnit
 pUnit  = PDatum tdUnit . PInl $ PDone
 
--- HACK: using undefined like that isn't going to help if we use the variant of eqAppendIdentity that actually needs the Sing...
+-- HACK: using undefined like that isn't going to help if we use
+-- the variant of eqAppendIdentity that actually needs the Sing...
 varsOfPattern :: Pattern vars a -> proxy vars
 varsOfPattern _ = error "TODO: varsOfPattern"
 
@@ -634,11 +729,17 @@ pJust x =
     Refl -> PDatum tdJust . PInr . PInl $ PKonst x `PEt` PDone
 
 ----------------------------------------------------------------
--- TODO: a pretty infix syntax, like (:=>) or something
--- TODO: this type is helpful for capturing the existential, if we
--- ever end up keeping track of local binding environments; but
--- other than that, it should be replaced\/augmented with a type
--- for pattern automata, so we can optimize case analysis.
+-- TODO: a pretty infix syntax, like (:=>) or something?
+--
+-- TODO: this datatype is helpful for capturing the existential;
+-- but other than that, it should be replaced\/augmented with a
+-- type for pattern automata, so we can optimize case analysis.
+--
+-- TODO: if we used the argument order @Branch abt a b@ then we
+-- could give @Foo2@ instances instead of just @Foo1@ instances.
+-- Also would possibly let us talk about branches as profunctors
+-- mapping @a@ to @b@. Would either of these actually be helpful
+-- in practice for us?
 data Branch
     (a   :: Hakaru)                  -- The type of the scrutinee.
     (abt :: [Hakaru] -> Hakaru -> *) -- The 'ABT' of the body.
@@ -649,8 +750,9 @@ data Branch
 
 instance Eq2 abt => Eq1 (Branch a abt) where
     eq1 (Branch p1 e1) (Branch p2 e2) =
-        error "TODO: Eq1{Branch}: make sure existentials match up"
-        -- p1 `eq1` p2 && e1 `eq2` e2
+        case jmEq_P p1 p2 of
+        Nothing   -> False
+        Just Refl -> eq2 e1 e2
 
 instance Eq2 abt => Eq (Branch a abt b) where
     (==) = eq1
@@ -658,7 +760,7 @@ instance Eq2 abt => Eq (Branch a abt b) where
 -- TODO: instance Read (Branch abt a b)
 
 instance Show2 abt => Show1 (Branch a abt) where
-    showsPrec1 p (Branch pat e) = showParen_02 p "Branch" pat e
+    showsPrec1 p (Branch pat e) = showParen_22 p "Branch" pat e
 
 instance Show2 abt => Show (Branch a abt b) where
     showsPrec = showsPrec1
@@ -672,6 +774,24 @@ instance Foldable21 (Branch a) where
 
 instance Traversable21 (Branch a) where
     traverse21 f (Branch pat e) = Branch pat <$> f e
+
+----------------------------------------------------------------
+-- | A generalization of the 'Branch' type to allow a \"body\" of
+-- any Haskell type.
+data GBranch (a :: Hakaru) (r :: *)
+    = forall xs. GBranch
+        !(Pattern xs a)
+        !(List1 Variable xs)
+        r
+
+instance Functor (GBranch a) where
+    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
+
+instance F.Foldable (GBranch a) where
+    foldMap f (GBranch _ _ x) = f x
+
+instance T.Traversable (GBranch a) where
+    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

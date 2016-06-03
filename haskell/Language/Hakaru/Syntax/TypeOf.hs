@@ -161,6 +161,7 @@ getTermSing singify = go
     go (Integrate :$  _)            = return SProb
     go (Summate :$  _)              = return SProb
     go (Expect :$  _)               = return SProb
+    go (Observe :$ r1 :* _ :* End)  = getSing r1
     go (NaryOp_  o  _)              = return $ sing_NaryOp o
     go (Literal_ v)                 = return $ sing_Literal v
     go (Empty_   typ)               = return typ

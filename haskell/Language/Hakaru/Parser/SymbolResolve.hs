@@ -46,6 +46,7 @@ primPat =
             U.PKonst b `U.PEt` U.PDone)
     , ("true",    TNeu' . U.PDatum "true"  . U.PInl $ U.PDone)
     , ("false",   TNeu' . U.PDatum "false" . U.PInr . U.PInl $ U.PDone)
+    , ("unit",    TNeu' . U.PDatum "unit"  . U.PInl $ U.PDone)
     , ("pair",    TLam' $ \es -> F.foldr1 pairPat es)
     , ("just",    TLam' $ \ [a] ->
         U.PDatum "just" . U.PInr . U.PInl $
@@ -54,6 +55,7 @@ primPat =
         U.PDatum "nothing" . U.PInl $ U.PDone)
     ]
 
+pairPat :: U.Pattern -> U.Pattern -> U.Pattern
 pairPat a b =
     U.PDatum "pair" .  U.PInl $
     U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone
@@ -89,13 +91,14 @@ primTable =
     ,("true",        TNeu $ true_)
     ,("false",       TNeu $ false_)
      -- Coercions
-    ,("fromInt",     primCoerce cFromInt)
-    ,("fromProb",    primCoerce cFromProb)
-    ,("unsafeProb",  primUnsafe cFromProb)
+    ,("int2nat",     primUnsafe cNat2Int)
+    ,("int2real",    primCoerce cInt2Real)
+    ,("prob2real",   primCoerce cProb2Real)
+    ,("real2prob",   primUnsafe cProb2Real)
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
+    ,("nat2int",     primCoerce cNat2Int)
      -- Measures
-    ,("flat",        TNeu $ U.MeasureOp_ (U.SealedOp T.Lebesgue) [])
     ,("lebesgue",    TNeu $ U.MeasureOp_ (U.SealedOp T.Lebesgue) [])
     ,("counting",    TNeu $ U.MeasureOp_ (U.SealedOp T.Counting) [])
     ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
@@ -111,16 +114,18 @@ primTable =
     ,("reject",      TNeu $ U.Reject_)    
     -- PrimOps
     ,("not",         primPrimOp1 U.Not)
-    ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
+    ,("pi",          primPrimOp0 U.Pi)
     ,("**",          primPrimOp2 U.RealPow)
     ,("cos",         primPrimOp1 U.Cos)
     ,("exp",         primPrimOp1 U.Exp)
     ,("log",         primPrimOp1 U.Log)
+    ,("inf",         primPrimOp0 U.Infinity)
     ,("gammaFunc",   primPrimOp1 U.GammaFunc)
     ,("betaFunc",    primPrimOp2 U.BetaFunc)
     ,("equal",       primPrimOp2 U.Equal)
     ,("less",        primPrimOp2 U.Less)
     ,("negate",      primPrimOp1 U.Negate)
+    ,("signum",      primPrimOp1 U.Signum)
     ,("recip",       primPrimOp1 U.Recip)
     ,("^",           primPrimOp2 U.NatPow)
     ,("natroot",     primPrimOp2 U.NatRoot)
@@ -133,7 +138,8 @@ primTable =
     ,("max",         t2 $ \x y -> U.NaryOp_ U.Max [x, y])
     ]
 
-primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
+primPrimOp0, primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
+primPrimOp0 a = TNeu $ U.PrimOp_ a []
 primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ a [x]
 primPrimOp2 a = t2 $ \x y -> U.PrimOp_ a [x, y]
 
@@ -149,8 +155,8 @@ primCoerce c = TLam $ TNeu . U.CoerceTo_  (Some2 c)
 primUnsafe :: Coercion a b -> Symbol U.AST
 primUnsafe c = TLam $ TNeu . U.UnsafeTo_  (Some2 c)
 
-cFromProb :: Coercion 'HProb 'HReal
-cFromProb = signed
+cProb2Real :: Coercion 'HProb 'HReal
+cProb2Real = signed
 
 cNat2Prob :: Coercion 'HNat 'HProb
 cNat2Prob = continuous
@@ -158,8 +164,8 @@ cNat2Prob = continuous
 cNat2Int  :: Coercion 'HNat 'HInt
 cNat2Int  = signed
 
-cFromInt  :: Coercion 'HInt 'HReal
-cFromInt  = continuous
+cInt2Real  :: Coercion 'HInt 'HReal
+cInt2Real  = continuous
 
 cNat2Real :: Coercion 'HNat 'HReal
 cNat2Real = CCons (Signed HRing_Int) continuous
@@ -263,12 +269,18 @@ symbolResolution symbols ast =
 
     U.Ann e typ         -> (`U.Ann` typ) <$> symbolResolution symbols e
     U.Infinity'         -> return $ U.Infinity'
-    U.NegInfinity'      -> return $ U.NegInfinity'
     U.ULiteral v        -> return $ U.ULiteral v
 
     U.Integrate  name e1 e2 e3 -> do       
         name' <- gensym name
         U.Integrate (mkSym name')
+            <$> symbolResolution symbols e1
+            <*> symbolResolution symbols e2
+            <*> symbolResolution (insertSymbol name' symbols) e3     
+
+    U.Summate    name e1 e2 e3 -> do       
+        name' <- gensym name
+        U.Summate (mkSym name')
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
             <*> symbolResolution (insertSymbol name' symbols) e3     
@@ -302,6 +314,9 @@ symbolResolution symbols ast =
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
             <*> symbolResolution (insertSymbol name' symbols) e3     
+    U.Observe e1 e2        -> U.Observe
+        <$> symbolResolution symbols e1
+        <*> symbolResolution symbols e2
 
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
@@ -324,6 +339,10 @@ symbolResolveBranch _ _ =
 symbolResolvePat
     :: U.Pattern' Text
     -> State Int (U.Pattern' U.Name, [U.Name])
+symbolResolvePat (U.PVar' "true") =
+    return (U.PData' (U.DV "true" []), [])
+symbolResolvePat (U.PVar' "false") =
+    return (U.PData' (U.DV "false" []), [])
 symbolResolvePat (U.PVar' name)  = do
     name' <- gensym name
     return (U.PVar' name', [name'])
@@ -359,8 +378,8 @@ normAST ast =
     U.If e1 e2 e3             -> U.If (normAST e1) (normAST e2) (normAST e3)
     U.Ann e typ1              -> U.Ann (normAST e) typ1
     U.Infinity'               -> U.Infinity'
-    U.NegInfinity'            -> U.NegInfinity'
     U.Integrate name e1 e2 e3 -> U.Integrate name (normAST e1) (normAST e2) (normAST e3)
+    U.Summate   name e1 e2 e3 -> U.Summate   name (normAST e1) (normAST e2) (normAST e3)
     U.ULiteral v              -> U.ULiteral v
     U.NaryOp op es            -> U.NaryOp op (map normAST es)
     U.Unit                    -> U.Unit
@@ -374,6 +393,7 @@ normAST ast =
     U.Plate  name e1 e2       -> U.Plate  name (normAST e1) (normAST e2)
     U.Chain  name e1 e2 e3    -> U.Chain  name (normAST e1) (normAST e2) (normAST e3)
     U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
+    U.Observe     e1 e2       -> U.Observe (normAST e1) (normAST e2)
     U.Msum es                 -> U.Msum (map normAST es)
     U.Data name typ           -> U.Data name typ
     U.WithMeta a meta         -> U.WithMeta (normAST a) meta
@@ -450,7 +470,6 @@ makeAST ast =
         U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
     U.Infinity'       -> U.PrimOp_ U.Infinity []
-    U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
     U.Unit            -> unit_
@@ -474,16 +493,20 @@ makeAST ast =
     U.Integrate s e1 e2 e3 ->
         withName "U.Integrate" s $ \name ->
             U.Integrate_ name (makeAST e1) (makeAST e2) (makeAST e3)
+    U.Summate s e1 e2 e3 ->
+        withName "U.Summate" s $ \name ->
+            U.Summate_ name (makeAST e1) (makeAST e2) (makeAST e3)
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             U.Expect_ name (makeAST e1) (makeAST e2)
+    U.Observe e1 e2  -> U.Observe_ (makeAST e1) (makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
     
     U.Data   _name _typ -> error "TODO: makeAST{U.Data}"
     U.WithMeta _a _meta -> error "TODO: makeAST{U.WithMeta}"
 
     where
-    withName :: [Char] -> Symbol U.AST -> (U.Name -> r) -> r
+    withName :: String -> Symbol U.AST -> (U.Name -> r) -> r
     withName fun s k =
         case s of
         TNeu (U.Var_ name) -> k name
@@ -502,10 +525,10 @@ resolveAST' syms ast =
     normAST $
     evalState (symbolResolution
         (insertSymbols syms primTable) ast)
-        (nextVarID syms)
+        (nextVarID_ syms)
     where
-    nextVarID [] = N.fromNat 0
-    nextVarID xs = N.fromNat . (1+) . F.maximum $ map U.nameID xs
+    nextVarID_ [] = N.fromNat 0
+    nextVarID_ xs = N.fromNat . (1+) . F.maximum $ map U.nameID xs
 
 makeName :: SomeVariable ('KProxy :: KProxy Hakaru) -> U.Name
 makeName (SomeVariable (Variable hint vID _)) = U.Name vID hint

@@ -26,7 +26,7 @@ of Hakaru's program simplifier run
     export LOCAL_MAPLE="`which maple`"
     cd hakaru/maple
     maple update-archive.mpl
-    echo 'libname := "'"$HOME"'/hakaru/maple",libname:' >~/.mapleinit
+    echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >~/.mapleinit
 
 Installation - Windows
 ------------
@@ -57,8 +57,24 @@ Citing us
 ---------
 When referring to Hakaru please cite the following [paper](http://homes.soic.indiana.edu/ccshan/rational/system.pdf):
 
-> Probabilistic inference by program transformation in Hakaru (system description).
-> Praveen Narayanan, Jacques Carette, Wren Romano, Chung-chieh Shan, and Robert Zinkov,
-> FLOPS 2016 (13th international symposium on functional and logic programming).
+Probabilistic inference by program transformation in Hakaru (system description).
+Praveen Narayanan, Jacques Carette, Wren Romano, Chung-chieh Shan, and Robert Zinkov,
+FLOPS 2016 (13th international symposium on functional and logic programming).
+
+	@article{NarayananCRSZ16,
+	  author  = {Praveen Narayanan and
+			     Jacques Carette and
+			     Wren Romano and
+			     Chung{-}chieh Shan and
+			     Robert Zinkov},
+	  title   = {Probabilistic Inference by Program Transformation in Hakaru (System
+			     Description)},
+	  journal = {Functional and Logic Programming - 13th International Symposium, {FLOPS}
+			     2016, Kochi, Japan, March 4-6, 2016, Proceedings},
+	  pages   = {62--79},
+	  year    = {2016},
+	  url     = {http://dx.doi.org/10.1007/978-3-319-29604-3_5},
+	  doi     = {10.1007/978-3-319-29604-3_5},
+    }
 
 

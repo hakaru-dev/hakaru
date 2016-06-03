@@ -36,12 +36,15 @@ module Language.Hakaru.Types.Coercion
     , singCoerceDomCod
 
     -- * The induced coercion hierarchy
+    , CoercionMode(..)
     , findCoercion
     , findEitherCoercion
     , Lub(..)
     , findLub
     , SomeRing(..)
     , findRing
+    , SomeFractional(..)
+    , findFractional
 
     -- * Experimental optimization functions
     {-
@@ -57,8 +60,9 @@ module Language.Hakaru.Types.Coercion
 import Prelude          hiding (id, (.))
 import Control.Category (Category(..))
 #if __GLASGOW_HASKELL__ < 710
-import Data.Functor     ((<$>))
+import Data.Functor        ((<$>))
 #endif
+import Control.Applicative ((<|>))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.HClasses
@@ -276,6 +280,22 @@ findCoercion SNat  SReal = Just (continuous . signed)
 findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
 
 
+-- | Given two types, find a coercion where an unsafe
+-- coercion, followed by a safe coercion are needed to
+-- coerce the first type into the second, return otherwise
+findMixedCoercion
+    :: Sing a
+    -> Sing b
+    -> Maybe (Sing 'HNat, Coercion 'HNat a, Coercion 'HNat b)
+findMixedCoercion SProb SInt  = Just (SNat, continuous, signed)
+findMixedCoercion SInt  SProb = Just (SNat, signed, continuous)
+findMixedCoercion _     _     = Nothing
+
+data CoercionMode a b = 
+              Safe   (Coercion a b)
+  |           Unsafe (Coercion b a)
+  | forall c. Mixed  (Sing c, Coercion c a, Coercion c b)                
+
 -- | Given two types, find either a coercion from the first to the
 -- second or a coercion from the second to the first, or returns
 -- 'Nothing' if there is neither such coercion.
@@ -287,11 +307,11 @@ findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
 findEitherCoercion
     :: Sing a
     -> Sing b
-    -> Maybe (Either (Coercion b a) (Coercion a b))
+    -> Maybe (CoercionMode a b)
 findEitherCoercion a b =
-    case findCoercion a b of
-    Just c  -> Just (Right c)
-    Nothing -> Left <$> findCoercion b a
+    (Safe   <$> findCoercion a b) <|>
+    (Unsafe <$> findCoercion b a) <|>
+    (Mixed  <$> findMixedCoercion a b)
 
 
 -- | An upper bound of two types, with the coercions witnessing its
@@ -335,6 +355,19 @@ findRing SInt  = Just (SomeRing HRing_Int  CNil)
 findRing SProb = Just (SomeRing HRing_Real signed)
 findRing SReal = Just (SomeRing HRing_Real CNil)
 findRing _     = Nothing
+
+data SomeFractional (a :: Hakaru)
+    = forall b. SomeFractional !(HFractional b) !(Coercion a b)
+
+-- | Give a type, finds the smallest coercion to another
+-- with a HFractional instance
+findFractional :: Sing a -> Maybe (SomeFractional a)
+findFractional SNat  = Just (SomeFractional HFractional_Prob continuous)
+findFractional SInt  = Just (SomeFractional HFractional_Real continuous)
+findFractional SProb = Just (SomeFractional HFractional_Prob CNil)
+findFractional SReal = Just (SomeFractional HFractional_Real CNil)
+findFractional _     = Nothing
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

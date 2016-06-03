@@ -155,7 +155,7 @@ evaluateTerm
     -> Value a
 evaluateTerm t env =
     case t of
-    o :$ es       -> evaluateScon    o es env
+    o :$ es       -> evaluateSCon    o es env
     NaryOp_  o es -> evaluateNaryOp  o es env
     Literal_ v    -> evaluateLiteral v
     Empty_   _    -> evaluateEmpty
@@ -165,33 +165,33 @@ evaluateTerm t env =
     Superpose_ es -> evaluateSuperpose es env
     Reject_ _     -> VMeasure $ \_ _ -> return Nothing
 
-evaluateScon
+evaluateSCon
     :: (ABT Term abt)
     => SCon args a
     -> SArgs abt args
     -> Env
     -> Value a
-evaluateScon Lam_ (e1 :* End) env =
+evaluateSCon Lam_ (e1 :* End) env =
     caseBind e1 $ \x e1' ->
         VLam $ \v -> evaluate e1' (updateEnv (EAssoc x v) env)
-evaluateScon App_ (e1 :* e2 :* End) env =
+evaluateSCon App_ (e1 :* e2 :* End) env =
     case evaluate e1 env of
     VLam f -> f (evaluate e2 env)
     v      -> case v of {}
-evaluateScon Let_ (e1 :* e2 :* End) env =
+evaluateSCon Let_ (e1 :* e2 :* End) env =
     let v = evaluate e1 env
     in caseBind e2 $ \x e2' ->
         evaluate e2' (updateEnv (EAssoc x v) env)
-evaluateScon (CoerceTo_   c) (e1 :* End) env =
+evaluateSCon (CoerceTo_   c) (e1 :* End) env =
     coerceTo c $ evaluate e1 env
-evaluateScon (UnsafeFrom_ c) (e1 :* End) env =
+evaluateSCon (UnsafeFrom_ c) (e1 :* End) env =
     coerceFrom c $ evaluate e1 env
-evaluateScon (PrimOp_ o)     es env = evaluatePrimOp    o es env
-evaluateScon (ArrayOp_ o)    es env = evaluateArrayOp   o es env
-evaluateScon (MeasureOp_  m) es env = evaluateMeasureOp m es env
-evaluateScon Dirac           (e1 :* End) env =
+evaluateSCon (PrimOp_ o)     es env = evaluatePrimOp    o es env
+evaluateSCon (ArrayOp_ o)    es env = evaluateArrayOp   o es env
+evaluateSCon (MeasureOp_  m) es env = evaluateMeasureOp m es env
+evaluateSCon Dirac           (e1 :* End) env =
     VMeasure $ \p _ -> return $ Just (evaluate e1 env, p)
-evaluateScon MBind (e1 :* e2 :* End) env =
+evaluateSCon MBind (e1 :* e2 :* End) env =
     case evaluate e1 env of
     VMeasure m1 -> VMeasure $ \ p g -> do
         x <- m1 p g
@@ -204,7 +204,7 @@ evaluateScon MBind (e1 :* e2 :* End) env =
                     v          -> case v of {}
     v -> case v of {}
 
-evaluateScon Plate (n :* e2 :* End) env =
+evaluateSCon Plate (n :* e2 :* End) env =
     case evaluate n env of
     VNat n' -> caseBind e2 $ \x e' ->
         VMeasure $ \(VProb p) g -> runMaybeT $ do
@@ -224,7 +224,7 @@ evaluateScon Plate (n :* e2 :* End) env =
         -> MaybeT IO (Value a, Value 'HProb)
     performMaybe g (VMeasure m) = MaybeT $ m (VProb 1) g
 
-evaluateScon Chain (n :* s :* e :* End) env =
+evaluateSCon Chain (n :* s :* e :* End) env =
     case (evaluate n env, evaluate s env) of
     (VNat n', start) ->
         caseBind e $ \x e' ->
@@ -259,7 +259,7 @@ evaluateScon Chain (n :* s :* e :* End) env =
             (Et (Konst b) Done))))) = (a, b)
     unPair x = case x of {}
 
-
+evaluateSCon s _ _ = error $ "TODO: evaluateSCon{" ++ show s ++ "}"
 
 evaluatePrimOp
     ::  ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
@@ -288,13 +288,6 @@ evaluatePrimOp Exp (e1 :* End) env =
       VReal v1 -> VProb . LF.logToLogFloat $ v1
       v        -> case v of {}
 evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat LF.infinity
-evaluatePrimOp NegativeInfinity End _ = VReal $ LF.negativeInfinity
-evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
-    case (evaluate e1 env, evaluate e2 env) of
-    (VNat  v1, VNat  v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
-    (VProb v1, VProb v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
-    (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
-    v                    -> error "TODO: evaluatePrimOp{Less}"
 evaluatePrimOp (Equal _) (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
     (VNat  v1, VNat  v2) -> VDatum $ if v1 == v2 then dTrue else dFalse
@@ -302,6 +295,22 @@ evaluatePrimOp (Equal _) (e1 :* e2 :* End) env =
     (VProb v1, VProb v2) -> VDatum $ if v1 == v2 then dTrue else dFalse
     (VReal v1, VReal v2) -> VDatum $ if v1 == v2 then dTrue else dFalse
     v                    -> error "TODO: evaluatePrimOp{Equal}"
+evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+    (VNat  v1, VNat  v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    (VProb v1, VProb v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    v                    -> error "TODO: evaluatePrimOp{Less}"
+evaluatePrimOp (NatPow _) (e1 :* e2 :* End) env = 
+    case evaluate e2 env of
+    VNat  v2 ->
+        let v2' = fromNat v2 in
+        case evaluate e1 env of
+          VNat  v1 -> VNat  (v1 ^ v2')
+          VInt  v1 -> VInt  (v1 ^ v2')
+          VProb v1 -> VProb (v1 ^ v2')
+          VReal v1 -> VReal (v1 ^ v2')
+    v2       -> case v2 of {}
 evaluatePrimOp (Negate _) (e1 :* End) env = 
     case evaluate e1 env of
     VInt  v -> VInt  (negate v)
@@ -312,6 +321,11 @@ evaluatePrimOp (Recip _) (e1 :* End) env =
     VProb v -> VProb (recip v)
     VReal v -> VReal (recip v)
     v       -> case v of {}
+evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+    (VProb v1, VNat v2) -> VProb $ LF.pow v1 (recip . fromIntegral $ v2)
+    v                   -> case v of {}    
+
 evaluatePrimOp prim _ _ =
     error ("TODO: evaluatePrimOp{" ++ show prim ++ "}")
 
@@ -323,22 +337,22 @@ evaluateArrayOp
     -> SArgs abt args
     -> Env
     -> Value a
-evaluateArrayOp (Index _)  (e1 :* e2 :* End) env =
+evaluateArrayOp (Index _) = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of
     (VArray v, VNat n) -> v V.! fromNat n
-    v                  -> case v of {}
+    _                  -> error "evaluateArrayOp: the impossible happened"
 
-evaluateArrayOp (Size _)   (e1 :* End) env =
+evaluateArrayOp (Size _) = \(e1 :* End) env ->
     case evaluate e1 env of
     VArray v -> VNat . unsafeNat $ V.length v
-    v        -> case v of {}
+    _        -> error "evaluateArrayOp: the impossible happened"
 
-evaluateArrayOp (Reduce _) (e1 :* e2 :* e3 :* End) env =
+evaluateArrayOp (Reduce _) = \(e1 :* e2 :* e3 :* End) env ->
     case ( evaluate e1 env
          , evaluate e2 env
          , evaluate e3 env) of
     (f, a, VArray v) -> V.foldl' (lam2 f) a v
-    v        -> case v of {}
+    _                -> error "evaluateArrayOp: the impossible happened"
 
 evaluateMeasureOp
     :: ( ABT Term abt
@@ -349,7 +363,7 @@ evaluateMeasureOp
     -> Env
     -> Value ('HMeasure a)
 
-evaluateMeasureOp Lebesgue End _ =
+evaluateMeasureOp Lebesgue = \End _ ->
     VMeasure $ \(VProb p) g -> do
         (u,b) <- MWC.uniform g
         let l = log u
@@ -359,7 +373,7 @@ evaluateMeasureOp Lebesgue End _ =
             , VProb $ p * 2 * LF.logToLogFloat n
             )
 
-evaluateMeasureOp Counting End _ =
+evaluateMeasureOp Counting = \End _ ->
     VMeasure $ \(VProb p) g -> do
         let success = LF.logToLogFloat (-3 :: Double)
         let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
@@ -370,7 +384,7 @@ evaluateMeasureOp Counting End _ =
             ( VInt  $ if b then -1-u else u
             , VProb $ p * 2 / pow (1-success) u / success)
 
-evaluateMeasureOp Categorical (e1 :* End) env =
+evaluateMeasureOp Categorical = \(e1 :* End) env ->
     VMeasure $ \p g -> do
         let (_,y,ys) = normalizeVector (evaluate e1 env)
         if not (y > (0::Double)) -- TODO: why not use @y <= 0@ ??
@@ -386,40 +400,40 @@ evaluateMeasureOp Categorical (e1 :* End) env =
                 $ ys
                 , p)
 
-evaluateMeasureOp Uniform (e1 :* e2 :* End) env =
+evaluateMeasureOp Uniform = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of
     (VReal v1, VReal v2) -> VMeasure $ \p g -> do
         x <- MWC.uniformR (v1, v2) g
         return $ Just (VReal x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
-evaluateMeasureOp Normal (e1 :* e2 :* End) env =
+evaluateMeasureOp Normal = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VReal v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.normal v1 (LF.fromLogFloat v2) g
         return $ Just (VReal x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
-evaluateMeasureOp Poisson (e1 :* End) env =
+evaluateMeasureOp Poisson = \(e1 :* End) env ->
     case evaluate e1 env of
     VProb v1 -> VMeasure $ \ p g -> do
         x <- poisson_rng (LF.fromLogFloat v1) g
         return $ Just (VNat $ unsafeNat x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
-evaluateMeasureOp Gamma (e1 :* e2 :* End) env =
+evaluateMeasureOp Gamma = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
         return $ Just (VProb $ LF.logFloat x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
-evaluateMeasureOp Beta (e1 :* e2 :* End) env =
+evaluateMeasureOp Beta = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
         return $ Just (VProb $ LF.logFloat x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
 evaluateNaryOp
     :: (ABT Term abt)
@@ -437,6 +451,10 @@ identityElement (Prod HSemiring_Nat)  = VNat  1
 identityElement (Prod HSemiring_Int)  = VInt  1
 identityElement (Prod HSemiring_Prob) = VProb 1
 identityElement (Prod HSemiring_Real) = VReal 1
+identityElement (Max  HOrd_Prob)      = VProb 0
+identityElement (Max  HOrd_Real)      = VReal LF.negativeInfinity
+identityElement (Min  HOrd_Prob)      = VProb (LF.logFloat LF.infinity)
+identityElement (Min  HOrd_Real)      = VReal LF.infinity
 
 
 evalOp
@@ -444,14 +462,21 @@ evalOp
 evalOp And (VDatum a) (VDatum b)        
     | a == dTrue && b == dTrue = VDatum dTrue
     | otherwise = VDatum dFalse
-evalOp (Sum  HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a + b)
-evalOp (Sum  HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a + b)
-evalOp (Sum  HSemiring_Prob) (VProb  a) (VProb b) = VProb (a + b)
-evalOp (Sum  HSemiring_Real) (VReal  a) (VReal b) = VReal (a + b)
-evalOp (Prod HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a * b)
-evalOp (Prod HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a * b)  
-evalOp (Prod HSemiring_Prob) (VProb  a) (VProb b) = VProb (a * b)  
-evalOp (Prod HSemiring_Real) (VReal  a) (VReal b) = VReal (a * b)
+evalOp (Sum  HSemiring_Nat)  (VNat  a) (VNat  b) = VNat  (a + b)
+evalOp (Sum  HSemiring_Int)  (VInt  a) (VInt  b) = VInt  (a + b)
+evalOp (Sum  HSemiring_Prob) (VProb a) (VProb b) = VProb (a + b)
+evalOp (Sum  HSemiring_Real) (VReal a) (VReal b) = VReal (a + b)
+evalOp (Prod HSemiring_Nat)  (VNat  a) (VNat  b) = VNat  (a * b)
+evalOp (Prod HSemiring_Int)  (VInt  a) (VInt  b) = VInt  (a * b)  
+evalOp (Prod HSemiring_Prob) (VProb a) (VProb b) = VProb (a * b)  
+evalOp (Prod HSemiring_Real) (VReal a) (VReal b) = VReal (a * b)
+evalOp (Max  HOrd_Prob)      (VProb a) (VProb b) = VProb (max a b)
+evalOp (Max  HOrd_Real)      (VReal a) (VReal b) = VReal (max a b)
+evalOp (Min  HOrd_Prob)      (VProb a) (VProb b) = VProb (min a b) 
+evalOp (Min  HOrd_Real)      (VReal a) (VReal b) = VReal (min a b) 
+
+evalOp op                    _          _        =
+    error ("TODO: evalOp{" ++ show op ++ "}")
 
 mapEvaluate
     :: (ABT Term abt)
@@ -480,7 +505,6 @@ evaluateArray n e env =
         VArray $ V.generate (fromNat n') $ \v ->
             let v' = VNat $ unsafeNat v in
             evaluate e' (updateEnv (EAssoc x v') env)
-    v -> case v of {}
 
 evaluateDatum
     :: (ABT Term abt)
@@ -498,14 +522,14 @@ evaluateCase
     -> Value b
 evaluateCase o es env =
     case runIdentity $ matchBranches evaluateDatum' (evaluate o env) es of
-    Just (Matched as Nil1, b) ->
-        evaluate b (extendFromMatch (as []) env)    
+    Just (Matched rho b) ->
+        evaluate b (extendFromMatch (fromAssocs rho) env)
     _ -> error "Missing cases in match expression"
     where
-    extendFromMatch :: [Assoc Value] -> Env -> Env 
+    extendFromMatch :: [Assoc Value] -> Env -> Env
     extendFromMatch []                env' = env'
-    extendFromMatch ((Assoc x v1):as) env' =
-        extendFromMatch as (updateEnv (EAssoc x v1) env')
+    extendFromMatch (Assoc x v : xvs) env' =
+        extendFromMatch xvs (updateEnv (EAssoc x v) env')
 
     evaluateDatum' :: DatumEvaluator Value Identity
     evaluateDatum' = return . Just . getVDatum
