@@ -184,7 +184,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             , PP.nest 1 (toDoc body)]
 
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
-        Case_  e1 bs  ->
+        Case_  e1 bs  -> parens True $
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
             [ PP.text "match"
               <+> (toDoc $ ppArg e1)
