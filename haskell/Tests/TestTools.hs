@@ -56,10 +56,7 @@ testStriv = testS ""
 
 -- Assert that all the given Hakaru programs simplify to the given one
 testSS 
-    ::  ( ABT Term abt
-        , Show (abt '[] a)
-        , Eq   (abt '[] a)
-        )
+    :: (ABT Term abt)
     => String
     -> [(abt '[] a)] 
     -> abt '[] a 

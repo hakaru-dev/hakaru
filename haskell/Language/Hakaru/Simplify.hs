@@ -73,7 +73,7 @@ simplify
 simplify e = do
     let slo = Maple.pretty e
     let typ = typeOf e          
-    hakaru <- maple ("use Hakaru, NewSLO in timelimit(15, RoundTrip("
+    hakaru <- maple ("use Hakaru, NewSLO in timelimit(30, RoundTrip("
       ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;")
     either (throw  . MapleException slo)
            (return . constantPropagation) $ do
@@ -99,7 +99,7 @@ simplifyDebug e = do
     let slo = Maple.pretty e
     hPutStrLn stderr ("Sent to Maple: " ++ slo)
     let typ = typeOf e          
-    hakaru <- maple ("use Hakaru, NewSLO in timelimit(15, RoundTrip("
+    hakaru <- maple ("use Hakaru, NewSLO in timelimit(30, RoundTrip("
       ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;")
     ret  <- maple ("FromInert(" ++ hakaru ++ ")")
     hPutStr stderr ("Returning from Maple: " ++ ret) 

@@ -128,5 +128,10 @@ plate_norm = unlines
 negate_prob :: Text
 negate_prob = "unsafeProb(1.0 + negate(2.0))"
 
+dont_atomize_weights :: Text
+dont_atomize_weights = unlines
+    ["x <~ uniform(1,3)"
+    ,"weight(real2prob(x), return (x, ()))"]
+
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

@@ -350,7 +350,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                 Nothing      -> do
                     unsafePushes ss
                     return Nothing
-                Just (s, js) ->
+                Just s ->
                     -- Alas, @p@ will have to recheck 'isBoundBy'
                     -- in order to grab the 'Refl' proof we erased;
                     -- but there's nothing to be done for it.
@@ -362,12 +362,12 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                         return (Just r)
 
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
-unsafePop :: Dis abt (Maybe (Statement abt 'Impure, [Index (abt '[])]))
+unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
 unsafePop =
     Dis $ \c h@(ListContext i ss) ind loc ->
         case ss of
         []    -> c Nothing  h ind loc
-        s:ss' -> c (Just (s, ind)) (ListContext i ss') ind loc
+        s:ss' -> c (Just s) (ListContext i ss') ind loc
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

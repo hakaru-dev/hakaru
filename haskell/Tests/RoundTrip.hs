@@ -321,8 +321,9 @@ t24 =
    weight (x * exp (cos y) * unsafeProb z)
 t24' =
    lam $ \x ->
+   withWeight (x * half) $
    uniform_0_1 >>= \y ->
-   weight (x * exp (cos y) * half)
+   weight (exp (cos y))
 
 t25,t25' :: (ABT Term abt)
    => abt '[] ('HProb ':-> 'HReal ':-> 'HMeasure HUnit)
@@ -708,12 +709,14 @@ t65 =
             (dirac unit)
             (reject sing)))
         (reject sing)
-t65' = lam $ \t ->
-       if_ (t < (fromProb (exp (negate (real_ 1))))) (reject sing)
-     $ if_ (t < one) (weight (unsafeProb (log (unsafeProb t) + one)))
-     $ if_ (t < one + (fromProb (exp (negate (real_ 1))))) (dirac unit)
-     $ if_ (t < (fromRational 2)) (weight (unsafeProb (negate (log (unsafeProb (t - one))))))
-     $ reject sing
+t65' =
+     lam $ \t ->
+     uniform_0_1  >>= \x->
+     withWeight (if_ (real_ 0 < (log (unsafeProb (t + x * real_ (-1))) * real_ (-1)) &&
+                      x < (t * fromProb (exp (real_ 1)) + real_ (-1)) * fromProb (exp (real_ (-1))) &&
+                      x < t)
+                 (unsafeProb (recip (t * real_ (-1) + x)))
+                 (prob_ 0)) $ (dirac unit)
 
 t66 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t66 = dirac (sqrt ((prob_ 3) + sqrt (prob_ 3)))

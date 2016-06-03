@@ -184,7 +184,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             , PP.nest 1 (toDoc body)]
 
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
-        Case_  e1 bs  ->
+        Case_  e1 bs  -> parens True $
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
             [ PP.text "match"
               <+> (toDoc $ ppArg e1)
@@ -194,7 +194,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Superpose_ pes ->
             PP.punctuate (PP.text " <|> ") $ L.toList $ fmap ppWeight pes
           where ppWeight (w,m)
-                    | (PP.render $ pretty w) == "1.0" =
+                    | (PP.render $ pretty w) == "1" =
                         toDoc $ parens True (ppArg m)
                     | otherwise                 =
                         toDoc $ ppFun p "weight" [pretty w, pretty m]

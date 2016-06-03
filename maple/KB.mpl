@@ -82,7 +82,7 @@ KB := module ()
       do
         try log_b := map(ln, b) assuming op(as); catch: break; end try;
         if length(log_b) < length(b)
-           and (andmap(is, log_b, real) assuming op(as)) then
+           and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
           b := log_b;
         else
           break;

@@ -46,6 +46,7 @@ primPat =
             U.PKonst b `U.PEt` U.PDone)
     , ("true",    TNeu' . U.PDatum "true"  . U.PInl $ U.PDone)
     , ("false",   TNeu' . U.PDatum "false" . U.PInr . U.PInl $ U.PDone)
+    , ("unit",    TNeu' . U.PDatum "unit"  . U.PInl $ U.PDone)
     , ("pair",    TLam' $ \es -> F.foldr1 pairPat es)
     , ("just",    TLam' $ \ [a] ->
         U.PDatum "just" . U.PInr . U.PInl $

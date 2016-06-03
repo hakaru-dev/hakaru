@@ -700,9 +700,9 @@ NewSLO := module ()
     else
       w := 1;
     end if;
-    e := make(`if`(dom_spec=[], e, piecewise(And(op(dom_spec)), e, 0)),
+    e := make(w * `if`(dom_spec=[], e, piecewise(And(op(dom_spec)), e, 0)),
               var=new_rng);
-    e := w*elim_intsum(e, h, kb0);
+    e := elim_intsum(e, h, kb0);
     e := mul(Indicator(i), i in rest)*e;
     e
   end proc;
