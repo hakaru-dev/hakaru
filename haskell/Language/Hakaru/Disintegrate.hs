@@ -102,7 +102,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches)
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Evaluation.Types hiding (push, pushes)
+import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy
 import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -333,15 +333,9 @@ perform = \e0 ->
             push (SBind x (Thunk e1) i) e2' perform
 
     performTerm (Plate :$ e1 :* e2 :* End) =  do
-        caseBind e2 $ \x e2' -> do
-            inds <- getIndices
-            p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
-            i    <- freshInd e1
-            push (SBind p (Thunk $ rename x (indVar i) e2')
-                            (extendIndices i inds)) (var p) $ \x' ->
-               caseVarSyn x' (\x1 ->  let x2 = x1 {varType = SArray (varType x1)}
-                                      in  return (Neutral (var x2)))
-                             (error "performTerm{Plate} was not given a variable")
+      inds <- getIndices
+      x1   <- pushPlate e1 e2 inds
+      return (Neutral (var x1))
 
     performTerm (Superpose_ pes) = do
         i <- getIndices
