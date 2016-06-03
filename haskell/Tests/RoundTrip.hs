@@ -321,8 +321,9 @@ t24 =
    weight (x * exp (cos y) * unsafeProb z)
 t24' =
    lam $ \x ->
+   withWeight (x * half) $
    uniform_0_1 >>= \y ->
-   weight (x * exp (cos y) * half)
+   weight (exp (cos y))
 
 t25,t25' :: (ABT Term abt)
    => abt '[] ('HProb ':-> 'HReal ':-> 'HMeasure HUnit)
