@@ -393,7 +393,8 @@ pushPlate n e inds =
   caseBind e $ \x body -> do
     i  <- freshInd n
     p  <- freshVar Text.empty (sUnMeasure $ typeOf body)
-    unsafePush (SBind p (Thunk $ rename x (indVar i) body) (extendIndices i inds))
+    unsafePush (SBind p (Thunk $ rename x (indVar i) body)
+                (extendIndices i inds))
     mkMultiLoc Text.empty p inds
 
 ----------------------------------------------------------------
