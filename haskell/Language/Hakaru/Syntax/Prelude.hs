@@ -98,7 +98,7 @@ module Language.Hakaru.Syntax.Prelude
     , dirichlet
 
     -- * Data types (other than booleans)
-    , datum_
+    , datum_, case_
     -- ** HUnit
     , unit
     -- ** HPair
@@ -693,6 +693,13 @@ datum_
     -> abt '[] (HData' t)
 datum_ = syn . Datum_
 
+case_
+     :: (ABT Term abt)
+     => abt '[] a
+     -> [Branch a abt b]
+     -> abt '[] b
+case_ e bs = syn (Case_ e bs)
+
 unit :: (ABT Term abt) => abt '[] HUnit
 unit = datum_ dUnit
 
@@ -724,7 +731,7 @@ unpair e hoas =
         inc x       = 1 Prelude.+ x
         a           = Variable Text.empty (nextBind body)         aTyp
         b           = Variable Text.empty (inc . nextBind $ body) bTyp
-    in syn $ Case_ e
+    in case_ e
         [Branch (pPair PVar PVar)
            (bind a (bind b body))
         ]
@@ -762,7 +769,7 @@ uneither
     -> abt '[] c
 uneither e l r =
     let (a,b) = sUnEither $ typeOf e
-    in syn $ Case_ e
+    in case_ e
         [ Branch (pLeft  PVar) (binder Text.empty a l)
         , Branch (pRight PVar) (binder Text.empty b r)
         ]
@@ -773,10 +780,10 @@ if_ :: (ABT Term abt)
     -> abt '[] a
     -> abt '[] a
 if_ b t f =
-    syn $ Case_ b
-        [ Branch pTrue  t
-        , Branch pFalse f
-        ]
+    case_ b
+     [ Branch pTrue  t
+     , Branch pFalse f
+     ]
 
 nil :: (ABT Term abt, SingI a) => abt '[] (HList a)
 nil = datum_ dNil
@@ -805,10 +812,10 @@ unmaybe
     -> (abt '[] a -> abt '[] b)
     -> abt '[] b
 unmaybe e n j = 
-    syn $ Case_ e
-        [ Branch pNothing     n
-        , Branch (pJust PVar) (binder Text.empty (sUnMaybe $ typeOf e) j)
-        ]
+    case_ e
+     [ Branch pNothing     n
+     , Branch (pJust PVar) (binder Text.empty (sUnMaybe $ typeOf e) j)
+     ]
 
 unsafeProb :: (ABT Term abt) => abt '[] 'HReal -> abt '[] 'HProb
 unsafeProb = unsafeFrom_ signed

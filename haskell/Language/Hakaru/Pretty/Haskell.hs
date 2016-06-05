@@ -175,11 +175,10 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
         Case_  e1 bs  ->
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
-            ppFun p "syn"
-                [ toDoc $ ppFun 11 "Case_"
-                    [ ppArg e1
-                    , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
-                    ]]
+             ppFun p "case_"
+                 [ ppArg e1
+                 , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
+                 ]
         Superpose_ pes ->
             case pes of
             (e1,e2) :| [] ->
@@ -232,6 +231,7 @@ ppSCon p Expect = \(e1 :* e2 :* End) ->
         adjustHead
             (PP.text "expect" <+> ppArg e1 <+> PP.char '$' <+>)
             (ppBinder e2)
+ppSCon p Observe   = \(e1 :* e2 :* End) -> ppApply2 p "observe" e1 e2
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "integrate"
         [ ppArg e1
