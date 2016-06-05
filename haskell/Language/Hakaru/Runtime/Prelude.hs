@@ -13,6 +13,9 @@ import qualified Control.Monad                   as M
 import           Prelude hiding ((>>=))
 
 
+lam :: (a -> b) -> a -> b
+lam = id
+
 let_ :: a -> (a -> b) -> b
 let_ x f = let x1 = x in f x1
 
@@ -45,3 +48,10 @@ prob_ = fromRational . fromNonNegativeRational
 
 run :: Show a => MWC.GenIO -> (MWC.GenIO -> IO a) -> IO ()
 run g k = k g M.>>= print
+
+iterateM_ :: Monad m => (a -> m a) -> a -> m b
+iterateM_ f = g
+    where g x = f x M.>>= g
+
+withPrint :: Show a => (a -> IO b) -> a -> IO b
+withPrint f x = print x >> f x
