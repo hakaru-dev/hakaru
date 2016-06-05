@@ -391,7 +391,7 @@ ppPattern _ PWild = [PP.text "PWild"]
 ppPattern _ PVar  = [PP.text "PVar"]
 ppPattern p (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
-    | otherwise      = ppFun p (Text.unpack hint) (goCode d0)
+    | otherwise      = ppFun p ("p" ++ Text.unpack hint) (goCode d0)
     where
     goCode :: PDatumCode xss vars a -> Docs
     goCode (PInr d) = goCode   d
@@ -412,10 +412,12 @@ instance Pretty (Pattern xs) where
 
 instance (ABT Term abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
-        ppFun p "Branch"
+        ppFun p "branch"
             [ toDoc $ prettyPrec_ 11 pat
-            , PP.parens . toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
-            -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to have them decide if they need to or not.
+            , PP.parens . toDoc $ ppBinder e
+            -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
+            -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to
+            --       have them decide if they need to or not.
             ]
 
 ----------------------------------------------------------------

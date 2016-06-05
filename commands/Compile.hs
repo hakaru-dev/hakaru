@@ -91,10 +91,12 @@ compileRandomWalk f1 f2 = do
 
 header :: [Text]
 header =
-  [ "module Main where"
+  [ "{-# LANGUAGE DataKinds, NegativeLiterals #-}"
+  , "module Main where"
   , ""
   , "import           Prelude                          hiding ((>>=))"
   , "import           Language.Hakaru.Runtime.Prelude"
+  , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad                    hiding ((>>=))"
   , ""

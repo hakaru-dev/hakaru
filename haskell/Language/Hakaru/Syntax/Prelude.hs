@@ -98,7 +98,9 @@ module Language.Hakaru.Syntax.Prelude
     , dirichlet
 
     -- * Data types (other than booleans)
-    , datum_, case_
+    , datum_
+    -- * Case and Branch
+    , case_, branch
     -- ** HUnit
     , unit
     -- ** HPair
@@ -699,6 +701,13 @@ case_
      -> [Branch a abt b]
      -> abt '[] b
 case_ e bs = syn (Case_ e bs)
+
+branch
+    :: (ABT Term abt)
+    => Pattern xs a
+    -> abt xs b
+    -> Branch a abt b
+branch = Branch
 
 unit :: (ABT Term abt) => abt '[] HUnit
 unit = datum_ dUnit
