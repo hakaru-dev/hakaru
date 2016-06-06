@@ -397,6 +397,20 @@ pushPlate n e inds =
                 (extendIndices i inds))
     mkMultiLoc Text.empty p inds
 
+residualizeLocs
+    :: forall abt a
+    .  (ABT Term abt)
+    => abt '[] a
+    -> Dis abt (abt '[] a)
+residualizeLocs e = do
+    locs <- getLocs
+    let rho = toAssocs $ map go (fromAssocs locs)
+    return (substs rho e)
+  where go :: Assoc (Loc (abt '[])) -> Assoc (abt '[])
+        go (Assoc x' (Loc      x     [])) = Assoc x' (var x)
+        go (Assoc x' (Loc      x (i:is))) = undefined
+        go (Assoc x' (MultiLoc x     is)) = undefined
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
