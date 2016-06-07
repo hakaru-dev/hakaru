@@ -1,0 +1,6 @@
+module HKC.Flatten where
+
+flatten :: a -> b
+flatten = undefined
+
+header :: Text

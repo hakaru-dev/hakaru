@@ -29,7 +29,7 @@ Flag traceDisintegrate
 Library
     Hs-Source-Dirs:    haskell
     Default-Language:  Haskell2010
-    GHC-Options:       -Wall -fwarn-tabs
+    GHC-Options:       -Wall -fwarn-tabs -j6
 
     if flag(traceDisintegrate)
         Cpp-Options:   -D__TRACE_DISINTEGRATE__
@@ -223,6 +223,7 @@ Executable hkc
     build-depends:     base             >= 4.7  && < 5.0,
                        text             >= 0.11 && < 1.3,
                        raw-strings-qq   >= 1.0,
+                       language-c       >= 0.0,
                        hakaru           >= 0.3
 
 
