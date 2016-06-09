@@ -3,63 +3,62 @@
 
 module Main where
 
+import Language.Hakaru.Parser.Parser hiding (style)
+import Language.Hakaru.Parser.SymbolResolve (resolveAST)
+import qualified Language.Hakaru.Pretty.Concrete as HK (pretty)
+
+import           Language.Hakaru.Syntax.ABT
+import qualified Language.Hakaru.Syntax.AST as T
+import           Language.Hakaru.Syntax.TypeCheck
+
+import qualified Language.C.Pretty as C
+
+import HKC.Flatten
+
 import           Data.Text
 import qualified Data.Text.IO as IO
-
-import Language.Hakaru.Parser.Parser hiding (style)
+import           Text.PrettyPrint
 
 import System.Environment
-import Text.RawString.QQ
 
 main :: IO ()
 main = do
   args   <- getArgs
   progs  <- mapM readFromFile args
   case progs of
-      -- [prog1, prog2] -> randomWalk g prog1 prog2
       [prog] -> compileHakaru prog
-      _      -> IO.putStrLn "Usage: hakaru <file>"
+      _      -> IO.putStrLn "Usage: hkc <input> <output>"
 
 readFromFile :: String -> IO Text
 readFromFile "-" = IO.getContents
 readFromFile x   = IO.readFile x
 
+
+-- TODO: parseAndInfer has been copied to hkc, compile, and hakaru commands
+parseAndInfer :: Text
+              -> Either String (TypedAST (TrivialABT T.Term))
+parseAndInfer x =
+    case parseHakaru x of
+    Left  err  -> Left (show err)
+    Right past ->
+        let m = inferType (resolveAST past) in
+        runTCM m LaxMode
+
 compileHakaru :: Text -> IO ()
 compileHakaru prog =
-    case parseHakaru prog of
-      Left err                 -> putStrLn $ show err
-      Right x -> IO.putStrLn $ build prog -- $ pack $ show x
+  case parseAndInfer prog of
+    Left err -> putStrLn $ show err
+    Right (TypedAST _ ast) ->
+      do let ast' = flatten ast
+             doc  = render (C.prettyUsingInclude ast')
+         IO.putStrLn "\nHakaru |===================================>\n"
+         IO.putStrLn (pack $ show $ HK.pretty ast)
+         IO.putStrLn "\nC |===================================>\n"
+         IO.putStrLn (Data.Text.unlines [includes,pack doc])
 
-    --(TypedAST typ ast) -> IO.putStrLn prog
-        -- case typ of
-        --   SMeasure _ -> forever (illustrate typ g $ run ast)
-        --   _          -> illustrate typ g $ run ast
-    -- where
-    -- run :: TrivialABT T.Term '[] a -> Value a
-    -- run = runEvaluate
-
-build :: Text -> Text
-build p = mconcat
-  [[r|#include <time.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-|]
-   ,normalC
-   ,[r|void main(){ srand(time(NULL)); while(1) { printf("%.17g\n",|]
-   ,p
-   ,[r|);}
-}|]
-  ]
-
-normalC :: Text
-normalC =
-  [r|double normal(double mu, double sd) {
-  double u = ((double)rand() / (RAND_MAX)) * 2 - 1;
-  double v = ((double)rand() / (RAND_MAX)) * 2 - 1;
-  double r = u*u + v*v;
-  if (r==0 || r>1) return normal(mu,sd);
-  double c = sqrt(-2 * log(r) / r);
-  return mu + u * c * sd;
-  }
-|]
+includes :: Text
+includes = Data.Text.unlines
+           [ "#include <time.h>"
+           , "#include <stdlib.h>"
+           , "#include <stdio.h>"
+           , "#include <math.h>" ]
