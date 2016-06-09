@@ -1,15 +1,24 @@
 {-# LANGUAGE DataKinds,
-             FlexibleContexts #-}
+             FlexibleContexts,
+             GADTs #-}
 
 module HKC.Flatten where
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 
+import Language.C.Data.Node
+import Language.C.Data.Position
 import Language.C.Syntax.AST
 
-flatten :: (ABT Term abt) => abt '[] a -> CTranslationUnit b
-flatten = undefined
+flatten :: ABT Term abt => abt xs a -> CTranslUnit
+flatten e =
+  let n = undefNode in
+  case viewABT e of
+    _           -> CTranslUnit [CDeclExt (CDecl [CTypeSpec (CIntType n)] [] n)] n
+    -- (Syn t)    -> CTranslUnit [] undefNode
+    -- (Var x)    -> CTranslUnit [] undefNode
+    -- (Bind x v) -> CTranslUnit [] undefNode
 
 -- header :: Text
 

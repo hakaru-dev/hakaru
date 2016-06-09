@@ -8,8 +8,8 @@ let
       , directory, filepath, ghc-prim, HUnit, indentation-parsec
       , integration, language-c, logfloat, math-functions, mtl
       , mwc-random, optparse-applicative, parsec, pretty, primitive
-      , process, QuickCheck, raw-strings-qq, semigroups, stdenv, text
-      , transformers, vector
+      , process, QuickCheck, semigroups, stdenv, text, transformers
+      , vector
       }:
       mkDerivation {
         pname = "hakaru";
@@ -25,7 +25,7 @@ let
         ];
         executableHaskellDepends = [
           base filepath language-c mtl mwc-random optparse-applicative pretty
-          raw-strings-qq text
+          text
         ];
         testHaskellDepends = [
           ansi-terminal base Cabal containers ghc-prim HUnit
