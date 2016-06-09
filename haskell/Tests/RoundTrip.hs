@@ -14,7 +14,7 @@ import           Data.Ratio
 
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Syntax.AST (Term)
+import Language.Hakaru.Syntax.AST (Term, PrimOp(..))
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Expect     (total)
 import Language.Hakaru.Inference  (priorAsProposal, mcmc, mh)
@@ -85,7 +85,9 @@ testMeasureReal = test
     , "t6"  ~: testSStriv [t6'] t6
     , "t7"  ~: testSStriv [t7] t7'
     , "t7n" ~: testSStriv [t7n] t7n'
-    , "t8'" ~: testSStriv [t8'] (lam $ \s1 -> lam $ \s2 -> normal zero (sqrt (s1 ^ (nat_ 2) + s2 ^ (nat_ 2))))
+    , "t8'" ~: testSStriv [t8'] (lam $ \s1 ->
+                                 lam $ \s2 ->
+                                 normal zero (primOp2_ RealPow (s2 ^ (nat_ 2) + s1 ^ (nat_ 2)) half))
     , "t9"  ~: testSStriv [t9] (unsafeSuperpose [(prob_ 2, uniform (real_ 3) (real_ 7))])
     , "t13" ~: testSStriv [t13] t13'
     , "t14" ~: testSStriv [t14] t14'
