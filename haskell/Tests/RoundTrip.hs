@@ -720,8 +720,11 @@ t65' =
                  (unsafeProb (recip (t * real_ (-1) + x)))
                  (prob_ 0)) $ (dirac unit)
 
+half' :: (ABT Term abt) => abt '[] 'HReal
+half' = half
+
 t66 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t66 = dirac (sqrt ((prob_ 3) + sqrt (prob_ 3)))
+t66 = dirac ((prob_ 3 + (prob_ 3 ** half')) ** half')
 
 t67 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HReal ':-> 'HMeasure 'HProb)
 t67 = lam $ \p -> lam $ \r -> dirac (exp (r * fromProb p))
