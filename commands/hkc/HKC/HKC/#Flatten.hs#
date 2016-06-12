@@ -15,14 +15,10 @@ flatten :: ABT Term abt => abt xs a -> CTranslUnit
 flatten e =
   let n = undefNode in
   case viewABT e of
-    (Syn x) -> flattenSyn x
     _           -> CTranslUnit [CDeclExt (CDecl [CTypeSpec (CIntType n)] [] n)] n
+    -- (Syn t)    -> CTranslUnit [] undefNode
     -- (Var x)    -> CTranslUnit [] undefNode
     -- (Bind x v) -> CTranslUnit [] undefNode
 
-flattenSyn :: Term abt a -> CTranslUnit
-flattenSyn (Literal_ (LNat x)) = undefined
-flattenSyn x = CTranslUnit [CDeclExt (CDecl [CTypeSpec (CIntType n)] [] n)] n
-  where n = undefNode
-
--- | Types of literals are 'HNat, 'HInt, 'HProb, 'HReal
+-- flatten' :: ABT Term abt => abt '[] a -> CTranslUnit
+-- flatten' = cataABT var bind alg

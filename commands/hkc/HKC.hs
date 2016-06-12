@@ -5,7 +5,6 @@ module Main where
 
 import Language.Hakaru.Parser.Parser hiding (style)
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
-import qualified Language.Hakaru.Pretty.Concrete as HK (pretty)
 
 import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
@@ -14,6 +13,7 @@ import           Language.Hakaru.Syntax.TypeCheck
 import qualified Language.C.Pretty as C
 
 import HKC.Flatten
+import HKC.CodeGen
 
 import           Data.Text
 import qualified Data.Text.IO as IO
@@ -51,14 +51,7 @@ compileHakaru prog =
     Right (TypedAST _ ast) ->
       do let ast' = flatten ast
              doc  = render (C.prettyUsingInclude ast')
-         IO.putStrLn "\nHakaru |===================================>\n"
-         IO.putStrLn (pack $ show $ HK.pretty ast)
-         IO.putStrLn "\nC |===================================>\n"
-         IO.putStrLn (Data.Text.unlines [includes,pack doc])
-
-includes :: Text
-includes = Data.Text.unlines
-           [ "#include <time.h>"
-           , "#include <stdlib.h>"
-           , "#include <stdio.h>"
-           , "#include <math.h>" ]
+         IO.putStrLn "\n<===================================================>\n"
+         IO.putStrLn $ pack $ show ast
+         IO.putStrLn "\n<===================================================>\n"
+         IO.putStrLn $ createProg (pack doc)

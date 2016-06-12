@@ -5,3 +5,4 @@ Language/Hakaru/Paths.hs
 *.o
 *.hi
 site
+*~
