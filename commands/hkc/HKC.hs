@@ -50,7 +50,7 @@ compileHakaru prog =
     Left err -> putStrLn $ show err
     Right (TypedAST _ ast) ->
       do let ast' = flatten ast
-             doc  = render (C.prettyUsingInclude ast')
+             doc  = render (C.pretty ast')
          IO.putStrLn "\n<===================================================>\n"
          IO.putStrLn $ pack $ show ast
          IO.putStrLn "\n<===================================================>\n"

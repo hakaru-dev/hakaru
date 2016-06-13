@@ -2,7 +2,7 @@
 
 module HKC.CodeGen where
 
-import Prelude hiding (unlines)
+import Prelude hiding (unlines,concat)
 import Data.Text
 
 createProg :: Text -> Text
@@ -34,10 +34,9 @@ mainWith body = unlines
               [ "void main(){"
               , "  srand(time(NULL));"
               , ""
-              , body
+              , concat ["  int n = ",body]
               , ""
-              , "  int n = 1;"
-              , "  while(1) printf(\"%.17g\\n\" ,n);"
+              , "  while(1) printf(\"%.17g\\n\",n);"
               , "}" ]
 
 {-
