@@ -69,6 +69,7 @@ module Language.Hakaru.Types.HClasses
 
    -- * Discrete types
     , HDiscrete(..)
+    , HDiscrete_(..)
     , sing_HDiscrete
     , hDiscrete_Sing
 
@@ -486,6 +487,12 @@ hDiscrete_Sing :: Sing a -> Maybe (HDiscrete a)
 hDiscrete_Sing SNat = Just HDiscrete_Nat
 hDiscrete_Sing SInt = Just HDiscrete_Int
 hDiscrete_Sing _    = Nothing
+
+-- | Haskell type class for automatic 'HFractional' inference.
+class (HSemiring_ a) => HDiscrete_ (a :: Hakaru) where
+    hDiscrete :: HDiscrete a
+instance HDiscrete_ 'HNat where hDiscrete = HDiscrete_Nat 
+instance HDiscrete_ 'HInt where hDiscrete = HDiscrete_Int 
 
 ----------------------------------------------------------------
 -- TODO: find better names than HContinuous and HIntegral
