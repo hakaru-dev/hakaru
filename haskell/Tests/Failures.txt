@@ -1,40 +1,17 @@
-[Note: this is a completely different test suite than the old
-one.  See history for an analysis of the tests related to the
-SLO version of simplify rather than NewSLO]
+[Completely new set of tests/failures starting some time in mid-2016.
+This report is as of June 14th]
 
-As of Tue. Jan. 12th 2016, the failures are as follows.  The list
-include the name of the test, the person(s) most likely responsible for
-looking at the failures, and the diagnosis:
+t25: printing of n-ary * artifact [Rob]
+t55: difference is between "weight 0" and "reject".  NewSLO as
+  currently designed treats MSum() as equivalent to the 0 measure.
+  Thus the difference between expected and actual. [Design?]
+t57:  issue is that
+   Indicator(t<1) * m + Indicator(0<t) * m
+    for any measure m, does not simplify, by combining these indicators.
 
-Parser (none)
-TypeCheck (none)
-Simplify
-- realpair (Wren)
-  TODO jmEq1{Datum_}
-- unifprob (Jacques)
-  "Type Mismatch: expected SMeasure SProb, found SMeasure SReal"
-- true' (Wren)
-  TODO typeOf_{Datum_}
-
-Disintegrate
-- test1 (Wren)
-  TODO typeOf_{Datum_}
-- test1a (Praveen?  Ken?)
-(looks like this returns an answer where none is expected)
-expected: []
- but got: [syn (Lam_ :$ ((bind (Variable "" (Nat 2) SReal) (syn (MBind :$ ((syn ((MeasureOp_ Normal) :$ ((syn (Literal_ (LReal (0 % 1)))) :* ((syn (Literal_ (LProb (1 % 1)))) :* End)))) :* ((bind (Variable "" (Nat 1) SReal) (syn (MBind :$ ((syn ((Ann_ (SMeasure (SData (STyCon (SingSymbol Proxy :: Sing "Unit")) (SPlus SDone SVoid)))) :$ ((syn (Superpose_ [(syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn ((PrimOp_ Exp) :$ ((syn (NaryOp_ (Prod HSemiring_Real) (Seq.fromList [syn ((PrimOp_ (NatPow HSemiring_Real)) :$ ((syn (NaryOp_ (Sum HSemiring_Real) (Seq.fromList [syn ((PrimOp_ (Negate HRing_Real)) :$ ((var (Variable "" (Nat 2) SReal)) :* End)),var (Variable "" (Nat 1) SReal)]))) :* ((syn (Literal_ (LNat 2))) :* End))),syn ((PrimOp_ (Recip HFractional_Real)) :$ ((syn ((CoerceTo_ (CCons (Signed HRing_Real) CNil)) :$ ((syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn (Literal_ (LProb (2 % 1))),syn ((PrimOp_ RealPow) :$ ((syn (Literal_ (LProb (1 % 1)))) :* ((syn (Literal_ (LReal (2 % 1)))) :* End)))]))) :* End))) :* End))]))) :* End)),syn ((PrimOp_ (Recip HFractional_Prob)) :$ ((syn (Literal_ (LProb (1 % 1)))) :* End)),syn ((PrimOp_ (Recip HFractional_Prob)) :$ ((syn ((PrimOp_ (NatRoot HRadical_Prob)) :$ ((syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn (Literal_ (LProb (2 % 1))),syn ((PrimOp_ Pi) :$ End)]))) :* ((syn (Literal_ (LNat 2))) :* End)))) :* End))])),syn (Dirac :$ ((syn (Datum_ (Datum "unit" (Inl Done)))) :* End)))])) :* End))) :* ((bind (Variable "" (Nat 0) (SData (STyCon (SingSymbol Proxy :: Sing "Unit")) (SPlus SDone SVoid))) (syn (Dirac :$ ((var (Variable "" (Nat 1) SReal)) :* End)))) :* End))))) :* End))))) :* End))]
-- test1b (Praveen? Ken?)
-expected: []
-(also looks like this returns an answer where none is expected)
- but got: [syn (Lam_ :$ ((bind (Variable "" (Nat 2) SReal) (syn (MBind :$ ((syn ((MeasureOp_ Normal) :$ ((syn (Literal_ (LReal (0 % 1)))) :* ((syn (Literal_ (LProb (1 % 1)))) :* End)))) :* ((bind (Variable "" (Nat 1) SReal) (syn (MBind :$ ((syn ((Ann_ (SMeasure (SData (STyCon (SingSymbol Proxy :: Sing "Unit")) (SPlus SDone SVoid)))) :$ ((syn (Superpose_ [(syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn ((PrimOp_ Exp) :$ ((syn (NaryOp_ (Prod HSemiring_Real) (Seq.fromList [syn ((PrimOp_ (NatPow HSemiring_Real)) :$ ((syn (NaryOp_ (Sum HSemiring_Real) (Seq.fromList [syn ((PrimOp_ (Negate HRing_Real)) :$ ((var (Variable "" (Nat 2) SReal)) :* End)),var (Variable "" (Nat 1) SReal)]))) :* ((syn (Literal_ (LNat 2))) :* End))),syn ((PrimOp_ (Recip HFractional_Real)) :$ ((syn ((CoerceTo_ (CCons (Signed HRing_Real) CNil)) :$ ((syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn (Literal_ (LProb (2 % 1))),syn ((PrimOp_ RealPow) :$ ((syn (Literal_ (LProb (1 % 1)))) :* ((syn (Literal_ (LReal (2 % 1)))) :* End)))]))) :* End))) :* End))]))) :* End)),syn ((PrimOp_ (Recip HFractional_Prob)) :$ ((syn (Literal_ (LProb (1 % 1)))) :* End)),syn ((PrimOp_ (Recip HFractional_Prob)) :$ ((syn ((PrimOp_ (NatRoot HRadical_Prob)) :$ ((syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn (Literal_ (LProb (2 % 1))),syn ((PrimOp_ Pi) :$ End)]))) :* ((syn (Literal_ (LNat 2))) :* End)))) :* End))])),syn (Dirac :$ ((syn (Datum_ (Datum "unit" (Inl Done)))) :* End)))])) :* End))) :* ((bind (Variable "" (Nat 0) (SData (STyCon (SingSymbol Proxy :: Sing "Unit")) (SPlus SDone SVoid))) (syn (Dirac :$ ((var (Variable "" (Nat 1) SReal)) :* End)))) :* End))))) :* End))))) :* End))]
-
-=========
-
-Notes: there seems to be some debugging output by default, as I see items
-like
-
-perform: normal (real_ (0 % 1)) (prob_ (1 % 1)) >>= \ _1 ->
-normal _1 (prob_ (1 % 1)) >>= \ _0 ->
-dirac (pair _0 _1)
-
-interspersed in the output.  This appears to come from test1 ?
+t78: what is expected is that a (trivial!!!) change of variable be done
+  to rescale from 0..2 to 0..1.  This means that 
+    x <~ uniform 0 2
+    weight(x, return x)
+    [up to casts] returns as is instead of 'recognizing' a beta(2,1)
+    [Design]
