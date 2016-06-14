@@ -1,0 +1,10 @@
+fn t real:
+  (if (t < 1):
+     return ()
+   else:
+     reject. measure(unit)) <|>
+  (if (t > 0):
+     return ()
+   else:
+     reject. measure(unit))
+     
