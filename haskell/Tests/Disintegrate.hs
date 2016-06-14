@@ -23,7 +23,7 @@ import Language.Hakaru.Disintegrate
 
 import Test.HUnit
 import Tests.TestTools
-import Tests.Models (match_norm_unif)
+import Tests.Models hiding (easyRoad)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -218,6 +218,10 @@ allTests = test
     , testWithConcrete' match_norm_unif LaxMode $ \(TypedAST _typ ast) ->
         case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
         Just Refl -> testDis "testMatchNormUnif" ast
+        Nothing   -> assertFailure "BUG: jmEq1 got the wrong type"
+    , testWithConcrete' dont_atomize_weights LaxMode $ \(TypedAST _typ ast) ->
+        case jmEq1 _typ (SMeasure $ sPair SReal sUnit) of
+        Just Refl -> testDis "testAtomizeWeights" ast
         Nothing   -> assertFailure "BUG: jmEq1 got the wrong type"
     ]
 

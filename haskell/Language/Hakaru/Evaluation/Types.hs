@@ -58,8 +58,8 @@ module Language.Hakaru.Evaluation.Types
     , freshInd
     {- TODO: should we expose these?
     , freshenStatement
-    -}
     , push_
+    -}
     , push
     , pushes
     ) where
@@ -667,6 +667,31 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- interest, and isn't a number we've returned previously.
     freshNat :: m Nat
 
+
+    -- | Internal function for renaming the variables bound by a
+    -- statement. We return the renamed statement along with a substitution
+    -- for mapping the old variable names to their new variable names.
+    freshenStatement
+        :: Statement abt p
+        -> m (Statement abt p, Assocs (Variable :: Hakaru -> *))
+    freshenStatement s =
+        case s of
+          SWeight _ _    -> return (s, mempty)
+          SBind x body i -> do
+               x' <- freshenVar x
+               return (SBind x' body i, singletonAssocs x x')
+          SLet  x body i -> do
+               x' <- freshenVar x
+               return (SLet x' body i, singletonAssocs x x')
+          SGuard xs pat scrutinee i -> do
+               xs' <- freshenVars xs
+               return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
+          SStuff0   _ _ -> return (s, mempty)
+          SStuff1 x f i -> do
+               x' <- freshenVar x
+               return (SStuff1 x' f i, singletonAssocs x x')
+
+
     -- | Returns the current Indices. Currently, this is only
     -- applicable to the Disintegration Monad, but could be
     -- relevant as other partial evaluators begin to handle
@@ -722,32 +747,6 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
         -> (Statement abt p -> Maybe (m r))
         -> m (Maybe r)
 
-
--- TODO: for type precision, return @Assocs Variable@ instead of @Assocs (abt '[])@
---
--- | Internal function for renaming the variables bound by a
--- statement. We return the renamed statement along with a substitution
--- for mapping the old variable names to their new variable names.
-freshenStatement
-    :: (ABT Term abt, EvaluationMonad abt m p)
-    => Statement abt p
-    -> m (Statement abt p, Assocs (Variable :: Hakaru -> *))
-freshenStatement s =
-    case s of
-    SWeight _ _    -> return (s, mempty)
-    SBind x body i -> do
-        x' <- freshenVar x
-        return (SBind x' body i, singletonAssocs x x')
-    SLet  x body i -> do
-        x' <- freshenVar x
-        return (SLet x' body i, singletonAssocs x x')
-    SGuard xs pat scrutinee i -> do
-        xs' <- freshenVars xs
-        return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
-    SStuff0   _ _ -> return (s, mempty)
-    SStuff1 x f i -> do
-        x' <- freshenVar x
-        return (SStuff1 x' f i, singletonAssocs x x')
 
 
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?

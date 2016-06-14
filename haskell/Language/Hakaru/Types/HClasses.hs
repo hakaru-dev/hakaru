@@ -67,6 +67,12 @@ module Language.Hakaru.Types.HClasses
     , sing_HRadical
     , hRadical_Sing
 
+   -- * Discrete types
+    , HDiscrete(..)
+    , HDiscrete_(..)
+    , sing_HDiscrete
+    , hDiscrete_Sing
+
     -- * Continuous types
     , HContinuous(..)
     , hFractional_HContinuous
@@ -455,6 +461,38 @@ instance HRadical_ 'HProb where hRadical = HRadical_Prob
 
 -- TODO: class (HDivisionRing a, HRadical a) => HAlgebraic a where...
 
+
+-- | Concrete dictionaries for Hakaru types which are \"discrete\".
+data HDiscrete :: Hakaru -> * where
+    HDiscrete_Nat :: HDiscrete 'HNat
+    HDiscrete_Int :: HDiscrete 'HInt
+
+instance Eq (HDiscrete a) where -- This one could be derived...
+    (==) = eq1
+instance Eq1 HDiscrete where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+instance JmEq1 HDiscrete where
+    jmEq1 HDiscrete_Nat HDiscrete_Nat = Just Refl
+    jmEq1 HDiscrete_Int HDiscrete_Int = Just Refl
+    jmEq1 _             _             = Nothing
+
+-- BUG: deriving instance Read (HDiscrete a)
+deriving instance Show (HDiscrete a)
+
+sing_HDiscrete :: HDiscrete a -> Sing a
+sing_HDiscrete HDiscrete_Nat = SNat
+sing_HDiscrete HDiscrete_Int = SInt
+
+hDiscrete_Sing :: Sing a -> Maybe (HDiscrete a)
+hDiscrete_Sing SNat = Just HDiscrete_Nat
+hDiscrete_Sing SInt = Just HDiscrete_Int
+hDiscrete_Sing _    = Nothing
+
+-- | Haskell type class for automatic 'HFractional' inference.
+class (HSemiring_ a) => HDiscrete_ (a :: Hakaru) where
+    hDiscrete :: HDiscrete a
+instance HDiscrete_ 'HNat where hDiscrete = HDiscrete_Nat 
+instance HDiscrete_ 'HInt where hDiscrete = HDiscrete_Int 
 
 ----------------------------------------------------------------
 -- TODO: find better names than HContinuous and HIntegral

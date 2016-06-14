@@ -175,11 +175,10 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
         Case_  e1 bs  ->
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
-            ppFun p "syn"
-                [ toDoc $ ppFun 11 "Case_"
-                    [ ppArg e1
-                    , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
-                    ]]
+             ppFun p "case_"
+                 [ ppArg e1
+                 , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
+                 ]
         Superpose_ pes ->
             case pes of
             (e1,e2) :| [] ->
@@ -232,6 +231,7 @@ ppSCon p Expect = \(e1 :* e2 :* End) ->
         adjustHead
             (PP.text "expect" <+> ppArg e1 <+> PP.char '$' <+>)
             (ppBinder e2)
+ppSCon p Observe   = \(e1 :* e2 :* End) -> ppApply2 p "observe" e1 e2
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "integrate"
         [ ppArg e1
@@ -391,7 +391,7 @@ ppPattern _ PWild = [PP.text "PWild"]
 ppPattern _ PVar  = [PP.text "PVar"]
 ppPattern p (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
-    | otherwise      = ppFun p (Text.unpack hint) (goCode d0)
+    | otherwise      = ppFun p ("p" ++ Text.unpack hint) (goCode d0)
     where
     goCode :: PDatumCode xss vars a -> Docs
     goCode (PInr d) = goCode   d
@@ -412,10 +412,12 @@ instance Pretty (Pattern xs) where
 
 instance (ABT Term abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
-        ppFun p "Branch"
+        ppFun p "branch"
             [ toDoc $ prettyPrec_ 11 pat
-            , PP.parens . toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
-            -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to have them decide if they need to or not.
+            , PP.parens . toDoc $ ppBinder e
+            -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
+            -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to
+            --       have them decide if they need to or not.
             ]
 
 ----------------------------------------------------------------

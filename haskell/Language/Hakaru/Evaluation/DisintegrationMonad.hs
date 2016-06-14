@@ -55,8 +55,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitSuperpose
     , choose
     -- * Overrides for original in Evaluation.Types
-    , push
-    , pushes
+    , pushPlate
     -- * For Arrays/Plate
     , getIndices
     , extendIndices
@@ -88,14 +87,14 @@ import qualified Data.Text            as Text
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing, sUnMeasure, sUnPair)
+import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
-import Language.Hakaru.Evaluation.Types hiding (push, pushes)
+import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 import Language.Hakaru.Evaluation.Lazy (reifyPair)
 
@@ -151,7 +150,15 @@ residualizeListContext =
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
-data Loc ast (a :: Hakaru) = Loc [Index ast]
+data Loc :: (Hakaru -> *) -> Hakaru -> * where
+     Loc
+         :: Variable a
+         -> [Index ast]
+         -> Loc ast a
+     MultiLoc
+         :: Variable a
+         -> [Index ast]
+         -> Loc ast ('HArray a)
 
 
 -- In the paper we say that result must be a 'Whnf'; however, in
@@ -254,47 +261,38 @@ adjustLoc x f = do
     locs <- getLocs
     putLocs $ adjustAssoc x f locs
 
--- possibly cleanup
-checkIfMultiLoc
+mkLoc
     :: (ABT Term abt)
-    => Variable ('HArray a)
-    -> Dis abt (Maybe (abt '[] 'HNat))
-checkIfMultiLoc x = do
+    => Text
+    -> Variable (a :: Hakaru)
+    -> [Index (abt '[])]
+    -> Dis abt (Variable a)
+mkLoc hint s inds = do
+  x <- freshVar hint (varType s)
+  insertLoc x (Loc s inds)
+  return x
+
+mkLocs
+    :: (ABT Term abt)
+    => List1 Variable (xs :: [Hakaru])
+    -> [Index (abt '[])]
+    -> Dis abt (List1 Variable xs)
+mkLocs Nil1         _    = return Nil1
+mkLocs (Cons1 x xs) inds = Cons1
+                           <$> mkLoc Text.empty x inds
+                           <*> mkLocs xs inds
+
+mkMultiLoc
+    :: (ABT Term abt)
+    => Text
+    -> Variable a
+    -> [Index (abt '[])]
+    -> Dis abt (Variable ('HArray a))
+mkMultiLoc hint s inds = do
   locs <- getLocs
-  case lookupAssoc x locs of
-    Just (Loc is) -> do 
-        ss <- getStatements
-        return . listToMaybe . flip mapMaybe ss $ \s -> do
-                     x `isBoundBy` s
-                     return . indSize . head $ statementInds s
-
--- | Modified version of push from Types which also updates Loc
-push
-    :: (ABT Term abt, EvaluationMonad abt (Dis abt) p)
-    => Statement abt p   
-    -> abt xs a          
-    -> (abt xs a -> Dis abt r) 
-    -> Dis abt r               
-push s e k = do
-    rho <- push_ s
-    F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
-        insertLoc x (Loc (statementInds s))
-    k (renames rho e)
-
--- | Modified version of pushes from Types which also updates Loc
-pushes
-    :: (ABT Term abt, EvaluationMonad abt (Dis abt) p)
-    => [Statement abt p] 
-    -> abt xs a          
-    -> (abt xs a -> Dis abt r) 
-    -> Dis abt r               
-pushes ss e k = do
-    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
-    rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
-    F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
-        insertLoc x (Loc [])
-    k (renames rho e)
-
+  x' <- freshVar hint (SArray $ varType s)
+  insertLoc x' (MultiLoc s inds)
+  return x'
 
 instance Functor (Dis abt) where
     fmap f (Dis m)  = Dis $ \c -> m (c . f)
@@ -319,6 +317,22 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
     freshNat =
         Dis $ \c (ListContext i ss) ->
             c i (ListContext (i+1) ss)
+
+    freshenStatement s =
+        case s of
+          SWeight _ _    -> return (s, mempty)
+          SBind x body i -> do
+               s  <- freshenVar x
+               x' <- mkLoc (varHint x) s i
+               return (SBind x' body i, singletonAssocs x x')
+          SLet  x body i -> do
+               s  <- freshenVar x
+               x' <- mkLoc (varHint x) s i
+               return (SLet x' body i, singletonAssocs x x')
+          SGuard xs pat scrutinee i -> do
+               ss  <- freshenVars xs
+               xs' <- mkLocs ss i
+               return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
 
     getIndices =  Dis $ \c h i l -> c i h i l
 
@@ -368,6 +382,34 @@ unsafePop =
         case ss of
         []    -> c Nothing  h ind loc
         s:ss' -> c (Just s) (ListContext i ss') ind loc
+
+pushPlate
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> abt '[ 'HNat ] ('HMeasure a)
+    -> [Index (abt '[])]
+    -> Dis abt (Variable ('HArray a))
+pushPlate n e inds =
+  caseBind e $ \x body -> do
+    i  <- freshInd n
+    p  <- freshVar Text.empty (sUnMeasure $ typeOf body)
+    unsafePush (SBind p (Thunk $ rename x (indVar i) body)
+                (extendIndices i inds))
+    mkMultiLoc Text.empty p inds
+
+residualizeLocs
+    :: forall abt a
+    .  (ABT Term abt)
+    => abt '[] a
+    -> Dis abt (abt '[] a)
+residualizeLocs e = do
+    locs <- getLocs
+    let rho = toAssocs $ map go (fromAssocs locs)
+    return (substs rho e)
+  where go :: Assoc (Loc (abt '[])) -> Assoc (abt '[])
+        go (Assoc x' (Loc      x     [])) = Assoc x' (var x)
+        go (Assoc x' (Loc      x (i:is))) = undefined
+        go (Assoc x' (MultiLoc x     is)) = undefined
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
