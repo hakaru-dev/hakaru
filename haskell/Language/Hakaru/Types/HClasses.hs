@@ -463,8 +463,8 @@ instance HRadical_ 'HProb where hRadical = HRadical_Prob
 
 -- | Concrete dictionaries for types where Infinity can have
 data HIntegrable :: Hakaru -> * where
-    HIntegrable_Nat  :: HRing 'HNat
-    HIntegrable_Prob :: HRing 'HProb
+    HIntegrable_Nat  :: HIntegrable 'HNat
+    HIntegrable_Prob :: HIntegrable 'HProb
 
 -- | Concrete dictionaries for Hakaru types which are \"discrete\".
 data HDiscrete :: Hakaru -> * where
