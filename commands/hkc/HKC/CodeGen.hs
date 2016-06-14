@@ -1,15 +1,31 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings,
+             DataKinds,
+             GADTs,
+             KindSignatures #-}
 
 module HKC.CodeGen where
 
+import           Language.Hakaru.Syntax.ABT
+import qualified Language.Hakaru.Syntax.AST as T
+import           Language.Hakaru.Syntax.TypeCheck
+import           Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.DataKind (Hakaru(..))
+
+import qualified Language.C.Pretty as C
+
+import HKC.Flatten
+
 import Prelude hiding (unlines,concat)
 import Data.Text
+import Text.PrettyPrint
 
-createProg :: Text -> Text
-createProg body = unlines
-                [ header
-                , normalC
-                , mainWith body ]
+
+-- | Create program is the top level C codegen. Depending on the type a program
+--   will have a different construction. HNat will just return while a measure
+--   returns a sampling program.
+createProgram :: TypedAST (TrivialABT T.Term) -> Text
+createProgram (TypedAST typ abt) = mainWith typ body
+  where body = pack $ render $ C.pretty $ flatten abt
 
 header :: Text
 header = unlines
@@ -29,15 +45,17 @@ normalC = unlines
         , "  return mu + u * c * sd;"
         , "}" ]
 
-mainWith :: Text -> Text
-mainWith body = unlines
-              [ "void main(){"
-              , "  srand(time(NULL));"
-              , ""
-              , concat ["  int n = ",body]
-              , ""
-              , "  while(1) printf(\"%.17g\\n\",n);"
-              , "}" ]
+mainWith :: Sing (a :: Hakaru) -> Text -> Text
+mainWith typ body = unlines
+ [ "void main(){"
+ , "  srand(time(NULL));"
+ , ""
+ , concat ["  int result = ",body]
+ , ""
+ , case typ of
+     SMeasure _ -> "  while(1) printf(\"%.17g\\n\",result);"
+     _          -> "  printf(\"%.17g\\n\",result);"
+ , "}" ]
 
 {-
 let_ :: a -> (a -> b) -> b

@@ -30,7 +30,7 @@ flattenSyn (Case_ x y)    = case_c      x y
 flattenSyn (Array_ x y)   = array_c     x y
 flattenSyn (x :$ y)       = cons_c      x y
 flattenSyn (Reject_ x)    = reject_c    x
-flattenSyn (Superpose_ x) = superpose_c x          
+flattenSyn (Superpose_ x) = superpose_c x
 
 nAryOp_c :: a -> b -> CStat
 nAryOp_c = undefined

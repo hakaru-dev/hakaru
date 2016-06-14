@@ -5,19 +5,15 @@ module Main where
 
 import Language.Hakaru.Parser.Parser hiding (style)
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
+import Language.Hakaru.Syntax.TypeCheck
 
 import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
-import           Language.Hakaru.Syntax.TypeCheck
 
-import qualified Language.C.Pretty as C
-
-import HKC.Flatten
 import HKC.CodeGen
 
 import           Data.Text
 import qualified Data.Text.IO as IO
-import           Text.PrettyPrint
 
 import System.Environment
 
@@ -48,10 +44,8 @@ compileHakaru :: Text -> IO ()
 compileHakaru prog =
   case parseAndInfer prog of
     Left err -> putStrLn $ show err
-    Right (TypedAST _ ast) ->
-      do let ast' = flatten ast
-             doc  = render (C.pretty ast')
-         IO.putStrLn "\n<===================================================>\n"
-         IO.putStrLn $ pack $ show ast
-         IO.putStrLn "\n<===================================================>\n"
-         IO.putStrLn $ createProg (pack doc)
+    Right t@(TypedAST _ ast) -> do
+      IO.putStrLn "\n<===================================================>\n"
+      IO.putStrLn $ pack $ show ast
+      IO.putStrLn "\n<===================================================>\n"
+      IO.putStrLn $ createProgram t
