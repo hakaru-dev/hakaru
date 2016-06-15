@@ -1,7 +1,6 @@
 [Completely new set of tests/failures starting some time in mid-2016.
 This report is as of June 14th]
 
-t25: printing of n-ary * artifact [Rob]
 t55: difference is between "weight 0" and "reject".  NewSLO as
   currently designed treats MSum() as equivalent to the 0 measure.
   Thus the difference between expected and actual. [Design?]
