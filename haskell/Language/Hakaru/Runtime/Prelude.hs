@@ -10,7 +10,6 @@ import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
 import qualified Data.Vector                     as V
-import qualified Data.List                       as L
 import qualified Control.Monad                   as M
 import           Prelude hiding ((>>=))
 
