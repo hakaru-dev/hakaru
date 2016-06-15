@@ -27,7 +27,7 @@ of Hakaru's program simplifier run
     export LOCAL_MAPLE="`which maple`"
     cd hakaru/maple
     maple update-archive.mpl
-    echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >~/.mapleinit
+    echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >> ~/.mapleinit
 
 Installation - Windows
 ------------
@@ -50,7 +50,7 @@ the following will work in a command prompt:
 
     cd hakaru\maple 
     cmaple update-archive.mpl
-    echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: > "C:\<path to maple>\lib\maple.ini"
+    echo 'libname := "C:\\<path to hakaru>\\hakaru\\maple",libname:' >> "C:\<path to maple>\lib\maple.ini"
 
 Note the escaped backslashes.
 

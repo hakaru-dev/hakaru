@@ -33,7 +33,7 @@ with the system to access this functionality
 export LOCAL_MAPLE="`which maple`"
 cd hakaru/maple
 maple update-archive.mpl
-echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >~/.mapleinit
+echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >> ~/.mapleinit
 ````
 
 Under Windows the instructions become
@@ -42,7 +42,7 @@ Under Windows the instructions become
 SETX LOCAL_MAPLE "<path to Maple bin directory>\cmaple.exe"
 cd hakaru\maple 
 cmaple update-archive.mpl
-echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: > "C:\<path to maple>\lib\maple.ini"
+echo 'libname := "C:\\<path to hakaru>\\hakaru\\maple",libname:' >> "C:\<path to maple>\lib\maple.ini"
 ````
 
 If the Maple extension has been properly installed running
