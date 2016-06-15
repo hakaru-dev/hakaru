@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds,
              FlexibleContexts,
+             FlexibleInstances,
              GADTs #-}
 
 module HKC.Flatten where
@@ -13,24 +14,25 @@ import Language.C.Data.Position
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 
-flatten :: ABT Term abt => abt xs a -> CStat
-flatten e =
-  let n = undefNode in
-  case viewABT e of
-    (Syn x)     -> flattenSyn x
-    (Var x)     -> undefined
-    (Bind x v)  -> undefined
+class Flattenable a where
+  flatten :: a -> CStat
 
-flattenSyn :: Term abt a -> CStat
-flattenSyn (NaryOp_ x y)  = nAryOp_c    x y
-flattenSyn (Literal_ x)   = literal_c   x
-flattenSyn (Empty_ x)     = empty_c     x
-flattenSyn (Datum_ x)     = datum_c     x
-flattenSyn (Case_ x y)    = case_c      x y
-flattenSyn (Array_ x y)   = array_c     x y
-flattenSyn (x :$ y)       = cons_c      x y
-flattenSyn (Reject_ x)    = reject_c    x
-flattenSyn (Superpose_ x) = superpose_c x
+instance ABT Term abt => Flattenable (abt xs a) where
+  flatten e = case viewABT e of
+                (Syn x)    -> flatten x
+                (Var x)    -> undefined
+                (Bind x v) -> undefined
+
+instance Flattenable (Term abt a) where
+  flatten (NaryOp_ x y)  = nAryOp_c    x y
+  flatten (Literal_ x)   = literal_c   x
+  flatten (Empty_ x)     = empty_c     x
+  flatten (Datum_ x)     = datum_c     x
+  flatten (Case_ x y)    = case_c      x y
+  flatten (Array_ x y)   = array_c     x y
+  flatten (x :$ y)       = cons_c      x y
+  flatten (Reject_ x)    = reject_c    x
+  flatten (Superpose_ x) = superpose_c x
 
 nAryOp_c :: a -> b -> CStat
 nAryOp_c = undefined

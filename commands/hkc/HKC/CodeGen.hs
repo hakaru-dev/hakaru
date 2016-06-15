@@ -24,8 +24,8 @@ import Text.PrettyPrint
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
-createProgram (TypedAST typ abt) = mainWith typ body
-  where body = pack $ render $ C.pretty $ flatten abt
+createProgram (TypedAST typ abt) = unlines [header,mainWith typ body]
+              where body = pack $ render $ C.pretty $ flatten abt
 
 header :: Text
 header = unlines
@@ -50,44 +50,34 @@ mainWith typ body = unlines
  [ "void main(){"
  , "  srand(time(NULL));"
  , ""
- , concat ["  int result = ",body]
+ , concat ["  ",ctyp," result = ",body]
  , ""
  , case typ of
      SMeasure _ -> "  while(1) printf(\"%.17g\\n\",result);"
-     _          -> "  printf(\"%.17g\\n\",result);"
+     SInt       -> "  printf(\"%d\\n\",result);"
+     SNat       -> "  printf(\"%d\\n\",result);"
+     SProb      -> "  printf(\"%.17g\\n\",result);"
+     SReal      -> "  printf(\"%.17g\\n\",result);"
+     SArray _   -> "  printf(\"%.17g\\n\",result);"
+     SFun _ _   -> "  printf(\"%.17g\\n\",result);"
+     SData _ _  -> "  printf(\"%.17g\\n\",result);"
  , "}" ]
+ where ctyp = case typ of
+                SMeasure _ -> undefined
+                SInt       -> "int"
+                SNat       -> "int"
+                SProb      -> "double"
+                SReal      -> "double"
+                SArray _   -> undefined
+                SFun _ _   -> undefined
+                SData _ _  -> undefined
 
-{-
-let_ :: a -> (a -> b) -> b
-let_ x f = let x1 = x in f x1
-
-normal :: Double -> Double -> MWC.GenIO -> IO Double
-normal mu sd g = MWCD.normal mu sd g
-
-(>>=) :: (MWC.GenIO -> IO a)
-      -> (a -> MWC.GenIO -> IO b)
-      -> MWC.GenIO
-      -> IO b
-m >>= f = \g -> m g M.>>= flip f g
-
-dirac :: a -> MWC.GenIO -> IO a
-dirac x _ = return x
-
-nat_ :: Integer -> Integer
-nat_ = id
-
-nat2prob :: Integer -> Double
-nat2prob = fromIntegral
-
-nat2real :: Integer -> Double
-nat2real = fromIntegral
-
-real_ :: Rational -> Double
-real_ = fromRational
-
-prob_ :: NonNegativeRational -> Double
-prob_ = fromRational . fromNonNegativeRational
-
-run :: Show a => MWC.GenIO -> (MWC.GenIO -> IO a) -> IO ()
-run g k = k g M.>>= print
--}
+    --  SNat     :: Sing 'HNat
+    -- SInt     :: Sing 'HInt
+    -- SProb    :: Sing 'HProb
+    -- SReal    :: Sing 'HReal
+    -- SMeasure :: !(Sing a) -> Sing ('HMeasure a)
+    -- SArray   :: !(Sing a) -> Sing ('HArray a)
+    -- -- TODO: would it be clearer to use (:$->) in order to better mirror the type-level (:->)
+    -- SFun     :: !(Sing a) -> !(Sing b) -> Sing (a ':-> b)
+    -- SData    :: !(Sing t) -> !(Sing (Code t)) -> Sing (HData' t)
