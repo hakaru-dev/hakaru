@@ -4,10 +4,8 @@
            , DataKinds
            , TypeOperators
            , Rank2Types
-           , BangPatterns
            , FlexibleContexts
            , MultiParamTypeClasses
-           , FunctionalDependencies
            , FlexibleInstances
            , UndecidableInstances
            , EmptyCase

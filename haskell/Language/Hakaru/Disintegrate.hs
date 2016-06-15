@@ -1093,7 +1093,7 @@ constrainOutcome v0 e0 =
         caseBind e2 $ \x e2' -> do
             i <- getIndices
             push (SBind x (Thunk e1) i) e2' (constrainOutcome v0)
-    go (WPlate e1 e2)        = do
+    go (WPlate e1 e2)        =
         caseBind e2 $ \x e2' -> do
             inds <- getIndices
             p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
