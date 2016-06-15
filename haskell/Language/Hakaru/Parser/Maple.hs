@@ -498,6 +498,12 @@ maple2Type (InertArgs Func
      = TypeApp "array" [maple2Type x]
 
 maple2Type (InertArgs Func
+            [InertName "HFunction",
+             InertArgs ExpSeq
+             [x, y]])
+     = TypeFun (maple2Type x) (maple2Type y)
+
+maple2Type (InertArgs Func
             [InertName "HMeasure",
              InertArgs ExpSeq
              [x]])
