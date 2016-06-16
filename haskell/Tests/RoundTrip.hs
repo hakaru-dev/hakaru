@@ -1269,6 +1269,14 @@ rmProg4 =
   dirac (pair x3 (x1 `app` x3 / x1 `app` x2))
 
 
+pairReject
+    :: (ABT Term abt)
+    => abt '[] (HPair ('HMeasure 'HReal) 'HReal)
+pairReject =
+    pair (reject (SMeasure SReal) >>= \_ -> dirac one)
+         (real_ 2)
+
+
 -- this comes from Examples.Seismic.falseDetection
 -- seismicFalseDetection
 --     :: (ABT Term abt)
