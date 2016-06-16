@@ -1302,7 +1302,7 @@ densityCategorical
     => abt '[] ('HArray 'HProb)
     -> abt '[] 'HNat
     -> abt '[] 'HProb
-densityCategorical v i = v ! i / sumV v
+densityCategorical v i = v ! i / summateV v
 
 categorical, categorical'
     :: (ABT Term abt)
