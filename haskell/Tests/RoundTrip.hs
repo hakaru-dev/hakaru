@@ -181,10 +181,12 @@ testMeasurePair = test [
     "norm_noy"      ~: testSStriv [norm_noy] (normal zero one),
     "flipped_norm"  ~: testSStriv [swap <$> norm] flipped_norm,
     "priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
-                                  (lam $ \x -> unsafeSuperpose [(half, normal_0_1 >>= \y ->
-                                                                       dirac (pair y (snd x))),
-                                                                (half, normal zero (sqrt (prob_ 2)) >>= \y ->
-                                                                       dirac (pair (fst x) y))]),
+                                  (lam $ \x -> unpair x $ \x0 x1 ->
+                                               unsafeSuperpose [(half, normal zero
+                                                                         (prob_ 2 ** (real_ 0.5)) >>= \y ->
+                                                                       dirac (pair x0 y)),
+                                                                (half, normal_0_1 >>= \y ->
+                                                                       dirac (pair y x1))]),
     "mhPriorProp"   ~: testSStriv [testMHPriorProp] testPriorProp',
     "unif2"         ~: testStriv unif2,
     "easyHMM"       ~: testStriv easyHMM,
