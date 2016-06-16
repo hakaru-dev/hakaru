@@ -14,8 +14,10 @@ import Language.C.Data.Position
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 
+import Data.List.NonEmpty
+
 class Flattenable a where
-  flatten :: a -> CStat
+  flatten :: a -> NonEmpty CStat
 
 instance ABT Term abt => Flattenable (abt xs a) where
   flatten e = case viewABT e of
@@ -24,15 +26,15 @@ instance ABT Term abt => Flattenable (abt xs a) where
                 (Bind x v) -> undefined
 
 instance Flattenable (Term abt a) where
-  flatten (NaryOp_ x y)  = nAryOp_c    x y
-  flatten (Literal_ x)   = literal_c   x
-  flatten (Empty_ x)     = empty_c     x
-  flatten (Datum_ x)     = datum_c     x
-  flatten (Case_ x y)    = case_c      x y
-  flatten (Array_ x y)   = array_c     x y
-  flatten (x :$ y)       = cons_c      x y
-  flatten (Reject_ x)    = reject_c    x
-  flatten (Superpose_ x) = superpose_c x
+  flatten (NaryOp_ x y)  = return $ nAryOp_c    x y
+  flatten (Literal_ x)   = return $ literal_c   x
+  flatten (Empty_ x)     = return $ empty_c     x
+  flatten (Datum_ x)     = return $ datum_c     x
+  flatten (Case_ x y)    = return $ case_c      x y
+  flatten (Array_ x y)   = return $ array_c     x y
+  flatten (x :$ y)       = return $ cons_c      x y
+  flatten (Reject_ x)    = return $ reject_c    x
+  flatten (Superpose_ x) = return $ superpose_c x
 
 nAryOp_c :: a -> b -> CStat
 nAryOp_c = undefined

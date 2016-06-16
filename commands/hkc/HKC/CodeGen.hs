@@ -15,8 +15,11 @@ import qualified Language.C.Pretty as C
 
 import HKC.Flatten
 
-import Prelude hiding (unlines,concat)
-import Data.Text
+import           Prelude            as P hiding (unlines)
+import           Data.Text          as D
+import qualified Data.List.NonEmpty as N
+import           Data.Monoid
+
 import Text.PrettyPrint
 
 
@@ -25,7 +28,8 @@ import Text.PrettyPrint
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST typ abt) = unlines [header,mainWith typ body]
-              where body = pack $ render $ C.pretty $ flatten abt
+              where body = unlines $ pack $ P.map (render . C.pretty)
+                                                  (flatten abt)
 
 header :: Text
 header = unlines
@@ -50,7 +54,7 @@ mainWith typ body = unlines
  [ "void main(){"
  , "  srand(time(NULL));"
  , ""
- , concat ["  ",ctyp," result = ",body]
+ , mconcat ["  ",ctyp," result = ",body]
  , ""
  , case typ of
      SMeasure _ -> "  while(1) printf(\"%.17g\\n\",result);"
