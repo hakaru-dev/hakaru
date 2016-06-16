@@ -589,7 +589,7 @@ inferType = inferType_
             case mode of
             StrictMode -> inferOneCheckOthers_ (map snd pes)
             LaxMode    -> inferLubType         (map snd pes)
-            UnsafeMode -> error "TODO: inferType{Superpose_} in UnsafeMode"
+            UnsafeMode -> inferLubType         (map snd pes) --error "TODO: inferType{Superpose_} in UnsafeMode"
         case typ of
             SMeasure _ -> do
                 ps' <- T.traverse (checkType SProb) (fmap fst pes)
