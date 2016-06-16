@@ -54,7 +54,7 @@ parseAndInfer x =
 compileHakaru :: Text -> ReaderT Config IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
-    Left err -> putStrLn $ show err
+    Left err -> putStrLn err
     Right (TypedAST typ ast) -> do
       let ast' = TypedAST typ (constantPropagation ast)
       when (config == DEBUG) $ do
