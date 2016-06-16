@@ -15,3 +15,6 @@ t78: what is expected is that a (trivial!!!) change of variable be done
     weight(x, return x)
     [up to casts] returns as is instead of 'recognizing' a beta(2,1)
     [Design]
+
+exceptionLebesgue, exceptionUniform:  simplification of zero-measure
+  conditions is not implemented.  [?]
