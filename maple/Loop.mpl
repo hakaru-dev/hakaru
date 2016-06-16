@@ -201,7 +201,8 @@ Loop := module ()
 
   wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),
                kb1::t_kb, kb0::t_kb, $)
-    local e, kb, mode, i, entry, rest, var, new_rng, make, dom_spec, w, arrrgs;
+    local e, kb, mode, i, entry, rest, var, new_rng, make, dom_spec, w, arrrgs,
+       cond;
     e    := e1;
     kb   := kb1;
     mode := mode1;
@@ -231,17 +232,22 @@ Loop := module ()
         dom_spec, rest := selectremove(depends,
           map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest),
           var);
-        if mode = `+` then
-          (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
-          e := simplify_assuming(`*`(op(e)), kb);
-          w := simplify_assuming(`*`(op(w)), kb);
-        else
-          w := 1;
+        (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
+        e := simplify_assuming(`*`(op(e)), kb);
+        w := simplify_assuming(`*`(op(w)), kb);
+        if mode = `*` and op(1,new_rng) = genType then
+          w := w^(op(2,new_rng)+1-op(1,new_rng));
         end if;
         if nops(dom_spec) > 0 then
+          cond := op(dom_spec);
           # if e = mode(), don't bother with the piecewise
           if not (e = mode()) then
-            e := piecewise(And(op(dom_spec)),e,mode())
+            # if e itself is a piecewise of the right shape, merge
+            if e :: 'specfunc(piecewise)' and nops(e)=3 and op(3,e) = mode() then
+              e := piecewise(And(op(1,e), cond), op(2,e), mode())
+            else
+              e := piecewise(And(cond),e,mode())
+            end if;
           end if;
         end if;
         e  := w * make(e, var=new_rng);
@@ -265,7 +271,7 @@ Loop := module ()
     end if;
     rest := kb_subtract(kb, kb0);
     rest := map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest);
-    if nops(rest) > 0 then
+    if nops(rest) > 0 and not (e = mode ()) then
       e := piecewise(And(op(rest)),e,mode())
     end if;
     e
