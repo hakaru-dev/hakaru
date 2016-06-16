@@ -113,7 +113,7 @@ samplers becomes increasing inefficient.
         <h4 class="panel-title">TODO</h4>
 	</div>
 	<div class="panel-body">
-        Explain simply and mh
+        Explain simplify and mh
 	</div>
 </div>
 
