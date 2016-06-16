@@ -239,7 +239,10 @@ Loop := module ()
           w := 1;
         end if;
         if nops(dom_spec) > 0 then
-          e := piecewise(And(op(dom_spec)),e,mode())
+          # if e = mode(), don't bother with the piecewise
+          if not (e = mode()) then
+            e := piecewise(And(op(dom_spec)),e,mode())
+          end if;
         end if;
         e  := w * make(e, var=new_rng);
         kb := foldr(assert, op(2,entry), op(rest));
