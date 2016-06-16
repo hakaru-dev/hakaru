@@ -61,7 +61,7 @@ Hakaru := module ()
          case, app, ary, idx, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
-         map_piecewise, foldr_piecewise,
+         map_piecewise, foldr_piecewise, map_case,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
          htype_patterns;
@@ -94,34 +94,40 @@ Hakaru := module ()
 
   case := proc(e, bs :: specfunc(Branch(anything, anything), Branches), $)
     local ret, b, substs, eSubst, pSubst, p, binds, uncertain;
-    ret := Branches();
-    for b in bs do
-      substs := pattern_match(e, e, op(1,b));
-      if substs <> NULL then
-        eSubst, pSubst := substs;
-        p := subs(pSubst, op(1,b));
-        binds := {pattern_binds(p)};
-        uncertain := remove((eq -> lhs(eq) in binds), eSubst);
-        if nops(uncertain) = 0 then p := PWild end if;
-        ret := Branches(op(ret),
-                        Branch(p, eval(eval(op(2,b), pSubst), eSubst)));
-        if nops(uncertain) = 0 then break end if;
-      end if
-    end do;
-    if ret :: Branches(Branch(identical(PWild), anything)) then
-      op([1,2], ret)
-    elif ret :: Branches(Branch(identical(p_true), anything),
-                         Branch({identical(p_false),
-                                 identical(PWild),
-                                 PVar(anything)}, anything)) then
-      piecewise(make_piece(e), op([1,2], ret), op([2,2], ret))
-    elif ret :: Branches(Branch(identical(p_false), anything),
-                         Branch({identical(p_true),
-                                 identical(PWild),
-                                 PVar(anything)}, anything)) then
-      piecewise(make_piece(e), op([2,2], ret), op([1,2], ret))
+    if e :: 'specfunc(piecewise)' then
+      map_piecewise(procname, _passed)
+    elif e :: 't_case' then
+      map_case(procname, _passed)
     else
-      'case'(e, ret)
+      ret := Branches();
+      for b in bs do
+        substs := pattern_match(e, e, op(1,b));
+        if substs <> NULL then
+          eSubst, pSubst := substs;
+          p := subs(pSubst, op(1,b));
+          binds := {pattern_binds(p)};
+          uncertain := remove((eq -> lhs(eq) in binds), eSubst);
+          if nops(uncertain) = 0 then p := PWild end if;
+          ret := Branches(op(ret),
+                          Branch(p, eval(eval(op(2,b), pSubst), eSubst)));
+          if nops(uncertain) = 0 then break end if;
+        end if
+      end do;
+      if ret :: Branches(Branch(identical(PWild), anything)) then
+        op([1,2], ret)
+      elif ret :: Branches(Branch(identical(p_true), anything),
+                           Branch({identical(p_false),
+                                   identical(PWild),
+                                   PVar(anything)}, anything)) then
+        piecewise(make_piece(e), op([1,2], ret), op([2,2], ret))
+      elif ret :: Branches(Branch(identical(p_false), anything),
+                           Branch({identical(p_true),
+                                   identical(PWild),
+                                   PVar(anything)}, anything)) then
+        piecewise(make_piece(e), op([2,2], ret), op([1,2], ret))
+      else
+        'case'(e, ret)
+      end if
     end if
   end proc;
 
@@ -317,11 +323,26 @@ Hakaru := module ()
     end if
   end proc;
 
+  map_case := proc(f,p) # p may or may not be case
+    local g, h;
+    if p :: 't_case' then
+      # Mind the hygiene
+      evalindets(eval(subsop(2 = map[3](applyop, g, 2, op(2,p)), p),
+                      g=h(f,_rest)),
+                 'typefunc(anything,specfunc(h))',
+                 (e -> op([0,1],e)(op(1,e), op(2..-1,op(0,e)))))
+    else
+      f(p,_rest)
+    end if
+  end proc;
+
   app := proc (func, argu, $)
     if func :: 'lam(name, anything, anything)' then
       eval(op(3,func), op(1,func)=argu)
     elif func :: 'specfunc(piecewise)' then
       map_piecewise(procname, _passed)
+    elif func :: 't_case' then
+      map_case(procname, _passed)
     else
       'procname(_passed)'
     end if
@@ -342,6 +363,8 @@ Hakaru := module ()
       eval(op(3,a), op(2,a)=i)
     elif a :: 'specfunc(piecewise)' then
       map_piecewise(procname, _passed)
+    elif a :: 't_case' then
+      map_case(procname, _passed)
     else
       'procname(_passed)'
     end if
@@ -352,6 +375,8 @@ Hakaru := module ()
       op(1,a)
     elif a :: 'specfunc(piecewise)' then
       map_piecewise(procname, _passed)
+    elif a :: 't_case' then
+      map_case(procname, _passed)
     else
       'procname(_passed)'
     end if
