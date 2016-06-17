@@ -26,15 +26,15 @@ import Text.PrettyPrint
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
-createProgram (TypedAST typ abt) = unlines [header,mainWith typ body]
+createProgram (TypedAST typ abt) = unlines [header typ,"",mainWith typ body]
   where body = unlines $ N.toList $ fmap (pack . render . C.pretty) (flatten abt)
 
-header :: Text
-header = unlines
-       [ "#include <time.h>"
-       , "#include <stdlib.h>"
-       , "#include <stdio.h>"
-       , "#include <math.h>" ]
+header :: Sing (a :: Hakaru) -> Text
+header (SMeasure _) = unlines [ "#include <time.h>"
+                              , "#include <stdlib.h>"
+                              , "#include <stdio.h>"
+                              , "#include <math.h>" ]
+header _ = "#include <stdio.h>"
 
 normalC :: Text
 normalC = unlines
@@ -50,8 +50,9 @@ normalC = unlines
 mainWith :: Sing (a :: Hakaru) -> Text -> Text
 mainWith typ body = unlines
  [ "void main(){"
- , "  srand(time(NULL));"
- , ""
+ , case typ of
+     SMeasure _ -> "  srand(time(NULL));\n"
+     _ -> ""
  , mconcat ["  ",ctyp," result;"]
  , ""
  , mconcat ["  result = ",body]

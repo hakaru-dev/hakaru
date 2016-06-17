@@ -18,7 +18,8 @@ import Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
 import System.Environment
 
-data Config = DEBUG | DEFAULT deriving (Show,Eq)
+data Config = Config { debug    :: Bool
+                     , optimize :: Bool } deriving Show
 
 main :: IO ()
 main = do
@@ -34,11 +35,11 @@ readFromFile "-" = IO.getContents
 readFromFile x   = IO.readFile x
 
 parseArgs :: [String] -> ([FilePath],Config)
-parseArgs input = (filter (not . debugState) input
-                  , if any debugState input
-                    then DEBUG
-                    else DEFAULT)
-  where debugState = (== "-D")
+parseArgs input = (filter (\i -> not $ debugFlag i || optimizeFlag i) input
+                  , Config { debug    = any debugFlag    input
+                           , optimize = any optimizeFlag input})
+  where debugFlag    = (== "-D")
+        optimizeFlag = (== "-O")
 
 
 -- TODO: parseAndInfer has been copied to hkc, compile, and hakaru commands
@@ -56,11 +57,14 @@ compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
     Left err -> putStrLn err
     Right (TypedAST typ ast) -> do
-      let ast' = TypedAST typ (constantPropagation ast)
-      when (config == DEBUG) $ do
+      let ast' = TypedAST typ (if optimize config
+                               then constantPropagation ast
+                               else ast)
+      when (debug config) $ do
         IO.putStrLn "\n<=====================AST==========================>\n"
         IO.putStrLn $ pack $ show ast
-        IO.putStrLn "\n<=================Constant Prop====================>\n"
-        IO.putStrLn $ pack $ show ast'
+        when (optimize config) $ do
+          IO.putStrLn "\n<=================Constant Prop====================>\n"
+          IO.putStrLn $ pack $ show ast'
         IO.putStrLn "\n<======================C===========================>\n"
       IO.putStrLn $ createProgram ast'
