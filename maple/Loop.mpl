@@ -235,22 +235,28 @@ Loop := module ()
         (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
         e := simplify_assuming(`*`(op(e)), kb);
         w := simplify_assuming(`*`(op(w)), kb);
-        if mode = `*` and op(1,new_rng) = genType then
-          w := w^(op(2,new_rng)+1-op(1,new_rng));
-        end if;
         if nops(dom_spec) > 0 then
           cond := op(dom_spec);
           # if e = mode(), don't bother with the piecewise
           if not (e = mode()) then
             # if e itself is a piecewise of the right shape, merge
             if e :: 'specfunc(piecewise)' and nops(e)=3 and op(3,e) = mode() then
-              e := piecewise(And(op(1,e), cond), op(2,e), mode())
-            else
-              e := piecewise(And(cond),e,mode())
+              cond := op(1,e), cond;
+              e := op(2,e);
             end if;
+            e := piecewise(And(cond), op(2,e), mode())
           end if;
         end if;
-        e  := w * make(e, var=new_rng);
+        if mode=`+` then
+          e  := w * make(e, var=new_rng);
+        elif mode=`*` then
+          if make = genLet then
+            e := w * make(e, var = new_rng);
+          else
+            e := w ^ sum(piecewise(cond, 1, 0), var = new_rng) *
+                 make(e, var = new_rng);
+          end if;
+        end if;
         kb := foldr(assert, op(2,entry), op(rest));
       elif entry :: t_stmt then
         # We evaluate arrrgs first, in case op(1,stmt) is an operation (such as
