@@ -96,13 +96,14 @@ simplifyDebug
     => abt '[] a
     -> IO (abt '[] a)
 simplifyDebug e = do
-    let slo = Maple.pretty e
-    hPutStrLn stderr ("Sent to Maple: " ++ slo)
-    let typ = typeOf e          
-    hakaru <- maple ("use Hakaru, NewSLO in timelimit(30, RoundTrip("
-      ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;")
-    ret  <- maple ("FromInert(" ++ hakaru ++ ")")
-    hPutStr stderr ("Returning from Maple: " ++ ret) 
+    let slo  = Maple.pretty e
+    let typ  = typeOf e
+    let sent = "use Hakaru, NewSLO in timelimit(30, RoundTrip("
+               ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;"
+    hPutStrLn stderr ("Sent to Maple: " ++ sent)
+    hakaru <- maple sent
+    ret    <- maple ("FromInert(" ++ hakaru ++ ")")
+    hPutStrLn stderr ("Returning from Maple: " ++ ret)
 
     either (throw  . MapleException slo)
            (return . constantPropagation) $ do

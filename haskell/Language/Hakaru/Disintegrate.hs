@@ -1093,7 +1093,7 @@ constrainOutcome v0 e0 =
         caseBind e2 $ \x e2' -> do
             i <- getIndices
             push (SBind x (Thunk e1) i) e2' (constrainOutcome v0)
-    go (WPlate e1 e2)        = do
+    go (WPlate e1 e2)        =
         caseBind e2 $ \x e2' -> do
             inds <- getIndices
             p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
@@ -1129,8 +1129,11 @@ constrainOutcomeMeasureOp v0 = go
     -- TODO: I think, based on Hakaru v0.2.0
     go Counting = \End -> return ()
 
-    go Categorical = \(e1 :* End) ->
-        error "TODO: constrainOutcomeMeasureOp{Categorical}"
+    go Categorical = \(e1 :* End) -> do
+        v0' <- emitLet' v0
+        e1' <- fromWhnf <$> atomize e1
+        -- TODO: check that v0' is < then length of e1
+        emitWeight (P.densityCategorical e1' v0')
 
     -- Per the paper
     go Uniform = \(lo :* hi :* End) -> do

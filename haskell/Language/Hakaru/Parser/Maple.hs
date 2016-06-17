@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE CPP, OverloadedStrings, LambdaCase #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
@@ -260,6 +260,13 @@ parseMaple txt =
 ----------------------------------------------------------------
 -- Parsing InertExpr to AST' Text
 
+collapseNaryOp :: NaryOp -> [AST' Text] -> [AST' Text]
+collapseNaryOp op =
+    concatMap (\case
+                NaryOp op' e | op == op' ->  e
+                t                        -> [t])
+
+
 maple2AST :: InertExpr -> AST' Text
 maple2AST (InertNum Pos i)       = ULiteral $ Nat $ fromInteger i
 maple2AST (InertNum Neg i)       = ULiteral $ Int $ fromInteger i
@@ -382,9 +389,9 @@ maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
 
-maple2AST (InertArgs And_    es) = NaryOp And  (map maple2AST es)
-maple2AST (InertArgs Sum_    es) = NaryOp Sum  (map maple2AST es)
-maple2AST (InertArgs Product es) = NaryOp Prod (map maple2AST es)
+maple2AST (InertArgs And_    es) = NaryOp And  (collapseNaryOp And  (map maple2AST es))
+maple2AST (InertArgs Sum_    es) = NaryOp Sum  (collapseNaryOp Sum  (map maple2AST es))
+maple2AST (InertArgs Product es) = NaryOp Prod (collapseNaryOp Prod (map maple2AST es))
 
 maple2AST (InertArgs Less es)  =
     foldl App (Var "less")  (map maple2AST es)
@@ -489,6 +496,12 @@ maple2Type (InertArgs Func
              InertArgs ExpSeq
              [x]])
      = TypeApp "array" [maple2Type x]
+
+maple2Type (InertArgs Func
+            [InertName "HFunction",
+             InertArgs ExpSeq
+             [x, y]])
+     = TypeFun (maple2Type x) (maple2Type y)
 
 maple2Type (InertArgs Func
             [InertName "HMeasure",

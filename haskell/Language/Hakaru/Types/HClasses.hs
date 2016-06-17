@@ -461,6 +461,10 @@ instance HRadical_ 'HProb where hRadical = HRadical_Prob
 
 -- TODO: class (HDivisionRing a, HRadical a) => HAlgebraic a where...
 
+-- | Concrete dictionaries for types where Infinity can have
+data HIntegrable :: Hakaru -> * where
+    HIntegrable_Nat  :: HIntegrable 'HNat
+    HIntegrable_Prob :: HIntegrable 'HProb
 
 -- | Concrete dictionaries for Hakaru types which are \"discrete\".
 data HDiscrete :: Hakaru -> * where

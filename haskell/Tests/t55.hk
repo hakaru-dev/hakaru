@@ -1,0 +1,9 @@
+#    lam $ \t ->
+#    uniform_0_1 >>= \x ->
+#    if_ (x < t) (dirac unit) (reject sing)
+fn t real:
+  x <~ uniform(0,1) 
+  if (x < t):
+    return ()
+  else:
+    reject. measure(unit)

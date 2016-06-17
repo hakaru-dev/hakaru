@@ -45,7 +45,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.Datum    (Datum(..), Branch(..))
 import Language.Hakaru.Syntax.AST      (Term(..), SCon(..), SArgs(..))
 import Language.Hakaru.Syntax.AST.Sing
-    (sing_PrimOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
+    (sing_PrimOp, sing_ArrayOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -153,6 +153,7 @@ getTermSing singify = go
     go (UnsafeFrom_ c :$ r1 :* End) =
         maybe (coerceFrom c <$> getSing r1) return (singCoerceDom c)
     go (PrimOp_     o :$ _)         = return . snd $ sing_PrimOp o
+    go (ArrayOp_    o :$ _)         = return . snd $ sing_ArrayOp o
     go (MeasureOp_  o :$ _)         =
         return . SMeasure . snd $ sing_MeasureOp o
     go (Dirac  :$ r1 :* End)        = SMeasure <$> getSing r1
