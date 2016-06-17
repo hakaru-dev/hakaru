@@ -3,7 +3,7 @@
              FlexibleInstances,
              GADTs #-}
 
-module HKC.Flatten where
+module Language.Hakaru.CodeGen.Flatten where
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT

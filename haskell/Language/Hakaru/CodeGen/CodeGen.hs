@@ -3,7 +3,7 @@
              GADTs,
              KindSignatures #-}
 
-module HKC.CodeGen where
+module Language.Hakaru.CodeGen.Wrapper where
 
 import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
