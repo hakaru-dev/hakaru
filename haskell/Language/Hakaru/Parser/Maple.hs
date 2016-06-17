@@ -75,7 +75,6 @@ symTable =
     , ("ln",        "log")
     , ("GAMMA",     "gammaFunc")
     , ("csgn",      "signum")
-    , ("NegativeBinomial", "neg_binomial")
     -- Type symbols
     , ("Real",     "real")
     , ("Prob",     "prob")
@@ -297,6 +296,17 @@ maple2AST (InertArgs Func
 maple2AST (InertArgs Func
         [InertName "app", InertArgs ExpSeq [e1, e2]]) =
     App (maple2AST e1) (maple2AST e2)
+
+maple2AST (InertArgs Func
+        [InertName "NegativeBinomial", InertArgs ExpSeq [e1, e2]]) =
+    Bind "i" (op2 "gamma" r (recip_ $ recip_ p -. (lit $ Prob 1)))
+         (App (Var "poisson") (Var "i"))
+    where recip_     = App (Var "recip")
+          x -. y     = NaryOp Sum [x, App (Var "negate") y]
+          op2  s x y = App (App (Var s) x) y
+          lit        = ULiteral
+          r          = maple2AST e1
+          p          = maple2AST e2
 
 maple2AST (InertArgs Func
         [InertName "Msum", InertArgs ExpSeq []]) =
