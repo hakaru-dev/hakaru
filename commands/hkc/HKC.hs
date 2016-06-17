@@ -17,6 +17,7 @@ import Control.Monad.Reader
 import Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
 import System.Environment
+import Text.Show.Pretty (ppShow)
 
 data Config = Config { debug    :: Bool
                      , optimize :: Bool } deriving Show
@@ -62,9 +63,9 @@ compileHakaru prog = ask >>= \config -> lift $ do
                                else ast)
       when (debug config) $ do
         IO.putStrLn "\n<=====================AST==========================>\n"
-        IO.putStrLn $ pack $ show ast
+        IO.putStrLn $ pack $ ppShow ast
         when (optimize config) $ do
           IO.putStrLn "\n<=================Constant Prop====================>\n"
-          IO.putStrLn $ pack $ show ast'
+          IO.putStrLn $ pack $ ppShow ast'
         IO.putStrLn "\n<======================C===========================>\n"
       IO.putStrLn $ createProgram ast'

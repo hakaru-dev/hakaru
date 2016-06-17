@@ -17,7 +17,7 @@ import Language.C.Syntax.Constants
 import Data.List.NonEmpty
 import Data.Number.Natural
 import Data.Ratio
-import Data.Sequence (Seq)       
+import Data.Sequence (Seq)
 
 class Flattenable a where
   flatten :: a -> NonEmpty CStat
@@ -39,6 +39,29 @@ instance Flattenable (Term abt a) where
   flatten (Reject_ x)    = return $ reject_c    x
   flatten (Superpose_ x) = return $ superpose_c x
 
+instance Flattenable (SCon abt a) where
+  flatten Lam_            = undefined
+  flatten App_            = undefined
+  flatten Let_            = undefined
+  flatten (CoerceTo_ t)   = undefined
+  flatten (UnsafeFrom_ t) = undefined
+  flatten (PrimOp_ t)     = undefined
+  flatten (ArrayOp_ t)    = undefined
+  flatten (MeasureOp_ t)  = undefined
+  flatten Dirac           = undefined
+  flatten MBind           = undefined
+  flatten Plate           = undefined
+  flatten Chain           = undefined
+  flatten Integrate       = undefined
+  flatten Summate         = undefined
+  flatten Expect          = undefined
+  flatten Observe         = undefined
+
+instance Flattenable (SArgs abt a) where
+  flatten End             = undefined
+  flatten (x :* y)        = undefined
+
+
 -- instance Flattenable (Variable x) where
 --   flatten = undefined
 
@@ -51,8 +74,8 @@ nAryOp_c Iff      = undefined
 nAryOp_c (Min o)  = undefined
 nAryOp_c (Max o)  = undefined
 nAryOp_c (Sum _)  = undefined --fmap flatten
-nAryOp_c (Prod s) = undefined         
-         
+nAryOp_c (Prod s) = undefined
+
 
 empty_c :: a -> CStat
 empty_c = undefined
