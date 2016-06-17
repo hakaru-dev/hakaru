@@ -186,7 +186,6 @@ NewSLO := module ()
            res := idxl(x,op(2,m));
 #          res := piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
 #                         op(1,x));
-          end if;
         end if;
         res := mk_idx(res, loops);
       end if;
