@@ -229,7 +229,7 @@ Executable hkc
                        pretty           >= 1.1  && < 1.2,
                        pretty-show      >= 1.6,
                        hakaru           >= 0.3,
-                       semigroups       >= 0.18
+                       semigroups       >= 0.16
 
 
 ----------------------------------------------------------------
