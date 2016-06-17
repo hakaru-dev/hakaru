@@ -381,12 +381,20 @@ Hakaru := module ()
   end proc;
 
   size := proc(a, $)
+    local res;
     if a :: 'ary(anything, name, anything)' then
       op(1,a)
     elif a :: 'specfunc(piecewise)' then
       map_piecewise(procname, _passed)
     elif a :: 't_case' then
       map_case(procname, _passed)
+    elif a :: 'idxl(list, anything)' then
+      res := convert(map(procname, op(1,a)), 'set');
+      if nops(res)=1 then
+        res[1]
+      else
+        'procname(_passed)'
+      end if
     else
       'procname(_passed)'
     end if
