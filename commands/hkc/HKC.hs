@@ -3,13 +3,9 @@
 
 module Main where
 
-import Language.Hakaru.Parser.Parser hiding (style)
-import Language.Hakaru.Parser.SymbolResolve (resolveAST)
-import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Evaluation.ConstantPropagation
-
-import           Language.Hakaru.Syntax.ABT
-import qualified Language.Hakaru.Syntax.AST as T
+import Language.Hakaru.Syntax.TypeCheck
+import Language.Hakaru.Utilities
 
 import HKC.CodeGen
 
@@ -41,17 +37,6 @@ parseArgs input = (filter (\i -> not $ debugFlag i || optimizeFlag i) input
                            , optimize = any optimizeFlag input})
   where debugFlag    = (== "-D")
         optimizeFlag = (== "-O")
-
-
--- TODO: parseAndInfer has been copied to hkc, compile, and hakaru commands
-parseAndInfer :: Text
-              -> Either String (TypedAST (TrivialABT T.Term))
-parseAndInfer x =
-    case parseHakaru x of
-    Left  err  -> Left (show err)
-    Right past ->
-        let m = inferType (resolveAST past) in
-        runTCM m LaxMode
 
 compileHakaru :: Text -> ReaderT Config IO ()
 compileHakaru prog = ask >>= \config -> lift $ do

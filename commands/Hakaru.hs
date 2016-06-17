@@ -6,10 +6,6 @@
 
 module Main where
 
-import           Language.Hakaru.Parser.Parser (parseHakaru)
-import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
-
-
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
@@ -22,6 +18,7 @@ import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
+import           Language.Hakaru.Utilities (parseAndInfer)
 
 import           Control.Monad
 
@@ -45,15 +42,6 @@ main = do
 readFromFile :: String -> IO Text
 readFromFile "-" = IO.getContents
 readFromFile x   = IO.readFile x
-
-parseAndInfer :: Text
-              -> Either String (TypedAST (TrivialABT T.Term))
-parseAndInfer x =
-    case parseHakaru x of
-    Left  err  -> Left (show err)
-    Right past ->
-        let m = inferType (resolveAST past) in
-        runTCM m LaxMode
 
 illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
 illustrate (SMeasure s) g (VMeasure m) = do
@@ -107,5 +95,3 @@ randomWalk g p1 p2 =
 iterateM_ :: Monad m => (a -> m a) -> a -> m b
 iterateM_ f = g
     where g x = f x >>= g
-
-      

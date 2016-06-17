@@ -73,6 +73,7 @@ Library
                        Language.Hakaru.Evaluation.ExpectMonad,
                        Language.Hakaru.Expect,
                        Language.Hakaru.Inference,
+                       Language.Hakaru.Utilities,
                        Data.Number.Nat,
                        Data.Number.Natural
 

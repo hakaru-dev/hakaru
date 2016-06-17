@@ -8,10 +8,6 @@
 
 module Main where
 
-import           Language.Hakaru.Parser.Parser (parseHakaru)
-import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
-
-
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
@@ -21,6 +17,7 @@ import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Pretty.Haskell
+import           Language.Hakaru.Utilities (parseAndInfer)
 
 import           Data.Text
 import qualified Data.Text.IO as IO
@@ -36,15 +33,6 @@ main = do
       [prog1, prog2] -> compileRandomWalk prog1 prog2
       [prog] -> compileHakaru prog
       _      -> IO.putStrLn "Usage: compile <file>"
-
-parseAndInfer :: Text
-              -> Either String (TypedAST (TrivialABT T.Term))
-parseAndInfer x =
-    case parseHakaru x of
-    Left  err  -> Left (show err)
-    Right past ->
-        let m = inferType (resolveAST past) in
-        runTCM m LaxMode
 
 prettyProg :: (ABT T.Term abt)
            => String
