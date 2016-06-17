@@ -53,9 +53,9 @@ mainWith typ body = unlines
  , case typ of
      SMeasure _ -> "  srand(time(NULL));\n"
      _ -> ""
- , mconcat ["  ",ctyp," result;"]
+ , P.mconcat ["  ",ctyp," result;"]
  , ""
- , mconcat ["  result = ",body]
+ , P.mconcat ["  result = ",body]
  , case typ of
      SMeasure _ -> "  while(1) printf(\"%.17g\\n\",result);"
      SInt       -> "  printf(\"%d\\n\",result);"
