@@ -15,11 +15,10 @@ import Language.Hakaru.CodeGen.Flatten
 
 import qualified Language.C.Pretty as C
 
-
-
 import           Prelude            as P hiding (unlines)
 import           Data.Text          as D
 import qualified Data.List.NonEmpty as N
+import           Data.Monoid
 
 import Text.PrettyPrint
 
