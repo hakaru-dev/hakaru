@@ -106,12 +106,17 @@ Loop := module ()
   end proc;
 
   unproducts := proc(w, x::name, loops::list(name=range), kb::t_kb, $)
-    local w0, pp, j, w1, xx;
+    local w0, pp, j, w1, w2, xx;
     w0 := 1;
     pp := w;
     for j from nops(loops) to 1 by -1 do
       w1, pp := op(unproduct(pp, x, op(j,loops), [], `*`, kb, kb));
-      w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
+      # separate out each of the products, as they might have different
+      # variable dependencies, which can be exploited by other routines
+      w2 := convert(w1, 'list', '`*`');
+      w2 := map[2](foldl, product, w2, op(j+1..-1, loops));
+      w0 := w0 * `*`(op(w2));
+      # w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
     end do;
     w0, pp
   end proc;
@@ -201,8 +206,8 @@ Loop := module ()
 
   wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),
                kb1::t_kb, kb0::t_kb, $)
-    local e, kb, mode, i, entry, rest, var, new_rng, make, dom_spec, w, arrrgs,
-       cond;
+    local e, kb, mode, i, entry, rest, var, new_var, new_rng, make, 
+       dom_spec, w, arrrgs, cond;
     e    := e1;
     kb   := kb1;
     mode := mode1;
@@ -244,7 +249,7 @@ Loop := module ()
               cond := op(1,e), cond;
               e := op(2,e);
             end if;
-            e := piecewise(And(cond), op(2,e), mode())
+            e := piecewise(And(cond), e, mode())
           end if;
         end if;
         if mode=`+` then
@@ -252,9 +257,12 @@ Loop := module ()
         elif mode=`*` then
           if make = genLet then
             e := w * make(e, var = new_rng);
-          else
-            e := w ^ sum(piecewise(cond, 1, 0), var = new_rng) *
+          elif nops(dom_spec) > 0 then
+            new_var := gensym(var);
+            e := w ^ sum(eval(piecewise(And(op(dom_spec)), 1, 0), var = new_var), new_var = new_rng) *
                  make(e, var = new_rng);
+          else
+            e := w ^ sum(1, var = new_rng) * make(e, var = new_rng);
           end if;
         end if;
         kb := foldr(assert, op(2,entry), op(rest));
