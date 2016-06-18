@@ -19,6 +19,7 @@ import           Prelude            as P hiding (unlines)
 import           Data.Text          as D
 import qualified Data.List.NonEmpty as N
 import           Text.PrettyPrint (render)
+import           Data.Monoid
 
 
 -- | Create program is the top level C codegen. Depending on the type a program
