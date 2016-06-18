@@ -18,7 +18,7 @@ import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
-import           Language.Hakaru.Utilities (parseAndInfer)
+import           Language.Hakaru.Command (parseAndInfer)
 
 import           Control.Monad
 

@@ -2,17 +2,13 @@
 
 module Main where
 
-import           Language.Hakaru.Parser.Parser (parseHakaru)
-import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Pretty.Concrete  
-import qualified Language.Hakaru.Syntax.AST as T
-import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Types.Sing
-
 import           Language.Hakaru.Inference
+import           Language.Hakaru.Command
   
 import           Data.Text
 import qualified Data.Text.IO as IO
@@ -26,10 +22,6 @@ main = do
   case progs of
       [prog2, prog1] -> runMH prog1 prog2
       _              -> IO.putStrLn "Usage: mh <target> <proposal>"
-
-readFromFile :: String -> IO Text
-readFromFile "-" = IO.getContents
-readFromFile x   = IO.readFile x
 
 runMH :: Text -> Text -> IO ()
 runMH prog1 prog2 =
@@ -45,12 +37,3 @@ runMH prog1 prog2 =
             _ -> putStrLn "mh: programs have wrong type"
       (Left err, _) -> print err
       (_, Left err) -> print err
-
-parseAndInfer :: Text
-              -> Either String (TypedAST (TrivialABT T.Term))
-parseAndInfer x =
-    case parseHakaru x of
-    Left  err  -> Left (show err)
-    Right past ->
-        let m = inferType (resolveAST past) in
-        runTCM m LaxMode

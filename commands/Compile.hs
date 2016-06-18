@@ -17,7 +17,7 @@ import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Pretty.Haskell
-import           Language.Hakaru.Utilities (parseAndInfer)
+import           Language.Hakaru.Command (parseAndInfer)
 
 import           Data.Text
 import qualified Data.Text.IO as IO

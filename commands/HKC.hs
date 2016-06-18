@@ -5,7 +5,7 @@ module Main where
 
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Utilities
+import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 
 import Control.Monad.Reader
@@ -24,10 +24,6 @@ main = do
   case progs of
       [prog] -> runReaderT (compileHakaru prog) config
       _      -> IO.putStrLn "Usage: hkc <input> <output>"
-
-readFromFile :: String -> IO Text
-readFromFile "-" = IO.getContents
-readFromFile x   = IO.readFile x
 
 parseArgs :: [String] -> ([FilePath],Config)
 parseArgs input = (filter (\i -> not $ debugFlag i || optimizeFlag i) input

@@ -73,7 +73,7 @@ Library
                        Language.Hakaru.Evaluation.ExpectMonad,
                        Language.Hakaru.Expect,
                        Language.Hakaru.Inference,
-                       Language.Hakaru.Utilities,
+                       Language.Hakaru.Command,
                        Language.Hakaru.CodeGen.Wrapper,
                        Language.Hakaru.CodeGen.Flatten,
                        Data.Number.Nat,
