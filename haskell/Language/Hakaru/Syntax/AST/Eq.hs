@@ -254,10 +254,19 @@ instance ( Show1 (Sing :: k ->  *)
 
 type Varmap = Assocs (Variable :: Hakaru -> *)
 
+void_jmEq1
+    :: Sing (a :: Hakaru)
+    -> Sing (b :: Hakaru)
+    -> ReaderT Varmap Maybe ()
 void_jmEq1 x y = lift (jmEq1 x y) >> return ()
 
+void_varEq
+    :: Variable (a :: Hakaru)
+    -> Variable (b :: Hakaru)
+    -> ReaderT Varmap Maybe ()   
 void_varEq x y = lift (varEq x y) >> return ()
 
+try_bool :: Bool -> ReaderT Varmap Maybe ()
 try_bool b = lift $ if b then Just () else Nothing
 
 alphaEq

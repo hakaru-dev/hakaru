@@ -114,6 +114,7 @@ install:
   case "$BUILD" in
     stack)
       travis_retry stack --no-terminal --install-ghc $ARGS test --only-dependencies
+      travis_retry stack --no-terminal $ARGS build alex happy
       ;;
     cabal)
       cabal --version
