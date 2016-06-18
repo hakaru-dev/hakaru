@@ -183,8 +183,9 @@ NewSLO := module ()
         if op(1,m) = 1 then
           res := op(1,x);
         else
-          res := piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
-                           op(1,x));
+           res := idxl(x,op(2,m));
+#          res := piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
+#                         op(1,x));
         end if;
         res := mk_idx(res, loops);
       end if;
@@ -914,7 +915,9 @@ NewSLO := module ()
     end if
   end proc;
 
-  # this code should not currently be used, it is just a snapshot in time
+(*------------------- cut code -------------------------------
+  #This code should not currently be used, it is just a snapshot in time.
+  #New version defined below.
   Reparam := proc(e::Int(anything,name=range), h::name)
     local body, var, inds, xx, inv, new_e;
 
@@ -936,6 +939,7 @@ NewSLO := module ()
 
     e;
   end proc;
+-------------- end cut code ---------------------------------- *)
 
   ReparamDetermined := proc(lo :: LO(name, anything))
     local h;
@@ -959,8 +963,78 @@ NewSLO := module ()
     return true
   end proc;
 
-  Reparam := proc(e :: Int(anything, name=anything), h :: name)
-    'procname(_passed)' # TODO to be implemented
+  #Written by Carl 2016Jun17.
+  Reparam:= proc(
+       e::LO(symbol, Int(algebraic, symbol= range(algebraic))),
+       $
+  )
+  uses IT= IntegrationTools;
+  local 
+       J:= op(2, e),   #the integral
+       x::symbol:= op([2,1], J),   #var of integration
+       a::algebraic:= op([2,2,1], J),  #lower limit
+       b::algebraic:= op([2,2,2], J),  #upper limit
+       #possible subs target(s)
+       oldarg::{algebraic, set(algebraic)}:= map2(op, 2, indets(J, specfunc(applyintegrand))),
+       Ns::set(symbol):= indets(oldarg, symbol),   #symbols in subs target(s)
+       u::symbol:= gensym('u'),   #new variable
+       y::symbol,   #just a name for `solve`
+       S,   #result from `solve`
+       F::{`<`, truefalse}    #Boolean: flip integral?
+  ;
+       #If more than one reparam is possible, return unevaluated.
+       if nops(oldarg) <> 1 then
+            WARNING("More than 1 reparam possible.");
+            userinfo(1, thisproc, "Possible reparams:", oldarg); 
+            return 'procname'(e)
+       end if;
+   
+       oldarg:= oldarg[];   #Extract the reparam target.
+
+       #If the target is simply a name, return input unchanged.
+       if oldarg::symbol then return e end if;
+
+       #If target doesn't depend on x, return input unchanged.
+       if not depends(simplify(oldarg), x) then
+            userinfo(2, thicproc, "Target doesn't depend on x. Target:", oldarg, "x:", x); 
+            return e 
+       end if; 
+
+       #Check the invertibility of the subs.
+       (* The ability of `solve` to select a branch is very limited. For example,
+               solve(y=x^2, useassumptions) assuming x > 0
+          returns sqrt(y), -sqrt(y). This needs to be dealt with. First idea: Use `is` to filter
+          solutions: Implemented below.                      
+       *) 
+       Ns:= indets(oldarg, symbol);
+       S:= [solve(y=oldarg, x, allsolutions, useassumptions)] assuming a <= x, x <= b;
+       #Use `is` to filter solutions under the assumptions.
+       S:= select(s-> is(eval(s, y= oldarg) = x), S) assuming a <= x, x <= b;
+       if
+            nops(S) <> 1 or 
+            indets(S, symbol) <> Ns union {y} minus {x} or
+            hastype(S, RootOf)
+       then 
+            WARNING("Reparam target is not invertible (upto `solve` and `is`).");
+            userinfo(1, procname, "Target:", oldarg, "S:", S, "domain:", x= a..b);
+            return 'procname'(e)
+       end if; 
+       
+       #Make the subs.       
+       J:= IT:-Change(J, u= oldarg, [u]);
+
+       #If needed, reverse limits.
+       F:= evalb(op([2,2,1], J) > op([2,2,2], J));
+       if F::truefalse then
+            if F then
+                 userinfo(2, procname, "Switching limits:", op([2,2], J));  
+                 J:= IT:-Flip(J)
+            end if
+       else #If inequality can't be decided, then don't reverse.
+            userinfo(1, procname, "Can't order new limits:", op([2,2], J));
+       end if;
+      
+       subsop(2= J, e)              
   end proc;
 
   ###

@@ -58,7 +58,7 @@ Hakaru := module ()
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
-         case, app, ary, idx, size, Datum,
+         case, app, ary, idx, idxl, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          map_piecewise, foldr_piecewise, map_case,
@@ -370,13 +370,31 @@ Hakaru := module ()
     end if
   end proc;
 
+  idxl := proc (a, i, $)
+    if a :: 'ary(anything, name, anything)' then
+      eval(op(3,a), op(2,a)=i)
+    elif a :: 'list' and i::nonnegint then
+      a[i+1]
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
   size := proc(a, $)
+    local res;
     if a :: 'ary(anything, name, anything)' then
       op(1,a)
     elif a :: 'specfunc(piecewise)' then
       map_piecewise(procname, _passed)
     elif a :: 't_case' then
       map_case(procname, _passed)
+    elif a :: 'idxl(list, anything)' then
+      res := convert(map(procname, op(1,a)), 'set');
+      if nops(res)=1 then
+        res[1]
+      else
+        'procname(_passed)'
+      end if
     else
       'procname(_passed)'
     end if

@@ -114,7 +114,6 @@ install:
   case "$BUILD" in
     stack)
       travis_retry stack --no-terminal --install-ghc $ARGS test --only-dependencies
-      travis_retry stack --no-terminal $ARGS build alex happy
       ;;
     cabal)
       cabal --version
@@ -127,7 +126,7 @@ script:
 - |
   case "$BUILD" in
     stack)
-      stack --no-terminal $ARGS test --haddock --no-haddock-deps
+      travis_wait 30 stack --no-terminal $ARGS test --haddock --no-haddock-deps
       ;;
     cabal)
       cabal configure --enable-tests --enable-benchmarks -v2 --ghc-options="-O0" # removed -Werror
