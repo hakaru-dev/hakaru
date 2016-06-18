@@ -1,0 +1,5 @@
+x = [1,2,3,0.5,2]
+θ <~ normal(0,1)
+_ <~ plate i of size(x):
+       observe normal(θ, 1) x[i]
+return θ

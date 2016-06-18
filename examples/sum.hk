@@ -1,0 +1,7 @@
+def add(a nat, b nat):
+    a + b
+
+def sum(a array(nat)):
+    reduce(add, 0, a)
+
+sum(array i of 5: i)

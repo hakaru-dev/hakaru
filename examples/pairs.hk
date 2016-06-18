@@ -1,0 +1,3 @@
+x <~ return (1,2,3)
+return (match x:
+         (a,b,_): a+b+3)
