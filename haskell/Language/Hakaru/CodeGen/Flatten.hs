@@ -19,48 +19,48 @@ import Data.Number.Natural
 import Data.Ratio
 import Data.Sequence (Seq)
 
-class Flattenable a where
-  flatten :: a -> NonEmpty CStat
+flattenABT :: ABT Term abt
+           => abt xs a
+           -> NonEmpty CStat
+flattenABT = \e -> case viewABT e of
+               (Syn x)    -> flattenTerm x
+               (Var x)    -> undefined
+               (Bind x y) -> undefined
 
-instance ABT Term abt => Flattenable (abt xs a) where
-  flatten e = case viewABT e of
-                (Syn x)    -> flatten x
-                (Var x)    -> undefined
-                (Bind x y) -> undefined
+flattenTerm :: ABT Term abt
+            => Term abt a
+            -> NonEmpty CStat
+flattenTerm (NaryOp_ t s)  = return $ nAryOp_c t s
+flattenTerm (Literal_ x)   = return $ literal_c   x
+flattenTerm (Empty_ x)     = return $ empty_c     x
+flattenTerm (Datum_ x)     = return $ datum_c     x
+flattenTerm (Case_ x y)    = return $ case_c      x y
+flattenTerm (Array_ x y)   = return $ array_c     x y
+flattenTerm (x :$ y)       = return $ cons_c      x y
+flattenTerm (Reject_ x)    = return $ reject_c    x
+flattenTerm (Superpose_ x) = return $ superpose_c x
 
-instance Flattenable (Term abt a) where
-  flatten (NaryOp_ t s)  = return $ nAryOp_c t s
-  flatten (Literal_ x)   = return $ literal_c   x
-  flatten (Empty_ x)     = return $ empty_c     x
-  flatten (Datum_ x)     = return $ datum_c     x
-  flatten (Case_ x y)    = return $ case_c      x y
-  flatten (Array_ x y)   = return $ array_c     x y
-  flatten (x :$ y)       = return $ cons_c      x y
-  flatten (Reject_ x)    = return $ reject_c    x
-  flatten (Superpose_ x) = return $ superpose_c x
 
-instance Flattenable (SCon abt a) where
-  flatten Lam_            = undefined
-  flatten App_            = undefined
-  flatten Let_            = undefined
-  flatten (CoerceTo_ t)   = undefined
-  flatten (UnsafeFrom_ t) = undefined
-  flatten (PrimOp_ t)     = undefined
-  flatten (ArrayOp_ t)    = undefined
-  flatten (MeasureOp_ t)  = undefined
-  flatten Dirac           = undefined
-  flatten MBind           = undefined
-  flatten Plate           = undefined
-  flatten Chain           = undefined
-  flatten Integrate       = undefined
-  flatten Summate         = undefined
-  flatten Expect          = undefined
-  flatten Observe         = undefined
-
-instance Flattenable (SArgs abt a) where
-  flatten End             = undefined
-  flatten (x :* y)        = undefined
-
+flattenSCon :: ABT Term abt
+            => SCon args a
+            -> SArgs abt args
+            -> NonEmpty CStat
+flattenSCon Lam_            = undefined
+flattenSCon App_            = undefined
+flattenSCon Let_            = undefined
+flattenSCon (CoerceTo_ t)   = undefined
+flattenSCon (UnsafeFrom_ t) = undefined
+flattenSCon (PrimOp_ t)     = undefined
+flattenSCon (ArrayOp_ t)    = undefined
+flattenSCon (MeasureOp_ t)  = undefined
+flattenSCon Dirac           = undefined
+flattenSCon MBind           = undefined
+flattenSCon Plate           = undefined
+flattenSCon Chain           = undefined
+flattenSCon Integrate       = undefined
+flattenSCon Summate         = undefined
+flattenSCon Expect          = undefined
+flattenSCon Observe         = undefined
 
 -- instance Flattenable (Variable x) where
 --   flatten = undefined

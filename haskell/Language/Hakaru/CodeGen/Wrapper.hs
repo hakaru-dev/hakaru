@@ -15,13 +15,10 @@ import Language.Hakaru.CodeGen.Flatten
 
 import qualified Language.C.Pretty as C
 
-
-
 import           Prelude            as P hiding (unlines)
 import           Data.Text          as D
 import qualified Data.List.NonEmpty as N
-
-import Text.PrettyPrint
+import           Text.PrettyPrint (render)
 
 
 -- | Create program is the top level C codegen. Depending on the type a program
@@ -29,7 +26,9 @@ import Text.PrettyPrint
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST typ abt) = unlines [header typ,"",mainWith typ body]
-  where body = unlines $ N.toList $ fmap (pack . render . C.pretty) (flatten abt)
+  where body = unlines
+             $ N.toList
+             $ fmap (pack . render . C.pretty) (flattenABT abt)
 
 header :: Sing (a :: Hakaru) -> Text
 header (SMeasure _) = unlines [ "#include <time.h>"
