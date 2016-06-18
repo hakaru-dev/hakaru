@@ -1,0 +1,41 @@
+## Latent Dirichlet Allocation
+def add(a prob, b prob):
+    a + b
+
+def sum(a array(prob)):
+    reduce(add, 0, a)
+
+def normalize(x array(prob)):
+    total = sum(x)
+    array i of size(x):
+       x[i] / total
+
+def dirichlet(a array(prob)):
+    x <~ plate i of size(a):
+           gamma(a[i], 1)
+    return normalize(x)
+
+K = 2 # number of topics
+M = 3 # number of docs
+V = 7 # size of vocabulary
+
+# number of words in each document
+doc = [4, 5, 3]
+
+topic_prior = array _ of K: 1.0
+word_prior  = array _ of V: 1.0
+
+phi <~ plate _ of K:     # word dist for topic k
+         dirichlet(word_prior)
+
+# likelihood
+z   <~ plate m of M:
+         theta <~ dirichlet(topic_prior)
+         plate _ of doc[m]: # topic marker for word n in doc m
+           categorical(theta)
+
+w   <~ plate m of M: # for doc m
+         plate n of doc[m]: # for word n in doc m
+           categorical(phi[z[m][n]])
+
+return (w, z)

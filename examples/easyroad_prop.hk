@@ -1,0 +1,7 @@
+fn p pair(prob, prob):
+   match p:
+    (noiseT, noiseE):
+      weight(0.5, noiseT_ <~ uniform(3,8)
+                  return (real2prob(noiseT_), noiseE)) <|>
+      weight(0.5, noiseE_ <~ uniform(1,4)
+                  return (noiseT, real2prob(noiseE_)))
