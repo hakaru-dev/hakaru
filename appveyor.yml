@@ -15,6 +15,7 @@ environment:
 
 test_script:
 - stack setup > nul
+- stack --no-terminal build alex happy > nul
 # The ugly echo "" hack is to avoid complaints about 0 being an invalid file
 # descriptor
 - echo "" | stack --no-terminal test
