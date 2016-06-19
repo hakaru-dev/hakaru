@@ -79,7 +79,7 @@ import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
 import qualified Data.List.NonEmpty   as NE
 import           Control.Applicative  (Alternative(..))
-import           Control.Monad        (MonadPlus(..))
+import           Control.Monad        (MonadPlus(..),foldM)
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
@@ -114,11 +114,13 @@ residualizeListContext
     => ListContext abt 'Impure
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-residualizeListContext =
+residualizeListContext ss e0 =
     -- N.B., we use a left fold because the head of the list of
     -- statements is the one closest to the hole.
-    \ss e0 -> foldl step e0 (statements ss)
+    foldl step (substs rho e0) (statements ss)
     where
+    rho :: Assocs (abt '[])
+    rho = emptyAssocs
     step
         :: abt '[] ('HMeasure a)
         -> Statement abt 'Impure
@@ -127,24 +129,24 @@ residualizeListContext =
         case s of
         SBind x body _ ->
             -- TODO: if @body@ is dirac, then treat as 'SLet'
-            syn (MBind :$ fromLazy body :* bind x e :* End)
+            syn (MBind :$ substs rho (fromLazy body) :* bind x e :* End)
         SLet x body _
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
                 case getLazyVariable body of
-                Just y  -> subst x (var y) e
+                Just y  -> subst x (substs rho (var y)) e
                 Nothing ->
                     case getLazyLiteral body of
                     Just v  -> subst x (syn $ Literal_ v) e
                     Nothing ->
-                        syn (Let_ :$ fromLazy body :* bind x e :* End)
+                        syn (Let_ :$ substs rho (fromLazy body) :* bind x e :* End)
         SGuard xs pat scrutinee _ ->
-            syn $ Case_ (fromLazy scrutinee)
+            syn $ Case_ (substs rho $ fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild (P.reject $ typeOf e)
                 ]
-        SWeight body _ -> syn $ Superpose_ ((fromLazy body, e) :| [])
+        SWeight body _ -> syn $ Superpose_ ((substs rho $ fromLazy body, e) :| [])
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
@@ -214,9 +216,32 @@ runDis (Dis m) es =
     where
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
     c0 e ss _ _ = [residualizeListContext ss (syn(Dirac :$ e :* End))]
-
+                  
     i0 = maxNextFree es
 
+blah :: (ABT Term abt)
+     => abt '[] a
+     -> Dis abt (abt '[] a, Assocs (abt '[]))
+blah e = do
+  ss <- getStatements
+  locs <- getLocs
+  (ss',rho) <- foldM step ([], emptyAssocs) ss
+  let putStatements = undefined
+  putStatements (reverse ss')
+  return (e, rho)
+    where
+      step :: ([Statement abt 'Impure], Assocs (abt '[]))
+           -> Statement abt 'Impure
+           -> Dis abt ([Statement abt 'Impure], Assocs (abt '[]))
+      step (ss',rho) s = undefined
+
+-- very rough idea for step:
+-- case s of
+-- SBind x body inds -> do
+--        x' <- var <$> freshVar "" (typeOf x)
+-- look for x on the rhs of locs, say we have y -> Loc x inds'
+--        reifyStatement (SBind x' body inds) (var x') inds
+        
 extendIndices
     :: (ABT Term abt)
     => Index (abt '[])
@@ -398,17 +423,40 @@ pushPlate n e inds =
 residualizeLocs
     :: forall abt a
     .  (ABT Term abt)
-    => abt '[] a
-    -> Dis abt (abt '[] a)
-residualizeLocs e = do
+    => abt '[] ('HMeasure a)
+    -> Dis abt (abt '[] ('HMeasure a))
+residualizeLocs m = do
     locs <- getLocs
-    let rho = toAssocs $ map go (fromAssocs locs)
-    return (substs rho e)
-  where go :: Assoc (Loc (abt '[])) -> Assoc (abt '[])
-        go (Assoc x' (Loc      x     [])) = Assoc x' (var x)
-        go (Assoc x' (Loc      x (i:is))) = undefined
-        go (Assoc x' (MultiLoc x     is)) = undefined
+    undefined
+  --   let rho = toAssocs $ map go (fromAssocs locs)
+  --   return (substs rho e)
+  -- where go :: Assoc (Loc (abt '[])) -> Assoc (abt '[])
+  --       go (Assoc x' (Loc      x     [])) = Assoc x' (var x)
+  --       go (Assoc x' (Loc      x (i:is))) = undefined
+  --       go (Assoc x' (MultiLoc x     is)) = undefined
 
+reifyStatement :: (ABT Term abt)
+               => Statement abt 'Impure
+               -> Assoc (abt '[])
+               -> [Index (abt '[])]
+               -> Dis abt (Statement abt 'Impure, Assoc (abt '[]))
+reifyStatement s@(SBind _ _ []) r _ = do
+  return (s, r)
+reifyStatement (SBind x body (i:is)) (Assoc y a) js =
+    let plate = undefined -- construct (Plate (indSize i) (\i -> body))
+        x' = x { varType = SArray (varType x) }
+    in reifyStatement (SBind x' plate is)
+                      (Assoc y $ (liftToArray a) P.! (var.indVar $ head js))
+                      (tail js)
+                           
+-- reifyStatement s@(SLet x _ []) rho = return (s,rho)
+-- reifyStatement (SLet x e (i:is)) rho = undefined -- construct Array around e, coerce typeOf x
+-- reifyStatement (SWeight _ _) rho = error ("reifyStatement called on sWeight")
+reifyStatement _ _ _ = undefined -- TODO check what to do for SGuard, SStuff0, SStuff1
+
+liftToArray :: (ABT Term abt) => abt '[] a -> abt '[] ('HArray a)
+liftToArray = undefined                   
+                  
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
