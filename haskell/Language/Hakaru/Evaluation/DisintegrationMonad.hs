@@ -643,8 +643,8 @@ emitCaseWith f e bs = do
     gms <- T.for bs $ \(Branch pat body) ->
         let (vars, body') = caseBinds body
         in  (\vars' ->
-                let rho = toAssocs1 vars (fmap11 var vars')
-                in  GBranch pat vars' (f $ substs rho body')
+                let rho = toAssocs1 vars vars'
+                in  GBranch pat vars' (f $ renames rho body')
             ) <$> freshenVars vars
     Dis $ \c h i l ->
         (syn . Case_ e) <$> T.for gms (\gm ->
