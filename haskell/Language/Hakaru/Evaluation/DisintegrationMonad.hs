@@ -239,7 +239,7 @@ blah e = do
 -- SBind x body inds -> do
 --        x' <- var <$> freshVar "" (typeOf x)
 -- look for x on the rhs of locs, say we have y -> Loc x inds'
---        reifyStatement (SBind x' body inds) (var x') inds
+--        reifyStatement (SBind x' body inds) x' inds
         
 extendIndices
     :: (ABT Term abt)
@@ -436,26 +436,22 @@ residualizeLocs m = do
 
 reifyStatement :: (ABT Term abt)
                => Statement abt 'Impure
-               -> Assoc (abt '[])
+               -> Variable a
                -> [Index (abt '[])]
-               -> Dis abt (Statement abt 'Impure, Assoc (abt '[]))
-reifyStatement s@(SBind _ _ []) r _ = do
-  return (s, r)
-reifyStatement (SBind x body (i:is)) (Assoc y a) js =
-    let plate = undefined -- construct (Plate (indSize i) (\i -> body))
-        x' = x { varType = SArray (varType x) }
-    in reifyStatement (SBind x' plate is)
-                      (Assoc y $ (liftToArray a) P.! (var.indVar $ head js))
-                      (tail js)
+               -> (Statement abt 'Impure, abt '[] a)
+reifyStatement s@(SBind _ _ []) y [] = (s, var y)
+reifyStatement (SBind x body (i:is)) y js =
+    let plate   = undefined -- construct (Plate (indSize i) (\i -> body))
+        x'      = x { varType = SArray (varType x) }
+        y'      = y { varType = SArray (varType y) }
+        (s', a) = reifyStatement (SBind x' plate is) y' (tail js)
+    in  (s', a P.! (var.indVar $ head js))
                            
 -- reifyStatement s@(SLet x _ []) rho = return (s,rho)
 -- reifyStatement (SLet x e (i:is)) rho = undefined -- construct Array around e, coerce typeOf x
 -- reifyStatement (SWeight _ _) rho = error ("reifyStatement called on sWeight")
 reifyStatement _ _ _ = undefined -- TODO check what to do for SGuard, SStuff0, SStuff1
 
-liftToArray :: (ABT Term abt) => abt '[] a -> abt '[] ('HArray a)
-liftToArray = undefined                   
-                  
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
