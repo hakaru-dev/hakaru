@@ -151,8 +151,7 @@ residualizeListContext ss e0 =
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
 data Loc :: (Hakaru -> *) -> Hakaru -> * where
-     Loc
-         :: Variable a
+     Loc :: Variable a
          -> [Index ast]
          -> Loc ast a
      MultiLoc
