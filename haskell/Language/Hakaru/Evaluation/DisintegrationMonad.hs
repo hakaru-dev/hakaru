@@ -311,14 +311,20 @@ reifyStatement :: (ABT Term abt)
                -> Variable a
                -> [Index (abt '[])]
                -> (Statement abt 'Impure, abt '[] a)
-reifyStatement s@(SBind _ _ []) y [] = (s, var y)
+reifyStatement s@(SBind _ _ [])      y [] = (s, var y)
 reifyStatement (SBind x body (i:is)) y js =
     let bodyP   = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
         x'      = x { varType = SArray (varType x) }
         y'      = y { varType = SArray (varType y) }
         (s', a) = reifyStatement (SBind x' bodyP is) y' (tail js)
     in  (s', a P.! (var.indVar $ head js))
-reifyStatement (SLet _ _ _)  _ _ = undefined -- construct Array
+reifyStatement s@(SLet _ _ [])      y [] = (s, var y)
+reifyStatement (SLet x body (i:is)) y js =
+    let arr     = Thunk $ P.arrayWithVar (indSize i) (indVar i) (fromLazy body)
+        x'      = x { varType = SArray (varType x) }
+        y'      = y { varType = SArray (varType y) }
+        (s', a) = reifyStatement (SLet x' arr is) y' (tail js)
+    in  (s', a P.! (var.indVar $ head js))              
 reifyStatement (SWeight _ _) _ _ = error ("reifyStatement called on sWeight")
 reifyStatement _ _ _ = undefined -- TODO check what to do for SGuard, SStuff{0,1}
 
