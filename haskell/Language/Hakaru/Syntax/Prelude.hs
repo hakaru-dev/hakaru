@@ -117,7 +117,7 @@ module Language.Hakaru.Syntax.Prelude
     , app, app2, app3
 
     -- * Arrays
-    , empty, array, (!), size, reduce
+    , empty, arrayWithVar, array, (!), size, reduce
     , sumV, summateV, appendV, mapV, mapWithIndex, normalizeV, constV, unitV, zipWithV
 
     -- * Implementation details
@@ -944,6 +944,16 @@ array
     -> abt '[] ('HArray a)
 array n =
     syn . Array_ n . binder Text.empty sing
+
+arrayWithVar
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> Variable 'HNat
+    -> abt '[] a
+    -> abt '[] ('HArray a)
+arrayWithVar n x body =
+    syn $ Array_ n (bind x body)
+
 
 empty :: (ABT Term abt, SingI a) => abt '[] ('HArray a)
 empty = syn (Empty_ sing)

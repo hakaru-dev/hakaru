@@ -238,7 +238,7 @@ residualizeLocs e = do
         case s of
           SBind l body inds -> do
                  l' <- freshenVar l
-                 case (findLoc l locs) of
+                 case findLoc l locs of
                    Left  (x, js) -> do
                      let (s',a) = reifyStatement (SBind l' body inds) l' js
                      return (s':ss', insertAssoc (Assoc x a) rho)
@@ -246,7 +246,7 @@ residualizeLocs e = do
                      j <- freshInd (indSize (head inds)) -- TODO check use of head
                      let js' = extendIndices j js
                          (s',a) = reifyStatement (SBind l' body inds) l' js'
-                         arr = undefined -- TODO Arr j a
+                         arr = P.arrayWithVar (indSize j) (indVar j) a
                      return (s':ss', insertAssoc (Assoc x arr) rho)
           -- TODO other types of statements
                             
