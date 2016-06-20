@@ -21,13 +21,30 @@ import Data.Number.Natural
 import Data.Ratio
 import Data.Sequence (Seq)
 
+----- Using enviroment representation from Language.Hakaru.Sample
+data EAssoc =
+    forall a. EAssoc {-# UNPACK #-} !(Variable a) !(Value a)
+
+newtype Env = Env (IM.IntMap EAssoc)
+
+emptyEnv :: Env
+emptyEnv = Env IM.empty
+
+updateEnv :: EAssoc -> Env -> Env
+updateEnv v@(EAssoc x _) (Env xs) =
+    Env $ IM.insert (fromNat $ varID x) v xs
+
+lookupVar :: Variable a -> Env -> Maybe (Value a)
+lookupVar x (Env env) = do
+    EAssoc x' e' <- IM.lookup (fromNat $ varID x) env
+    Refl         <- varEq x x'
+    return e'
+----
+
 flattenABT :: ABT Term abt
-           => abt xs a
+           => abt '[] a
            -> NonEmpty CStat
-flattenABT = \e -> case viewABT e of
-               (Syn s)    -> flattenTerm s
-               (Var v)    -> flattenVar  v
-               (Bind x y) -> undefined
+flattenABT e = caseVarSyn e flattenVar flattenTerm
 
 flattenVar :: Variable (a :: Hakaru) -> NonEmpty CStat
 flattenVar = undefined
@@ -53,7 +70,7 @@ nAryOp_c Xor      = undefined
 nAryOp_c Iff      = undefined
 nAryOp_c (Min o)  = undefined
 nAryOp_c (Max o)  = undefined
-nAryOp_c (Sum _)  = undefined --fmap flatten
+nAryOp_c (Sum _)  = undefined
 nAryOp_c (Prod s) = undefined
 
 
