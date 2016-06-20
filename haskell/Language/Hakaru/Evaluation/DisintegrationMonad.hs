@@ -239,12 +239,10 @@ residualizeLocs e = do
           SBind l body inds -> do
                  l' <- freshVar Text.empty (varType l)
                  case (findLoc l locs) of
-                   Left  (x, Loc      _ js) -> do
+                   Left  (x, js) -> do
                      let (s',a) = reifyStatement (SBind l' body inds) l' js
                      return (s':ss', insertAssoc (Assoc x a) rho)
-                   Left  (_ , MultiLoc _ _)  -> error "impossible"
-                   Right (_ , Loc      _ _)  -> error "impossible"
-                   Right (x,  MultiLoc _ js) -> do
+                   Right (x, js) -> do
                      j <- undefined -- TODO freshIndex
                      let js' = extendIndices j js
                          (s',a) = reifyStatement (SBind l' body inds) l' js'
@@ -289,19 +287,19 @@ findLoc l5 assocs ==> Left (x5, Loc l5 [i])
 -}
 findLoc :: Variable (a :: Hakaru)
         -> [Assoc (Loc (abt '[]))]
-        -> Either (Variable a          , Loc (abt '[]) a)
-                  (Variable ('HArray a), Loc (abt '[]) ('HArray a))
+        -> Either (Variable a          , [Index (abt '[])])
+                  (Variable ('HArray a), [Index (abt '[])])
 findLoc l []                 = error $ "No assoc for location " ++ show l
 findLoc l ((Assoc x loc):as) = fromMaybe (findLoc l as) (match l (x,loc))
     where
       match :: Variable (a :: Hakaru)
             -> (Variable b, Loc (abt '[]) b)
-            -> Maybe (Either (Variable a          , Loc (abt '[]) a)
-                             (Variable ('HArray a), Loc (abt '[]) ('HArray a)))
-      match l (x, loc@(Loc      l' _)) = do Refl <- varEq l l'
-                                            return (Left (x,loc))
-      match l (x, loc@(MultiLoc l' _)) = do Refl <- varEq l l'
-                                            return (Right (x,loc))
+            -> Maybe (Either (Variable a          , [Index (abt '[])])
+                             (Variable ('HArray a), [Index (abt '[])]))
+      match l (x, Loc      l' js) = do Refl <- varEq l l'
+                                       return (Left (x,js))
+      match l (x, MultiLoc l' js) = do Refl <- varEq l l'
+                                       return (Right (x,js))
 
 reifyStatement :: (ABT Term abt)
                => Statement abt 'Impure
