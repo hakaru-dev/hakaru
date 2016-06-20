@@ -255,35 +255,37 @@ residualizeLocs e = do
 
 For example, consider the state:
 
-list context (aka heap) =
-l1 <- lebesgue []
-l2 <- plate (normal 0 1) []
-l3 <- lebesgue [i]
-l4 <- dirac x3
-l5 <- normal 0 1 [j]
-
-assocs (aka locs) =
-x1 -> Loc l1 []
-x2 -> Loc l2 []
-x3 -> MultiLoc l3 []
-x4 -> Loc l4 []
-x5 -> Loc l5 [k]
-
+  list context (aka heap) =
+  l1 <- lebesgue []
+  l2 <- plate (normal 0 1) []
+  l3 <- lebesgue [i]
+  l4 <- dirac x3
+  l5 <- normal 0 1 [j]
+  
+  assocs (aka locs) =
+  x1 -> Loc l1 []
+  x2 -> Loc l2 []
+  x3 -> MultiLoc l3 []
+  x4 -> Loc l4 []
+  x5 -> Loc l5 [k]
+  
 Here the types of the above variables are:
-- l1, x1 :: Real
-- l2, x2 :: Array Real
-- l3 :: Real
-- x3 :: Array Real
-- l4, x4 :: Array Real
-- l5, x5 :: Real
+
+  l1, x1 :: Real
+  l2, x2 :: Array Real
+  l3 :: Real
+  x3 :: Array Real
+  l4, x4 :: Array Real
+  l5, x5 :: Real
 
 Then we have:
-findLoc l1 assocs ==> Left (x1, Loc l1 [])
-findLoc l2 assocs ==> Left (x2, Loc l2 [])
-findLoc l3 assocs ==> Right (x3, MultiLoc l3 [])
-findLoc l4 assocs ==> Left (x4, Loc l4 [])
-findLoc l5 assocs ==> Left (x5, Loc l5 [i])
 
+  findLoc l1 assocs ==> Left (x1, Loc l1 [])
+  findLoc l2 assocs ==> Left (x2, Loc l2 [])
+  findLoc l3 assocs ==> Right (x3, MultiLoc l3 [])
+  findLoc l4 assocs ==> Left (x4, Loc l4 [])
+  findLoc l5 assocs ==> Left (x5, Loc l5 [i])
+  
 -}
 findLoc :: Variable (a :: Hakaru)
         -> [Assoc (Loc (abt '[]))]
