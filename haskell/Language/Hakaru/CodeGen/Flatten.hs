@@ -1,13 +1,15 @@
 {-# LANGUAGE DataKinds,
              FlexibleContexts,
              FlexibleInstances,
-             GADTs #-}
+             GADTs,
+             KindSignatures #-}
 
 module Language.Hakaru.CodeGen.Flatten where
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.DataKind
 
 import Language.C.Data.Node
 import Language.C.Data.Position
@@ -23,9 +25,12 @@ flattenABT :: ABT Term abt
            => abt xs a
            -> NonEmpty CStat
 flattenABT = \e -> case viewABT e of
-               (Syn x)    -> flattenTerm x
-               (Var x)    -> undefined
+               (Syn s)    -> flattenTerm s
+               (Var v)    -> flattenVar  v
                (Bind x y) -> undefined
+
+flattenVar :: Variable (a :: Hakaru) -> NonEmpty CStat
+flattenVar = undefined
 
 flattenTerm :: ABT Term abt
             => Term abt a
@@ -39,31 +44,6 @@ flattenTerm (Array_ x y)   = return $ array_c     x y
 flattenTerm (x :$ y)       = return $ cons_c      x y
 flattenTerm (Reject_ x)    = return $ reject_c    x
 flattenTerm (Superpose_ x) = return $ superpose_c x
-
-
-flattenSCon :: ABT Term abt
-            => SCon args a
-            -> SArgs abt args
-            -> NonEmpty CStat
-flattenSCon Lam_            = undefined
-flattenSCon App_            = undefined
-flattenSCon Let_            = undefined
-flattenSCon (CoerceTo_ t)   = undefined
-flattenSCon (UnsafeFrom_ t) = undefined
-flattenSCon (PrimOp_ t)     = undefined
-flattenSCon (ArrayOp_ t)    = undefined
-flattenSCon (MeasureOp_ t)  = undefined
-flattenSCon Dirac           = undefined
-flattenSCon MBind           = undefined
-flattenSCon Plate           = undefined
-flattenSCon Chain           = undefined
-flattenSCon Integrate       = undefined
-flattenSCon Summate         = undefined
-flattenSCon Expect          = undefined
-flattenSCon Observe         = undefined
-
--- instance Flattenable (Variable x) where
---   flatten = undefined
 
 
 nAryOp_c :: NaryOp a -> Seq b -> CStat
@@ -109,5 +89,67 @@ literal_c = let n = undefNode in
                          in CExpr (Just (CConst (CFloatConst (cFloat x') n))) n -- losing precision
             (LReal x) -> CExpr (Just (CConst (CFloatConst (cFloat $ fromRational x) n))) n
 
--- literal (LProb x) = CExpr (Just (CConst (CIntConst (cInteger $ fromIntegral x) undefNode))) undefNode
--- literal (LReal x) = CExpr (Just (CConst (CIntConst (cInteger $ fromIntegral x) undefNode))) undefNode
+
+
+flattenSCon :: ABT Term abt
+            => SCon args a
+            -> SArgs abt args
+            -> NonEmpty CStat
+flattenSCon Lam_            = \(x :* End)           -> undefined
+flattenSCon App_            = \(x :* y :* End)      -> undefined
+flattenSCon Let_            = \(x :* y :* End)      -> undefined
+flattenSCon (CoerceTo_ t)   = \(x :* End)           -> undefined
+flattenSCon (UnsafeFrom_ t) = \(x :* End)           -> undefined
+flattenSCon (PrimOp_ t)     = flattenPrimOp t
+flattenSCon (ArrayOp_ t)    = flattenArrayOp t
+flattenSCon (MeasureOp_ t)  = flattenMeasureOp t
+flattenSCon Dirac           = \(x :* End)           -> undefined
+flattenSCon MBind           = \(x :* y :* End)      -> undefined
+flattenSCon Plate           = \(x :* y :* End)      -> undefined
+flattenSCon Chain           = \(x :* y :* z :* End) -> undefined
+flattenSCon Integrate       = undefined
+flattenSCon Summate         = undefined
+flattenSCon Expect          = undefined
+flattenSCon Observe         = undefined
+
+flattenPrimOp :: ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+              => PrimOp typs a
+              -> SArgs abt args
+              -> NonEmpty CStat
+flattenPrimOp Not         (x :* End)      = undefined
+flattenPrimOp Pi          End             = undefined
+flattenPrimOp Cos         (x :* End)      = undefined
+flattenPrimOp Sin         (x :* End)      = undefined
+flattenPrimOp RealPow     (x :* y :* End) = undefined
+flattenPrimOp Exp         (x :* End)      = undefined
+flattenPrimOp Infinity    End             = undefined
+flattenPrimOp (Equal _)   (x :* y :* End) = undefined
+flattenPrimOp (Less _)    (x :* y :* End) = undefined
+flattenPrimOp (NatPow _)  (x :* y :* End) = undefined
+flattenPrimOp (Negate _)  (x :* End)      = undefined
+flattenPrimOp (Recip _)   (x :* End)      = undefined
+flattenPrimOp (NatRoot _) (x :* y :* End) = undefined
+flattenPrimOp _ _ = undefined
+
+
+flattenArrayOp :: ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+               => ArrayOp typs a
+               -> SArgs abt args
+               -> NonEmpty CStat
+flattenArrayOp (Index _)  (x :* y :* End)      = undefined
+flattenArrayOp (Size _)   (x :* End)           = undefined
+flattenArrayOp (Reduce _) (x :* y :* z :* End) = undefined
+
+
+flattenMeasureOp :: ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+                 => MeasureOp typs a
+                 -> SArgs abt args
+                 -> NonEmpty CStat
+flattenMeasureOp Lebesgue    End             = undefined
+flattenMeasureOp Counting    End             = undefined
+flattenMeasureOp Categorical (x :* End)      = undefined
+flattenMeasureOp Uniform     (x :* y :* End) = undefined
+flattenMeasureOp Normal      (x :* y :* End) = undefined
+flattenMeasureOp Poisson     (x :* End)      = undefined
+flattenMeasureOp Gamma       (x :* y :* End) = undefined
+flattenMeasureOp Beta        (x :* y :* End) = undefined
