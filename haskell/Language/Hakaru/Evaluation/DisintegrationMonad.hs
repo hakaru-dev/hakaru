@@ -2,6 +2,7 @@
            , GADTs
            , KindSignatures
            , DataKinds
+           , PolyKinds
            , TypeOperators
            , Rank2Types
            , FlexibleContexts
@@ -218,29 +219,106 @@ runDis (Dis m) es =
                   
     i0 = maxNextFree es
 
-blah :: (ABT Term abt)
-     => abt '[] a
-     -> Dis abt (abt '[] a, Assocs (abt '[]))
-blah e = do
+residualizeLocs :: (ABT Term abt)
+                => abt '[] a
+                -> Dis abt (abt '[] a, Assocs (abt '[]))
+residualizeLocs e = do
   ss <- getStatements
-  locs <- getLocs
   (ss',rho) <- foldM step ([], emptyAssocs) ss
   let putStatements = undefined
   putStatements (reverse ss')
   return (e, rho)
     where
-      step :: ([Statement abt 'Impure], Assocs (abt '[]))
+      step :: (ABT Term abt)
+           => ([Statement abt 'Impure], Assocs (abt '[]))
            -> Statement abt 'Impure
            -> Dis abt ([Statement abt 'Impure], Assocs (abt '[]))
-      step (ss',rho) s = undefined
+      step (ss',rho) s = do
+        locs <- fromAssocs <$> getLocs
+        case s of
+          SBind l body inds -> do
+                 l' <- freshVar Text.empty (varType l)
+                 case (findLoc l locs) of
+                   Left  (x, Loc      _ js) -> do
+                     let (s',a) = reifyStatement (SBind l' body inds) l' js
+                     return (s':ss', insertAssoc (Assoc x a) rho)
+                   Left  (_ , MultiLoc _ _)  -> error "impossible"
+                   Right (_ , Loc      _ _)  -> error "impossible"
+                   Right (x,  MultiLoc _ js) -> do
+                     j <- undefined -- TODO freshIndex
+                     let js' = extendIndices j js
+                         (s',a) = reifyStatement (SBind l' body inds) l' js'
+                         arr = undefined -- TODO Arr j a
+                     return (s':ss', insertAssoc (Assoc x arr) rho)
+          -- TODO other types of statements
+                            
+{-| findLoc takes a Variable l and searches a given [Assoc (Loc (abt '[]))]
+    for the association that has l on the right hand side
 
--- very rough idea for step:
--- case s of
--- SBind x body inds -> do
---        x' <- freshenVar x
--- look for x on the rhs of locs, say we have y -> Loc x inds'
---        reifyStatement (SBind x' body inds) x' inds
-        
+For example, consider the state:
+
+list context (aka heap) =
+l1 <- lebesgue []
+l2 <- plate (normal 0 1) []
+l3 <- lebesgue [i]
+l4 <- dirac x3
+l5 <- normal 0 1 [j]
+
+assocs (aka locs) =
+x1 -> Loc l1 []
+x2 -> Loc l2 []
+x3 -> MultiLoc l3 []
+x4 -> Loc l4 []
+x5 -> Loc l5 [k]
+
+Here the types of the above variables are:
+- l1, x1 :: Real
+- l2, x2 :: Array Real
+- l3 :: Real
+- x3 :: Array Real
+- l4, x4 :: Array Real
+- l5, x5 :: Real
+
+Then we have:
+findLoc l1 assocs ==> Left (x1, Loc l1 [])
+findLoc l2 assocs ==> Left (x2, Loc l2 [])
+findLoc l3 assocs ==> Right (x3, MultiLoc l3 [])
+findLoc l4 assocs ==> Left (x4, Loc l4 [])
+findLoc l5 assocs ==> Left (x5, Loc l5 [i])
+
+-}
+findLoc :: Variable (a :: Hakaru)
+        -> [Assoc (Loc (abt '[]))]
+        -> Either (Variable a          , Loc (abt '[]) a)
+                  (Variable ('HArray a), Loc (abt '[]) ('HArray a))
+findLoc l []                 = error $ "No assoc for location " ++ show l
+findLoc l ((Assoc x loc):as) = fromMaybe (findLoc l as) (match l (x,loc))
+    where
+      match :: Variable (a :: Hakaru)
+            -> (Variable b, Loc (abt '[]) b)
+            -> Maybe (Either (Variable a          , Loc (abt '[]) a)
+                             (Variable ('HArray a), Loc (abt '[]) ('HArray a)))
+      match l (x, loc@(Loc      l' _)) = do Refl <- varEq l l'
+                                            return (Left (x,loc))
+      match l (x, loc@(MultiLoc l' _)) = do Refl <- varEq l l'
+                                            return (Right (x,loc))
+
+reifyStatement :: (ABT Term abt)
+               => Statement abt 'Impure
+               -> Variable a
+               -> [Index (abt '[])]
+               -> (Statement abt 'Impure, abt '[] a)
+reifyStatement s@(SBind _ _ []) y [] = (s, var y)
+reifyStatement (SBind x body (i:is)) y js =
+    let plate   = undefined -- construct (Plate (indSize i) (\i -> body))
+        x'      = x { varType = SArray (varType x) }
+        y'      = y { varType = SArray (varType y) }
+        (s', a) = reifyStatement (SBind x' plate is) y' (tail js)
+    in  (s', a P.! (var.indVar $ head js))
+reifyStatement (SLet _ _ _)  _ _ = undefined -- construct Array
+reifyStatement (SWeight _ _) _ _ = error ("reifyStatement called on sWeight")
+reifyStatement _ _ _ = undefined -- TODO check what to do for SGuard, SStuff{0,1}
+
 extendIndices
     :: (ABT Term abt)
     => Index (abt '[])
@@ -418,39 +496,6 @@ pushPlate n e inds =
     unsafePush (SBind p (Thunk $ rename x (indVar i) body)
                 (extendIndices i inds))
     mkMultiLoc Text.empty p inds
-
-residualizeLocs
-    :: forall abt a
-    .  (ABT Term abt)
-    => abt '[] ('HMeasure a)
-    -> Dis abt (abt '[] ('HMeasure a))
-residualizeLocs m = do
-    locs <- getLocs
-    undefined
-  --   let rho = toAssocs $ map go (fromAssocs locs)
-  --   return (substs rho e)
-  -- where go :: Assoc (Loc (abt '[])) -> Assoc (abt '[])
-  --       go (Assoc x' (Loc      x     [])) = Assoc x' (var x)
-  --       go (Assoc x' (Loc      x (i:is))) = undefined
-  --       go (Assoc x' (MultiLoc x     is)) = undefined
-
-reifyStatement :: (ABT Term abt)
-               => Statement abt 'Impure
-               -> Variable a
-               -> [Index (abt '[])]
-               -> (Statement abt 'Impure, abt '[] a)
-reifyStatement s@(SBind _ _ []) y [] = (s, var y)
-reifyStatement (SBind x body (i:is)) y js =
-    let bodyP   = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
-        x'      = x { varType = SArray (varType x) }
-        y'      = y { varType = SArray (varType y) }
-        (s', a) = reifyStatement (SBind x' bodyP is) y' (tail js)
-    in  (s', a P.! (var.indVar $ head js))
-                           
--- reifyStatement s@(SLet x _ []) rho = return (s,rho)
--- reifyStatement (SLet x e (i:is)) rho = undefined -- construct Array around e, coerce typeOf x
--- reifyStatement (SWeight _ _) rho = error ("reifyStatement called on sWeight")
-reifyStatement _ _ _ = undefined -- TODO check what to do for SGuard, SStuff0, SStuff1
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
