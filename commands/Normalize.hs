@@ -2,18 +2,14 @@
 
 module Main where
 
-import qualified Language.Hakaru.Parser.AST as U
-import           Language.Hakaru.Parser.Parser
-import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Pretty.Concrete  
-import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.AST.Transforms
-import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Types.Sing
 
 import           Language.Hakaru.Expect (normalize)
 import           Language.Hakaru.Evaluation.ConstantPropagation
+import           Language.Hakaru.Command
 
 import           Data.Text
 import qualified Data.Text.IO as IO
@@ -29,20 +25,13 @@ main = do
       []     -> IO.getContents   >>= runNormalize
       _      -> IO.putStrLn "Usage: normalize <file>"
 
-inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
-inferType' = inferType
-
 runNormalize :: Text -> IO ()
 runNormalize prog =
-    case parseHakaru prog of
-    Left  err  -> print err
-    Right past ->
-        let m = inferType' (resolveAST past) in
-        case runTCM m LaxMode of
-        Left err                 -> putStrLn err
-        Right (TypedAST typ ast) -> do
-          case typ of
-            SMeasure _          -> print . pretty . constantPropagation . normalize $ ast
-            SFun _ (SMeasure _) -> print . pretty . runIdentity $
-                                    underLam (return . constantPropagation . normalize) ast
-            _                   -> error "Can only normalize measures"
+    case parseAndInfer prog of
+    Left  err                -> putStrLn err
+    Right (TypedAST typ ast) -> do
+      case typ of
+        SMeasure _          -> print . pretty . constantPropagation . normalize $ ast
+        SFun _ (SMeasure _) -> print . pretty . runIdentity $
+                                 underLam (return . constantPropagation . normalize) ast
+        _                   -> error "Can only normalize measures"

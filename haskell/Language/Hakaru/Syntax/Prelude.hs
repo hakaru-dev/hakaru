@@ -80,7 +80,7 @@ module Language.Hakaru.Syntax.Prelude
     , densityPoisson, poisson, poisson'
     , densityGamma, gamma, gamma'
     , densityBeta, beta, beta'
-    , plate, plate'
+    , plateWithVar, plate, plate'
     , chain, chain'
     , invgamma
     , exponential
@@ -1436,6 +1436,14 @@ beta' a b =
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...
     unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \x ->
     weightedDirac x (densityBeta a b x)
+
+plateWithVar
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> Variable 'HNat
+    -> abt '[] ('HMeasure a)
+    -> abt '[] ('HMeasure ('HArray a))
+plateWithVar e1 x e2 = syn (Plate :$ e1 :* bind x e2 :* End)
         
 plate :: (ABT Term abt)
       => abt '[] 'HNat

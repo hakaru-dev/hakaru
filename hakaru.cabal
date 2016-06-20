@@ -73,7 +73,7 @@ Library
                        Language.Hakaru.Evaluation.ExpectMonad,
                        Language.Hakaru.Expect,
                        Language.Hakaru.Inference,
-                       Language.Hakaru.Utilities,
+                       Language.Hakaru.Command,
                        Language.Hakaru.CodeGen.Wrapper,
                        Language.Hakaru.CodeGen.Flatten,
                        Data.Number.Nat,
@@ -103,7 +103,7 @@ Library
                        HUnit              >= 1.2  && < 2.0,
                        mtl                >= 2.1,
                        filepath           >= 1.1.0.2,
-                       language-c         >= 0.0
+                       language-c         >= 0.4
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite

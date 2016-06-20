@@ -6,9 +6,7 @@
 
 module Main where
 
-import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.AST.Transforms
-import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Syntax.Value
 
@@ -18,7 +16,7 @@ import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
-import           Language.Hakaru.Utilities (parseAndInfer)
+import           Language.Hakaru.Command (parseAndInfer, readFromFile, Term)
 
 import           Control.Monad
 
@@ -38,10 +36,6 @@ main = do
       [prog1, prog2] -> randomWalk g prog1 prog2
       [prog] -> runHakaru g prog
       _      -> IO.putStrLn "Usage: hakaru <file>"
-
-readFromFile :: String -> IO Text
-readFromFile "-" = IO.getContents
-readFromFile x   = IO.readFile x
 
 illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
 illustrate (SMeasure s) g (VMeasure m) = do
@@ -63,7 +57,7 @@ runHakaru g prog =
           SMeasure _ -> forever (illustrate typ g $ run ast)
           _          -> illustrate typ g $ run ast
     where
-    run :: TrivialABT T.Term '[] a -> Value a
+    run :: Term a -> Value a
     run = runEvaluate . expandTransformations
 
 randomWalk ::MWC.GenIO -> Text -> Text -> IO ()
@@ -81,7 +75,7 @@ randomWalk g p1 p2 =
       (Left err, _) -> print err
       (_, Left err) -> print err
     where
-    run :: TrivialABT T.Term '[] a -> Value a
+    run :: Term a -> Value a
     run = runEvaluate . expandTransformations
 
     chain :: Value (a ':-> b) -> Value ('HMeasure a) -> IO (Value b)
