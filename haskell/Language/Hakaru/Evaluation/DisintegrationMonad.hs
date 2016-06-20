@@ -237,7 +237,7 @@ blah e = do
 -- very rough idea for step:
 -- case s of
 -- SBind x body inds -> do
---        x' <- var <$> freshVar "" (typeOf x)
+--        x' <- freshenVar x
 -- look for x on the rhs of locs, say we have y -> Loc x inds'
 --        reifyStatement (SBind x' body inds) x' inds
         
