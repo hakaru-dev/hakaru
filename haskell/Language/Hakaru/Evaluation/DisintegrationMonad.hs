@@ -250,8 +250,10 @@ residualizeLocs e = do
                      return (s':ss', insertAssoc (Assoc x arr) rho)
           -- TODO other types of statements
                             
-{-| findLoc takes a Variable l and searches a given [Assoc (Loc (abt '[]))]
-    for the association that has l on the right hand side
+{-| findLoc takes 
+            a location (represented by a Variable l) and searches 
+            a given [Assoc (Loc (abt '[]))] for
+            the association that has l on the right hand side
 
 For example, consider the state:
 
@@ -291,17 +293,17 @@ findLoc :: Variable (a :: Hakaru)
         -> [Assoc (Loc (abt '[]))]
         -> Either (Variable a          , [Index (abt '[])])
                   (Variable ('HArray a), [Index (abt '[])])
-findLoc l []                 = error $ "No assoc for location " ++ show l
-findLoc l ((Assoc x loc):as) = fromMaybe (findLoc l as) (match l (x,loc))
+findLoc l []         = error $ "No assoc for location " ++ show l
+findLoc l (assoc:as) = fromMaybe (findLoc l as) (match l assoc)
     where
       match :: Variable (a :: Hakaru)
-            -> (Variable b, Loc (abt '[]) b)
+            -> Assoc (Loc (abt '[]))
             -> Maybe (Either (Variable a          , [Index (abt '[])])
                              (Variable ('HArray a), [Index (abt '[])]))
-      match l (x, Loc      l' js) = do Refl <- varEq l l'
-                                       return (Left (x,js))
-      match l (x, MultiLoc l' js) = do Refl <- varEq l l'
-                                       return (Right (x,js))
+      match l (Assoc x (Loc      l' js)) = do Refl <- varEq l l'
+                                              return (Left (x,js))
+      match l (Assoc x (MultiLoc l' js)) = do Refl <- varEq l l'
+                                              return (Right (x,js))
 
 reifyStatement :: (ABT Term abt)
                => Statement abt 'Impure
