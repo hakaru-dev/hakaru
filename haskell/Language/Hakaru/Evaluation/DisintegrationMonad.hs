@@ -237,13 +237,13 @@ residualizeLocs e = do
         locs <- fromAssocs <$> getLocs
         case s of
           SBind l body inds -> do
-                 l' <- freshVar Text.empty (varType l)
+                 l' <- freshenVar l
                  case (findLoc l locs) of
                    Left  (x, js) -> do
                      let (s',a) = reifyStatement (SBind l' body inds) l' js
                      return (s':ss', insertAssoc (Assoc x a) rho)
                    Right (x, js) -> do
-                     j <- undefined -- TODO freshIndex
+                     j <- freshInd (indSize (head inds)) -- TODO check use of head
                      let js' = extendIndices j js
                          (s',a) = reifyStatement (SBind l' body inds) l' js'
                          arr = undefined -- TODO Arr j a
@@ -312,10 +312,10 @@ reifyStatement :: (ABT Term abt)
                -> (Statement abt 'Impure, abt '[] a)
 reifyStatement s@(SBind _ _ []) y [] = (s, var y)
 reifyStatement (SBind x body (i:is)) y js =
-    let plate   = undefined -- construct (Plate (indSize i) (\i -> body))
+    let bodyP   = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
         x'      = x { varType = SArray (varType x) }
         y'      = y { varType = SArray (varType y) }
-        (s', a) = reifyStatement (SBind x' plate is) y' (tail js)
+        (s', a) = reifyStatement (SBind x' bodyP is) y' (tail js)
     in  (s', a P.! (var.indVar $ head js))
 reifyStatement (SLet _ _ _)  _ _ = undefined -- construct Array
 reifyStatement (SWeight _ _) _ _ = error ("reifyStatement called on sWeight")
