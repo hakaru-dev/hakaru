@@ -243,7 +243,8 @@ residualizeLocs e = do
                      let (s',a) = reifyStatement (SBind l' body inds) l' js
                      return (s':ss', insertAssoc (Assoc x a) rho)
                    Right (x, js) -> do
-                     j <- freshInd (indSize (head inds)) -- TODO check use of head
+                     -- branch invariant: |inds| >= 1, |inds| = |js| + 1
+                     j <- freshInd (indSize (head inds))
                      let js' = extendIndices j js
                          (s',a) = reifyStatement (SBind l' body inds) l' js'
                          arr = P.arrayWithVar (indSize j) (indVar j) a
