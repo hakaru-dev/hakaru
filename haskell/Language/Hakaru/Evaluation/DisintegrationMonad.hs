@@ -441,10 +441,10 @@ reifyStatement :: (ABT Term abt)
                -> (Statement abt 'Impure, abt '[] a)
 reifyStatement s@(SBind _ _ []) y [] = (s, var y)
 reifyStatement (SBind x body (i:is)) y js =
-    let plate   = undefined -- construct (Plate (indSize i) (\i -> body))
+    let bodyP   = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
         x'      = x { varType = SArray (varType x) }
         y'      = y { varType = SArray (varType y) }
-        (s', a) = reifyStatement (SBind x' plate is) y' (tail js)
+        (s', a) = reifyStatement (SBind x' bodyP is) y' (tail js)
     in  (s', a P.! (var.indVar $ head js))
                            
 -- reifyStatement s@(SLet x _ []) rho = return (s,rho)
