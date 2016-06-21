@@ -350,7 +350,11 @@ KB := module ()
   end proc;
 
   kb_to_equations := proc(kb, $)
-    map2(subsop, 0=`=`, [op(select(type, kb, 'Let(name, anything)'))])
+    local lets, constraints;
+
+    lets := map2(subsop, 0=`=`, [op(select(type, kb, 'Let(name, anything)'))]);
+    constraints := map(op, select(type, kb, 'Constrain(anything = anything)'));
+    [op(lets), op(constraints)]
   end proc;
 
   htype_to_property := proc(t::t_type, $)
