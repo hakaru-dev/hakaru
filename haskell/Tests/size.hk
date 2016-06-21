@@ -1,0 +1,4 @@
+fn k nat:
+  x <~ plate i of k:
+    uniform(0,1)
+  return size(x)
