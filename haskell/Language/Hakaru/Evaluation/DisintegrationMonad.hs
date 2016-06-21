@@ -240,15 +240,36 @@ residualizeLocs e = do
                  l' <- freshenVar l
                  case findLoc l locs of
                    Left  (x, js) -> do
-                     let (s',a) = reifyStatement (SBind l' body inds) l' js
+                     let s' = reifyStatement (SBind l' body inds)
+                         a  = fromLoc l' js
                      return (s':ss', insertAssoc (Assoc x a) rho)
                    Right (x, js) -> do
                      -- branch invariant: |inds| >= 1, |inds| = |js| + 1
                      j <- freshInd (indSize (head inds))
                      let js' = extendIndices j js
-                         (s',a) = reifyStatement (SBind l' body inds) l' js'
+                         s'  = reifyStatement (SBind l' body inds)
+                         a   = fromLoc l' js'
                          arr = P.arrayWithVar (indSize j) (indVar j) a
                      return (s':ss', insertAssoc (Assoc x arr) rho)
+          SLet l body inds -> do
+                 l' <- freshenVar l
+                 case findLoc l locs of
+                   Left  (x, js) -> do
+                     let s' = reifyStatement (SLet l' body inds)
+                         a  = fromLoc l' js
+                     return (s':ss', insertAssoc (Assoc x a) rho)
+                   Right (x, js) -> do
+                     -- branch invariant: |inds| >= 1, |inds| = |js| + 1
+                     j <- freshInd (indSize (head inds))
+                     let js' = extendIndices j js
+                         s'  = reifyStatement (SLet l' body inds)
+                         a   = fromLoc l' js'
+                         arr = P.arrayWithVar (indSize j) (indVar j) a
+                     return (s':ss', insertAssoc (Assoc x arr) rho)
+          SWeight w inds -> do
+                 l' <- undefined -- freshVar T.empty SUnit
+                 let s' = undefined -- reifyStatement $ SBind l' (do {factor w; dirac unit})
+                 return (s':ss', rho)                        
           -- TODO other types of statements
                             
 {-| findLoc takes 
@@ -307,26 +328,27 @@ findLoc l (assoc:as) = fromMaybe (findLoc l as) (match l assoc)
                                               return (Right (x,js))
 
 reifyStatement :: (ABT Term abt)
-               => Statement abt 'Impure
-               -> Variable a
-               -> [Index (abt '[])]
-               -> (Statement abt 'Impure, abt '[] a)
-reifyStatement s@(SBind _ _ [])      y [] = (s, var y)
-reifyStatement (SBind x body (i:is)) y js =
-    let bodyP   = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
-        x'      = x { varType = SArray (varType x) }
-        y'      = y { varType = SArray (varType y) }
-        (s', a) = reifyStatement (SBind x' bodyP is) y' (tail js)
-    in  (s', a P.! (var.indVar $ head js))
-reifyStatement s@(SLet _ _ [])      y [] = (s, var y)
-reifyStatement (SLet x body (i:is)) y js =
-    let arr     = Thunk $ P.arrayWithVar (indSize i) (indVar i) (fromLazy body)
-        x'      = x { varType = SArray (varType x) }
-        y'      = y { varType = SArray (varType y) }
-        (s', a) = reifyStatement (SLet x' arr is) y' (tail js)
-    in  (s', a P.! (var.indVar $ head js))              
-reifyStatement (SWeight _ _) _ _ = error ("reifyStatement called on sWeight")
-reifyStatement _ _ _ = undefined -- TODO check what to do for SGuard, SStuff{0,1}
+               => Statement abt 'Impure -> Statement abt 'Impure
+reifyStatement s@(SBind _ _    [])     = s
+reifyStatement   (SBind x body (i:is)) =
+    let bodyP = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
+        x'    = x { varType = SArray (varType x) }
+    in reifyStatement (SBind x' bodyP is)
+reifyStatement s@(SLet  _ _    [])     = s
+reifyStatement   (SLet  x body (i:is)) =
+    let arr = Thunk $ P.arrayWithVar (indSize i) (indVar i) (fromLazy body)
+        x'  = x { varType = SArray (varType x) }
+    in reifyStatement (SLet x' arr is)
+reifyStatement   (SWeight _    _)      = error ("reifyStatement called on SWeight")
+reifyStatement s@(SGuard _ _ _ [])     = s
+reifyStatement   (SGuard _ _ _ _)      = error ("undefined: case statement under an array")
+reifyStatement _                       = undefined -- TODO check what to do for SStuff{0,1}
+
+fromLoc :: (ABT Term abt)
+        => Variable a -> [Index (abt '[])] -> abt '[] a
+fromLoc l []     = var l
+fromLoc l (j:js) = let l' = l { varType = SArray (varType l) }
+                   in (fromLoc l' js) P.! (var $ indVar j)
 
 extendIndices
     :: (ABT Term abt)
