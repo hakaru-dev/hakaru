@@ -42,6 +42,11 @@ dirac(3)
 ````nohighlight
 return 3
 ````
+|<h4>lebesgue: *measure(real)* </h4>                                         |
+|--------------------------------------------------------------------------- |
+| the distribution constant over the real line                               |
+
+
 
 |<h4>weight(x. *prob*, m. *measure(a)*): *measure(a)* </h4>                  |
 |--------------------------------------------------------------------------- |
