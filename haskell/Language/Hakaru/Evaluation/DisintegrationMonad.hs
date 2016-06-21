@@ -235,43 +235,35 @@ residualizeLocs e = do
            -> Dis abt ([Statement abt 'Impure], Assocs (abt '[]))
       step (ss',rho) s = do
         locs <- fromAssocs <$> getLocs
+        let newAssoc l l' inds = do
+              locs <- fromAssocs <$> getLocs
+              case findLoc l locs of
+                Left  (x, js) -> return (Assoc x $ fromLoc l' js)
+                Right (x, js) -> do
+                  -- branch invariant: |inds| >= 1, |inds| = |js| + 1
+                  j <- freshInd (indSize . head $ inds)
+                  let js' = extendIndices j js
+                      a   = fromLoc l' js'
+                      arr = P.arrayWithVar (indSize j) (indVar j) a
+                  return (Assoc x arr)
         case s of
           SBind l body inds -> do
                  l' <- freshenVar l
-                 case findLoc l locs of
-                   Left  (x, js) -> do
-                     let s' = reifyStatement (SBind l' body inds)
-                         a  = fromLoc l' js
-                     return (s':ss', insertAssoc (Assoc x a) rho)
-                   Right (x, js) -> do
-                     -- branch invariant: |inds| >= 1, |inds| = |js| + 1
-                     j <- freshInd (indSize (head inds))
-                     let js' = extendIndices j js
-                         s'  = reifyStatement (SBind l' body inds)
-                         a   = fromLoc l' js'
-                         arr = P.arrayWithVar (indSize j) (indVar j) a
-                     return (s':ss', insertAssoc (Assoc x arr) rho)
+                 let s' = reifyStatement (SBind l' body inds)
+                 assoc <- newAssoc l l' inds
+                 return (s':ss' , insertAssoc assoc rho)
           SLet l body inds -> do
                  l' <- freshenVar l
-                 case findLoc l locs of
-                   Left  (x, js) -> do
-                     let s' = reifyStatement (SLet l' body inds)
-                         a  = fromLoc l' js
-                     return (s':ss', insertAssoc (Assoc x a) rho)
-                   Right (x, js) -> do
-                     -- branch invariant: |inds| >= 1, |inds| = |js| + 1
-                     j <- freshInd (indSize (head inds))
-                     let js' = extendIndices j js
-                         s'  = reifyStatement (SLet l' body inds)
-                         a   = fromLoc l' js'
-                         arr = P.arrayWithVar (indSize j) (indVar j) a
-                     return (s':ss', insertAssoc (Assoc x arr) rho)
+                 let s' = reifyStatement (SLet l' body inds)
+                 assoc <- newAssoc l l' inds
+                 return (s:ss' , insertAssoc assoc rho)
           SWeight w inds -> do
                  l' <- undefined -- freshVar T.empty SUnit
-                 let s' = undefined -- reifyStatement $ SBind l' (do {factor w; dirac unit})
+                 let bodyW = undefined -- (do {factor w; dirac unit})
+                     s'    = reifyStatement (SBind l' bodyW inds)
                  return (s':ss', rho)                        
           -- TODO other types of statements
-                            
+
 {-| findLoc takes 
             a location (represented by a Variable l) and searches 
             a given [Assoc (Loc (abt '[]))] for
