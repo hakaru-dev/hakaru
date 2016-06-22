@@ -31,7 +31,7 @@ NewSLO := module ()
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2,
-        mk_sym, mk_ary, mk_idx, mk_HArray,
+        mk_sym, mk_ary, mk_idx,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
@@ -287,6 +287,9 @@ NewSLO := module ()
         make := Sum;
       end if;
       x, kb1 := genType(op(2,e), mk_HArray(t, loops), kb);
+      if nops(op(4,e)) > 0 then
+        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
+      end if;
       subintegral := eval(op(1,e), op(2,e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       bnds, loops, kb1 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
@@ -626,14 +629,18 @@ NewSLO := module ()
       x, kb1 := genType(op(2,e),
                         mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
                         kb);
-      kb1 := assert(size(x)=op([3,2],e)-op([3,1],e)+1, kb1);
+      if nops(op(4,e)) > 0 then
+        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
+      end if;
       reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: 'Sums(anything, name, range, list(name=range))' then
       x, kb1 := genType(op(2,e),
                         mk_HArray(HInt(closed_bounds(op(3,e))), op(4,e)),
                         kb);
-      kb1 := assert(size(x)=op([3,2],e)-op([3,1],e)+1, kb1);
+      if nops(op(4,e)) > 0 then
+        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
+      end if;
       reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: `+` then
@@ -1442,13 +1449,6 @@ NewSLO := module ()
   mk_idx := proc(e, loops :: list(name = range), $)
     foldr((i, res) -> idx(res, op(1,i) - op([2,1],i)),
           e, op(loops));
-  end proc;
-
-  mk_HArray := proc(t::t_type, loops::list(name=range), $)
-    local res, i;
-    res := t;
-    for i in loops do res := HArray(res) end do;
-    res
   end proc;
 
   ModuleLoad := proc($)

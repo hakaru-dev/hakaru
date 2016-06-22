@@ -190,7 +190,10 @@ KB := module ()
         elif b :: `<=` then b := `>` (op(b))
         else b := Not(b) end if
       end if;
-      if b :: 'anything=name' then b := (rhs(b)=lhs(b)) end if;
+      if b :: 'Not({name, size(name)})
+               = And(name, Not(constant), Not(undefined))' then
+        b := (rhs(b)=lhs(b))
+      end if;
       # Add constraint to KB.
       ch := chill(b);
       `if`((is(ch) assuming op(as)), kb, KB(Constrain(b), op(kb)))

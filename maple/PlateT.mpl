@@ -90,6 +90,11 @@ TestHakaru(eval(fusion ,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), 
 TestHakaru(eval(fission,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy across plates unrolled", ctx=[z>0]);
 TestHakaru(eval(fusion ,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy in plate unrolled", ctx=[z>0]);
 
+# Simplify by size of array
+TestHakaru(Bind(Plate(k,c,Uniform(37,42)),xs,Weight(f(size(xs)),Ret(Unit))),
+           Weight(f(k),Ret(Unit)),
+	   label="plate size"):
+
 # Simplifying gmm below is a baby step towards index manipulations we need
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,
        Bind(Plate(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit))), ys,

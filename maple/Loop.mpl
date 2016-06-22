@@ -66,7 +66,7 @@ Loop := module ()
      # These first few are smart constructors (for themselves):
          ints, sums,
      # while these are "proper functions"
-         genLoop, unproducts, unproduct;
+         mk_HArray, genLoop, unproducts, unproduct;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Ints, Sums, csgn;
@@ -81,13 +81,27 @@ Loop := module ()
   sums := proc() intssums('sums', 'sum', _passed) end proc;
 
   intssums := proc(makes::name, make::name,
-                   e::anything, x::name, rr::range, ll::list(name=range),
+                   ee::anything, xx::name, rr::range, ll::list(name=range),
                    kb::t_kb:=empty, $)
-    local r, l, kb1, w0, pp;
+    local t, x, e, r, l, kb1, w0, pp;
+    t := `if`(make=int, HReal(open_bounds(rr)), HInt(closed_bounds(rr)));
+    x, kb1 := genType(xx, mk_HArray(t, ll), kb);
+    e := eval(ee, xx=x);
+    if nops(ll) > 0 then
+      kb1 := assert(size(x)=op([-1,2,2],ll)-op([-1,2,1],ll)+1, kb1);
+    end if;
+    e := simplify_assuming(e, kb1);
     r, l, kb1 := genLoop(rr, ll, kb, 'Integrand'(x,e));
     w0, pp := unproducts(e, x, l, kb1);
     if depends(w0, x) then 'makes'(e, x, rr, ll)
     else w0 * foldl(product, make(pp,x=r), op(l)) end if
+  end proc;
+
+  mk_HArray := proc(t::t_type, loops::list(name=range), $)
+    local res, i;
+    res := t;
+    for i in loops do res := HArray(res) end do;
+    res
   end proc;
 
   genLoop := proc(e, loops::list(name=range), kb::t_kb)
