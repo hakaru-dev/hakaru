@@ -268,9 +268,10 @@ missingLub
 missingLub typ1 typ2 =
     failwith $ "No lub of types " ++ show typ1 ++ " and " ++ show typ2
 
+-- we can't have free variables, so it must be a typo
 ambiguousFreeVariable :: U.Name -> TypeCheckMonad r
 ambiguousFreeVariable x =
-    failwith $ "Cannot infer unambiguous type of free variable: " ++ show x
+    failwith $ "Name not in scope: `" ++ show x ++ "`; perhaps it is a typo?"
 
 ambiguousNullCoercion :: TypeCheckMonad r
 ambiguousNullCoercion =
