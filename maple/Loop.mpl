@@ -238,8 +238,8 @@ Loop := module ()
           map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest),
           var);
         (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
-        e := simplify_assuming(`*`(op(e)), kb);
-        w := simplify_assuming(`*`(op(w)), kb);
+        e := simplify_assuming(`*`(op(e)), op(2,entry));
+        w := simplify_assuming(`*`(op(w)), op(2,entry));
         if nops(dom_spec) > 0 then
           cond := op(dom_spec);
           # if e = mode(), don't bother with the piecewise
