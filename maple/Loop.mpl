@@ -60,7 +60,7 @@ end proc:
 
 Loop := module ()
   option package;
-  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp,
+  local intssums, piecewise_And, wrap, Binder, Stmt, t_binder, t_stmt, t_exp,
         ModuleLoad, ModuleUnload, csgnOld, csgnNew;
   export
      # These first few are smart constructors (for themselves):
@@ -126,7 +126,7 @@ Loop := module ()
     pp := w;
     for j from nops(loops) to 1 by -1 do
       w1, pp := op(unproduct(pp, x, op(j,loops), [], `*`, kb, kb));
-      # separate out each of the products, as they might have different
+      # separate out each of the factors in w1, as they might have different
       # variable dependencies, which can be exploited by other routines
       w2 := convert(w1, 'list', '`*`');
       w2 := map[2](foldl, product, w2, op(j+1..-1, loops));
@@ -219,10 +219,18 @@ Loop := module ()
     return [wrap(heap, w, mode, kb1, kb0), 1]
   end proc;
 
+  piecewise_And := proc(cond::list, th, el, $)
+    if nops(cond) = 0 or th = el then
+      th
+    else
+      piecewise(And(op(cond)), th, el)
+    end if
+  end proc;
+
   wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),
                kb1::t_kb, kb0::t_kb, $)
-    local e, kb, mode, i, entry, rest, var, new_var, new_rng, make, 
-       dom_spec, w, arrrgs, cond;
+    local e, kb, mode, i, entry, rest, var, new_rng, make,
+       dom_spec, w, arrrgs;
     e    := e1;
     kb   := kb1;
     mode := mode1;
@@ -252,42 +260,19 @@ Loop := module ()
         dom_spec, rest := selectremove(depends,
           map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest),
           var);
+        e := simplify_assuming(e, op(2,entry));
+        while e :: And('specfunc(piecewise)',
+                       anyfunc(anything, anything, identical(mode()))) do
+          dom_spec := [op(dom_spec), op(1,e)];
+          e := op(2,e);
+        end do;
         (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
-        e := simplify_assuming(`*`(op(e)), op(2,entry));
-        w := simplify_assuming(`*`(op(w)), op(2,entry));
-        if nops(dom_spec) > 0 then
-          cond := op(dom_spec);
-          # if e = mode(), don't bother with the piecewise
-          if not (e = mode()) then
-            # if e itself is a piecewise of the right shape, merge
-            if e :: 'specfunc(piecewise)' and nops(e)=3 and op(3,e) = mode() then
-              cond := op(1,e), cond;
-              e := op(2,e);
-            end if;
-            e := piecewise(And(cond), e, mode())
-          end if;
+        w := `*`(op(w));
+        if mode = `*` and not (w = 1) then
+          w := w ^ `if`(make=eval,eval,sum)
+                       (piecewise_And(dom_spec, 1, 0), var=new_rng);
         end if;
-        if mode=`+` then
-          e  := w * make(e, var=new_rng);
-        elif mode=`*` then
-          if make = genLet then
-            e := w * make(e, var = new_rng);
-          elif nops(dom_spec) > 0 then
-            new_var := gensym(var);
-            # another special case which seems to occur; note that make=product
-            # is an invariant here
-            if e :: 'specfunc(piecewise)' and nops(e)=3 and op(3,e)=mode() 
-              and not(depends(op(2,e), var)) then
-              e := op(2,e) ^ sum(eval(piecewise(And(op(dom_spec)), 1, 0), var = new_var), new_var = new_rng);
-            else
-              e := make(e, var = new_rng);
-            end if;
-            e := w ^ sum(eval(piecewise(And(op(dom_spec)), 1, 0), var = new_var), new_var = new_rng) * e;
-                 
-          else
-            e := w ^ sum(1, var = new_rng) * make(e, var = new_rng);
-          end if;
-        end if;
+        e := w * make(piecewise_And(dom_spec, `*`(op(e)), mode()), var=new_rng);
         kb := foldr(assert, op(2,entry), op(rest));
       elif entry :: t_stmt then
         # We evaluate arrrgs first, in case op(1,stmt) is an operation (such as
@@ -308,10 +293,7 @@ Loop := module ()
     end if;
     rest := kb_subtract(kb, kb0);
     rest := map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest);
-    if nops(rest) > 0 and not (e = mode ()) then
-      e := piecewise(And(op(rest)),e,mode())
-    end if;
-    e
+    piecewise_And(rest,e,mode())
   end proc;
 
   # Override csgn to work a little bit harder on piecewise and sum
