@@ -274,8 +274,16 @@ Loop := module ()
             e := w * make(e, var = new_rng);
           elif nops(dom_spec) > 0 then
             new_var := gensym(var);
-            e := w ^ sum(eval(piecewise(And(op(dom_spec)), 1, 0), var = new_var), new_var = new_rng) *
-                 make(e, var = new_rng);
+            # another special case which seems to occur; note that make=product
+            # is an invariant here
+            if e :: 'specfunc(piecewise)' and nops(e)=3 and op(3,e)=mode() 
+              and not(depends(op(2,e), var)) then
+              e := op(2,e) ^ sum(eval(piecewise(And(op(dom_spec)), 1, 0), var = new_var), new_var = new_rng);
+            else
+              e := make(e, var = new_rng);
+            end if;
+            e := w ^ sum(eval(piecewise(And(op(dom_spec)), 1, 0), var = new_var), new_var = new_rng) * e;
+                 
           else
             e := w ^ sum(1, var = new_rng) * make(e, var = new_rng);
           end if;
