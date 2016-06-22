@@ -358,7 +358,7 @@ NewSLO := module ()
     # Like sum(...i...), Constant[sum(...i...)] depends on i, which we need so
     # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
     w := subsindets[flat](weight0,
-           And(function, Not(specfunc({exp, And, Or})),
+           And(function, Not(specfunc({exp, And, Or, Not})),
                'freeof'(x)),
            proc(e) Constant[e] end);
     w := subsindets[flat](w, {`^`, specfunc(exp)},
