@@ -87,14 +87,14 @@ testMeasureReal = test
     , "t7n" ~: testSStriv [t7n] t7n'
     , "t8'" ~: testSStriv [t8'] (lam $ \s1 ->
                                  lam $ \s2 ->
-                                 normal zero (primOp2_ RealPow (s2 ^ (nat_ 2) + s1 ^ (nat_ 2)) half))
+                                 normal zero (sqrt $ (s2 ^ (nat_ 2) + s1 ^ (nat_ 2))))
     , "t9"  ~: testSStriv [t9] (unsafeSuperpose [(prob_ 2, uniform (real_ 3) (real_ 7))])
     , "t13" ~: testSStriv [t13] t13'
     , "t14" ~: testSStriv [t14] t14'
     , "t21" ~: testStriv t21
     , "t28" ~: testSStriv [] t28
     , "t31" ~: testSStriv [] t31
-    , "t36" ~: testSStriv [t36] t36'
+    , "t36" ~: testSStriv [] t36
     , "t37" ~: testSStriv [] t37
     , "t39" ~: testSStriv [] t39
     , "t40" ~: testSStriv [] t40
@@ -176,14 +176,13 @@ testMeasurePair = test [
                                                            (normal zero one)
                                                            (normal zero one)),
     "norm"          ~: testSStriv [] norm,
-    "norm_nox"      ~: testSStriv [norm_nox] (normal zero
-                                                     (prob_ 2 ** (real_ 0.5))),
+    "norm_nox"      ~: testSStriv [norm_nox] (normal zero (sqrt (prob_ 2))),
     "norm_noy"      ~: testSStriv [norm_noy] (normal zero one),
     "flipped_norm"  ~: testSStriv [swap <$> norm] flipped_norm,
     "priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
                                   (lam $ \x -> unpair x $ \x0 x1 ->
                                                unsafeSuperpose [(half, normal zero
-                                                                         (prob_ 2 ** (real_ 0.5)) >>= \y ->
+                                                                         (sqrt (prob_ 2)) >>= \y ->
                                                                        dirac (pair x0 y)),
                                                                 (half, normal_0_1 >>= \y ->
                                                                        dirac (pair y x1))]),
@@ -362,9 +361,8 @@ t34 = dirac (if_ ((real_ 2) < (real_ 4)) (prob_ 3) (prob_ 5))
 t35 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HProb)
 t35 = lam $ \x -> dirac (if_ ((x `asTypeOf` log one) < (real_ 4)) (prob_ 3) (prob_ 5))
 
-t36, t36' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HProb)
+t36 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HProb)
 t36 = lam (dirac . sqrt)
-t36' = lam $ \x -> dirac (x ** (real_ 0.5))
 
 t37 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HReal)
 t37 = lam (dirac . recip)
@@ -726,7 +724,7 @@ half' :: (ABT Term abt) => abt '[] 'HReal
 half' = half
 
 t66 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t66 = dirac ((prob_ 3 + (prob_ 3 ** half')) ** half')
+t66 = dirac (sqrt $ prob_ 3 + (sqrt $ prob_ 3))
 
 t67 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HReal ':-> 'HMeasure 'HProb)
 t67 = lam $ \p -> lam $ \r -> dirac (exp (r * fromProb p))
