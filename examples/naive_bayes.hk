@@ -1,0 +1,42 @@
+## Supervised Naive Bayes
+def sum(a array(prob)):
+    summate i from 0 to size(a)-1:
+        a[int2nat(i)]
+
+def normalize(x array(prob)):
+    total = sum(x)
+    array i of size(x):
+       x[i] / total
+
+def dirichlet(a array(prob)):
+    x <~ plate i of size(a):
+           gamma(a[i], 1)
+    return normalize(x)
+
+def naive_bayes( K nat
+               , V nat
+               , M nat
+               , N nat
+               , z array(nat)
+               , w array(nat)
+               , doc array(nat)):
+
+    # hyperparameters
+    topic_prior = array k of K: 1.0 # topic prior (array of size k)
+    word_prior  = array v of V: 1.0 # word prior  (array of size v)
+    
+    # priors
+    theta <~ dirichlet(topic_prior)   # topic prevalence
+    phi   <~ plate k of K:
+                dirichlet(word_prior) # word dist for topic k
+    
+    # likelihood
+    z <~ plate i of M:   # topic for doc m
+            observe categorical(theta) z[i]
+
+    w <~ plate n of N:   # word n
+            observe categorical(phi[z[doc[n]]]) w[n]
+
+    return (theta, phi)
+
+naive_bayes

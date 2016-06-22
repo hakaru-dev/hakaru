@@ -323,8 +323,7 @@ mapleMeasureOp
     => MeasureOp typs a -> SArgs abt args -> ShowS
 mapleMeasureOp Lebesgue    = \End               -> showString "Lebesgue()"
 mapleMeasureOp Counting    = \End               -> showString "Counting()"
-mapleMeasureOp Categorical = \(e1 :* End)       ->
-    error "TODO: mapleMeasureOp{Categorical}"
+mapleMeasureOp Categorical = \(e1 :* End)       -> app1 "Categorical" e1
 mapleMeasureOp Uniform     = \(e1 :* e2 :* End) -> app2 "Uniform"  e1 e2
 mapleMeasureOp Normal      = \(e1 :* e2 :* End) -> app2 "Gaussian" e1 e2
 mapleMeasureOp Poisson     = \(e1 :* End)       -> app1 "PoissonD" e1
