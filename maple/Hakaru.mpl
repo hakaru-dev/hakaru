@@ -58,7 +58,7 @@ Hakaru := module ()
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
-         case, app, ary, idx, idxl, size, Datum,
+         case, app, ary, idx, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          map_piecewise, foldr_piecewise, map_case,
@@ -232,8 +232,9 @@ Hakaru := module ()
   verify_measure := proc(m, n, v:='boolean', $)
     local mv, x, i, j, k;
     mv := measure(v);
-    if verify(m, n, 'Bind'(mv, true, true))
-      or verify(m, n, 'Plate'(v, true, true)) then
+    if m :: specfunc({Bind, Plate}) and n :: specfunc({Bind, Plate}) and
+       (verify(m, n, 'Bind'(mv, true, true))
+      or verify(m, n, 'Plate'(v, true, true))) then
       x := gensym(cat(op(2,m), "_", op(2,n), "_"));
       thisproc(subs(op(2,m)=x, op(3,m)),
                subs(op(2,n)=x, op(3,n)), v)
@@ -246,7 +247,8 @@ Hakaru := module ()
     elif andmap(type, [m,n], 'specfunc(piecewise)') and nops(m) = nops(n) then
       k := nops(m);
       verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, v), i=1..k)))
-    elif verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
+    elif m :: specfunc('case') and 
+        verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
       # This code unfortunately only handles alpha-equivalence for 'case' along
       # the control path -- not if 'case' occurs in the argument to 'Ret', say.
       k := nops(op(2,m));
@@ -267,13 +269,14 @@ Hakaru := module ()
       x := gensym(cat(op(1,m), "_", op(1,n), "_"));
       verify(subs(op(1,m)=x, op(2,m)),
              subs(op(1,n)=x, op(2,n)), v)
-    elif verify(m, n, 'lam'(true, v, true)) then
+    elif m :: specfunc('lam') and n :: specfunc('lam') and
+        verify(m, n, 'lam'(true, v, true)) then
       # m and n are not even measures, but we verify them anyway...
       x := gensym(cat(op(1,m), "_", op(1,n), "_"));
       thisproc(subs(op(1,m)=x, op(2,m)),
                subs(op(1,n)=x, op(2,n)), v)
     else
-      verify(m, n, {v, Ret(mv), Weight(v, mv), Context(v, mv)})
+      verify(m, n, {v, Ret(v), Weight(v, mv), Context(v, mv)})
     end if
   end proc;
 
@@ -365,14 +368,6 @@ Hakaru := module ()
       map_piecewise(procname, _passed)
     elif a :: 't_case' then
       map_case(procname, _passed)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  idxl := proc (a, i, $)
-    if a :: 'ary(anything, name, anything)' then
-      eval(op(3,a), op(2,a)=i)
     elif a :: 'list' and i::nonnegint then
       a[i+1]
     else
@@ -388,7 +383,7 @@ Hakaru := module ()
       map_piecewise(procname, _passed)
     elif a :: 't_case' then
       map_case(procname, _passed)
-    elif a :: 'idxl(list, anything)' then
+    elif a :: 'idx(list, anything)' then
       res := convert(map(procname, op(1,a)), 'set');
       if nops(res)=1 then
         res[1]
