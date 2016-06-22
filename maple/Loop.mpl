@@ -60,7 +60,8 @@ end proc:
 
 Loop := module ()
   option package;
-  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp;
+  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp,
+        ModuleLoad, ModuleUnload, csgnOld, csgnNew;
   export
      # These first few are smart constructors (for themselves):
          ints, sums,
@@ -68,7 +69,7 @@ Loop := module ()
          genLoop, unproducts, unproduct;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Ints, Sums;
+  global Ints, Sums, csgn;
   uses Hakaru, KB;
 
   t_binder := 'Binder(identical(product, Product, sum, Sum), t_kb)';
@@ -289,6 +290,50 @@ Loop := module ()
       e := piecewise(And(op(rest)),e,mode())
     end if;
     e
+  end proc;
+
+  # Override csgn to work a little bit harder on piecewise and sum
+  # (to get rid of csgn(1/2+1/2*sum(piecewise(...,1,0),...))
+  #  produced by int on a Gaussian mixture model)
+  csgnNew := proc(a)
+    local r, i;
+    # Handle if the csgn of a piecewise doesn't depend on which branch
+    if nargs=1 and a::'specfunc(piecewise)'
+       and (not assigned(_Envsignum0) or _Envsignum0 = 0) then
+      r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL), i=1..nops(a))}
+           minus {0};
+      if nops(r)=1 then
+        return op(r)
+      end if
+    end if;
+    # Handle if the csgn of a sum doesn't depend on the bound variable
+    if nargs=1 and a::'And(specfunc({sum, Sum}),
+                           anyfunc(anything,name=range))' then
+      r := csgn(op(1,a));
+      if not depends(r,op([2,1],a)) then
+        return signum(op([2,2,2],a)+1-op([2,2,1],a)) * r
+      end if
+    end if;
+    csgnOld(_passed)
+  end proc;
+  ModuleLoad := proc($)
+    local c;
+    if not(csgnOld :: procedure) then
+      c := eval(csgn);
+      if c :: procedure then
+        csgnOld := c;
+        unprotect(csgn);
+        csgn := csgnNew;
+        protect(csgn);
+      end if;
+    end if;
+  end proc;
+  ModuleUnload := proc($)
+    if csgnOld :: procedure then
+      unprotect(csgn);
+      csgn := csgnOld;
+      protect(csgn);
+    end if;
   end proc;
 
 end module; # NewSLO
