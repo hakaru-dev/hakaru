@@ -93,7 +93,7 @@ TestHakaru(eval(fusion ,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), 
 # Simplify by size of array
 TestHakaru(Bind(Plate(k,c,Uniform(37,42)),xs,Weight(f(size(xs)),Ret(Unit))),
            Weight(f(k),Ret(Unit)),
-	   label="plate size"):
+           label="plate size"):
 
 # Simplifying gmm below is a baby step towards index manipulations we need
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,

@@ -358,4 +358,4 @@ Loop := module ()
     end if;
   end proc;
 
-end module; # NewSLO
+end module; # Loop
