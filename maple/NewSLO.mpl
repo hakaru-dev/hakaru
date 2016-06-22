@@ -246,8 +246,7 @@ NewSLO := module ()
       x, kb1 := genLebesgue(op([2,1],e), lo, hi, kb);
       subintegral := eval(op(1,e), op([2,1],e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      recognition := recognize_continuous(w, x, lo, hi)
-        assuming op(kb_to_assumptions(kb1));
+      recognition := recognize_continuous(w, x, lo, hi, kb1);
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x, kb1);
@@ -270,8 +269,7 @@ NewSLO := module ()
       x, kb1 := genType(op([2,1],e), HInt(closed_bounds(lo..hi)), kb);
       subintegral := eval(op(1,e), op([2,1],e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      recognition := recognize_discrete(w, x, lo, hi)
-        assuming op(kb_to_assumptions(kb1));
+      recognition := recognize_discrete(w, x, lo, hi, kb1);
       if recognition :: 'Recognized(anything, anything)' then
         (w, w0) := factorize(op(2,recognition), x, kb1);
         weight(w0, bind(op(1,recognition), x, weight(w, m)))
@@ -346,7 +344,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  recognize_continuous := proc(weight0, x, lo, hi, $)
+  recognize_continuous := proc(weight0, x, lo, hi, kb, $)
     local Constant, de, Dx, f, w, res, rng;
     res := FAIL;
     # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
@@ -375,11 +373,11 @@ NewSLO := module ()
              end);
     de := get_de(w, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
-      res := recognize_de(op(de), Dx, f, x, lo, hi)
+      res := recognize_de(op(de), Dx, f, x, lo, hi, kb)
     end if;
     if res = FAIL then
       rng := hi - lo;
-      w := simplify(w * (hi - lo));
+      w := simplify_assuming(w * (hi - lo), kb);
       # w could be piecewise and simplify will hide the problem
       if not (rng :: 'SymbolicInfinity'
               or w :: {'SymbolicInfinity', 'undefined'}) then
@@ -387,30 +385,33 @@ NewSLO := module ()
       end if
     end if;
     # Undo Constant[...] wrapping
-    subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
+    res := subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x));
+    map(simplify_assuming, res, kb)
   end proc;
 
-  recognize_discrete := proc(w, k, lo, hi, $)
-    local se, Sk, f, a0, a1, lambda, r;
+  recognize_discrete := proc(w, k, lo, hi, kb, $)
+    local se, Sk, f, a0, a1, lambda, r, res;
+    res := FAIL;
     if lo = 0 and hi = infinity then
       se := get_se(w, k, Sk, f);
       if se :: 'Shiftop(anything, anything, identical(ogf))' and
          ispoly(op(1,se), 'linear', Sk, 'a0', 'a1') then
         lambda := normal(-a0/a1*(k+1));
         if not depends(lambda, k) then
-          return Recognized(PoissonD(lambda),
-                            simplify(eval(w,k=0)/exp(-lambda)));
+          res := Recognized(PoissonD(lambda), eval(w,k=0)/exp(-lambda));
         end if;
         if ispoly(lambda, 'linear', k, 'b0', 'b1') then
           r := b0/b1;
-          return Recognized(NegativeBinomial(r, b1),
-                            simplify(eval(w,k=0)/(1-b1)^r))
+          res := Recognized(NegativeBinomial(r, b1), eval(w,k=0)/(1-b1)^r);
         end if
       end if;
     end if;
     # fallthrough here is like recognizing Lebesgue for all continuous
     # measures.  Ultimately correct, although fairly unsatisfying.
-    Recognized(Counting(lo, hi), w)
+    if res = FAIL then
+      res := Recognized(Counting(lo, hi), w);
+    end if;
+    map(simplify_assuming, res, kb)
   end proc;
 
   get_de := proc(dens, var, Dx, f, $)
@@ -480,7 +481,7 @@ NewSLO := module ()
     FAIL
   end proc;
 
-  recognize_de := proc(diffop, init, Dx, f, var, lo, hi, $)
+  recognize_de := proc(diffop, init, Dx, f, var, lo, hi, kb, $)
     local dist, ii, constraints, w, a0, a1, a, b0, b1, c0, c1, c2, loc, nu;
     dist := FAIL;
     if lo = -infinity and hi = infinity
@@ -513,9 +514,9 @@ NewSLO := module ()
       try
         ii := map(convert, init, 'diff');
         constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
-        w := eval(w, mysolve(simplify(constraints), w));
+        w := eval(w, mysolve(simplify_assuming(constraints, kb), w));
         if not (has(w, 'w')) then
-          return Recognized(dist, simplify(w))
+          return Recognized(dist, w);
         end if
       catch: # do nothing
       end try;
