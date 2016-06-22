@@ -271,7 +271,7 @@ missingLub typ1 typ2 =
 -- we can't have free variables, so it must be a typo
 ambiguousFreeVariable :: U.Name -> TypeCheckMonad r
 ambiguousFreeVariable x =
-    failwith $ "Name not in scope: `" ++ show x ++ "`; perhaps it is a typo?"
+    failwith $ "Name not in scope: `" ++ show (U.hintID x) ++ "`; perhaps it is a typo?"
 
 ambiguousNullCoercion :: TypeCheckMonad r
 ambiguousNullCoercion =
