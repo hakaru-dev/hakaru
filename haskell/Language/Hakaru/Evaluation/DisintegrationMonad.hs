@@ -331,9 +331,9 @@ reifyStatement   (SLet  x body (i:is)) =
     let arr = Thunk $ P.arrayWithVar (indSize i) (indVar i) (fromLazy body)
         x'  = x { varType = SArray (varType x) }
     in reifyStatement (SLet x' arr is)
-reifyStatement   (SWeight _    _)      = error ("reifyStatement called on SWeight")
+reifyStatement   (SWeight _    _)      = error "reifyStatement called on SWeight"
 reifyStatement s@(SGuard _ _ _ [])     = s
-reifyStatement   (SGuard _ _ _ _)      = error ("undefined: case statement under an array")
+reifyStatement   (SGuard _ _ _ _)      = error "undefined: case statement under an array"
 reifyStatement _                       = undefined -- TODO check what to do for SStuff{0,1}
 
 fromLoc :: (ABT Term abt)
