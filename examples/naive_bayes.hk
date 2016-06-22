@@ -1,10 +1,10 @@
 ## Supervised Naive Bayes
-def summ(a array(prob)):
+def sum_(a array(prob)):
     summate i from 0 to size(a)-1:
         a[int2nat(i)]
 
 def normalize(x array(prob)):
-    total = summ(x)
+    total = sum_(x)
     array i of size(x):
        x[i] / total
 
