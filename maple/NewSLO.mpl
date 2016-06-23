@@ -227,6 +227,7 @@ NewSLO := module ()
     BetaD(anything, anything), GammaD(anything, anything)}':
 
   known_discrete := '{Counting(anything, anything),
+    Categorical(anything),
     NegativeBinomial(anything), PoissonD(anything)}';
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
@@ -393,7 +394,7 @@ NewSLO := module ()
   end proc;
 
   recognize_discrete := proc(w, k, lo, hi, kb, $)
-    local se, Sk, f, a0, a1, lambda, r, res;
+    local se, Sk, f, a0, a1, lambda, r, s, res;
     res := FAIL;
     if lo = 0 and hi = infinity then
       se := get_se(w, k, Sk, f);
@@ -407,6 +408,16 @@ NewSLO := module ()
           r := b0/b1;
           res := Recognized(NegativeBinomial(r, b1), eval(w,k=0)/(1-b1)^r);
         end if
+      end if;
+    elif lo = 0 and not(hi :: 'SymbolicInfinity') then
+      s, r := selectremove(depends, convert(w, 'list', `*`), k);
+      if nops(s) > 0 then
+        res := ary(hi+1, k, `*`(op(s)));
+        if res :: 'list' and nops({op(res)}) = 1 then
+          res := Recognized(Counting(lo, hi), res[1]);
+        else
+          res := Recognized(Categorical(res), `*`(op(r)));
+        end if;
       end if;
     end if;
     # fallthrough here is like recognizing Lebesgue for all continuous
@@ -1441,6 +1452,9 @@ NewSLO := module ()
   density[Counting] := proc(lo, hi, $) proc(k,$)
     1
   end proc end proc;
+  density[Categorical] := proc(a, $) proc(k,$)
+    idx(a,k)
+  end proc end proc;
   density[NegativeBinomial] := proc(r, p, $) proc(k,$)
     p^k * (1-p)^r * GAMMA(r+k) / GAMMA(k+1) / GAMMA(r)
   end proc end proc;
@@ -1456,6 +1470,7 @@ NewSLO := module ()
   bounds[BetaD] := proc(a, b, $) 0 .. 1 end proc;
   bounds[GammaD] := proc(shape, scale, $) 0 .. infinity end proc;
   bounds[Counting] := `..`;
+  bounds[Categorical] := proc(a, $) 0 .. size(a)-1 end proc;
   bounds[NegativeBinomial] := proc(r, p, $) 0 .. infinity end proc;
   bounds[PoissonD] := proc(lambda, $) 0 .. infinity end proc;
 

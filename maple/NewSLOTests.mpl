@@ -419,4 +419,15 @@ module()
   rt1r := sprintf("%a", eval(ToInert(Context(kb, Ret(0))), _Inert_ATTRIBUTE=NULL)):
   TestTools:-Try("simple case of RoundTrip", RoundTrip(rt1), rt1r);
 end module:
-quit
+
+# Categorical distribution
+TestHakaru(Counting(0,10),
+           label="Counting roundtrip");
+TestHakaru(Bind(Counting(0,1),x,Weight(p^x*(1-p)^(1-x),Ret(x))),
+           Categorical([1-p,p]),
+           label="Categorical introduction",
+           ctx=[0<=p, p<=1]);
+TestHakaru(Bind(Categorical([p,1-p]),x,Weight(p^x*(1-p)^(1-x),Ret(x))),
+           Weight(p*(1-p),Counting(0,1)),
+           label="Categorical elimination",
+           ctx=[0<=p, p<=1]);

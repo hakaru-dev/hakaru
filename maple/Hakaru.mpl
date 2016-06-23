@@ -72,7 +72,7 @@ Hakaru := module ()
          Bind, Weight, Ret, Msum, Plate, Context,
      # Primitive (known) measures
          Lebesgue, Uniform, Gaussian, Cauchy, StudentT, BetaD, GammaD,
-         Counting, NegativeBinomial, PoissonD,
+         Counting, Categorical, NegativeBinomial, PoissonD,
      # Functions, annotated with argument type, applied using "app"
          lam,
      # Term constructors for Datum (algebraic data type)
@@ -346,10 +346,13 @@ Hakaru := module ()
   end proc;
 
   ary := proc (n, i, e, $)
+    local j;
     if e :: 'idx'('freeof'(i), 'identical'(i)) then
       # Array eta-reduction. Assume the size matches.  (We should keep array
       # size information in the KB and use it here, but we don't currently.)
       op(1,e)
+    elif n :: nonnegint then
+      [seq(eval(e,i=j), j=0..n-1)] # Unroll array with literal size
     else
       'procname(_passed)'
     end if
