@@ -65,6 +65,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , putLocs
     , insertLoc
     , adjustLoc
+    , freeLocError
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -223,9 +224,11 @@ runDis (Dis m) es =
                   
     i0 = maxNextFree es
 
-{-| residualizeLoc does the following:
-    1. update the heap by constructing plate/array around statements with nonempty indices
-    2. use locations to construct terms out of var and "!" (for indexing into arrays)
+{---------------------------------------------------------------------------------- 
+ 
+ residualizeLoc does the following:
+ 1. update the heap by constructing plate/array around statements with nonempty indices
+ 2. use locations to construct terms out of var and "!" (for indexing into arrays)
 
 For example, consider the state:
 
@@ -270,7 +273,7 @@ Then residualizeLoc does two things:
   x4 -> var l4'
   x5 -> var l5' ! k 
 
--}
+----------------------------------------------------------------------------------}
 residualizeLocs :: forall a abt. (ABT Term abt)
                 => abt '[] a
                 -> Dis abt (abt '[] a, Assocs (abt '[]))
@@ -293,7 +296,7 @@ residualizeLocs e = do
                       s'    = reifyStatement (SBind l' bodyW inds)                     
                   return (s':ss', newlocs)
           bind_or_let_or_guard ->
-              do (sfresh,as) <- freshenStatement s 
+              do (sfresh,as) <- freshenStatement s -- TODO don't use freshenStatement (because it creates Locs)
                  let inds = statementInds s
                      s' = reifyStatement sfresh
                      r  = mapAssocs (\(Assoc l l') -> Assoc l $ Loc l' inds) as
@@ -340,7 +343,9 @@ convertLocs newlocs = do oldlocs <- fromAssocs <$> getLocs
                                   arr = P.arrayWithVar (indSize j) (indVar j) (fromLoc l' js')
                               return $ insertAssoc (Assoc x arr) rho)
                       (lookupAssoc l newlocs)
-      freeLocError l = error $ "Found a free location for variable " ++ show l
+
+freeLocError :: Variable (a :: Hakaru) -> b
+freeLocError l = error $ "Found a free location " ++ show l
                            
 extendIndices
     :: (ABT Term abt)
@@ -469,16 +474,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         Dis $ \c (ListContext i ss') ->
             c () (ListContext i (reverse ss ++ ss'))
 
-    select x p = loop []
-        {-  -- The following causes snippet causes programs
-            -- which bot to instead infinite loop
-
-        do locs <- getLocs
-           let mx = lookupAssoc x locs
-           case mx of
-             Just (Loc is) -> loop [] 
-             Nothing       -> return Nothing
-        -}
+    select l p = loop []
         where
         -- TODO: use a DList to avoid reversing inside 'unsafePushes'
         loop ss = do
@@ -491,7 +487,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                     -- Alas, @p@ will have to recheck 'isBoundBy'
                     -- in order to grab the 'Refl' proof we erased;
                     -- but there's nothing to be done for it.
-                    case x `isBoundBy` s >> p s of
+                    case l `isBoundBy` s >> p s of
                     Nothing -> loop (s:ss)
                     Just mr -> do
                         r <- mr

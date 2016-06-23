@@ -685,24 +685,34 @@ patternOfDatum =
 constrainVariable
     :: (ABT Term abt) => abt '[] a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
+    do locs <- getLocs
     -- If we get 'Nothing', then it turns out @x@ is a free variable.
     -- If @x@ is a free variable, then it's a neutral term; and we
     -- return 'bot' for neutral terms
-    (maybe bot return =<<) . select x $ \s ->
-         case s of
-           SBind y e i -> do
-                Refl <- varEq x y
-                Just $ do
-                    constrainOutcome v0 (fromLazy e)
-                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
-           SLet y e i -> do
-                Refl <- varEq x y
-                Just $ do
-                    constrainValue v0 (fromLazy e)
-                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
-           SWeight _ _ -> Nothing
-           SGuard ys pat scrutinee i ->
-                error "TODO: constrainVariable{SGuard}"
+       maybe bot lookForLoc (lookupAssoc x locs)
+    where lookForLoc (Loc      l js) =
+              -- If we get 'Nothing', then it turns out @l@ is a free location.
+              -- This is an error because of the following invariant:
+              --   if there exists an 'Assoc x (Loc l _)' inside @locs@
+              --   then there must be a statement on the 'ListContext' that binds @l@
+              (maybe (freeLocError l) return =<<) . select x $ \s ->
+                  case s of
+                    SBind y e i -> do
+                           Refl <- varEq x y
+                           Just $ do
+                             constrainOutcome v0 (fromLazy e)
+                             unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+                    SLet y e i -> do
+                           Refl <- varEq x y
+                           Just $ do
+                             constrainValue v0 (fromLazy e)
+                             unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+                    SWeight _ _ -> Nothing
+                    SGuard ys pat scrutinee i ->
+                        error "TODO: constrainVariable{SGuard}"
+          lookForLoc (MultiLoc l js) = undefined -- TODO
+
+                      
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
