@@ -30,7 +30,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     (
     -- * The disintegration monad
     -- ** List-based version
-      getStatements
+      getStatements, putStatements
     , ListContext(..), Ans, Dis(..), runDis
     -- ** TODO: IntMap-based version
     
@@ -86,7 +86,7 @@ import qualified Data.Text            as Text
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair)
+import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
@@ -103,6 +103,11 @@ import Debug.Trace (trace)
 
 getStatements :: Dis abt [Statement abt 'Impure]
 getStatements = Dis $ \c h -> c (statements h) h
+
+putStatements :: [Statement abt 'Impure] -> Dis abt ()
+putStatements ss =
+    Dis $ \c h@(ListContext i _) ind loc ->
+        c () (ListContext i ss) ind loc
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -272,7 +277,6 @@ residualizeLocs :: forall a abt. (ABT Term abt)
 residualizeLocs e = do
   ss <- getStatements
   (ss',newlocs) <- foldM step ([], emptyAssocs) ss
-  let putStatements = undefined
   putStatements (reverse ss')
   rho <- convertLocs newlocs
   return (e, rho)
@@ -284,8 +288,8 @@ residualizeLocs e = do
       step (ss',newlocs) s = do
         case s of
           SWeight w inds ->
-               do l' <- undefined -- freshVar T.empty SUnit
-                  let bodyW = undefined -- (do {factor w; dirac unit})
+               do l' <- freshVar Text.empty sUnit
+                  let bodyW = Thunk $ P.weight (fromLazy w)
                       s'    = reifyStatement (SBind l' bodyW inds)                     
                   return (s':ss', newlocs)
           bind_or_let_or_guard ->
@@ -309,7 +313,7 @@ reifyStatement   (SLet  x body (i:is)) =
     in reifyStatement (SLet x' arr is)
 reifyStatement   (SWeight _    _)      = error "reifyStatement called on SWeight"
 reifyStatement s@(SGuard _ _ _ [])     = s
-reifyStatement   (SGuard _ _ _ _)      = error ("undefined: case statement under an array")
+reifyStatement   (SGuard _ _ _ _)      = error "undefined: case statement under an array"
 
 fromLoc :: (ABT Term abt)
         => Variable a -> [Index (abt '[])] -> abt '[] a
