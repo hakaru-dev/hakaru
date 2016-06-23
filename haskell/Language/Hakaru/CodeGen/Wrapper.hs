@@ -1,7 +1,24 @@
-{-# LANGUAGE OverloadedStrings,
+{-# LANGUAGE CPP,
+             OverloadedStrings,
              DataKinds,
              GADTs,
              KindSignatures #-}
+
+----------------------------------------------------------------
+--                                                    2016.06.23
+-- |
+-- Module      :  Language.Hakaru.CodeGen.Wrapper
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  zsulliva@indiana.edu
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+--   The purpose of the wrapper is to intelligently wrap CStatements
+-- into CFunctions and CProgroms to be printed by 'hkc'
+--
+----------------------------------------------------------------
+
 
 module Language.Hakaru.CodeGen.Wrapper where
 
@@ -13,12 +30,16 @@ import           Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.DataKind (Hakaru(..))
 import Language.Hakaru.CodeGen.Flatten
 
+import           Language.C.Data.Ident              
 import qualified Language.C.Pretty as C
 
 import           Prelude            as P hiding (unlines)
 import           Data.Text          as D
 import           Text.PrettyPrint (render)
+
+#if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid
+#endif
 
 
 -- | Create program is the top level C codegen. Depending on the type a program
@@ -26,7 +47,7 @@ import           Data.Monoid
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST typ abt) = unlines [header typ,"",mainWith typ body]
-  where body = pack $ render $ C.pretty $ flattenABT abt
+  where body = pack $ render $ C.pretty $ fst $ flattenABT (builtinIdent "result") abt
 
 header :: Sing (a :: Hakaru) -> Text
 header (SMeasure _) = unlines [ "#include <time.h>"
@@ -53,8 +74,9 @@ mainWith typ body = unlines
      SMeasure _ -> "  srand(time(NULL));\n"
      _ -> ""
  , mconcat ["  ",ctyp," result;"]
- , ""
- , mconcat ["  result = ",body]
+ , body
+ -- , ""
+ -- , mconcat ["  result = ",body]
  , case typ of
      SMeasure _ -> "  while(1) printf(\"%.17g\\n\",result);"
      SInt       -> "  printf(\"%d\\n\",result);"
