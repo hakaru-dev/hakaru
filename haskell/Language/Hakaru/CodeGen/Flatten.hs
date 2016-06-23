@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds,
+             ExistentialQuantification,
              FlexibleContexts,
              FlexibleInstances,
              GADTs,
@@ -16,66 +17,82 @@ import Language.C.Data.Position
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 
-import Data.List.NonEmpty
-import Data.Number.Natural
-import Data.Ratio
-import Data.Sequence (Seq)
+import           Data.Number.Nat (fromNat)
+import           Data.Number.Natural
+import           Data.Ratio
+import           Data.Sequence (Seq)
+import qualified Data.IntMap        as IM
+import qualified Data.Foldable      as F
 
------ Using enviroment representation from Language.Hakaru.Sample
-data EAssoc =
-    forall a. EAssoc {-# UNPACK #-} !(Variable a) !(Value a)
-
-newtype Env = Env (IM.IntMap EAssoc)
-
-emptyEnv :: Env
-emptyEnv = Env IM.empty
-
-updateEnv :: EAssoc -> Env -> Env
-updateEnv v@(EAssoc x _) (Env xs) =
-    Env $ IM.insert (fromNat $ varID x) v xs
-
-lookupVar :: Variable a -> Env -> Maybe (Value a)
-lookupVar x (Env env) = do
-    EAssoc x' e' <- IM.lookup (fromNat $ varID x) env
-    Refl         <- varEq x x'
-    return e'
-----
 
 flattenABT :: ABT Term abt
            => abt '[] a
-           -> NonEmpty CStat
-flattenABT e = caseVarSyn e flattenVar flattenTerm
+           -> CStat
+flattenABT e = caseVarSyn e
+                          flattenVar
+                          flattenTerm
 
-flattenVar :: Variable (a :: Hakaru) -> NonEmpty CStat
+flattenVar :: Variable (a :: Hakaru) -> CStat
 flattenVar = undefined
 
 flattenTerm :: ABT Term abt
             => Term abt a
-            -> NonEmpty CStat
-flattenTerm (NaryOp_ t s)  = return $ nAryOp_c t s
-flattenTerm (Literal_ x)   = return $ literal_c   x
-flattenTerm (Empty_ x)     = return $ empty_c     x
-flattenTerm (Datum_ x)     = return $ datum_c     x
-flattenTerm (Case_ x y)    = return $ case_c      x y
-flattenTerm (Array_ x y)   = return $ array_c     x y
-flattenTerm (x :$ y)       = return $ cons_c      x y
-flattenTerm (Reject_ x)    = return $ reject_c    x
-flattenTerm (Superpose_ x) = return $ superpose_c x
+            -> CStat
+flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
+flattenTerm (Literal_ x)   = flattenLiteral x
+flattenTerm (Empty_ x)     = empty_c     x
+flattenTerm (Datum_ x)     = datum_c     x
+flattenTerm (Case_ x y)    = case_c      x y
+flattenTerm (Array_ x y)   = array_c     x y
+flattenTerm (x :$ y)       = cons_c      x y
+flattenTerm (Reject_ x)    = reject_c    x
+flattenTerm (Superpose_ x) = superpose_c x
 
 
-nAryOp_c :: NaryOp a -> Seq b -> CStat
-nAryOp_c And      = undefined
-nAryOp_c Or       = undefined
-nAryOp_c Xor      = undefined
-nAryOp_c Iff      = undefined
-nAryOp_c (Min o)  = undefined
-nAryOp_c (Max o)  = undefined
-nAryOp_c (Sum _)  = undefined
-nAryOp_c (Prod s) = undefined
+flattenNAryOp :: ABT Term abt
+              => NaryOp a -> Seq (abt '[] b) -> CStat
+flattenNAryOp op args = undefined
+                        -- F.foldr $ \x y -> CExpr $ Just $ CBinary (flattenOp op) x y undefNode undefNode
+                        --         $ CConst (unitOp op)
+                        --         $ fmap undefined args
+
+flattenOp :: NaryOp a -> CBinaryOp
+flattenOp (Sum HSemiring_Nat) = CAddOp
+flattenOp (Sum HSemiring_Int) = CAddOp
+flattenOp _ = undefined
+
+unitOp   :: NaryOp a -> CConstant NodeInfo
+unitOp    (Sum HSemiring_Nat) = CIntConst (cInteger 0) undefNode
+unitOp    (Sum HSemiring_Int) = CIntConst (cInteger 0) undefNode
+
+-- identityElement And                   = VDatum dTrue
+-- identityElement (Sum HSemiring_Nat)   = VNat  0
+-- identityElement (Sum HSemiring_Int)   = VInt  0
+-- identityElement (Sum HSemiring_Prob)  = VProb 0
+-- identityElement (Sum HSemiring_Real)  = VReal 0
+-- identityElement (Prod HSemiring_Nat)  = VNat  1
+-- identityElement (Prod HSemiring_Int)  = VInt  1
+-- identityElement (Prod HSemiring_Prob) = VProb 1
+-- identityElement (Prod HSemiring_Real) = VReal 1
+-- identityElement (Max  HOrd_Prob)      = VProb 0
+-- identityElement (Max  HOrd_Real)      = VReal LF.negativeInfinity
+-- identityElement (Min  HOrd_Prob)      = VProb (LF.logFloat LF.infinity)
+-- identityElement (Min  HOrd_Real)      = VReal LF.infinity
+
+flattenLiteral :: Literal a -> CStat
+flattenLiteral = let n           = undefNode
+                     constExpr x = CExpr (Just $ CConst $ x n) n in
+  \lit -> case lit of
+            (LNat x)  -> constExpr $ CIntConst (cInteger $ fromIntegral x)
+            (LInt x)  -> constExpr $ CIntConst (cInteger $ fromIntegral x)
+            (LProb x) -> let rat = fromNonNegativeRational x
+                             x'  = (fromIntegral $ numerator rat) / (fromIntegral $ denominator rat)
+                         in constExpr $ CFloatConst (cFloat x') -- losing precision
+            (LReal x) -> constExpr $ CFloatConst (cFloat $ fromRational x)
 
 
 empty_c :: a -> CStat
-empty_c = undefined
+empty_c = undefined -- CExpr Nothing undefNode
 
 datum_c :: a -> CStat
 datum_c = undefined
@@ -95,23 +112,10 @@ superpose_c = undefined
 reject_c :: a -> CStat
 reject_c = undefined
 
--- | Types of literals are 'HNat, 'HInt, 'HProb, 'HReal
-literal_c :: Literal a -> CStat
-literal_c = let n = undefNode in
-  \lit -> case lit of
-            (LNat x)  -> CExpr (Just (CConst (CIntConst (cInteger $ fromIntegral x) n))) n
-            (LInt x)  -> CExpr (Just (CConst (CIntConst (cInteger $ fromIntegral x) n))) n
-            (LProb x) -> let rat = fromNonNegativeRational x
-                             x'  = (fromIntegral $ numerator rat) / (fromIntegral $ denominator rat)
-                         in CExpr (Just (CConst (CFloatConst (cFloat x') n))) n -- losing precision
-            (LReal x) -> CExpr (Just (CConst (CFloatConst (cFloat $ fromRational x) n))) n
-
-
-
 flattenSCon :: ABT Term abt
             => SCon args a
             -> SArgs abt args
-            -> NonEmpty CStat
+            -> CStat
 flattenSCon Lam_            = \(x :* End)           -> undefined
 flattenSCon App_            = \(x :* y :* End)      -> undefined
 flattenSCon Let_            = \(x :* y :* End)      -> undefined
@@ -132,7 +136,7 @@ flattenSCon Observe         = undefined
 flattenPrimOp :: ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
               => PrimOp typs a
               -> SArgs abt args
-              -> NonEmpty CStat
+              -> CStat
 flattenPrimOp Not         (x :* End)      = undefined
 flattenPrimOp Pi          End             = undefined
 flattenPrimOp Cos         (x :* End)      = undefined
@@ -152,7 +156,7 @@ flattenPrimOp _ _ = undefined
 flattenArrayOp :: ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
                => ArrayOp typs a
                -> SArgs abt args
-               -> NonEmpty CStat
+               -> CStat
 flattenArrayOp (Index _)  (x :* y :* End)      = undefined
 flattenArrayOp (Size _)   (x :* End)           = undefined
 flattenArrayOp (Reduce _) (x :* y :* z :* End) = undefined
@@ -161,7 +165,7 @@ flattenArrayOp (Reduce _) (x :* y :* z :* End) = undefined
 flattenMeasureOp :: ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
                  => MeasureOp typs a
                  -> SArgs abt args
-                 -> NonEmpty CStat
+                 -> CStat
 flattenMeasureOp Lebesgue    End             = undefined
 flattenMeasureOp Counting    End             = undefined
 flattenMeasureOp Categorical (x :* End)      = undefined

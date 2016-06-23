@@ -17,7 +17,6 @@ import qualified Language.C.Pretty as C
 
 import           Prelude            as P hiding (unlines)
 import           Data.Text          as D
-import qualified Data.List.NonEmpty as N
 import           Text.PrettyPrint (render)
 import           Data.Monoid
 
@@ -27,9 +26,7 @@ import           Data.Monoid
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST typ abt) = unlines [header typ,"",mainWith typ body]
-  where body = unlines
-             $ N.toList
-             $ fmap (pack . render . C.pretty) (flattenABT abt)
+  where body = pack $ render $ C.pretty $ flattenABT abt
 
 header :: Sing (a :: Hakaru) -> Text
 header (SMeasure _) = unlines [ "#include <time.h>"
