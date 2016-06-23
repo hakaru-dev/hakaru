@@ -258,6 +258,7 @@ Here the types of the above variables are:
 Then residualizeLoc does two things:
 
 1.Change the heap
+
   list context = 
   l1' <- lebesgue []
   l2' <- plate (normal 0 1) []
@@ -266,7 +267,8 @@ Then residualizeLoc does two things:
   l5' <- plate j (normal 0 1)
 
 2.Create new association table
-  assocs = 
+
+  rho = 
   x1 -> var l1'
   x2 -> var l2'
   x3 -> array i' (l3' ! i')
@@ -290,17 +292,22 @@ residualizeLocs e = do
            -> Dis abt ([Statement abt 'Impure], Assocs (Loc (abt '[])))
       step (ss',newlocs) s = do
         case s of
-          SWeight w inds ->
-               do l' <- freshVar Text.empty sUnit
-                  let bodyW = Thunk $ P.weight (fromLazy w)
-                      s'    = reifyStatement (SBind l' bodyW inds)                     
-                  return (s':ss', newlocs)
-          bind_or_let_or_guard ->
-              do (sfresh,as) <- freshenStatement s -- TODO don't use freshenStatement (because it creates Locs)
-                 let inds = statementInds s
-                     s' = reifyStatement sfresh
-                     r  = mapAssocs (\(Assoc l l') -> Assoc l $ Loc l' inds) as
-                 return (s':ss' , insertAssocs r newlocs)
+          SBind   l body  inds -> do l' <- freshenVar l
+                                     let s' = reifyStatement (SBind l' body inds)
+                                         r  = Assoc l (Loc l' inds)
+                                     return (s':ss' , insertAssoc r newlocs)
+          SLet    l body  inds -> do l' <- freshenVar l
+                                     let s' = reifyStatement (SLet l' body inds)
+                                         r  = Assoc l (Loc l' inds)
+                                     return (s':ss' , insertAssoc r newlocs)
+          SWeight w       inds -> do l' <- freshVar Text.empty sUnit
+                                     let bodyW = Thunk $ P.weight (fromLazy w)
+                                         s'    = reifyStatement (SBind l' bodyW inds) 
+                                     return (s':ss', newlocs)
+          SGuard ls p scr inds -> do ls' <- freshenVars ls
+                                     let s' = reifyStatement (SGuard ls' p scr inds)
+                                         rs = toAssocs1 ls $ fmap11 (\l' -> Loc l' inds) ls'
+                                     return (s':ss', insertAssocs rs newlocs)
 
 reifyStatement :: (ABT Term abt)
                => Statement abt 'Impure -> Statement abt 'Impure
