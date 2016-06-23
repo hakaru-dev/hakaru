@@ -995,7 +995,7 @@ NewSLO := module ()
        #If more than one reparam is possible, return unevaluated.
        if nops(oldarg) <> 1 then
             WARNING("More than 1 reparam possible.");
-            userinfo(1, thisproc, "Possible reparams:", oldarg); 
+            userinfo(1, thisproc, "Possible reparams:", subs(x= ':-x', oldarg)); 
             return 'procname'(e)
        end if;
    
@@ -1006,32 +1006,63 @@ NewSLO := module ()
 
        #If target doesn't depend on x, return input unchanged.
        if not depends(simplify(oldarg), x) then
-            userinfo(2, thicproc, "Target doesn't depend on x. Target:", oldarg, "x:", x); 
+            userinfo(2, procname, "Target doesn't depend on x. Target:", oldarg); 
             return e 
        end if; 
 
+       (*#************ This isn't currently used. **********************************
        #Check the invertibility of the subs.
-       (* The ability of `solve` to select a branch is very limited. For example,
-               solve(y=x^2, useassumptions) assuming x > 0
-          returns sqrt(y), -sqrt(y). This needs to be dealt with. First idea: Use `is` to filter
-          solutions: Implemented below.                      
-       *) 
+
+       #The ability of `solve` to select a branch is very limited. For example,
+               solve({y=x^2, x > 0}, {x}) 
+       #returns 
+               sqrt(y), -sqrt(y). 
+       #This needs to be dealt with. First idea: Use `is` to filter
+       #solutions. This is implemented below. But I should figure out how to do the `is` or its equivalent without
+       #using `assume` or `assuming`.                      
+       
+
+       #The next command is redundantly performed in the local inits. I put it here also
+       #because I anticipate some situations where that's no longer valid.
+
+       #Save current vars for comparison with vars after `solve`.  
        Ns:= indets(oldarg, symbol);
-       S:= [solve(y=oldarg, x, allsolutions, useassumptions)] assuming a <= x, x <= b;
+       S:= {solve({'y'=oldarg, a <= x, x <= b}, {x}, allsolutions)};
+       S:= map(s->`if`(s::specfunc(piecewise), s[], s), S);
        #Use `is` to filter solutions under the assumptions.
-       S:= select(s-> is(eval(s, y= oldarg) = x), S) assuming a <= x, x <= b;
-       if
-            nops(S) <> 1 or 
-            indets(S, symbol) <> Ns union {y} minus {x} or
-            hastype(S, RootOf)
-       then 
+       assume(a <= x, x <= b);
+       S:= select(s-> ver(rhs,lhs)(eval(s, y= oldarg)[]), S);
+       if  nops(S) <> 1  or  indets(S, symbol) <> Ns union {y}  or  hastype(S, RootOf)  then 
             WARNING("Reparam target is not invertible (upto `solve` and `is`).");
-            userinfo(1, procname, "Target:", oldarg, "S:", S, "domain:", x= a..b);
+            userinfo(1, procname, "Target:", subs(x= ':-x', oldarg), "S:", subs(x= ':-x', S), "domain:", ':-x'= a..b);
             return 'procname'(e)
        end if; 
-       
+       *******************************************************************************)       
        #Make the subs.       
        J:= IT:-Change(J, u= oldarg, [u]);
+
+       if J=0 then
+            WARNING("Integral is 0, likely due to improper handling of an infinity issue.");
+            userinfo(
+                 1, procname, "u subs:", 
+                 print(
+                      #Reformat the IT:-Change command for readability. 
+                      'IT:-Change'(
+                           subs(
+                                x= ':-x', 
+                                subsindets(
+                                     op(2,e), 
+                                     specfunc(applyintegrand), 
+                                     f-> ':-h'(op(2,f))
+                                )
+                           ), 
+                           ':-u'= subs(x= ':-x', oldarg),
+                           [':-u']          
+                      )
+                 )
+            );
+            return subsop(2= 0, e)
+       end if;
 
        #If needed, reverse limits.
        F:= evalb(op([2,2,1], J) > op([2,2,2], J));
