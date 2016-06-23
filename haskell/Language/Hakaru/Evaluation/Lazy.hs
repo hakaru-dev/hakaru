@@ -687,8 +687,11 @@ evaluatePrimOp evaluate_ = go
     go Log       (e1 :* End)       = neu1 P.log e1
 
     -- HACK: these aren't actually neutral!
-    go Infinity         End        = return $ Neutral P.infinity
-    
+    go (Infinity h)     End        =
+        case h of
+          HIntegrable_Nat  -> return . Neutral $ P.primOp0_ (Infinity h)
+          HIntegrable_Prob -> return $ Neutral P.infinity
+
     go GammaFunc   (e1 :* End)            = neu1 P.gammaFunc e1
     go BetaFunc    (e1 :* e2 :* End)      = neu2 P.betaFunc  e1 e2
 

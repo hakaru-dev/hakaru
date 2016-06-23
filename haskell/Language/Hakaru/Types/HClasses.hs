@@ -38,6 +38,11 @@ module Language.Hakaru.Types.HClasses
     , sing_HOrd
     , hOrd_Sing
 
+   -- * HIntegrable
+    , HIntegrable(..)
+    , sing_HIntegrable
+    , hIntegrable_Sing
+
     -- * Semirings
     , HSemiring(..)
     , HSemiring_(..)
@@ -466,6 +471,27 @@ data HIntegrable :: Hakaru -> * where
     HIntegrable_Nat  :: HIntegrable 'HNat
     HIntegrable_Prob :: HIntegrable 'HProb
 
+instance Eq (HIntegrable a) where -- This one could be derived...
+    (==) = eq1
+instance Eq1 HIntegrable where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+instance JmEq1 HIntegrable where
+    jmEq1 HIntegrable_Nat  HIntegrable_Nat  = Just Refl
+    jmEq1 HIntegrable_Prob HIntegrable_Prob = Just Refl
+    jmEq1 _             _                   = Nothing
+
+-- BUG: deriving instance Read (HIntegrable a)
+deriving instance Show (HIntegrable a)
+
+sing_HIntegrable :: HIntegrable a -> Sing a
+sing_HIntegrable HIntegrable_Nat  = SNat
+sing_HIntegrable HIntegrable_Prob = SProb
+
+hIntegrable_Sing :: Sing a -> Maybe (HIntegrable a)
+hIntegrable_Sing SNat  = Just HIntegrable_Nat
+hIntegrable_Sing SProb = Just HIntegrable_Prob
+hIntegrable_Sing _     = Nothing
+
 -- | Concrete dictionaries for Hakaru types which are \"discrete\".
 data HDiscrete :: Hakaru -> * where
     HDiscrete_Nat :: HDiscrete 'HNat
@@ -492,7 +518,7 @@ hDiscrete_Sing SNat = Just HDiscrete_Nat
 hDiscrete_Sing SInt = Just HDiscrete_Int
 hDiscrete_Sing _    = Nothing
 
--- | Haskell type class for automatic 'HFractional' inference.
+-- | Haskell type class for automatic 'HDiscrete' inference.
 class (HSemiring_ a) => HDiscrete_ (a :: Hakaru) where
     hDiscrete :: HDiscrete a
 instance HDiscrete_ 'HNat where hDiscrete = HDiscrete_Nat 

@@ -295,7 +295,7 @@ maplePrimOp RealPow          (e1 :* e2 :* End) =
     parens (arg e1 . showString " ^ " . arg e2)
 maplePrimOp Exp              (e1 :* End)       = app1 "exp"  e1
 maplePrimOp Log              (e1 :* End)       = app1 "log"  e1
-maplePrimOp Infinity         End               = showString "infinity"
+maplePrimOp (Infinity  _)    End               = showString "infinity"
 maplePrimOp GammaFunc        (e1 :* End)       = app1 "GAMMA" e1
 maplePrimOp BetaFunc         (e1 :* e2 :* End) = app2 "Beta" e1 e2
 maplePrimOp (Equal _)        (e1 :* e2 :* End) =
