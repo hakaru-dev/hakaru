@@ -239,7 +239,7 @@ NewSLO := module ()
 
   unintegrate := proc(h :: name, e, kb :: t_kb, $)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
-          i, kb1, loops, subst, hh, pp, t, bnds;
+          i, kb1, kb2, loops, subst, hh, pp, t, bnds;
     if e :: 'And'('specfunc({Int,int})',
                   'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],e));
@@ -292,19 +292,19 @@ NewSLO := module ()
       end if;
       subintegral := eval(op(1,e), op(2,e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      bnds, loops, kb1 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
-      w, pp := unproducts(w, x, loops, kb1);
+      bnds, loops, kb2 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
+      w, pp := unproducts(w, x, loops, kb2);
       w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=bnds);
-      (w1, mm) := unweight(unintegrate(hh, subintegral, kb1));
+      (w1, mm) := unweight(unintegrate(hh, subintegral, kb2));
       weight(simplify_assuming(`*`(op(w0)) * foldl(product, w1, op(loops)), kb),
         bind(foldl(((mmm,loop) ->
                     Plate(op([2,2],loop) - op([2,1],loop) + 1,
                           op(1,loop),
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(loops)),
-             x, weight(`*`(op(w)), m)))
+             x, weight(simplify_assuming(`*`(op(w)), kb1), m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
