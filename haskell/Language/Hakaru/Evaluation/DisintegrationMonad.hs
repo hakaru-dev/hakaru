@@ -160,7 +160,6 @@ data Loc :: (Hakaru -> *) -> Hakaru -> * where
          -> [Index ast]
          -> Loc ast ('HArray a)
 
-
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that
 -- type is a WHNF (via 'WMeasure') so that's a trivial statement
@@ -219,55 +218,9 @@ runDis (Dis m) es =
                   
     i0 = maxNextFree es
 
-residualizeLocs :: (ABT Term abt)
-                => abt '[] a
-                -> Dis abt (abt '[] a, Assocs (abt '[]))
-residualizeLocs e = do
-  ss <- getStatements
-  (ss',rho) <- foldM step ([], emptyAssocs) ss
-  let putStatements = undefined
-  putStatements (reverse ss')
-  return (e, rho)
-    where
-      step :: (ABT Term abt)
-           => ([Statement abt 'Impure], Assocs (abt '[]))
-           -> Statement abt 'Impure
-           -> Dis abt ([Statement abt 'Impure], Assocs (abt '[]))
-      step (ss',rho) s = do
-        locs <- fromAssocs <$> getLocs
-        let newAssoc l l' inds = do
-              locs <- fromAssocs <$> getLocs
-              case findLoc l locs of
-                Left  (x, js) -> return (Assoc x $ fromLoc l' js)
-                Right (x, js) -> do
-                  -- branch invariant: |inds| >= 1, |inds| = |js| + 1
-                  j <- freshInd (indSize . head $ inds)
-                  let js' = extendIndices j js
-                      a   = fromLoc l' js'
-                      arr = P.arrayWithVar (indSize j) (indVar j) a
-                  return (Assoc x arr)
-        case s of
-          SBind l body inds -> do
-                 l' <- freshenVar l
-                 let s' = reifyStatement (SBind l' body inds)
-                 assoc <- newAssoc l l' inds
-                 return (s':ss' , insertAssoc assoc rho)
-          SLet l body inds -> do
-                 l' <- freshenVar l
-                 let s' = reifyStatement (SLet l' body inds)
-                 assoc <- newAssoc l l' inds
-                 return (s:ss' , insertAssoc assoc rho)
-          SWeight w inds -> do
-                 l' <- undefined -- freshVar T.empty SUnit
-                 let bodyW = undefined -- (do {factor w; dirac unit})
-                     s'    = reifyStatement (SBind l' bodyW inds)
-                 return (s':ss', rho)                        
-          -- TODO other types of statements
-
-{-| findLoc takes 
-            a location (represented by a Variable l) and searches 
-            a given [Assoc (Loc (abt '[]))] for
-            the association that has l on the right hand side
+{-| residualizeLoc does the following:
+    1. update the heap by constructing plate/array around statements with nonempty indices
+    2. use locations to construct terms out of var and "!" (for indexing into arrays)
 
 For example, consider the state:
 
@@ -275,7 +228,7 @@ For example, consider the state:
   l1 <- lebesgue []
   l2 <- plate (normal 0 1) []
   l3 <- lebesgue [i]
-  l4 <- dirac x3
+  l4 <- dirac x3 []
   l5 <- normal 0 1 [j]
   
   assocs (aka locs) =
@@ -294,30 +247,53 @@ Here the types of the above variables are:
   l4, x4 :: Array Real
   l5, x5 :: Real
 
-Then we have:
+Then residualizeLoc does two things:
 
-  findLoc l1 assocs ==> Left (x1, Loc l1 [])
-  findLoc l2 assocs ==> Left (x2, Loc l2 [])
-  findLoc l3 assocs ==> Right (x3, MultiLoc l3 [])
-  findLoc l4 assocs ==> Left (x4, Loc l4 [])
-  findLoc l5 assocs ==> Left (x5, Loc l5 [i])
-  
+1.Change the heap
+  list context = 
+  l1' <- lebesgue []
+  l2' <- plate (normal 0 1) []
+  l3' <- plate i (lebesgue)
+  l4' <- dirac x3
+  l5' <- plate j (normal 0 1)
+
+2.Create new association table
+  assocs = 
+  x1 -> var l1'
+  x2 -> var l2'
+  x3 -> array i' (l3' ! i')
+  x4 -> var l4'
+  x5 -> var l5' ! k 
+
 -}
-findLoc :: Variable (a :: Hakaru)
-        -> [Assoc (Loc (abt '[]))]
-        -> Either (Variable a          , [Index (abt '[])])
-                  (Variable ('HArray a), [Index (abt '[])])
-findLoc l []         = error $ "No assoc for location " ++ show l
-findLoc l (assoc:as) = fromMaybe (findLoc l as) (match l assoc)
+residualizeLocs :: forall a abt. (ABT Term abt)
+                => abt '[] a
+                -> Dis abt (abt '[] a, Assocs (abt '[]))
+residualizeLocs e = do
+  ss <- getStatements
+  (ss',newlocs) <- foldM step ([], emptyAssocs) ss
+  let putStatements = undefined
+  putStatements (reverse ss')
+  rho <- convertLocs newlocs
+  return (e, rho)
     where
-      match :: Variable (a :: Hakaru)
-            -> Assoc (Loc (abt '[]))
-            -> Maybe (Either (Variable a          , [Index (abt '[])])
-                             (Variable ('HArray a), [Index (abt '[])]))
-      match l (Assoc x (Loc      l' js)) = do Refl <- varEq l l'
-                                              return (Left (x,js))
-      match l (Assoc x (MultiLoc l' js)) = do Refl <- varEq l l'
-                                              return (Right (x,js))
+      step :: (ABT Term abt)
+           => ([Statement abt 'Impure], Assocs (Loc (abt '[])))
+           -> Statement abt 'Impure
+           -> Dis abt ([Statement abt 'Impure], Assocs (Loc (abt '[])))
+      step (ss',newlocs) s = do
+        case s of
+          SWeight w inds ->
+               do l' <- undefined -- freshVar T.empty SUnit
+                  let bodyW = undefined -- (do {factor w; dirac unit})
+                      s'    = reifyStatement (SBind l' bodyW inds)                     
+                  return (s':ss', newlocs)
+          bind_or_let_or_guard ->
+              do (sfresh,as) <- freshenStatement s 
+                 let inds = statementInds s
+                     s' = reifyStatement sfresh
+                     r  = mapAssocs (\(Assoc l l') -> Assoc l $ Loc l' inds) as
+                 return (s':ss' , insertAssocs r newlocs)
 
 reifyStatement :: (ABT Term abt)
                => Statement abt 'Impure -> Statement abt 'Impure
@@ -333,8 +309,7 @@ reifyStatement   (SLet  x body (i:is)) =
     in reifyStatement (SLet x' arr is)
 reifyStatement   (SWeight _    _)      = error "reifyStatement called on SWeight"
 reifyStatement s@(SGuard _ _ _ [])     = s
-reifyStatement   (SGuard _ _ _ _)      = error "undefined: case statement under an array"
-reifyStatement _                       = undefined -- TODO check what to do for SStuff{0,1}
+reifyStatement   (SGuard _ _ _ _)      = error ("undefined: case statement under an array")
 
 fromLoc :: (ABT Term abt)
         => Variable a -> [Index (abt '[])] -> abt '[] a
@@ -342,6 +317,27 @@ fromLoc l []     = var l
 fromLoc l (j:js) = let l' = l { varType = SArray (varType l) }
                    in (fromLoc l' js) P.! (var $ indVar j)
 
+convertLocs :: (ABT Term abt) => Assocs (Loc (abt '[])) -> Dis abt (Assocs (abt '[]))
+convertLocs newlocs = do oldlocs <- fromAssocs <$> getLocs
+                         foldM step emptyAssocs oldlocs
+    where
+      step rho (Assoc x loc) = 
+          case loc of
+            Loc      l js ->
+                maybe (freeLocError l)
+                      (\(Loc l' _) -> return $
+                                      insertAssoc (Assoc x (fromLoc l' js)) rho)
+                      (lookupAssoc l newlocs)
+            MultiLoc l js ->
+                maybe (freeLocError l)
+                      (\(Loc l' inds) ->
+                           do j <- freshInd (indSize (head inds))
+                              let js' = extendIndices j js
+                                  arr = P.arrayWithVar (indSize j) (indVar j) (fromLoc l' js')
+                              return $ insertAssoc (Assoc x arr) rho)
+                      (lookupAssoc l newlocs)
+      freeLocError l = error $ "Found a free location for variable " ++ show l
+                           
 extendIndices
     :: (ABT Term abt)
     => Index (abt '[])
