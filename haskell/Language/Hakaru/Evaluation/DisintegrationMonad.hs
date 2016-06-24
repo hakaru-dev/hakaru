@@ -338,8 +338,8 @@ fromLoc l (j:js) = let l' = l { varType = SArray (varType l) }
                    in (fromLoc l' js) P.! (var $ indVar j)
 
 convertLocs :: (ABT Term abt) => Assocs (Loc (abt '[])) -> Dis abt (Assocs (abt '[]))
-convertLocs newlocs = do oldlocs <- fromAssocs <$> getLocs
-                         foldM step emptyAssocs oldlocs
+convertLocs newlocs =  do oldlocs <- fromAssocs <$> getLocs
+                          foldM step emptyAssocs oldlocs
     where
       step rho (Assoc x loc) = 
           case loc of
@@ -481,17 +481,17 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         case s of
           SWeight _ _    -> return (s, mempty)
           SBind x body i -> do
-               s  <- freshenVar x
-               x' <- mkLoc (varHint x) s i
-               return (SBind x' body i, singletonAssocs x x')
+               l  <- freshenVar x
+               x' <- mkLoc (varHint x) l i
+               return (SBind l body i, singletonAssocs x x')
           SLet  x body i -> do
-               s  <- freshenVar x
-               x' <- mkLoc (varHint x) s i
-               return (SLet x' body i, singletonAssocs x x')
+               l  <- freshenVar x
+               x' <- mkLoc (varHint x) l i
+               return (SLet l body i, singletonAssocs x x')
           SGuard xs pat scrutinee i -> do
-               ss  <- freshenVars xs
-               xs' <- mkLocs ss i
-               return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
+               ls  <- freshenVars xs
+               xs' <- mkLocs ls i
+               return (SGuard ls pat scrutinee i, toAssocs1 xs xs')
 
     getIndices =  Dis $ \i c -> c i
 
