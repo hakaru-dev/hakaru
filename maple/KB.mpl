@@ -170,15 +170,15 @@ KB := module ()
           end if
         else
           # Try to make b about x using convert/piecewise.
-          try
-            c := 'piecewise'(chill(b), true, false);
-            c := convert(c, 'piecewise', x) assuming op(as);
-            if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
-              c := foldr_piecewise(boolean_if, false, warm(c));
-              if c <> b then return assert_deny(c, pol, kb) end if
-            end if
-          catch:
-          end try;
+#          try
+#            c := 'piecewise'(chill(b), 1, 0);
+#            c := convert(c, 'piecewise', x) assuming op(as);
+#            if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
+#              c := foldr_piecewise(boolean_if, false, warm(c));
+#              if c <> b then return assert_deny(c, pol, kb) end if
+#            end if
+#          catch:
+#          end try;
         end if
       end if;
       # Normalize `=` and `<>` constraints a bit.
@@ -313,7 +313,7 @@ KB := module ()
   end proc;
 
   myexpand_product := proc(prod, $)
-    local x, p, body, quantifier;
+    local x, p, body, quantifier, l, i;
     (body, quantifier) := op(prod);
     x := op(1, quantifier);
     p := proc(e, $)
@@ -326,6 +326,10 @@ KB := module ()
         op(1,e) ^ expand(sum(op(2,e), quantifier))
       elif e :: ('anything' ^ 'freeof'(x)) then
         p(op(1,e)) ^ op(2,e)
+#  This is the right thing to do, but breaks things.  
+#      elif e :: 'idx(list,anything)' then
+#        l := op(1,e);
+#        mul(l[i]^sum(piecewise(op(2,e)=i-1, 1, 0), quantifier), i=1..nops(l));
       else
         product(e, quantifier)
       end if
