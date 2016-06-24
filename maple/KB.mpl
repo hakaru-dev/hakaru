@@ -170,15 +170,15 @@ KB := module ()
           end if
         else
           # Try to make b about x using convert/piecewise.
-#          try
-#            c := 'piecewise'(chill(b), 1, 0);
-#            c := convert(c, 'piecewise', x) assuming op(as);
-#            if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
-#              c := foldr_piecewise(boolean_if, false, warm(c));
-#              if c <> b then return assert_deny(c, pol, kb) end if
-#            end if
-#          catch:
-#          end try;
+          try
+            c := 'piecewise'(chill(b), true, false);
+            c := convert(c, 'piecewise', x) assuming op(as);
+            if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
+              c := foldr_piecewise(boolean_if, false, warm(c));
+              if c <> b then return assert_deny(c, pol, kb) end if
+            end if
+          catch:
+          end try;
         end if
       end if;
       # Normalize `=` and `<>` constraints a bit.
@@ -285,7 +285,8 @@ KB := module ()
   simplify_assuming := proc(ee, kb::t_kb, $)
     local e, as;
     e := foldl(eval, ee, op(kb_to_equations(kb)));
-    e := evalindets(e, 'specfunc({%product, product})', myexpand_product);
+    e := evalindets(e, 'And(specfunc({%product, product}),
+                            anyfunc(anything, name=range))', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
     as := [op(kb_to_assumptions(kb)),
            op(map(`::`, indets(e, 'specfunc(size)'), nonnegint))];
@@ -312,7 +313,7 @@ KB := module ()
     eval(e, exp = expand @ exp);
   end proc;
 
-  myexpand_product := proc(prod, $)
+  myexpand_product := proc(prod :: anyfunc(anything, name=range), $)
     local x, p, body, quantifier, l, i;
     (body, quantifier) := op(prod);
     x := op(1, quantifier);
@@ -327,9 +328,9 @@ KB := module ()
       elif e :: ('anything' ^ 'freeof'(x)) then
         p(op(1,e)) ^ op(2,e)
 #  This is the right thing to do, but breaks things.  
-#      elif e :: 'idx(list,anything)' then
+#      elif e :: 'idx'('freeof'(x),'anything') then
 #        l := op(1,e);
-#        mul(l[i]^sum(piecewise(op(2,e)=i-1, 1, 0), quantifier), i=1..nops(l));
+#        product(idx(l,i)^sum(piecewise(op(2,e)=i, 1, 0), quantifier), i=0..size(l)-1);
       else
         product(e, quantifier)
       end if
