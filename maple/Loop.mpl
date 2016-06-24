@@ -263,10 +263,16 @@ Loop := module ()
           map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest),
           var);
         e := simplify_assuming(e, op(2,entry));
-        while e :: And('specfunc(piecewise)',
-                       anyfunc(anything, anything, identical(mode()))) do
-          dom_spec := [op(dom_spec), op(1,e)];
-          e := op(2,e);
+        while e :: 'specfunc(piecewise)' and nops(e) = 3 do
+          if op(3,e) = mode() then
+            dom_spec := [op(dom_spec), op(1,e)];
+            e := op(2,e);
+          elif op(2,e) = mode() then
+            dom_spec := [op(dom_spec), Not(op(1,e))];
+            e := op(3,e);
+          else
+            break;
+          end if;
         end do;
         (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
         w := `*`(op(w));
