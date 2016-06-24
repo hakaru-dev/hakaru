@@ -167,19 +167,19 @@ flattenPrimOp :: ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
               => PrimOp typs a
               -> SArgs abt args
               -> CStat
-flattenPrimOp Not         (x :* End)      = error "TODO: flattenPrimOp Not"
-flattenPrimOp Pi          End             = error "TODO: flattenPrimOp Pi"
-flattenPrimOp Cos         (x :* End)      = error "TODO: flattenPrimOp Cos"
-flattenPrimOp Sin         (x :* End)      = error "TODO: flattenPrimOp Sin"
-flattenPrimOp RealPow     (x :* y :* End) = error "TODO: flattenPrimOp RealPow"
-flattenPrimOp Exp         (x :* End)      = error "TODO: flattenPrimOp Exp"
-flattenPrimOp Infinity    End             = error "TODO: flattenPrimOp Infinity"
-flattenPrimOp (Equal _)   (x :* y :* End) = error "TODO: flattenPrimOp (Equal _)"
-flattenPrimOp (Less _)    (x :* y :* End) = error "TODO: flattenPrimOp (Less _)"
-flattenPrimOp (NatPow _)  (x :* y :* End) = error "TODO: flattenPrimOp (NatPow _)"
-flattenPrimOp (Negate _)  (x :* End)      = error "TODO: flattenPrimOp (Negate _)"
-flattenPrimOp (Recip _)   (x :* End)      = error "TODO: flattenPrimOp (Recip _)"
-flattenPrimOp (NatRoot _) (x :* y :* End) = error "TODO: flattenPrimOp (NatRoot _)"
+flattenPrimOp Not          (x :* End)      = error "TODO: flattenPrimOp Not"
+flattenPrimOp Pi           End             = error "TODO: flattenPrimOp Pi"
+flattenPrimOp Cos          (x :* End)      = error "TODO: flattenPrimOp Cos"
+flattenPrimOp Sin          (x :* End)      = error "TODO: flattenPrimOp Sin"
+flattenPrimOp RealPow      (x :* y :* End) = error "TODO: flattenPrimOp RealPow"
+flattenPrimOp Exp          (x :* End)      = error "TODO: flattenPrimOp Exp"
+flattenPrimOp (Infinity _) End             = error "TODO: flattenPrimOp Infinity"
+flattenPrimOp (Equal _)    (x :* y :* End) = error "TODO: flattenPrimOp (Equal _)"
+flattenPrimOp (Less _)     (x :* y :* End) = error "TODO: flattenPrimOp (Less _)"
+flattenPrimOp (NatPow _)   (x :* y :* End) = error "TODO: flattenPrimOp (NatPow _)"
+flattenPrimOp (Negate _)   (x :* End)      = error "TODO: flattenPrimOp (Negate _)"
+flattenPrimOp (Recip _)    (x :* End)      = error "TODO: flattenPrimOp (Recip _)"
+flattenPrimOp (NatRoot _)  (x :* y :* End) = error "TODO: flattenPrimOp (NatRoot _)"
 flattenPrimOp _ _ = error "TODO: flattenPrimOp"
 
 flattenArrayOp :: ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)

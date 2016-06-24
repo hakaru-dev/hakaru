@@ -224,13 +224,14 @@ Executable hkc
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
 
-    build-depends:     base             >= 4.7  && < 5.0,
-                       containers       >= 0.5  && < 0.6,
-                       text             >= 0.11 && < 1.3,
-                       mtl              >= 2.1,
-                       pretty           >= 1.1  && < 1.2,
-                       hakaru           >= 0.3,
-                       semigroups       >= 0.16
+    build-depends:     base                 >= 4.7  && < 5.0,
+                       containers           >= 0.5  && < 0.6,
+                       text                 >= 0.11 && < 1.3,
+                       mtl                  >= 2.1,
+                       optparse-applicative >= 0.11 && < 0.13,
+                       pretty               >= 1.1  && < 1.2,
+                       hakaru               >= 0.3,
+                       semigroups           >= 0.16
 
 
 ----------------------------------------------------------------

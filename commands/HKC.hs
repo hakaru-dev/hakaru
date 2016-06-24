@@ -13,26 +13,34 @@ import Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
 import System.Environment
 
-data Config = Config { debug    :: Bool
-                     , optimize :: Bool } deriving Show
+import Options.Applicative
+
+data Options = Options { debug    :: Bool
+                       , optimize :: Bool
+                       , file     :: String } deriving Show
 
 main :: IO ()
 main = do
-  args   <- getArgs
-  let (files,config) = parseArgs args
-  progs  <- mapM readFromFile files
-  case progs of
-      [prog] -> runReaderT (compileHakaru prog) config
-      _      -> IO.putStrLn "Usage: hkc <input> <output>"
+  opts <- parseOpts
+  prog <- readFromFile (file opts)
+  runReaderT (compileHakaru prog) opts
 
-parseArgs :: [String] -> ([FilePath],Config)
-parseArgs input = (filter (\i -> not $ debugFlag i || optimizeFlag i) input
-                  , Config { debug    = any debugFlag    input
-                           , optimize = any optimizeFlag input})
-  where debugFlag    = (== "-D")
-        optimizeFlag = (== "-O")
+options :: Parser Options
+options = Options
+  <$> switch ( long "debug"
+             <> short 'D'
+             <> help "Prints Hakaru src, Hakaru AST, C AST, C src" )
+  <*> switch ( long "optimize"
+             <> short 'O'
+             <> help "Performs constant folding on Hakaru AST" )
+  <*> strArgument (metavar "PROGRAM" <> help "Program to be compiled")
 
-compileHakaru :: Text -> ReaderT Config IO ()
+parseOpts :: IO Options
+parseOpts = execParser $ info (helper <*> options)
+                       $ fullDesc <> progDesc "Compile Hakaru to C"
+
+
+compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
     Left err -> putStrLn err
