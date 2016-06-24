@@ -76,7 +76,7 @@ conjugacies5:= Bind(Gaussian(f(0), sqrt(2)), x0,
                Bind(Gaussian(f(2), sqrt(2)), x2,
                Bind(Gaussian(f(3), sqrt(2)), x3,
                Bind(Gaussian(f(4), sqrt(2)), x4,
-               Ret(ary(5, i, idxl([x0,x1,x2,x3,x4],i)))))))):
+               Ret([x0,x1,x2,x3,x4])))))):
 TestHakaru(     fission                  ,      conjugacies                   , verify=normal, label="Conjugacy across plates (function)");
 TestHakaru(     fusion                   ,      conjugacies                   , verify=normal, label="Conjugacy in plate (function)");
 TestHakaru(eval(fission,{k=5           }),      conjugacies5                  , verify=normal, label="Conjugacy across plates unrolled (function)");
@@ -90,13 +90,24 @@ TestHakaru(eval(fusion ,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), 
 TestHakaru(eval(fission,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy across plates unrolled", ctx=[z>0]);
 TestHakaru(eval(fusion ,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy in plate unrolled", ctx=[z>0]);
 
+# Simplify by size of array
+TestHakaru(Bind(Plate(k,c,Uniform(37,42)),xs,Weight(f(size(xs)),Ret(Unit))),
+           Weight(f(k),Ret(Unit)),
+           label="plate size"):
+
 # Simplifying gmm below is a baby step towards index manipulations we need
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,
        Bind(Plate(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit))), ys,
        Ret(xs))):
-gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1)))*exp((1/2)*(sum((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))^2/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1), c=0..k-1)))*(1/(product(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1, c=0..k-1)))^(1/2),
+gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1)))*exp((1/2)*(sum((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))^2/(1+sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)), c=0..k-1)))/sqrt(product(1+sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1), c=0..k-1)),
          Plate(k, c, Gaussian((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1), (1/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1))^(1/2)))):
-TestHakaru(gmm, gmm_s, label="gmm (currently failing -- due to alpha-equivalence)");
+TestHakaru(gmm, gmm_s,
+           label="gmm (currently failing -- due to alpha-equivalence)",
+           ctx = [k::nonnegint, n::nonnegint]);
+TestHakaru(Bind(gmm, xs, Ret(cs)),
+           subsop(2=Ret(cs), gmm_s),
+           label="gmm total (currently failing -- due to alpha-equivalence)",
+           ctx = [k::nonnegint, n::nonnegint]);
 
 # Detecting Dirichlet-multinomial conjugacy when unrolled
 dirichlet := proc(as)

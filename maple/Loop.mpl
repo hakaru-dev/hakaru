@@ -60,15 +60,16 @@ end proc:
 
 Loop := module ()
   option package;
-  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp;
+  local intssums, piecewise_And, wrap, Binder, Stmt, t_binder, t_stmt, t_exp,
+        ModuleLoad, ModuleUnload, csgnOld, csgnNew;
   export
      # These first few are smart constructors (for themselves):
          ints, sums,
      # while these are "proper functions"
-         genLoop, unproducts, unproduct;
+         mk_HArray, genLoop, unproducts, unproduct;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Ints, Sums;
+  global Ints, Sums, csgn;
   uses Hakaru, KB;
 
   t_binder := 'Binder(identical(product, Product, sum, Sum), t_kb)';
@@ -80,13 +81,27 @@ Loop := module ()
   sums := proc() intssums('sums', 'sum', _passed) end proc;
 
   intssums := proc(makes::name, make::name,
-                   e::anything, x::name, rr::range, ll::list(name=range),
+                   ee::anything, xx::name, rr::range, ll::list(name=range),
                    kb::t_kb:=empty, $)
-    local r, l, kb1, w0, pp;
+    local t, x, e, r, l, kb1, w0, pp;
+    t := `if`(make=int, HReal(open_bounds(rr)), HInt(closed_bounds(rr)));
+    x, kb1 := genType(xx, mk_HArray(t, ll), kb);
+    e := eval(ee, xx=x);
+    if nops(ll) > 0 then
+      kb1 := assert(size(x)=op([-1,2,2],ll)-op([-1,2,1],ll)+1, kb1);
+    end if;
+    e := simplify_assuming(e, kb1);
     r, l, kb1 := genLoop(rr, ll, kb, 'Integrand'(x,e));
     w0, pp := unproducts(e, x, l, kb1);
     if depends(w0, x) then 'makes'(e, x, rr, ll)
     else w0 * foldl(product, make(pp,x=r), op(l)) end if
+  end proc;
+
+  mk_HArray := proc(t::t_type, loops::list(name=range), $)
+    local res, i;
+    res := t;
+    for i in loops do res := HArray(res) end do;
+    res
   end proc;
 
   genLoop := proc(e, loops::list(name=range), kb::t_kb)
@@ -106,15 +121,17 @@ Loop := module ()
   end proc;
 
   unproducts := proc(w, x::name, loops::list(name=range), kb::t_kb, $)
-    local w0, pp, j, w1, w2, xx;
+    local w0, pp, j, w1, w2, loop;
     w0 := 1;
     pp := w;
     for j from nops(loops) to 1 by -1 do
       w1, pp := op(unproduct(pp, x, op(j,loops), [], `*`, kb, kb));
-      # separate out each of the products, as they might have different
+      # separate out each of the factors in w1, as they might have different
       # variable dependencies, which can be exploited by other routines
       w2 := convert(w1, 'list', '`*`');
-      w2 := map[2](foldl, product, w2, op(j+1..-1, loops));
+      for loop in [op(j+1..-1, loops)] do
+        w2 := map((w -> product(eval(w, x=idx(x,lhs(loop))), loop)), w2);
+      end do;
       w0 := w0 * `*`(op(w2));
       # w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
     end do;
@@ -204,10 +221,18 @@ Loop := module ()
     return [wrap(heap, w, mode, kb1, kb0), 1]
   end proc;
 
+  piecewise_And := proc(cond::list, th, el, $)
+    if nops(cond) = 0 or th = el then
+      th
+    else
+      piecewise(And(op(cond)), th, el)
+    end if
+  end proc;
+
   wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),
                kb1::t_kb, kb0::t_kb, $)
-    local e, kb, mode, i, entry, rest, var, new_var, new_rng, make, 
-       dom_spec, w, arrrgs, cond;
+    local e, kb, mode, i, entry, rest, var, new_rng, make,
+       dom_spec, w, arrrgs;
     e    := e1;
     kb   := kb1;
     mode := mode1;
@@ -218,6 +243,18 @@ Loop := module ()
                                               {product,Product})) then
           print("Warning: heap mode inconsistency", heap, mode1)
         end if;
+        e := simplify_assuming(e, op(2,entry));
+        while e :: 'specfunc(piecewise)' and nops(e) = 3 do
+          if op(3,e) = mode() then
+	    kb := assert(op(1,e), kb);
+            e := op(2,e);
+          elif op(2,e) = mode() then
+	    kb := assert(Not(op(1,e)), kb);
+            e := op(3,e);
+          else
+            break;
+          end if;
+        end do;
         rest := kb_subtract(kb, op(2,entry));
         new_rng, rest := selectremove(type, rest,
           {[identical(genType), name, specfunc(HInt)],
@@ -238,33 +275,12 @@ Loop := module ()
           map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest),
           var);
         (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
-        e := simplify_assuming(`*`(op(e)), kb);
-        w := simplify_assuming(`*`(op(w)), kb);
-        if nops(dom_spec) > 0 then
-          cond := op(dom_spec);
-          # if e = mode(), don't bother with the piecewise
-          if not (e = mode()) then
-            # if e itself is a piecewise of the right shape, merge
-            if e :: 'specfunc(piecewise)' and nops(e)=3 and op(3,e) = mode() then
-              cond := op(1,e), cond;
-              e := op(2,e);
-            end if;
-            e := piecewise(And(cond), e, mode())
-          end if;
+        w := `*`(op(w));
+        if mode = `*` and not (w = 1) then
+          w := w ^ `if`(make=eval,eval,sum)
+                       (piecewise_And(dom_spec, 1, 0), var=new_rng);
         end if;
-        if mode=`+` then
-          e  := w * make(e, var=new_rng);
-        elif mode=`*` then
-          if make = genLet then
-            e := w * make(e, var = new_rng);
-          elif nops(dom_spec) > 0 then
-            new_var := gensym(var);
-            e := w ^ sum(eval(piecewise(And(op(dom_spec)), 1, 0), var = new_var), new_var = new_rng) *
-                 make(e, var = new_rng);
-          else
-            e := w ^ sum(1, var = new_rng) * make(e, var = new_rng);
-          end if;
-        end if;
+        e := w * make(piecewise_And(dom_spec, `*`(op(e)), mode()), var=new_rng);
         kb := foldr(assert, op(2,entry), op(rest));
       elif entry :: t_stmt then
         # We evaluate arrrgs first, in case op(1,stmt) is an operation (such as
@@ -285,10 +301,51 @@ Loop := module ()
     end if;
     rest := kb_subtract(kb, kb0);
     rest := map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest);
-    if nops(rest) > 0 and not (e = mode ()) then
-      e := piecewise(And(op(rest)),e,mode())
-    end if;
-    e
+    piecewise_And(rest,e,mode())
   end proc;
 
-end module; # NewSLO
+  # Override csgn to work a little bit harder on piecewise and sum
+  # (to get rid of csgn(1/2+1/2*sum(piecewise(...,1,0),...))
+  #  produced by int on a Gaussian mixture model)
+  csgnNew := proc(a)
+    local r, i;
+    # Handle if the csgn of a piecewise doesn't depend on which branch
+    if nargs=1 and a::'specfunc(piecewise)'
+       and (not assigned(_Envsignum0) or _Envsignum0 = 0) then
+      r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL), i=1..nops(a))}
+           minus {0};
+      if nops(r)=1 then
+        return op(r)
+      end if
+    end if;
+    # Handle if the csgn of a sum doesn't depend on the bound variable
+    if nargs=1 and a::'And(specfunc({sum, Sum}),
+                           anyfunc(anything,name=range))' then
+      r := csgn(op(1,a));
+      if not depends(r,op([2,1],a)) then
+        return signum(op([2,2,2],a)+1-op([2,2,1],a)) * r
+      end if
+    end if;
+    csgnOld(_passed)
+  end proc;
+  ModuleLoad := proc($)
+    local c;
+    if not(csgnOld :: procedure) then
+      c := eval(csgn);
+      if c :: procedure then
+        csgnOld := c;
+        unprotect(csgn);
+        csgn := csgnNew;
+        protect(csgn);
+      end if;
+    end if;
+  end proc;
+  ModuleUnload := proc($)
+    if csgnOld :: procedure then
+      unprotect(csgn);
+      csgn := csgnOld;
+      protect(csgn);
+    end if;
+  end proc;
+
+end module; # Loop

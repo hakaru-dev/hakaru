@@ -84,6 +84,7 @@ import Language.Hakaru.Types.Sing    (Sing(..))
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.AST.Eq (alphaEq)
 -- import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -476,13 +477,19 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
-type Index ast = (Variable 'HNat, ast 'HNat)
+data Index ast = Ind (Variable 'HNat) (ast 'HNat) 
+
+instance (ABT Term abt) => Eq (Index (abt '[])) where
+    Ind i1 s1 == Ind i2 s2 = i1 == i2 && (alphaEq s1 s2)
+
+instance (ABT Term abt) => Ord (Index (abt '[])) where
+    compare (Ind i _) (Ind j _) = compare i j -- TODO check this
 
 indVar :: Index ast -> Variable 'HNat
-indVar = fst
+indVar (Ind v _ ) = v
 
 indSize :: Index ast -> ast 'HNat
-indSize = snd
+indSize (Ind _ a) = a
 
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
@@ -816,7 +823,7 @@ freshInd :: (EvaluationMonad abt m p)
          -> m (Index (abt '[]))
 freshInd s = do
   x <- freshVar T.empty SNat
-  return (x, s)
+  return $ Ind x s
 
 
 -- | Add a statement to the top of the context, renaming any variables

@@ -52,8 +52,10 @@ module Language.Hakaru.Syntax.Variable
     , toAssocs
     , toAssocs1
     , insertAssoc
+    , insertAssocs
     , lookupAssoc
     , adjustAssoc
+    , mapAssocs
     ) where
 
 import           Data.Proxy        (KProxy(..))
@@ -515,6 +517,9 @@ insertAssoc v@(Assoc x _) (Assocs xs) =
     (Nothing, xs') -> Assocs xs'
     (Just _,  _)   -> error "insertAssoc: variable is already assigned!"
 
+insertAssocs :: Assocs ast -> Assocs ast -> Assocs ast
+insertAssocs (Assocs from) to = IM.foldr insertAssoc to from
+
 -- | Adjust an association so existing variable refers to different
 -- value. Does nothing if variable not present.
 adjustAssoc :: Variable (a :: k)
@@ -547,6 +552,10 @@ lookupAssoc x (Assocs xss) =
         Just Refl -> Just e'
         Nothing   -> go x xs
 -}
+
+mapAssocs :: (Assoc ast1 -> Assoc ast2) -> Assocs ast1 -> Assocs ast2
+mapAssocs f (Assocs xs) = Assocs (IM.map f xs)
+                
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

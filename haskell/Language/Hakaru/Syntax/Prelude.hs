@@ -59,6 +59,7 @@ module Language.Hakaru.Syntax.Prelude
     , RealProb(..)
     , betaFunc
     , log, logBase
+    , infinityNat
     , negativeInfinity
     -- *** Trig
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
@@ -117,7 +118,7 @@ module Language.Hakaru.Syntax.Prelude
     , app, app2, app3
 
     -- * Arrays
-    , empty, array, (!), size, reduce
+    , empty, arrayWithVar, array, (!), size, reduce
     , sumV, summateV, appendV, mapV, mapWithIndex, normalizeV, constV, unitV, zipWithV
 
     -- * Implementation details
@@ -651,7 +652,7 @@ instance RealProb 'HReal where
     exp       = primOp1_ Exp
     erf       = primOp1_ $ Erf hContinuous
     pi        = fromProb $ primOp0_ Pi
-    infinity  = fromProb $ primOp0_ Infinity
+    infinity  = fromProb $ primOp0_ (Infinity HIntegrable_Prob)
     gammaFunc = primOp1_ GammaFunc
 
 instance RealProb 'HProb where
@@ -659,8 +660,11 @@ instance RealProb 'HProb where
     exp       = primOp1_ Exp . fromProb
     erf       = primOp1_ $ Erf hContinuous
     pi        = primOp0_ Pi
-    infinity  = primOp0_ Infinity
+    infinity  = primOp0_ (Infinity HIntegrable_Prob)
     gammaFunc = primOp1_ GammaFunc . fromProb
+
+infinityNat :: (ABT Term abt) => abt '[] 'HNat
+infinityNat = primOp0_ (Infinity HIntegrable_Nat)
 
 log  :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HReal
 log = primOp1_ Log
@@ -944,6 +948,16 @@ array
     -> abt '[] ('HArray a)
 array n =
     syn . Array_ n . binder Text.empty sing
+
+arrayWithVar
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> Variable 'HNat
+    -> abt '[] a
+    -> abt '[] ('HArray a)
+arrayWithVar n x body =
+    syn $ Array_ n (bind x body)
+
 
 empty :: (ABT Term abt, SingI a) => abt '[] ('HArray a)
 empty = syn (Empty_ sing)

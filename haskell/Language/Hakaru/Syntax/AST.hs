@@ -335,7 +335,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     Exp       :: PrimOp '[ 'HReal ] 'HProb
     Log       :: PrimOp '[ 'HProb ] 'HReal
     -- TODO: Log1p, Expm1
-    Infinity  :: PrimOp '[] 'HProb -- TODO: maybe make this HContinuous polymorphic?
+    Infinity  :: HIntegrable a -> PrimOp '[] a
     -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
     GammaFunc :: PrimOp '[ 'HReal ] 'HProb
     BetaFunc  :: PrimOp '[ 'HProb, 'HProb ] 'HProb
@@ -442,7 +442,6 @@ instance JmEq2 PrimOp where
     jmEq2 RealPow     RealPow     = Just (Refl, Refl)
     jmEq2 Exp         Exp         = Just (Refl, Refl)
     jmEq2 Log         Log         = Just (Refl, Refl)
-    jmEq2 Infinity    Infinity    = Just (Refl, Refl)
     jmEq2 GammaFunc   GammaFunc   = Just (Refl, Refl)
     jmEq2 BetaFunc    BetaFunc    = Just (Refl, Refl)
     jmEq2 (Equal a)   (Equal b)   =
@@ -451,13 +450,16 @@ instance JmEq2 PrimOp where
     jmEq2 (Less a)    (Less b)    =
         jmEq1 (sing_HOrd a) (sing_HOrd b) >>= \Refl ->
         Just (Refl, Refl)
-    jmEq2 (NatPow  a) (NatPow  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Negate  a) (Negate  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Abs     a) (Abs     b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Signum  a) (Signum  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Recip   a) (Recip   b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (NatRoot a) (NatRoot b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Erf     a) (Erf     b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Infinity a) (Infinity b) =
+        jmEq1 (sing_HIntegrable a) (sing_HIntegrable b) >>= \Refl ->
+        Just (Refl, Refl)
+    jmEq2 (NatPow   a) (NatPow   b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Negate   a) (Negate   b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Abs      a) (Abs      b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Signum   a) (Signum   b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Recip    a) (Recip    b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (NatRoot  a) (NatRoot  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Erf      a) (Erf      b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
     jmEq2 _ _ = Nothing
 
 -- TODO: We could optimize this like we do for 'Literal'

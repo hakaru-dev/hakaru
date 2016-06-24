@@ -81,7 +81,7 @@ import           Data.Traversable     (Traversable)
 import           Control.Applicative  (Applicative(..))
 #endif
 import           Control.Applicative  (Alternative(..))
-import           Control.Monad        ((<=<))
+import           Control.Monad        ((<=<), guard)
 import           Data.Functor.Compose (Compose(..))
 import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
@@ -91,6 +91,7 @@ import qualified Data.IntMap          as IM
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as S
 import           Data.Proxy           (KProxy(..))
+import qualified Data.Set             as Set (fromList)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
@@ -685,24 +686,42 @@ patternOfDatum =
 constrainVariable
     :: (ABT Term abt) => abt '[] a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
+    do locs <- getLocs
     -- If we get 'Nothing', then it turns out @x@ is a free variable.
     -- If @x@ is a free variable, then it's a neutral term; and we
     -- return 'bot' for neutral terms
-    (maybe bot return =<<) . select x $ \s ->
-         case s of
-           SBind y e i -> do
-                Refl <- varEq x y
-                Just $ do
-                    constrainOutcome v0 (fromLazy e)
-                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
-           SLet y e i -> do
-                Refl <- varEq x y
-                Just $ do
-                    constrainValue v0 (fromLazy e)
-                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
-           SWeight _ _ -> Nothing
-           SGuard ys pat scrutinee i ->
-                error "TODO: constrainVariable{SGuard}"
+       maybe bot lookForLoc (lookupAssoc x locs)
+    where lookForLoc (Loc      l jxs) =
+              -- If we get 'Nothing', then it turns out @l@ is a free location.
+              -- This is an error because of the invariant:
+              --   if there exists an 'Assoc x (Loc l _)' inside @locs@
+              --   then there must be a statement on the 'ListContext' that binds @l@
+              (maybe (freeLocError l) return =<<) . select x $ \s ->
+                  case s of
+                    SBind y e ixs -> do
+                           Refl <- varEq x y
+                           guard (length ixs == length jxs) -- otherwise error
+                           Just $ do
+                             inds <- getIndices
+                             guard (jxs `permutes` inds) -- otherwise bot
+                             e' <- apply (zip ixs inds) (fromLazy e)
+                             constrainOutcome v0 e'
+                             unsafePush (SLet x (Whnf_ (Neutral v0)) inds)
+                    SLet  y e ixs -> do
+                           Refl <- varEq x y
+                           guard (length ixs == length jxs) -- otherwise error
+                           Just $ do
+                             inds <- getIndices
+                             guard (jxs `permutes` inds) -- otherwise bot
+                             e' <- apply (zip ixs inds) (fromLazy e)
+                             constrainValue v0 e'
+                             unsafePush (SLet x (Whnf_ (Neutral v0)) inds)
+                    SWeight _ _ -> Nothing
+                    SGuard ys pat scrutinee i ->
+                        error "TODO: constrainVariable{SGuard}"
+          lookForLoc (MultiLoc l js) = undefined -- TODO
+          permutes is js = length is == length js && 
+                           Set.fromList is == Set.fromList js
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
@@ -952,7 +971,7 @@ constrainPrimOp v0 = go
         emitWeight exp_x0
         constrainValue exp_x0 e1
 
-    go Infinity         = \End               -> error_TODO "Infinity" -- scalar0
+    go (Infinity _)     = \End               -> error_TODO "Infinity" -- scalar0
     go GammaFunc        = \(e1 :* End)       -> error_TODO "GammaFunc" -- scalar1
     go BetaFunc         = \(e1 :* e2 :* End) -> error_TODO "BetaFunc" -- scalar2
     go (Equal  theOrd)  = \(e1 :* e2 :* End) -> error_TODO "Equal"

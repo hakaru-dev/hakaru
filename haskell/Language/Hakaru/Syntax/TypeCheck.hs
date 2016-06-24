@@ -59,6 +59,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
     , hRing_Sing, sing_HRing, hFractional_Sing, sing_HFractional
+    , HIntegrable(..), sing_HIntegrable
     , HRadical(..), HContinuous(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
@@ -268,9 +269,10 @@ missingLub
 missingLub typ1 typ2 =
     failwith $ "No lub of types " ++ show typ1 ++ " and " ++ show typ2
 
+-- we can't have free variables, so it must be a typo
 ambiguousFreeVariable :: U.Name -> TypeCheckMonad r
 ambiguousFreeVariable x =
-    failwith $ "Cannot infer unambiguous type of free variable: " ++ show x
+    failwith $ "Name not in scope: `" ++ show (U.hintID x) ++ "`; perhaps it is a typo?"
 
 ambiguousNullCoercion :: TypeCheckMonad r
 ambiguousNullCoercion =
@@ -641,7 +643,8 @@ inferType = inferType_
 
   inferPrimOp U.Infinity es =
       case es of
-        [] -> return . TypedAST SProb $ syn (PrimOp_ Infinity :$ End)
+        [] -> return . TypedAST SProb $
+                     syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End)
         _  -> failwith "Passed wrong number of arguments"
 
   inferPrimOp U.GammaFunc es =

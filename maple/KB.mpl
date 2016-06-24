@@ -25,7 +25,7 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
-  global t_kb;
+  global t_kb, `expand/product`;
   uses Hakaru;
 
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
@@ -190,7 +190,10 @@ KB := module ()
         elif b :: `<=` then b := `>` (op(b))
         else b := Not(b) end if
       end if;
-      if b :: 'anything=name' then b := (rhs(b)=lhs(b)) end if;
+      if b :: 'Not({name, size(name)})
+               = And(name, Not(constant), Not(undefined))' then
+        b := (rhs(b)=lhs(b))
+      end if;
       # Add constraint to KB.
       ch := chill(b);
       `if`((is(ch) assuming op(as)), kb, KB(Constrain(b), op(kb)))
@@ -350,7 +353,11 @@ KB := module ()
   end proc;
 
   kb_to_equations := proc(kb, $)
-    map2(subsop, 0=`=`, [op(select(type, kb, 'Let(name, anything)'))])
+    local lets, constraints;
+
+    lets := map2(subsop, 0=`=`, [op(select(type, kb, 'Let(name, anything)'))]);
+    constraints := map(op, select(type, kb, 'Constrain(anything = anything)'));
+    [op(lets), op(constraints)]
   end proc;
 
   htype_to_property := proc(t::t_type, $)
@@ -423,6 +430,19 @@ KB := module ()
          Bound(name, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
          Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
        }, KB)');
+
+    # Prevent expand(product(f(i),i=0..n-1))
+    # from producing (product(f(i),i=0..n))/f(n)
+    `expand/product` := overload([
+      proc(ff, rr::name=And(`+`,Not(`+`(Not(integer))))..anything)
+        option overload(callseq_only);
+        thaw(`expand/product`(ff, applyop(freeze, [2,1], rr)))
+      end proc,
+      proc(ff, rr::name=anything..And(`+`,Not(`+`(Not(integer)))))
+        option overload(callseq_only);
+        thaw(`expand/product`(ff, applyop(freeze, [2,2], rr)))
+      end proc,
+      `expand/product`]);
   end proc;
 
   ModuleUnload := proc($)

@@ -31,7 +31,7 @@ NewSLO := module ()
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2,
-        mk_sym, mk_ary, mk_idx, mk_HArray,
+        mk_sym, mk_ary, mk_idx,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
@@ -183,7 +183,7 @@ NewSLO := module ()
         if op(1,m) = 1 then
           res := op(1,x);
         else
-           res := idxl(x,op(2,m));
+           res := idx(x,op(2,m));
 #          res := piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
 #                         op(1,x));
         end if;
@@ -227,6 +227,7 @@ NewSLO := module ()
     BetaD(anything, anything), GammaD(anything, anything)}':
 
   known_discrete := '{Counting(anything, anything),
+    Categorical(anything),
     NegativeBinomial(anything), PoissonD(anything)}';
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
@@ -239,15 +240,14 @@ NewSLO := module ()
 
   unintegrate := proc(h :: name, e, kb :: t_kb, $)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
-          i, kb1, loops, subst, hh, pp, t, bnds;
+          i, kb1, kb2, loops, subst, hh, pp, t, bnds;
     if e :: 'And'('specfunc({Int,int})',
                   'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],e));
       x, kb1 := genLebesgue(op([2,1],e), lo, hi, kb);
       subintegral := eval(op(1,e), op([2,1],e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      recognition := recognize_continuous(w, x, lo, hi)
-        assuming op(kb_to_assumptions(kb1));
+      recognition := recognize_continuous(w, x, lo, hi, kb1);
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x, kb1);
@@ -270,8 +270,7 @@ NewSLO := module ()
       x, kb1 := genType(op([2,1],e), HInt(closed_bounds(lo..hi)), kb);
       subintegral := eval(op(1,e), op([2,1],e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      recognition := recognize_discrete(w, x, lo, hi)
-        assuming op(kb_to_assumptions(kb1));
+      recognition := recognize_discrete(w, x, lo, hi, kb1);
       if recognition :: 'Recognized(anything, anything)' then
         (w, w0) := factorize(op(2,recognition), x, kb1);
         weight(w0, bind(op(1,recognition), x, weight(w, m)))
@@ -289,21 +288,24 @@ NewSLO := module ()
         make := Sum;
       end if;
       x, kb1 := genType(op(2,e), mk_HArray(t, loops), kb);
+      if nops(op(4,e)) > 0 then
+        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
+      end if;
       subintegral := eval(op(1,e), op(2,e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      bnds, loops, kb1 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
-      w, pp := unproducts(w, x, loops, kb1);
+      bnds, loops, kb2 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
+      w, pp := unproducts(w, x, loops, kb2);
       w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=bnds);
-      (w1, mm) := unweight(unintegrate(hh, subintegral, kb1));
+      (w1, mm) := unweight(unintegrate(hh, subintegral, kb2));
       weight(simplify_assuming(`*`(op(w0)) * foldl(product, w1, op(loops)), kb),
         bind(foldl(((mmm,loop) ->
                     Plate(op([2,2],loop) - op([2,1],loop) + 1,
                           op(1,loop),
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(loops)),
-             x, weight(`*`(op(w)), m)))
+             x, weight(simplify_assuming(`*`(op(w)), kb1), m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
@@ -346,7 +348,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  recognize_continuous := proc(weight0, x, lo, hi, $)
+  recognize_continuous := proc(weight0, x, lo, hi, kb, $)
     local Constant, de, Dx, f, w, res, rng;
     res := FAIL;
     # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
@@ -360,7 +362,7 @@ NewSLO := module ()
     # Like sum(...i...), Constant[sum(...i...)] depends on i, which we need so
     # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
     w := subsindets[flat](weight0,
-           And(function, Not(specfunc({exp, And, Or})),
+           And(function, Not(specfunc({exp, And, Or, Not})),
                'freeof'(x)),
            proc(e) Constant[e] end);
     w := subsindets[flat](w, {`^`, specfunc(exp)},
@@ -375,11 +377,11 @@ NewSLO := module ()
              end);
     de := get_de(w, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
-      res := recognize_de(op(de), Dx, f, x, lo, hi)
+      res := recognize_de(op(de), Dx, f, x, lo, hi, kb)
     end if;
     if res = FAIL then
       rng := hi - lo;
-      w := simplify(w * (hi - lo));
+      w := simplify_assuming(w * (hi - lo), kb);
       # w could be piecewise and simplify will hide the problem
       if not (rng :: 'SymbolicInfinity'
               or w :: {'SymbolicInfinity', 'undefined'}) then
@@ -387,30 +389,43 @@ NewSLO := module ()
       end if
     end if;
     # Undo Constant[...] wrapping
-    subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
+    res := subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x));
+    map(simplify_assuming, res, kb)
   end proc;
 
-  recognize_discrete := proc(w, k, lo, hi, $)
-    local se, Sk, f, a0, a1, lambda, r;
+  recognize_discrete := proc(w, k, lo, hi, kb, $)
+    local se, Sk, f, a0, a1, lambda, r, s, res;
+    res := FAIL;
     if lo = 0 and hi = infinity then
       se := get_se(w, k, Sk, f);
       if se :: 'Shiftop(anything, anything, identical(ogf))' and
          ispoly(op(1,se), 'linear', Sk, 'a0', 'a1') then
         lambda := normal(-a0/a1*(k+1));
         if not depends(lambda, k) then
-          return Recognized(PoissonD(lambda),
-                            simplify(eval(w,k=0)/exp(-lambda)));
+          res := Recognized(PoissonD(lambda), eval(w,k=0)/exp(-lambda));
         end if;
         if ispoly(lambda, 'linear', k, 'b0', 'b1') then
           r := b0/b1;
-          return Recognized(NegativeBinomial(r, b1),
-                            simplify(eval(w,k=0)/(1-b1)^r))
+          res := Recognized(NegativeBinomial(r, b1), eval(w,k=0)/(1-b1)^r);
         end if
+      end if;
+    elif lo = 0 and not(hi :: 'SymbolicInfinity') then
+      s, r := selectremove(depends, convert(w, 'list', `*`), k);
+      if nops(s) > 0 then
+        res := ary(hi+1, k, `*`(op(s)));
+        if res :: 'list' and nops(convert(res,'set')) = 1 then
+          res := Recognized(Counting(lo, hi), res[1]);
+        else
+          res := Recognized(Categorical(res), `*`(op(r)));
+        end if;
       end if;
     end if;
     # fallthrough here is like recognizing Lebesgue for all continuous
     # measures.  Ultimately correct, although fairly unsatisfying.
-    Recognized(Counting(lo, hi), w)
+    if res = FAIL then
+      res := Recognized(Counting(lo, hi), w);
+    end if;
+    map(simplify_assuming, res, kb)
   end proc;
 
   get_de := proc(dens, var, Dx, f, $)
@@ -480,7 +495,7 @@ NewSLO := module ()
     FAIL
   end proc;
 
-  recognize_de := proc(diffop, init, Dx, f, var, lo, hi, $)
+  recognize_de := proc(diffop, init, Dx, f, var, lo, hi, kb, $)
     local dist, ii, constraints, w, a0, a1, a, b0, b1, c0, c1, c2, loc, nu;
     dist := FAIL;
     if lo = -infinity and hi = infinity
@@ -513,9 +528,9 @@ NewSLO := module ()
       try
         ii := map(convert, init, 'diff');
         constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
-        w := eval(w, mysolve(simplify(constraints), w));
+        w := eval(w, mysolve(simplify_assuming(constraints, kb), w));
         if not (has(w, 'w')) then
-          return Recognized(dist, simplify(w))
+          return Recognized(dist, w);
         end if
       catch: # do nothing
       end try;
@@ -625,12 +640,18 @@ NewSLO := module ()
       x, kb1 := genType(op(2,e),
                         mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
                         kb);
+      if nops(op(4,e)) > 0 then
+        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
+      end if;
       reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: 'Sums(anything, name, range, list(name=range))' then
       x, kb1 := genType(op(2,e),
                         mk_HArray(HInt(closed_bounds(op(3,e))), op(4,e)),
                         kb);
+      if nops(op(4,e)) > 0 then
+        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
+      end if;
       reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: `+` then
@@ -985,7 +1006,7 @@ NewSLO := module ()
        #If more than one reparam is possible, return unevaluated.
        if nops(oldarg) <> 1 then
             WARNING("More than 1 reparam possible.");
-            userinfo(1, thisproc, "Possible reparams:", oldarg); 
+            userinfo(1, thisproc, "Possible reparams:", subs(x= ':-x', oldarg)); 
             return 'procname'(e)
        end if;
    
@@ -996,32 +1017,63 @@ NewSLO := module ()
 
        #If target doesn't depend on x, return input unchanged.
        if not depends(simplify(oldarg), x) then
-            userinfo(2, thicproc, "Target doesn't depend on x. Target:", oldarg, "x:", x); 
+            userinfo(2, procname, "Target doesn't depend on x. Target:", oldarg); 
             return e 
        end if; 
 
+       (*#************ This isn't currently used. **********************************
        #Check the invertibility of the subs.
-       (* The ability of `solve` to select a branch is very limited. For example,
-               solve(y=x^2, useassumptions) assuming x > 0
-          returns sqrt(y), -sqrt(y). This needs to be dealt with. First idea: Use `is` to filter
-          solutions: Implemented below.                      
-       *) 
+
+       #The ability of `solve` to select a branch is very limited. For example,
+               solve({y=x^2, x > 0}, {x}) 
+       #returns 
+               sqrt(y), -sqrt(y). 
+       #This needs to be dealt with. First idea: Use `is` to filter
+       #solutions. This is implemented below. But I should figure out how to do the `is` or its equivalent without
+       #using `assume` or `assuming`.                      
+       
+
+       #The next command is redundantly performed in the local inits. I put it here also
+       #because I anticipate some situations where that's no longer valid.
+
+       #Save current vars for comparison with vars after `solve`.  
        Ns:= indets(oldarg, symbol);
-       S:= [solve(y=oldarg, x, allsolutions, useassumptions)] assuming a <= x, x <= b;
+       S:= {solve({'y'=oldarg, a <= x, x <= b}, {x}, allsolutions)};
+       S:= map(s->`if`(s::specfunc(piecewise), s[], s), S);
        #Use `is` to filter solutions under the assumptions.
-       S:= select(s-> is(eval(s, y= oldarg) = x), S) assuming a <= x, x <= b;
-       if
-            nops(S) <> 1 or 
-            indets(S, symbol) <> Ns union {y} minus {x} or
-            hastype(S, RootOf)
-       then 
+       assume(a <= x, x <= b);
+       S:= select(s-> ver(rhs,lhs)(eval(s, y= oldarg)[]), S);
+       if  nops(S) <> 1  or  indets(S, symbol) <> Ns union {y}  or  hastype(S, RootOf)  then 
             WARNING("Reparam target is not invertible (upto `solve` and `is`).");
-            userinfo(1, procname, "Target:", oldarg, "S:", S, "domain:", x= a..b);
+            userinfo(1, procname, "Target:", subs(x= ':-x', oldarg), "S:", subs(x= ':-x', S), "domain:", ':-x'= a..b);
             return 'procname'(e)
        end if; 
-       
+       *******************************************************************************)       
        #Make the subs.       
        J:= IT:-Change(J, u= oldarg, [u]);
+
+       if J=0 then
+            WARNING("Integral is 0, likely due to improper handling of an infinity issue.");
+            userinfo(
+                 1, procname, "u subs:", 
+                 print(
+                      #Reformat the IT:-Change command for readability. 
+                      'IT:-Change'(
+                           subs(
+                                x= ':-x', 
+                                subsindets(
+                                     op(2,e), 
+                                     specfunc(applyintegrand), 
+                                     f-> ':-h'(op(2,f))
+                                )
+                           ), 
+                           ':-u'= subs(x= ':-x', oldarg),
+                           [':-u']          
+                      )
+                 )
+            );
+            return subsop(2= 0, e)
+       end if;
 
        #If needed, reverse limits.
        F:= evalb(op([2,2,1], J) > op([2,2,2], J));
@@ -1400,6 +1452,9 @@ NewSLO := module ()
   density[Counting] := proc(lo, hi, $) proc(k,$)
     1
   end proc end proc;
+  density[Categorical] := proc(a, $) proc(k,$)
+    idx(a,k)
+  end proc end proc;
   density[NegativeBinomial] := proc(r, p, $) proc(k,$)
     p^k * (1-p)^r * GAMMA(r+k) / GAMMA(k+1) / GAMMA(r)
   end proc end proc;
@@ -1415,6 +1470,7 @@ NewSLO := module ()
   bounds[BetaD] := proc(a, b, $) 0 .. 1 end proc;
   bounds[GammaD] := proc(shape, scale, $) 0 .. infinity end proc;
   bounds[Counting] := `..`;
+  bounds[Categorical] := proc(a, $) 0 .. size(a)-1 end proc;
   bounds[NegativeBinomial] := proc(r, p, $) 0 .. infinity end proc;
   bounds[PoissonD] := proc(lambda, $) 0 .. infinity end proc;
 
@@ -1439,13 +1495,6 @@ NewSLO := module ()
   mk_idx := proc(e, loops :: list(name = range), $)
     foldr((i, res) -> idx(res, op(1,i) - op([2,1],i)),
           e, op(loops));
-  end proc;
-
-  mk_HArray := proc(t::t_type, loops::list(name=range), $)
-    local res, i;
-    res := t;
-    for i in loops do res := HArray(res) end do;
-    res
   end proc;
 
   ModuleLoad := proc($)

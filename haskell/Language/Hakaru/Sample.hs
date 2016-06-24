@@ -287,7 +287,11 @@ evaluatePrimOp Exp (e1 :* End) env =
     case evaluate e1 env of
       VReal v1 -> VProb . LF.logToLogFloat $ v1
       v        -> case v of {}
-evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat LF.infinity
+evaluatePrimOp (Infinity h) End _ =
+    case h of
+      HIntegrable_Nat  -> error "Can not evaluate infinity for natural numbers"
+      HIntegrable_Prob -> VProb $ LF.logFloat LF.infinity
+
 evaluatePrimOp (Equal _) (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
     (VNat  v1, VNat  v2) -> VDatum $ if v1 == v2 then dTrue else dFalse
