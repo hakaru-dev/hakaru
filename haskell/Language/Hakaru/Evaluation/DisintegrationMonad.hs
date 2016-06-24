@@ -57,6 +57,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , pushPlate
     -- * For Arrays/Plate
     , getIndices
+    , withIndices
     , extendIndices
     , statementInds
     -- * Locs
@@ -522,6 +523,9 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                         r <- mr
                         unsafePushes ss
                         return (Just r)
+
+withIndices :: [Index (abt '[])] -> Dis abt a -> Dis abt a
+withIndices inds (Dis m) = Dis $ \_ c -> m inds c
 
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
 unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
