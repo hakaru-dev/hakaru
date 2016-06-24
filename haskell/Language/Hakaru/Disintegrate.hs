@@ -724,7 +724,7 @@ constrainVariable v0 x =
               let sizeInnermostInd :: (ABT Term abt) => Variable (a :: Hakaru) -> Dis abt (abt '[] HNat)
                   sizeInnermostInd l =
                       (maybe (freeLocError l) return =<<) . select l $ \s ->
-                      do guard (length (statementInds s) >= 1)
+                      do guard (length (statementInds s) == 1 + length jxs)
                          case s of
                            SBind l' _ ixs -> do Refl <- varEq l l'
                                                 Just $ return (indSize (head ixs))
