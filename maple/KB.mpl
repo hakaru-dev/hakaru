@@ -434,11 +434,11 @@ KB := module ()
     # Prevent expand(product(f(i),i=0..n-1))
     # from producing (product(f(i),i=0..n))/f(n)
     `expand/product` := overload([
-      proc(ff, rr::name=And(`+`,Not(`+`(Not(posint))))..anything)
+      proc(ff, rr::name=And(`+`,Not(`+`(Not(integer))))..anything)
         option overload(callseq_only);
         thaw(`expand/product`(ff, applyop(freeze, [2,1], rr)))
       end proc,
-      proc(ff, rr::name=anything..And(`+`,Not(`+`(Not(negint)))))
+      proc(ff, rr::name=anything..And(`+`,Not(`+`(Not(integer)))))
         option overload(callseq_only);
         thaw(`expand/product`(ff, applyop(freeze, [2,2], rr)))
       end proc,
