@@ -243,6 +243,18 @@ Loop := module ()
                                               {product,Product})) then
           print("Warning: heap mode inconsistency", heap, mode1)
         end if;
+        e := simplify_assuming(e, op(2,entry));
+        while e :: 'specfunc(piecewise)' and nops(e) = 3 do
+          if op(3,e) = mode() then
+	    kb := assert(op(1,e), kb);
+            e := op(2,e);
+          elif op(2,e) = mode() then
+	    kb := assert(Not(op(1,e)), kb);
+            e := op(3,e);
+          else
+            break;
+          end if;
+        end do;
         rest := kb_subtract(kb, op(2,entry));
         new_rng, rest := selectremove(type, rest,
           {[identical(genType), name, specfunc(HInt)],
@@ -262,18 +274,6 @@ Loop := module ()
         dom_spec, rest := selectremove(depends,
           map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest),
           var);
-        e := simplify_assuming(e, op(2,entry));
-        while e :: 'specfunc(piecewise)' and nops(e) = 3 do
-          if op(3,e) = mode() then
-            dom_spec := [op(dom_spec), op(1,e)];
-            e := op(2,e);
-          elif op(2,e) = mode() then
-            dom_spec := [op(dom_spec), Not(op(1,e))];
-            e := op(3,e);
-          else
-            break;
-          end if;
-        end do;
         (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
         w := `*`(op(w));
         if mode = `*` and not (w = 1) then
