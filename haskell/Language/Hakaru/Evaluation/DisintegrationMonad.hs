@@ -66,6 +66,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , insertLoc
     , adjustLoc
     , freeLocError
+    , apply
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -165,6 +166,10 @@ data Loc :: (Hakaru -> *) -> Hakaru -> * where
          :: Variable a
          -> [Index ast]
          -> Loc ast ('HArray a)
+
+locIndices :: Loc ast a -> [Index ast]
+locIndices (Loc       _ inds) = inds
+locIndices (MultiLoc  _ inds) = inds
 
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that
@@ -353,6 +358,25 @@ convertLocs newlocs = do oldlocs <- fromAssocs <$> getLocs
 
 freeLocError :: Variable (a :: Hakaru) -> b
 freeLocError l = error $ "Found a free location " ++ show l
+
+apply :: (ABT Term abt)
+      => [(Index (abt '[]), Index (abt '[]))]
+      -> abt '[] a
+      -> Dis abt (abt '[] a)
+apply ijs e = do let rho = toAssocs $
+                           map (\(i,j) -> Assoc (indVar i) (indVar j)) ijs
+                 locs <- fromAssocs <$> getLocs
+                 rho' <- foldM step rho locs
+                 return (renames rho' e)
+    where step rho (Assoc x loc) =
+            let inds  = locIndices loc
+                inds' = map (\i -> fromMaybe i (lookup i ijs)) inds
+            in if (any isJust (map (\i -> lookup i ijs) inds))
+               then do x' <- case loc of
+                               Loc      l _ -> mkLoc      Text.empty l inds'
+                               MultiLoc l _ -> mkMultiLoc Text.empty l inds'
+                       return (insertAssoc (Assoc x x') rho)
+               else return rho
                            
 extendIndices
     :: (ABT Term abt)
@@ -424,7 +448,6 @@ mkMultiLoc
     -> [Index (abt '[])]
     -> Dis abt (Variable ('HArray a))
 mkMultiLoc hint s inds = do
-  locs <- getLocs
   x' <- freshVar hint (SArray $ varType s)
   insertLoc x' (MultiLoc s inds)
   return x'
