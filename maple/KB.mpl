@@ -25,7 +25,7 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
-  global t_kb;
+  global t_kb, `expand/product`;
   uses Hakaru;
 
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
@@ -430,6 +430,19 @@ KB := module ()
          Bound(name, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
          Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
        }, KB)');
+
+    # Prevent expand(product(f(i),i=0..n-1))
+    # from producing (product(f(i),i=0..n))/f(n)
+    `expand/product` := overload([
+      proc(ff, rr::name=And(`+`,Not(`+`(Not(posint))))..anything)
+        option overload(callseq_only);
+        thaw(`expand/product`(ff, applyop(freeze, [2,1], rr)))
+      end proc,
+      proc(ff, rr::name=anything..And(`+`,Not(`+`(Not(negint)))))
+        option overload(callseq_only);
+        thaw(`expand/product`(ff, applyop(freeze, [2,2], rr)))
+      end proc,
+      `expand/product`]);
   end proc;
 
   ModuleUnload := proc($)
