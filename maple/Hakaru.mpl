@@ -363,7 +363,7 @@ Hakaru := module ()
       eval(op(3,a), op(2,a)=i)
     elif a :: 'list' and i::nonnegint then
       a[i+1]
-    elif a :: 'list' and nops({op(a)}) = 1 then
+    elif a :: 'list' and nops(convert(a,'set')) = 1 then
       a[1] # Indexing into a literal array whose elements are all the same
     elif a :: 't_piecewiselike' then
       map_piecewiselike(procname, _passed)

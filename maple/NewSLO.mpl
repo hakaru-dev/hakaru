@@ -413,7 +413,7 @@ NewSLO := module ()
       s, r := selectremove(depends, convert(w, 'list', `*`), k);
       if nops(s) > 0 then
         res := ary(hi+1, k, `*`(op(s)));
-        if res :: 'list' and nops({op(res)}) = 1 then
+        if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi), res[1]);
         else
           res := Recognized(Categorical(res), `*`(op(r)));
