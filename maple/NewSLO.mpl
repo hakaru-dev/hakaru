@@ -987,6 +987,7 @@ NewSLO := module ()
   #Written by Carl 2016Jun17.
   Reparam:= proc(
        e::LO(symbol, Int(algebraic, symbol= range(algebraic))),
+       {ctx::list:= []},
        $
   )
   uses IT= IntegrationTools;
@@ -1001,8 +1002,13 @@ NewSLO := module ()
        u::symbol:= gensym('u'),   #new variable
        y::symbol,   #just a name for `solve`
        S,   #result from `solve`
-       F::{`<`, truefalse}    #Boolean: flip integral?
+       F::{`<`, truefalse},   #Boolean: flip integral?
+       #Knowledge base converted to assumptions suitable for `assuming`.
+       as:= kb_to_assumptions(foldr(KB:-assert, KB:-empty, ctx[]))
   ;
+       #Deal with nuisance that `assuming` won't take NULL as right operand.
+       as:= `if`(as=[], [[]], as)[];       
+
        #If more than one reparam is possible, return unevaluated.
        if nops(oldarg) <> 1 then
             WARNING("More than 1 reparam possible.");
@@ -1031,7 +1037,6 @@ NewSLO := module ()
        #This needs to be dealt with. First idea: Use `is` to filter
        #solutions. This is implemented below. But I should figure out how to do the `is` or its equivalent without
        #using `assume` or `assuming`.                      
-       
 
        #The next command is redundantly performed in the local inits. I put it here also
        #because I anticipate some situations where that's no longer valid.
@@ -1048,9 +1053,10 @@ NewSLO := module ()
             userinfo(1, procname, "Target:", subs(x= ':-x', oldarg), "S:", subs(x= ':-x', S), "domain:", ':-x'= a..b);
             return 'procname'(e)
        end if; 
-       *******************************************************************************)       
+       *******************************************************************************)  
+     
        #Make the subs.       
-       J:= IT:-Change(J, u= oldarg, [u]);
+       J:= IT:-Change(J, u= oldarg, [u]) assuming as;
 
        if J=0 then
             WARNING("Integral is 0, likely due to improper handling of an infinity issue.");

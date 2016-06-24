@@ -12,6 +12,7 @@ if not NewSLO :: `module` then
 end if:
 
 with(Hakaru):
+with(KB):
 with(NewSLO):
 ########################
 
@@ -20,22 +21,22 @@ TestReparam:= proc(
      e_in::specfunc(Bind),
      e_out,   #Expected output, after postprocessing by `verify` and `&under`
      #`verification` is slightly modified (below) from its standard definition.
+     # &under is defined below.
      ver::verification, 
      #First infolevel is for initial test; second is for retest after failure.
-     {infolevels::[{nonnegint,identical(infinity)},{nonnegint, identical(infinity)}]:= 
-          [0,infinity]
-     }
+     {infolevels::[{nonnegint,identical(infinity)},{nonnegint, identical(infinity)}]:= [0,infinity]},
+     {ctx::list:= []} #Assumptions (not necessarily to be passed to `assuming`)
+          
 )
 local 
-     LOform:= toLO(e_in),  #preprocessed input
-     r   #output from CodeTools:-Test
+     LOform:= toLO(e_in)  #preprocessed input
 ;
      :-infolevel[Reparam]:= infolevels[1];               
-     if not CodeTools:-Test(Reparam(LOform), e_out, ver, boolout, quiet, _rest) then
+     if not CodeTools:-Test(Reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest) then
           #If test fails, do same test with diagnostic infolevel setting.
           if infolevels[2] > infolevels[1] then
                :-infolevel[Reparam]:= infolevels[2];
-               return CodeTools:-Test(Reparam(LOform), e_out, ver, boolout, _rest)
+               return CodeTools:-Test(Reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest)
           else
                return false
           end if
@@ -45,6 +46,7 @@ local
 end proc:
 
 #VerifyTools is an undocumented Maple library package similiar to TypeTools.
+#Add a verification &under analogous to type &under.
 VerifyTools:-AddVerification(`&under`= ((e1,e2,Ver,f)-> verify(f(e1,_rest), e2, Ver))):
 
 #Need to overload Maple library `type/verification` so that expressions of the form 'v &under f'
@@ -63,26 +65,39 @@ VerifyTools:-AddVerification(`&under`= ((e1,e2,Ver,f)-> verify(f(e1,_rest), e2, 
 #   The tests 
 #
 
-# Constant multiple in integral
+#Constant multiple in integral
 TestReparam(
      Bind(Lebesgue(), x, Weight(2, Ret(2*x))),
      Lebesgue(),
      equal &under fromLO,
+     infolevels= [infinity$2],
      label= "Constant multiple with Lebesgue (passing)"
 );
 
-# Logarithm with Uniform
+#Logarithm with Uniform
 TestReparam(
      Bind(Uniform(0,1), x, Ret(-log(x))),
      GammaD(1,1),
      equal &under fromLO,
+     infolevels= [infinity$2],
      label= "Logarithm with Uniform (passing)"
 );
 
-# Two-variable LFT with Gamma
+#Two-variable LFT with Gamma
 TestReparam(
      Bind(GammaD(a,t), x1, Bind(GammaD(b,t), x2, Ret(x1/(x1+x2)))),
      BetaD(a,b),   #??? Spelled right?
      equal &under fromLO,
+     infolevels= [infinity$2],
      label= "t4: Two-variable LFT with Gamma (failing)"
+);
+
+#(t5) Logarithm with symbolic constant multiplier and Uniform"
+TestReparam(
+     Bind(Uniform(0,1), x, Ret(-alpha*log(x))),
+     GammaD(1,alpha),
+     equal &under fromLO,
+     ctx= [alpha > 0],
+     infolevels= [infinity$2],
+     label= "t5: Logarithm with symbolic constant multiplier and Uniform (passing)"
 );
