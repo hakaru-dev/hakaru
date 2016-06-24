@@ -66,6 +66,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , putLocs
     , insertLoc
     , adjustLoc
+    , mkLoc
     , freeLocError
     , apply
     ) where

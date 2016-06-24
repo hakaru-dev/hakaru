@@ -692,11 +692,13 @@ constrainVariable v0 x =
     -- return 'bot' for neutral terms
        maybe bot lookForLoc (lookupAssoc x locs)
     where lookForLoc (Loc      l jxs) =
+              let permutes is js = length is == length js && 
+                                   Set.fromList is == Set.fromList js
               -- If we get 'Nothing', then it turns out @l@ is a free location.
               -- This is an error because of the invariant:
               --   if there exists an 'Assoc x (Loc l _)' inside @locs@
               --   then there must be a statement on the 'ListContext' that binds @l@
-              (maybe (freeLocError l) return =<<) . select l $ \s ->
+              in (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
                     SBind l' e ixs -> do
                            Refl <- varEq l l'
@@ -717,11 +719,25 @@ constrainVariable v0 x =
                              constrainValue v0 e'
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SWeight _ _ -> Nothing
-                    SGuard ys pat scrutinee i ->
-                        error "TODO: constrainVariable{SGuard}"
-          lookForLoc (MultiLoc l js) = undefined -- TODO
-          permutes is js = length is == length js && 
-                           Set.fromList is == Set.fromList js
+                    SGuard ls' pat scrutinee i -> error "TODO: constrainVariable{SGuard}"
+          lookForLoc (MultiLoc l jxs) = do
+              let sizeInnermostInd :: (ABT Term abt) => Variable (a :: Hakaru) -> Dis abt (abt '[] HNat)
+                  sizeInnermostInd l =
+                      (maybe (freeLocError l) return =<<) . select l $ \s ->
+                      do guard (length (statementInds s) >= 1)
+                         case s of
+                           SBind l' _ ixs -> do Refl <- varEq l l'
+                                                Just $ return (indSize (head ixs))
+                           SLet  l' _ ixs -> do Refl <- varEq l l'
+                                                Just $ return (indSize (head ixs))
+                           SWeight _ _    -> Nothing
+                           SGuard _ _ _ _ -> error "TODO: sizeInnermostInd{SGuard}"
+              n    <- sizeInnermostInd l
+              j    <- freshInd n
+              x'   <- mkLoc Text.empty l (extendIndices j jxs)
+              inds <- getIndices
+              withIndices (extendIndices j inds) $
+                          constrainVariable (v0 P.! (var $ indVar j)) x'
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
