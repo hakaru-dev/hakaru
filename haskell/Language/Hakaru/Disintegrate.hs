@@ -484,7 +484,7 @@ statementVars (SStuff1 x _ _)   = singletonVarSet x
 -- 'ListContext' itself rather than recomputing it every time!
 getHeapVars :: Dis abt (VarSet ('KProxy :: KProxy Hakaru))
 getHeapVars =
-    Dis $ \c h -> c (foldMap statementVars (statements h)) h
+    Dis $ \_ c h -> c (foldMap statementVars (statements h)) h
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
