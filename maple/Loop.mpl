@@ -121,7 +121,7 @@ Loop := module ()
   end proc;
 
   unproducts := proc(w, x::name, loops::list(name=range), kb::t_kb, $)
-    local w0, pp, j, w1, w2, xx;
+    local w0, pp, j, w1, w2, loop;
     w0 := 1;
     pp := w;
     for j from nops(loops) to 1 by -1 do
@@ -129,7 +129,9 @@ Loop := module ()
       # separate out each of the factors in w1, as they might have different
       # variable dependencies, which can be exploited by other routines
       w2 := convert(w1, 'list', '`*`');
-      w2 := map[2](foldl, product, w2, op(j+1..-1, loops));
+      for loop in [op(j+1..-1, loops)] do
+        w2 := map((w -> product(eval(w, x=idx(x,lhs(loop))), loop)), w2);
+      end do;
       w0 := w0 * `*`(op(w2));
       # w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
     end do;
