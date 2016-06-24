@@ -700,19 +700,19 @@ constrainVariable v0 x =
                   case s of
                     SBind y e ixs -> do
                            Refl <- varEq x y
-                           guard (length ixs == length jxs) -- otherwise error
+                           guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
-                             guard (jxs `permutes` inds) -- otherwise bot
+                             guard (jxs `permutes` inds) -- will bot otherwise
                              e' <- apply (zip ixs inds) (fromLazy e)
                              constrainOutcome v0 e'
                              unsafePush (SLet x (Whnf_ (Neutral v0)) inds)
                     SLet  y e ixs -> do
                            Refl <- varEq x y
-                           guard (length ixs == length jxs) -- otherwise error
+                           guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
-                             guard (jxs `permutes` inds) -- otherwise bot
+                             guard (jxs `permutes` inds) -- will bot otherwise
                              e' <- apply (zip ixs inds) (fromLazy e)
                              constrainValue v0 e'
                              unsafePush (SLet x (Whnf_ (Neutral v0)) inds)
