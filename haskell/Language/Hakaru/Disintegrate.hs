@@ -696,7 +696,7 @@ constrainVariable v0 x =
               -- This is an error because of the invariant:
               --   if there exists an 'Assoc x (Loc l _)' inside @locs@
               --   then there must be a statement on the 'ListContext' that binds @l@
-              (maybe (freeLocError l) return =<<) . select x $ \s ->
+              (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
                     SBind y e ixs -> do
                            Refl <- varEq x y
