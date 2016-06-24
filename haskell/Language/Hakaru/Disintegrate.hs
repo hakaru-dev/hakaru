@@ -698,24 +698,24 @@ constrainVariable v0 x =
               --   then there must be a statement on the 'ListContext' that binds @l@
               (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
-                    SBind y e ixs -> do
-                           Refl <- varEq x y
+                    SBind l' e ixs -> do
+                           Refl <- varEq l l'
                            guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
                              guard (jxs `permutes` inds) -- will bot otherwise
                              e' <- apply (zip ixs inds) (fromLazy e)
                              constrainOutcome v0 e'
-                             unsafePush (SLet x (Whnf_ (Neutral v0)) inds)
-                    SLet  y e ixs -> do
-                           Refl <- varEq x y
+                             unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
+                    SLet  l' e ixs -> do
+                           Refl <- varEq l l'
                            guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
                              guard (jxs `permutes` inds) -- will bot otherwise
                              e' <- apply (zip ixs inds) (fromLazy e)
                              constrainValue v0 e'
-                             unsafePush (SLet x (Whnf_ (Neutral v0)) inds)
+                             unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SWeight _ _ -> Nothing
                     SGuard ys pat scrutinee i ->
                         error "TODO: constrainVariable{SGuard}"
