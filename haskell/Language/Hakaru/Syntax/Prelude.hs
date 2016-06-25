@@ -60,7 +60,7 @@ module Language.Hakaru.Syntax.Prelude
     , betaFunc
     , log, logBase
     , infinityNat
-    , negativeInfinity
+    , negativeInfinity, negativeInfinityNat
     -- *** Trig
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
     
@@ -627,13 +627,14 @@ integrate lo hi f =
     syn (Integrate :$ lo :* hi :* binder Text.empty sing f :* End)
 
 summate
-    :: (ABT Term abt)
-    => abt '[] 'HReal
-    -> abt '[] 'HReal
-    -> (abt '[] 'HInt -> abt '[] 'HProb)
-    -> abt '[] 'HProb
+    :: (ABT Term abt, HDiscrete_ a, HSemiring_ b, SingI a)
+    => abt '[] a
+    -> abt '[] a
+    -> (abt '[] a -> abt '[] b)
+    -> abt '[] b
 summate lo hi f =
-    syn (Summate :$ lo :* hi :* binder Text.empty sing f :* End)
+    syn (Summate hDiscrete hSemiring
+         :$ lo :* hi :* binder Text.empty sing f :* End)
 
 
 -- HACK: we define this class in order to gain more polymorphism;
@@ -896,6 +897,10 @@ unsafeProbSemiring_ HSemiring_Real = unsafeProb
 negativeInfinity :: (ABT Term abt) => abt '[] 'HReal
 negativeInfinity = negate infinity
 
+negativeInfinityNat :: (ABT Term abt) => abt '[] 'HInt
+negativeInfinityNat = negative infinityNat
+
+
 -- instance (ABT Term abt) => Lambda abt where
 -- 'app' already defined
 
@@ -990,8 +995,8 @@ sumV = reduce (+) zero -- equivalent to summateV if @a ~ 'HProb@
 
 summateV :: (ABT Term abt) => abt '[] ('HArray 'HProb) -> abt '[] 'HProb
 summateV x =
-    summate (real_ 0) (fromInt $ nat2int (size x) - int_ 1)
-        (\i -> x ! unsafeFrom_ signed i)
+    summate (nat_ 0) (unsafeMinusNat (size x) (nat_ 1))
+        (\i -> x ! i)
 
 -- TODO: a variant of 'if_' for giving us evidence that the subtraction is sound.
 

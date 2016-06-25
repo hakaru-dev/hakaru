@@ -159,7 +159,7 @@ flattenSCon MBind           = \(x :* y :* End)      -> error "TODO: flattenSCon:
 flattenSCon Plate           = \(x :* y :* End)      -> error "TODO: flattenSCon: Plate"
 flattenSCon Chain           = \(x :* y :* z :* End) -> error "TODO: flattenSCon: Chain"
 flattenSCon Integrate       = error "TODO: flattenSCon: Integrate"
-flattenSCon Summate         = error "TODO: flattenSCon: Summate"
+flattenSCon (Summate _ _)   = error "TODO: flattenSCon: Summate"
 flattenSCon Expect          = error "TODO: flattenSCon: Expect"
 flattenSCon Observe         = error "TODO: flattenSCon: Observe"
 

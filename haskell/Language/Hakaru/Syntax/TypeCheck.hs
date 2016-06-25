@@ -59,7 +59,8 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
     , hRing_Sing, sing_HRing, hFractional_Sing, sing_HFractional
-    , HIntegrable(..), sing_HIntegrable
+    , HDiscrete, hDiscrete_Sing
+    , HIntegrable(..)
     , HRadical(..), HContinuous(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
@@ -562,11 +563,14 @@ inferType = inferType_
                syn (Integrate :$ e1' :* e2' :* e3' :* End)
 
     U.Summate_ x e1 e2 e3 -> do
-        e1' <- checkType_ SReal e1
-        e2' <- checkType_ SReal e2
-        e3' <- checkBinder (makeVar x SInt) SProb e3
-        return . TypedAST SProb $ 
-               syn (Summate :$ e1' :* e2' :* e3' :* End)
+        TypedAST typ1 e1' <- inferType e1
+        e2' <- checkType_ typ1 e2
+        inferBinder (makeVar x typ1) e3 $ \typ2 e3' ->
+            case (hDiscrete_Sing typ1, hSemiring_Sing typ2) of
+              (Just h1, Just h2) ->
+                  return . TypedAST typ2 $ 
+                         syn (Summate h1 h2 :$ e1' :* e2' :* e3' :* End)
+              _                  -> failwith "Summate given bounds which are not discrete"
 
     U.Expect_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1

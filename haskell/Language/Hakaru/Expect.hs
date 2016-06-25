@@ -38,6 +38,7 @@ import           Control.Monad
 
 import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..), Functor11(..))
 import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT
@@ -260,15 +261,17 @@ emitIntegrate lo hi =
         syn (Integrate :$ lo :* hi :* c :* End))
 -}
 
+-- Needs to be more polymorphic
 pushSummate
     :: (ABT Term abt)
-    => abt '[] 'HReal
-    -> abt '[] 'HReal
+    => abt '[] 'HInt
+    -> abt '[] 'HInt
     -> Expect abt (Variable 'HInt)
 pushSummate lo hi = do
     x <- freshVar Text.empty SInt
     unsafePush (SStuff1 x (\c ->
-        syn (Summate :$ lo :* hi :* bind x c :* End)) [])
+        syn (Summate hDiscrete hSemiring
+             :$ lo :* hi :* bind x c :* End)) [])
     return x
 {-
 -- BUG: we assume the arguments are emissible!
@@ -304,7 +307,7 @@ expectMeasureOp
 expectMeasureOp Lebesgue = \End ->
     var <$> pushIntegrate P.negativeInfinity P.infinity
 expectMeasureOp Counting = \End ->
-    var <$> pushSummate P.negativeInfinity P.infinity
+    var <$> pushSummate P.negativeInfinityNat (P.nat2int P.infinityNat)
 expectMeasureOp Categorical = \(ps :* End) -> do
     ps' <- var <$> pushLet ps
     tot <- var <$> pushLet (P.summateV ps')
@@ -347,7 +350,7 @@ expectMeasureOp Normal = \(mu :* sd :* End) -> do
 expectMeasureOp Poisson = \(l :* End) -> do
     l' <- var <$> pushLet l
     unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< l') c P.zero) [])
-    x  <- var <$> pushSummate P.zero P.infinity
+    x  <- var <$> pushSummate P.zero (P.nat2int P.infinityNat) -- TODO: Use Nats
     x_ <- var <$> pushLet (P.unsafeFrom_ signed x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
     unsafePush (SStuff0 (\c -> P.densityPoisson l' x_ P.* c) [])
     return x_

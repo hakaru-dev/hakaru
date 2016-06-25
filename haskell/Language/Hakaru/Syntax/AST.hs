@@ -666,8 +666,14 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     Integrate
         :: SCon '[ LC 'HReal, LC 'HReal, '( '[ 'HReal ], 'HProb) ] 'HProb
     -- TODO: the high and low bounds *should* be HInt. The only reason we use HReal is so that we can have infinite summations. Once we figure out a way to handle infinite bounds here, we can make the switch
+
     Summate
-        :: SCon '[ LC 'HReal, LC 'HReal, '( '[ 'HInt ], 'HProb) ] 'HProb
+        :: HDiscrete a
+        -> HSemiring b
+        -> SCon '[ LC a, LC a, '( '[ a ], b) ] b
+
+    -- Summate
+    --     :: SCon '[ LC 'HReal, LC 'HReal, '( '[ 'HInt ], 'HProb) ] 'HProb
 
 
     -- -- Internalized program transformations

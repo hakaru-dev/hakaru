@@ -238,7 +238,7 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
         , ppArg e2
         , toDoc $ parens True (ppBinder e3)
         ]
-ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
+ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "summate"
         [ ppArg e1
         , ppArg e2

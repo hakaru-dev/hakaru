@@ -525,7 +525,7 @@ constrainValue v0 e0 =
         App_  :$ _  :* _ :* End  -> error "TODO: disintegrate lambdas"
         Integrate :$ _ :* _ :* _ :* End ->
             error "TODO: disintegrate integration"
-        Summate   :$ _ :* _ :* _ :* End ->
+        Summate _ _ :$ _ :* _ :* _ :* End ->
             error "TODO: disintegrate integration"
 
 

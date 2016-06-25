@@ -190,7 +190,7 @@ mapleSCon Integrate = \(e1 :* e2 :* e3 :* End) ->
         . showString ".."
         . arg e2
         . showString "])"
-mapleSCon Summate = \(e1 :* e2 :* e3 :* End) ->
+mapleSCon (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
         showString "sum("
         . arg e3'

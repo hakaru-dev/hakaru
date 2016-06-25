@@ -39,6 +39,7 @@ import Language.Hakaru.Syntax.IClasses (Pair2(..), fst2, snd2)
 import Language.Hakaru.Syntax.Variable (varType)
 import Language.Hakaru.Syntax.ABT      (ABT, caseBind, paraABT)
 import Language.Hakaru.Types.DataKind  (Hakaru())
+import Language.Hakaru.Types.HClasses  (sing_HSemiring)
 import Language.Hakaru.Types.Sing      (Sing(..), sUnMeasure)
 import Language.Hakaru.Types.Coercion
     (singCoerceCod, singCoerceDom, Coerce(..))
@@ -160,7 +161,7 @@ getTermSing singify = go
     go (MBind  :$ _  :* r2 :* End)  = getSing r2
     go (Plate  :$ _  :* r2 :* End)  = SMeasure . SArray . sUnMeasure <$> getSing r2
     go (Integrate :$  _)            = return SProb
-    go (Summate :$  _)              = return SProb
+    go (Summate _ h :$  _)          = return $ sing_HSemiring h
     go (Expect :$  _)               = return SProb
     go (Observe :$ r1 :* _ :* End)  = getSing r1
     go (NaryOp_  o  _)              = return $ sing_NaryOp o

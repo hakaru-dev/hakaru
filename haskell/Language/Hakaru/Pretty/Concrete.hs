@@ -268,7 +268,7 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     , PP.nest 1 (toDoc body)
     ]
 
-ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
+ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     let (vars, types, body) = ppBinder2 e3 in
     [ PP.text "summate"
       <+> toDoc vars
