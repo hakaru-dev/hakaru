@@ -148,6 +148,7 @@ testMeasureInt :: Test
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
     , "t75'" ~: testStriv t75'
+    , "t83"  ~: testSStriv [t83] t83'
     -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
     , "exceptionCounting" ~: testSStriv [] (counting >>= \x ->
                                             if_ (x == (int_ 3))
@@ -834,6 +835,14 @@ t82 = lam (densityUniform zero one)
 
 t82' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
 t82' = lam $ \x -> one 
+
+t83 :: (ABT Term abt) => abt '[] ('HNat ':-> 'HMeasure 'HNat)
+t83 = lam $ \k ->
+      plate k (\_ -> dirac (nat_ 1)) >>= \x ->
+      dirac (size x)
+
+t83' :: (ABT Term abt) => abt '[] ('HNat ':-> 'HMeasure 'HNat)
+t83' = lam dirac
 
 -- Testing round-tripping of some other distributions
 testexponential :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
