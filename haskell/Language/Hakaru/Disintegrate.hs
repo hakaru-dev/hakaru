@@ -513,7 +513,13 @@ constrainValue v0 e0 =
         case t of
         -- There's a bunch of stuff we don't even bother trying to handle
         Empty_   _               -> error "TODO: disintegrate arrays"
-        Array_   _ _             -> error "TODO: disintegrate arrays"
+        Array_   n e             ->
+            caseBind e $ \x body -> do j <- freshInd n                                            
+                                       let x'    = indVar j
+                                           body' = rename x x' body
+                                       inds <- getIndices
+                                       withIndices (extendIndices j inds) $
+                                                   constrainValue (v0 P.! (var x')) body'
         ArrayOp_ _ :$ _          -> error "TODO: disintegrate arrays"
         Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"
         App_  :$ _  :* _ :* End  -> error "TODO: disintegrate lambdas"
