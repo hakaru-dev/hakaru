@@ -520,6 +520,28 @@ constrainValue v0 e0 =
                                        inds <- getIndices
                                        withIndices (extendIndices j inds) $
                                                    constrainValue (v0 P.! (var x')) body'
+                                                   -- TODO use meta-index
+        ArrayOp_ (Index _) :$ e1 :* e2 :* End -> do
+          e <- evaluate_ e1
+          let kHead (WArray n body) = undefined -- TODO
+              kHead (WEmpty _) = undefined -- TODO
+              kHead  _ = error "unknown whnf of array type"              
+              kNeutral term = caseVarSyn term checkMultiLoc (const bot)
+              checkMultiLoc x = do
+                locs <- getLocs
+                case (lookupAssoc x locs) of
+                  Nothing              -> bot
+                  Just (Loc      _ _)  -> error "impossible: we have a Neutral term"
+                  Just (MultiLoc l js) -> do
+                    wi <- evaluate_ e2
+                    let indexMultiLoc i = do
+                          x' <- mkLoc Text.empty l (extendLocInds i js)
+                          constrainValue v0 (var x')                        
+                        neutralInd term = caseVarSyn term indexMultiLoc $
+                                          error "TODO: Index arr (Neutral (Syn _))"
+                    caseWhnf wi (error "TODO: Index arr (Head_ _)") neutralInd
+          caseWhnf e kHead kNeutral
+          
         ArrayOp_ _ :$ _          -> error "TODO: disintegrate arrays"
         Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"
         App_  :$ _  :* _ :* End  -> error "TODO: disintegrate lambdas"
@@ -699,7 +721,7 @@ constrainVariable v0 x =
        maybe bot lookForLoc (lookupAssoc x locs)
     where lookForLoc (Loc      l jxs) =
               let permutes is js = length is == length js && 
-                                   Set.fromList is == Set.fromList js
+                                   Set.fromList is == Set.fromList (map indVar js)
               -- If we get 'Nothing', then it turns out @l@ is a free location.
               -- This is an error because of the invariant:
               --   if there exists an 'Assoc x (Loc l _)' inside @locs@
@@ -727,23 +749,13 @@ constrainVariable v0 x =
                     SWeight _ _ -> Nothing
                     SGuard ls' pat scrutinee i -> error "TODO: constrainVariable{SGuard}"
           lookForLoc (MultiLoc l jxs) = do
-              let sizeInnermostInd :: (ABT Term abt) => Variable (a :: Hakaru) -> Dis abt (abt '[] HNat)
-                  sizeInnermostInd l =
-                      (maybe (freeLocError l) return =<<) . select l $ \s ->
-                      do guard (length (statementInds s) == 1 + length jxs)
-                         case s of
-                           SBind l' _ ixs -> do Refl <- varEq l l'
-                                                Just $ return (indSize (head ixs))
-                           SLet  l' _ ixs -> do Refl <- varEq l l'
-                                                Just $ return (indSize (head ixs))
-                           SWeight _ _    -> Nothing
-                           SGuard _ _ _ _ -> error "TODO: sizeInnermostInd{SGuard}"
               n    <- sizeInnermostInd l
               j    <- freshInd n
-              x'   <- mkLoc Text.empty l (extendIndices j jxs)
+              x'   <- mkLoc Text.empty l (extendLocInds (indVar j) jxs)
               inds <- getIndices
               withIndices (extendIndices j inds) $
                           constrainVariable (v0 P.! (var $ indVar j)) x'
+                                            -- TODO use meta-index
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first

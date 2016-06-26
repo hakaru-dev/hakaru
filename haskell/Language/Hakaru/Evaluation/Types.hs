@@ -477,7 +477,7 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
-data Index ast = Ind (Variable 'HNat) (ast 'HNat) 
+data Index ast = Ind (Variable 'HNat) (ast 'HNat)
 
 instance (ABT Term abt) => Eq (Index (abt '[])) where
     Ind i1 s1 == Ind i2 s2 = i1 == i2 && (alphaEq s1 s2)
