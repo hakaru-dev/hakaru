@@ -212,9 +212,9 @@ allTests = test
     , testDis "testDisintegrate1a" norm1a
     , testDis "testDisintegrate1b" norm1b
     , testDis "testDisintegrate1c" norm1c
-    -- , assertAlphaEq "testDisintegrate0b" norm0' (head testDisintegrate0b)
-    -- , assertAlphaEq "testDisintegrate0c" norm0' (head testDisintegrate0c)
-    -- , assertAlphaEq "testDisintegrate0a" norm0' (head testDisintegrate0a)
+    -- , assertAlphaEq "testDisintegrate0b" (head testDisintegrate0b) norm0'
+    -- , assertAlphaEq "testDisintegrate0c" (head testDisintegrate0c) norm0'
+    -- , assertAlphaEq "testDisintegrate0a" (head testDisintegrate0a) norm0'
     , testWithConcrete' match_norm_unif LaxMode $ \(TypedAST _typ ast) ->
         case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
         Just Refl -> testDis "testMatchNormUnif" ast
