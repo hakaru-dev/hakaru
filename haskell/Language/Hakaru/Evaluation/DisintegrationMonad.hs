@@ -132,8 +132,6 @@ residualizeListContext ss rho e0 =
     -- statements is the one closest to the hole.
     foldl step (substs rho e0) (statements ss)
     where
-    -- rho :: Assocs (abt '[])
-    -- rho = emptyAssocs
     step
         :: abt '[] ('HMeasure a)
         -> Statement abt 'Impure
