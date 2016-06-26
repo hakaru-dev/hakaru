@@ -112,7 +112,7 @@ getStatements = Dis $ \_ c h -> c (statements h) h
 
 putStatements :: [Statement abt 'Impure] -> Dis abt ()
 putStatements ss =
-    Dis $ \_ c h@(ListContext i _) loc ->
+    Dis $ \_ c (ListContext i _) loc ->
         c () (ListContext i ss) loc
 
 ----------------------------------------------------------------
@@ -124,15 +124,16 @@ residualizeListContext
     :: forall abt a
     .  (ABT Term abt)
     => ListContext abt 'Impure
+    -> Assocs (abt '[])
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-residualizeListContext ss e0 =
+residualizeListContext ss rho e0 =
     -- N.B., we use a left fold because the head of the list of
     -- statements is the one closest to the hole.
     foldl step (substs rho e0) (statements ss)
     where
-    rho :: Assocs (abt '[])
-    rho = emptyAssocs
+    -- rho :: Assocs (abt '[])
+    -- rho = emptyAssocs
     step
         :: abt '[] ('HMeasure a)
         -> Statement abt 'Impure
@@ -227,11 +228,12 @@ runDis :: (ABT Term abt, F.Foldable f)
     => Dis abt (abt '[] a)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
-runDis (Dis m) es =
-    m [] c0 (ListContext i0 []) emptyAssocs
+runDis d es =
+    m0 [] c0 (ListContext i0 []) emptyAssocs
     where
+    (Dis m0) = d >>= residualizeLocs
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
-    c0 e ss _ = [residualizeListContext ss (syn(Dirac :$ e :* End))]
+    c0 (e,rho) ss _ = [residualizeListContext ss rho (syn(Dirac :$ e :* End))]
                   
     i0 = maxNextFree es
 
@@ -338,7 +340,7 @@ reifyStatement   (SGuard _ _ _ _)      = error "undefined: case statement under 
                                          
 sizeInnermostInd :: (ABT Term abt)
                  => Variable (a :: Hakaru)
-                 -> Dis abt (abt '[] HNat)
+                 -> Dis abt (abt '[] 'HNat)
 sizeInnermostInd l =
     (maybe (freeLocError l) return =<<) . select l $ \s ->
         do guard (length (statementInds s) >= 1)
