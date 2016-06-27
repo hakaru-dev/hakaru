@@ -293,6 +293,10 @@ residualizeLocs :: forall a abt. (ABT Term abt)
 residualizeLocs e = do
   ss <- getStatements
   (ss',newlocs) <- foldM step ([], emptyAssocs) ss
+#ifdef __TRACE_DISINTEGRATE__
+  trace ("residualizeLocs: old:\n" ++ show (pretty_Statements ss )) $ return ()
+  trace ("residualizeLocs: new:\n" ++ show (pretty_Statements ss')) $ return ()
+#endif
   putStatements (reverse ss')
   rho <- convertLocs newlocs
   return (e, rho)
