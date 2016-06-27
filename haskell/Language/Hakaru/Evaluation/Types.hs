@@ -659,6 +659,15 @@ pretty_Statements_withTerm
     :: (ABT Term abt) => [Statement abt p] -> abt '[] a -> PP.Doc
 pretty_Statements_withTerm ss e =
     pretty_Statements ss PP.$+$ pretty e
+
+prettyAssocs
+    :: (ABT Term abt)
+    => Assocs (abt '[])
+    -> PP.Doc
+prettyAssocs a = PP.vcat $ map go (fromAssocs a)
+  where go (Assoc x e) = ppVariable x PP.<+>
+                         PP.text "->" PP.<+>
+                         pretty e
 #endif
 
 ----------------------------------------------------------------
