@@ -49,6 +49,7 @@ module Language.Hakaru.Evaluation.Types
     , ppStatement
     , pretty_Statements
     , pretty_Statements_withTerm
+    , prettyAssocs
 #endif
     , EvaluationMonad(..)
     , freshVar
