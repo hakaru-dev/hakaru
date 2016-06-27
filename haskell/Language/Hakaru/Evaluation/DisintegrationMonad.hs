@@ -71,6 +71,10 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , mkLoc
     , freeLocError
     , apply
+#ifdef __TRACE_DISINTEGRATE__
+    , prettyLoc
+    , prettyLocs
+#endif    
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -101,10 +105,12 @@ import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
-import Language.Hakaru.Evaluation.Lazy (reifyPair)
+import Language.Hakaru.Evaluation.Lazy (reifyPair)    
 
 #ifdef __TRACE_DISINTEGRATE__
-import Debug.Trace (trace)
+import Debug.Trace (trace,traceM)
+import qualified Text.PrettyPrint     as PP
+import Language.Hakaru.Pretty.Haskell hiding (ppList) 
 #endif
 
 getStatements :: Dis abt [Statement abt 'Impure]
@@ -176,6 +182,22 @@ locIndices (MultiLoc  _ inds) = inds
 
 extendLocInds :: Variable 'HNat -> [Variable 'HNat] -> [Variable 'HNat]
 extendLocInds = (:)
+
+#ifdef __TRACE_DISINTEGRATE__
+      
+prettyLoc :: Loc ast (a :: Hakaru) -> PP.Doc
+prettyLoc (Loc l inds) = PP.text "Loc" PP.<+> ppVariable l
+                         PP.<+> ppList (map ppVariable inds)
+
+prettyLocs :: (ABT Term abt)
+           => Assocs (Loc (abt '[]))
+           -> PP.Doc
+prettyLocs a = PP.vcat $ map go (fromAssocs a)
+  where go (Assoc x l) = ppVariable x PP.<+>
+                         PP.text "->" PP.<+>
+                         prettyLoc l
+
+#endif                           
 
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that
@@ -293,12 +315,15 @@ residualizeLocs :: forall a abt. (ABT Term abt)
 residualizeLocs e = do
   ss <- getStatements
   (ss',newlocs) <- foldM step ([], emptyAssocs) ss
+  putStatements (reverse ss')
+  rho <- convertLocs newlocs
 #ifdef __TRACE_DISINTEGRATE__
   trace ("residualizeLocs: old:\n" ++ show (pretty_Statements ss )) $ return ()
   trace ("residualizeLocs: new:\n" ++ show (pretty_Statements ss')) $ return ()
+  locs <- getLocs
+  traceM ("oldlocs:\n" ++ show (prettyLocs locs) ++ "\n")
+  traceM ("new assoc for renaming:\n" ++ show (prettyAssocs rho))
 #endif
-  putStatements (reverse ss')
-  rho <- convertLocs newlocs
   return (e, rho)
     where
       step :: (ABT Term abt)

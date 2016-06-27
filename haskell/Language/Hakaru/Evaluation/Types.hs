@@ -46,6 +46,7 @@ module Language.Hakaru.Evaluation.Types
     , Purity(..), Statement(..), isBoundBy
     , Index, indVar, indSize
 #ifdef __TRACE_DISINTEGRATE__
+    , ppList
     , ppStatement
     , pretty_Statements
     , pretty_Statements_withTerm
@@ -676,6 +677,7 @@ prettyAssocs a = PP.vcat $ map go (fromAssocs a)
   where go (Assoc x e) = ppVariable x PP.<+>
                          PP.text "->" PP.<+>
                          pretty e
+                                
 #endif
 
 ----------------------------------------------------------------

@@ -319,7 +319,9 @@ perform :: forall abt. (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform = \e0 ->
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
+    getLocs >>= \locs -> 
     trace ("\n-- perform --\n"
+        ++ show (prettyLocs locs) ++ "\n"
         ++ show (pretty_Statements_withTerm ss e0)
         ++ "\n") $
 #endif
@@ -505,9 +507,11 @@ constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
+    getLocs >>= \locs -> 
     trace ("\n-- constrainValue: " ++ show (pretty v0) ++ "\n"
-        ++ show (pretty_Statements_withTerm ss e0)
-        ++ "\n") $
+        ++ show (pretty_Statements_withTerm ss e0) ++ "\n"
+        ++ show (prettyLocs locs) ++ "\n"
+          ) $
 #endif
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
@@ -1116,12 +1120,15 @@ constrainOutcome
     -> Dis abt ()
 constrainOutcome v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
+    getLocs >>= \locs ->
     trace (
         let s = "-- constrainOutcome"
         in "\n" ++ s ++ ": "
             ++ show (pretty v0)
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
-            ++ show (pretty e0)) $
+            ++ show (pretty e0) ++ "\n"
+            ++ show (prettyLocs locs)
+          ) $
 #endif
     do  w0 <- evaluate_ e0
         case w0 of
