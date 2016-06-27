@@ -108,9 +108,9 @@ import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 import Language.Hakaru.Evaluation.Lazy (reifyPair)    
 
 #ifdef __TRACE_DISINTEGRATE__
-import Debug.Trace (trace,traceM)
+import Debug.Trace (trace, traceM)
 import qualified Text.PrettyPrint     as PP
-import Language.Hakaru.Pretty.Haskell hiding (ppList) 
+import Language.Hakaru.Pretty.Haskell (ppVariable) 
 #endif
 
 getStatements :: Dis abt [Statement abt 'Impure]
