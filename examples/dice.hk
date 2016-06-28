@@ -1,0 +1,14 @@
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from 0 to i:
+                   as[j], as[i+1])
+    return array i of size(as):
+             x = product j from i to int2nat(size(as)-2): xs[j]
+             if i==0: x else: x*real2prob(1-xs[int2nat(i-1)])
+
+fn t array(array(nat)):
+  fn n nat:
+    plate k of n:
+      ps <~ dirichlet(array i of 5: 1.0)
+      weight(product i from 0 to int2nat(size(ps)-1):
+               ps[i]^t[k][i], return ps)
