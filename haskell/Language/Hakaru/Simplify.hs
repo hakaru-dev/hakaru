@@ -71,10 +71,10 @@ simplify
     => abt '[] a
     -> IO (abt '[] a)
 simplify e = do
-    let slo = Maple.pretty e
     let typ = typeOf e          
-    hakaru <- maple ("use Hakaru, NewSLO in timelimit(30, RoundTrip("
-      ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;")
+    let slo = "use Hakaru, NewSLO in timelimit(30, RoundTrip(" ++
+              Maple.pretty e ++ ", " ++ Maple.mapleType typ ")) end use;"
+    hakaru <- maple slo
     either (throw  . MapleException slo)
            (return . constantPropagation) $ do
         past <- leftShow $ parseMaple (pack hakaru)
