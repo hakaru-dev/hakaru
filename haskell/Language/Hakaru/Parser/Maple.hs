@@ -107,6 +107,7 @@ data ArgOp
     | Func  | ExpSeq | Sum_
     | Prod_ | Less   | Equal
     | And_  | Range  | List
+    | NotEq
     deriving (Eq, Show)
 
 data InertExpr
@@ -234,6 +235,12 @@ equal =
     <$> (text "_Inert_EQUATION" *> return Equal)
     <*> arg expr
 
+noteq :: Parser InertExpr
+noteq =
+    InertArgs
+    <$> (text "_Inert_INEQUAT" *> return NotEq)
+    <*> arg expr
+
 expr :: Parser InertExpr
 expr =  try func
     <|> try name
@@ -244,6 +251,7 @@ expr =  try func
     <|> try lessthan
     <|> try lesseq
     <|> try equal
+    <|> try noteq
     <|> try expseq
     <|> try intpos
     <|> try intneg
@@ -419,6 +427,9 @@ maple2AST (InertArgs Less es)  =
 
 maple2AST (InertArgs Equal es) =
     foldl App (Var "equal") (map maple2AST es)
+
+maple2AST (InertArgs NotEq es) =
+    App (Var "not") (foldl App (Var "equal") (map maple2AST es))
 
 maple2AST (InertArgs Power [x, InertNum Pos y]) =
     App (App (Var "^")  (maple2AST x)) (maple2AST (InertNum Pos y))
