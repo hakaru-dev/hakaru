@@ -44,7 +44,7 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Equality and ordering
     , (==), (/=), (<), (<=), (>), (>=), min, minimum, max, maximum
     -- ** Semirings
-    , zero, zero_, one, one_, (+), sum, (*), product, (^), square
+    , zero, zero_, one, one_, (+), sum, (*), prod, (^), square
     , unsafeMinusNat, unsafeMinusProb, unsafeMinus, unsafeMinus_
     , unsafeDiv, unsafeDiv_
     -- ** Rings
@@ -54,7 +54,7 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Radical
     , sqrt, thRootOf
     -- ** Integration
-    , integrate, summate
+    , integrate, summate, product
     -- ** Continuous
     , RealProb(..)
     , betaFunc
@@ -469,9 +469,9 @@ one_  HSemiring_Real = literal_ $ LReal 1
 
 -- TODO: add a smart constructor for @HSemiring_ a => Natural -> abt '[] a@ and\/or @HRing_ a => Integer -> abt '[] a@
 
-sum, product :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
-sum     = naryOp_withIdentity (Sum  hSemiring) zero
-product = naryOp_withIdentity (Prod hSemiring) one
+sum, prod :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
+sum  = naryOp_withIdentity (Sum  hSemiring) zero
+prod = naryOp_withIdentity (Prod hSemiring) one
 
 {-
 sum, product :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
@@ -634,6 +634,16 @@ summate
     -> abt '[] b
 summate lo hi f =
     syn (Summate hDiscrete hSemiring
+         :$ lo :* hi :* binder Text.empty sing f :* End)
+
+product
+    :: (ABT Term abt, HDiscrete_ a, HSemiring_ b, SingI a)
+    => abt '[] a
+    -> abt '[] a
+    -> (abt '[] a -> abt '[] b)
+    -> abt '[] b
+product lo hi f =
+    syn (Product hDiscrete hSemiring
          :$ lo :* hi :* binder Text.empty sing f :* End)
 
 

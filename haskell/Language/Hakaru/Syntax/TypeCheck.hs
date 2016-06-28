@@ -59,7 +59,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
     , hRing_Sing, sing_HRing, hFractional_Sing, sing_HFractional
-    , HDiscrete, hDiscrete_Sing
+    , hDiscrete_Sing
     , HIntegrable(..)
     , HRadical(..), HContinuous(..))
 import Language.Hakaru.Syntax.ABT
@@ -179,6 +179,7 @@ mustCheck = go
     go (U.MeasureOp_ _ _)      = False
     go (U.Integrate_  _ _ _ _) = False
     go (U.Summate_    _ _ _ _) = False
+    go (U.Product_    _ _ _ _) = False
     go U.Reject_               = True
     go (U.Expect_ _ _ e2)      = mustCheck e2
     go (U.Observe_ e1  _)      = mustCheck e1
@@ -571,6 +572,16 @@ inferType = inferType_
                   return . TypedAST typ2 $ 
                          syn (Summate h1 h2 :$ e1' :* e2' :* e3' :* End)
               _                  -> failwith "Summate given bounds which are not discrete"
+
+    U.Product_ x e1 e2 e3 -> do
+        TypedAST typ1 e1' <- inferType e1
+        e2' <- checkType_ typ1 e2
+        inferBinder (makeVar x typ1) e3 $ \typ2 e3' ->
+            case (hDiscrete_Sing typ1, hSemiring_Sing typ2) of
+              (Just h1, Just h2) ->
+                  return . TypedAST typ2 $ 
+                         syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
+              _                  -> failwith "Product given bounds which are not discrete"
 
     U.Expect_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1

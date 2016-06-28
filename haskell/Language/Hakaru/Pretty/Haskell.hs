@@ -41,7 +41,6 @@ import           Data.Ratio
 import           Text.PrettyPrint (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint   as PP
 import qualified Data.Foldable      as F
-import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as L
 import qualified Data.Text          as Text
 import qualified Data.Sequence      as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
@@ -181,7 +180,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                  ]
         Superpose_ pes ->
             case pes of
-            (e1,e2) :| [] ->
+            (e1,e2) L.:| [] ->
                 -- Or we could print it as @weight e1 *> e2@ excepting that has an extra redex in it compared to the AST itself.
                 ppFun 11 "pose"
                     [ ppArg e1 <+> PP.char '$'
@@ -240,6 +239,13 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
         ]
 ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "summate"
+        [ ppArg e1
+        , ppArg e2
+        , toDoc $ parens True (ppBinder e3)
+        ]
+
+ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
+    ppFun p "product"
         [ ppArg e1
         , ppArg e2
         , toDoc $ parens True (ppBinder e3)
