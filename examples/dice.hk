@@ -7,8 +7,7 @@ def dirichlet(as array(prob)):
              if i==0: x else: x*real2prob(1-xs[int2nat(i-1)])
 
 fn t array(array(nat)):
-  fn n nat:
-    plate k of n:
+    plate k of size(t):
       ps <~ dirichlet(array i of 5: 1.0)
       weight(product i from 0 to int2nat(size(ps)-1):
                ps[i]^t[k][i], return ps)
