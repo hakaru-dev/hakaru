@@ -259,6 +259,42 @@ evaluateSCon Chain (n :* s :* e :* End) env =
             (Et (Konst b) Done))))) = (a, b)
     unPair x = case x of {}
 
+evaluateSCon (Summate _ hs) (e1 :* e2 :* e3 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+    (VNat lo, VNat hi) ->
+        caseBind e3 $ \x e3' ->
+            foldl (\t i ->
+                   evalOp (Sum  hs) t $
+                     evaluate e3' (updateEnv (EAssoc x (VNat i)) env))
+                  (identityElement $ Sum hs)
+                  [lo .. hi]
+    (VInt lo, VInt hi) ->
+        caseBind e3 $ \x e3' ->
+            foldl (\t i ->
+                   evalOp (Sum  hs) t $
+                     evaluate e3' (updateEnv (EAssoc x (VInt i)) env))
+                  (identityElement $ Sum hs)
+                  [lo .. hi]
+    v                        -> case v of {}
+
+evaluateSCon (Product _ hs) (e1 :* e2 :* e3 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+    (VNat lo, VNat hi) ->
+        caseBind e3 $ \x e3' ->
+            foldl (\t i ->
+                   evalOp (Prod hs) t $
+                     evaluate e3' (updateEnv (EAssoc x (VNat i)) env))
+                  (identityElement $ Prod hs)
+                  [lo .. hi]
+    (VInt lo, VInt hi) ->
+        caseBind e3 $ \x e3' ->
+            foldl (\t i ->
+                   evalOp (Prod hs) t $
+                     evaluate e3' (updateEnv (EAssoc x (VInt i)) env))
+                  (identityElement $ Prod hs)
+                  [lo .. hi]
+    v                        -> case v of {}
+
 evaluateSCon s _ _ = error $ "TODO: evaluateSCon{" ++ show s ++ "}"
 
 evaluatePrimOp
