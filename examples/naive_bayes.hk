@@ -1,17 +1,11 @@
 ## Supervised Naive Bayes
-def sum_(a array(prob)):
-    summate i from 0 to size(a)-1:
-        a[int2nat(i)]
-
-def normalize(x array(prob)):
-    total = sum_(x)
-    array i of size(x):
-       x[i] / total
-
-def dirichlet(a array(prob)):
-    x <~ plate i of size(a):
-           gamma(a[i], 1)
-    return normalize(x)
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from 0 to i:
+                   as[j], as[i+1])
+    return array i of size(as):
+             x = product j from i to int2nat(size(as)-2): xs[j]
+             if i==0: x else: x*real2prob(1-xs[int2nat(i-1)])
 
 def naive_bayes( K nat
                , V nat
