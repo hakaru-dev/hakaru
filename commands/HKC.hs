@@ -11,8 +11,6 @@ import Language.Hakaru.CodeGen.Wrapper
 import Control.Monad.Reader
 import Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
-import System.Environment
-
 import Options.Applicative
 
 data Options = Options { debug    :: Bool
