@@ -100,10 +100,10 @@ simplifyDebug e = do
     let typ  = typeOf e
     let sent = "use Hakaru, NewSLO in timelimit(30, RoundTrip("
                ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;"
-    hPutStrLn stderr ("Sent to Maple: " ++ sent)
+    hPutStrLn stderr ("Sent to Maple:\n" ++ sent)
     hakaru <- maple sent
     ret    <- maple ("FromInert(" ++ hakaru ++ ")")
-    hPutStrLn stderr ("Returning from Maple: " ++ ret)
+    hPutStrLn stderr ("Returning from Maple:\n" ++ ret)
 
     either (throw  . MapleException slo)
            (return . constantPropagation) $ do
