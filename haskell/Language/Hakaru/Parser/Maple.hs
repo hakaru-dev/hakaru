@@ -74,6 +74,7 @@ symTable =
     , ("Not",         "not")
     , ("Pi",          "pi")
     , ("ln",          "log")
+    , ("Beta",        "betaFunc")
     , ("GAMMA",       "gammaFunc")
     , ("csgn",        "signum")
     -- Type symbols

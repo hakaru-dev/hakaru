@@ -8,6 +8,6 @@ def dirichlet(as array(prob)):
 
 fn t array(array(nat)):
     plate k of size(t):
-      ps <~ dirichlet(array i of 5: 1.0)
+      ps <~ dirichlet(array i of size(t[k]): 1.0)
       weight(product i from 0 to int2nat(size(ps)-1):
                ps[i]^t[k][i], return ps)
