@@ -527,8 +527,15 @@ constrainValue v0 e0 =
                                                    -- TODO use meta-index
         ArrayOp_ (Index _) :$ e1 :* e2 :* End -> do
           e <- evaluate_ e1
-          let kHead (WArray n body) = undefined -- TODO
-              kHead (WEmpty _) = undefined -- TODO
+          let neutralSynIndErr = error "TODO: constrainValue (Index arr (Neutral (Syn _)))"
+              checkIfInd v = do inds <- getIndices
+                                return $ v `elem` map indVar inds
+              kHead (WArray n b) = caseBind b $ \x body -> 
+                do wi <- evaluate_ e2
+                   caseWhnf wi (const bot) $ \term ->
+                       flip (caseVarSyn term) (const bot) $ \v ->
+                             do checkIfInd v >>= guard >> constrainValue v0 (rename x v body)
+              kHead (WEmpty _) = error "TODO: constrainValue (Index Empty_ _)"
               kHead  _ = error "unknown whnf of array type"              
               kNeutral term = caseVarSyn term checkMultiLoc (const bot)
               checkMultiLoc x = do
@@ -539,11 +546,11 @@ constrainValue v0 e0 =
                   Just (MultiLoc l js) -> do
                     wi <- evaluate_ e2
                     let indexMultiLoc i = do
+                          checkIfInd i >>= guard
                           x' <- mkLoc Text.empty l (extendLocInds i js)
-                          constrainValue v0 (var x')                        
-                        neutralInd term = caseVarSyn term indexMultiLoc $
-                                          error "TODO: Index arr (Neutral (Syn _))"
-                    caseWhnf wi (error "TODO: Index arr (Head_ _)") neutralInd
+                          constrainValue v0 (var x')
+                    caseWhnf wi (const bot) $ \term ->
+                        caseVarSyn term indexMultiLoc (const bot)
           caseWhnf e kHead kNeutral
           
         ArrayOp_ _ :$ _          -> error "TODO: disintegrate arrays"
