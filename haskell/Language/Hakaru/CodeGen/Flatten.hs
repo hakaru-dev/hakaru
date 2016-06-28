@@ -78,7 +78,7 @@ flattenNAryOp :: ABT Term abt
               => NaryOp a
               -> Seq (abt '[] b)
               -> CStat
-flattenNAryOp op args = 
+flattenNAryOp op args =
   let flattenedArgs = F.foldr (\a c -> flattenABT (builtinIdent "foo") a : c) [] args
       flattenedOp   = F.foldr (\x y -> CBinary (flattenOp op) x y node)
                               (CConst (unitOp op))
@@ -87,27 +87,28 @@ flattenNAryOp op args =
 
 
 flattenOp :: NaryOp a -> CBinaryOp
-flattenOp (Sum HSemiring_Nat) = CAddOp
-flattenOp (Sum HSemiring_Int) = CAddOp
+flattenOp And      = CAndOp
+flattenOp (Sum _)  = CAddOp
+flattenOp (Prod _) = CMulOp
+-- flattenOp (Min _)  = undefined
+-- flattenOp (Max _)  = undefined
 flattenOp _ = error "TODO: flattenOp"
 
-unitOp   :: NaryOp a -> CConstant NodeInfo
-unitOp    (Sum HSemiring_Nat) = CIntConst (cInteger 0) node
-unitOp    (Sum HSemiring_Int) = CIntConst (cInteger 0) node
-
--- identityElement And                   = VDatum dTrue
--- identityElement (Sum HSemiring_Nat)   = VNat  0
--- identityElement (Sum HSemiring_Int)   = VInt  0
--- identityElement (Sum HSemiring_Prob)  = VProb 0
--- identityElement (Sum HSemiring_Real)  = VReal 0
--- identityElement (Prod HSemiring_Nat)  = VNat  1
--- identityElement (Prod HSemiring_Int)  = VInt  1
--- identityElement (Prod HSemiring_Prob) = VProb 1
--- identityElement (Prod HSemiring_Real) = VReal 1
--- identityElement (Max  HOrd_Prob)      = VProb 0
--- identityElement (Max  HOrd_Real)      = VReal LF.negativeInfinity
--- identityElement (Min  HOrd_Prob)      = VProb (LF.logFloat LF.infinity)
--- identityElement (Min  HOrd_Real)      = VReal LF.infinity
+unitOp :: NaryOp a -> CConstant NodeInfo
+unitOp And                   = CIntConst (cInteger 1) node
+unitOp (Sum HSemiring_Nat)   = CIntConst (cInteger 0) node
+unitOp (Sum HSemiring_Int)   = CIntConst (cInteger 0) node
+-- unitOp (Sum HSemiring_Prob)  = VProb 0
+-- unitOp (Sum HSemiring_Real)  = VReal 0
+unitOp (Prod HSemiring_Nat)  = CIntConst (cInteger 1) node
+unitOp (Prod HSemiring_Int)  = CIntConst (cInteger 1) node
+unitOp _ = error "TODO: unitOp"
+-- unitOp (Prod HSemiring_Prob) = VProb 1
+-- unitOp (Prod HSemiring_Real) = VReal 1
+-- unitOp (Max  HOrd_Prob)      = VProb 0
+-- unitOp (Max  HOrd_Real)      = VReal LF.negativeInfinity
+-- unitOp (Min  HOrd_Prob)      = VProb (LF.logFloat LF.infinity)
+-- unitOp (Min  HOrd_Real)      = VReal LF.infinity
 
 flattenLiteral :: Literal a -> CStat
 flattenLiteral = let n           = undefNode
@@ -119,6 +120,8 @@ flattenLiteral = let n           = undefNode
                              x'  = (fromIntegral $ numerator rat) / (fromIntegral $ denominator rat)
                          in constExpr $ CFloatConst (cFloat x') -- losing precision
             (LReal x) -> constExpr $ CFloatConst (cFloat $ fromRational x)
+
+-- cProb ::
 
 
 empty_c :: a -> CStat
