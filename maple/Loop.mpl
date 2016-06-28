@@ -310,13 +310,13 @@ Loop := module ()
   csgnNew := proc(a)
     local r, i;
     # Handle if the csgn of a piecewise doesn't depend on which branch
-    if nargs=1 and a::'specfunc(piecewise)'
-       and (not assigned(_Envsignum0) or _Envsignum0 = 0) then
-      r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL), i=1..nops(a))}
-           minus {0};
-      if nops(r)=1 then
-        return op(r)
-      end if
+    if nargs=1 and a::'specfunc(piecewise)' then
+      r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL), i=1..nops(a))};
+      if nops(r)=1 then return op(r) end if;
+      if not assigned(_Envsignum0) then
+        r := r minus {0};
+        if nops(r)=1 then return op(r) end if;
+      end if;
     end if;
     # Handle if the csgn of a sum doesn't depend on the bound variable
     if nargs=1 and a::'And(specfunc({sum, Sum}),
