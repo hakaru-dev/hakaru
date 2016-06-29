@@ -761,12 +761,12 @@ update perform evaluate_ x =
                   Refl <- varEq l l'
                   Just $ do
                     w <- withIndices ixs $ perform (caseLazy e fromWhnf id)
-                    unsafePush (SLet l' (Whnf_ w) ixs)
+                    unsafePush (SLet l (Whnf_ w) ixs)
 #ifdef __TRACE_DISINTEGRATE__
                     trace ("-- updated "
                            ++ show (ppStatement 11 s)
                            ++ " to "
-                           ++ show (ppStatement 11 (SLet x (Whnf_ w) ixs))
+                           ++ show (ppStatement 11 (SLet l (Whnf_ w) ixs))
                           ) $ return ()
 #endif
                     let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
@@ -777,7 +777,7 @@ update perform evaluate_ x =
                   Refl <- varEq l l'
                   Just $ do
                     w <- withIndices ixs $ caseLazy e return evaluate_
-                    unsafePush (SLet x (Whnf_ w) ixs)
+                    unsafePush (SLet l (Whnf_ w) ixs)
                     let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
                         w' = renames as (fromWhnf w)
                     inds <- getIndices
