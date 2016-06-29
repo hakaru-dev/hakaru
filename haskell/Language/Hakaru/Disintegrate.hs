@@ -1285,6 +1285,10 @@ constrainVariable v0 x =
                            guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
+                             -- 2016-06-29
+                             -- one way to make helloworld produce
+                             -- a disintegration right now is to
+                             -- not do this permutation check
                              guard (jxs `permutes` inds) -- will bot otherwise
                              e' <- apply (zip ixs inds) (fromLazy e)
                              constrainOutcome v0 e'
