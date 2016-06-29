@@ -1271,7 +1271,7 @@ constrainVariable v0 x =
                            Just $ do
                              inds <- getIndices
                              guard (jxs `permutes` inds) -- will bot otherwise
-                             e' <- apply (zip ixs inds) (fromLazy e) -- TODO check order
+                             e' <- apply (zip ixs inds) (fromLazy e)
                              constrainValue v0 e'
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SWeight _ _ -> Nothing
