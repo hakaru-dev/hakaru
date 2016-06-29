@@ -766,7 +766,7 @@ update perform evaluate_ x =
                     trace ("-- updated "
                            ++ show (ppStatement 11 s)
                            ++ " to "
-                           ++ show (ppStatement 11 (SLet x (Whnf_ w) i))
+                           ++ show (ppStatement 11 (SLet x (Whnf_ w) ixs))
                           ) $ return ()
 #endif
                     let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
