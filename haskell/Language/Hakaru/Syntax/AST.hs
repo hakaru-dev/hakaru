@@ -672,9 +672,10 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         -> HSemiring b
         -> SCon '[ LC a, LC a, '( '[ a ], b) ] b
 
-    -- Summate
-    --     :: SCon '[ LC 'HReal, LC 'HReal, '( '[ 'HInt ], 'HProb) ] 'HProb
-
+    Product
+        :: HDiscrete a
+        -> HSemiring b
+        -> SCon '[ LC a, LC a, '( '[ a ], b) ] b
 
     -- -- Internalized program transformations
     -- TODO: do these belong in their own place?

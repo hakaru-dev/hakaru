@@ -46,9 +46,11 @@ module Language.Hakaru.Evaluation.Types
     , Purity(..), Statement(..), isBoundBy
     , Index, indVar, indSize
 #ifdef __TRACE_DISINTEGRATE__
+    , ppList
     , ppStatement
     , pretty_Statements
     , pretty_Statements_withTerm
+    , prettyAssocs
 #endif
     , EvaluationMonad(..)
     , freshVar
@@ -614,28 +616,35 @@ parens :: Bool -> [PP.Doc] -> [PP.Doc]
 parens True  ds = [PP.parens (PP.nest 1 (PP.sep ds))]
 parens False ds = ds
 
+ppList :: [PP.Doc] -> PP.Doc
+ppList = PP.sep . (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
+
 ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
 ppStatement p s =
     case s of
-    SBind x e _ ->
+    SBind x e inds ->
         PP.sep $ ppFun p "SBind"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
+            , ppList $ map (ppVariable . indVar) inds
             ]
-    SLet x e _ ->
+    SLet x e inds ->
         PP.sep $ ppFun p "SLet"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
+            , ppList $ map (ppVariable . indVar) inds
             ]
-    SWeight e _ ->
+    SWeight e inds ->
         PP.sep $ ppFun p "SWeight"
             [ PP.sep $ prettyPrec_ 11 e
+            , ppList $ map (ppVariable . indVar) inds
             ]
-    SGuard xs pat e _ ->
+    SGuard xs pat e inds ->
         PP.sep $ ppFun p "SGuard"
             [ PP.sep $ ppVariables xs
             , PP.sep $ prettyPrec_ 11 pat
             , PP.sep $ prettyPrec_ 11 e
+            , ppList $ map (ppVariable . indVar) inds
             ]
     SStuff0   _ _ ->
         PP.sep $ ppFun p "SStuff0"
@@ -659,6 +668,16 @@ pretty_Statements_withTerm
     :: (ABT Term abt) => [Statement abt p] -> abt '[] a -> PP.Doc
 pretty_Statements_withTerm ss e =
     pretty_Statements ss PP.$+$ pretty e
+
+prettyAssocs
+    :: (ABT Term abt)
+    => Assocs (abt '[])
+    -> PP.Doc
+prettyAssocs a = PP.vcat $ map go (fromAssocs a)
+  where go (Assoc x e) = ppVariable x PP.<+>
+                         PP.text "->" PP.<+>
+                         pretty e
+                                
 #endif
 
 ----------------------------------------------------------------

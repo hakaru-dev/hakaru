@@ -36,11 +36,10 @@ import qualified Data.Traversable      as T
 import qualified Data.List.NonEmpty    as NE
 import           Control.Monad
 
-import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..), Functor11(..))
+import Language.Hakaru.Syntax.IClasses (Some2(..), Functor11(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
@@ -263,12 +262,12 @@ emitIntegrate lo hi =
 
 -- Needs to be more polymorphic
 pushSummate
-    :: (ABT Term abt)
-    => abt '[] 'HInt
-    -> abt '[] 'HInt
-    -> Expect abt (Variable 'HInt)
+    :: (ABT Term abt, HDiscrete_ a, SingI a)
+    => abt '[] a
+    -> abt '[] a
+    -> Expect abt (Variable a)
 pushSummate lo hi = do
-    x <- freshVar Text.empty SInt
+    x <- freshVar Text.empty sing
     unsafePush (SStuff1 x (\c ->
         syn (Summate hDiscrete hSemiring
              :$ lo :* hi :* bind x c :* End)) [])
@@ -350,10 +349,9 @@ expectMeasureOp Normal = \(mu :* sd :* End) -> do
 expectMeasureOp Poisson = \(l :* End) -> do
     l' <- var <$> pushLet l
     unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< l') c P.zero) [])
-    x  <- var <$> pushSummate P.zero (P.nat2int P.infinityNat) -- TODO: Use Nats
-    x_ <- var <$> pushLet (P.unsafeFrom_ signed x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
-    unsafePush (SStuff0 (\c -> P.densityPoisson l' x_ P.* c) [])
-    return x_
+    x  <- var <$> pushSummate P.zero P.infinityNat
+    unsafePush (SStuff0 (\c -> P.densityPoisson l' x P.* c) [])
+    return x
     {-
     let_ l $ \l' ->
     if_ (zero < l')

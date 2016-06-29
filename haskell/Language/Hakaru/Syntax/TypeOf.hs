@@ -162,6 +162,7 @@ getTermSing singify = go
     go (Plate  :$ _  :* r2 :* End)  = SMeasure . SArray . sUnMeasure <$> getSing r2
     go (Integrate :$  _)            = return SProb
     go (Summate _ h :$  _)          = return $ sing_HSemiring h
+    go (Product _ h :$  _)          = return $ sing_HSemiring h
     go (Expect :$  _)               = return SProb
     go (Observe :$ r1 :* _ :* End)  = getSing r1
     go (NaryOp_  o  _)              = return $ sing_NaryOp o

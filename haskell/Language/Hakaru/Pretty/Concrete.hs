@@ -35,7 +35,6 @@ import           System.Console.ANSI
 import           Text.PrettyPrint                (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint                as PP
 import qualified Data.Foldable                   as F
-import           Data.List.NonEmpty              (NonEmpty(..))
 import qualified Data.List.NonEmpty              as L
 import qualified Data.Text                       as Text
 
@@ -271,6 +270,18 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
 ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     let (vars, types, body) = ppBinder2 e3 in
     [ PP.text "summate"
+      <+> toDoc vars
+      <+> PP.text "from"
+      <+> (toDoc $ ppArg e1)
+      <+> PP.text "to"
+      <+> (toDoc $ ppArg e2)
+      <> PP.colon <> PP.space
+    , PP.nest 1 (toDoc body)
+    ]
+
+ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
+    let (vars, types, body) = ppBinder2 e3 in
+    [ PP.text "product"
       <+> toDoc vars
       <+> PP.text "from"
       <+> (toDoc $ ppArg e1)

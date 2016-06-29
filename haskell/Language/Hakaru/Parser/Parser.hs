@@ -329,6 +329,18 @@ summate_expr =
         <*> semiblockExpr
         )
 
+product_expr :: Parser (AST' Text)
+product_expr =
+    reserved "product"
+    *> (Product
+        <$> identifier
+        <*  symbol "from"        
+        <*> expr
+        <*  symbol "to"
+        <*> expr     
+        <*> semiblockExpr
+        )
+
 expect_expr :: Parser (AST' Text)
 expect_expr =
     reserved "expect"
@@ -461,6 +473,7 @@ term =  try if_expr
     -- <|> try data_expr
     <|> try integrate_expr
     <|> try summate_expr
+    <|> try product_expr
     <|> try expect_expr
     <|> try observe_expr
     <|> try array_expr
