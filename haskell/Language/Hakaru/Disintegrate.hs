@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.28
+--                                                    2016.06.29
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -56,6 +56,30 @@
 -- of an @abt xs a@ argument) should be polymorphic in the workers
 -- and should /not/ reuse the other analogous type variables bound
 -- by the wrapper.
+--
+-- /Developer's Note:/ In general, we'd like to emit weights and
+-- guards \"as early as possible\"; however, determining when that
+-- actually is can be tricky. If we emit them way-too-early then
+-- we'll get hygiene errors because bindings for the variables they
+-- use have not yet been emitted. We can fix these hygiene erors
+-- by calling 'atomize', to ensure that all the necessary bindings
+-- have already been emitted. But that may still emit things too
+-- early, because emitting th variable-binding statements now means
+-- that we can't go forward\/backward on them later on; which may
+-- cause us to bot unnecessarily. One way to avoid this bot issue
+-- is to emit guards\/weights later than necessary, by actually
+-- pushing them onto the context (and then emitting them whenever
+-- we residualize the context). This guarantees we don't emit too
+-- early; but the tradeoff is we may end up generating duplicate
+-- code by emitting too late. One possible (currently unimplemented)
+-- solution to that code duplication issue is to let these statements
+-- be emitted too late, but then have a post-processing step to
+-- lift guards\/weights up as high as they can go. To avoid problems
+-- about testing programs\/expressions for equality, we can use a
+-- hash-consing trick so we keep track of the identity of guard\/weight
+-- statements, then we can simply compare those identities and only
+-- after the lifting do we replace the identity hash with the actual
+-- statement.
 ----------------------------------------------------------------
 module Language.Hakaru.Disintegrate
     (
