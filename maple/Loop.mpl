@@ -66,7 +66,8 @@ Loop := module ()
      # These first few are smart constructors (for themselves):
          ints, sums,
      # while these are "proper functions"
-         mk_HArray, genLoop, unproducts, unproduct;
+         mk_HArray, genLoop, unproducts, unproduct,
+         peel, split, graft, rebase;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Ints, Sums, csgn;
@@ -303,6 +304,79 @@ Loop := module ()
     rest := map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest);
     piecewise_And(rest,e,mode())
   end proc;
+
+  # Rewrite product(piecewise(i=lo,th,el),i=lo..hi) to eval(th,i=lo)*product(el,i=lo+1..hi)
+  peel := proc(ee, $)
+    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),anyfunc(And(specfunc(piecewise),patfunc(name=anything,anything,anything)),name=range))', proc(e, $)
+      local body, x, r, make, rest;
+      body := op(1,e);
+      x, r := op(op(2,e));
+      if op([1,1],body)=x and not depends(op([1,2],body),x) then
+        if op(0,e) in {sum,Sum} then
+          make := `+`;
+        elif op(0,e) in {product,Product} then
+          make := `*`;
+        end if;
+        if nops(body)=2 then
+          rest := 0;
+        elif nops(body)=3 then
+          rest := op(3,body);
+        else
+          rest := subsop(1=NULL,2=NULL,body);
+        end if;
+        if op([1,2],body)=lhs(r) then
+          return make(eval(op(2,body),x=lhs(r)), subsop(1=rest, [2,2,1]=lhs(r)+1, e));
+        elif op([1,2],body)=rhs(r) then
+          return make(eval(op(2,body),x=rhs(r)), subsop(1=rest, [2,2,2]=rhs(r)-1, e));
+        end if
+      end if;
+      e
+    end proc);
+  end proc:
+
+  # Expand sum(a*(b-c),q) to sum(a*b,q)-sum(a*c,q)
+  split := proc(ee, $)
+    evalindets(ee, 'And(specfunc({sum,Sum}),anyfunc(And(`*`,Not(`*`(Not(`+`)))),name=anything))', proc(e, $)
+      local terms, x;
+      terms := convert(expand(op(1,e), op(indets(op(1,e), function))), 'list', `+`);
+      x := op([2,1],e);
+      `+`(op(map(proc(term, $)
+        local s, r;
+        s, r := selectremove(depends, convert(term, 'list', `*`), x);
+        `*`(op(r), subsop(1=`*`(op(s)),e))
+      end proc, terms)))
+    end proc)
+  end proc:
+
+  # Simplify f(lo-1)*product(f(i),i=lo..hi) to product(f(i),i=lo-1..hi)
+  graft := proc(ee, $)
+    evalindets(ee, 'Or(And(`*`,Not(`*`(Not(specfunc({product,Product}))))),
+                       And(`+`,Not(`+`(Not(specfunc({sum    ,Sum    }))))))', proc(e, $)
+      local produce, factors, i, j;
+      produce := `if`(e::`*`, '{product,Product}',
+                              '{sum    ,Sum    }');
+      factors := sort(convert(e,'list'), key = (factor -> -numboccur(factor,produce)));
+      for i from nops(factors) to 2 by -1 do
+        for j from i-1 to 1 by -1 do
+          if op(j,factors) :: 'And'('specfunc'(produce),'anyfunc(anything,name=range)') then
+            if Testzero(op(i,factors) - eval(op([j,1],factors),op([j,2,1],factors)=op([j,2,2,1],factors)-1)) then
+              factors := subsop(i=NULL,applyop(`-`,[j,2,2,1],factors,1))
+            elif Testzero(op(i,factors) - eval(op([j,1],factors),op([j,2,1],factors)=op([j,2,2,2],factors)+1)) then
+              factors := subsop(i=NULL,applyop(`+`,[j,2,2,2],factors,1))
+            end if
+          end if
+        end do
+      end do;
+      op(0,e)(op(factors))
+    end proc)
+  end proc:
+
+  # Normalize sum(f(i),i=2..hi) to sum(f(i+2),i=0..hi-2)
+  rebase := proc(ee, $)
+    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),anyfunc(anything,name=Or(posint,negint)..anything))', proc(e, $)
+      subsop([2,2,1]=0, applyop(`-`, [2,2,2], applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,1],e)), op([2,2,1],e)))
+    end proc)
+  end proc:
 
   # Override csgn to work a little bit harder on piecewise and sum
   # (to get rid of csgn(1/2+1/2*sum(piecewise(...,1,0),...))
