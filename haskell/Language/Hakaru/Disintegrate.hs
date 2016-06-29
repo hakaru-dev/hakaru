@@ -954,14 +954,26 @@ perform = \e0 ->
             -> Dis abt (Whnf abt a)
         complete Normal = \(mu :* sd :* End) -> do
             x <- var <$> emitMBind P.lebesgue
-            emitWeight (P.densityNormal mu sd x)
+            pushWeight (P.densityNormal mu sd x)
             return (Neutral x)
         complete Uniform = \(lo :* hi :* End) -> do
             x <- var <$> emitMBind P.lebesgue
-            emitGuard (lo P.< x P.&& x P.< hi)
-            emitWeight (P.densityUniform lo hi x)
+            pushGuard (lo P.< x P.&& x P.< hi)
+            pushWeight (P.densityUniform lo hi x)
             return (Neutral x)
         complete _ = \_ -> bot
+
+-- Calls unsafePush                     
+pushWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
+pushWeight w = do
+  inds <- getIndices
+  unsafePush $ SWeight (Thunk w) inds
+
+pushGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
+pushGuard b = do
+  inds <- getIndices
+  unsafePush $ SGuard Nil1 pTrue (Thunk b) inds
+                               
 
 -- | The goal of this function is to ensure the correctness criterion
 -- that given any term to be emitted, the resulting term is
@@ -1743,17 +1755,14 @@ constrainOutcomeMeasureOp v0 = go
 
     go Categorical = \(e1 :* End) -> do
         v0' <- emitLet' v0
-        e1' <- fromWhnf <$> atomize e1
         -- TODO: check that v0' is < then length of e1
-        emitWeight (P.densityCategorical e1' v0')
+        pushWeight (P.densityCategorical e1 v0')
 
     -- Per the paper
     go Uniform = \(lo :* hi :* End) -> do
         v0' <- emitLet' v0
-        lo' <- (emitLet' . fromWhnf) =<< atomize lo
-        hi' <- (emitLet' . fromWhnf) =<< atomize hi
-        emitGuard (lo' P.<= v0' P.&& v0' P.<= hi')
-        emitWeight (P.densityUniform lo' hi' v0)
+        pushGuard (lo P.<= v0' P.&& v0' P.<= hi)
+        pushWeight (P.densityUniform lo hi v0')
 
     -- TODO: Add fallback handling of Normal that does not atomize mu,sd.
     -- This fallback is as if Normal were defined in terms of Lebesgue
@@ -1764,15 +1773,12 @@ constrainOutcomeMeasureOp v0 = go
     --  return ((x+(y+y),x)::pair(real,real))
     go Normal = \(mu :* sd :* End) -> do
         -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * exp (negate (norm_n (v0 - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
-        mu' <- fromWhnf <$> atomize mu
-        sd' <- (emitLet' . fromWhnf) =<< atomize sd
-        emitWeight (P.densityNormal mu' sd' v0)
+        pushWeight (P.densityNormal mu sd v0)
 
     go Poisson = \(e1 :* End) -> do
         v0' <- emitLet' v0
-        e1' <- fromWhnf <$> atomize e1
-        emitGuard (P.nat_ 0 P.<= v0' P.&& P.prob_ 0 P.< e1')
-        emitWeight (P.densityPoisson e1' v0')
+        pushGuard (P.nat_ 0 P.<= v0' P.&& P.prob_ 0 P.< e1)
+        pushWeight (P.densityPoisson e1 v0')
 
     go Gamma = \(e1 :* e2 :* End) ->
         error "TODO: constrainOutcomeMeasureOp{Gamma}"
