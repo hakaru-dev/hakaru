@@ -56,11 +56,10 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Integration
     , integrate, summate, product
     -- ** Continuous
-    , RealProb(..)
+    , RealProb(..), Integrable(..)
     , betaFunc
     , log, logBase
-    , infinityNat
-    , negativeInfinity, negativeInfinityNat
+    , negativeInfinity
     -- *** Trig
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
     
@@ -647,6 +646,21 @@ product lo hi f =
          :$ lo :* hi :* binder Text.empty sing f :* End)
 
 
+class Integrable (a :: Hakaru) where
+    infinity :: (ABT Term abt) => abt '[] a
+
+instance Integrable 'HNat where
+    infinity = primOp0_ (Infinity HIntegrable_Nat)
+
+instance Integrable 'HInt where
+    infinity = nat2int $ primOp0_ (Infinity HIntegrable_Nat)
+
+instance Integrable 'HProb where
+    infinity = primOp0_ (Infinity HIntegrable_Prob)
+
+instance Integrable 'HReal where
+    infinity = fromProb $ primOp0_ (Infinity HIntegrable_Prob)
+
 -- HACK: we define this class in order to gain more polymorphism;
 -- but, will it cause type inferencing issues? Excepting 'log'
 -- (which should be moved out of the class) these are all safe.
@@ -655,7 +669,6 @@ class RealProb (a :: Hakaru) where
     exp  :: (ABT Term abt) => abt '[] a -> abt '[] 'HProb
     erf  :: (ABT Term abt) => abt '[] a -> abt '[] a
     pi   :: (ABT Term abt) => abt '[] a
-    infinity :: (ABT Term abt) => abt '[] a
     gammaFunc :: (ABT Term abt) => abt '[] a -> abt '[] 'HProb
 
 instance RealProb 'HReal where
@@ -663,7 +676,6 @@ instance RealProb 'HReal where
     exp       = primOp1_ Exp
     erf       = primOp1_ $ Erf hContinuous
     pi        = fromProb $ primOp0_ Pi
-    infinity  = fromProb $ primOp0_ (Infinity HIntegrable_Prob)
     gammaFunc = primOp1_ GammaFunc
 
 instance RealProb 'HProb where
@@ -671,11 +683,7 @@ instance RealProb 'HProb where
     exp       = primOp1_ Exp . fromProb
     erf       = primOp1_ $ Erf hContinuous
     pi        = primOp0_ Pi
-    infinity  = primOp0_ (Infinity HIntegrable_Prob)
     gammaFunc = primOp1_ GammaFunc . fromProb
-
-infinityNat :: (ABT Term abt) => abt '[] 'HNat
-infinityNat = primOp0_ (Infinity HIntegrable_Nat)
 
 log  :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HReal
 log = primOp1_ Log
@@ -904,12 +912,11 @@ unsafeProbSemiring_ HSemiring_Prob = id
 unsafeProbSemiring_ HSemiring_Real = unsafeProb
 
 
-negativeInfinity :: (ABT Term abt) => abt '[] 'HReal
+negativeInfinity :: ( ABT Term abt
+                    , HRing_ a
+                    , Integrable a)
+                 => abt '[] a
 negativeInfinity = negate infinity
-
-negativeInfinityNat :: (ABT Term abt) => abt '[] 'HInt
-negativeInfinityNat = negative infinityNat
-
 
 -- instance (ABT Term abt) => Lambda abt where
 -- 'app' already defined
