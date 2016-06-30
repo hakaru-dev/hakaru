@@ -25,7 +25,7 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
-  global t_kb, `expand/product`;
+  global t_kb, `expand/product`, `simplify/int/simplify`;
   uses Hakaru;
 
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
@@ -454,6 +454,15 @@ KB := module ()
         thaw(`expand/product`(ff, applyop(freeze, [2,2], rr)))
       end proc,
       `expand/product`]);
+
+    # Prevent simplify(product(1-x[i],i=0..n-1))
+    # from producing (-1)^n*product(-1+x[i],i=0..n-1)
+    `simplify/int/simplify` := overload([
+      proc (f::identical(product), a::`+`, r::{name,name=anything}, $)
+        option overload(callseq_only);
+        return 'f'(a,r);
+      end proc,
+      `simplify/int/simplify`]);
   end proc;
 
   ModuleUnload := proc($)
