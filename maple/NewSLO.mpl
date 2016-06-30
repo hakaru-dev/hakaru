@@ -796,7 +796,10 @@ NewSLO := module ()
                         patfunc(anything,
                                 `if`(v::`=`, identical(lhs(v))=anything,
                                              identical(v)),
-                                anything))),
+                                anything),
+                        'Not(sum(anything,
+                                 name=range(Not({SymbolicInfinity,
+                                                 undefined}))))')),
          FAIL,
          e)
   end proc;
