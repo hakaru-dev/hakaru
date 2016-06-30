@@ -57,8 +57,9 @@ norm0' :: TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)
 norm0' =
     lam $ \y ->
     normal (real_ 0) (prob_ 1) >>= \x ->
-    ann_ sing $
-        withWeight (densityNormal x (prob_ 1) y) (dirac x)
+    weight (densityNormal x (prob_ 1) y) >>
+    dirac x
+
 {-
 -- Eliminating some redexes of 'norm0'', that is:
     lam $ \y ->
