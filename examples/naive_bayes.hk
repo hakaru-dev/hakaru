@@ -9,8 +9,6 @@ def dirichlet(as array(prob)):
 
 def naive_bayes( K nat
                , V nat
-               , M nat
-               , N nat
                , z array(nat)
                , w array(nat)
                , doc array(nat)):
@@ -25,10 +23,10 @@ def naive_bayes( K nat
                 dirichlet(word_prior) # word dist for topic k
     
     # likelihood
-    z <~ plate i of M:   # topic for doc m
+    z <~ plate i of size(z):   # topic for doc m
             observe categorical(theta) z[i]
 
-    w <~ plate n of N:   # word n
+    w <~ plate n of size(w):   # word n
             observe categorical(phi[z[doc[n]]]) w[n]
 
     return (theta, phi)
