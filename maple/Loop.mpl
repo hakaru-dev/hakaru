@@ -247,10 +247,10 @@ Loop := module ()
         e := simplify_assuming(e, op(2,entry));
         while e :: 'specfunc(piecewise)' and nops(e) = 3 do
           if op(3,e) = mode() then
-	    kb := assert(op(1,e), kb);
+            kb := assert(op(1,e), kb);
             e := op(2,e);
           elif op(2,e) = mode() then
-	    kb := assert(Not(op(1,e)), kb);
+            kb := assert(Not(op(1,e)), kb);
             e := op(3,e);
           else
             break;
