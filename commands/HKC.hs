@@ -8,10 +8,11 @@ import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 
-import Control.Monad.Reader
-import Data.Text hiding (any,map,filter)
+import           Control.Monad.Reader
+import           Data.Text hiding (any,map,filter,unlines)
 import qualified Data.Text.IO as IO
-import Options.Applicative
+import           Options.Applicative
+import           System.IO (stderr)
 
 data Options = Options { debug    :: Bool
                        , optimize :: Bool
@@ -35,8 +36,13 @@ options = Options
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
-                       $ fullDesc <> progDesc "Compile Hakaru to C"
-
+                       $ fullDesc <> progDesc desc
+  where desc = mconcat ["Compile Hakaru to C"
+                       -- ,"such that:"
+                       -- ," given a Hakaru program of type 'Measure a', hkc will return a C sampler of type 'a';"
+                       -- ," given a Hakaru program of type 'a', hkc will return a C program to evaluate 'a';"
+                       -- ," and given a Hakaru function, hkc will return a C function."
+                       ]
 
 compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
@@ -47,10 +53,13 @@ compileHakaru prog = ask >>= \config -> lift $ do
                                then constantPropagation ast
                                else ast)
       when (debug config) $ do
-        IO.putStrLn "\n<=====================AST==========================>\n"
-        IO.putStrLn $ pack $ show ast
+        putErrorLn "\n<=====================AST==========================>\n"
+        putErrorLn $ pack $ show ast
         when (optimize config) $ do
-          IO.putStrLn "\n<=================Constant Prop====================>\n"
-          IO.putStrLn $ pack $ show ast'
-        IO.putStrLn "\n<======================C===========================>\n"
+          putErrorLn "\n<=================Constant Prop====================>\n"
+          putErrorLn $ pack $ show ast'
+        putErrorLn "\nEnd of Debug\n"
       IO.putStrLn $ createProgram ast'
+
+putErrorLn :: Text -> IO ()
+putErrorLn = IO.hPutStrLn stderr

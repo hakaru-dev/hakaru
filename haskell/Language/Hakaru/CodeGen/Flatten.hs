@@ -25,8 +25,9 @@ module Language.Hakaru.CodeGen.Flatten where
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.Sing
 
 import Language.C.Data.Ident
 import Language.C.Data.Node
@@ -42,54 +43,72 @@ import qualified Data.IntMap        as IM
 import qualified Data.Foldable      as F
 
 node = undefNode
+names = [ [letter] ++ show number
+        | letter <- ['a'..'z']
+        , number <- [1..]]
 
 -- | flattenABT takes a Hakaru ABT and a C Var, and returns a
 --   C Statement that assigns a flattened ABT to the var
 flattenABT :: ABT Term abt
            => Ident
+           -> Sing (a :: Hakaru)
            -> abt '[] a
-           -> (CStat, Ident)
-flattenABT var expr =
-   (CExpr (Just $ CAssign CAssignOp
-                          (CVar var node)
-                          (CStatExpr (CCompound [] [CBlockStmt (caseVarSyn expr flattenVar flattenTerm)] node)
-                                     node)
-                          node)
-          node, var)
+           -> ([CDecl],CStat)
+flattenABT var typ expr = (topDec ++ decs,topAssign)
+  where topDec        = [CDecl [CTypeSpec (toCType typ)]
+                         [(Just $ CDeclr (Just var) [] Nothing [] node,Nothing,Nothing)]
+                         node]
+        (decs,assign) = caseVarSyn expr flattenVar flattenTerm
+        topAssign     = CExpr (Just
+                              $ CAssign CAssignOp
+                                        (CVar var node)
+                                        (CStatExpr (CCompound [] [CBlockStmt assign] node)
+                                        node)
+                              node)
+                              node
 
-flattenVar :: Variable (a :: Hakaru) -> CStat
+
+flattenVar :: Variable (a :: Hakaru) -> ([CDecl],CStat)
 flattenVar = error "TODO: flattenVar"
 
 flattenTerm :: ABT Term abt
             => Term abt a
-            -> CStat
+            -> ([CDecl],CStat)
 flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
 flattenTerm (Literal_ x)   = flattenLiteral x
-flattenTerm (Empty_ x)     = empty_c     x
-flattenTerm (Datum_ x)     = datum_c     x
-flattenTerm (Case_ x y)    = case_c      x y
-flattenTerm (Array_ x y)   = array_c     x y
-flattenTerm (x :$ y)       = cons_c      x y
-flattenTerm (Reject_ x)    = reject_c    x
-flattenTerm (Superpose_ x) = superpose_c x
+flattenTerm (Empty_ x)     = error "TODO: flattenTerm Empty"
+flattenTerm (Datum_ x)     = error "TODO: flattenTerm Datum"
+flattenTerm (Case_ x y)    = error "TODO: flattenTerm Case"
+flattenTerm (Array_ x y)   = error "TODO: flattenTerm Array"
+flattenTerm (x :$ y)       = error "TODO: flattenTerm :$"
+flattenTerm (Reject_ x)    = error "TODO: flattenTerm Reject"
+flattenTerm (Superpose_ x) = error "TODO: flattenTerm Superpose"
 
 
 flattenNAryOp :: ABT Term abt
               => NaryOp a
               -> Seq (abt '[] b)
-              -> CStat
-flattenNAryOp op args =
-  let flattenedArgs = F.foldr (\a c -> flattenABT (builtinIdent "foo") a : c) [] args
-      flattenedOp   = F.foldr (\x y -> CBinary (flattenOp op) x y node)
-                              (CConst (unitOp op))
-                              (fmap (\a -> CVar (snd a) node) flattenedArgs)
-  in  CCompound [] (fmap CBlockStmt (fmap fst flattenedArgs ++ [CExpr (Just flattenedOp) node])) node
+              -> ([CDecl],CStat)
+flattenNAryOp op args = undefined
+  --                       (decs, CCompound []
+  --                                        (fmap CBlockStmt (fmap fst args' ++ [CExpr (Just flattenedOp) node]))
+  --                                        node)
+  -- where namedArgs    = zip names F.toList args
+  --       (decs,args') = F.foldr (\a c -> flattenABT (builtinIdent (fst a)) undefined (snd b) : c)
+  --                              []
+  --                              namedArgs
+  --       nArgOp'   = F.foldr (\x y -> CBinary (flattenOp op) x y node)
+  --                           (CConst (unitOp op))
+  --                           (fmap (\a -> CVar a node) args')
+
+
 
 
 flattenOp :: NaryOp a -> CBinaryOp
-flattenOp And      = CAndOp
-flattenOp (Sum _)  = CAddOp
-flattenOp (Prod _) = CMulOp
+flattenOp And                   = CAndOp
+flattenOp (Sum _)               = CAddOp
+flattenOp (Prod HSemiring_Prob) = CAddOp   -- product of exp is addition
+flattenOp (Prod _)              = CMulOp
 -- flattenOp (Min _)  = undefined
 -- flattenOp (Max _)  = undefined
 flattenOp _ = error "TODO: flattenOp"
@@ -110,40 +129,29 @@ unitOp _ = error "TODO: unitOp"
 -- unitOp (Min  HOrd_Prob)      = VProb (LF.logFloat LF.infinity)
 -- unitOp (Min  HOrd_Real)      = VReal LF.infinity
 
-flattenLiteral :: Literal a -> CStat
-flattenLiteral = let n           = undefNode
-                     constExpr x = CExpr (Just $ CConst $ x n) n in
+flattenLiteral :: Literal a -> ([CDecl],CStat)
+flattenLiteral = let constExpr x = CExpr (Just $ CConst $ x node) node in
   \lit -> case lit of
-            (LNat x)  -> constExpr $ CIntConst (cInteger $ fromIntegral x)
-            (LInt x)  -> constExpr $ CIntConst (cInteger $ fromIntegral x)
+            (LNat x)  -> ([],constExpr $ CIntConst (cInteger $ fromIntegral x))
+            (LInt x)  -> ([],constExpr $ CIntConst (cInteger $ fromIntegral x))
             (LProb x) -> let rat = fromNonNegativeRational x
-                             x'  = (fromIntegral $ numerator rat) / (fromIntegral $ denominator rat)
-                         in constExpr $ CFloatConst (cFloat x') -- losing precision
-            (LReal x) -> constExpr $ CFloatConst (cFloat $ fromRational x)
+                             x'  = (fromIntegral $ numerator rat)
+                                 / (fromIntegral $ denominator rat)
+                         in ([], CExpr (Just (CCall (CVar (builtinIdent "log") node)
+                                                    [CConst (CFloatConst (cFloat x') node)]
+                                                    node))
+                                       node)
+            (LReal x) -> ([],constExpr $ CFloatConst (cFloat $ fromRational x))
 
--- cProb ::
+
+toCType :: Sing (a :: Hakaru) -> CTypeSpecifier NodeInfo
+toCType SInt       = CIntType undefNode
+toCType SNat       = CIntType undefNode
+toCType SProb      = CDoubleType undefNode
+toCType SReal      = CDoubleType undefNode
+toCType _          = error "TODO: toCType"
 
 
-empty_c :: a -> CStat
-empty_c = error "TODO: empty_c"
-
-datum_c :: a -> CStat
-datum_c = error "TODO: datum_c"
-
-case_c :: a -> b -> CStat
-case_c = error "TODO: case_c"
-
-array_c :: a -> b -> CStat
-array_c = error "TODO: array_c"
-
-cons_c :: a -> b -> CStat
-cons_c = error "TODO: cons_c"
-
-superpose_c :: a -> CStat
-superpose_c = error "TODO: superpose_c"
-
-reject_c :: a -> CStat
-reject_c = error "TODO: reject_c"
 
 flattenSCon :: ABT Term abt
             => SCon args a
