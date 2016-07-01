@@ -27,8 +27,9 @@ import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Types.Sing
 
-import Language.Hakaru.Types.DataKind (Hakaru(..))
+import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.Flatten
+import Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Language.C.Data.Ident
 import qualified Language.C.Pretty as C
@@ -47,14 +48,14 @@ import           Data.Monoid
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST typ abt) =
-  let (decls,assign) = flattenABT (builtinIdent "result") typ abt
+  let (decls,cstat) = runCodeGen (flattenABT typ abt) ([], (builtinIdent "result"))
   in  unlines [ header typ
               , ""
               , prelude
               , mainWith typ
                          (fmap (\d -> mconcat [(pack . render . C.pretty) d,";"]) decls)
              -- have to add a hack because lang-c does not print ';' at end of decl
-                         ((pack . render . C.pretty) assign) ]
+                         ((pack . render . C.pretty) cstat) ]
 
 header :: Sing (a :: Hakaru) -> Text
 header (SMeasure _) = unlines [ "#include <time.h>"
@@ -76,15 +77,13 @@ normalC = unlines
         , "}" ]
 
 mainWith :: Sing (a :: Hakaru) -> [Text] -> Text -> Text
-mainWith typ decl assign = unlines
+mainWith typ decl cstat = unlines
  [ "void main(){"
  , case typ of
      SMeasure _ -> "  srand(time(NULL));\n"
      _ -> ""
  , unlines decl
- , assign
- -- , ""
- -- , mconcat ["  result = ",body]
+ , cstat
  , case typ of
      SMeasure _ -> "  while(1) printf(\"%.17g\\n\",result);"
      SInt       -> "  printf(\"%d\\n\",result);"
