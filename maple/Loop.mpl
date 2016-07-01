@@ -63,7 +63,7 @@ end proc:
 Loop := module ()
   option package;
   local intssums, piecewise_And, wrap, Binder, Stmt, t_binder, t_stmt, t_exp,
-        ModuleLoad, ModuleUnload, csgnOld, csgnNew;
+        ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
          ints, sums,
@@ -380,48 +380,39 @@ Loop := module ()
     end proc)
   end proc:
 
-  # Override csgn to work a little bit harder on piecewise and sum
-  # (to get rid of csgn(1/2+1/2*sum(piecewise(...,1,0),...))
-  #  produced by int on a Gaussian mixture model)
-  csgnNew := proc(a)
-    local r, i;
-    # Handle if the csgn of a piecewise doesn't depend on which branch
-    if nargs=1 and a::'specfunc(piecewise)' then
-      r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL), i=1..nops(a))};
-      if nops(r)=1 then return op(r) end if;
-      if not assigned(_Envsignum0) then
-        r := r minus {0};
-        if nops(r)=1 then return op(r) end if;
-      end if;
-    end if;
-    # Handle if the csgn of a sum doesn't depend on the bound variable
-    if nargs=1 and a::'And(specfunc({sum, Sum}),
-                           anyfunc(anything,name=range))' then
-      r := csgn(op(1,a));
-      if not depends(r,op([2,1],a)) then
-        return signum(op([2,2,2],a)+1-op([2,2,1],a)) * r
-      end if
-    end if;
-    csgnOld(_passed)
-  end proc;
   ModuleLoad := proc($)
-    local c;
-    if not(csgnOld :: procedure) then
-      c := eval(csgn);
-      if c :: procedure then
-        csgnOld := c;
-        unprotect(csgn);
-        csgn := csgnNew;
-        protect(csgn);
-      end if;
-    end if;
+    # Override csgn to work a little bit harder on piecewise and sum
+    # (to get rid of csgn(1/2+1/2*sum(piecewise(...,1,0),...))
+    #  produced by int on a Gaussian mixture model)
+    unprotect(csgn);
+    csgn := overload([
+      # Handle if the csgn of a piecewise doesn't depend on which branch
+      proc(a :: specfunc(piecewise), $)
+        option overload;
+        local r, i;
+        r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL),
+                  i=1..nops(a))};
+        if nops(r)=1 then return op(r) end if;
+        if not assigned(_Envsignum0) then
+          r := r minus {0};
+          if nops(r)=1 then return op(r) end if;
+        end if;
+        error "invalid input: cannot csgn %1", a;
+      end proc,
+      # Handle if the csgn of a sum doesn't depend on the bound variable
+      proc(a :: And(specfunc({sum, Sum}), anyfunc(anything, name=range)), $)
+        option overload;
+        local r;
+        r := csgn(op(1,a));
+        if not depends(r,op([2,1],a)) then
+          return signum(op([2,2,2],a)+1-op([2,2,1],a)) * r
+        end if;
+        error "invalid input: cannot csgn %1", a;
+      end proc,
+      csgn]);
+    protect(csgn);
   end proc;
-  ModuleUnload := proc($)
-    if csgnOld :: procedure then
-      unprotect(csgn);
-      csgn := csgnOld;
-      protect(csgn);
-    end if;
-  end proc;
+
+  ModuleLoad();
 
 end module; # Loop
