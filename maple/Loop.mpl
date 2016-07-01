@@ -17,9 +17,9 @@ end proc:
   end do;
   depends(rng, xx)
 end proc:
-`depends/Sums` := `depends/Ints`:
-`depends/ints` := `depends/Ints`:
-`depends/sums` := `depends/Ints`:
+`depends/Sums` := eval(`depends/Ints`):
+`depends/ints` := eval(`depends/Ints`):
+`depends/sums` := eval(`depends/Ints`):
 
 `eval/forall` := proc(e, eqs, $)
   local bvar, pred;
@@ -34,9 +34,9 @@ end proc:
   eval(op(0,e), eqs)(body, bvar,
                      BindingTools:-generic_evalatstar(rng, loops, eqs))
 end proc:
-`eval/Sums` := `eval/Ints`:
-`eval/ints` := `eval/Ints`:
-`eval/sums` := `eval/Ints`:
+`eval/Sums` := eval(`eval/Ints`):
+`eval/ints` := eval(`eval/Ints`):
+`eval/sums` := eval(`eval/Ints`):
 
 `eval/Int` := proc(e, eqs, $)
   local body, bound, bvar;
@@ -52,9 +52,11 @@ end proc:
   end if;
   eval(op(0,e), eqs)(body, bound, op(eval([op(3..-1,e)], eqs)))
 end proc:
-`eval/Sum` := `eval/Int`:
-`eval/int` := `eval/Int`:
-`eval/sum` := `eval/Int`:
+`eval/Sum`     := eval(`eval/Int`):
+`eval/Product` := eval(`eval/Int`):
+`eval/int`     := eval(`eval/Int`):
+`eval/sum`     := eval(`eval/Int`):
+`eval/product` := eval(`eval/Int`):
 
 #############################################################################
 
