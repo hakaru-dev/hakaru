@@ -36,11 +36,10 @@ import qualified Data.Traversable      as T
 import qualified Data.List.NonEmpty    as NE
 import           Control.Monad
 
-import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..), Functor11(..))
+import Language.Hakaru.Syntax.IClasses (Some2(..), Functor11(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT

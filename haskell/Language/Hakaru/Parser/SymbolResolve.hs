@@ -285,6 +285,13 @@ symbolResolution symbols ast =
             <*> symbolResolution symbols e2
             <*> symbolResolution (insertSymbol name' symbols) e3     
 
+    U.Product    name e1 e2 e3 -> do       
+        name' <- gensym name
+        U.Product (mkSym name')
+            <$> symbolResolution symbols e1
+            <*> symbolResolution symbols e2
+            <*> symbolResolution (insertSymbol name' symbols) e3     
+
     U.NaryOp op es      -> U.NaryOp op
         <$> mapM (symbolResolution symbols) es
 
@@ -380,6 +387,7 @@ normAST ast =
     U.Infinity'               -> U.Infinity'
     U.Integrate name e1 e2 e3 -> U.Integrate name (normAST e1) (normAST e2) (normAST e3)
     U.Summate   name e1 e2 e3 -> U.Summate   name (normAST e1) (normAST e2) (normAST e3)
+    U.Product   name e1 e2 e3 -> U.Product   name (normAST e1) (normAST e2) (normAST e3)
     U.ULiteral v              -> U.ULiteral v
     U.NaryOp op es            -> U.NaryOp op (map normAST es)
     U.Unit                    -> U.Unit
@@ -496,6 +504,9 @@ makeAST ast =
     U.Summate s e1 e2 e3 ->
         withName "U.Summate" s $ \name ->
             U.Summate_ name (makeAST e1) (makeAST e2) (makeAST e3)
+    U.Product s e1 e2 e3 ->
+        withName "U.Product" s $ \name ->
+            U.Product_ name (makeAST e1) (makeAST e2) (makeAST e3)
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             U.Expect_ name (makeAST e1) (makeAST e2)

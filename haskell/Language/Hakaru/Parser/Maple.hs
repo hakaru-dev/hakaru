@@ -60,26 +60,28 @@ commaSep = Token.commaSep lexer
 
 symTable :: [(Text, Text)]
 symTable =
-    [ ("Gaussian",  "normal")
-    , ("BetaD",     "beta")
-    , ("GammaD",    "gamma")
-    , ("PoissonD",  "poisson")
-    , ("Weight",    "weight")
-    , ("Lebesgue",  "lebesgue")
-    , ("Counting",  "counting")
-    , ("Uniform",   "uniform")
-    , ("Ret",       "dirac")
-    , ("Geometric", "geometric")
-    , ("Not",       "not")
-    , ("Pi",        "pi")
-    , ("ln",        "log")
-    , ("GAMMA",     "gammaFunc")
-    , ("csgn",      "signum")
+    [ ("Gaussian",    "normal")
+    , ("BetaD",       "beta")
+    , ("GammaD",      "gamma")
+    , ("PoissonD",    "poisson")
+    , ("Weight",      "weight")
+    , ("Lebesgue",    "lebesgue")
+    , ("Counting",    "counting")
+    , ("Uniform",     "uniform")
+    , ("Ret",         "dirac")
+    , ("Categorical", "categorical")
+    , ("Geometric",   "geometric")
+    , ("Not",         "not")
+    , ("Pi",          "pi")
+    , ("ln",          "log")
+    , ("Beta",        "betaFunc")
+    , ("GAMMA",       "gammaFunc")
+    , ("csgn",        "signum")
     -- Type symbols
-    , ("Real",     "real")
-    , ("Prob",     "prob")
-    , ("Measure",  "measure")
-    , ("Bool",     "bool")
+    , ("Real",        "real")
+    , ("Prob",        "prob")
+    , ("Measure",     "measure")
+    , ("Bool",        "bool")
     ]
 
 rename :: Text -> Text
@@ -101,10 +103,11 @@ data NumOp = Pos | Neg
     deriving (Eq, Show)
 
 data ArgOp
-    = Float   | Power  | Rational
-    | Func    | ExpSeq | Sum_
-    | Product | Less   | Equal
-    | And_    | Range  | List
+    = Float | Power  | Rational
+    | Func  | ExpSeq | Sum_
+    | Prod_ | Less   | Equal
+    | And_  | Range  | List
+    | NotEq
     deriving (Eq, Show)
 
 data InertExpr
@@ -204,7 +207,7 @@ sum =
 product :: Parser InertExpr
 product =
     InertArgs
-    <$> (text "_Inert_PROD" *> return Product)
+    <$> (text "_Inert_PROD" *> return Prod_)
     <*> arg expr
 
 rational :: Parser InertExpr
@@ -232,6 +235,12 @@ equal =
     <$> (text "_Inert_EQUATION" *> return Equal)
     <*> arg expr
 
+noteq :: Parser InertExpr
+noteq =
+    InertArgs
+    <$> (text "_Inert_INEQUAT" *> return NotEq)
+    <*> arg expr
+
 expr :: Parser InertExpr
 expr =  try func
     <|> try name
@@ -242,6 +251,7 @@ expr =  try func
     <|> try lessthan
     <|> try lesseq
     <|> try equal
+    <|> try noteq
     <|> try expseq
     <|> try intpos
     <|> try intneg
@@ -396,18 +406,30 @@ maple2AST (InertArgs Func
     Summate x (maple2AST lo) (maple2AST hi) (maple2AST f)
 
 maple2AST (InertArgs Func
+        [ InertName "product"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Product x (maple2AST lo) (maple2AST hi) (maple2AST f)
+
+maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
 
-maple2AST (InertArgs And_    es) = NaryOp And  (collapseNaryOp And  (map maple2AST es))
-maple2AST (InertArgs Sum_    es) = NaryOp Sum  (collapseNaryOp Sum  (map maple2AST es))
-maple2AST (InertArgs Product es) = NaryOp Prod (collapseNaryOp Prod (map maple2AST es))
+maple2AST (InertArgs And_  es) = NaryOp And  (collapseNaryOp And  (map maple2AST es))
+maple2AST (InertArgs Sum_  es) = NaryOp Sum  (collapseNaryOp Sum  (map maple2AST es))
+maple2AST (InertArgs Prod_ es) = NaryOp Prod (collapseNaryOp Prod (map maple2AST es))
 
 maple2AST (InertArgs Less es)  =
     foldl App (Var "less")  (map maple2AST es)
 
 maple2AST (InertArgs Equal es) =
     foldl App (Var "equal") (map maple2AST es)
+
+maple2AST (InertArgs NotEq es) =
+    App (Var "not") (foldl App (Var "equal") (map maple2AST es))
 
 maple2AST (InertArgs Power [x, InertNum Pos y]) =
     App (App (Var "^")  (maple2AST x)) (maple2AST (InertNum Pos y))

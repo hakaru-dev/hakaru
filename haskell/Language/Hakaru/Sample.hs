@@ -259,6 +259,28 @@ evaluateSCon Chain (n :* s :* e :* End) env =
             (Et (Konst b) Done))))) = (a, b)
     unPair x = case x of {}
 
+evaluateSCon (Summate hd hs) (e1 :* e2 :* e3 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+    (lo, hi) ->
+        caseBind e3 $ \x e3' ->
+            foldl (\t i ->
+                   evalOp (Sum  hs) t $
+                     evaluate e3' (updateEnv (EAssoc x i) env))
+                  (identityElement $ Sum hs)
+                  (enumFromToValue hd lo hi)
+    v                        -> case v of {}
+
+evaluateSCon (Product hd hs) (e1 :* e2 :* e3 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+    (lo, hi) ->
+        caseBind e3 $ \x e3' ->
+            foldl (\t i ->
+                   evalOp (Prod hs) t $
+                     evaluate e3' (updateEnv (EAssoc x i) env))
+                  (identityElement $ Prod hs)
+                  (enumFromToValue hd lo hi)
+    v                        -> case v of {}
+
 evaluateSCon s _ _ = error $ "TODO: evaluateSCon{" ++ show s ++ "}"
 
 evaluatePrimOp

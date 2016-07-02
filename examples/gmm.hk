@@ -1,0 +1,7 @@
+fn K nat:
+  fn t array(real):
+    θs <~ plate k of K: normal(0,1)
+    plate i of size(t):
+      c <~ categorical(array k of K: 1/K)
+      d <~ observe normal(θs[c], 1) t[i]
+      return c
