@@ -35,13 +35,7 @@ options = Options
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
-                       $ fullDesc <> progDesc desc
-  where desc = mconcat ["Compile Hakaru to C"
-                       -- ,"such that:"
-                       -- ," given a Hakaru program of type 'Measure a', hkc will return a C sampler of type 'a';"
-                       -- ," given a Hakaru program of type 'a', hkc will return a C program to evaluate 'a';"
-                       -- ," and given a Hakaru function, hkc will return a C function."
-                       ]
+                       $ fullDesc <> progDesc "Compile Hakaru to C"
 
 compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
