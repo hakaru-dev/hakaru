@@ -19,13 +19,13 @@
 KB := module ()
   option package;
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
-        assert_deny, boolean_if, coalesce_bounds, htype_to_property,
+        assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product, chilled, chill, warm,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
-  global t_kb, `expand/product`;
+  global t_kb, `expand/product`, `simplify/int/simplify`;
   uses Hakaru;
 
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
@@ -78,16 +78,6 @@ KB := module ()
       as := chill(kb_to_assumptions(kb));
       b := chill(bb);
       b := simplify(b) assuming op(as);
-      # Reduce (in)equality between exp(A) and exp(B) to between A and B.
-      do
-        try log_b := map(ln, b) assuming op(as); catch: break; end try;
-        if length(log_b) < length(b)
-           and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
-          b := log_b;
-        else
-          break;
-        end if;
-      end do;
       b := warm(b);
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
@@ -95,6 +85,16 @@ KB := module ()
       if nops(k) > 0 then
         x, k := op(op(1,k));
         # Found the innermost scope where b makes sense.
+        # Reduce (in)equality between exp(A) and exp(B) to between A and B.
+        do
+          try log_b := map(simplify@ln, b) assuming op(as); catch: break; end try;
+          if log_metric(log_b, x) < log_metric(b, x)
+             and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
+            b := log_b;
+          else
+            break;
+          end if;
+        end do;
         if b :: And(relation, Or(anyop(identical(x), freeof(x)),
                                  anyop(freeof(x), identical(x)))) then
           # b is a bound on x, so compare it against the current bound on x.
@@ -198,6 +198,12 @@ KB := module ()
       ch := chill(b);
       `if`((is(ch) assuming op(as)), kb, KB(Constrain(b), op(kb)))
     end if
+  end proc:
+
+  log_metric := proc(e, x, $)
+    local m, L;
+    m := indets(e, 'exp'('dependent'(x)));
+    length(subsindets(map2(op, 1, m), name, _->L));
   end proc:
 
   boolean_if := proc(cond, th, el, $)
@@ -448,6 +454,15 @@ KB := module ()
         thaw(`expand/product`(ff, applyop(freeze, [2,2], rr)))
       end proc,
       `expand/product`]);
+
+    # Prevent simplify(product(1-x[i],i=0..n-1))
+    # from producing (-1)^n*product(-1+x[i],i=0..n-1)
+    `simplify/int/simplify` := overload([
+      proc (f::identical(product), a::`+`, r::{name,name=anything}, $)
+        option overload(callseq_only);
+        return 'f'(a,r);
+      end proc,
+      `simplify/int/simplify`]);
   end proc;
 
   ModuleUnload := proc($)

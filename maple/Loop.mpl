@@ -17,9 +17,9 @@ end proc:
   end do;
   depends(rng, xx)
 end proc:
-`depends/Sums` := `depends/Ints`:
-`depends/ints` := `depends/Ints`:
-`depends/sums` := `depends/Ints`:
+`depends/Sums` := eval(`depends/Ints`):
+`depends/ints` := eval(`depends/Ints`):
+`depends/sums` := eval(`depends/Ints`):
 
 `eval/forall` := proc(e, eqs, $)
   local bvar, pred;
@@ -34,9 +34,9 @@ end proc:
   eval(op(0,e), eqs)(body, bvar,
                      BindingTools:-generic_evalatstar(rng, loops, eqs))
 end proc:
-`eval/Sums` := `eval/Ints`:
-`eval/ints` := `eval/Ints`:
-`eval/sums` := `eval/Ints`:
+`eval/Sums` := eval(`eval/Ints`):
+`eval/ints` := eval(`eval/Ints`):
+`eval/sums` := eval(`eval/Ints`):
 
 `eval/Int` := proc(e, eqs, $)
   local body, bound, bvar;
@@ -52,21 +52,24 @@ end proc:
   end if;
   eval(op(0,e), eqs)(body, bound, op(eval([op(3..-1,e)], eqs)))
 end proc:
-`eval/Sum` := `eval/Int`:
-`eval/int` := `eval/Int`:
-`eval/sum` := `eval/Int`:
+`eval/Sum`     := eval(`eval/Int`):
+`eval/Product` := eval(`eval/Int`):
+`eval/int`     := eval(`eval/Int`):
+`eval/sum`     := eval(`eval/Int`):
+`eval/product` := eval(`eval/Int`):
 
 #############################################################################
 
 Loop := module ()
   option package;
   local intssums, piecewise_And, wrap, Binder, Stmt, t_binder, t_stmt, t_exp,
-        ModuleLoad, ModuleUnload, csgnOld, csgnNew;
+        ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
          ints, sums,
      # while these are "proper functions"
-         mk_HArray, genLoop, unproducts, unproduct;
+         mk_HArray, genLoop, unproducts, unproduct,
+         peel, split, graft, rebase;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Ints, Sums, csgn;
@@ -246,10 +249,10 @@ Loop := module ()
         e := simplify_assuming(e, op(2,entry));
         while e :: 'specfunc(piecewise)' and nops(e) = 3 do
           if op(3,e) = mode() then
-	    kb := assert(op(1,e), kb);
+            kb := assert(op(1,e), kb);
             e := op(2,e);
           elif op(2,e) = mode() then
-	    kb := assert(Not(op(1,e)), kb);
+            kb := assert(Not(op(1,e)), kb);
             e := op(3,e);
           else
             break;
@@ -304,48 +307,112 @@ Loop := module ()
     piecewise_And(rest,e,mode())
   end proc;
 
-  # Override csgn to work a little bit harder on piecewise and sum
-  # (to get rid of csgn(1/2+1/2*sum(piecewise(...,1,0),...))
-  #  produced by int on a Gaussian mixture model)
-  csgnNew := proc(a)
-    local r, i;
-    # Handle if the csgn of a piecewise doesn't depend on which branch
-    if nargs=1 and a::'specfunc(piecewise)' then
-      r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL), i=1..nops(a))};
-      if nops(r)=1 then return op(r) end if;
-      if not assigned(_Envsignum0) then
-        r := r minus {0};
-        if nops(r)=1 then return op(r) end if;
+  # Rewrite product(piecewise(i=lo,th,el),i=lo..hi) to eval(th,i=lo)*product(el,i=lo+1..hi)
+  peel := proc(ee, $)
+    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),anyfunc(And(specfunc(piecewise),patfunc(name=anything,anything,anything)),name=range))', proc(e, $)
+      local body, x, r, make, rest;
+      body := op(1,e);
+      x, r := op(op(2,e));
+      if op([1,1],body)=x and not depends(op([1,2],body),x) then
+        if op(0,e) in {sum,Sum} then
+          make := `+`;
+        elif op(0,e) in {product,Product} then
+          make := `*`;
+        end if;
+        if nops(body)=2 then
+          rest := 0;
+        elif nops(body)=3 then
+          rest := op(3,body);
+        else
+          rest := subsop(1=NULL,2=NULL,body);
+        end if;
+        if op([1,2],body)=lhs(r) then
+          return make(eval(op(2,body),x=lhs(r)), subsop(1=rest, [2,2,1]=lhs(r)+1, e));
+        elif op([1,2],body)=rhs(r) then
+          return make(eval(op(2,body),x=rhs(r)), subsop(1=rest, [2,2,2]=rhs(r)-1, e));
+        end if
       end if;
-    end if;
-    # Handle if the csgn of a sum doesn't depend on the bound variable
-    if nargs=1 and a::'And(specfunc({sum, Sum}),
-                           anyfunc(anything,name=range))' then
-      r := csgn(op(1,a));
-      if not depends(r,op([2,1],a)) then
-        return signum(op([2,2,2],a)+1-op([2,2,1],a)) * r
-      end if
-    end if;
-    csgnOld(_passed)
-  end proc;
+      e
+    end proc);
+  end proc:
+
+  # Expand sum(a*(b-c),q) to sum(a*b,q)-sum(a*c,q)
+  split := proc(ee, $)
+    evalindets(ee, 'And(specfunc({sum,Sum}),anyfunc(And(`*`,Not(`*`(Not(`+`)))),name=anything))', proc(e, $)
+      local terms, x;
+      terms := convert(expand(op(1,e), op(indets(op(1,e), function))), 'list', `+`);
+      x := op([2,1],e);
+      `+`(op(map(proc(term, $)
+        local s, r;
+        s, r := selectremove(depends, convert(term, 'list', `*`), x);
+        `*`(op(r), subsop(1=`*`(op(s)),e))
+      end proc, terms)))
+    end proc)
+  end proc:
+
+  # Simplify f(lo-1)*product(f(i),i=lo..hi) to product(f(i),i=lo-1..hi)
+  graft := proc(ee, $)
+    evalindets(ee, 'Or(And(`*`,Not(`*`(Not(specfunc({product,Product}))))),
+                       And(`+`,Not(`+`(Not(specfunc({sum    ,Sum    }))))))', proc(e, $)
+      local produce, factors, i, j;
+      produce := `if`(e::`*`, '{product,Product}',
+                              '{sum    ,Sum    }');
+      factors := sort(convert(e,'list'), key = (factor -> -numboccur(factor,produce)));
+      for i from nops(factors) to 2 by -1 do
+        for j from i-1 to 1 by -1 do
+          if op(j,factors) :: 'And'('specfunc'(produce),'anyfunc(anything,name=range)') then
+            if Testzero(op(i,factors) - eval(op([j,1],factors),op([j,2,1],factors)=op([j,2,2,1],factors)-1)) then
+              factors := subsop(i=NULL,applyop(`-`,[j,2,2,1],factors,1))
+            elif Testzero(op(i,factors) - eval(op([j,1],factors),op([j,2,1],factors)=op([j,2,2,2],factors)+1)) then
+              factors := subsop(i=NULL,applyop(`+`,[j,2,2,2],factors,1))
+            end if
+          end if
+        end do
+      end do;
+      op(0,e)(op(factors))
+    end proc)
+  end proc:
+
+  # Normalize sum(f(i),i=2..hi) to sum(f(i+2),i=0..hi-2)
+  rebase := proc(ee, $)
+    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),anyfunc(anything,name=Or(posint,negint)..anything))', proc(e, $)
+      subsop([2,2,1]=0, applyop(`-`, [2,2,2], applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,1],e)), op([2,2,1],e)))
+    end proc)
+  end proc:
+
   ModuleLoad := proc($)
-    local c;
-    if not(csgnOld :: procedure) then
-      c := eval(csgn);
-      if c :: procedure then
-        csgnOld := c;
-        unprotect(csgn);
-        csgn := csgnNew;
-        protect(csgn);
-      end if;
-    end if;
+    # Override csgn to work a little bit harder on piecewise and sum
+    # (to get rid of csgn(1/2+1/2*sum(piecewise(...,1,0),...))
+    #  produced by int on a Gaussian mixture model)
+    unprotect(csgn);
+    csgn := overload([
+      # Handle if the csgn of a piecewise doesn't depend on which branch
+      proc(a :: specfunc(piecewise), $)
+        option overload;
+        local r, i;
+        r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL),
+                  i=1..nops(a))};
+        if nops(r)=1 then return op(r) end if;
+        if not assigned(_Envsignum0) then
+          r := r minus {0};
+          if nops(r)=1 then return op(r) end if;
+        end if;
+        error "invalid input: cannot csgn %1", a;
+      end proc,
+      # Handle if the csgn of a sum doesn't depend on the bound variable
+      proc(a :: And(specfunc({sum, Sum}), anyfunc(anything, name=range)), $)
+        option overload;
+        local r;
+        r := csgn(op(1,a));
+        if not depends(r,op([2,1],a)) then
+          return signum(op([2,2,2],a)+1-op([2,2,1],a)) * r
+        end if;
+        error "invalid input: cannot csgn %1", a;
+      end proc,
+      csgn]);
+    protect(csgn);
   end proc;
-  ModuleUnload := proc($)
-    if csgnOld :: procedure then
-      unprotect(csgn);
-      csgn := csgnOld;
-      protect(csgn);
-    end if;
-  end proc;
+
+  ModuleLoad();
 
 end module; # Loop

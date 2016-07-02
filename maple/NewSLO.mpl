@@ -305,7 +305,7 @@ NewSLO := module ()
                           op(1,loop),
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(loops)),
-             x, weight(simplify_assuming(`*`(op(w)), kb1), m)))
+             x, weight(simplify_assuming(combine(rebase(graft(split(peel(`*`(op(w))))))), kb1), m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
@@ -411,9 +411,9 @@ NewSLO := module ()
       end if;
     elif lo = 0 and not(hi :: 'SymbolicInfinity') then
       s, r := selectremove(depends, convert(w, 'list', `*`), k);
-      if true or nops(s) > 0 then
+      if nops(s) > 0 then
         res := ary(hi+1, k, `*`(op(s)));
-        if false and res :: 'list' and nops(convert(res,'set')) = 1 then
+        if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi), res[1]);
         else
           res := Recognized(Categorical(res), `*`(op(r)));
@@ -796,7 +796,10 @@ NewSLO := module ()
                         patfunc(anything,
                                 `if`(v::`=`, identical(lhs(v))=anything,
                                              identical(v)),
-                                anything))),
+                                anything),
+                        'Not(sum(anything,
+                                 name=range(Not({SymbolicInfinity,
+                                                 undefined}))))')),
          FAIL,
          e)
   end proc;

@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.28
+--                                                    2016.06.29
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -56,6 +56,30 @@
 -- of an @abt xs a@ argument) should be polymorphic in the workers
 -- and should /not/ reuse the other analogous type variables bound
 -- by the wrapper.
+--
+-- /Developer's Note:/ In general, we'd like to emit weights and
+-- guards \"as early as possible\"; however, determining when that
+-- actually is can be tricky. If we emit them way-too-early then
+-- we'll get hygiene errors because bindings for the variables they
+-- use have not yet been emitted. We can fix these hygiene erors
+-- by calling 'atomize', to ensure that all the necessary bindings
+-- have already been emitted. But that may still emit things too
+-- early, because emitting th variable-binding statements now means
+-- that we can't go forward\/backward on them later on; which may
+-- cause us to bot unnecessarily. One way to avoid this bot issue
+-- is to emit guards\/weights later than necessary, by actually
+-- pushing them onto the context (and then emitting them whenever
+-- we residualize the context). This guarantees we don't emit too
+-- early; but the tradeoff is we may end up generating duplicate
+-- code by emitting too late. One possible (currently unimplemented)
+-- solution to that code duplication issue is to let these statements
+-- be emitted too late, but then have a post-processing step to
+-- lift guards\/weights up as high as they can go. To avoid problems
+-- about testing programs\/expressions for equality, we can use a
+-- hash-consing trick so we keep track of the identity of guard\/weight
+-- statements, then we can simply compare those identities and only
+-- after the lifting do we replace the identity hash with the actual
+-- statement.
 ----------------------------------------------------------------
 module Language.Hakaru.Disintegrate
     (
@@ -930,14 +954,26 @@ perform = \e0 ->
             -> Dis abt (Whnf abt a)
         complete Normal = \(mu :* sd :* End) -> do
             x <- var <$> emitMBind P.lebesgue
-            emitWeight (P.densityNormal mu sd x)
+            pushWeight (P.densityNormal mu sd x)
             return (Neutral x)
         complete Uniform = \(lo :* hi :* End) -> do
             x <- var <$> emitMBind P.lebesgue
-            emitGuard (lo P.< x P.&& x P.< hi)
-            emitWeight (P.densityUniform lo hi x)
+            pushGuard (lo P.< x P.&& x P.< hi)
+            pushWeight (P.densityUniform lo hi x)
             return (Neutral x)
         complete _ = \_ -> bot
+
+-- Calls unsafePush                     
+pushWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
+pushWeight w = do
+  inds <- getIndices
+  unsafePush $ SWeight (Thunk w) inds
+
+pushGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
+pushGuard b = do
+  inds <- getIndices
+  unsafePush $ SGuard Nil1 pTrue (Thunk b) inds
+                               
 
 -- | The goal of this function is to ensure the correctness criterion
 -- that given any term to be emitted, the resulting term is
@@ -1261,6 +1297,10 @@ constrainVariable v0 x =
                            guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
+                             -- 2016-06-29
+                             -- one way to make helloworld produce
+                             -- a disintegration right now is to
+                             -- not do this permutation check
                              guard (jxs `permutes` inds) -- will bot otherwise
                              e' <- apply (zip ixs inds) (fromLazy e)
                              constrainOutcome v0 e'
@@ -1715,17 +1755,14 @@ constrainOutcomeMeasureOp v0 = go
 
     go Categorical = \(e1 :* End) -> do
         v0' <- emitLet' v0
-        e1' <- fromWhnf <$> atomize e1
         -- TODO: check that v0' is < then length of e1
-        emitWeight (P.densityCategorical e1' v0')
+        pushWeight (P.densityCategorical e1 v0')
 
     -- Per the paper
     go Uniform = \(lo :* hi :* End) -> do
         v0' <- emitLet' v0
-        lo' <- (emitLet' . fromWhnf) =<< atomize lo
-        hi' <- (emitLet' . fromWhnf) =<< atomize hi
-        emitGuard (lo' P.<= v0' P.&& v0' P.<= hi')
-        emitWeight (P.densityUniform lo' hi' v0)
+        pushGuard (lo P.<= v0' P.&& v0' P.<= hi)
+        pushWeight (P.densityUniform lo hi v0')
 
     -- TODO: Add fallback handling of Normal that does not atomize mu,sd.
     -- This fallback is as if Normal were defined in terms of Lebesgue
@@ -1736,15 +1773,12 @@ constrainOutcomeMeasureOp v0 = go
     --  return ((x+(y+y),x)::pair(real,real))
     go Normal = \(mu :* sd :* End) -> do
         -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * exp (negate (norm_n (v0 - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
-        mu' <- fromWhnf <$> atomize mu
-        sd' <- (emitLet' . fromWhnf) =<< atomize sd
-        emitWeight (P.densityNormal mu' sd' v0)
+        pushWeight (P.densityNormal mu sd v0)
 
     go Poisson = \(e1 :* End) -> do
         v0' <- emitLet' v0
-        e1' <- fromWhnf <$> atomize e1
-        emitGuard (P.nat_ 0 P.<= v0' P.&& P.prob_ 0 P.< e1')
-        emitWeight (P.densityPoisson e1' v0')
+        pushGuard (P.nat_ 0 P.<= v0' P.&& P.prob_ 0 P.< e1)
+        pushWeight (P.densityPoisson e1 v0')
 
     go Gamma = \(e1 :* e2 :* End) ->
         error "TODO: constrainOutcomeMeasureOp{Gamma}"

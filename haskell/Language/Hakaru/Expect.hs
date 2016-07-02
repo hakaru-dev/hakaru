@@ -306,7 +306,7 @@ expectMeasureOp
 expectMeasureOp Lebesgue = \End ->
     var <$> pushIntegrate P.negativeInfinity P.infinity
 expectMeasureOp Counting = \End ->
-    var <$> pushSummate P.negativeInfinityNat (P.nat2int P.infinityNat)
+    var <$> pushSummate P.negativeInfinity P.infinity
 expectMeasureOp Categorical = \(ps :* End) -> do
     ps' <- var <$> pushLet ps
     tot <- var <$> pushLet (P.summateV ps')
@@ -349,7 +349,7 @@ expectMeasureOp Normal = \(mu :* sd :* End) -> do
 expectMeasureOp Poisson = \(l :* End) -> do
     l' <- var <$> pushLet l
     unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< l') c P.zero) [])
-    x  <- var <$> pushSummate P.zero P.infinityNat
+    x  <- var <$> pushSummate P.zero P.infinity
     unsafePush (SStuff0 (\c -> P.densityPoisson l' x P.* c) [])
     return x
     {-
