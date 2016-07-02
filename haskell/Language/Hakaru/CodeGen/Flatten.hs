@@ -55,25 +55,27 @@ flattenABT typ abt = do ident <- getIdent
                         assign ident cstat
 
 flattenLit :: Literal a -> CodeGen CStat
-flattenLit lit = return $
+flattenLit lit =
   case lit of
-    (LNat x)  -> constExpr $ CIntConst (cInteger $ fromIntegral x)
-    (LInt x)  -> constExpr $ CIntConst (cInteger $ fromIntegral x)
+    (LNat x)  -> return $ constExpr $ CIntConst (cInteger $ fromIntegral x)
+    (LInt x)  -> return $ constExpr $ CIntConst (cInteger $ fromIntegral x)
+    (LReal x) -> return $ constExpr $ CFloatConst (cFloat $ fromRational x)
     (LProb x) -> let rat = fromNonNegativeRational x
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
-                 in CExpr (Just (CCall (CVar (builtinIdent "log") node)
-                                [CConst (CFloatConst (cFloat x') node)]
-                                node))
-                          node
-    (LReal x) -> constExpr $ CFloatConst (cFloat $ fromRational x)
+                 in do ident' <- genIdent
+                       declare $ typeDeclaration undefined ident'
+                       return (CExpr (Just (CCall (CVar (builtinIdent "log") node)
+                                                  [CConst (CFloatConst (cFloat x') node)]
+                                                  node))
+                                     node)
   where constExpr x = CExpr (Just $ CConst $ x node) node
 
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CStat
 flattenVar = undefined
 
 flattenTerm :: ABT Term abt => Term abt a -> CodeGen CStat
-flattenTerm (NaryOp_ t s)  = error "TODO: flattenTerm NaryOp"
+flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
 flattenTerm (Literal_ x)   = flattenLit x
 flattenTerm (Empty_ x)     = error "TODO: flattenTerm Empty"
 flattenTerm (Datum_ x)     = error "TODO: flattenTerm Datum"
@@ -82,3 +84,11 @@ flattenTerm (Array_ x y)   = error "TODO: flattenTerm Array"
 flattenTerm (x :$ y)       = error "TODO: flattenTerm :$"
 flattenTerm (Reject_ x)    = error "TODO: flattenTerm Reject"
 flattenTerm (Superpose_ x) = error "TODO: flattenTerm Superpose"
+
+flattenNAryOp :: ABT Term abt
+              => NaryOp a
+              -> Seq (abt '[] b)
+              -> CodeGen CStat
+flattenNAryOp (Prod HSemiring_Prob) seq = undefined
+flattenNAryOp (Sum  HSemiring_Prob) seq = undefined
+flattenNAryOp op                    seq = undefined

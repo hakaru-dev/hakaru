@@ -1,4 +1,5 @@
-{-# LANGUAGE DataKinds,
+{-# LANGUAGE CPP,
+             DataKinds,
              FlexibleContexts,
              RankNTypes        #-}
 
@@ -22,9 +23,14 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , runCodeGen
   , assign
   , declare
-  , getIdent ) where
+  , getIdent
+  , genIdent ) where
 
 import Control.Monad.State
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>))
+#endif
 
 import Language.C.Data.Ident
 import Language.C.Data.Node
@@ -44,6 +50,9 @@ runCodeGen gen initial =
 
 getIdent :: CodeGen Ident
 getIdent = snd <$> get
+
+genIdent :: CodeGen Ident
+genIdent = undefined
 
 assign :: Ident -> CStat -> CodeGen CStat
 assign var cstat = return $
