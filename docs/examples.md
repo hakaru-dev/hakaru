@@ -18,10 +18,14 @@ def normalize(x array(prob)):
     array i of size(x):
        x[i] / total
 
-def dirichlet(a array(prob)):
-    x <~ plate i of size(a):
-           gamma(a[i], 1)
-    return normalize(x)
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from 0 to i:
+                   as[j], as[i+1])
+    return array i of size(as):
+             x = product j from i to int2nat(size(as)-2): xs[j]
+             x * if i==0: 1 else: real2prob(1-xs[int2nat(i-1)])
+
 
 # num of clusters
 K = 5
