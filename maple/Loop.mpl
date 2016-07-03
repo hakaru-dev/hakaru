@@ -62,7 +62,8 @@ end proc:
 
 Loop := module ()
   option package;
-  local intssums, piecewise_And, wrap, Binder, Stmt, t_binder, t_stmt, t_exp,
+  local intssums, enter_piecewise, piecewise_And, wrap,
+        Binder, Stmt, t_binder, t_stmt, t_exp,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
@@ -224,6 +225,25 @@ Loop := module ()
     return [wrap(heap, w, mode, kb1, kb0), 1]
   end proc;
 
+  enter_piecewise := proc(ee, kb0::t_kb, mode::identical(`*`,`+`), $)
+    local e, kb, mo;
+    e  := ee;
+    kb := kb0;
+    mo := mode();
+    while e :: 'specfunc(piecewise)' and nops(e) = 3 do
+      if op(3,e) = mo then
+        kb := assert(op(1,e), kb);
+        e := op(2,e);
+      elif op(2,e) = mo then
+        kb := assert(Not(op(1,e)), kb);
+        e := op(3,e);
+      else
+        break;
+      end if;
+    end do;
+    e, kb
+  end proc;
+
   piecewise_And := proc(cond::list, th, el, $)
     if nops(cond) = 0 or th = el then
       th
@@ -247,17 +267,7 @@ Loop := module ()
           print("Warning: heap mode inconsistency", heap, mode1)
         end if;
         e := simplify_assuming(e, op(2,entry));
-        while e :: 'specfunc(piecewise)' and nops(e) = 3 do
-          if op(3,e) = mode() then
-            kb := assert(op(1,e), kb);
-            e := op(2,e);
-          elif op(2,e) = mode() then
-            kb := assert(Not(op(1,e)), kb);
-            e := op(3,e);
-          else
-            break;
-          end if;
-        end do;
+        e, kb := enter_piecewise(e, kb, mode);
         rest := kb_subtract(kb, op(2,entry));
         new_rng, rest := selectremove(type, rest,
           {[identical(genType), name, specfunc(HInt)],
@@ -302,6 +312,7 @@ Loop := module ()
     if mode <> `*` then
       print("Warning: heap mode inconsistency??", heap, mode1)
     end if;
+    e, kb := enter_piecewise(e, kb, mode);
     rest := kb_subtract(kb, kb0);
     rest := map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest);
     piecewise_And(rest,e,mode())
