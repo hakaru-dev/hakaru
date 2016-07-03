@@ -41,6 +41,7 @@ import           Data.Number.Natural
 import           Data.Ratio
 import           Data.Sequence (Seq)
 import qualified Data.Foldable      as F
+import qualified Data.Traversable   as T       
 
 node :: NodeInfo
 node = undefNode
@@ -89,13 +90,13 @@ flattenNAryOp :: ABT Term abt
               -> Seq (abt '[] b)
               -> CodeGen CStat
 flattenNAryOp op args =
-  do ids <- forM args
-                 $ \abt -> do id' <- genIdent
-                              declare $ typeDeclaration undefined id'
-                              getIdent
+  do ids <- T.forM args
+                   (\abt -> do id' <- genIdent
+                               declare $ typeDeclaration undefined id'
+                               getIdent)
      F.foldr f unit ids
   where unit  = return $ constStat $ toCUnitOp op
-        f a b = do id <- genIdent
-                   b' <- b
-                   declare $ typeDeclaration undefined id
-                   assign id $ (cBinaryOp op) a b'
+        f a b = do ident <- genIdent
+                   b'    <- b
+                   declare $ typeDeclaration undefined ident
+                   assign ident $ (cBinaryOp op) a b'
