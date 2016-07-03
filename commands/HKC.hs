@@ -8,7 +8,7 @@ import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 
 import           Control.Monad.Reader
-import           Data.Text hiding (any,map,filter,unlines)
+import           Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
 import           Options.Applicative
 import           System.IO (stderr)
