@@ -28,21 +28,21 @@ import Language.Hakaru.CodeGen.HOAS
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 
 import Language.C.Data.Ident
 import Language.C.Data.Node
-import Language.C.Data.Position
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 
-import           Data.Number.Nat (fromNat)
+import Control.Monad
+
 import           Data.Number.Natural
 import           Data.Ratio
 import           Data.Sequence (Seq)
 import qualified Data.Foldable      as F
 
+node :: NodeInfo
 node = undefNode
 
 flattenABT :: ABT Term abt
@@ -57,9 +57,9 @@ flattenABT typ abt = do ident <- getIdent
 flattenLit :: Literal a -> CodeGen CStat
 flattenLit lit =
   case lit of
-    (LNat x)  -> return $ constExpr $ CIntConst (cInteger $ fromIntegral x)
-    (LInt x)  -> return $ constExpr $ CIntConst (cInteger $ fromIntegral x)
-    (LReal x) -> return $ constExpr $ CFloatConst (cFloat $ fromRational x)
+    (LNat x)  -> return $ constStat $ CIntConst (cInteger $ fromIntegral x) node
+    (LInt x)  -> return $ constStat $ CIntConst (cInteger $ fromIntegral x) node
+    (LReal x) -> return $ constStat $ CFloatConst (cFloat $ fromRational x) node
     (LProb x) -> let rat = fromNonNegativeRational x
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
@@ -69,7 +69,6 @@ flattenLit lit =
                                                   [CConst (CFloatConst (cFloat x') node)]
                                                   node))
                                      node)
-  where constExpr x = CExpr (Just $ CConst $ x node) node
 
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CStat
 flattenVar = undefined
@@ -89,6 +88,14 @@ flattenNAryOp :: ABT Term abt
               => NaryOp a
               -> Seq (abt '[] b)
               -> CodeGen CStat
-flattenNAryOp (Prod HSemiring_Prob) seq = undefined
-flattenNAryOp (Sum  HSemiring_Prob) seq = undefined
-flattenNAryOp op                    seq = undefined
+flattenNAryOp op args =
+  do ids <- forM args
+                 $ \abt -> do id' <- genIdent
+                              declare $ typeDeclaration undefined id'
+                              getIdent
+     F.foldr f unit ids
+  where unit  = return $ constStat $ toCUnitOp op
+        f a b = do id <- genIdent
+                   b' <- b
+                   declare $ typeDeclaration undefined id
+                   assign id $ (cBinaryOp op) a b'
