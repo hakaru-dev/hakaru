@@ -439,6 +439,13 @@ maple2AST (InertArgs Power [x,
                             InertArgs Rational
                             [InertNum Pos 1, InertNum Pos y]]) =
     App (App (Var "natroot") (maple2AST x)) (ULiteral . Nat $ y)
+
+maple2AST (InertArgs Power [x, 
+                            InertArgs Rational
+                            [InertNum Neg (-1), InertNum Pos y]]) =
+    App (Var "recip")
+        (App (App (Var "natroot") (maple2AST x)) (ULiteral . Nat $ y))
+
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
 maple2AST (InertArgs Rational [InertNum Pos x, InertNum Pos y]) =

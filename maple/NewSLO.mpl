@@ -26,7 +26,7 @@ NewSLO := module ()
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, bind, weight,
         reduce_IntSum, reduce_IntsSums, get_indicators,
-        elim_intsum, do_elim_intsum, banish,
+        elim_intsum, do_elim_intsum, banish, banish_guard, banish_weight,
         reduce_pw, nub_piecewise, piecewise_if,
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
@@ -38,7 +38,7 @@ NewSLO := module ()
          integrate, applyintegrand,
      # while these are "proper functions"
          RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru,
-         toLO, fromLO, unintegrate, unweight, improve, reduce, Banish,
+         toLO, fromLO, unintegrate, unweight, improve, reduce,
          density, bounds,
          ReparamDetermined, determined, Reparam, disint;
   # these names are not assigned (and should not be).  But they are
@@ -636,23 +636,18 @@ NewSLO := module ()
         genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb));
       reduce_IntSum(op(0,e),
         reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
-    elif e :: 'Ints(anything, name, range, list(name=range))' then
+    elif e :: 'And(specfunc({Ints,Sums}),
+                   anyfunc(anything, name, range, list(name=range)))' then
       x, kb1 := genType(op(2,e),
-                        mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
+                        mk_HArray(`if`(op(0,e)=Ints,
+                                       HReal(open_bounds(op(3,e))),
+                                       HInt(closed_bounds(op(3,e)))),
+                                  op(4,e)),
                         kb);
       if nops(op(4,e)) > 0 then
         kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
       end if;
-      reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
-        op(3,e), op(4,e), h, kb1)
-    elif e :: 'Sums(anything, name, range, list(name=range))' then
-      x, kb1 := genType(op(2,e),
-                        mk_HArray(HInt(closed_bounds(op(3,e))), op(4,e)),
-                        kb);
-      if nops(op(4,e)) > 0 then
-        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
-      end if;
-      reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
+      reduce_IntsSums(op(0,e), reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: `+` then
       map(reduce, e, h, kb)
@@ -750,36 +745,34 @@ NewSLO := module ()
   end proc;
 
   elim_intsum := proc(ee, h :: name, kb :: t_kb, $)
-    local e, hh, m, var, elim, my;
-
+    local e, var, m, elim;
     e := ee;
     do
-      hh := gensym('h');
       if e :: Int(anything, name=anything) and
          not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                'dependent'(op([2,1],e)))) then
         var := op([2,1],e);
-        m := LO(hh, my(kb, int, applyintegrand(hh,var), op(2,e)));
+        m := proc (kb,g,$) do_elim_intsum(kb, int, g, op(2,e)) end proc;
       elif e :: Sum(anything, name=anything) and
          not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                'dependent'(op([2,1],e)))) then
         var := op([2,1],e);
-        m := LO(hh, my(kb, sum, applyintegrand(hh,var), op(2,e)));
+        m := proc (kb,g,$) do_elim_intsum(kb, sum, g, op(2,e)) end proc;
       elif e :: Ints(anything, name, range, list(name=range)) and
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, ints, applyintegrand(hh,var), op(2..4,e), kb));
+        m := proc (kb,g,$) do_elim_intsum(kb, ints, g, op(2..4,e), kb) end proc;
       elif e :: Sums(anything, name, range, list(name=range)) and
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, sums, applyintegrand(hh,var), op(2..4,e), kb));
+        m := proc (kb,g,$) do_elim_intsum(kb, sums, g, op(2..4,e), kb) end proc;
       else
         break;
       end if;
       # try to eliminate unused var
-      elim := eval(banish(m, var, h, op(1,e), infinity), my=do_elim_intsum);
+      elim := banish(op(1,e), h, kb, infinity, var, m);
       if has(elim, {MeijerG, undefined, FAIL}) then
         break;
       end if;
@@ -804,100 +797,103 @@ NewSLO := module ()
          e)
   end proc;
 
-  Banish := proc(e :: Int(anything, name=anything), h :: name,
-                 levels :: extended_numeric := infinity, $)
-    local hh;
-    hh := gensym('h');
-    subs(int=Int,
-      banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
-        op([2,1],e), h, op(1,e), levels));
-  end proc;
-
-  banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric, $)
-    # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
-    # but performs integration over x innermost rather than outermost.
-    local guard, subintegral, w, y, yRename, lo, hi, mm, loops, xx, hh, gg, ll;
-    guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
+  banish := proc(g, h :: name, kb :: t_kb, levels :: extended_numeric,
+                 x :: name, make, $)
+    # banish(g, h, kb, levels, x, make), where the integrand h and the
+    # integration variable x take scope over the integral g patently linear
+    # in h, should be equivalent to make(kb, g), where the integration operator
+    # make binds x in g, except
+    #   - integration over x is performed innermost rather than outermost;
+    #   - if levels < infinity then levels controls how deeply to banish g;
+    #   - make is invoked with the KB in the first argument extended.
+    local subintegral, w, y, kb1, lo, hi, m, loops, xx, less;
     if g = 0 then
       0
     elif levels <= 0 then
-      integrate(m, Integrand(x, g), []) # is [] right ?
+      make(kb, g)
     elif not depends(g, x) then
-      integrate(m, x->1, []) * g
+      make(kb, 1) * g
     elif g :: `+` then
-      map[4](banish, m, x, h, g, levels)
+      map(banish, _passed)
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
+      banish(subintegral, h, kb, levels, x, banish_weight(make, w));
     elif g :: 'And'('specfunc({Int,int,Sum,sum})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
-      subintegral := op(1, g);
-      y           := op([2,1], g);
-      lo, hi      := op(op([2,2], g));
-      if x = y or depends(m, y) then
-        yRename     := gensym(y);
-        subintegral := subs(y=yRename, subintegral);
-        y           := yRename;
-      end if;
-      mm := m;
+      lo, hi      := op(op([2,2],g));
+      m           := make;
       if depends(lo, x) then
-        mm := guard(mm, lo<y);
+        m  := banish_guard(eval(m), lo<y);
         lo := -infinity;
       end if;
       if depends(hi, x) then
-        mm := guard(mm, y<hi);
+        m  := banish_guard(eval(m), y<hi);
         hi := infinity;
       end if;
-      op(0,g)(banish(mm, x, h, subintegral, levels-1), y=lo..hi)
+      y, kb1 := `if`(op(0,g) in '{Int,int}',
+        genLebesgue(op([2,1],g), lo, hi, kb, make),
+        genType(op([2,1],g), HInt(closed_bounds(lo..hi)), kb, make));
+      subintegral := subs(op([2,1],g)=y, op(1,g));
+      op(0,g)(banish(subintegral, h, kb1, levels-1, x, m), y=lo..hi)
     elif g :: 'And'('specfunc({Ints,ints,Sums,sums})',
                     'anyfunc'('anything', 'name', 'range'('freeof'(h)),
                               'list(name=range)')) then
-      subintegral := op(1, g);
-      y           := op(2, g);
-      lo, hi      := op(op(3, g));
-      loops       := op(4, g);
+      lo, hi      := op(op(3,g));
+      loops       := op(4,g);
       xx          := map(lhs, loops);
-      if x = y or depends(m, y) then
-        yRename     := gensym(y);
-        subintegral := subs(y=yRename, subintegral);
-        y           := yRename;
-      end if;
-      mm := m;
+      m           := make;
+      less        := `if`(op(0,g) in '{Ints,ints}', `<`, `<=`);
       if depends(lo, x) then
-        mm := guard(mm, forall(xx, lo<mk_idx(y,loops)));
+        m  := banish_guard(m, forall(xx, less(lo, mk_idx(y,loops))));
         lo := -infinity;
       end if;
       if depends(hi, x) then
-        mm := guard(mm, forall(xx, mk_idx(y,loops)<hi));
+        m  := banish_guard(m, forall(xx, less(mk_idx(y,loops), hi)));
         hi := infinity;
       end if;
-      op(0,g)(banish(mm, x, h, subintegral, levels-1), y, lo..hi, op(4,g));
+      y, kb1 := genType(op(2,g),
+                        mk_HArray(`if`(op(0,g) in '{Ints,ints}',
+                                       HReal(open_bounds(lo..hi)),
+                                       HInt(closed_bounds(lo..hi))),
+                                  op(4,g)),
+                        kb);
+      if nops(op(4,g)) > 0 then
+        kb1 := assert(size(y)=op([4,-1,2,2],g)-op([4,-1,2,1],g)+1, kb1);
+      end if;
+      subintegral := subs(op(2,g)=y, op(1,g));
+      op(0,g)(banish(subintegral, h, kb1, levels-1, x, m), y, lo..hi, op(4,g));
     elif g :: t_pw then
       foldr_piecewise(
-        proc(cond, th, el) proc(m)
+        proc(cond, th, el, $) proc(make, kb, $)
           if depends(cond, x) then
-            banish(guard(m, cond), x, h, th, levels-1) + el(guard(m, Not(cond)))
+            banish(th, h, kb, levels-1, x, banish_guard(make, cond))
+              + el(banish_guard(make, Not(cond)), kb)
           else
-            piecewise_if(cond, banish(m, x, h, th, levels-1), el(m))
+            piecewise_if(cond,
+              banish(th, h, assert(cond, kb), levels-1, x, make),
+              el(make, assert(Not(cond), kb)))
           end if
         end proc end proc,
-        proc(m) 0 end proc,
-        g)(m)
+        proc(make, kb, $) 0 end proc,
+        g)(make, kb)
     elif g :: t_case then
-      subsop(2=map(proc(b :: Branch(anything, anything))
-                     eval(subsop(2='banish'(op(2,b),xx,hh,gg,ll),b),
-                          {xx=x, hh=h, gg=g, ll=l})
-                   end proc,
-                   op(2,integral)),
-             integral);
+      map_piecewiselike(banish, _passed)
     elif g :: 'integrate(freeof(x), Integrand(name, anything), list)' then
-      y := gensym(op([2,1],g));
-      subsop(2=Integrand(y, banish(m, x, h,
-        subs(op([2,1],g)=y, op([2,2],g)), levels-1)), g)
+      y           := gensym(op([2,1],g));
+      subintegral := subs(op([2,1],g)=y, op([2,2],g));
+      subsop(2=Integrand(y, banish(subintegral, h, kb, levels-1, x, make)), g)
     else
-      integrate(m, Integrand(x, g), [])
+      make(kb, g)
     end if
+  end proc;
+
+  banish_guard := proc(make, cond, $)
+    proc(kb,g,$) make(kb, piecewise(cond,g,0)) end proc
+  end proc;
+
+  banish_weight := proc(make, w, $)
+    proc(kb,g,$) make(kb, w*g) end proc
   end proc;
 
   reduce_pw := proc(ee, $) # ee may or may not be piecewise
