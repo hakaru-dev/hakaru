@@ -406,12 +406,25 @@ ppPrimOp p BetaFunc     = \(e1 :* e2 :* End) -> ppApply2 p "betaFunc" e1 e2
 ppPrimOp p (Equal   _) = \(e1 :* e2 :* End) -> ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) = \(e1 :* e2 :* End) -> ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) = \(e1 :* e2 :* End) -> ppBinop "^"  8 RightAssoc p e1 e2
-ppPrimOp p (Negate  _) = \(e1 :* End)       -> ppApply1 p "negate"  e1
-ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1 p "abs_"    e1
-ppPrimOp p (Signum  _) = \(e1 :* End)       -> ppApply1 p "signum"  e1
-ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1 p "recip"   e1
-ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) -> ppApply2 p "natroot" e1 e2
-ppPrimOp p (Erf _)     = \(e1 :* End)       -> ppApply1 p "erf"     e1
+ppPrimOp p (Negate  _) = \(e1 :* End)       -> ppApply1  p "negate"  e1
+ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1  p "abs_"    e1
+ppPrimOp p (Signum  _) = \(e1 :* End)       -> ppApply1  p "signum"  e1
+ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1  p "recip"   e1
+ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) -> ppNatRoot p e1 e2
+ppPrimOp p (Erf _)     = \(e1 :* End)       -> ppApply1  p "erf"     e1
+
+
+ppNatRoot
+    :: (ABT Term abt)
+    => Int
+    -> abt '[] a
+    -> abt '[] 'HNat
+    -> Docs
+ppNatRoot p e1 e2 =
+    caseVarSyn e2 (\x -> ppApply2 p "natroot" e1 e2) $ \t ->
+        case t of
+          Literal_ (LNat 2) -> ppApply1 p "sqrt"    e1
+          _                 -> ppApply2 p "natroot" e1 e2
 
 
 -- | Pretty-print a 'ArrayOp' @(:$)@ node in the AST.

@@ -129,6 +129,7 @@ primTable =
     ,("recip",       primPrimOp1 U.Recip)
     ,("^",           primPrimOp2 U.NatPow)
     ,("natroot",     primPrimOp2 U.NatRoot)
+    ,("sqrt",        TLam $ \x -> TNeu $ U.PrimOp_ U.NatRoot [x, two])
     ,("erf",         primPrimOp1 U.Erf)
     -- ArrayOps
     ,("size",        TLam $ \x -> TNeu $ U.ArrayOp_ U.Size [x])
@@ -207,6 +208,9 @@ primBern   =
             ]
             , U.Dirac_ false_)
         ])
+
+two :: U.AST
+two = U.Literal_ . U.val . U.Nat $ 2
 
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
