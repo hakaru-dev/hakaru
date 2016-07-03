@@ -30,6 +30,7 @@ module Language.Hakaru.Simplify
     ) where
 
 import Control.Exception
+import Control.Monad (when)
 
 import qualified Language.Hakaru.Pretty.Maple as Maple
 
@@ -68,43 +69,21 @@ instance Exception MapleException
 simplify
     :: forall abt a
     .  (ABT Term abt) 
-    => abt '[] a
-    -> IO (abt '[] a)
-simplify e = do
-    let typ = typeOf e          
-    let slo = "use Hakaru, NewSLO in timelimit(30, RoundTrip(" ++
-              Maple.pretty e ++ ", " ++ Maple.mapleType typ ")) end use;"
-    hakaru <- maple slo
-    either (throw  . MapleException slo)
-           (return . constantPropagation) $ do
-        past <- leftShow $ parseMaple (pack hakaru)
-        let m = checkType typ
-                 (SR.resolveAST' (getNames e) (maple2AST past))
-        leftShow $ unTCM m (freeVars e) UnsafeMode
-            
-    where
-    leftShow :: forall b c. Show b => Either b c -> Either String c
-    leftShow (Left err) = Left (show err)
-    leftShow (Right x)  = Right x
-
-    getNames :: abt '[] a -> [Name]
-    getNames = SR.fromVarSet . freeVars
+    => abt '[] a -> IO (abt '[] a)
+simplify = simplifyDebug False
 
 simplifyDebug
     :: forall abt a
     .  (ABT Term abt) 
-    => abt '[] a
-    -> IO (abt '[] a)
-simplifyDebug e = do
-    let slo  = Maple.pretty e
-    let typ  = typeOf e
-    let sent = "use Hakaru, NewSLO in timelimit(30, RoundTrip("
-               ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;"
-    hPutStrLn stderr ("Sent to Maple:\n" ++ sent)
-    hakaru <- maple sent
-    ret    <- maple ("FromInert(" ++ hakaru ++ ")")
-    hPutStrLn stderr ("Returning from Maple:\n" ++ ret)
-
+    => Bool -> abt '[] a -> IO (abt '[] a)
+simplifyDebug debug e = do
+    let typ = typeOf e
+    let slo = "use Hakaru, NewSLO in timelimit(30, RoundTrip("
+              ++ Maple.pretty e ++ ", " ++ Maple.mapleType typ ")) end use;"
+    when debug (hPutStrLn stderr ("Sent to Maple:\n" ++ slo))
+    hakaru <- maple slo
+    when debug (do ret <- maple ("FromInert(" ++ hakaru ++ ")")
+                   hPutStrLn stderr ("Returning from Maple:\n" ++ ret))
     either (throw  . MapleException slo)
            (return . constantPropagation) $ do
         past <- leftShow $ parseMaple (pack hakaru)
