@@ -318,9 +318,14 @@ Loop := module ()
     piecewise_And(rest,e,mode())
   end proc;
 
-  # Rewrite product(piecewise(i=lo,th,el),i=lo..hi) to eval(th,i=lo)*product(el,i=lo+1..hi)
+  # Rewrite product(piecewise(i=lo,th,el),i=lo..hi)
+  # to eval(th,i=lo)*product(el,i=lo+1..hi)
   peel := proc(ee, $)
-    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),anyfunc(And(specfunc(piecewise),patfunc(name=anything,anything,anything)),name=range))', proc(e, $)
+    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
+                        anyfunc(And(specfunc(piecewise),
+                                    patfunc(name=anything,anything,anything)),
+                                name=range))',
+    proc(e, $)
       local body, x, r, make, rest;
       body := op(1,e);
       x, r := op(op(2,e));
@@ -338,9 +343,11 @@ Loop := module ()
           rest := subsop(1=NULL,2=NULL,body);
         end if;
         if op([1,2],body)=lhs(r) then
-          return make(eval(op(2,body),x=lhs(r)), subsop(1=rest, [2,2,1]=lhs(r)+1, e));
+          return make(eval(op(2,body),x=lhs(r)),
+                      subsop(1=rest, [2,2,1]=lhs(r)+1, e));
         elif op([1,2],body)=rhs(r) then
-          return make(eval(op(2,body),x=rhs(r)), subsop(1=rest, [2,2,2]=rhs(r)-1, e));
+          return make(eval(op(2,body),x=rhs(r)),
+                      subsop(1=rest, [2,2,2]=rhs(r)-1, e));
         end if
       end if;
       e
@@ -349,9 +356,12 @@ Loop := module ()
 
   # Expand sum(a*(b-c),q) to sum(a*b,q)-sum(a*c,q)
   split := proc(ee, $)
-    evalindets(ee, 'And(specfunc({sum,Sum}),anyfunc(And(`*`,Not(`*`(Not(`+`)))),name=anything))', proc(e, $)
+    evalindets(ee, 'And(specfunc({sum,Sum}),
+                        anyfunc(And(`*`,Not(`*`(Not(`+`)))),name=anything))',
+    proc(e, $)
       local terms, x;
-      terms := convert(expand(op(1,e), op(indets(op(1,e), function))), 'list', `+`);
+      terms := convert(expand(op(1,e), op(indets(op(1,e), function))),
+                       'list', `+`);
       x := op([2,1],e);
       `+`(op(map(proc(term, $)
         local s, r;
@@ -364,17 +374,22 @@ Loop := module ()
   # Simplify f(lo-1)*product(f(i),i=lo..hi) to product(f(i),i=lo-1..hi)
   graft := proc(ee, $)
     evalindets(ee, 'Or(And(`*`,Not(`*`(Not(specfunc({product,Product}))))),
-                       And(`+`,Not(`+`(Not(specfunc({sum    ,Sum    }))))))', proc(e, $)
+                       And(`+`,Not(`+`(Not(specfunc({sum    ,Sum    }))))))',
+    proc(e, $)
       local produce, factors, i, j;
       produce := `if`(e::`*`, '{product,Product}',
                               '{sum    ,Sum    }');
-      factors := sort(convert(e,'list'), key = (factor -> -numboccur(factor,produce)));
+      factors := sort(convert(e,'list'),
+                      key = (factor -> -numboccur(factor,produce)));
       for i from nops(factors) to 2 by -1 do
         for j from i-1 to 1 by -1 do
-          if op(j,factors) :: 'And'('specfunc'(produce),'anyfunc(anything,name=range)') then
-            if Testzero(op(i,factors) - eval(op([j,1],factors),op([j,2,1],factors)=op([j,2,2,1],factors)-1)) then
+          if op(j,factors) :: 'And'('specfunc'(produce),
+                                    'anyfunc(anything,name=range)') then
+            if Testzero(op(i,factors) - eval(op([j,1],factors),
+                 op([j,2,1],factors)=op([j,2,2,1],factors)-1)) then
               factors := subsop(i=NULL,applyop(`-`,[j,2,2,1],factors,1))
-            elif Testzero(op(i,factors) - eval(op([j,1],factors),op([j,2,1],factors)=op([j,2,2,2],factors)+1)) then
+            elif Testzero(op(i,factors) - eval(op([j,1],factors),
+                   op([j,2,1],factors)=op([j,2,2,2],factors)+1)) then
               factors := subsop(i=NULL,applyop(`+`,[j,2,2,2],factors,1))
             end if
           end if
@@ -386,8 +401,14 @@ Loop := module ()
 
   # Normalize sum(f(i),i=2..hi) to sum(f(i+2),i=0..hi-2)
   rebase := proc(ee, $)
-    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),anyfunc(anything,name=Or(posint,negint)..anything))', proc(e, $)
-      subsop([2,2,1]=0, applyop(`-`, [2,2,2], applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,1],e)), op([2,2,1],e)))
+    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
+                        anyfunc(anything,name=Or(posint,negint)..anything))',
+    proc(e, $)
+      subsop([2,2,1]=0,
+             applyop(`-`,
+                     [2,2,2],
+                     applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,1],e)),
+                     op([2,2,1],e)))
     end proc)
   end proc:
 
