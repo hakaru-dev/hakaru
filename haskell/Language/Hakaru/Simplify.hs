@@ -78,19 +78,23 @@ simplifyDebug
     => Bool -> abt '[] a -> IO (abt '[] a)
 simplifyDebug debug e = do
     let typ = typeOf e
-    let slo = "use Hakaru, NewSLO in timelimit(30, RoundTrip("
-              ++ Maple.pretty e ++ ", " ++ Maple.mapleType typ ")) end use;"
-    when debug (hPutStrLn stderr ("Sent to Maple:\n" ++ slo))
-    hakaru <- maple slo
-    when debug (do ret <- maple ("FromInert(" ++ hakaru ++ ")")
-                   hPutStrLn stderr ("Returning from Maple:\n" ++ ret))
-    either (throw  . MapleException slo)
-           (return . constantPropagation) $ do
-        past <- leftShow $ parseMaple (pack hakaru)
-        let m = checkType typ
-                 (SR.resolveAST' (getNames e) (maple2AST past))
-        leftShow $ unTCM m (freeVars e) UnsafeMode
-            
+    let toMaple_ = "use Hakaru, NewSLO in timelimit(30, RoundTrip("
+                   ++ Maple.pretty e ++ ", " ++ Maple.mapleType typ ")) end use;"
+    when debug (hPutStrLn stderr ("Sent to Maple:\n" ++ toMaple_))
+    fromMaple <- maple toMaple_
+    case fromMaple of
+      '_':'I':'n':'e':'r':'t':_ -> do
+        when debug $ do
+          ret <- maple ("FromInert(" ++ fromMaple ++ ")")
+          hPutStrLn stderr ("Returning from Maple:\n" ++ ret)
+        either (throw  . MapleException toMaple_)
+               (return . constantPropagation) $ do
+          past <- leftShow $ parseMaple (pack fromMaple)
+          let m = checkType typ
+                   (SR.resolveAST' (getNames e) (maple2AST past))
+          leftShow $ unTCM m (freeVars e) UnsafeMode
+      _ -> throw (MapleException toMaple_ fromMaple)
+
     where
     leftShow :: forall b c. Show b => Either b c -> Either String c
     leftShow (Left err) = Left (show err)
