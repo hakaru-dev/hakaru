@@ -28,7 +28,7 @@ NewSLO := module ()
         reduce_IntSum, reduce_IntsSums, get_indicators,
         elim_intsum, do_elim_intsum, banish, banish_guard, banish_weight,
         reduce_pw, nub_piecewise, piecewise_if,
-        find_vars, kb_from_path, interpret, reconstruct, invert, 
+        find_vars, kb_from_path, interpret, reconstruct, invert,
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2,
         mk_sym, mk_ary, mk_idx,
@@ -519,6 +519,16 @@ NewSLO := module ()
          and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
          and ispoly(normal(a0*var*(1-var)/a1), 'linear', var, 'b0', 'b1') then
       dist := BetaD(1-b0, 1+b0+b1)
+    elif not evalb((hi - lo) :: 'SymbolicInfinity')
+         and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
+         and ispoly(a0 - 2*var, 'linear', var, 'b0', 'b1') then
+      c0 := (lo*b1 + hi + lo + b0) / (hi - lo);
+      c1 := -(hi*b1 + hi + lo + b0) / (hi - lo);
+      if c0 = 1 and c1 = 1 then
+          dist := Uniform(lo, hi)
+      else
+          dist := bind(BetaD(c0, c1),x,lo+(hi-lo)*x)
+      end if
     elif lo = 0 and hi = infinity
          and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
          and ispoly(normal(a0*var/a1), 'linear', var, 'b0', 'b1') then
@@ -990,7 +1000,7 @@ NewSLO := module ()
        $
   )
   uses IT= IntegrationTools;
-  local 
+  local
        J:= op(2, e),   #the integral
        x::symbol:= op([2,1], J),   #var of integration
        a::algebraic:= op([2,2,1], J),  #lower limit
@@ -1006,15 +1016,15 @@ NewSLO := module ()
        as:= kb_to_assumptions(foldr(KB:-assert, KB:-empty, ctx[]))
   ;
        #Deal with nuisance that `assuming` won't take NULL as right operand.
-       as:= `if`(as=[], [[]], as)[];       
+       as:= `if`(as=[], [[]], as)[];
 
        #If more than one reparam is possible, return unevaluated.
        if nops(oldarg) <> 1 then
             WARNING("More than 1 reparam possible.");
-            userinfo(1, thisproc, "Possible reparams:", subs(x= ':-x', oldarg)); 
+            userinfo(1, thisproc, "Possible reparams:", subs(x= ':-x', oldarg));
             return 'procname'(e)
        end if;
-   
+
        oldarg:= oldarg[];   #Extract the reparam target.
 
        #If the target is simply a name, return input unchanged.
@@ -1022,58 +1032,58 @@ NewSLO := module ()
 
        #If target doesn't depend on x, return input unchanged.
        if not depends(simplify(oldarg), x) then
-            userinfo(2, procname, "Target doesn't depend on x. Target:", oldarg); 
-            return e 
-       end if; 
+            userinfo(2, procname, "Target doesn't depend on x. Target:", oldarg);
+            return e
+       end if;
 
        (*#************ This isn't currently used. **********************************
        #Check the invertibility of the subs.
 
        #The ability of `solve` to select a branch is very limited. For example,
-               solve({y=x^2, x > 0}, {x}) 
-       #returns 
-               sqrt(y), -sqrt(y). 
+               solve({y=x^2, x > 0}, {x})
+       #returns
+               sqrt(y), -sqrt(y).
        #This needs to be dealt with. First idea: Use `is` to filter
        #solutions. This is implemented below. But I should figure out how to do the `is` or its equivalent without
-       #using `assume` or `assuming`.                      
+       #using `assume` or `assuming`.
 
        #The next command is redundantly performed in the local inits. I put it here also
        #because I anticipate some situations where that's no longer valid.
 
-       #Save current vars for comparison with vars after `solve`.  
+       #Save current vars for comparison with vars after `solve`.
        Ns:= indets(oldarg, symbol);
        S:= {solve({'y'=oldarg, a <= x, x <= b}, {x}, allsolutions)};
        S:= map(s->`if`(s::specfunc(piecewise), s[], s), S);
        #Use `is` to filter solutions under the assumptions.
        assume(a <= x, x <= b);
        S:= select(s-> ver(rhs,lhs)(eval(s, y= oldarg)[]), S);
-       if  nops(S) <> 1  or  indets(S, symbol) <> Ns union {y}  or  hastype(S, RootOf)  then 
+       if  nops(S) <> 1  or  indets(S, symbol) <> Ns union {y}  or  hastype(S, RootOf)  then
             WARNING("Reparam target is not invertible (upto `solve` and `is`).");
             userinfo(1, procname, "Target:", subs(x= ':-x', oldarg), "S:", subs(x= ':-x', S), "domain:", ':-x'= a..b);
             return 'procname'(e)
-       end if; 
-       *******************************************************************************)  
-     
-       #Make the subs.       
+       end if;
+       *******************************************************************************)
+
+       #Make the subs.
        J:= IT:-Change(J, u= oldarg, [u]) assuming as;
 
        if J=0 then
             WARNING("Integral is 0, likely due to improper handling of an infinity issue.");
             userinfo(
-                 1, procname, "u subs:", 
+                 1, procname, "u subs:",
                  print(
-                      #Reformat the IT:-Change command for readability. 
+                      #Reformat the IT:-Change command for readability.
                       'IT:-Change'(
                            subs(
-                                x= ':-x', 
+                                x= ':-x',
                                 subsindets(
-                                     op(2,e), 
-                                     specfunc(applyintegrand), 
+                                     op(2,e),
+                                     specfunc(applyintegrand),
                                      f-> ':-h'(op(2,f))
                                 )
-                           ), 
+                           ),
                            ':-u'= subs(x= ':-x', oldarg),
-                           [':-u']          
+                           [':-u']
                       )
                  )
             );
@@ -1084,14 +1094,14 @@ NewSLO := module ()
        F:= evalb(op([2,2,1], J) > op([2,2,2], J));
        if F::truefalse then
             if F then
-                 userinfo(2, procname, "Switching limits:", op([2,2], J));  
+                 userinfo(2, procname, "Switching limits:", op([2,2], J));
                  J:= IT:-Flip(J)
             end if
        else #If inequality can't be decided, then don't reverse.
             userinfo(1, procname, "Can't order new limits:", op([2,2], J));
        end if;
-      
-       subsop(2= J, e)              
+
+       subsop(2= J, e)
   end proc;
 
   ###
@@ -1105,7 +1115,7 @@ NewSLO := module ()
 
   find_vars := proc(l)
     local NONE; # used as a placeholder
-    map(proc(x) 
+    map(proc(x)
           if type(x, specfunc(%int)) then op([1,1],x)
           elif type(x, specfunc(%weight)) then NONE
           else error "don't know about command (%1)", x
@@ -1123,11 +1133,11 @@ NewSLO := module ()
     res := foldr(proc(b,info)
           local x, lo, hi, p, kb;
           (kb, p) := op(info);
-          if type(b, specfunc(%int)) then 
+          if type(b, specfunc(%int)) then
             (lo, hi) := op(op([1,2],b));
             x, kb := genLebesgue(op([1,1], b), lo, hi, kb);
             [kb, [ %int(x = lo..hi), p]];
-          elif type(b, specfunc(%weight)) then 
+          elif type(b, specfunc(%weight)) then
             [kb, [ b, p ]];
           else error "don't know about command (%1)", x
           end if end proc,
@@ -1142,7 +1152,7 @@ NewSLO := module ()
   end proc;
 
   invert := proc(to_invert, main_var, integral, h, path, t)
-    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, would_capture, flip, 
+    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, would_capture, flip,
       kb, npath;
     if type(to_invert, 'linear'(main_var)) then
       sol := solve([t = to_invert], {main_var})[1];
@@ -1260,14 +1270,14 @@ NewSLO := module ()
 
   get_int_pos := proc(var, path)
     local finder;
-    finder := proc(loc) 
+    finder := proc(loc)
       if type(op(loc,path),specfunc(%int)) and op([loc,1,1], path) = var then
         loc
       else
         NULL # cheating...
       end if
     end proc;
-    seq(finder(i),i=1..nops(path)); 
+    seq(finder(i),i=1..nops(path));
   end proc;
 
   change_var := proc(act, chg, path, part)
@@ -1312,7 +1322,7 @@ NewSLO := module ()
   # just means that we should just push the one integral to the top, but
   # there's no need to rearrange anything else.
   avoid_capture := proc(task :: %WouldCapture(name, posint, list), chg, path, part)
-    local x, p, here, there, vars, new_path, go_past, to_top, work, n, pos, 
+    local x, p, here, there, vars, new_path, go_past, to_top, work, n, pos,
       y, v, scope;
 
     go_past := convert(map2(op, 1, op(3,task)), 'set');
@@ -1419,7 +1429,7 @@ NewSLO := module ()
       else
 
         pos := get_int_pos(var, path);
-        interpret([%WouldCapture(var, pos, [%Top]), op(2..-1,chg)], path, part); 
+        interpret([%WouldCapture(var, pos, [%Top]), op(2..-1,chg)], path, part);
       end if;
     elif type(chg[1], specfunc(%Drop)) then
       if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then
