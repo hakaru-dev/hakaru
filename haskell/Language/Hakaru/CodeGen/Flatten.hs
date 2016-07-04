@@ -65,7 +65,7 @@ flattenLit lit =
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
                  in do ident' <- genIdent
-                       declare $ typeDeclaration undefined ident'
+                       declare $ typeDeclaration SReal ident'
                        return (CExpr (Just (CCall (CVar (builtinIdent "log") node)
                                                   [CConst (CFloatConst (cFloat x') node)]
                                                   node))

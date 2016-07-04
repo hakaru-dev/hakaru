@@ -37,22 +37,25 @@ import Language.C.Data.Node
 import Language.C.Syntax.AST
 
 node = undefNode
--- names = [ [letter] ++ show number
---         | letter <- ['a'..'z']
---         , number <- [1..]]
+names = fmap builtinIdent
+        [ [letter] ++ show number
+        | letter <- ['a'..'z']
+        , number <- [1..]]
 
-type CodeGen a = State ([CDecl],Ident) a
+type CodeGen a = State ([Ident],[CDecl],Ident) a
 
 runCodeGen :: CodeGen CStat -> ([CDecl],Ident) -> ([CDecl], CStat)
-runCodeGen gen initial =
-  let (cstat, (decs, _)) = runState gen initial
-  in  (decs,cstat)
+runCodeGen gen (ds,i) =
+  let (cstat, (_,decs,_)) = runState gen (names,ds,i)
+  in  (reverse decs,cstat)
 
 getIdent :: CodeGen Ident
-getIdent = snd <$> get
+getIdent = (\(_,_,i) -> i) <$> get
 
 genIdent :: CodeGen Ident
-genIdent = undefined
+genIdent = do (n:ns,decs,cname) <- get
+              put (ns,decs,cname)
+              return n
 
 assign :: Ident -> CStat -> CodeGen CStat
 assign var cstat = return $
@@ -63,4 +66,4 @@ assign var cstat = return $
         node
 
 declare :: CDecl -> CodeGen ()
-declare d = get >>= \(decs,ident) -> put (d:decs,ident)
+declare d = get >>= \(names,decs,ident) -> put (names,d:decs,ident)
