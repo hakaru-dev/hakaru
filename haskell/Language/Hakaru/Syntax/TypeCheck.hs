@@ -1139,6 +1139,21 @@ checkType = checkType_
                     return $ syn (UnsafeFrom_ c :$ e1' :* End)
                 Nothing -> typeMismatch (Right typ0) (Right dom)
 
+        -- TODO: Find better place to put this logic
+        U.PrimOp_ U.Infinity [] -> do
+            case typ0 of
+              SNat  ->  return $
+                         syn (PrimOp_ (Infinity HIntegrable_Nat) :$ End)
+              SInt  -> checkOrCoerce (syn (PrimOp_ (Infinity HIntegrable_Nat) :$ End))
+                         SNat
+                         SInt
+              SProb -> return $
+                         syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End)
+              SReal -> checkOrCoerce (syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End))
+                         SProb
+                         SReal
+              _     -> failwith "Infinity can only be checked against nat or prob"
+
         U.NaryOp_ op es -> do
             mode <- getMode
             case mode of
