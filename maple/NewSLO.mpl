@@ -519,16 +519,16 @@ NewSLO := module ()
          and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
          and ispoly(normal(a0*var*(1-var)/a1), 'linear', var, 'b0', 'b1') then
       dist := BetaD(1-b0, 1+b0+b1)
-    elif not evalb((hi - lo) :: 'SymbolicInfinity')
-         and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
-         and ispoly(a0 - 2*var, 'linear', var, 'b0', 'b1') then
-      c0 := (lo*b1 + hi + lo + b0) / (hi - lo);
-      c1 := -(hi*b1 + hi + lo + b0) / (hi - lo);
-      if c0 = 1 and c1 = 1 then
-          dist := Uniform(lo, hi)
-      else
-          dist := bind(BetaD(c0, c1),x,lo+(hi-lo)*x)
-      end if
+    # elif not evalb((hi - lo) :: 'SymbolicInfinity')
+    #      and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
+    #      and ispoly(a0 - 2*var, 'linear', var, 'b0', 'b1') then
+    #   c0 := (lo*b1 + hi + lo + b0) / (hi - lo);
+    #   c1 := -(hi*b1 + hi + lo + b0) / (hi - lo);
+    #   if c0 = 1 and c1 = 1 then
+    #       dist := Uniform(lo, hi)
+    #   else
+    #       dist := bind(BetaD(c0, c1),x,lo+(hi-lo)*x)
+    #   end if
     elif lo = 0 and hi = infinity
          and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
          and ispoly(normal(a0*var/a1), 'linear', var, 'b0', 'b1') then
