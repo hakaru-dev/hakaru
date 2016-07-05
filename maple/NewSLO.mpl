@@ -47,7 +47,12 @@ NewSLO := module ()
   uses Hakaru, KB, Loop;
 
   RoundTrip := proc(e, t::t_type)
-    lprint(eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL))
+    local result;
+    interface(screenwidth=infinity, prettyprint=0);
+    writeto("/dev/fd/2");
+    result := eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL);
+    writeto(terminal);
+    lprint(result)
   end proc;
 
   Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
