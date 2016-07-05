@@ -92,11 +92,13 @@ flattenNAryOp :: ABT Term abt
 flattenNAryOp op args =
   let typ = opType op in
   do ids <- T.forM args
-                   (\abt -> do ident <- genIdent
-                               declare $ typeDeclaration typ ident
-                               expr <- flattenABT typ abt
-                               assign ident expr
-                               return ident)
+                   (\abt -> do expr <- flattenABT typ abt
+                               case expr of
+                                 (CVar i _) -> return i
+                                 _          -> do ident <- genIdent
+                                                  declare $ typeDeclaration typ ident
+                                                  assign ident expr
+                                                  return ident)
      let expr = F.foldr (binaryOp op)
                         (var_c (S.index ids 0))
                         (fmap var_c (S.drop 1 ids))
