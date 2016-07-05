@@ -50,32 +50,31 @@ node = undefNode
 flattenABT :: ABT Term abt
            => Sing (a :: Hakaru)
            -> abt '[] a
-           -> CodeGen CStat
+           -> CodeGen CExpr
 flattenABT typ abt = caseVarSyn abt flattenVar flattenTerm
 
 
-flattenLit :: Literal a -> CodeGen CStat
+flattenLit :: Literal a -> CodeGen CExpr
 flattenLit lit =
   case lit of
-    (LNat x)  -> return $ constStat $ CIntConst (cInteger $ fromIntegral x) node
-    (LInt x)  -> return $ constStat $ CIntConst (cInteger $ fromIntegral x) node
-    (LReal x) -> return $ constStat $ CFloatConst (cFloat $ fromRational x) node
+    (LNat x)  -> return $ CConst $ CIntConst (cInteger $ fromIntegral x) node
+    (LInt x)  -> return $ CConst $ CIntConst (cInteger $ fromIntegral x) node
+    (LReal x) -> return $ CConst $ CFloatConst (cFloat $ fromRational x) node
     (LProb x) -> let rat = fromNonNegativeRational x
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
-                 in do ident' <- genIdent
-                       declare $ typeDeclaration SProb ident'
-                       let astat = assign ident' (CExpr (Just (CCall (CVar (builtinIdent "log") node)
-                                                                     [CConst (CFloatConst (cFloat x') node)]
-                                                                     node))
-                                                        node)
-                       return $ sumStat [astat,callIdent ident']
+                 in do ident <- genIdent
+                       declare $ typeDeclaration SProb ident
+                       assign ident (CCall (CVar (builtinIdent "log") node)
+                                           [CConst (CFloatConst (cFloat x') node)]
+                                           node)
+                       return $ CVar ident node
 
 
-flattenVar :: Variable (a :: Hakaru) -> CodeGen CStat
+flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
 flattenVar = undefined
 
-flattenTerm :: ABT Term abt => Term abt a -> CodeGen CStat
+flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
 flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
 flattenTerm (Literal_ x)   = flattenLit x
 flattenTerm (Empty_ x)     = error "TODO: flattenTerm Empty"
@@ -89,21 +88,19 @@ flattenTerm (Superpose_ x) = error "TODO: flattenTerm Superpose"
 flattenNAryOp :: ABT Term abt
               => NaryOp a
               -> Seq (abt '[] a)
-              -> CodeGen CStat
+              -> CodeGen CExpr
 flattenNAryOp op args =
   let typ = opType op in
-  do fids <- T.forM args
-                   (\abt -> do id' <- genIdent
-                               declare $ typeDeclaration typ id'
-                               stmt <- flattenABT typ abt
-                               let stmt' = assign id' stmt
-                               return (id',stmt'))
-     let stmt = CExpr (Just $ F.foldr (\(a,_) b -> binaryOp op a b)
-                                      (CConst $ toCUnitOp op)
-                                      fids)
-                      node
-     let stmts = fmap snd fids
-     return $ sumStat (stmts |> stmt)
+  do ids <- T.forM args
+                   (\abt -> do ident <- genIdent
+                               declare $ typeDeclaration typ ident
+                               expr <- flattenABT typ abt
+                               assign ident expr
+                               return ident)
+     let expr = F.foldr (binaryOp op)
+                        (CConst $ toCUnitOp op)
+                        ids
+     return expr
 
 opType :: forall (a :: Hakaru). NaryOp a -> Sing a
 -- opType And                   = SNat

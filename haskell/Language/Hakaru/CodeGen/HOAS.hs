@@ -18,11 +18,9 @@
 ----------------------------------------------------------------
 
 module Language.Hakaru.CodeGen.HOAS
-  ( assign
-  , typeDeclaration
+  ( typeDeclaration
   , toCUnitOp
   , constStat
-  , callIdent
   , sumStat
   , binaryOp ) where
 
@@ -41,17 +39,6 @@ import qualified Data.Foldable as F
 
 node :: NodeInfo
 node = undefNode
-
-assign :: Ident -> CStat -> CStat
-assign var cstat =
-  CExpr (Just (CAssign CAssignOp
-                       (CVar var node)
-                       (CStatExpr (CCompound [] [CBlockStmt cstat] node) node)
-                       node))
-        node
-
-callIdent :: Ident -> CStat
-callIdent ident = CExpr (Just (CVar ident node)) node
 
 constStat :: CConstant NodeInfo -> CStat
 constStat x = CExpr (Just $ CConst x) node

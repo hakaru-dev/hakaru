@@ -29,6 +29,7 @@ import           Language.Hakaru.Types.Sing
 
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.Flatten
+import Language.Hakaru.CodeGen.HOAS       
 import Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Language.C.Data.Ident
@@ -41,21 +42,25 @@ import           Text.PrettyPrint (render)
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid
 #endif
-
+-- import Language.C.Syntax.AST
+-- import Language.C.Data.Node
 
 -- | Create program is the top level C codegen. Depending on the type a program
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST typ abt) =
-  let (decls,cstat) = runCodeGen (flattenABT typ abt) ([], (builtinIdent "result"))
+  let ident         = builtinIdent "result"
+      (decls,stmts) = runCodeGen (do declare $ typeDeclaration typ ident
+                                     expr <- flattenABT typ abt
+                                     assign ident expr)
+                                 ([],[])
   in  unlines [ header typ
-              , ""
               , prelude
               , mainWith typ
                          (fmap (\d -> mconcat [(pack . render . C.pretty) d,";"]) decls)
-             -- have to add a hack because lang-c does not print ';' at end of decl
-                         ((pack . render . C.pretty) cstat) ]
+                         (fmap (pack . render . C.pretty) stmts)
+              ]
 
 header :: Sing (a :: Hakaru) -> Text
 header (SMeasure _) = unlines [ "#include <time.h>"
@@ -76,23 +81,24 @@ normalC = unlines
         , "  return mu + u * c * sd;"
         , "}" ]
 
-mainWith :: Sing (a :: Hakaru) -> [Text] -> Text -> Text
-mainWith typ decl cstat = unlines
- [ "void main(){"
+mainWith :: Sing (a :: Hakaru) -> [Text] -> [Text] -> Text
+mainWith typ decl stmts = unlines
+ [ "int main(){"
  , case typ of
-     SMeasure _ -> "  srand(time(NULL));\n"
+     SMeasure _ -> "srand(time(NULL));\n"
      _ -> ""
  , unlines decl
- , cstat
+ , unlines stmts
  , case typ of
-     SMeasure _ -> "  while(1) printf(\"%.17g\\n\",result);"
-     SInt       -> "  printf(\"%d\\n\",result);"
-     SNat       -> "  printf(\"%d\\n\",result);"
-     SProb      -> "  printf(\"exp(%.17g)\\n\",result);"
-     SReal      -> "  printf(\"%.17g\\n\",result);"
-     SArray _   -> "  printf(\"%.17g\\n\",result);"
-     SFun _ _   -> "  printf(\"%.17g\\n\",result);"
-     SData _ _  -> "  printf(\"%.17g\\n\",result);"
+     SMeasure _ -> "while(1) printf(\"%.17g\\n\",result);"
+     SInt       -> "printf(\"%d\\n\",result);"
+     SNat       -> "printf(\"%d\\n\",result);"
+     SProb      -> "printf(\"exp(%.17g)\\n\",result);"
+     SReal      -> "printf(\"%.17g\\n\",result);"
+     SArray _   -> "printf(\"%.17g\\n\",result);"
+     SFun _ _   -> "printf(\"%.17g\\n\",result);"
+     SData _ _  -> "printf(\"%.17g\\n\",result);"
+ , "return 0;"
  , "}" ]
 
 prelude :: Text

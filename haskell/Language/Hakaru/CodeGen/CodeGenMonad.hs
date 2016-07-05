@@ -22,7 +22,8 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
   , runCodeGen
   , declare
-  , getIdent
+  , assign
+  , putStat
   , genIdent ) where
 
 import Control.Monad.State
@@ -41,20 +42,29 @@ names = fmap builtinIdent
         | letter <- ['a'..'z']
         , number <- [1..]]
 
-type CodeGen a = State ([Ident],[CDecl],Ident) a
+type CodeGen a = State ([Ident],[CDecl],[CStat]) a
 
-runCodeGen :: CodeGen CStat -> ([CDecl],Ident) -> ([CDecl], CStat)
-runCodeGen gen (ds,i) =
-  let (cstat, (_,decs,_)) = runState gen (names,ds,i)
-  in  (reverse decs,cstat)
-
-getIdent :: CodeGen Ident
-getIdent = (\(_,_,i) -> i) <$> get
+runCodeGen :: CodeGen a -> ([CDecl],[CStat]) -> ([CDecl], [CStat])
+runCodeGen gen (ds,ss) =
+  let (_, (_,ds',ss')) = runState gen (names,ds,ss)
+  in  (reverse ds',reverse ss')
 
 genIdent :: CodeGen Ident
-genIdent = do (n:ns,decs,cname) <- get
-              put (ns,decs,cname)
+genIdent = do (n:ns,decs,stmts) <- get
+              put (ns,decs,stmts)
               return n
 
 declare :: CDecl -> CodeGen ()
-declare d = get >>= \(names,decs,ident) -> put (names,d:decs,ident)
+declare d = get >>= \(ns,ds,ss) -> put (ns,d:ds,ss)
+
+putStat :: CStat -> CodeGen ()
+putStat s = get >>= \(ns,ds,ss) -> put (ns,ds,s:ss)
+
+assign :: Ident -> CExpr -> CodeGen ()
+assign var expr =
+  let assignment = CExpr (Just (CAssign CAssignOp
+                                        (CVar var node)
+                                        expr
+                                        node))
+                         node
+  in  putStat assignment
