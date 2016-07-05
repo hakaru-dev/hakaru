@@ -21,7 +21,6 @@
 module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
   , runCodeGen
-  , assign
   , declare
   , getIdent
   , genIdent ) where
@@ -56,14 +55,6 @@ genIdent :: CodeGen Ident
 genIdent = do (n:ns,decs,cname) <- get
               put (ns,decs,cname)
               return n
-
-assign :: Ident -> CStat -> CodeGen CStat
-assign var cstat = return $
-  CExpr (Just (CAssign CAssignOp
-                       (CVar var node)
-                       (CStatExpr (CCompound [] [CBlockStmt cstat] node) node)
-                       node))
-        node
 
 declare :: CDecl -> CodeGen ()
 declare d = get >>= \(names,decs,ident) -> put (names,d:decs,ident)
