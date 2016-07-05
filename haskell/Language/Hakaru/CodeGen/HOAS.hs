@@ -21,6 +21,7 @@ module Language.Hakaru.CodeGen.HOAS
   ( typeDeclaration
   , toCUnitOp
   , constStat
+  , var_c
   , sumStat
   , binaryOp ) where
 
@@ -86,5 +87,23 @@ toCUnitOp _ = error "TODO: unitOp"
 -- -- toCU- unitOp (Min  HOrd_Prob)      = VProb (LF.logFloat LF.infinity)
 -- -- toCU- unitOp (Min  HOrd_Real)      = VReal LF.infinity
 
-binaryOp :: NaryOp a -> Ident -> CExpr -> CExpr
-binaryOp op a b = CBinary CAddOp (CVar a node) b node
+binaryOp :: NaryOp a -> CExpr -> CExpr -> CExpr
+binaryOp (Sum HSemiring_Prob)  a b = log_c (CBinary CAddOp
+                                                    (exp_c a)
+                                                    (exp_c b)
+                                                    node)
+binaryOp (Prod HSemiring_Prob) a b = CBinary CMulOp a b node
+binaryOp _                     a b = CBinary CAddOp a b node
+
+log_c :: CExpr -> CExpr
+log_c x = (CCall (CVar (builtinIdent "log") node)
+                 [x]
+                 node)
+
+exp_c :: CExpr -> CExpr
+exp_c x = (CCall (CVar (builtinIdent "exp") node)
+                 [x]
+                 node)
+
+var_c :: Ident -> CExpr
+var_c x = CVar x node      

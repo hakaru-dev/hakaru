@@ -40,7 +40,7 @@ import Control.Monad
 
 import           Data.Number.Natural
 import           Data.Ratio
-import           Data.Sequence (Seq, (|>))
+import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
 
@@ -87,7 +87,7 @@ flattenTerm (Superpose_ x) = error "TODO: flattenTerm Superpose"
 
 flattenNAryOp :: ABT Term abt
               => NaryOp a
-              -> Seq (abt '[] a)
+              -> S.Seq (abt '[] a)
               -> CodeGen CExpr
 flattenNAryOp op args =
   let typ = opType op in
@@ -98,8 +98,8 @@ flattenNAryOp op args =
                                assign ident expr
                                return ident)
      let expr = F.foldr (binaryOp op)
-                        (CConst $ toCUnitOp op)
-                        ids
+                        (var_c (S.index ids 0))
+                        (fmap var_c (S.drop 1 ids))
      return expr
 
 opType :: forall (a :: Hakaru). NaryOp a -> Sing a
