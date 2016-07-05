@@ -29,7 +29,7 @@ import           Language.Hakaru.Types.Sing
 
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.Flatten
-import Language.Hakaru.CodeGen.HOAS       
+import Language.Hakaru.CodeGen.HOAS
 import Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Language.C.Data.Ident
@@ -52,7 +52,7 @@ createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST typ abt) =
   let ident         = builtinIdent "result"
       (decls,stmts) = runCodeGen (do declare $ typeDeclaration typ ident
-                                     expr <- flattenABT typ abt
+                                     expr <- flattenABT abt
                                      assign ident expr)
                                  ([],[])
   in  unlines [ header typ

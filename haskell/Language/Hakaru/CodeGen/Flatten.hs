@@ -36,8 +36,6 @@ import Language.C.Data.Node
 import Language.C.Syntax.AST
 import Language.C.Syntax.Constants
 
-import Control.Monad
-
 import           Data.Number.Natural
 import           Data.Ratio
 import qualified Data.Sequence      as S
@@ -48,10 +46,9 @@ node :: NodeInfo
 node = undefNode
 
 flattenABT :: ABT Term abt
-           => Sing (a :: Hakaru)
-           -> abt '[] a
+           => abt '[] a
            -> CodeGen CExpr
-flattenABT typ abt = caseVarSyn abt flattenVar flattenTerm
+flattenABT abt = caseVarSyn abt flattenVar flattenTerm
 
 
 flattenLit :: Literal a -> CodeGen CExpr
@@ -77,14 +74,16 @@ flattenVar = undefined
 flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
 flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
 flattenTerm (Literal_ x)   = flattenLit x
-flattenTerm (Empty_ x)     = error "TODO: flattenTerm Empty"
-flattenTerm (Datum_ x)     = error "TODO: flattenTerm Datum"
-flattenTerm (Case_ x y)    = error "TODO: flattenTerm Case"
-flattenTerm (Array_ x y)   = error "TODO: flattenTerm Array"
-flattenTerm (x :$ y)       = error "TODO: flattenTerm :$"
-flattenTerm (Reject_ x)    = error "TODO: flattenTerm Reject"
-flattenTerm (Superpose_ x) = error "TODO: flattenTerm Superpose"
+flattenTerm (Empty_ _)     = error "TODO: flattenTerm Empty"
+flattenTerm (Datum_ _)     = error "TODO: flattenTerm Datum"
+flattenTerm (Case_ _ _)    = error "TODO: flattenTerm Case"
+flattenTerm (Array_ _ _)   = error "TODO: flattenTerm Array"
+flattenTerm (x :$ ys)      = flattenSCon x ys
+flattenTerm (Reject_ _)    = error "TODO: flattenTerm Reject"
+flattenTerm (Superpose_ _) = error "TODO: flattenTerm Superpose"
 
+
+----------------------------------------------------------------
 flattenNAryOp :: ABT Term abt
               => NaryOp a
               -> S.Seq (abt '[] a)
@@ -92,7 +91,7 @@ flattenNAryOp :: ABT Term abt
 flattenNAryOp op args =
   let typ = opType op in
   do ids <- T.forM args
-                   (\abt -> do expr <- flattenABT typ abt
+                   (\abt -> do expr <- flattenABT abt
                                case expr of
                                  (CVar i _) -> return i
                                  _          -> do ident <- genIdent
@@ -115,3 +114,22 @@ opType (Prod HSemiring_Int)  = SInt
 opType (Prod HSemiring_Prob) = SProb
 opType (Prod HSemiring_Real) = SReal
 opType x = error $ "TODO: opType " ++ show x
+----------------------------------------------------------------
+
+
+
+flattenSCon :: (ABT Term abt)
+            => SCon args a
+            -> SArgs abt args
+            -> CodeGen CExpr
+flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
+flattenSCon Dirac           = \(e :* End) -> flattenABT e
+flattenSCon _               = \_ -> error "TODO: flattenSCon"
+
+flattenMeasureOp :: ( ABT Term abt
+                    , typs ~ UnLCs args
+                    , args ~ LCs typs)
+                 => MeasureOp typs a
+                 -> SArgs abt args
+                 -> CodeGen CExpr
+flattenMeasureOp = error $ "TODO: flattenMeasureOp"

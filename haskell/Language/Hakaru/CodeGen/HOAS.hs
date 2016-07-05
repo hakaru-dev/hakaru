@@ -25,7 +25,6 @@ module Language.Hakaru.CodeGen.HOAS
   , sumStat
   , binaryOp ) where
 
-import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
@@ -55,20 +54,12 @@ typeDeclaration typ ident =
         node
 
 toCType :: Sing (a :: Hakaru) -> CTypeSpecifier NodeInfo
-toCType SInt       = CIntType undefNode
-toCType SNat       = CIntType undefNode
-toCType SProb      = CDoubleType undefNode
-toCType SReal      = CDoubleType undefNode
-toCType _          = error "TODO: toCType"
-
-toCNaryOpType :: NaryOp a -> CBinaryOp
-toCNaryOpType And                   = CAndOp
-toCNaryOpType (Sum _)               = CAddOp
-toCNaryOpType (Prod HSemiring_Prob) = CAddOp   -- product of exp is addition
-toCNaryOpType (Prod _)              = CMulOp
--- toCNaryOpType (Min _)  = undefined
--- toCNaryOpType (Max _)  = undefined
-toCNaryOpType _ = error "TODO: flattenOp"
+toCType SInt         = CIntType undefNode
+toCType SNat         = CIntType undefNode
+toCType SProb        = CDoubleType undefNode
+toCType SReal        = CDoubleType undefNode
+toCType (SMeasure x) = toCType x
+toCType x            = error $ "TODO: toCType: " ++ show x
 
 
 toCUnitOp :: NaryOp a -> CConstant NodeInfo
@@ -106,4 +97,4 @@ exp_c x = (CCall (CVar (builtinIdent "exp") node)
                  node)
 
 var_c :: Ident -> CExpr
-var_c x = CVar x node      
+var_c x = CVar x node
