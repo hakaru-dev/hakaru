@@ -56,7 +56,7 @@ callIdent ident = CExpr (Just (CVar ident node)) node
 constStat :: CConstant NodeInfo -> CStat
 constStat x = CExpr (Just $ CConst x) node
 
-sumStat :: Foldable m => m CStat -> CStat
+sumStat :: F.Foldable m => m CStat -> CStat
 sumStat stmts = CExpr (Just (CStatExpr (CCompound [] stmts' node) node)) node
   where stmts' = F.foldr ((:).CBlockStmt) [] stmts
 
