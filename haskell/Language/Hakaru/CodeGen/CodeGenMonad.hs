@@ -39,8 +39,6 @@ import Control.Applicative ((<$>))
 
 import Language.Hakaru.Syntax.ABT hiding (var)
 import Language.Hakaru.Types.DataKind
--- import Language.Hakaru.Syntax.IClasses
--- import Language.Hakaru.Types.Sing       
 
 import Language.C.Data.Ident
 import Language.C.Data.Node
@@ -117,6 +115,13 @@ assign var expr =
   in  putStat assignment
 
 
+-- -- A monad on top of CodeGen that keeps track of measure effect
+-- newtype MCodeGen typ a = MCodeGen $ \typ Ident -> CodeGen a
+
+-- instance Monad MCodeGen where
+--   return a = MCodeGen $ \typ mIdent -> assign typ a
+
+
 ---------
 -- ENV --
 ---------
@@ -135,6 +140,6 @@ updateEnv v@(EAssoc x _) (Env xs) =
 
 lookupVar :: Variable (a :: Hakaru) -> Env -> Maybe Ident
 lookupVar x (Env env) = do
-    EAssoc x' e' <- IM.lookup (fromNat $ varID x) env
+    EAssoc _ e' <- IM.lookup (fromNat $ varID x) env
     -- Refl         <- varEq x x' -- extra check?
     return e'

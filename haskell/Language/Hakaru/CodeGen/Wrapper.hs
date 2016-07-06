@@ -42,24 +42,38 @@ import           Text.PrettyPrint (render)
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid
 #endif
--- import Language.C.Syntax.AST
--- import Language.C.Data.Node
+
+measureIdent :: Ident
+measureIdent = builtinIdent "measure"
 
 -- | Create program is the top level C codegen. Depending on the type a program
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
+createProgram (TypedAST tt@(SMeasure internalT) abt) =
+  let ident         = builtinIdent "result"
+      (decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT measureIdent
+                                     declare $ typeDeclaration internalT ident
+                                     expr <- flattenABT abt
+                                     assign ident expr)
+  in  unlines [ header tt
+              , mainWith tt
+                         (fmap (\d -> mconcat [(pack . render . C.pretty) d,";"]) decls)
+                         (fmap (pack . render . C.pretty) stmts)
+              ]
+
 createProgram (TypedAST typ abt) =
   let ident         = builtinIdent "result"
       (decls,stmts) = runCodeGen (do declare $ typeDeclaration typ ident
                                      expr <- flattenABT abt
                                      assign ident expr)
   in  unlines [ header typ
-              , prelude
               , mainWith typ
                          (fmap (\d -> mconcat [(pack . render . C.pretty) d,";"]) decls)
                          (fmap (pack . render . C.pretty) stmts)
               ]
+
+
 
 header :: Sing (a :: Hakaru) -> Text
 header (SMeasure _) = unlines [ "#include <time.h>"
@@ -89,17 +103,14 @@ mainWith typ decl stmts = unlines
  , unlines decl
  , unlines stmts
  , case typ of
-     SMeasure _ -> "while(1) printf(\"%.17g\\n\",result);"
-     SInt       -> "printf(\"%d\\n\",result);"
-     SNat       -> "printf(\"%d\\n\",result);"
-     SProb      -> "printf(\"exp(%.17g)\\n\",result);"
-     SReal      -> "printf(\"%.17g\\n\",result);"
-     SArray _   -> "printf(\"%.17g\\n\",result);"
-     SFun _ _   -> "printf(\"%.17g\\n\",result);"
-     SData _ _  -> "printf(\"%.17g\\n\",result);"
+     SMeasure t -> mconcat ["while(1) printf(",printft t,",measure);"]
+     _          -> mconcat ["printf(",printft typ,",result);"]
  , "return 0;"
  , "}" ]
 
-prelude :: Text
-prelude = unlines
- [""]
+printft :: Sing (a :: Hakaru) -> Text
+printft SInt  = "\"%d\\n\""
+printft SNat  = "\"%d\\n\""
+printft SProb = "\"exp(%.17g)\\n\""
+printft SReal = "\"%.17g\\n\""
+printft x     = error $ "TODO: printft: " ++ show x

@@ -21,7 +21,9 @@
 ----------------------------------------------------------------
 
 
-module Language.Hakaru.CodeGen.Flatten where
+module Language.Hakaru.CodeGen.Flatten
+  (flattenABT)
+  where
 
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.HOAS
@@ -40,11 +42,14 @@ import           Data.Number.Natural
 import           Data.Ratio
 import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
-import qualified Data.Text          as Text
+-- import qualified Data.Text          as Text
 import qualified Data.Traversable   as T
 
 node :: NodeInfo
 node = undefNode
+
+measureIdent :: Ident
+measureIdent = builtinIdent "measure"
 
 flattenABT :: ABT Term abt
            => abt '[] a
@@ -70,8 +75,8 @@ flattenLit lit =
 
 
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
-flattenVar var = do ident <- lookupIdent var
-                    return $ CVar ident node
+flattenVar v = do ident <- lookupIdent v
+                  return $ CVar ident node
 
 flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
 flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
@@ -133,7 +138,9 @@ flattenSCon Let_            =
             assign ident expr'
             flattenABT body'
 flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
-flattenSCon Dirac           = \(e :* End) -> flattenABT e
+flattenSCon Dirac           = \(e :* End) -> do e' <- flattenABT e
+                                                assign measureIdent e'
+                                                return e'
 flattenSCon _               = \_ -> error "TODO: flattenSCon"
 
 flattenMeasureOp :: ( ABT Term abt
