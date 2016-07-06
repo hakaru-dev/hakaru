@@ -47,6 +47,7 @@ module Language.Hakaru.Evaluation.Types
     , Index, indVar, indSize
 #ifdef __TRACE_DISINTEGRATE__
     , ppList
+    , ppInds
     , ppStatement
     , pretty_Statements
     , pretty_Statements_withTerm
@@ -619,6 +620,9 @@ parens False ds = ds
 ppList :: [PP.Doc] -> PP.Doc
 ppList = PP.sep . (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
 
+ppInds :: (ABT Term abt) => [Index (abt '[])] -> PP.Doc
+ppInds = ppList . map (ppVariable . indVar)
+
 ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
 ppStatement p s =
     case s of
@@ -626,25 +630,25 @@ ppStatement p s =
         PP.sep $ ppFun p "SBind"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
-            , ppList $ map (ppVariable . indVar) inds
+            , ppInds inds
             ]
     SLet x e inds ->
         PP.sep $ ppFun p "SLet"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
-            , ppList $ map (ppVariable . indVar) inds
+            , ppInds inds
             ]
     SWeight e inds ->
         PP.sep $ ppFun p "SWeight"
             [ PP.sep $ prettyPrec_ 11 e
-            , ppList $ map (ppVariable . indVar) inds
+            , ppInds inds
             ]
     SGuard xs pat e inds ->
         PP.sep $ ppFun p "SGuard"
             [ PP.sep $ ppVariables xs
             , PP.sep $ prettyPrec_ 11 pat
             , PP.sep $ prettyPrec_ 11 e
-            , ppList $ map (ppVariable . indVar) inds
+            , ppInds inds
             ]
     SStuff0   _ _ ->
         PP.sep $ ppFun p "SStuff0"

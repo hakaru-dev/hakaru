@@ -93,10 +93,11 @@ import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..),foldM,guard)
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
+import           Data.Number.Nat
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit)
+import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit, sUnArray)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
@@ -168,7 +169,7 @@ residualizeListContext ss rho e0 =
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
 data Loc :: (Hakaru -> *) -> Hakaru -> * where
-     Loc :: Variable a
+     Loc :: Variable a 
          -> [Variable 'HNat]
          -> Loc ast a
      MultiLoc
@@ -186,8 +187,10 @@ extendLocInds = (:)
 #ifdef __TRACE_DISINTEGRATE__
       
 prettyLoc :: Loc ast (a :: Hakaru) -> PP.Doc
-prettyLoc (Loc l inds) = PP.text "Loc" PP.<+> ppVariable l
-                         PP.<+> ppList (map ppVariable inds)
+prettyLoc (Loc l inds)      = PP.text "Loc" PP.<+> ppVariable l
+                              PP.<+> ppList (map ppVariable inds)
+prettyLoc (MultiLoc l inds) = PP.text "MultiLoc" PP.<+> ppVariable l
+                              PP.<+> ppList (map ppVariable inds)
 
 prettyLocs :: (ABT Term abt)
            => Assocs (Loc (abt '[]))
@@ -314,9 +317,9 @@ residualizeLocs :: forall a abt. (ABT Term abt)
                 -> Dis abt (abt '[] a, Assocs (abt '[]))
 residualizeLocs e = do
   ss <- getStatements
-  (ss',newlocs) <- foldM step ([], emptyAssocs) ss
-  putStatements (reverse ss')
+  (ss', newlocs) <- foldM step ([], emptyAssocs) ss
   rho <- convertLocs newlocs
+  putStatements (reverse ss')
 #ifdef __TRACE_DISINTEGRATE__
   trace ("residualizeLocs: old:\n" ++ show (pretty_Statements ss )) $ return ()
   trace ("residualizeLocs: new:\n" ++ show (pretty_Statements ss')) $ return ()
@@ -325,46 +328,50 @@ residualizeLocs e = do
   traceM ("new assoc for renaming:\n" ++ show (prettyAssocs rho))
 #endif
   return (e, rho)
-    where
-      step :: (ABT Term abt)
-           => ([Statement abt 'Impure], Assocs (Variable :: Hakaru -> *))
-           -> Statement abt 'Impure
-           -> Dis abt ([Statement abt 'Impure], Assocs (Variable :: Hakaru -> *))
-      step (ss',newlocs) s = do
-        case s of
-          SBind   l body  inds -> do l' <- freshenVar l
-                                     let s' = reifyStatement (SBind l' body inds)
-                                         r  = Assoc l l'
-                                     return (s':ss' , insertAssoc r newlocs)
-          SLet    l body  inds -> do l' <- freshenVar l
-                                     let s' = reifyStatement (SLet l' body inds)
-                                         r  = Assoc l l'
-                                     return (s':ss' , insertAssoc r newlocs)
-          SWeight w       inds -> do l' <- freshVar Text.empty sUnit
-                                     let bodyW = Thunk $ P.weight (fromLazy w)
-                                         s'    = reifyStatement (SBind l' bodyW inds) 
-                                     return (s':ss', newlocs)
-          SGuard ls p scr inds -> do ls' <- freshenVars ls
-                                     let s' = reifyStatement (SGuard ls' p scr inds)
-                                         rs = toAssocs1 ls ls'
-                                     return (s':ss', insertAssocs rs newlocs)
+    where step (ss',newlocs) s = do (s',newlocs') <- residualizeLoc s
+                                    return (s':ss', insertAssocs newlocs' newlocs)
+
+data Name (a :: Hakaru) = Name {nameHint :: Text, nameID :: Nat}
+
+varName :: Variable a -> Name b
+varName x = Name (varHint x) (varID x)
+
+residualizeLoc :: (ABT Term abt)
+               => Statement abt 'Impure
+               -> Dis abt (Statement abt 'Impure, Assocs Name)
+residualizeLoc s =
+    case s of
+      SBind l body inds -> do 
+             (s', newname) <- reifyStatement s
+             return (s', singletonAssocs l newname)
+      SLet  l body inds -> do
+             (s', newname) <- reifyStatement s
+             return (s', singletonAssocs l newname)
+      SWeight w inds    -> do
+             l <- freshVar Text.empty sUnit
+             let bodyW = Thunk $ P.weight (fromLazy w)
+             (s', newname) <- reifyStatement (SBind l bodyW inds)
+             return (s', singletonAssocs l newname)
+      SGuard ls _ _ ixs
+        | null ixs  -> return (s, toAssocs1 ls (fmap11 varName ls))
+        | otherwise -> error "undefined: case statement under an array"
 
 reifyStatement :: (ABT Term abt)
-               => Statement abt 'Impure -> Statement abt 'Impure
-reifyStatement s@(SBind _ _    [])     = s
-reifyStatement   (SBind x body (i:is)) =
+               => Statement abt 'Impure
+               -> Dis abt (Statement abt 'Impure, Name a)
+reifyStatement s@(SBind l _    [])     = return (s, varName l)
+reifyStatement   (SBind l body (i:is)) = do
     let bodyP = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
-        x'    = x { varType = SArray (varType x) }
-    in reifyStatement (SBind x' bodyP is)
-reifyStatement s@(SLet  _ _    [])     = s
-reifyStatement   (SLet  x body (i:is)) =
+    l' <- freshVar (varHint l) (SArray (varType l))
+    reifyStatement (SBind l' bodyP is)
+reifyStatement s@(SLet  l _    [])     = return (s, varName l)
+reifyStatement   (SLet  l body (i:is)) = do
     let arr = Thunk $ P.arrayWithVar (indSize i) (indVar i) (fromLazy body)
-        x'  = x { varType = SArray (varType x) }
-    in reifyStatement (SLet x' arr is)
+    l' <- freshVar (varHint l) (SArray (varType l))
+    reifyStatement (SLet l' arr is)
 reifyStatement   (SWeight _    _)      = error "reifyStatement called on SWeight"
-reifyStatement s@(SGuard _ _ _ [])     = s
-reifyStatement   (SGuard _ _ _ _)      = error "undefined: case statement under an array"
-                                         
+reifyStatement   (SGuard _ _ _ _)      = error "reifyStatement called on SGuard"
+                           
 sizeInnermostInd :: (ABT Term abt)
                  => Variable (a :: Hakaru)
                  -> Dis abt (abt '[] 'HNat)
@@ -373,39 +380,51 @@ sizeInnermostInd l =
         do guard (length (statementInds s) >= 1)
            case s of
              SBind l' _ ixs -> do Refl <- varEq l l'
-                                  Just $ return (indSize (head ixs))
+                                  Just $ do
+                                    unsafePush s
+                                    return (indSize (head ixs))
              SLet  l' _ ixs -> do Refl <- varEq l l'
-                                  Just $ return (indSize (head ixs))
+                                  Just $ do
+                                    unsafePush s
+                                    return (indSize (head ixs))
              SWeight _ _    -> Nothing
              SGuard _ _ _ _ -> error "TODO: sizeInnermostInd{SGuard}"
                                          
 fromLoc :: (ABT Term abt)
-        => Variable a -> [Variable 'HNat] -> abt '[] a
-fromLoc l []     = var l
-fromLoc l (j:js) = let l' = l { varType = SArray (varType l) }
-                   in (fromLoc l' js) P.! (var j)
-
+        => Name b
+        -> Sing a
+        -> [Variable 'HNat]
+        -> abt '[] a
+fromLoc name typ []     = var $ Variable { varHint = nameHint name
+                                         , varID   = nameID name
+                                         , varType = typ }
+fromLoc name typ (i:is) = fromLoc name (SArray typ) is P.! var i
+                     
 convertLocs :: (ABT Term abt)
-            => Assocs (Variable :: Hakaru -> *)
+            => Assocs Name
             -> Dis abt (Assocs (abt '[]))
 convertLocs newlocs =  do oldlocs <- fromAssocs <$> getLocs
                           foldM step emptyAssocs oldlocs
     where
-      step rho (Assoc x loc) = 
+      build :: (ABT Term abt) => Assoc (Loc (abt '[]))
+            -> Name a -> Dis abt (Assoc (abt '[]))
+      build (Assoc x loc) name =
           case loc of
-            Loc      l js ->
-                maybe (freeLocError l)
-                      (\l' -> return $ insertAssoc (Assoc x (fromLoc l' js)) rho)
-                      (lookupAssoc l newlocs)
-            MultiLoc l js ->
-                maybe (freeLocError l)
-                      (\l' -> do
-                         n <- sizeInnermostInd l'
-                         j <- freshInd n
-                         let js' = extendLocInds (indVar j) js
-                             arr = P.arrayWithVar (indSize j) (indVar j) (fromLoc l' js')
-                         return $ insertAssoc (Assoc x arr) rho)
-                      (lookupAssoc l newlocs)
+            Loc      l js -> return $ Assoc x (fromLoc name (varType x) js)
+            MultiLoc l js -> do
+                     j <- sizeInnermostInd l >>= freshInd
+                     let js'   = extendLocInds (indVar j) js
+                         bodyA = fromLoc name (sUnArray $ varType x) js'
+                     return $ Assoc x $ P.arrayWithVar (indSize j) (indVar j) bodyA
+      step rho as@(Assoc _ loc) = do
+          r <- case loc of
+                 Loc      l js -> maybe (freeLocError l)
+                                        (build as)
+                                        (lookupAssoc l newlocs)
+                 MultiLoc l js -> maybe (freeLocError l)
+                                        (build as)
+                                        (lookupAssoc l newlocs)
+          return $ insertAssoc r rho
 
 freeLocError :: Variable (a :: Hakaru) -> b
 freeLocError l = error $ "Found a free location " ++ show l
