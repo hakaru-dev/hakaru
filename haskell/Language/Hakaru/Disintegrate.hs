@@ -138,7 +138,7 @@ import qualified Language.Hakaru.Expect         as E
 #ifdef __TRACE_DISINTEGRATE__
 import qualified Text.PrettyPrint     as PP
 import Language.Hakaru.Pretty.Haskell
-import Debug.Trace                    (trace)
+import Debug.Trace                    (trace, traceM)
 #endif
 
 
@@ -217,7 +217,12 @@ disintegrateWithVar hint typ m =
 #endif
         constrainValue (var x) a
 #ifdef __TRACE_DISINTEGRATE__
-        trace "-- disintegrate: finished constrainValue" $ return ()
+        ss <- getStatements
+        locs <- getLocs
+        traceM ("-- disintegrate: finished constrainValue\n"
+                ++ show (pretty_Statements ss) ++ "\n"
+                ++ show (prettyLocs locs)
+               )
 #endif
         return b
 
@@ -322,7 +327,9 @@ evaluate perform evaluateCase = goEvaluate
     goEvaluate :: TermEvaluator abt (Dis abt)
     goEvaluate e0 =
 #ifdef __TRACE_DISINTEGRATE__
-      trace ("-- goEvaluate: " ++ show (pretty e0)) $
+      getIndices >>= \inds ->
+      trace ("-- goEvaluate: " ++ show (pretty e0)
+                               ++ "at " ++ show (ppInds inds)) $
 #endif
       caseVarSyn e0 (update perform goEvaluate) $ \t ->
         case t of
@@ -860,8 +867,10 @@ perform :: forall abt. (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform = \e0 ->
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
-    getLocs >>= \locs -> 
+    getLocs >>= \locs ->
+    getIndices >>= \inds ->
     trace ("\n-- perform --\n"
+        ++ "at " ++ show (ppInds inds) ++ "\n"
         ++ show (prettyLocs locs) ++ "\n"
         ++ show (pretty_Statements_withTerm ss e0)
         ++ "\n") $
@@ -1060,9 +1069,11 @@ constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
-    getLocs >>= \locs -> 
-    trace ("\n-- constrainValue: " ++ show (pretty v0) ++ "\n"
+    getLocs >>= \locs ->
+    getIndices >>= \inds ->
+    trace ("\n-- constrainValue: " ++ show (pretty v0) ++ "\n"           
         ++ show (pretty_Statements_withTerm ss e0) ++ "\n"
+        ++ "at " ++ show (ppInds inds) ++ "\n"
         ++ show (prettyLocs locs) ++ "\n"
           ) $
 #endif
@@ -1288,7 +1299,7 @@ constrainVariable v0 x =
                                    Set.fromList is == Set.fromList (map indVar js)
               -- If we get 'Nothing', then it turns out @l@ is a free location.
               -- This is an error because of the invariant:
-              --   if there exists an 'Assoc x (Loc l _)' inside @locs@
+              --   if there exists an 'Assoc x ({Multi}Loc l _)' inside @locs@
               --   then there must be a statement on the 'ListContext' that binds @l@
               in (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
@@ -1297,10 +1308,6 @@ constrainVariable v0 x =
                            guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
-                             -- 2016-06-29
-                             -- one way to make helloworld produce
-                             -- a disintegration right now is to
-                             -- not do this permutation check
                              guard (jxs `permutes` inds) -- will bot otherwise
                              e' <- apply (zip ixs inds) (fromLazy e)
                              constrainOutcome v0 e'
@@ -1317,12 +1324,15 @@ constrainVariable v0 x =
                     SWeight _ _ -> Nothing
                     SGuard ls' pat scrutinee i -> error "TODO: constrainVariable{SGuard}"
           lookForLoc (MultiLoc l jxs) = do
+#ifdef __TRACE_DISINTEGRATE__
+              traceM $ "looking for MultiLoc: " ++ show (prettyLoc (MultiLoc l jxs))
+#endif       
               n    <- sizeInnermostInd l
               j    <- freshInd n
               x'   <- mkLoc Text.empty l (extendLocInds (indVar j) jxs)
               inds <- getIndices
               withIndices (extendIndices j inds) $
-                          constrainVariable (v0 P.! (var $ indVar j)) x'
+                          constrainValue (v0 P.! (var $ indVar j)) (var x')
                                             -- TODO use meta-index
 
 ----------------------------------------------------------------
@@ -1685,12 +1695,14 @@ constrainOutcome
 constrainOutcome v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
     getLocs >>= \locs ->
+    getIndices >>= \inds ->
     trace (
         let s = "-- constrainOutcome"
         in "\n" ++ s ++ ": "
             ++ show (pretty v0)
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
             ++ show (pretty e0) ++ "\n"
+            ++ "at " ++  show (ppInds inds) ++ "\n"
             ++ show (prettyLocs locs)
           ) $
 #endif
@@ -1717,14 +1729,17 @@ constrainOutcome v0 e0 =
         caseBind e2 $ \x e2' -> do
             i <- getIndices
             push (SBind x (Thunk e1) i) e2' (constrainOutcome v0)
-    go (WPlate e1 e2)        =
-        caseBind e2 $ \x e2' -> do
-            inds <- getIndices
-            p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
-            i    <- freshInd e1
-            push (SBind p (Thunk $ rename x (indVar i) e2')
-                            (extendIndices i inds)) (var p) $
-              constrainValue (v0 P.! var (indVar i))
+    go (WPlate e1 e2)        = do
+        inds <- getIndices
+        x' <- pushPlate e1 e2 inds
+        constrainValue v0 (var x')
+        -- caseBind e2 $ \x body -> do
+        --     inds <- getIndices
+        --     p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
+        --     i    <- freshInd e1
+        --     push (SBind p (Thunk $ rename x (indVar i) e2')
+        --                     (extendIndices i inds)) (var p) $
+        --       constrainValue (v0 P.! var (indVar i))
 
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
     go (WReject typ)         = emit_ $ \m -> P.reject (typeOf m)
