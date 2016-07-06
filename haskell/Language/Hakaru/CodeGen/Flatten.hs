@@ -61,7 +61,7 @@ flattenLit lit =
     (LProb x) -> let rat = fromNonNegativeRational x
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
-                 in do ident <- genIdent' "prob"
+                 in do ident <- genIdent
                        declare $ typeDeclaration SProb ident
                        assign ident (CCall (CVar (builtinIdent "log") node)
                                            [CConst (CFloatConst (cFloat x') node)]
@@ -70,7 +70,8 @@ flattenLit lit =
 
 
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
-flattenVar (Variable name _ _) = return $ CVar (builtinIdent $ Text.unpack name) node
+flattenVar var = do ident <- lookupIdent var
+                    return $ CVar ident node
 
 flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
 flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
@@ -126,8 +127,8 @@ flattenSCon :: (ABT Term abt)
 flattenSCon Let_            =
   \(expr :* body :* End) ->
     do expr' <- flattenABT expr
-       caseBind body $ \(Variable name _ typ) body'->
-         do let ident = builtinIdent $ Text.unpack name
+       caseBind body $ \v@(Variable _ _ typ) body'->
+         do ident <- createIdent v
             declare $ typeDeclaration typ ident
             assign ident expr'
             flattenABT body'

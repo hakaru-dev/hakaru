@@ -54,7 +54,6 @@ createProgram (TypedAST typ abt) =
       (decls,stmts) = runCodeGen (do declare $ typeDeclaration typ ident
                                      expr <- flattenABT abt
                                      assign ident expr)
-                                 ([],[])
   in  unlines [ header typ
               , prelude
               , mainWith typ

@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP,
              DataKinds,
              FlexibleContexts,
+             GADTs,
+             KindSignatures,
              RankNTypes        #-}
 
 ----------------------------------------------------------------
@@ -25,7 +27,9 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , assign
   , putStat
   , genIdent
-  , genIdent' ) where
+  , createIdent
+  , lookupIdent
+  ) where
 
 import Control.Monad.State
 
@@ -33,9 +37,19 @@ import Control.Monad.State
 import Control.Applicative ((<$>))
 #endif
 
+import Language.Hakaru.Syntax.ABT hiding (var)
+import Language.Hakaru.Types.DataKind
+-- import Language.Hakaru.Syntax.IClasses
+-- import Language.Hakaru.Types.Sing       
+
 import Language.C.Data.Ident
 import Language.C.Data.Node
 import Language.C.Syntax.AST
+
+import Data.Number.Nat (fromNat)
+import qualified Data.IntMap as IM
+import qualified Data.Text   as T
+
 
 node :: NodeInfo
 node = undefNode
@@ -46,28 +60,52 @@ suffixes =
   | letter <- ['a'..'z']
   , number <- [(1 :: Integer)..]]
 
-type CodeGen a = State ([String],[CDecl],[CStat]) a
+-- CG after "codegen", holds the state of a codegen computation
+data CG = CG { freshNames   :: [String]
+             , declarations :: [CDecl]
+             , statements   :: [CStat]    -- statements can include assignments as well as other side-effects
+             , varEnv       :: Env      }
 
-runCodeGen :: CodeGen a -> ([CDecl],[CStat]) -> ([CDecl], [CStat])
-runCodeGen gen (ds,ss) =
-  let (_, (_,ds',ss')) = runState gen (suffixes,ds,ss)
-  in  (reverse ds',reverse ss')
+emptyCG :: CG
+emptyCG = CG suffixes [] [] emptyEnv
+
+
+
+type CodeGen a = State CG a
+
+runCodeGen :: CodeGen a -> ([CDecl], [CStat])
+runCodeGen m =
+  let (_, cg) = runState m emptyCG
+  in  ( reverse $ declarations cg
+      , reverse $ statements  cg )
 
 genIdent :: CodeGen Ident
-genIdent = do (n:ns,decs,stmts) <- get
-              put (ns,decs,stmts)
-              return $ builtinIdent n
+genIdent = do cg <- get
+              put $ cg { freshNames = tail $ freshNames cg }
+              return $ builtinIdent $ head $ freshNames cg
 
-genIdent' :: String -> CodeGen Ident
-genIdent' word = do (n:ns,decs,stmts) <- get
-                    put (ns,decs,stmts)
-                    return $ builtinIdent (word ++ "_" ++ n)
+createIdent :: Variable (a :: Hakaru) -> CodeGen Ident
+createIdent var@(Variable name _ _) =
+  do cg <- get
+     let ident = builtinIdent $ (T.unpack name) ++ "_" ++ (head $ freshNames cg)
+         env'  = updateEnv (EAssoc var ident) (varEnv cg)
+     put $ cg { freshNames = tail $ freshNames cg
+              , varEnv     = env' }
+     return ident
+
+lookupIdent :: Variable (a :: Hakaru) -> CodeGen Ident
+lookupIdent var = do cg <- get
+                     case lookupVar var (varEnv cg) of
+                       Nothing -> error $ "lookupIdent: var not found"
+                       Just i  -> return i
 
 declare :: CDecl -> CodeGen ()
-declare d = get >>= \(ns,ds,ss) -> put (ns,d:ds,ss)
+declare d = do cg <- get
+               put $ cg { declarations = d:(declarations cg) }
 
 putStat :: CStat -> CodeGen ()
-putStat s = get >>= \(ns,ds,ss) -> put (ns,ds,s:ss)
+putStat s = do cg <- get
+               put $ cg { statements = s:(statements cg) }
 
 assign :: Ident -> CExpr -> CodeGen ()
 assign var expr =
@@ -77,3 +115,26 @@ assign var expr =
                                         node))
                          node
   in  putStat assignment
+
+
+---------
+-- ENV --
+---------
+
+data EAssoc =
+    forall (a :: Hakaru). EAssoc !(Variable a) !Ident
+
+newtype Env = Env (IM.IntMap EAssoc)
+
+emptyEnv :: Env
+emptyEnv = Env IM.empty
+
+updateEnv :: EAssoc -> Env -> Env
+updateEnv v@(EAssoc x _) (Env xs) =
+    Env $ IM.insert (fromNat $ varID x) v xs
+
+lookupVar :: Variable (a :: Hakaru) -> Env -> Maybe Ident
+lookupVar x (Env env) = do
+    EAssoc x' e' <- IM.lookup (fromNat $ varID x) env
+    -- Refl         <- varEq x x' -- extra check?
+    return e'
