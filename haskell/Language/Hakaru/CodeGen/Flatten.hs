@@ -40,6 +40,7 @@ import           Data.Number.Natural
 import           Data.Ratio
 import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
+import qualified Data.Text          as Text
 import qualified Data.Traversable   as T
 
 node :: NodeInfo
@@ -60,7 +61,7 @@ flattenLit lit =
     (LProb x) -> let rat = fromNonNegativeRational x
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
-                 in do ident <- genIdent
+                 in do ident <- genIdent' "prob"
                        declare $ typeDeclaration SProb ident
                        assign ident (CCall (CVar (builtinIdent "log") node)
                                            [CConst (CFloatConst (cFloat x') node)]
@@ -69,7 +70,7 @@ flattenLit lit =
 
 
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
-flattenVar = undefined
+flattenVar (Variable name _ _) = return $ CVar (builtinIdent $ Text.unpack name) node
 
 flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
 flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
@@ -122,6 +123,14 @@ flattenSCon :: (ABT Term abt)
             => SCon args a
             -> SArgs abt args
             -> CodeGen CExpr
+flattenSCon Let_            =
+  \(expr :* body :* End) ->
+    do expr' <- flattenABT expr
+       caseBind body $ \(Variable name _ typ) body'->
+         do let ident = builtinIdent $ Text.unpack name
+            declare $ typeDeclaration typ ident
+            assign ident expr'
+            flattenABT body'
 flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
 flattenSCon Dirac           = \(e :* End) -> flattenABT e
 flattenSCon _               = \_ -> error "TODO: flattenSCon"

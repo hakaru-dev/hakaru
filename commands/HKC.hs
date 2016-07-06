@@ -51,7 +51,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
         when (optimize config) $ do
           putErrorLn "\n<=================Constant Prop====================>\n"
           putErrorLn $ pack $ show ast'
-        putErrorLn "\nEnd of Debug\n"
+        putErrorLn "\n<==================================================>\n"
       IO.putStrLn $ createProgram ast'
 
 putErrorLn :: Text -> IO ()

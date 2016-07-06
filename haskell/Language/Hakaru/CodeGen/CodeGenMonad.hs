@@ -24,7 +24,8 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , declare
   , assign
   , putStat
-  , genIdent ) where
+  , genIdent
+  , genIdent' ) where
 
 import Control.Monad.State
 
@@ -36,23 +37,31 @@ import Language.C.Data.Ident
 import Language.C.Data.Node
 import Language.C.Syntax.AST
 
+node :: NodeInfo
 node = undefNode
-names = fmap builtinIdent
-        [ [letter] ++ show number
-        | letter <- ['a'..'z']
-        , number <- [1..]]
 
-type CodeGen a = State ([Ident],[CDecl],[CStat]) a
+suffixes :: [String]
+suffixes =
+  [ [letter] ++ show number
+  | letter <- ['a'..'z']
+  , number <- [(1 :: Integer)..]]
+
+type CodeGen a = State ([String],[CDecl],[CStat]) a
 
 runCodeGen :: CodeGen a -> ([CDecl],[CStat]) -> ([CDecl], [CStat])
 runCodeGen gen (ds,ss) =
-  let (_, (_,ds',ss')) = runState gen (names,ds,ss)
+  let (_, (_,ds',ss')) = runState gen (suffixes,ds,ss)
   in  (reverse ds',reverse ss')
 
 genIdent :: CodeGen Ident
 genIdent = do (n:ns,decs,stmts) <- get
               put (ns,decs,stmts)
-              return n
+              return $ builtinIdent n
+
+genIdent' :: String -> CodeGen Ident
+genIdent' word = do (n:ns,decs,stmts) <- get
+                    put (ns,decs,stmts)
+                    return $ builtinIdent (word ++ "_" ++ n)
 
 declare :: CDecl -> CodeGen ()
 declare d = get >>= \(ns,ds,ss) -> put (ns,d:ds,ss)
