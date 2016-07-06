@@ -51,11 +51,8 @@ measureIdent = builtinIdent "measure"
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST tt@(SMeasure internalT) abt) =
-  let ident         = builtinIdent "result"
-      (decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT measureIdent
-                                     declare $ typeDeclaration internalT ident
-                                     expr <- flattenABT abt
-                                     assign ident expr)
+  let (decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT measureIdent
+                                     flattenABT abt)
   in  unlines [ header tt
               , mainWith tt
                          (fmap (\d -> mconcat [(pack . render . C.pretty) d,";"]) decls)

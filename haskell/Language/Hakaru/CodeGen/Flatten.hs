@@ -138,9 +138,20 @@ flattenSCon Let_            =
             assign ident expr'
             flattenABT body'
 flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
-flattenSCon Dirac           = \(e :* End) -> do e' <- flattenABT e
-                                                assign measureIdent e'
-                                                return e'
+flattenSCon Dirac           =
+  \(e :* End) ->
+    do e' <- flattenABT e
+       assign measureIdent e'
+       return e'
+flattenSCon MBind           =
+  \(e1 :* e2 :* End) ->
+    do e1' <- flattenABT e1
+       caseBind e2 $ \v@(Variable _ _ typ) e2'->
+         do ident <- createIdent v
+            declare $ typeDeclaration typ ident
+            assign ident e1'  
+            assign measureIdent e1'
+            flattenABT e2'
 flattenSCon _               = \_ -> error "TODO: flattenSCon"
 
 flattenMeasureOp :: ( ABT Term abt
