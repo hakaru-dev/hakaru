@@ -10,14 +10,6 @@ y <~ match x:
       false: uniform(0,1)
 return (y,x)
 ````
-<div class="panel panel-warning">
-    <div class="panel-heading">
-        <h4 class="panel-title">TODO</h4>
-	</div>
-	<div class="panel-body">
-        Use the Hello World example here instead
-	</div>
-</div>
 
 The generative model here has us flip a coin with bias 0.5, and then
 have *x* be a draw from that distribution. We then check if *x* is
