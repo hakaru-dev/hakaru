@@ -83,21 +83,41 @@ TestReparam(
      label= "Logarithm with Uniform (passing)"
 );
 
-#Two-variable LFT with Gamma
+#(t1) Symbolic affine transformation with Gaussian
+TestReparam(
+     Bind(Gaussian(mu,sigma), x, Ret((x-mu)/sigma)),
+     Gaussian(0,1),
+     equal &under fromLO,
+     ctx= [sigma > 0],
+     infolevels= [infinity$2],
+     label= "(t1) Symbolic affine transformation with Gaussian (passing)"
+);
+
+#(t3) Symbolic constant multiple with Gamma
+TestReparam(
+     Bind(GammaD(alpha,beta), x, Ret(2*x/beta)),
+     GammaD(alpha, 2),
+     equal &under (fromLO, _ctx= foldr(assert, empty, alpha > 0, beta > 0)),
+     ctx= [alpha > 0, beta > 0],
+     infolevels= [infinity$2],
+     label= "(t3) Symbolic constant multiple with Gamma (passing)"
+);
+
+#(t4) Two-variable LFT with Gamma
 TestReparam(
      Bind(GammaD(a,t), x1, Bind(GammaD(b,t), x2, Ret(x1/(x1+x2)))),
      BetaD(a,b),   #??? Spelled right?
      equal &under fromLO,
      infolevels= [infinity$2],
-     label= "t4: Two-variable LFT with Gamma (failing)"
+     label= "(t4) Two-variable LFT with Gamma (failing)"
 );
 
-#(t5) Logarithm with symbolic constant multiplier and Uniform"
+#(t5) Logarithm with symbolic constant multiplier and Uniform
 TestReparam(
      Bind(Uniform(0,1), x, Ret(-alpha*log(x))),
      GammaD(1,alpha),
      equal &under fromLO,
-     ctx= [alpha > 0],
+     ctx= [alpha >= 0],
      infolevels= [infinity$2],
-     label= "t5: Logarithm with symbolic constant multiplier and Uniform (passing)"
+     label= "(t5) Logarithm with symbolic constant multiplier and Uniform (passing)"
 );

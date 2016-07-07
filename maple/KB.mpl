@@ -22,7 +22,7 @@ KB := module ()
         assert_deny, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product, chilled, chill, warm,
         ModuleLoad, ModuleUnload;
-  export empty, genLebesgue, genType, genLet, assert,
+  export empty, genLebesgue, genType, genLet, assert, `&assuming`,
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
   global t_kb, `expand/product`;
@@ -355,6 +355,26 @@ KB := module ()
         NULL # Maple doesn't understand our other types
       end if
     end proc, [op(coalesce_bounds(kb))])
+  end proc;
+
+  #Written by Carl 2016Jun24.
+  #This is a wrapper for `assuming` that gracefully handles the case of no
+  #assumptions and accepts the assumptions in our "knowledge base"/"context"
+  #format.
+  #
+  #Note that the 2nd parameter, corresponding to the right operand, is a list,
+  #possibly empty; whereas the right operand of regular `assuming` is a nonNULL
+  #expression sequence.
+
+  `&assuming`:= proc(e::uneval, ctx::list, $)
+  local as:= kb_to_assumptions(foldr(assert, empty, ctx[]));
+       userinfo(3, _KB, print(e &where (e-> e=eval(e))~(<op(e)>)));
+       if as = [] then
+           eval(e)
+       else
+           userinfo(3, _KB, "`assuming` clause:", as[]);
+           e assuming as[]
+       end if
   end proc;
 
   kb_to_equations := proc(kb, $)
