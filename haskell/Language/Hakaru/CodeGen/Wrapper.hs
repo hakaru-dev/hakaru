@@ -56,8 +56,7 @@ createProgram (TypedAST tt@(SMeasure internalT) abt) =
   in  unlines [ header tt
               , mainWith tt
                          (fmap (\d -> mconcat [(pack . render . C.pretty) d,";"]) decls)
-                         (fmap (pack . render . C.pretty) stmts)
-              ]
+                         (fmap (pack . render . C.pretty) stmts)]
 
 createProgram (TypedAST typ abt) =
   let ident         = builtinIdent "result"

@@ -29,7 +29,8 @@ import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.HOAS
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Syntax.Datum       
+import Language.Hakaru.Types.DataKind       
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 
@@ -82,7 +83,7 @@ flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
 flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
 flattenTerm (Literal_ x)   = flattenLit x
 flattenTerm (Empty_ _)     = error "TODO: flattenTerm Empty"
-flattenTerm (Datum_ _)     = error "TODO: flattenTerm Datum"
+flattenTerm (Datum_ d)     = flattenDatum d
 flattenTerm (Case_ _ _)    = error "TODO: flattenTerm Case"
 flattenTerm (Array_ _ _)   = error "TODO: flattenTerm Array"
 flattenTerm (x :$ ys)      = flattenSCon x ys
@@ -153,6 +154,7 @@ flattenSCon MBind           =
             assign measureIdent e1'
             flattenABT e2'
 flattenSCon _               = \_ -> error "TODO: flattenSCon"
+----------------------------------------------------------------            
 
 flattenMeasureOp :: ( ABT Term abt
                     , typs ~ UnLCs args
@@ -161,3 +163,12 @@ flattenMeasureOp :: ( ABT Term abt
                  -> SArgs abt args
                  -> CodeGen CExpr
 flattenMeasureOp = error $ "TODO: flattenMeasureOp"
+----------------------------------------------------------------
+
+flattenDatum :: (ABT Term abt)
+             => Datum (abt '[]) (HData' a)
+             -> CodeGen CExpr
+flattenDatum d = do i <- genIdent
+                    return $ var_c i
+     --error $ "TODO: flattenDatum"             
+        

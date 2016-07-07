@@ -41,13 +41,13 @@ compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
     Left err -> putStrLn err
-    Right tast@ (TypedAST typ ast) -> do
+    Right (TypedAST typ ast) -> do
       let ast' = TypedAST typ (if optimize config
                                then constantPropagation ast
                                else ast)
       when (debug config) $ do
         putErrorLn "\n<=====================AST==========================>\n"
-        putErrorLn $ pack $ show tast
+        putErrorLn $ pack $ show ast
         when (optimize config) $ do
           putErrorLn "\n<=================Constant Prop====================>\n"
           putErrorLn $ pack $ show ast'
