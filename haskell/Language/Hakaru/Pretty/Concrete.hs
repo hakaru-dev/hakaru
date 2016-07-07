@@ -140,15 +140,15 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         NaryOp_ o es ->
             -- TODO: make sure these ops actually have those precedences in the Prelude!!
             let prettyNaryOp :: NaryOp a -> (String, Maybe Int, Maybe String)
-                prettyNaryOp And  = ("&& ", Just 3, Just "true")
-                prettyNaryOp Or   = ("|| ", Just 2, Just "false")
-                prettyNaryOp Xor  = ("!= ", Just 0, Just "false")
+                prettyNaryOp And  = ("&&", Just 3, Just "true")
+                prettyNaryOp Or   = ("||", Just 2, Just "false")
+                prettyNaryOp Xor  = ("!=", Just 0, Just "false")
                 -- BUG: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
                 prettyNaryOp Iff      = ("iff", Nothing, Just "true")
                 prettyNaryOp (Min  _) = ("min", Nothing, Nothing)
                 prettyNaryOp (Max  _) = ("max", Nothing, Nothing)
-                prettyNaryOp (Sum  _) = ("+ ",   Just 6, Just "zero")
-                prettyNaryOp (Prod _) = ("* ",   Just 7, Just "one")
+                prettyNaryOp (Sum  _) = ("+",   Just 6, Just "zero")
+                prettyNaryOp (Prod _) = ("*",   Just 7, Just "one")
             in
             let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
             if Seq.null es
@@ -165,7 +165,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 case opPrec of
                 Just opPrec' ->
                      parens (p > opPrec')
-                     . PP.punctuate (PP.space <> PP.text opName)
+                     . PP.punctuate (PP.space <> PP.text opName <> PP.space)
                      . map (prettyPrec opPrec')
                      $ F.toList es
                 Nothing      -> [F.foldl1 (\a b -> toDoc $ ppFun p opName [a, b])

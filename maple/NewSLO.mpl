@@ -1016,13 +1016,8 @@ NewSLO := module ()
        u::symbol:= gensym('u'),   #new variable
        y::symbol,   #just a name for `solve`
        S,   #result from `solve`
-       F::{`<`, truefalse},   #Boolean: flip integral?
-       #Knowledge base converted to assumptions suitable for `assuming`.
-       as:= kb_to_assumptions(foldr(KB:-assert, KB:-empty, ctx[]))
+       F::{`<`, truefalse}   #Boolean: flip integral?
   ;
-       #Deal with nuisance that `assuming` won't take NULL as right operand.
-       as:= `if`(as=[], [[]], as)[];
-
        #If more than one reparam is possible, return unevaluated.
        if nops(oldarg) <> 1 then
             WARNING("More than 1 reparam possible.");
@@ -1042,18 +1037,17 @@ NewSLO := module ()
        end if;
 
        (*#************ This isn't currently used. **********************************
-       #Check the invertibility of the subs.
+       #Check the invertibility of the change of vars.
 
        #The ability of `solve` to select a branch is very limited. For example,
                solve({y=x^2, x > 0}, {x})
        #returns
                sqrt(y), -sqrt(y).
        #This needs to be dealt with. First idea: Use `is` to filter
-       #solutions. This is implemented below. But I should figure out how to do the `is` or its equivalent without
-       #using `assume` or `assuming`.
+       #solutions. This is implemented below.                     
 
        #The next command is redundantly performed in the local inits. I put it here also
-       #because I anticipate some situations where that's no longer valid.
+       #because I anticipate some future situations where that's no longer valid.
 
        #Save current vars for comparison with vars after `solve`.
        Ns:= indets(oldarg, symbol);
@@ -1069,8 +1063,8 @@ NewSLO := module ()
        end if;
        *******************************************************************************)
 
-       #Make the subs.
-       J:= IT:-Change(J, u= oldarg, [u]) assuming as;
+       #Make the change of vars.
+       J:= IT:-Change(J, u= oldarg, [u]) &assuming ctx;
 
        if J=0 then
             WARNING("Integral is 0, likely due to improper handling of an infinity issue.");

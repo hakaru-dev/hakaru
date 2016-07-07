@@ -27,7 +27,7 @@ testRelationships :: Test
 testRelationships = test [
     "t1"   ~: testSS [t1] (lam $ \_ -> lam $ \_ -> normal_0_1),
     "t2"   ~: testSS [t2] (lam $ \b -> gamma b 2),
-    "t3"   ~: testSS [t3, t3'] (lam $ \_ -> lam $ \b -> gamma 2 b),
+    "t3"   ~: testSS [t3, t3'] (lam $ \a -> lam $ \x -> gamma a 2),
     "t4"   ~: testSS [t4] (lam $ \a -> lam $ \b -> lam $ \_ -> beta a b),
     "t5"   ~: testSS [t5, t5'] (lam $ \alpha -> gamma one alpha),
     --"t6"   ~: testSS [t5] (lam $ \mu -> poisson mu >>= \x -> dirac (fromInt x)),
@@ -152,7 +152,7 @@ t3 =
     lam $ \alpha ->
     lam $ \bet ->
     gamma alpha bet >>= \x ->
-    dirac (2 * x / alpha)
+    dirac (2 * x / bet)
 
 t3' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
 t3' = lam $ \_ -> lam $ \bet -> chi2 (2 * bet)
