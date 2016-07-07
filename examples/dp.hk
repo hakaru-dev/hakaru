@@ -1,0 +1,11 @@
+def dp(α prob):
+  xs <~ plate i of ∞: beta(1, α)
+  return array i of ∞: xs[i] * product j from 0 to int2nat(i-1):
+                         real2prob(1-xs[j])
+
+fn α prob:
+ fn t array(nat):
+  ps <~ dp(α)
+  _ <~ plate i of size(t):
+         observe categorical(ps) t[i]
+  return ps

@@ -57,8 +57,9 @@ norm0' :: TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)
 norm0' =
     lam $ \y ->
     normal (real_ 0) (prob_ 1) >>= \x ->
-    ann_ sing $
-        withWeight (densityNormal x (prob_ 1) y) (dirac x)
+    weight (densityNormal x (prob_ 1) y) >>
+    dirac x
+
 {-
 -- Eliminating some redexes of 'norm0'', that is:
     lam $ \y ->
@@ -212,14 +213,14 @@ allTests = test
     , testDis "testDisintegrate1a" norm1a
     , testDis "testDisintegrate1b" norm1b
     , testDis "testDisintegrate1c" norm1c
-    , assertAlphaEq "testDisintegrate0b" norm0' (head testDisintegrate0b)
-    , assertAlphaEq "testDisintegrate0c" norm0' (head testDisintegrate0c)
-    , assertAlphaEq "testDisintegrate0a" norm0' (head testDisintegrate0a)
-    , testWithConcrete' match_norm_unif LaxMode $ \(TypedAST _typ ast) ->
+    , assertAlphaEq "testDisintegrate0b" (head testDisintegrate0b) norm0'
+    , assertAlphaEq "testDisintegrate0c" (head testDisintegrate0c) norm0'
+    , assertAlphaEq "testDisintegrate0a" (head testDisintegrate0a) norm0'
+    , testWithConcrete' match_norm_unif LaxMode $ \_typ ast ->
         case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
         Just Refl -> testDis "testMatchNormUnif" ast
         Nothing   -> assertFailure "BUG: jmEq1 got the wrong type"
-    , testWithConcrete' dont_atomize_weights LaxMode $ \(TypedAST _typ ast) ->
+    , testWithConcrete' dont_atomize_weights LaxMode $ \_typ ast ->
         case jmEq1 _typ (SMeasure $ sPair SReal sUnit) of
         Just Refl -> testDis "testAtomizeWeights" ast
         Nothing   -> assertFailure "BUG: jmEq1 got the wrong type"

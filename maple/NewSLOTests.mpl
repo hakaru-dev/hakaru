@@ -83,6 +83,21 @@ sliceds :=
   Weight(2*sqrt(lu)*exp(-lu)/sqrt(Pi),
   Uniform(-sqrt(2*lu),sqrt(2*lu))):
 TestHakaru(sliced, sliceds, label = "slice sampling") assuming lu>0;
+module()
+  local d, m, uMax, kb, result;
+  for d in [Gaussian(0,1), GammaD(1,1)] do
+    m := Bind(d, x,
+              piecewise(And(0<u, u<density[op(0,d)](op(d))(x)),
+              Weight(1/density[op(0,d)](op(d))(x),
+              Ret(x)))):
+    uMax := maximize(density[op(0,d)](op(d))(x), x):
+    kb := KB:-assert(And(0<u, u<uMax), KB:-empty):
+    result := fromLO(improve(toLO(m), _ctx=kb), _ctx=kb):
+    CodeTools[Test](type(result, 'Weight(anything, Uniform(anything, anything))'),
+                    true,
+                    label = sprintf("slice sampling %a", d)):
+  end do;
+end module:
 
 # test with uniform.  No change without simplifier, eliminates it with
 # call to value.

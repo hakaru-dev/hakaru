@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module Main where
 
@@ -8,12 +7,11 @@ import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 
-import Control.Monad.Reader
-import Data.Text hiding (any,map,filter)
+import           Control.Monad.Reader
+import           Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
-import System.Environment
-
-import Options.Applicative
+import           Options.Applicative
+import           System.IO (stderr)
 
 data Options = Options { debug    :: Bool
                        , optimize :: Bool
@@ -39,20 +37,22 @@ parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
                        $ fullDesc <> progDesc "Compile Hakaru to C"
 
-
 compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
     Left err -> putStrLn err
-    Right (TypedAST typ ast) -> do
+    Right tast@ (TypedAST typ ast) -> do
       let ast' = TypedAST typ (if optimize config
                                then constantPropagation ast
                                else ast)
       when (debug config) $ do
-        IO.putStrLn "\n<=====================AST==========================>\n"
-        IO.putStrLn $ pack $ show ast
+        putErrorLn "\n<=====================AST==========================>\n"
+        putErrorLn $ pack $ show tast
         when (optimize config) $ do
-          IO.putStrLn "\n<=================Constant Prop====================>\n"
-          IO.putStrLn $ pack $ show ast'
-        IO.putStrLn "\n<======================C===========================>\n"
+          putErrorLn "\n<=================Constant Prop====================>\n"
+          putErrorLn $ pack $ show ast'
+        putErrorLn "\n<==================================================>\n"
       IO.putStrLn $ createProgram ast'
+
+putErrorLn :: Text -> IO ()
+putErrorLn = IO.hPutStrLn stderr

@@ -86,12 +86,11 @@ testTC typ uast tast =
 
 testConcreteTC :: Sing b -> Text -> TrivialABT T.Term '[] b -> Assertion
 testConcreteTC typ s ast =
-    testWithConcrete' s StrictMode
-         (\(TypedAST _typ tast) ->
-              case jmEq1 _typ typ of
-                Just Refl -> assertEqual "" tast ast
-                Nothing   -> assertFailure
-                  (show ast ++ " does not have same type as " ++ show tast))
+    testWithConcrete' s StrictMode $ \_typ tast ->
+        case jmEq1 _typ typ of
+          Just Refl -> assertEqual "" tast ast
+          Nothing   -> assertFailure
+                       (show ast ++ " does not have same type as " ++ show tast)
 
 
 allTests :: Test

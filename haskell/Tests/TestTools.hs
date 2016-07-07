@@ -1,22 +1,28 @@
 {-# LANGUAGE DeriveDataTypeable
            , DataKinds
+           , RankNTypes
+           , GADTs
            , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.TestTools where
 
+import Language.Hakaru.Types.Sing
 import Language.Hakaru.Parser.Parser
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
+import Language.Hakaru.Command (parseAndInfer)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Eq (alphaEq)
+import Language.Hakaru.Syntax.IClasses (TypeEq(..), jmEq1)
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Simplify
 import Language.Hakaru.Syntax.AST.Eq()
 
 import Data.Maybe (isJust)
 import Data.List
-import qualified Data.Text as T
+import qualified Data.Text    as T
+import qualified Data.Text.IO as IO
 import Data.Typeable (Typeable)
 import Control.Exception
 import Control.Monad
@@ -92,7 +98,7 @@ testWithConcrete ::
     (ABT Term abt)
     => T.Text
     -> TypeCheckMode
-    -> (TypedAST abt -> Assertion)
+    -> (forall a. Sing a -> abt '[] a -> Assertion)
     -> Assertion
 testWithConcrete s mode k =
     case parseHakaru s of
@@ -100,15 +106,32 @@ testWithConcrete s mode k =
       Right past ->
           let m = inferType (resolveAST past) in
           case runTCM m mode of
-            Left err   -> assertFailure err
-            Right tast -> k tast
+            Left err                 -> assertFailure err
+            Right (TypedAST typ ast) -> k typ ast
+
 
 testWithConcrete'
     :: T.Text
     -> TypeCheckMode
-    -> (TypedAST (TrivialABT Term) -> Assertion)
+    -> (forall a. Sing a -> TrivialABT Term '[] a -> Assertion)
     -> Assertion
 testWithConcrete' = testWithConcrete
+
+testConcreteFiles
+    :: FilePath
+    -> FilePath
+    -> Assertion
+testConcreteFiles f1 f2 = do
+  t1 <- IO.readFile f1
+  t2 <- IO.readFile f2
+  case (parseAndInfer t1, parseAndInfer t2) of
+    (Left err, _) -> assertFailure (show err)
+    (_, Left err) -> assertFailure (show err)
+    (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) -> do
+      ast1' <- simplify ast1
+      case jmEq1 typ1 typ2 of
+        Just Refl -> assertAlphaEq "" ast1' ast2
+        Nothing   -> assertFailure "files don't have same type"
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure

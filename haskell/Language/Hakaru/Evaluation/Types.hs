@@ -46,9 +46,12 @@ module Language.Hakaru.Evaluation.Types
     , Purity(..), Statement(..), isBoundBy
     , Index, indVar, indSize
 #ifdef __TRACE_DISINTEGRATE__
+    , ppList
+    , ppInds
     , ppStatement
     , pretty_Statements
     , pretty_Statements_withTerm
+    , prettyAssocs
 #endif
     , EvaluationMonad(..)
     , freshVar
@@ -169,11 +172,11 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> !(abt '[] 'HReal)
         -> !(abt '[ 'HReal ] 'HProb)
         -> Head abt 'HProb
-    WSummate
-        :: !(abt '[] 'HReal)
-        -> !(abt '[] 'HReal)
-        -> !(abt '[ 'HInt ] 'HProb)
-        -> Head abt 'HProb
+    -- WSummate
+    --     :: !(abt '[] 'HReal)
+    --     -> !(abt '[] 'HReal)
+    --     -> !(abt '[ 'HInt ] 'HProb)
+    --     -> Head abt 'HProb
 
     -- Quasi-/semi-/demi-/pseudo- normal form stuff
     {-
@@ -202,7 +205,7 @@ fromHead (WReject     typ)      = syn (Reject_ typ)
 fromHead (WCoerceTo   c e1)     = syn (CoerceTo_   c :$ fromHead e1 :* End)
 fromHead (WUnsafeFrom c e1)     = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
 fromHead (WIntegrate  e1 e2 e3) = syn (Integrate :$ e1 :* e2 :* e3 :* End)
-fromHead (WSummate    e1 e2 e3) = syn (Summate   :$ e1 :* e2 :* e3 :* End)
+--fromHead (WSummate    e1 e2 e3) = syn (Summate   :$ e1 :* e2 :* e3 :* End)
 
 
 -- | Identify terms which are already heads.
@@ -224,7 +227,7 @@ toHead e =
         CoerceTo_    c   :$ e1 :* End       -> WCoerceTo   c <$> toHead e1
         UnsafeFrom_  c   :$ e1 :* End       -> WUnsafeFrom c <$> toHead e1
         Integrate :$ e1  :* e2 :* e3 :* End -> Just $ WIntegrate e1 e2 e3
-        Summate   :$ e1  :* e2 :* e3 :* End -> Just $ WSummate   e1 e2 e3
+        --Summate   :$ e1  :* e2 :* e3 :* End -> Just $ WSummate   e1 e2 e3
         _ -> Nothing
 
 instance Functor21 Head where
@@ -243,7 +246,7 @@ instance Functor21 Head where
     fmap21 f (WCoerceTo   c e1)     = WCoerceTo   c (fmap21 f e1)
     fmap21 f (WUnsafeFrom c e1)     = WUnsafeFrom c (fmap21 f e1)
     fmap21 f (WIntegrate  e1 e2 e3) = WIntegrate (f e1) (f e2) (f e3)
-    fmap21 f (WSummate    e1 e2 e3) = WSummate   (f e1) (f e2) (f e3)
+    --fmap21 f (WSummate    e1 e2 e3) = WSummate   (f e1) (f e2) (f e3)
 
 instance Foldable21 Head where
     foldMap21 _ (WLiteral    _)        = mempty
@@ -261,7 +264,7 @@ instance Foldable21 Head where
     foldMap21 f (WCoerceTo   _ e1)     = foldMap21 f e1
     foldMap21 f (WUnsafeFrom _ e1)     = foldMap21 f e1
     foldMap21 f (WIntegrate  e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    foldMap21 f (WSummate    e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+    --foldMap21 f (WSummate    e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
 
 instance Traversable21 Head where
     traverse21 _ (WLiteral    v)        = pure $ WLiteral v
@@ -279,7 +282,7 @@ instance Traversable21 Head where
     traverse21 f (WCoerceTo   c e1)     = WCoerceTo   c <$> traverse21 f e1
     traverse21 f (WUnsafeFrom c e1)     = WUnsafeFrom c <$> traverse21 f e1
     traverse21 f (WIntegrate  e1 e2 e3) = WIntegrate <$> f e1 <*> f e2 <*> f e3
-    traverse21 f (WSummate    e1 e2 e3) = WSummate   <$> f e1 <*> f e2 <*> f e3
+    --traverse21 f (WSummate    e1 e2 e3) = WSummate   <$> f e1 <*> f e2 <*> f e3
 
 
 ----------------------------------------------------------------
@@ -477,7 +480,7 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
-data Index ast = Ind (Variable 'HNat) (ast 'HNat) 
+data Index ast = Ind (Variable 'HNat) (ast 'HNat)
 
 instance (ABT Term abt) => Eq (Index (abt '[])) where
     Ind i1 s1 == Ind i2 s2 = i1 == i2 && (alphaEq s1 s2)
@@ -614,28 +617,38 @@ parens :: Bool -> [PP.Doc] -> [PP.Doc]
 parens True  ds = [PP.parens (PP.nest 1 (PP.sep ds))]
 parens False ds = ds
 
+ppList :: [PP.Doc] -> PP.Doc
+ppList = PP.sep . (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
+
+ppInds :: (ABT Term abt) => [Index (abt '[])] -> PP.Doc
+ppInds = ppList . map (ppVariable . indVar)
+
 ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
 ppStatement p s =
     case s of
-    SBind x e _ ->
+    SBind x e inds ->
         PP.sep $ ppFun p "SBind"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
+            , ppInds inds
             ]
-    SLet x e _ ->
+    SLet x e inds ->
         PP.sep $ ppFun p "SLet"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
+            , ppInds inds
             ]
-    SWeight e _ ->
+    SWeight e inds ->
         PP.sep $ ppFun p "SWeight"
             [ PP.sep $ prettyPrec_ 11 e
+            , ppInds inds
             ]
-    SGuard xs pat e _ ->
+    SGuard xs pat e inds ->
         PP.sep $ ppFun p "SGuard"
             [ PP.sep $ ppVariables xs
             , PP.sep $ prettyPrec_ 11 pat
             , PP.sep $ prettyPrec_ 11 e
+            , ppInds inds
             ]
     SStuff0   _ _ ->
         PP.sep $ ppFun p "SStuff0"
@@ -659,6 +672,16 @@ pretty_Statements_withTerm
     :: (ABT Term abt) => [Statement abt p] -> abt '[] a -> PP.Doc
 pretty_Statements_withTerm ss e =
     pretty_Statements ss PP.$+$ pretty e
+
+prettyAssocs
+    :: (ABT Term abt)
+    => Assocs (abt '[])
+    -> PP.Doc
+prettyAssocs a = PP.vcat $ map go (fromAssocs a)
+  where go (Assoc x e) = ppVariable x PP.<+>
+                         PP.text "->" PP.<+>
+                         pretty e
+                                
 #endif
 
 ----------------------------------------------------------------

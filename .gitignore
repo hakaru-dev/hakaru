@@ -7,3 +7,6 @@ Language/Hakaru/Paths.hs
 *.hi
 site
 *~
+a.out
+default.nix
+foo.c

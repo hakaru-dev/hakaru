@@ -155,8 +155,9 @@ evaluate perform evaluateCase = evaluate_
         -- We don't bother evaluating these, even though we could...
         Integrate :$ e1 :* e2 :* e3 :* End ->
             return . Head_ $ WIntegrate e1 e2 e3
-        Summate   :$ e1 :* e2 :* e3 :* End ->
-            return . Head_ $ WSummate   e1 e2 e3
+        Summate h1 h2 :$ e1 :* e2 :* e3 :* End ->
+            return . Neutral $ syn t
+            --return . Head_ $ WSummate   e1 e2 e3
 
 
         -- Everything else needs some evaluation
@@ -324,7 +325,7 @@ instance Interp 'HProb NonNegativeRational where
     reify (WCoerceTo   _ _)   = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _)   = error "TODO: reify{WUnsafeFrom}"
     reify (WIntegrate  _ _ _) = error "TODO: reify{WIntegrate}"
-    reify (WSummate    _ _ _) = error "TODO: reify{WSummate}"
+    --reify (WSummate    _ _ _) = error "TODO: reify{WSummate}"
 
 instance Interp 'HReal Rational where
     reflect = WLiteral . LReal

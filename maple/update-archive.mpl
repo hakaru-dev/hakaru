@@ -32,8 +32,10 @@ LibraryTools:-Save(`eval/ints`, lib):
 LibraryTools:-Save(`eval/sums`, lib):
 LibraryTools:-Save(`eval/Int`, lib):
 LibraryTools:-Save(`eval/Sum`, lib):
+LibraryTools:-Save(`eval/Product`, lib):
 LibraryTools:-Save(`eval/int`, lib):
 LibraryTools:-Save(`eval/sum`, lib):
+LibraryTools:-Save(`eval/product`, lib):
 LibraryTools:-Save('Loop', lib):
 LibraryTools:-Save(`depends/Integrand`, lib):
 LibraryTools:-Save(`depends/LO`, lib):

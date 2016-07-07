@@ -49,8 +49,5 @@ runSimplify :: Text -> Bool -> IO ()
 runSimplify prog debug_ =
     case parseAndInfer prog of
     Left  err              -> putStrLn err
-    Right (TypedAST _ ast) ->
-        case debug_ of
-        True  -> (simplifyDebug . et) ast >>= print . pretty
-        False -> (simplify      . et) ast >>= print . pretty
+    Right (TypedAST _ ast) -> simplifyDebug debug_ (et ast) >>= print . pretty
 

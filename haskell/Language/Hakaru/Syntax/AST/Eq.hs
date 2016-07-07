@@ -42,6 +42,7 @@ module Language.Hakaru.Syntax.AST.Eq where
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
@@ -115,8 +116,11 @@ jmEq_S MBind     es MBind      es' =
     jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
 jmEq_S Integrate es Integrate  es' =
     jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
-jmEq_S Summate   es Summate    es' =
-    jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
+jmEq_S (Summate h1 h2) es (Summate h1' h2') es' = do
+    Refl <- jmEq1 (sing_HDiscrete h1) (sing_HDiscrete h1')
+    Refl <- jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
+    Refl <- jmEq1 es es'
+    Just (Refl, Refl)
 jmEq_S Expect    es Expect     es' =
     jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
 jmEq_S _         _  _          _   = Nothing
@@ -390,7 +394,11 @@ alphaEq e1 e2 =
     sConEq Plate     e1 Plate     e2    = sArgsEq e1 e2
     sConEq Chain     e1 Chain     e2    = sArgsEq e1 e2
     sConEq Integrate e1 Integrate e2    = sArgsEq e1 e2
-    sConEq Summate   e1 Summate   e2    = sArgsEq e1 e2
+
+    sConEq (Summate h1 h2) e1 (Summate h1' h2') e2 = do
+        Refl <- lift $ jmEq1 (sing_HDiscrete h1) (sing_HDiscrete h1')
+        Refl <- lift $ jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
+        sArgsEq e1 e2
 
     sConEq Expect (e1  :* e2  :* End)
            Expect (e1' :* e2' :* End) = do

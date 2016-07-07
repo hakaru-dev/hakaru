@@ -35,7 +35,6 @@ import           System.Console.ANSI
 import           Text.PrettyPrint                (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint                as PP
 import qualified Data.Foldable                   as F
-import           Data.List.NonEmpty              (NonEmpty(..))
 import qualified Data.List.NonEmpty              as L
 import qualified Data.Text                       as Text
 
@@ -141,15 +140,15 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         NaryOp_ o es ->
             -- TODO: make sure these ops actually have those precedences in the Prelude!!
             let prettyNaryOp :: NaryOp a -> (String, Maybe Int, Maybe String)
-                prettyNaryOp And  = ("&& ", Just 3, Just "true")
-                prettyNaryOp Or   = ("|| ", Just 2, Just "false")
-                prettyNaryOp Xor  = ("!= ", Just 0, Just "false")
+                prettyNaryOp And  = ("&&", Just 3, Just "true")
+                prettyNaryOp Or   = ("||", Just 2, Just "false")
+                prettyNaryOp Xor  = ("!=", Just 0, Just "false")
                 -- BUG: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
                 prettyNaryOp Iff      = ("iff", Nothing, Just "true")
                 prettyNaryOp (Min  _) = ("min", Nothing, Nothing)
                 prettyNaryOp (Max  _) = ("max", Nothing, Nothing)
-                prettyNaryOp (Sum  _) = ("+ ",   Just 6, Just "zero")
-                prettyNaryOp (Prod _) = ("* ",   Just 7, Just "one")
+                prettyNaryOp (Sum  _) = ("+",   Just 6, Just "zero")
+                prettyNaryOp (Prod _) = ("*",   Just 7, Just "one")
             in
             let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
             if Seq.null es
@@ -166,7 +165,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 case opPrec of
                 Just opPrec' ->
                      parens (p > opPrec')
-                     . PP.punctuate (PP.space <> PP.text opName)
+                     . PP.punctuate (PP.space <> PP.text opName <> PP.space)
                      . map (prettyPrec opPrec')
                      $ F.toList es
                 Nothing      -> [F.foldl1 (\a b -> toDoc $ ppFun p opName [a, b])
@@ -268,9 +267,21 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     , PP.nest 1 (toDoc body)
     ]
 
-ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
+ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     let (vars, types, body) = ppBinder2 e3 in
     [ PP.text "summate"
+      <+> toDoc vars
+      <+> PP.text "from"
+      <+> (toDoc $ ppArg e1)
+      <+> PP.text "to"
+      <+> (toDoc $ ppArg e2)
+      <> PP.colon <> PP.space
+    , PP.nest 1 (toDoc body)
+    ]
+
+ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
+    let (vars, types, body) = ppBinder2 e3 in
+    [ PP.text "product"
       <+> toDoc vars
       <+> PP.text "from"
       <+> (toDoc $ ppArg e1)
@@ -395,12 +406,25 @@ ppPrimOp p BetaFunc     = \(e1 :* e2 :* End) -> ppApply2 p "betaFunc" e1 e2
 ppPrimOp p (Equal   _) = \(e1 :* e2 :* End) -> ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) = \(e1 :* e2 :* End) -> ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) = \(e1 :* e2 :* End) -> ppBinop "^"  8 RightAssoc p e1 e2
-ppPrimOp p (Negate  _) = \(e1 :* End)       -> ppApply1 p "negate"  e1
-ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1 p "abs_"    e1
-ppPrimOp p (Signum  _) = \(e1 :* End)       -> ppApply1 p "signum"  e1
-ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1 p "recip"   e1
-ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) -> ppApply2 p "natroot" e1 e2
-ppPrimOp p (Erf _)     = \(e1 :* End)       -> ppApply1 p "erf"     e1
+ppPrimOp p (Negate  _) = \(e1 :* End)       -> ppApply1  p "negate"  e1
+ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1  p "abs_"    e1
+ppPrimOp p (Signum  _) = \(e1 :* End)       -> ppApply1  p "signum"  e1
+ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1  p "recip"   e1
+ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) -> ppNatRoot p e1 e2
+ppPrimOp p (Erf _)     = \(e1 :* End)       -> ppApply1  p "erf"     e1
+
+
+ppNatRoot
+    :: (ABT Term abt)
+    => Int
+    -> abt '[] a
+    -> abt '[] 'HNat
+    -> Docs
+ppNatRoot p e1 e2 =
+    caseVarSyn e2 (\x -> ppApply2 p "natroot" e1 e2) $ \t ->
+        case t of
+          Literal_ (LNat 2) -> ppApply1 p "sqrt"    e1
+          _                 -> ppApply2 p "natroot" e1 e2
 
 
 -- | Pretty-print a 'ArrayOp' @(:$)@ node in the AST.

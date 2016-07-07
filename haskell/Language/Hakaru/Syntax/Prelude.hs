@@ -44,7 +44,7 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Equality and ordering
     , (==), (/=), (<), (<=), (>), (>=), min, minimum, max, maximum
     -- ** Semirings
-    , zero, zero_, one, one_, (+), sum, (*), product, (^), square
+    , zero, zero_, one, one_, (+), sum, (*), prod, (^), square
     , unsafeMinusNat, unsafeMinusProb, unsafeMinus, unsafeMinus_
     , unsafeDiv, unsafeDiv_
     -- ** Rings
@@ -54,12 +54,11 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Radical
     , sqrt, thRootOf
     -- ** Integration
-    , integrate, summate
+    , integrate, summate, product
     -- ** Continuous
-    , RealProb(..)
+    , RealProb(..), Integrable(..)
     , betaFunc
     , log, logBase
-    , infinityNat
     , negativeInfinity
     -- *** Trig
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
@@ -469,9 +468,9 @@ one_  HSemiring_Real = literal_ $ LReal 1
 
 -- TODO: add a smart constructor for @HSemiring_ a => Natural -> abt '[] a@ and\/or @HRing_ a => Integer -> abt '[] a@
 
-sum, product :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
-sum     = naryOp_withIdentity (Sum  hSemiring) zero
-product = naryOp_withIdentity (Prod hSemiring) one
+sum, prod :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
+sum  = naryOp_withIdentity (Sum  hSemiring) zero
+prod = naryOp_withIdentity (Prod hSemiring) one
 
 {-
 sum, product :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
@@ -627,14 +626,40 @@ integrate lo hi f =
     syn (Integrate :$ lo :* hi :* binder Text.empty sing f :* End)
 
 summate
-    :: (ABT Term abt)
-    => abt '[] 'HReal
-    -> abt '[] 'HReal
-    -> (abt '[] 'HInt -> abt '[] 'HProb)
-    -> abt '[] 'HProb
+    :: (ABT Term abt, HDiscrete_ a, HSemiring_ b, SingI a)
+    => abt '[] a
+    -> abt '[] a
+    -> (abt '[] a -> abt '[] b)
+    -> abt '[] b
 summate lo hi f =
-    syn (Summate :$ lo :* hi :* binder Text.empty sing f :* End)
+    syn (Summate hDiscrete hSemiring
+         :$ lo :* hi :* binder Text.empty sing f :* End)
 
+product
+    :: (ABT Term abt, HDiscrete_ a, HSemiring_ b, SingI a)
+    => abt '[] a
+    -> abt '[] a
+    -> (abt '[] a -> abt '[] b)
+    -> abt '[] b
+product lo hi f =
+    syn (Product hDiscrete hSemiring
+         :$ lo :* hi :* binder Text.empty sing f :* End)
+
+
+class Integrable (a :: Hakaru) where
+    infinity :: (ABT Term abt) => abt '[] a
+
+instance Integrable 'HNat where
+    infinity = primOp0_ (Infinity HIntegrable_Nat)
+
+instance Integrable 'HInt where
+    infinity = nat2int $ primOp0_ (Infinity HIntegrable_Nat)
+
+instance Integrable 'HProb where
+    infinity = primOp0_ (Infinity HIntegrable_Prob)
+
+instance Integrable 'HReal where
+    infinity = fromProb $ primOp0_ (Infinity HIntegrable_Prob)
 
 -- HACK: we define this class in order to gain more polymorphism;
 -- but, will it cause type inferencing issues? Excepting 'log'
@@ -644,7 +669,6 @@ class RealProb (a :: Hakaru) where
     exp  :: (ABT Term abt) => abt '[] a -> abt '[] 'HProb
     erf  :: (ABT Term abt) => abt '[] a -> abt '[] a
     pi   :: (ABT Term abt) => abt '[] a
-    infinity :: (ABT Term abt) => abt '[] a
     gammaFunc :: (ABT Term abt) => abt '[] a -> abt '[] 'HProb
 
 instance RealProb 'HReal where
@@ -652,7 +676,6 @@ instance RealProb 'HReal where
     exp       = primOp1_ Exp
     erf       = primOp1_ $ Erf hContinuous
     pi        = fromProb $ primOp0_ Pi
-    infinity  = fromProb $ primOp0_ (Infinity HIntegrable_Prob)
     gammaFunc = primOp1_ GammaFunc
 
 instance RealProb 'HProb where
@@ -660,11 +683,7 @@ instance RealProb 'HProb where
     exp       = primOp1_ Exp . fromProb
     erf       = primOp1_ $ Erf hContinuous
     pi        = primOp0_ Pi
-    infinity  = primOp0_ (Infinity HIntegrable_Prob)
     gammaFunc = primOp1_ GammaFunc . fromProb
-
-infinityNat :: (ABT Term abt) => abt '[] 'HNat
-infinityNat = primOp0_ (Infinity HIntegrable_Nat)
 
 log  :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HReal
 log = primOp1_ Log
@@ -893,7 +912,10 @@ unsafeProbSemiring_ HSemiring_Prob = id
 unsafeProbSemiring_ HSemiring_Real = unsafeProb
 
 
-negativeInfinity :: (ABT Term abt) => abt '[] 'HReal
+negativeInfinity :: ( ABT Term abt
+                    , HRing_ a
+                    , Integrable a)
+                 => abt '[] a
 negativeInfinity = negate infinity
 
 -- instance (ABT Term abt) => Lambda abt where
@@ -990,8 +1012,8 @@ sumV = reduce (+) zero -- equivalent to summateV if @a ~ 'HProb@
 
 summateV :: (ABT Term abt) => abt '[] ('HArray 'HProb) -> abt '[] 'HProb
 summateV x =
-    summate (real_ 0) (fromInt $ nat2int (size x) - int_ 1)
-        (\i -> x ! unsafeFrom_ signed i)
+    summate (nat_ 0) (unsafeMinusNat (size x) (nat_ 1))
+        (\i -> x ! i)
 
 -- TODO: a variant of 'if_' for giving us evidence that the subtraction is sound.
 

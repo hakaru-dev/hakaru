@@ -59,7 +59,9 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , getIndices
     , withIndices
     , extendIndices
+    , extendLocInds
     , statementInds
+    , sizeInnermostInd
     -- * Locs
     , Loc(..)
     , getLocs
@@ -69,6 +71,10 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , mkLoc
     , freeLocError
     , apply
+#ifdef __TRACE_DISINTEGRATE__
+    , prettyLoc
+    , prettyLocs
+#endif    
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -84,13 +90,14 @@ import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
 import qualified Data.List.NonEmpty   as NE
 import           Control.Applicative  (Alternative(..))
-import           Control.Monad        (MonadPlus(..),foldM)
+import           Control.Monad        (MonadPlus(..),foldM,guard)
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
+import           Data.Number.Nat
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit)
+import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit, sUnArray)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
@@ -99,10 +106,12 @@ import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
-import Language.Hakaru.Evaluation.Lazy (reifyPair)
+import Language.Hakaru.Evaluation.Lazy (reifyPair)    
 
 #ifdef __TRACE_DISINTEGRATE__
-import Debug.Trace (trace)
+import Debug.Trace (trace, traceM)
+import qualified Text.PrettyPrint     as PP
+import Language.Hakaru.Pretty.Haskell (ppVariable) 
 #endif
 
 getStatements :: Dis abt [Statement abt 'Impure]
@@ -110,7 +119,7 @@ getStatements = Dis $ \_ c h -> c (statements h) h
 
 putStatements :: [Statement abt 'Impure] -> Dis abt ()
 putStatements ss =
-    Dis $ \_ c h@(ListContext i _) loc ->
+    Dis $ \_ c (ListContext i _) loc ->
         c () (ListContext i ss) loc
 
 ----------------------------------------------------------------
@@ -122,15 +131,14 @@ residualizeListContext
     :: forall abt a
     .  (ABT Term abt)
     => ListContext abt 'Impure
+    -> Assocs (abt '[])
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-residualizeListContext ss e0 =
+residualizeListContext ss rho e0 =
     -- N.B., we use a left fold because the head of the list of
     -- statements is the one closest to the hole.
     foldl step (substs rho e0) (statements ss)
     where
-    rho :: Assocs (abt '[])
-    rho = emptyAssocs
     step
         :: abt '[] ('HMeasure a)
         -> Statement abt 'Impure
@@ -161,17 +169,38 @@ residualizeListContext ss e0 =
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
 data Loc :: (Hakaru -> *) -> Hakaru -> * where
-     Loc :: Variable a
-         -> [Index ast]
+     Loc :: Variable a 
+         -> [Variable 'HNat]
          -> Loc ast a
      MultiLoc
          :: Variable a
-         -> [Index ast]
+         -> [Variable 'HNat]
          -> Loc ast ('HArray a)
 
-locIndices :: Loc ast a -> [Index ast]
+locIndices :: Loc ast a -> [Variable 'HNat]
 locIndices (Loc       _ inds) = inds
 locIndices (MultiLoc  _ inds) = inds
+
+extendLocInds :: Variable 'HNat -> [Variable 'HNat] -> [Variable 'HNat]
+extendLocInds = (:)
+
+#ifdef __TRACE_DISINTEGRATE__
+      
+prettyLoc :: Loc ast (a :: Hakaru) -> PP.Doc
+prettyLoc (Loc l inds)      = PP.text "Loc" PP.<+> ppVariable l
+                              PP.<+> ppList (map ppVariable inds)
+prettyLoc (MultiLoc l inds) = PP.text "MultiLoc" PP.<+> ppVariable l
+                              PP.<+> ppList (map ppVariable inds)
+
+prettyLocs :: (ABT Term abt)
+           => Assocs (Loc (abt '[]))
+           -> PP.Doc
+prettyLocs a = PP.vcat $ map go (fromAssocs a)
+  where go (Assoc x l) = ppVariable x PP.<+>
+                         PP.text "->" PP.<+>
+                         prettyLoc l
+
+#endif                           
 
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that
@@ -222,11 +251,12 @@ runDis :: (ABT Term abt, F.Foldable f)
     => Dis abt (abt '[] a)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
-runDis (Dis m) es =
-    m [] c0 (ListContext i0 []) emptyAssocs
+runDis d es =
+    m0 [] c0 (ListContext i0 []) emptyAssocs
     where
+    (Dis m0) = d >>= residualizeLocs
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
-    c0 e ss _ = [residualizeListContext ss (syn(Dirac :$ e :* End))]
+    c0 (e,rho) ss _ = [residualizeListContext ss rho (syn(Dirac :$ e :* End))]
                   
     i0 = maxNextFree es
 
@@ -287,75 +317,114 @@ residualizeLocs :: forall a abt. (ABT Term abt)
                 -> Dis abt (abt '[] a, Assocs (abt '[]))
 residualizeLocs e = do
   ss <- getStatements
-  (ss',newlocs) <- foldM step ([], emptyAssocs) ss
-  putStatements (reverse ss')
+  (ss', newlocs) <- foldM step ([], emptyAssocs) ss
   rho <- convertLocs newlocs
+  putStatements (reverse ss')
+#ifdef __TRACE_DISINTEGRATE__
+  trace ("residualizeLocs: old:\n" ++ show (pretty_Statements ss )) $ return ()
+  trace ("residualizeLocs: new:\n" ++ show (pretty_Statements ss')) $ return ()
+  locs <- getLocs
+  traceM ("oldlocs:\n" ++ show (prettyLocs locs) ++ "\n")
+  traceM ("new assoc for renaming:\n" ++ show (prettyAssocs rho))
+#endif
   return (e, rho)
-    where
-      step :: (ABT Term abt)
-           => ([Statement abt 'Impure], Assocs (Loc (abt '[])))
-           -> Statement abt 'Impure
-           -> Dis abt ([Statement abt 'Impure], Assocs (Loc (abt '[])))
-      step (ss',newlocs) s = do
-        case s of
-          SBind   l body  inds -> do l' <- freshenVar l
-                                     let s' = reifyStatement (SBind l' body inds)
-                                         r  = Assoc l (Loc l' inds)
-                                     return (s':ss' , insertAssoc r newlocs)
-          SLet    l body  inds -> do l' <- freshenVar l
-                                     let s' = reifyStatement (SLet l' body inds)
-                                         r  = Assoc l (Loc l' inds)
-                                     return (s':ss' , insertAssoc r newlocs)
-          SWeight w       inds -> do l' <- freshVar Text.empty sUnit
-                                     let bodyW = Thunk $ P.weight (fromLazy w)
-                                         s'    = reifyStatement (SBind l' bodyW inds) 
-                                     return (s':ss', newlocs)
-          SGuard ls p scr inds -> do ls' <- freshenVars ls
-                                     let s' = reifyStatement (SGuard ls' p scr inds)
-                                         rs = toAssocs1 ls $ fmap11 (\l' -> Loc l' inds) ls'
-                                     return (s':ss', insertAssocs rs newlocs)
+    where step (ss',newlocs) s = do (s',newlocs') <- residualizeLoc s
+                                    return (s':ss', insertAssocs newlocs' newlocs)
+
+data Name (a :: Hakaru) = Name {nameHint :: Text, nameID :: Nat}
+
+varName :: Variable a -> Name b
+varName x = Name (varHint x) (varID x)
+
+residualizeLoc :: (ABT Term abt)
+               => Statement abt 'Impure
+               -> Dis abt (Statement abt 'Impure, Assocs Name)
+residualizeLoc s =
+    case s of
+      SBind l body inds -> do 
+             (s', newname) <- reifyStatement s
+             return (s', singletonAssocs l newname)
+      SLet  l body inds -> do
+             (s', newname) <- reifyStatement s
+             return (s', singletonAssocs l newname)
+      SWeight w inds    -> do
+             l <- freshVar Text.empty sUnit
+             let bodyW = Thunk $ P.weight (fromLazy w)
+             (s', newname) <- reifyStatement (SBind l bodyW inds)
+             return (s', singletonAssocs l newname)
+      SGuard ls _ _ ixs
+        | null ixs  -> return (s, toAssocs1 ls (fmap11 varName ls))
+        | otherwise -> error "undefined: case statement under an array"
 
 reifyStatement :: (ABT Term abt)
-               => Statement abt 'Impure -> Statement abt 'Impure
-reifyStatement s@(SBind _ _    [])     = s
-reifyStatement   (SBind x body (i:is)) =
+               => Statement abt 'Impure
+               -> Dis abt (Statement abt 'Impure, Name a)
+reifyStatement s@(SBind l _    [])     = return (s, varName l)
+reifyStatement   (SBind l body (i:is)) = do
     let bodyP = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
-        x'    = x { varType = SArray (varType x) }
-    in reifyStatement (SBind x' bodyP is)
-reifyStatement s@(SLet  _ _    [])     = s
-reifyStatement   (SLet  x body (i:is)) =
+    l' <- freshVar (varHint l) (SArray (varType l))
+    reifyStatement (SBind l' bodyP is)
+reifyStatement s@(SLet  l _    [])     = return (s, varName l)
+reifyStatement   (SLet  l body (i:is)) = do
     let arr = Thunk $ P.arrayWithVar (indSize i) (indVar i) (fromLazy body)
-        x'  = x { varType = SArray (varType x) }
-    in reifyStatement (SLet x' arr is)
+    l' <- freshVar (varHint l) (SArray (varType l))
+    reifyStatement (SLet l' arr is)
 reifyStatement   (SWeight _    _)      = error "reifyStatement called on SWeight"
-reifyStatement s@(SGuard _ _ _ [])     = s
-reifyStatement   (SGuard _ _ _ _)      = error "undefined: case statement under an array"
-
+reifyStatement   (SGuard _ _ _ _)      = error "reifyStatement called on SGuard"
+                           
+sizeInnermostInd :: (ABT Term abt)
+                 => Variable (a :: Hakaru)
+                 -> Dis abt (abt '[] 'HNat)
+sizeInnermostInd l =
+    (maybe (freeLocError l) return =<<) . select l $ \s ->
+        do guard (length (statementInds s) >= 1)
+           case s of
+             SBind l' _ ixs -> do Refl <- varEq l l'
+                                  Just $ do
+                                    unsafePush s
+                                    return (indSize (head ixs))
+             SLet  l' _ ixs -> do Refl <- varEq l l'
+                                  Just $ do
+                                    unsafePush s
+                                    return (indSize (head ixs))
+             SWeight _ _    -> Nothing
+             SGuard _ _ _ _ -> error "TODO: sizeInnermostInd{SGuard}"
+                                         
 fromLoc :: (ABT Term abt)
-        => Variable a -> [Index (abt '[])] -> abt '[] a
-fromLoc l []     = var l
-fromLoc l (j:js) = let l' = l { varType = SArray (varType l) }
-                   in (fromLoc l' js) P.! (var $ indVar j)
-
-convertLocs :: (ABT Term abt) => Assocs (Loc (abt '[])) -> Dis abt (Assocs (abt '[]))
-convertLocs newlocs = do oldlocs <- fromAssocs <$> getLocs
-                         foldM step emptyAssocs oldlocs
+        => Name b
+        -> Sing a
+        -> [Variable 'HNat]
+        -> abt '[] a
+fromLoc name typ []     = var $ Variable { varHint = nameHint name
+                                         , varID   = nameID name
+                                         , varType = typ }
+fromLoc name typ (i:is) = fromLoc name (SArray typ) is P.! var i
+                     
+convertLocs :: (ABT Term abt)
+            => Assocs Name
+            -> Dis abt (Assocs (abt '[]))
+convertLocs newlocs =  do oldlocs <- fromAssocs <$> getLocs
+                          foldM step emptyAssocs oldlocs
     where
-      step rho (Assoc x loc) = 
+      build :: (ABT Term abt) => Assoc (Loc (abt '[]))
+            -> Name a -> Dis abt (Assoc (abt '[]))
+      build (Assoc x loc) name =
           case loc of
-            Loc      l js ->
-                maybe (freeLocError l)
-                      (\(Loc l' _) -> return $
-                                      insertAssoc (Assoc x (fromLoc l' js)) rho)
-                      (lookupAssoc l newlocs)
-            MultiLoc l js ->
-                maybe (freeLocError l)
-                      (\(Loc l' inds) ->
-                           do j <- freshInd (indSize (head inds))
-                              let js' = extendIndices j js
-                                  arr = P.arrayWithVar (indSize j) (indVar j) (fromLoc l' js')
-                              return $ insertAssoc (Assoc x arr) rho)
-                      (lookupAssoc l newlocs)
+            Loc      l js -> return $ Assoc x (fromLoc name (varType x) js)
+            MultiLoc l js -> do
+                     j <- sizeInnermostInd l >>= freshInd
+                     let js'   = extendLocInds (indVar j) js
+                         bodyA = fromLoc name (sUnArray $ varType x) js'
+                     return $ Assoc x $ P.arrayWithVar (indSize j) (indVar j) bodyA
+      step rho as@(Assoc _ loc) = do
+          r <- case loc of
+                 Loc      l js -> maybe (freeLocError l)
+                                        (build as)
+                                        (lookupAssoc l newlocs)
+                 MultiLoc l js -> maybe (freeLocError l)
+                                        (build as)
+                                        (lookupAssoc l newlocs)
+          return $ insertAssoc r rho
 
 freeLocError :: Variable (a :: Hakaru) -> b
 freeLocError l = error $ "Found a free location " ++ show l
@@ -364,20 +433,21 @@ apply :: (ABT Term abt)
       => [(Index (abt '[]), Index (abt '[]))]
       -> abt '[] a
       -> Dis abt (abt '[] a)
-apply ijs e = do let rho = toAssocs $
-                           map (\(i,j) -> Assoc (indVar i) (indVar j)) ijs
-                 locs <- fromAssocs <$> getLocs
+apply ijs e = do locs <- fromAssocs <$> getLocs
                  rho' <- foldM step rho locs
                  return (renames rho' e)
-    where step rho (Assoc x loc) =
+    where
+      rho = toAssocs $ map (\(i,j) -> Assoc (indVar i) (indVar j)) ijs
+      step r (Assoc x loc) =
             let inds  = locIndices loc
-                inds' = map (\i -> fromMaybe i (lookup i ijs)) inds
-            in if (any isJust (map (\i -> lookup i ijs) inds))
+                check i = lookupAssoc i rho
+                inds' = map (\i -> fromMaybe i (check i)) inds
+            in if (any isJust (map check inds))
                then do x' <- case loc of
                                Loc      l _ -> mkLoc      Text.empty l inds'
                                MultiLoc l _ -> mkMultiLoc Text.empty l inds'
-                       return (insertAssoc (Assoc x x') rho)
-               else return rho
+                       return (insertAssoc (Assoc x x') r)
+               else return r
                            
 extendIndices
     :: (ABT Term abt)
@@ -385,7 +455,12 @@ extendIndices
     -> [Index (abt '[])]
     -> [Index (abt '[])]
 -- TODO: check all Indices are unique
-extendIndices = (:)
+extendIndices j js | j `elem` js
+                   = error ("Duplicate index between " )
+                     -- TODO finish this error message by
+                     -- defining Show for Index
+                   | otherwise
+                   = j : js
 
 -- give better name
 statementInds :: Statement abt p -> [Index (abt '[])]
@@ -425,7 +500,7 @@ mkLoc
     :: (ABT Term abt)
     => Text
     -> Variable (a :: Hakaru)
-    -> [Index (abt '[])]
+    -> [Variable 'HNat]
     -> Dis abt (Variable a)
 mkLoc hint s inds = do
   x <- freshVar hint (varType s)
@@ -435,7 +510,7 @@ mkLoc hint s inds = do
 mkLocs
     :: (ABT Term abt)
     => List1 Variable (xs :: [Hakaru])
-    -> [Index (abt '[])]
+    -> [Variable 'HNat]
     -> Dis abt (List1 Variable xs)
 mkLocs Nil1         _    = return Nil1
 mkLocs (Cons1 x xs) inds = Cons1
@@ -446,7 +521,7 @@ mkMultiLoc
     :: (ABT Term abt)
     => Text
     -> Variable a
-    -> [Index (abt '[])]
+    -> [Variable 'HNat]
     -> Dis abt (Variable ('HArray a))
 mkMultiLoc hint s inds = do
   x' <- freshVar hint (SArray $ varType s)
@@ -481,17 +556,17 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         case s of
           SWeight _ _    -> return (s, mempty)
           SBind x body i -> do
-               s  <- freshenVar x
-               x' <- mkLoc (varHint x) s i
-               return (SBind x' body i, singletonAssocs x x')
+               l  <- freshenVar x
+               x' <- mkLoc (varHint x) l (map indVar i)
+               return (SBind l body i, singletonAssocs x x')
           SLet  x body i -> do
-               s  <- freshenVar x
-               x' <- mkLoc (varHint x) s i
-               return (SLet x' body i, singletonAssocs x x')
+               l  <- freshenVar x
+               x' <- mkLoc (varHint x) l (map indVar i)
+               return (SLet l body i, singletonAssocs x x')
           SGuard xs pat scrutinee i -> do
-               ss  <- freshenVars xs
-               xs' <- mkLocs ss i
-               return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
+               ls  <- freshenVars xs
+               xs' <- mkLocs ls (map indVar i)
+               return (SGuard ls pat scrutinee i, toAssocs1 xs xs')
 
     getIndices =  Dis $ \i c -> c i
 
@@ -548,7 +623,7 @@ pushPlate n e inds =
     p  <- freshVar Text.empty (sUnMeasure $ typeOf body)
     unsafePush (SBind p (Thunk $ rename x (indVar i) body)
                 (extendIndices i inds))
-    mkMultiLoc Text.empty p inds
+    mkMultiLoc Text.empty p (map indVar inds)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

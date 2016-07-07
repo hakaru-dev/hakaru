@@ -26,9 +26,9 @@ NewSLO := module ()
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, bind, weight,
         reduce_IntSum, reduce_IntsSums, get_indicators,
-        elim_intsum, do_elim_intsum, banish,
+        elim_intsum, do_elim_intsum, banish, banish_guard, banish_weight,
         reduce_pw, nub_piecewise, piecewise_if,
-        find_vars, kb_from_path, interpret, reconstruct, invert, 
+        find_vars, kb_from_path, interpret, reconstruct, invert,
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2,
         mk_sym, mk_ary, mk_idx,
@@ -38,7 +38,7 @@ NewSLO := module ()
          integrate, applyintegrand,
      # while these are "proper functions"
          RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru,
-         toLO, fromLO, unintegrate, unweight, improve, reduce, Banish,
+         toLO, fromLO, unintegrate, unweight, improve, reduce,
          density, bounds,
          ReparamDetermined, determined, Reparam, disint;
   # these names are not assigned (and should not be).  But they are
@@ -47,7 +47,12 @@ NewSLO := module ()
   uses Hakaru, KB, Loop;
 
   RoundTrip := proc(e, t::t_type)
-    lprint(eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL))
+    local result;
+    interface(screenwidth=infinity, prettyprint=0);
+    writeto("/dev/fd/2");
+    result := eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL);
+    writeto(terminal);
+    lprint(result)
   end proc;
 
   Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
@@ -305,7 +310,7 @@ NewSLO := module ()
                           op(1,loop),
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(loops)),
-             x, weight(simplify_assuming(`*`(op(w)), kb1), m)))
+             x, weight(simplify_assuming(combine(rebase(graft(split(peel(`*`(op(w))))))), kb1), m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
@@ -519,6 +524,16 @@ NewSLO := module ()
          and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
          and ispoly(normal(a0*var*(1-var)/a1), 'linear', var, 'b0', 'b1') then
       dist := BetaD(1-b0, 1+b0+b1)
+    # elif not evalb((hi - lo) :: 'SymbolicInfinity')
+    #      and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
+    #      and ispoly(a0 - 2*var, 'linear', var, 'b0', 'b1') then
+    #   c0 := (lo*b1 + hi + lo + b0) / (hi - lo);
+    #   c1 := -(hi*b1 + hi + lo + b0) / (hi - lo);
+    #   if c0 = 1 and c1 = 1 then
+    #       dist := Uniform(lo, hi)
+    #   else
+    #       dist := bind(BetaD(c0, c1),x,lo+(hi-lo)*x)
+    #   end if
     elif lo = 0 and hi = infinity
          and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
          and ispoly(normal(a0*var/a1), 'linear', var, 'b0', 'b1') then
@@ -636,23 +651,18 @@ NewSLO := module ()
         genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb));
       reduce_IntSum(op(0,e),
         reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
-    elif e :: 'Ints(anything, name, range, list(name=range))' then
+    elif e :: 'And(specfunc({Ints,Sums}),
+                   anyfunc(anything, name, range, list(name=range)))' then
       x, kb1 := genType(op(2,e),
-                        mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
+                        mk_HArray(`if`(op(0,e)=Ints,
+                                       HReal(open_bounds(op(3,e))),
+                                       HInt(closed_bounds(op(3,e)))),
+                                  op(4,e)),
                         kb);
       if nops(op(4,e)) > 0 then
         kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
       end if;
-      reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
-        op(3,e), op(4,e), h, kb1)
-    elif e :: 'Sums(anything, name, range, list(name=range))' then
-      x, kb1 := genType(op(2,e),
-                        mk_HArray(HInt(closed_bounds(op(3,e))), op(4,e)),
-                        kb);
-      if nops(op(4,e)) > 0 then
-        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
-      end if;
-      reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
+      reduce_IntsSums(op(0,e), reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: `+` then
       map(reduce, e, h, kb)
@@ -750,36 +760,34 @@ NewSLO := module ()
   end proc;
 
   elim_intsum := proc(ee, h :: name, kb :: t_kb, $)
-    local e, hh, m, var, elim, my;
-
+    local e, var, m, elim;
     e := ee;
     do
-      hh := gensym('h');
       if e :: Int(anything, name=anything) and
          not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                'dependent'(op([2,1],e)))) then
         var := op([2,1],e);
-        m := LO(hh, my(kb, int, applyintegrand(hh,var), op(2,e)));
+        m := proc (kb,g,$) do_elim_intsum(kb, int, g, op(2,e)) end proc;
       elif e :: Sum(anything, name=anything) and
          not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                'dependent'(op([2,1],e)))) then
         var := op([2,1],e);
-        m := LO(hh, my(kb, sum, applyintegrand(hh,var), op(2,e)));
+        m := proc (kb,g,$) do_elim_intsum(kb, sum, g, op(2,e)) end proc;
       elif e :: Ints(anything, name, range, list(name=range)) and
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, ints, applyintegrand(hh,var), op(2..4,e), kb));
+        m := proc (kb,g,$) do_elim_intsum(kb, ints, g, op(2..4,e), kb) end proc;
       elif e :: Sums(anything, name, range, list(name=range)) and
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, sums, applyintegrand(hh,var), op(2..4,e), kb));
+        m := proc (kb,g,$) do_elim_intsum(kb, sums, g, op(2..4,e), kb) end proc;
       else
         break;
       end if;
       # try to eliminate unused var
-      elim := eval(banish(m, var, h, op(1,e), infinity), my=do_elim_intsum);
+      elim := banish(op(1,e), h, kb, infinity, var, m);
       if has(elim, {MeijerG, undefined, FAIL}) then
         break;
       end if;
@@ -796,105 +804,111 @@ NewSLO := module ()
                         patfunc(anything,
                                 `if`(v::`=`, identical(lhs(v))=anything,
                                              identical(v)),
-                                anything))),
+                                anything),
+                        'Not(sum(anything,
+                                 name=range(Not({SymbolicInfinity,
+                                                 undefined}))))')),
          FAIL,
          e)
   end proc;
 
-  Banish := proc(e :: Int(anything, name=anything), h :: name,
-                 levels :: extended_numeric := infinity, $)
-    local hh;
-    hh := gensym('h');
-    subs(int=Int,
-      banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
-        op([2,1],e), h, op(1,e), levels));
-  end proc;
-
-  banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric, $)
-    # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
-    # but performs integration over x innermost rather than outermost.
-    local guard, subintegral, w, y, yRename, lo, hi, mm, loops, xx, hh, gg, ll;
-    guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
+  banish := proc(g, h :: name, kb :: t_kb, levels :: extended_numeric,
+                 x :: name, make, $)
+    # banish(g, h, kb, levels, x, make), where the integrand h and the
+    # integration variable x take scope over the integral g patently linear
+    # in h, should be equivalent to make(kb, g), where the integration operator
+    # make binds x in g, except
+    #   - integration over x is performed innermost rather than outermost;
+    #   - if levels < infinity then levels controls how deeply to banish g;
+    #   - make is invoked with the KB in the first argument extended.
+    local subintegral, w, y, kb1, lo, hi, m, loops, xx, less;
     if g = 0 then
       0
     elif levels <= 0 then
-      integrate(m, Integrand(x, g), []) # is [] right ?
+      make(kb, g)
     elif not depends(g, x) then
-      integrate(m, x->1, []) * g
+      make(kb, 1) * g
     elif g :: `+` then
-      map[4](banish, m, x, h, g, levels)
+      map(banish, _passed)
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
+      banish(subintegral, h, kb, levels, x, banish_weight(make, w));
     elif g :: 'And'('specfunc({Int,int,Sum,sum})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
-      subintegral := op(1, g);
-      y           := op([2,1], g);
-      lo, hi      := op(op([2,2], g));
-      if x = y or depends(m, y) then
-        yRename     := gensym(y);
-        subintegral := subs(y=yRename, subintegral);
-        y           := yRename;
-      end if;
-      mm := m;
+      lo, hi      := op(op([2,2],g));
+      m           := make;
       if depends(lo, x) then
-        mm := guard(mm, lo<y);
+        m  := banish_guard(eval(m), lo<y);
         lo := -infinity;
       end if;
       if depends(hi, x) then
-        mm := guard(mm, y<hi);
+        m  := banish_guard(eval(m), y<hi);
         hi := infinity;
       end if;
-      op(0,g)(banish(mm, x, h, subintegral, levels-1), y=lo..hi)
+      y, kb1 := `if`(op(0,g) in '{Int,int}',
+        genLebesgue(op([2,1],g), lo, hi, kb, make),
+        genType(op([2,1],g), HInt(closed_bounds(lo..hi)), kb, make));
+      subintegral := subs(op([2,1],g)=y, op(1,g));
+      op(0,g)(banish(subintegral, h, kb1, levels-1, x, m), y=lo..hi)
     elif g :: 'And'('specfunc({Ints,ints,Sums,sums})',
                     'anyfunc'('anything', 'name', 'range'('freeof'(h)),
                               'list(name=range)')) then
-      subintegral := op(1, g);
-      y           := op(2, g);
-      lo, hi      := op(op(3, g));
-      loops       := op(4, g);
+      lo, hi      := op(op(3,g));
+      loops       := op(4,g);
       xx          := map(lhs, loops);
-      if x = y or depends(m, y) then
-        yRename     := gensym(y);
-        subintegral := subs(y=yRename, subintegral);
-        y           := yRename;
-      end if;
-      mm := m;
+      m           := make;
+      less        := `if`(op(0,g) in '{Ints,ints}', `<`, `<=`);
       if depends(lo, x) then
-        mm := guard(mm, forall(xx, lo<mk_idx(y,loops)));
+        m  := banish_guard(m, forall(xx, less(lo, mk_idx(y,loops))));
         lo := -infinity;
       end if;
       if depends(hi, x) then
-        mm := guard(mm, forall(xx, mk_idx(y,loops)<hi));
+        m  := banish_guard(m, forall(xx, less(mk_idx(y,loops), hi)));
         hi := infinity;
       end if;
-      op(0,g)(banish(mm, x, h, subintegral, levels-1), y, lo..hi, op(4,g));
+      y, kb1 := genType(op(2,g),
+                        mk_HArray(`if`(op(0,g) in '{Ints,ints}',
+                                       HReal(open_bounds(lo..hi)),
+                                       HInt(closed_bounds(lo..hi))),
+                                  op(4,g)),
+                        kb);
+      if nops(op(4,g)) > 0 then
+        kb1 := assert(size(y)=op([4,-1,2,2],g)-op([4,-1,2,1],g)+1, kb1);
+      end if;
+      subintegral := subs(op(2,g)=y, op(1,g));
+      op(0,g)(banish(subintegral, h, kb1, levels-1, x, m), y, lo..hi, op(4,g));
     elif g :: t_pw then
       foldr_piecewise(
-        proc(cond, th, el) proc(m)
+        proc(cond, th, el, $) proc(make, kb, $)
           if depends(cond, x) then
-            banish(guard(m, cond), x, h, th, levels-1) + el(guard(m, Not(cond)))
+            banish(th, h, kb, levels-1, x, banish_guard(make, cond))
+              + el(banish_guard(make, Not(cond)), kb)
           else
-            piecewise_if(cond, banish(m, x, h, th, levels-1), el(m))
+            piecewise_if(cond,
+              banish(th, h, assert(cond, kb), levels-1, x, make),
+              el(make, assert(Not(cond), kb)))
           end if
         end proc end proc,
-        proc(m) 0 end proc,
-        g)(m)
+        proc(make, kb, $) 0 end proc,
+        g)(make, kb)
     elif g :: t_case then
-      subsop(2=map(proc(b :: Branch(anything, anything))
-                     eval(subsop(2='banish'(op(2,b),xx,hh,gg,ll),b),
-                          {xx=x, hh=h, gg=g, ll=l})
-                   end proc,
-                   op(2,integral)),
-             integral);
+      map_piecewiselike(banish, _passed)
     elif g :: 'integrate(freeof(x), Integrand(name, anything), list)' then
-      y := gensym(op([2,1],g));
-      subsop(2=Integrand(y, banish(m, x, h,
-        subs(op([2,1],g)=y, op([2,2],g)), levels-1)), g)
+      y           := gensym(op([2,1],g));
+      subintegral := subs(op([2,1],g)=y, op([2,2],g));
+      subsop(2=Integrand(y, banish(subintegral, h, kb, levels-1, x, make)), g)
     else
-      integrate(m, Integrand(x, g), [])
+      make(kb, g)
     end if
+  end proc;
+
+  banish_guard := proc(make, cond, $)
+    proc(kb,g,$) make(kb, piecewise(cond,g,0)) end proc
+  end proc;
+
+  banish_weight := proc(make, w, $)
+    proc(kb,g,$) make(kb, w*g) end proc
   end proc;
 
   reduce_pw := proc(ee, $) # ee may or may not be piecewise
@@ -991,7 +1005,7 @@ NewSLO := module ()
        $
   )
   uses IT= IntegrationTools;
-  local 
+  local
        J:= op(2, e),   #the integral
        x::symbol:= op([2,1], J),   #var of integration
        a::algebraic:= op([2,2,1], J),  #lower limit
@@ -1004,14 +1018,13 @@ NewSLO := module ()
        S,   #result from `solve`
        F::{`<`, truefalse}   #Boolean: flip integral?
   ;
-
        #If more than one reparam is possible, return unevaluated.
        if nops(oldarg) <> 1 then
             WARNING("More than 1 reparam possible.");
-            userinfo(1, thisproc, "Possible reparams:", subs(x= ':-x', oldarg)); 
+            userinfo(1, thisproc, "Possible reparams:", subs(x= ':-x', oldarg));
             return 'procname'(e)
        end if;
-   
+
        oldarg:= oldarg[];   #Extract the reparam target.
 
        #If the target is simply a name, return input unchanged.
@@ -1019,57 +1032,57 @@ NewSLO := module ()
 
        #If target doesn't depend on x, return input unchanged.
        if not depends(simplify(oldarg), x) then
-            userinfo(2, procname, "Target doesn't depend on x. Target:", oldarg); 
-            return e 
-       end if; 
+            userinfo(2, procname, "Target doesn't depend on x. Target:", oldarg);
+            return e
+       end if;
 
        (*#************ This isn't currently used. **********************************
        #Check the invertibility of the change of vars.
 
        #The ability of `solve` to select a branch is very limited. For example,
-               solve({y=x^2, x > 0}, {x}) 
-       #returns 
-               sqrt(y), -sqrt(y). 
+               solve({y=x^2, x > 0}, {x})
+       #returns
+               sqrt(y), -sqrt(y).
        #This needs to be dealt with. First idea: Use `is` to filter
        #solutions. This is implemented below.                     
 
        #The next command is redundantly performed in the local inits. I put it here also
        #because I anticipate some future situations where that's no longer valid.
 
-       #Save current vars for comparison with vars after `solve`.  
+       #Save current vars for comparison with vars after `solve`.
        Ns:= indets(oldarg, symbol);
        S:= {solve({'y'=oldarg, a <= x, x <= b}, {x}, allsolutions)};
        S:= map(s->`if`(s::specfunc(piecewise), s[], s), S);
        #Use `is` to filter solutions under the assumptions.
        assume(a <= x, x <= b);
        S:= select(s-> ver(rhs,lhs)(eval(s, y= oldarg)[]), S);
-       if  nops(S) <> 1  or  indets(S, symbol) <> Ns union {y}  or  hastype(S, RootOf)  then 
+       if  nops(S) <> 1  or  indets(S, symbol) <> Ns union {y}  or  hastype(S, RootOf)  then
             WARNING("Reparam target is not invertible (upto `solve` and `is`).");
             userinfo(1, procname, "Target:", subs(x= ':-x', oldarg), "S:", subs(x= ':-x', S), "domain:", ':-x'= a..b);
             return 'procname'(e)
-       end if; 
-       *******************************************************************************)  
-     
-       #Make the change of vars.       
+       end if;
+       *******************************************************************************)
+
+       #Make the change of vars.
        J:= IT:-Change(J, u= oldarg, [u]) &assuming ctx;
 
        if J=0 then
             WARNING("Integral is 0, likely due to improper handling of an infinity issue.");
             userinfo(
-                 1, procname, "u subs:", 
+                 1, procname, "u subs:",
                  print(
-                      #Reformat the IT:-Change command for readability. 
+                      #Reformat the IT:-Change command for readability.
                       'IT:-Change'(
                            subs(
-                                x= ':-x', 
+                                x= ':-x',
                                 subsindets(
-                                     op(2,e), 
-                                     specfunc(applyintegrand), 
+                                     op(2,e),
+                                     specfunc(applyintegrand),
                                      f-> ':-h'(op(2,f))
                                 )
-                           ), 
+                           ),
                            ':-u'= subs(x= ':-x', oldarg),
-                           [':-u']          
+                           [':-u']
                       )
                  )
             );
@@ -1080,14 +1093,14 @@ NewSLO := module ()
        F:= evalb(op([2,2,1], J) > op([2,2,2], J));
        if F::truefalse then
             if F then
-                 userinfo(2, procname, "Switching limits:", op([2,2], J));  
+                 userinfo(2, procname, "Switching limits:", op([2,2], J));
                  J:= IT:-Flip(J)
             end if
        else #If inequality can't be decided, then don't reverse.
             userinfo(1, procname, "Can't order new limits:", op([2,2], J));
        end if;
-      
-       subsop(2= J, e)              
+
+       subsop(2= J, e)
   end proc;
 
   ###
@@ -1101,7 +1114,7 @@ NewSLO := module ()
 
   find_vars := proc(l)
     local NONE; # used as a placeholder
-    map(proc(x) 
+    map(proc(x)
           if type(x, specfunc(%int)) then op([1,1],x)
           elif type(x, specfunc(%weight)) then NONE
           else error "don't know about command (%1)", x
@@ -1119,11 +1132,11 @@ NewSLO := module ()
     res := foldr(proc(b,info)
           local x, lo, hi, p, kb;
           (kb, p) := op(info);
-          if type(b, specfunc(%int)) then 
+          if type(b, specfunc(%int)) then
             (lo, hi) := op(op([1,2],b));
             x, kb := genLebesgue(op([1,1], b), lo, hi, kb);
             [kb, [ %int(x = lo..hi), p]];
-          elif type(b, specfunc(%weight)) then 
+          elif type(b, specfunc(%weight)) then
             [kb, [ b, p ]];
           else error "don't know about command (%1)", x
           end if end proc,
@@ -1138,7 +1151,7 @@ NewSLO := module ()
   end proc;
 
   invert := proc(to_invert, main_var, integral, h, path, t)
-    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, would_capture, flip, 
+    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, would_capture, flip,
       kb, npath;
     if type(to_invert, 'linear'(main_var)) then
       sol := solve([t = to_invert], {main_var})[1];
@@ -1256,14 +1269,14 @@ NewSLO := module ()
 
   get_int_pos := proc(var, path)
     local finder;
-    finder := proc(loc) 
+    finder := proc(loc)
       if type(op(loc,path),specfunc(%int)) and op([loc,1,1], path) = var then
         loc
       else
         NULL # cheating...
       end if
     end proc;
-    seq(finder(i),i=1..nops(path)); 
+    seq(finder(i),i=1..nops(path));
   end proc;
 
   change_var := proc(act, chg, path, part)
@@ -1308,7 +1321,7 @@ NewSLO := module ()
   # just means that we should just push the one integral to the top, but
   # there's no need to rearrange anything else.
   avoid_capture := proc(task :: %WouldCapture(name, posint, list), chg, path, part)
-    local x, p, here, there, vars, new_path, go_past, to_top, work, n, pos, 
+    local x, p, here, there, vars, new_path, go_past, to_top, work, n, pos,
       y, v, scope;
 
     go_past := convert(map2(op, 1, op(3,task)), 'set');
@@ -1415,7 +1428,7 @@ NewSLO := module ()
       else
 
         pos := get_int_pos(var, path);
-        interpret([%WouldCapture(var, pos, [%Top]), op(2..-1,chg)], path, part); 
+        interpret([%WouldCapture(var, pos, [%Top]), op(2..-1,chg)], path, part);
       end if;
     elif type(chg[1], specfunc(%Drop)) then
       if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then
