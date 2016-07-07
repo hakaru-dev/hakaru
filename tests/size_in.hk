@@ -1,0 +1,4 @@
+fn k nat:
+  x <~ plate _ of k:
+    return 1
+  return size(x)

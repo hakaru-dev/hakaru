@@ -20,9 +20,6 @@ import Language.Hakaru.Expect     (total)
 import Language.Hakaru.Inference  (priorAsProposal, mcmc, mh)
 import Language.Hakaru.Types.Sing
 
-
--- import qualified Examples.Seismic as SE
-
 import Test.HUnit
 import Tests.TestTools
 import Tests.Models
@@ -144,6 +141,11 @@ testMeasureReal = test
     -- TODO "two_coins" ~: testStriv two_coins -- needs support for lists
     ]
 
+testMeasureNat :: Test
+testMeasureNat = test
+    [ "size" ~: testConcreteFiles "tests/size_in.hk" "tests/size_out.hk"
+    ]
+
 testMeasureInt :: Test
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
@@ -211,6 +213,7 @@ allTests = test
     , testMeasureProb
     , testMeasureReal
     , testMeasurePair
+    , testMeasureNat
     , testMeasureInt
     , testOther
     ]
