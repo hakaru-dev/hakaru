@@ -9,9 +9,11 @@ module Tests.Disintegrate where
 
 import           Prelude (($), (.), (++), head, String, Maybe(..))
 import qualified Prelude
+import qualified Data.List.NonEmpty  as L    
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Syntax.IClasses (Some2(..), TypeEq(..), jmEq1)
 import Language.Hakaru.Types.DataKind
@@ -121,6 +123,17 @@ norm1c =
         (dirac . ann_ sing $ pair (negate x) unit)
         (dirac . ann_ sing $ pair         x  unit)
 
+norm1' :: TrivialABT Term '[] ('HReal ':-> 'HMeasure HUnit)
+norm1' =
+    lam $ \t -> superpose $
+     L.fromList 
+      [ (one,
+         weight (densityNormal (real_ 3) (prob_ 2) (negate t)) >>= \_ ->
+         let_ (negate t) $ \x ->
+         case_ (x < zero) [branch pTrue (dirac unit)])
+      , (one,
+         weight (densityNormal (real_ 3) (prob_ 2) t) >>= \_ ->
+         case_ (t < zero) [branch pFalse (dirac unit)]) ]
 
 -- BUG: the first solutions returned by 'testPerform1b' and 'testPerform1c' break hygiene! They drops the variable bound by 'normal' and has all the uses of @x@ become free.
 testPerform1a, testPerform1b, testPerform1c
@@ -145,6 +158,19 @@ norm2 =
         (pair y x)
         (pair x x)
 
+norm2' :: TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)
+norm2' =
+    lam $ \t -> superpose $
+     L.fromList
+      [ (one,
+         normal (real_ 3) (prob_ 2) >>= \x ->
+         weight (densityNormal (real_ 5) (prob_ 4) t) >>= \_ ->
+         case_ (x < t) [branch pTrue (dirac x)])
+      , (one,
+         weight (densityNormal (real_ 3) (prob_ 2) t) >>= \_ ->
+         normal (real_ 5) (prob_ 4) >>= \y ->
+         case_ (t < y) [branch pFalse (dirac t)]) ]   
+
 testPerform2
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
 testPerform2 = runPerform norm2
@@ -168,8 +194,22 @@ easyRoad =
     normal x2 noiseE >>= \m2 ->
     dirac (pair (pair m1 m2) (pair noiseT noiseE))
 
+easyRoad'
+    :: TrivialABT Term '[]
+        (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HProb 'HProb))
+easyRoad' =
+    lam $ \t ->
+    unpair t (\t1 t2 ->
+              uniform (real_ 3) (real_ 8) >>= \noiseT_ ->
+              uniform (real_ 1) (real_ 4) >>= \noiseE_ ->
+              let_ (unsafeProb noiseT_) $ \noiseT ->
+              let_ (unsafeProb noiseE_) $ \noiseE ->
+              normal (real_ 0) noiseT >>= \x1 ->
+              weight (densityNormal x1 noiseE t1) >>= \_ ->
+              normal x1 noiseT >>= \x2 ->
+              weight (densityNormal x2 noiseE t2) >>
+              dirac (pair noiseT noiseE))
                                      
--- BUG: this throws a 'VarEqTypeError'
 testPerformEasyRoad
     :: [TrivialABT Term '[]
         ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))]
@@ -204,18 +244,24 @@ testDis p =
     . disintegrate
 
 
--- TODO: actually put all the above tests in here!
+-- TODO: put all the "perform" tests in here
 allTests :: Test
 allTests = test
     [ testDis "testDisintegrate0a" norm0a
     , testDis "testDisintegrate0b" norm0b
     , testDis "testDisintegrate0c" norm0c
+    , assertAlphaEq "testDisintegrate0a" (head testDisintegrate0a) norm0'
+    , assertAlphaEq "testDisintegrate0b" (head testDisintegrate0b) norm0'
+    , assertAlphaEq "testDisintegrate0c" (head testDisintegrate0c) norm0'
+    , assertBool "testHygiene0b" $ Prelude.not (Prelude.null testHygiene0b)
     , testDis "testDisintegrate1a" norm1a
     , testDis "testDisintegrate1b" norm1b
     , testDis "testDisintegrate1c" norm1c
-    , assertAlphaEq "testDisintegrate0b" (head testDisintegrate0b) norm0'
-    , assertAlphaEq "testDisintegrate0c" (head testDisintegrate0c) norm0'
-    , assertAlphaEq "testDisintegrate0a" (head testDisintegrate0a) norm0'
+    , assertAlphaEq "testDisintegrate1a" (head testDisintegrate1a) norm1'
+    , assertAlphaEq "testDisintegrate1b" (head testDisintegrate1b) norm1'
+    , assertAlphaEq "testDisintegrate1c" (head testDisintegrate1c) norm1'
+    , testDis "testDisintegrate2" norm2
+    , assertAlphaEq "testDisintegrate2" (head testDisintegrate2) norm2'
     , testWithConcrete' match_norm_unif LaxMode $ \_typ ast ->
         case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
         Just Refl -> testDis "testMatchNormUnif" ast
@@ -224,6 +270,9 @@ allTests = test
         case jmEq1 _typ (SMeasure $ sPair SReal sUnit) of
         Just Refl -> testDis "testAtomizeWeights" ast
         Nothing   -> assertFailure "BUG: jmEq1 got the wrong type"
+    , assertBool "testPerformEasyRoad" $ Prelude.not (Prelude.null testPerformEasyRoad)
+    , testDis "testDisintegrateEasyRoad" easyRoad
+    , assertAlphaEq "testDisintegrateEasyRoad" (head testDisintegrateEasyRoad) easyRoad'
     ]
 
 
