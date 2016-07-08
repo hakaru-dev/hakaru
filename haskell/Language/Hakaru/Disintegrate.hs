@@ -505,6 +505,53 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) S.empty es
     evalProd HSemiring_Prob = \(LProb p1) (LProb p2) -> LProb (p1 * p2)
     evalProd HSemiring_Real = \(LReal r1) (LReal r2) -> LReal (r1 * r2)
 
+-- | For {evaluate, constrainValue v0} ArrayOp_ (Index _) :$ e1 :* e2 :* End
+indexArrayOp :: forall abt typs args a r
+             .  ( ABT Term abt
+                , typs ~ UnLCs args, args ~ LCs typs )
+             => ArrayOp typs a
+             -> SArgs abt args
+             -> TermEvaluator abt (Dis abt)
+             -> (abt '[] a -> Dis abt r) -- evaluate or (constrainValue v0)
+             -> (Head abt ('HArray a)    -- e1 is in whnf, and
+                -> Variable 'HNat        -- e2 is a free under current indices
+                -> Dis abt r)
+             -> (Term abt ('HArray a)    -- e1 is neutral syntax
+                -> Dis abt r)
+             -> (abt '[] ('HArray a)     -- e1 is a free variable
+                -> Dis abt r) 
+             -> (abt '[] ('HArray a)     -- e1 is a multiloc, and
+                -> Variable 'HNat        -- e2 is a free under current indices
+                -> Dis abt r)
+             -> Dis abt r
+indexArrayOp o@(Index _) (e1 :* e2 :* End) evaluate_ kInd kArr kSyn kFree kMultiLoc = do
+  w1 <- evaluate_ e1
+  case w1 of
+    Head_ arr@(WArray _ b) -> caseBind b $ \x body ->
+      evalIndex (kInd . flip (rename x) body) (kArr arr)
+    Head_ (WEmpty _) -> error "TODO: indexArrayOp o (Empty_ :* _ :* End)"
+    Head_ _          -> error "indexArrayOp: unknown whnf of array type"
+    Neutral e1' -> flip (caseVarSyn e1') kSyn $ \x ->
+      do locs <- getLocs
+         case (lookupAssoc x locs) of
+           Nothing              -> kFree e1'
+           Just (Loc _ _)       -> error "indexArrayOp: impossible, we have a Neutral term"
+           Just (MultiLoc l js) ->
+             evalIndex ((kInd . var =<<) . mkLoc Text.empty l . flip extendLocInds js)
+                       (kMultiLoc e1')
+    where
+      evalIndex :: (ABT Term abt)
+                => (Variable 'HNat -> Dis abt r)
+                -> (Variable 'HNat -> Dis abt r)
+                -> Dis abt r
+      evalIndex thenCase elseCase = do
+            w2 <- evaluate_ e2
+            caseWhnf w2 (const bot) $ \term -> -- bot if index is in whnf (eg. a literal num)
+              flip (caseVarSyn term) (const bot) $ \v -> -- bot if index is neutral syntax
+                do isInd <- isIndex v
+                   if isInd then thenCase v else elseCase v
+indexArrayOp _ _ _ _ _ _ _ _ = error "indexArrayOp called on incorrect ArrayOp"
+
 evaluateArrayOp
     :: ( ABT Term abt
        , typs ~ UnLCs args, args ~ LCs typs)
@@ -514,14 +561,16 @@ evaluateArrayOp
     -> Dis abt (Whnf abt a)
 evaluateArrayOp evaluate_ = go
     where
-    go o@(Index _) = \(e1 :* e2 :* End) -> do
-        w1 <- evaluate_ e1
-        case w1 of
-            Neutral e1' ->
-                return . Neutral $ syn (ArrayOp_ o :$ e1' :* e2 :* End)
-            Head_   v1  ->
-                error "TODO: evaluateArrayOp{Index}{Head_}"
-
+    go o@(Index _) = \args@(_ :* e2 :* End) ->
+      let returnIndex = return . Neutral . syn
+      in indexArrayOp o args
+                      evaluate_
+                      evaluate_
+                      (\arr v -> returnIndex (ArrayOp_ o :$ fromHead arr :* var v :* End))
+                      (\s     -> returnIndex (ArrayOp_ o :$ syn s        :* e2    :* End))
+                      (\e1'   -> returnIndex (ArrayOp_ o :$ e1'          :* e2    :* End))
+                      (\e1' v -> returnIndex (ArrayOp_ o :$ e1'          :* var v :* End))
+                   
     go o@(Size _) = \(e1 :* End) -> do
         w1 <- evaluate_ e1
         case w1 of
@@ -545,6 +594,10 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 head2array :: Head abt ('HArray a) -> ArrayHead abt a
 head2array (WEmpty _)     = WAEmpty
 head2array (WArray e1 e2) = WAArray e1 e2
+
+isIndex :: (ABT Term abt) => Variable 'HNat -> Dis abt Bool
+isIndex v = do inds <- getIndices
+               return $ v `elem` map indVar inds
 
 impl, diff, nand, nor :: Bool -> Bool -> Bool
 impl x y = not x || y
@@ -1082,40 +1135,20 @@ constrainValue v0 e0 =
         -- There's a bunch of stuff we don't even bother trying to handle
         Empty_   _               -> error "TODO: disintegrate arrays"
         Array_   n e             ->
-            caseBind e $ \x body -> do j <- freshInd n                                            
+            caseBind e $ \x body -> do j <- freshInd n
                                        let x'    = indVar j
                                            body' = rename x x' body
                                        inds <- getIndices
                                        withIndices (extendIndices j inds) $
                                                    constrainValue (v0 P.! (var x')) body'
                                                    -- TODO use meta-index
-        ArrayOp_ (Index _) :$ e1 :* e2 :* End -> do
-          e <- evaluate_ e1
-          let neutralSynIndErr = error "TODO: constrainValue (Index arr (Neutral (Syn _)))"
-              checkIfInd v = do inds <- getIndices
-                                return $ v `elem` map indVar inds
-              kHead (WArray n b) = caseBind b $ \x body -> 
-                do wi <- evaluate_ e2
-                   caseWhnf wi (const bot) $ \term ->
-                       flip (caseVarSyn term) (const bot) $ \v ->
-                             do checkIfInd v >>= guard >> constrainValue v0 (rename x v body)
-              kHead (WEmpty _) = error "TODO: constrainValue (Index Empty_ _)"
-              kHead  _ = error "unknown whnf of array type"              
-              kNeutral term = caseVarSyn term checkMultiLoc (const bot)
-              checkMultiLoc x = do
-                locs <- getLocs
-                case (lookupAssoc x locs) of
-                  Nothing              -> bot
-                  Just (Loc      _ _)  -> error "impossible: we have a Neutral term"
-                  Just (MultiLoc l js) -> do
-                    wi <- evaluate_ e2
-                    let indexMultiLoc i = do
-                          checkIfInd i >>= guard
-                          x' <- mkLoc Text.empty l (extendLocInds i js)
-                          constrainValue v0 (var x')
-                    caseWhnf wi (const bot) $ \term ->
-                        caseVarSyn term indexMultiLoc (const bot)
-          caseWhnf e kHead kNeutral
+        ArrayOp_ o@(Index _) :$ args -> indexArrayOp o args
+                                                     evaluate_
+                                                     (constrainValue v0)
+                                                     (const $ const bot)
+                                                     (const bot)
+                                                     (const bot)
+                                                     (const $ const bot)
           
         ArrayOp_ _ :$ _          -> error "TODO: disintegrate arrays"
         Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"

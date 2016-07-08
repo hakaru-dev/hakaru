@@ -341,10 +341,10 @@ residualizeLoc :: (ABT Term abt)
                -> Dis abt (Statement abt 'Impure, Assocs Name)
 residualizeLoc s =
     case s of
-      SBind l body inds -> do 
+      SBind l _ _ -> do 
              (s', newname) <- reifyStatement s
              return (s', singletonAssocs l newname)
-      SLet  l body inds -> do
+      SLet  l _ _ -> do
              (s', newname) <- reifyStatement s
              return (s', singletonAssocs l newname)
       SWeight w inds    -> do
@@ -359,19 +359,21 @@ residualizeLoc s =
 reifyStatement :: (ABT Term abt)
                => Statement abt 'Impure
                -> Dis abt (Statement abt 'Impure, Name a)
-reifyStatement s@(SBind l _    [])     = return (s, varName l)
-reifyStatement   (SBind l body (i:is)) = do
-    let bodyP = Thunk $ P.plateWithVar (indSize i) (indVar i) (fromLazy body)
-    l' <- freshVar (varHint l) (SArray (varType l))
-    reifyStatement (SBind l' bodyP is)
-reifyStatement s@(SLet  l _    [])     = return (s, varName l)
-reifyStatement   (SLet  l body (i:is)) = do
-    let arr = Thunk $ P.arrayWithVar (indSize i) (indVar i) (fromLazy body)
-    l' <- freshVar (varHint l) (SArray (varType l))
-    reifyStatement (SLet l' arr is)
-reifyStatement   (SWeight _    _)      = error "reifyStatement called on SWeight"
-reifyStatement   (SGuard _ _ _ _)      = error "reifyStatement called on SGuard"
-                           
+reifyStatement s =
+    case s of
+      SBind l _    []     -> return (s, varName l)
+      SBind l body (i:is) -> do
+        let plate = Thunk . P.plateWithVar (indSize i) (indVar i)
+        l' <- freshVar (varHint l) (SArray (varType l))
+        reifyStatement (SBind l' (plate $ fromLazy body) is)
+      SLet  l _    []     -> return (s, varName l)
+      SLet  l body (i:is) -> do
+        let array = Thunk . P.arrayWithVar (indSize i) (indVar i)
+        l' <- freshVar (varHint l) (SArray (varType l))
+        reifyStatement (SLet  l' (array $ fromLazy body) is)
+      SWeight _    _      -> error "reifyStatement called on SWeight"
+      SGuard _ _ _ _      -> error "reifyStatement called on SGuard"
+                             
 sizeInnermostInd :: (ABT Term abt)
                  => Variable (a :: Hakaru)
                  -> Dis abt (abt '[] 'HNat)
@@ -380,13 +382,11 @@ sizeInnermostInd l =
         do guard (length (statementInds s) >= 1)
            case s of
              SBind l' _ ixs -> do Refl <- varEq l l'
-                                  Just $ do
-                                    unsafePush s
-                                    return (indSize (head ixs))
+                                  Just $ unsafePush s >>
+                                         return (indSize (head ixs))
              SLet  l' _ ixs -> do Refl <- varEq l l'
-                                  Just $ do
-                                    unsafePush s
-                                    return (indSize (head ixs))
+                                  Just $ unsafePush s >>
+                                         return (indSize (head ixs))
              SWeight _ _    -> Nothing
              SGuard _ _ _ _ -> error "TODO: sizeInnermostInd{SGuard}"
                                          
@@ -406,25 +406,27 @@ convertLocs :: (ABT Term abt)
 convertLocs newlocs =  do oldlocs <- fromAssocs <$> getLocs
                           foldM step emptyAssocs oldlocs
     where
-      build :: (ABT Term abt) => Assoc (Loc (abt '[]))
-            -> Name a -> Dis abt (Assoc (abt '[]))
+      build :: (ABT Term abt)
+            => Assoc (Loc (abt '[]))
+            -> Name a
+            -> Dis abt (Assoc (abt '[]))
       build (Assoc x loc) name =
           case loc of
-            Loc      l js -> return $ Assoc x (fromLoc name (varType x) js)
+            Loc      _ js -> return $ Assoc x (fromLoc name (varType x) js)
             MultiLoc l js -> do
                      j <- sizeInnermostInd l >>= freshInd
                      let js'   = extendLocInds (indVar j) js
                          bodyA = fromLoc name (sUnArray $ varType x) js'
                      return $ Assoc x $ P.arrayWithVar (indSize j) (indVar j) bodyA
-      step rho as@(Assoc _ loc) = do
+      step rho assoc@(Assoc _ loc) = do
           r <- case loc of
-                 Loc      l js -> maybe (freeLocError l)
-                                        (build as)
-                                        (lookupAssoc l newlocs)
-                 MultiLoc l js -> maybe (freeLocError l)
-                                        (build as)
-                                        (lookupAssoc l newlocs)
-          return $ insertAssoc r rho
+                 Loc      l _ -> maybe (freeLocError l)
+                                       (build assoc)
+                                       (lookupAssoc l newlocs)
+                 MultiLoc l _ -> maybe (freeLocError l)
+                                       (build assoc)
+                                       (lookupAssoc l newlocs)
+          return $ insertAssoc r rho                 
 
 freeLocError :: Variable (a :: Hakaru) -> b
 freeLocError l = error $ "Found a free location " ++ show l
