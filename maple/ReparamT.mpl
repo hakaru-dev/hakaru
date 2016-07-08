@@ -18,7 +18,7 @@ with(NewSLO):
 
 #common procedures for these tests.
 TestReparam:= proc(
-     e_in::specfunc(Bind),
+     e_in,
      e_out,   #Expected output, after postprocessing by `verify` and `&under`
      #`verification` is slightly modified (below) from its standard definition.
      # &under is defined below.
@@ -93,6 +93,16 @@ TestReparam(
      label= "(t1) Symbolic affine transformation with Gaussian (passing)"
 );
 
+#(t2) ChiSquare with constant multiplier to Gamma
+#This fails due to ChiSquare not being implemented yet.
+TestReparam(
+     ChiSquare(2*b),
+     GammaD(b,2),
+     equal &under fromLO,
+     infolevels= [0,2],
+     label= "(t2) ChiSquare with constant multiplier to Gamma (failing)"
+);
+
 #(t3) Symbolic constant multiple with Gamma
 TestReparam(
      Bind(GammaD(alpha,beta), x, Ret(2*x/beta)),
@@ -121,3 +131,45 @@ TestReparam(
      infolevels= [infinity$2],
      label= "(t5) Logarithm with symbolic constant multiplier and Uniform (passing)"
 );
+
+#(t6) Poisson(mu) -> ? as mu -> infinity
+#The concept of taking the limit at infinity of a distribution parameter isn't
+#implemented yet.
+
+#(t7) Quotient of standard normals to standard Cauchy
+#This should be the first multivariate integration to implement, due to simplicity.
+#It might work as a simple multivariate substitution.
+TestReparam(
+     Bind(Gaussian(0,1), x1, Bind(Gaussian(0,1), x2, Ret(x1/x2))),
+     Cauchy(0,1),
+     equal &under fromLO,
+     infolevels= [0,2],
+     label= "(t7) Quotient of standard normals to standard Cauchy (failing)"
+);
+
+#(t8) Affine translation of quotient of standard normals to Cauchy
+#This is a trivial variation of t7.
+TestReparam(
+     Bind(Gaussian(0,1), x1, Bind(Gaussian(0,1), x2, Ret(a+alpha*x1/x2))),
+     Cauchy(a,alpha),
+     equal &under (fromLO, _ctx= foldr(assert, empty, alpha > 0)),
+     ctx= [alpha > 0],
+     infolevels= [0,2],
+     label= "(t8) Affine translation of quotient of standard normals to Cauchy (failing)"
+);
+
+#(t9) Bernoulli to Binomial with n=1
+#Since neither Bernoulli or Binomial are implemented, this is difficult to test.
+#A Bernoulli is a Categorical with two categories. Categorical is implemented.
+
+#(t10) Beta(1,1) to Uniform(0,1)
+#This one doesn't require `Reparam`, but it passes using `Reparam`. 
+TestReparam(
+     BetaD(1,1),
+     Uniform(0,1),
+     equal &under fromLO,
+     infolevels= [0,2],
+     label= "(t10) Beta(1,1) to Uniform(0,1) (passing)"
+);
+
+#(t11)
