@@ -221,6 +221,26 @@ testDisintegrateEasyRoad
         (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HProb 'HProb))]
 testDisintegrateEasyRoad = disintegrate easyRoad
 
+----------------------------------------------------------------
+helloWorld100
+    :: TrivialABT Term '[] ('HMeasure (HPair ('HArray 'HReal) 'HReal))
+helloWorld100 =
+    normal (real_ 0) (prob_ 1) >>= \mu ->
+    plate (nat_ 100) (\_ -> normal mu (prob_ 1)) >>= \v ->
+    dirac (pair v mu)
+
+helloWorld100'
+    :: TrivialABT Term '[] ('HArray 'HReal ':-> 'HMeasure 'HReal)
+helloWorld100' =
+    lam $ \t ->
+    normal (real_ 0) (prob_ 1) >>= \mu ->
+    plate (nat_ 100)
+          (\i -> weight (densityNormal mu (prob_ 1) (t ! i))) >>
+    dirac mu
+
+testHelloWorld100
+    :: [TrivialABT Term '[] ('HArray 'HReal ':-> 'HMeasure 'HReal)]
+testHelloWorld100 = disintegrate helloWorld100
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -273,6 +293,8 @@ allTests = test
     , assertBool "testPerformEasyRoad" $ Prelude.not (Prelude.null testPerformEasyRoad)
     , testDis "testDisintegrateEasyRoad" easyRoad
     , assertAlphaEq "testDisintegrateEasyRoad" (head testDisintegrateEasyRoad) easyRoad'
+    , testDis "testHelloWorld100" helloWorld100
+    , assertAlphaEq "testHelloWorld100" (head testHelloWorld100) helloWorld100'
     ]
 
 
