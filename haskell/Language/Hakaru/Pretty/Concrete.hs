@@ -40,8 +40,8 @@ import qualified Data.Text                       as Text
 
 -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 import qualified Data.Sequence                   as Seq
-
 import qualified Data.Vector                     as V
+import           Data.Ratio
 
 import           Data.Number.Natural  (fromNatural, fromNonNegativeRational)
 import           Data.Number.Nat
@@ -200,6 +200,25 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
 
         Reject_ typ -> [PP.text "reject." <+> prettyType 0 typ]
 
+ppNaryOpSum :: (ABT Term abt) => abt '[] a -> (String, abt '[] a)
+ppNaryOpSum e =
+    caseVarSyn e (const $ ("+", e)) $ \t ->
+        case t of
+        Literal_ (LInt  i) | i < 0 ->      ("-", syn . Literal_ . LInt  . abs $ i)
+        Literal_ (LReal i) | i < 0 ->      ("-", syn . Literal_ . LReal . abs $ i)
+        PrimOp_ (Negate _) :$ e1 :* End -> ("-", e1)
+        _ -> ("+", e)
+
+ppNaryOpProd :: (ABT Term abt) => abt '[] a -> (String, abt '[] a)
+ppNaryOpProd e =
+    caseVarSyn e (const $ ("*", e)) $ \t ->
+        case t of
+        Literal_ (LProb i) -> 
+          ("/", syn . Literal_ . LProb . fromIntegral . denominator $ i)
+        Literal_ (LReal i) | numerator i == 1 -> 
+          ("/", syn . Literal_ . LReal . fromIntegral . denominator $ i)
+        PrimOp_ (Recip _) :$ e1 :* End -> ("/", e1)
+        _ -> ("+", e)
 
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
