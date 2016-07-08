@@ -32,11 +32,11 @@ local
      LOform:= toLO(e_in)  #preprocessed input
 ;
      :-infolevel[Reparam]:= infolevels[1];               
-     if not CodeTools:-Test(Reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest) then
+     if not CodeTools:-Test(reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest) then
           #If test fails, do same test with diagnostic infolevel setting.
           if infolevels[2] > infolevels[1] then
                :-infolevel[Reparam]:= infolevels[2];
-               return CodeTools:-Test(Reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest)
+               return CodeTools:-Test(reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest)
           else
                return false
           end if

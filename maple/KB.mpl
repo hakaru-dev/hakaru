@@ -314,6 +314,7 @@ KB := module ()
       e := simplify(e) assuming op(as);
     catch "when calling '%1'. Received: 'contradictory assumptions'":
       # We seem to be on an unreachable control path
+      userinfo(1, 'procname', "Received contradictory assumptions.")
     end try;
     e := warm(e);
     eval(e, exp = expand @ exp);
@@ -363,6 +364,7 @@ KB := module ()
     end proc, [op(coalesce_bounds(kb))])
   end proc;
 
+  (*** #Code removed by Carl 2016Jul8. Maybe we'll need it again.
   #Written by Carl 2016Jun24.
   #This is a wrapper for `assuming` that gracefully handles the case of no
   #assumptions and accepts the assumptions in our "knowledge base"/"context"
@@ -382,6 +384,7 @@ KB := module ()
            e assuming as[]
        end if
   end proc;
+  ***)
 
   kb_to_equations := proc(kb, $)
     local lets, constraints;

@@ -40,7 +40,7 @@ NewSLO := module ()
          RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru,
          toLO, fromLO, unintegrate, unweight, improve, reduce,
          density, bounds,
-         ReparamDetermined, determined, Reparam, disint;
+         ReparamDetermined, determined, reparam, disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global LO, Integrand, Indicator;
@@ -999,7 +999,7 @@ NewSLO := module ()
   end proc;
 
   #Written by Carl 2016Jun17.
-  Reparam:= proc(
+  reparam:= proc(
        e::LO(symbol, Int(algebraic, symbol= range(algebraic))),
        {ctx::list:= []},
        $
@@ -1064,8 +1064,8 @@ NewSLO := module ()
        *******************************************************************************)
 
        #Make the change of vars.
-       J:= IT:-Change(J, u= oldarg, [u]) &assuming ctx;
-
+       J:= simplify_assuming('IT:-Change(J, u= oldarg, [u])', foldr(assert, empty, ctx[]));
+ 
        if J=0 then
             WARNING("Integral is 0, likely due to improper handling of an infinity issue.");
             userinfo(
