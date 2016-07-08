@@ -55,8 +55,8 @@ createProgram (TypedAST tt@(SMeasure internalT) abt) =
                                      flattenABT abt)
   in  unlines [ header tt
               , mainWith tt
-                         (fmap (\d -> mconcat [(pack . render . C.pretty) d,";"]) decls)
-                         (fmap (pack . render . C.pretty) stmts)]
+                         (fmap (\d -> mconcat [cToString d,";"]) decls)
+                         (fmap cToString stmts)]
 
 createProgram (TypedAST typ abt) =
   let ident         = builtinIdent "result"
@@ -65,9 +65,12 @@ createProgram (TypedAST typ abt) =
                                      assign ident expr)
   in  unlines [ header typ
               , mainWith typ
-                         (fmap (\d -> mconcat [(pack . render . C.pretty) d,";"]) decls)
-                         (fmap (pack . render . C.pretty) stmts)
+                         (fmap (\d -> mconcat [cToString d,";"]) decls)
+                         (fmap cToString stmts)
               ]
+
+cToString :: C.Pretty a => a -> Text
+cToString = pack . render . C.pretty          
 
 
 

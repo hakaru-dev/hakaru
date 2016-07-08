@@ -92,6 +92,7 @@ buildCType SProb            = CDoubleType undefNode
 buildCType SReal            = CDoubleType undefNode
 buildCType (SMeasure x)     = buildCType x
 buildCType (SData con func) = buildData con func
+buildCType (SArray x)       = buildArray x
 buildCType x = error $ "TODO: buildCType: " ++ show x
 
 buildData :: Sing (a :: HakaruCon)
@@ -99,6 +100,9 @@ buildData :: Sing (a :: HakaruCon)
           -> CTypeSpec
 buildData (STyCon s)   = \funk -> CSUType (undefined s funk) node
 buildData (STyApp a b) = \funk -> undefined a b funk
+
+buildArray :: Sing (a :: Hakaru) -> CTypeSpec
+buildArray = error $ "TODO: buildArray"
 
 typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typeDeclaration typ ident =

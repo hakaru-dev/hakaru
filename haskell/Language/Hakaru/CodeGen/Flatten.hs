@@ -29,8 +29,8 @@ import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.HOAS
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.Datum       
-import Language.Hakaru.Types.DataKind       
+import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 
@@ -43,7 +43,6 @@ import           Data.Number.Natural
 import           Data.Ratio
 import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
--- import qualified Data.Text          as Text
 import qualified Data.Traversable   as T
 
 node :: NodeInfo
@@ -150,11 +149,11 @@ flattenSCon MBind           =
        caseBind e2 $ \v@(Variable _ _ typ) e2'->
          do ident <- createIdent v
             declare $ typeDeclaration typ ident
-            assign ident e1'  
+            assign ident e1'
             assign measureIdent e1'
             flattenABT e2'
 flattenSCon _               = \_ -> error "TODO: flattenSCon"
-----------------------------------------------------------------            
+----------------------------------------------------------------
 
 flattenMeasureOp :: ( ABT Term abt
                     , typs ~ UnLCs args
@@ -170,5 +169,4 @@ flattenDatum :: (ABT Term abt)
              -> CodeGen CExpr
 flattenDatum d = do i <- genIdent
                     return $ var_c i
-     --error $ "TODO: flattenDatum"             
-        
+     --error $ "TODO: flattenDatum"

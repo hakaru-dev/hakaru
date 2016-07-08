@@ -24,3 +24,7 @@ parseAndInfer x =
 readFromFile :: String -> IO Text
 readFromFile "-" = IO.getContents
 readFromFile x   = IO.readFile x
+
+writeToFile :: String -> (Text -> IO ())
+writeToFile "-" = IO.putStrLn
+writeToFile x   = IO.writeFile x

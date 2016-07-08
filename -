@@ -1,0 +1,16 @@
+#include <time.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+
+int main(){
+srand(time(NULL));
+
+int measure;
+
+    measure = 1;
+
+while(1) printf("%d\n",measure);
+return 0;
+}
+
