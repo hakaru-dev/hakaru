@@ -43,7 +43,7 @@ module Language.Hakaru.Evaluation.Types
     , getLazyLiteral,  isLazyLiteral
 
     -- * The monad for partial evaluation
-    , Purity(..), Statement(..), isBoundBy
+    , Purity(..), Statement(..), statementVars, isBoundBy
     , Index, indVar, indSize
 #ifdef __TRACE_DISINTEGRATE__
     , ppList
@@ -79,6 +79,7 @@ import qualified Data.Foldable        as F
 import           Data.List.NonEmpty   (NonEmpty(..))
 import qualified Data.Text            as T
 import           Data.Text            (Text)
+import           Data.Proxy           (KProxy(..))
 
 import Language.Hakaru.Syntax.IClasses
 import Data.Number.Nat
@@ -572,6 +573,14 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         -> [Index (abt '[])]
         -> Statement abt 'ExpectP
 
+
+statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
+statementVars (SBind x _ _)     = singletonVarSet x
+statementVars (SLet  x _ _)     = singletonVarSet x
+statementVars (SWeight _ _)     = emptyVarSet
+statementVars (SGuard xs _ _ _) = toVarSet1 xs
+statementVars (SStuff0   _ _)   = emptyVarSet
+statementVars (SStuff1 x _ _)   = singletonVarSet x    
 
 -- | Is the variable bound by the statement?
 --

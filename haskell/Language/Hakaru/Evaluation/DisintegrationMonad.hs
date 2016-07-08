@@ -617,12 +617,12 @@ pushPlate
     :: (ABT Term abt)
     => abt '[] 'HNat
     -> abt '[ 'HNat ] ('HMeasure a)
-    -> [Index (abt '[])]
     -> Dis abt (Variable ('HArray a))
-pushPlate n e inds =
+pushPlate n e =
   caseBind e $ \x body -> do
-    i  <- freshInd n
-    p  <- freshVar Text.empty (sUnMeasure $ typeOf body)
+    inds <- getIndices
+    i    <- freshInd n
+    p    <- freshVar Text.empty (sUnMeasure $ typeOf body)
     unsafePush (SBind p (Thunk $ rename x (indVar i) body)
                 (extendIndices i inds))
     mkMultiLoc Text.empty p (map indVar inds)

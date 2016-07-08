@@ -505,6 +505,10 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) S.empty es
     evalProd HSemiring_Prob = \(LProb p1) (LProb p2) -> LProb (p1 * p2)
     evalProd HSemiring_Real = \(LReal r1) (LReal r2) -> LReal (r1 * r2)
 
+isIndex :: (ABT Term abt) => Variable 'HNat -> Dis abt Bool
+isIndex v = do inds <- getIndices
+               return $ v `elem` map indVar inds                              
+
 -- | For {evaluate, constrainValue v0} ArrayOp_ (Index _) :$ e1 :* e2 :* End
 indexArrayOp :: forall abt typs args a r
              .  ( ABT Term abt
@@ -594,10 +598,6 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 head2array :: Head abt ('HArray a) -> ArrayHead abt a
 head2array (WEmpty _)     = WAEmpty
 head2array (WArray e1 e2) = WAArray e1 e2
-
-isIndex :: (ABT Term abt) => Variable 'HNat -> Dis abt Bool
-isIndex v = do inds <- getIndices
-               return $ v `elem` map indVar inds
 
 impl, diff, nand, nor :: Bool -> Bool -> Bool
 impl x y = not x || y
@@ -866,7 +866,7 @@ update perform evaluate_ x =
                         w' = renames as (fromWhnf w)
                     inds <- getIndices
                     withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
-                -- These two don't bind any variables, so they definitely can't match.
+                -- This does not bind any variables, so it definitely can't match.
                 SWeight   _ _ -> Nothing
                 -- This does bind variables,
                 -- but there's no expression we can return for it
@@ -935,26 +935,25 @@ perform = \e0 ->
     performTerm (MeasureOp_ o :$ es)       = performMeasureOp o es
     performTerm (MBind :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' -> do
-            i <- getIndices
-            push (SBind x (Thunk e1) i) e2' perform
+            inds <- getIndices
+            push (SBind x (Thunk e1) inds) e2' perform
 
     performTerm (Plate :$ e1 :* e2 :* End) =  do
-      inds <- getIndices
-      x1   <- pushPlate e1 e2 inds
+      x1 <- pushPlate e1 e2
       return (Neutral (var x1))
 
     performTerm (Superpose_ pes) = do
-        i <- getIndices
-        if not (null i) && L.length pes > 1 then bot else
+        inds <- getIndices
+        if not (null inds) && L.length pes > 1 then bot else
           emitFork_ (P.superpose . fmap ((,) P.one))
-                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e perform)
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) inds) e perform)
                           pes)
 
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' -> do
-            i <- getIndices
-            push (SLet x (Thunk e1) i) e2' perform
+            inds <- getIndices
+            push (SLet x (Thunk e1) inds) e2' perform
 
     -- TODO: we could optimize this by calling some @evaluateTerm@
     -- directly, rather than calling 'syn' to rebuild @e0@ from
@@ -1025,12 +1024,13 @@ perform = \e0 ->
             return (Neutral x)
         complete _ = \_ -> bot
 
--- Calls unsafePush                     
+-- Calls unsafePush 
 pushWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
 pushWeight w = do
   inds <- getIndices
   unsafePush $ SWeight (Thunk w) inds
 
+-- Calls unsafePush 
 pushGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
 pushGuard b = do
   inds <- getIndices
@@ -1086,15 +1086,6 @@ atomizeCore e = do
     -- TODO: does @IM.null . IM.intersection@ fuse correctly?
     disjointVarSet xs ys =
         IM.null (IM.intersection (unVarSet xs) (unVarSet ys))
-
--- TODO: move this to Types.hs
-statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
-statementVars (SBind x _ _)     = singletonVarSet x
-statementVars (SLet  x _ _)     = singletonVarSet x
-statementVars (SWeight _ _)     = emptyVarSet
-statementVars (SGuard xs _ _ _) = toVarSet1 xs
-statementVars (SStuff0   _ _)   = emptyVarSet
-statementVars (SStuff1 x _ _)   = singletonVarSet x
 
 -- HACK: if we really want to go through with this approach, then
 -- we should memoize the set of heap-bound variables in the
@@ -1328,7 +1319,8 @@ constrainVariable v0 x =
     -- return 'bot' for neutral terms
        maybe bot lookForLoc (lookupAssoc x locs)
     where lookForLoc (Loc      l jxs) =
-              let permutes is js = length is == length js && 
+              let -- Assumption: js has no duplicates
+                  permutes is js = length is == length js && 
                                    Set.fromList is == Set.fromList (map indVar js)
               -- If we get 'Nothing', then it turns out @l@ is a free location.
               -- This is an error because of the invariant:
@@ -1356,6 +1348,7 @@ constrainVariable v0 x =
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SWeight _ _ -> Nothing
                     SGuard ls' pat scrutinee i -> error "TODO: constrainVariable{SGuard}"
+          -- Case for MultiLoc
           lookForLoc (MultiLoc l jxs) = do
 #ifdef __TRACE_DISINTEGRATE__
               traceM $ "looking for MultiLoc: " ++ show (prettyLoc (MultiLoc l jxs))
@@ -1763,16 +1756,8 @@ constrainOutcome v0 e0 =
             i <- getIndices
             push (SBind x (Thunk e1) i) e2' (constrainOutcome v0)
     go (WPlate e1 e2)        = do
-        inds <- getIndices
-        x' <- pushPlate e1 e2 inds
+        x' <- pushPlate e1 e2
         constrainValue v0 (var x')
-        -- caseBind e2 $ \x body -> do
-        --     inds <- getIndices
-        --     p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
-        --     i    <- freshInd e1
-        --     push (SBind p (Thunk $ rename x (indVar i) e2')
-        --                     (extendIndices i inds)) (var p) $
-        --       constrainValue (v0 P.! var (indVar i))
 
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
     go (WReject typ)         = emit_ $ \m -> P.reject (typeOf m)
