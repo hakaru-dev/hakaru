@@ -111,7 +111,7 @@ import Language.Hakaru.Evaluation.Lazy (reifyPair)
 #ifdef __TRACE_DISINTEGRATE__
 import Debug.Trace (trace, traceM)
 import qualified Text.PrettyPrint     as PP
-import Language.Hakaru.Pretty.Haskell (ppVariable) 
+import Language.Hakaru.Pretty.Haskell (ppVariable, pretty)
 #endif
 
 getStatements :: Dis abt [Statement abt 'Impure]
@@ -137,6 +137,9 @@ residualizeListContext
 residualizeListContext ss rho e0 =
     -- N.B., we use a left fold because the head of the list of
     -- statements is the one closest to the hole.
+#ifdef __TRACE_DISINTEGRATE__
+    trace ("e0: " ++ show (pretty e0)) $
+#endif
     foldl step (substs rho e0) (statements ss)
     where
     step
@@ -144,6 +147,10 @@ residualizeListContext ss rho e0 =
         -> Statement abt 'Impure
         -> abt '[] ('HMeasure a)
     step e s =
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("wrapping " ++ show (ppStatement 0 s) ++ "\n"
+               ++ "around term " ++ show (pretty e)) $
+#endif  
         case s of
         SBind x body _ ->
             -- TODO: if @body@ is dirac, then treat as 'SLet'
@@ -262,7 +269,7 @@ runDis d es =
 
 {---------------------------------------------------------------------------------- 
  
- residualizeLoc does the following:
+ residualizeLocs does the following:
  1. update the heap by constructing plate/array around statements with nonempty indices
  2. use locations to construct terms out of var and "!" (for indexing into arrays)
 

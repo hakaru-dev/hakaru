@@ -243,6 +243,66 @@ testHelloWorld100
 testHelloWorld100 = disintegrate helloWorld100
 
 ----------------------------------------------------------------
+copy1 :: TrivialABT Term '[] ('HMeasure (HPair ('HArray 'HReal) HUnit))
+copy1 =
+    plate n (\_ -> normal (real_ 0) (prob_ 1)) >>= \u ->
+    dirac (array n (\i -> u ! i)) >>= \v ->
+    dirac (pair v unit)
+    where n = nat_ 100
+
+copy1' :: TrivialABT Term '[] ('HArray 'HReal ':-> 'HMeasure HUnit)
+copy1' =
+    lam $ \t ->        
+    plate (nat_ 100)
+          (\i -> weight (densityNormal (real_ 0) (prob_ 1) (t ! i))) >>
+    dirac unit
+
+testCopy1 :: [TrivialABT Term '[] ('HArray 'HReal ':-> 'HMeasure HUnit)]
+testCopy1 = disintegrate copy1
+
+----------------------------------------------------------------
+-- | TODO fix bug: gives a VarEqTypeError
+copy2 :: TrivialABT Term '[] ('HMeasure (HPair ('HArray 'HReal) HUnit))
+copy2 =
+    plate n (\_ -> normal (real_ 0) (prob_ 1)) >>= \u ->
+    plate n (\i -> dirac (u ! i)) >>= \v ->
+    dirac (pair v unit)
+    where n = nat_ 100
+
+testCopy2 :: [TrivialABT Term '[] ('HArray 'HReal ':-> 'HMeasure HUnit)]
+testCopy2 = disintegrate copy2
+
+
+----------------------------------------------------------------
+sizeVocab, numLabels, numDocs, sizeEachDoc :: (ABT Term abt) => abt '[] 'HNat
+
+sizeVocab   = nat_ 1000
+numLabels   = nat_ 40
+numDocs     = nat_ 200
+sizeEachDoc = nat_ 5000
+
+naiveBayes
+    :: TrivialABT Term '[]
+        ('HMeasure (HPair ('HArray ('HArray 'HNat)) ('HArray 'HNat)))
+naiveBayes =
+    plate numLabels (\_ -> dirichlet (array sizeVocab (\_ -> prob_ 1))) >>= \bs ->
+    dirichlet (array numLabels (\_ -> prob_ 1)) >>= \ts ->
+    plate numDocs (\_ -> categorical ts) >>= \zs ->
+    plate numDocs (\i -> plate sizeEachDoc
+                               (\_ -> categorical (bs ! (zs ! i)))) >>= \ds ->
+    dirac (pair ds zs)
+
+naiveBayes'
+    :: TrivialABT Term '[] ('HArray ('HArray 'HNat) ':-> ('HMeasure ('HArray 'HNat)))
+naiveBayes' =
+    lam $ \t ->
+    Prelude.error "TODO define naiveBayes'"
+
+testNaiveBayes
+    :: [TrivialABT Term '[] ('HArray ('HArray 'HNat) ':-> ('HMeasure ('HArray 'HNat)))]
+testNaiveBayes = disintegrate naiveBayes
+          
+----------------------------------------------------------------
 ----------------------------------------------------------------
 runPerform
     :: TrivialABT Term '[] ('HMeasure a)
@@ -295,6 +355,9 @@ allTests = test
     , assertAlphaEq "testDisintegrateEasyRoad" (head testDisintegrateEasyRoad) easyRoad'
     , testDis "testHelloWorld100" helloWorld100
     , assertAlphaEq "testHelloWorld100" (head testHelloWorld100) helloWorld100'
+    , testDis "testCopy1" copy1
+    , assertAlphaEq "testCopy1" (head testCopy1) copy1'
+    , testDis "testNaiveBayes" naiveBayes
     ]
 
 
