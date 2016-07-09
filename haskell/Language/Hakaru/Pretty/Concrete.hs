@@ -1,6 +1,8 @@
 {-# LANGUAGE GADTs
            , KindSignatures
            , DataKinds
+           , ScopedTypeVariables
+           , Rank2Types
            , TypeOperators
            , FlexibleContexts
            , UndecidableInstances
@@ -138,38 +140,50 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         case t of
         o :$ es      -> ppSCon p o es
         NaryOp_ o es ->
-            -- TODO: make sure these ops actually have those precedences in the Prelude!!
-            let prettyNaryOp :: NaryOp a -> (String, Maybe Int, Maybe String)
-                prettyNaryOp And  = ("&&", Just 3, Just "true")
-                prettyNaryOp Or   = ("||", Just 2, Just "false")
-                prettyNaryOp Xor  = ("!=", Just 0, Just "false")
-                -- BUG: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
-                prettyNaryOp Iff      = ("iff", Nothing, Just "true")
-                prettyNaryOp (Min  _) = ("min", Nothing, Nothing)
-                prettyNaryOp (Max  _) = ("max", Nothing, Nothing)
-                prettyNaryOp (Sum  _) = ("+",   Just 6, Just "zero")
-                prettyNaryOp (Prod _) = ("*",   Just 7, Just "one")
-            in
-            let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
-            if Seq.null es
-            then
-                case maybeIdentity of
-                Just identity -> [PP.text identity]
-                Nothing ->
-                    ppFun p "syn"
-                        [ toDoc $ ppFun 11 "NaryOp_"
-                            [ PP.text (showsPrec 11 o "")
-                            , PP.text "(Seq.fromList [])"
-                            ]]
+            if Seq.null es then identityElement o
             else
-                case opPrec of
-                Just opPrec' ->
-                     parens (p > opPrec')
-                     . PP.punctuate (PP.space <> PP.text opName <> PP.space)
-                     . map (prettyPrec opPrec')
-                     $ F.toList es
-                Nothing      -> [F.foldl1 (\a b -> toDoc $ ppFun p opName [a, b])
+                case o of
+                  And      -> parens (p > 3)
+                              . PP.punctuate (PP.text " && ")
+                              . map (prettyPrec 3)
+                              $ F.toList es
+                  Or       -> parens (p > 2)
+                              . PP.punctuate (PP.text " || ")
+                              . map (prettyPrec 2)
+                              $ F.toList es
+                  Xor      -> parens (p > 0)
+                              . PP.punctuate (PP.text " != ")
+                              . map (prettyPrec 0)
+                              $ F.toList es
+                -- BUG: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
+                  Iff      -> [F.foldl1 (\a b -> toDoc $ ppFun p "iff" [a, b])
+                                         (fmap (toDoc . ppArg) es)]
+                  (Min  _) -> [F.foldl1 (\a b -> toDoc $ ppFun p "min" [a, b])
+                                         (fmap (toDoc . ppArg) es)]
+                  (Max  _) -> [F.foldl1 (\a b -> toDoc $ ppFun p "max" [a, b])
                                           (fmap (toDoc . ppArg) es)]
+                  (Sum  _) -> case Seq.viewl es of
+                                Seq.EmptyL -> [PP.text "0"]
+                                (e' Seq.:< es') -> parens (p > 6)
+                                    [F.foldl (\a b -> a <+> ppNaryOpSum b)
+                                              (toDoc . ppArg $ e')
+                                              es']
+                  (Prod _) ->  case Seq.viewl es of
+                                Seq.EmptyL -> [PP.text "1"]
+                                (e' Seq.:< es') -> parens (p > 7)
+                                    [F.foldl (\a b -> a <+> ppNaryOpProd b)
+                                              (toDoc . ppArg $ e')
+                                              es']
+
+          where identityElement :: NaryOp a -> Docs
+                identityElement And      = [PP.text "true"]
+                identityElement Or       = [PP.text "false"]
+                identityElement Xor      = [PP.text "false"]
+                identityElement Iff      = [PP.text "true"]
+                identityElement (Min  _) = error "min can not be used with no arguements"
+                identityElement (Max  _) = error "max can not be used with no arguements"
+                identityElement (Sum  _) = [PP.text "0"]
+                identityElement (Prod _) = [PP.text "1"]
 
         Literal_ v    -> prettyPrec_ p v
         Empty_   _    -> [PP.text "empty"]
@@ -200,25 +214,37 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
 
         Reject_ typ -> [PP.text "reject." <+> prettyType 0 typ]
 
-ppNaryOpSum :: (ABT Term abt) => abt '[] a -> (String, abt '[] a)
+ppNaryOpSum
+    :: forall abt a
+    . (ABT Term abt)
+    => abt '[] a
+    -> Doc
 ppNaryOpSum e =
-    caseVarSyn e (const $ ("+", e)) $ \t ->
+    caseVarSyn e (const $ prefixToTerm "+" e) $ \t ->
         case t of
-        Literal_ (LInt  i) | i < 0 ->      ("-", syn . Literal_ . LInt  . abs $ i)
-        Literal_ (LReal i) | i < 0 ->      ("-", syn . Literal_ . LReal . abs $ i)
-        PrimOp_ (Negate _) :$ e1 :* End -> ("-", e1)
-        _ -> ("+", e)
+        Literal_ (LInt  i) | i < 0 ->      prefixToTerm "-" (syn . Literal_ . LInt  . abs $ i)
+        Literal_ (LReal i) | i < 0 ->      prefixToTerm "-" (syn . Literal_ . LReal . abs $ i)
+        PrimOp_ (Negate _) :$ e1 :* End -> prefixToTerm "-" e1
+        _ -> prefixToTerm "+" e
+  where prefixToTerm :: forall a. String -> abt '[] a -> Doc
+        prefixToTerm s e = PP.text s <+> (toDoc $ ppArg e)
 
-ppNaryOpProd :: (ABT Term abt) => abt '[] a -> (String, abt '[] a)
+ppNaryOpProd
+    :: forall abt a
+    . (ABT Term abt)
+    => abt '[] a
+    -> Doc
 ppNaryOpProd e =
-    caseVarSyn e (const $ ("*", e)) $ \t ->
+    caseVarSyn e (const $ prefixToTerm "*" e) $ \t ->
         case t of
         Literal_ (LProb i) -> 
-          ("/", syn . Literal_ . LProb . fromIntegral . denominator $ i)
+          prefixToTerm "/" (syn . Literal_ . LProb . fromIntegral . denominator $ i)
         Literal_ (LReal i) | numerator i == 1 -> 
-          ("/", syn . Literal_ . LReal . fromIntegral . denominator $ i)
-        PrimOp_ (Recip _) :$ e1 :* End -> ("/", e1)
-        _ -> ("+", e)
+          prefixToTerm "/" (syn . Literal_ . LReal . fromIntegral . denominator $ i)
+        PrimOp_ (Recip _) :$ e1 :* End -> prefixToTerm "/" e1
+        _ -> prefixToTerm "*" e
+  where prefixToTerm :: forall a. String -> abt '[] a -> Doc
+        prefixToTerm s e = PP.text s <+> (toDoc $ ppArg e)
 
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
