@@ -3,7 +3,7 @@
              FlexibleContexts,
              FlexibleInstances,
              GADTs,
-             KindSignatures #-}
+             KindSignatures  #-}
 
 ----------------------------------------------------------------
 --                                                    2016.06.23
@@ -57,37 +57,20 @@ flattenABT :: ABT Term abt
 flattenABT abt = caseVarSyn abt flattenVar flattenTerm
 
 
-flattenLit :: Literal a -> CodeGen CExpr
-flattenLit lit =
-  case lit of
-    (LNat x)  -> return $ CConst $ CIntConst (cInteger $ fromIntegral x) node
-    (LInt x)  -> return $ CConst $ CIntConst (cInteger $ fromIntegral x) node
-    (LReal x) -> return $ CConst $ CFloatConst (cFloat $ fromRational x) node
-    (LProb x) -> let rat = fromNonNegativeRational x
-                     x'  = (fromIntegral $ numerator rat)
-                         / (fromIntegral $ denominator rat)
-                 in do ident <- genIdent
-                       declare $ typeDeclaration SProb ident
-                       assign ident (CCall (CVar (builtinIdent "log") node)
-                                           [CConst (CFloatConst (cFloat x') node)]
-                                           node)
-                       return $ CVar ident node
-
-
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
 flattenVar v = do ident <- lookupIdent v
                   return $ CVar ident node
 
 flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
-flattenTerm (NaryOp_ t s)  = flattenNAryOp t s
-flattenTerm (Literal_ x)   = flattenLit x
-flattenTerm (Empty_ _)     = error "TODO: flattenTerm Empty"
-flattenTerm (Datum_ d)     = flattenDatum d
-flattenTerm (Case_ _ _)    = error "TODO: flattenTerm Case"
-flattenTerm (Array_ _ _)   = error "TODO: flattenTerm Array"
-flattenTerm (x :$ ys)      = flattenSCon x ys
-flattenTerm (Reject_ _)    = error "TODO: flattenTerm Reject"
-flattenTerm (Superpose_ _) = error "TODO: flattenTerm Superpose"
+flattenTerm (NaryOp_ t s)    = flattenNAryOp t s
+flattenTerm (Literal_ x)     = flattenLit x
+flattenTerm (Empty_ _)       = error "TODO: flattenTerm Empty"
+flattenTerm (Datum_ d)       = flattenDatum d
+flattenTerm (Case_ _ _)      = error "TODO: flattenTerm Case"
+flattenTerm (Array_ a es)    = flattenArray a es
+flattenTerm (x :$ ys)        = flattenSCon x ys
+flattenTerm (Reject_ _)      = error "TODO: flattenTerm Reject"
+flattenTerm (Superpose_ _)   = error "TODO: flattenTerm Superpose"
 
 
 ----------------------------------------------------------------
@@ -106,8 +89,8 @@ flattenNAryOp op args =
                                                   assign ident expr
                                                   return ident)
      let expr = F.foldr (binaryOp op)
-                        (var_c (S.index ids 0))
-                        (fmap var_c (S.drop 1 ids))
+                        (cvar (S.index ids 0))
+                        (fmap cvar (S.drop 1 ids))
      return expr
 
 opType :: forall (a :: Hakaru). NaryOp a -> Sing a
@@ -123,6 +106,48 @@ opType (Prod HSemiring_Real) = SReal
 opType x = error $ "TODO: opType " ++ show x
 ----------------------------------------------------------------
 
+
+flattenLit :: Literal a -> CodeGen CExpr
+flattenLit lit =
+  case lit of
+    (LNat x)  -> return $ CConst $ CIntConst (cInteger $ fromIntegral x) node
+    (LInt x)  -> return $ CConst $ CIntConst (cInteger $ fromIntegral x) node
+    (LReal x) -> return $ CConst $ CFloatConst (cFloat $ fromRational x) node
+    (LProb x) -> let rat = fromNonNegativeRational x
+                     x'  = (fromIntegral $ numerator rat)
+                         / (fromIntegral $ denominator rat)
+                 in do ident <- genIdent
+                       declare $ typeDeclaration SProb ident
+                       assign ident (CCall (CVar (builtinIdent "log") node)
+                                           [CConst (CFloatConst (cFloat x') node)]
+                                           node)
+                       return $ CVar ident node
+----------------------------------------------------------------
+
+
+flattenArray :: (ABT Term abt)
+             => (abt '[] 'HNat)
+             -> (abt '[ 'HNat ] a)
+             -> CodeGen CExpr
+flattenArray a body =
+  do ident <- genIdent
+     arity' <- flattenABT a
+     caseBind body $ \(Variable _ _ typ) _ ->
+       do declare (arrayDeclaration typ arity' ident)
+          return $ cvar ident
+----------------------------------------------------------------
+
+
+
+flattenDatum :: (ABT Term abt)
+             => Datum (abt '[]) (HData' a)
+             -> CodeGen CExpr
+flattenDatum d =
+  case datumType d of
+    typ -> do ident <- genIdent
+              declare $ structDeclaration typ ident
+              return (cvar ident)
+----------------------------------------------------------------
 
 
 flattenSCon :: (ABT Term abt)
@@ -155,6 +180,8 @@ flattenSCon MBind           =
 flattenSCon _               = \_ -> error "TODO: flattenSCon"
 ----------------------------------------------------------------
 
+
+
 flattenMeasureOp :: ( ABT Term abt
                     , typs ~ UnLCs args
                     , args ~ LCs typs)
@@ -162,11 +189,3 @@ flattenMeasureOp :: ( ABT Term abt
                  -> SArgs abt args
                  -> CodeGen CExpr
 flattenMeasureOp = error $ "TODO: flattenMeasureOp"
-----------------------------------------------------------------
-
-flattenDatum :: (ABT Term abt)
-             => Datum (abt '[]) (HData' a)
-             -> CodeGen CExpr
-flattenDatum d = do i <- genIdent
-                    return $ var_c i
-     --error $ "TODO: flattenDatum"

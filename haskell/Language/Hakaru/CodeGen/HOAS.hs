@@ -18,13 +18,16 @@
 ----------------------------------------------------------------
 
 module Language.Hakaru.CodeGen.HOAS
-  ( typeDeclaration
+  ( -- tools for building C types
+    typeDeclaration
+  , arrayDeclaration
+  , structDeclaration
+
   , toCUnitOp
   , constStat
-  , var_c
+  , cvar
   , sumStat
   , binaryOp
-  , buildCType
   ) where
 
 import Language.Hakaru.Syntax.AST
@@ -79,33 +82,50 @@ exp_c x = (CCall (CVar (builtinIdent "exp") node)
                  [x]
                  node)
 
-var_c :: Ident -> CExpr
-var_c x = CVar x node
+cvar :: Ident -> CExpr
+cvar x = CVar x node
 
 ----------------------------------------------------------------
--- | buildCType does the work of deciding how the Hakaru type
--- will be laid out in memory
-buildCType :: Sing (a :: Hakaru) -> CTypeSpec
-buildCType SInt             = CIntType undefNode
-buildCType SNat             = CIntType undefNode
-buildCType SProb            = CDoubleType undefNode
-buildCType SReal            = CDoubleType undefNode
-buildCType (SMeasure x)     = buildCType x
-buildCType (SData con func) = buildData con func
-buildCType (SArray x)       = buildArray x
-buildCType x = error $ "TODO: buildCType: " ++ show x
+-- | buildType function do the work of describing how the Hakaru
+-- type will be stored in memory. Arrays needed their own
+-- declaration function for their arity
+buildType :: Sing (a :: Hakaru) -> CTypeSpec
+buildType SInt             = CIntType undefNode
+buildType SNat             = CIntType undefNode
+buildType SProb            = CDoubleType undefNode
+buildType SReal            = CDoubleType undefNode
+buildType (SMeasure x)     = buildType x
+buildType (SData con func) = buildData con func
+buildType (SArray x)       = buildType x
+buildType x = error $ "TODO: buildCType: " ++ show x
 
 buildData :: Sing (a :: HakaruCon)
-          -> Sing (b :: [[HakaruFun]])
-          -> CTypeSpec
+         -> Sing (b :: [[HakaruFun]])
+         -> CTypeSpec
 buildData (STyCon s)   = \funk -> CSUType (undefined s funk) node
 buildData (STyApp a b) = \funk -> undefined a b funk
 
-buildArray :: Sing (a :: Hakaru) -> CTypeSpec
-buildArray = error $ "TODO: buildArray"
 
 typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typeDeclaration typ ident =
-  CDecl [CTypeSpec $ buildCType typ]
+  CDecl [CTypeSpec $ buildType typ]
         [(Just $ CDeclr (Just ident) [] Nothing [] node,Nothing,Nothing)]
         node
+
+arrayDeclaration :: Sing (a :: Hakaru)
+                 -> CExpr -- ^ cexpr representing arity (could lead to bugs?)
+                 -> Ident
+                 -> CDecl
+arrayDeclaration typ n ident =
+  CDecl [CTypeSpec $ buildType typ]
+        [( Just $ CDeclr (Just ident)
+                         [CArrDeclr [] (CArrSize False n) node]
+                         Nothing
+                         []
+                         node
+         , Nothing
+         , Nothing)]
+        node
+
+structDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
+structDeclaration _ _ = undefined

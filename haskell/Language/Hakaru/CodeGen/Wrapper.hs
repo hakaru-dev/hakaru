@@ -70,7 +70,7 @@ createProgram (TypedAST typ abt) =
               ]
 
 cToString :: C.Pretty a => a -> Text
-cToString = pack . render . C.pretty          
+cToString = pack . render . C.pretty
 
 
 
@@ -108,8 +108,10 @@ mainWith typ decl stmts = unlines
  , "}" ]
 
 printft :: Sing (a :: Hakaru) -> Text
-printft SInt  = "\"%d\\n\""
-printft SNat  = "\"%d\\n\""
-printft SProb = "\"exp(%.17g)\\n\""
-printft SReal = "\"%.17g\\n\""
+printft SInt         = "\"%d\\n\""
+printft SNat         = "\"%d\\n\""
+printft SProb        = "\"exp(%.17g)\\n\""
+printft SReal        = "\"%.17g\\n\""
+printft (SMeasure t) = printft t
+printft (SArray t)   = printft t
 printft x     = error $ "TODO: printft: " ++ show x

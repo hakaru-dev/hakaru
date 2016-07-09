@@ -23,7 +23,6 @@ data Options =
 main :: IO ()
 main = do
   opts <- parseOpts
-  putStrLn $ show opts
   prog <- readFromFile (fileIn opts)
   runReaderT (compileHakaru prog) opts
 
