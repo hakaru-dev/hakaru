@@ -142,11 +142,10 @@ flattenArray a body =
 flattenDatum :: (ABT Term abt)
              => Datum (abt '[]) (HData' a)
              -> CodeGen CExpr
-flattenDatum d =
-  case datumType d of
-    typ -> do ident <- genIdent
-              declare $ structDeclaration typ ident
-              return (cvar ident)
+flattenDatum (Datum _ _ code) =
+  do ident <- genIdent
+     declare $ structDeclaration code ident
+     return (cvar ident)
 ----------------------------------------------------------------
 
 

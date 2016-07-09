@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds,
+             FlexibleContexts,
              GADTs,
              KindSignatures #-}
 
@@ -30,7 +31,9 @@ module Language.Hakaru.CodeGen.HOAS
   , binaryOp
   ) where
 
+import Language.Hakaru.Syntax.ABT       
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Datum       
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
@@ -127,5 +130,22 @@ arrayDeclaration typ n ident =
          , Nothing)]
         node
 
-structDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
-structDeclaration _ _ = undefined
+structDeclaration :: (ABT Term abt)
+                  => DatumCode (Code t) (abt '[]) (HData' t)
+                  -> Ident
+                  -> CDecl
+structDeclaration dcode ident =
+  case dcode of
+    (Inr _) -> struct
+    (Inl _) -> struct
+  where struct = CDecl [CTypeSpec $ CSUType (CStruct CStructTag Nothing (Just []) [] node) node]
+                       [( Just $ CDeclr (Just ident)
+                                        []
+                                        Nothing
+                                        []
+                                        node
+                        , Nothing
+                        , Nothing)]
+                       node
+
+        
