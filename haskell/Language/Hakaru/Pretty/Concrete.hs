@@ -228,7 +228,9 @@ ppNaryOpSum p e =
         PrimOp_ (Negate _) :$ e1 :* End -> prefixToTerm "-" e1
         _ -> prefixToTerm "+" e
   where prefixToTerm :: forall a. String -> abt '[] a -> Docs
-        prefixToTerm s e = [ PP.text s, prettyPrec p e ]
+        prefixToTerm s e = [ PP.space <> PP.text s <> PP.space
+                           , prettyPrec p e
+                           ]
 
 ppNaryOpProd
     :: forall abt a
@@ -246,7 +248,9 @@ ppNaryOpProd p e =
         PrimOp_ (Recip _) :$ e1 :* End -> prefixToTerm "/" e1
         _ -> prefixToTerm "*" e
   where prefixToTerm :: forall a. String -> abt '[] a -> Docs
-        prefixToTerm s e = [ PP.text s, prettyPrec p e ]
+        prefixToTerm s e = [ PP.space <> PP.text s <> PP.space
+                           , prettyPrec p e
+                           ]
 
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
