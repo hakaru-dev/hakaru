@@ -164,16 +164,16 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                                           (fmap (toDoc . ppArg) es)]
                   (Sum  _) -> case Seq.viewl es of
                                 Seq.EmptyL -> [PP.text "0"]
-                                (e' Seq.:< es') -> parens (p > 6)
-                                    [F.foldl (\a b -> a <+> ppNaryOpSum b)
-                                              (toDoc . ppArg $ e')
-                                              es']
+                                (e' Seq.:< es') -> parens (p > 6) $
+                                    F.foldl (\a b -> a ++ (ppNaryOpSum 6 b))
+                                            [prettyPrec 6 e']
+                                            es'
                   (Prod _) ->  case Seq.viewl es of
                                 Seq.EmptyL -> [PP.text "1"]
-                                (e' Seq.:< es') -> parens (p > 7)
-                                    [F.foldl (\a b -> a <+> ppNaryOpProd b)
-                                              (toDoc . ppArg $ e')
-                                              es']
+                                (e' Seq.:< es') -> parens (p > 7) $
+                                    F.foldl (\a b -> a ++ (ppNaryOpProd 7 b))
+                                            [prettyPrec 7 e']
+                                            es'
 
           where identityElement :: NaryOp a -> Docs
                 identityElement And      = [PP.text "true"]
@@ -217,24 +217,26 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
 ppNaryOpSum
     :: forall abt a
     . (ABT Term abt)
-    => abt '[] a
-    -> Doc
-ppNaryOpSum e =
+    => Int
+    -> abt '[] a
+    -> Docs
+ppNaryOpSum p e =
     caseVarSyn e (const $ prefixToTerm "+" e) $ \t ->
         case t of
         Literal_ (LInt  i) | i < 0 ->      prefixToTerm "-" (syn . Literal_ . LInt  . abs $ i)
         Literal_ (LReal i) | i < 0 ->      prefixToTerm "-" (syn . Literal_ . LReal . abs $ i)
         PrimOp_ (Negate _) :$ e1 :* End -> prefixToTerm "-" e1
         _ -> prefixToTerm "+" e
-  where prefixToTerm :: forall a. String -> abt '[] a -> Doc
-        prefixToTerm s e = PP.text s <+> (toDoc $ ppArg e)
+  where prefixToTerm :: forall a. String -> abt '[] a -> Docs
+        prefixToTerm s e = [ PP.text s, prettyPrec p e ]
 
 ppNaryOpProd
     :: forall abt a
     . (ABT Term abt)
-    => abt '[] a
-    -> Doc
-ppNaryOpProd e =
+    => Int
+    -> abt '[] a
+    -> Docs
+ppNaryOpProd p e =
     caseVarSyn e (const $ prefixToTerm "*" e) $ \t ->
         case t of
         Literal_ (LProb i) -> 
@@ -243,8 +245,8 @@ ppNaryOpProd e =
           prefixToTerm "/" (syn . Literal_ . LReal . fromIntegral . denominator $ i)
         PrimOp_ (Recip _) :$ e1 :* End -> prefixToTerm "/" e1
         _ -> prefixToTerm "*" e
-  where prefixToTerm :: forall a. String -> abt '[] a -> Doc
-        prefixToTerm s e = PP.text s <+> (toDoc $ ppArg e)
+  where prefixToTerm :: forall a. String -> abt '[] a -> Docs
+        prefixToTerm s e = [ PP.text s, prettyPrec p e ]
 
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
