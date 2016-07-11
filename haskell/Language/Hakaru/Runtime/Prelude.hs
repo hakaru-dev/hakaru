@@ -112,6 +112,9 @@ real_ = fromRational
 prob_ :: NonNegativeRational -> Double
 prob_ = fromRational . fromNonNegativeRational
 
+thRootOf :: Integer -> Double -> Double
+thRootOf a b = b ** (recip $ fromIntegral a)
+
 run :: Show a => MWC.GenIO -> (Measure a) -> IO ()
 run g k = k g M.>>= print
 
