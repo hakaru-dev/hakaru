@@ -67,8 +67,8 @@ VerifyTools:-AddVerification(`&under`= ((e1,e2,Ver,f)-> verify(f(e1,_rest), e2, 
 
 #Constant multiple in integral
 TestReparam(
-     Bind(Lebesgue(), x, Weight(2, Ret(2*x))),
-     Lebesgue(),
+     Bind(Lebesgue(-infinity,infinity), x, Weight(2, Ret(2*x))),
+     Lebesgue(-infinity,infinity),
      equal &under fromLO,
      infolevels= [infinity$2],
      label= "Constant multiple with Lebesgue (passing)"

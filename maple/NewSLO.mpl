@@ -226,7 +226,8 @@ NewSLO := module ()
     end if;
   end proc;
 
-  known_continuous := '{Lebesgue(), Uniform(anything, anything),
+  known_continuous := '{
+    Lebesgue(anything, anything), Uniform(anything, anything),
     Gaussian(anything, anything), Cauchy(anything, anything),
     StudentT(anything, anything, anything),
     BetaD(anything, anything), GammaD(anything, anything)}':
@@ -254,21 +255,9 @@ NewSLO := module ()
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       recognition := recognize_continuous(w, x, lo, hi, kb1);
       if recognition :: 'Recognized(anything, anything)' then
-        # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x, kb1);
         weight(w0, bind(op(1,recognition), x, weight(w, m)))
-      else
-        # Recognition failed
-        (w, w0) := factorize(w, x, kb1);
-        m := weight(w, m);
-        if hi <> infinity then
-          m := piecewise(x < hi, m, Msum())
-        end if;
-        if lo <> -infinity then
-          m := piecewise(lo < x, m, Msum())
-        end if;
-        weight(w0, bind(Lebesgue(), x, m))
-      end if
+      else error "recognize_continuous is never supposed to fail" end if
     elif e :: 'And'('specfunc({Sum,sum})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],e));
@@ -385,12 +374,14 @@ NewSLO := module ()
       res := recognize_de(op(de), Dx, f, x, lo, hi, kb)
     end if;
     if res = FAIL then
+      res := Recognized(Lebesgue(lo, hi), w);
       rng := hi - lo;
-      w := simplify_assuming(w * (hi - lo), kb);
-      # w could be piecewise and simplify will hide the problem
-      if not (rng :: 'SymbolicInfinity'
-              or w :: {'SymbolicInfinity', 'undefined'}) then
-        res := Recognized(Uniform(lo, hi), w)
+      if not (rng :: 'SymbolicInfinity') then
+        w := simplify_assuming(w * (hi - lo), kb);
+        # w could be piecewise and simplify will hide the problem
+        if not (w :: {'SymbolicInfinity', 'undefined'}) then
+          res := Recognized(Uniform(lo, hi), w)
+        end if
       end if
     end if;
     # Undo Constant[...] wrapping
@@ -1442,7 +1433,7 @@ NewSLO := module ()
     end if;
   end proc;
 
-  density[Lebesgue] := proc($) proc(x,$) 1 end proc end proc;
+  density[Lebesgue] := proc(lo,hi,$) proc(x,$) 1 end proc end proc;
   density[Uniform] := proc(a,b,$) proc(x,$)
     1/(b-a)
   end proc end proc;
@@ -1476,7 +1467,7 @@ NewSLO := module ()
     lambda^k/exp(lambda)/k!
   end proc end proc;
 
-  bounds[Lebesgue] := proc($) -infinity .. infinity end proc;
+  bounds[Lebesgue] := `..`;
   bounds[Uniform] := proc(a, b, $) a .. b end proc;
   bounds[Gaussian] := proc(mu, sigma, $) -infinity .. infinity end proc;
   bounds[Cauchy] := proc(loc, scale, $) -infinity .. infinity end proc;

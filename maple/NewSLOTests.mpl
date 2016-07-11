@@ -11,14 +11,14 @@ with(NewSLO):
 # covers primitive constructs
 model1 := 
   Bind(Gaussian(0,1), x,
-  Bind(Msum(Ret(0),Weight(1,Lebesgue())), y,
+  Bind(Msum(Ret(0),Weight(1,Lebesgue(-infinity,infinity))), y,
   Ret(1/exp(x^2+y^2)))):
 
 # simplifies to
 model1s :=
   Bind(Gaussian(0,1), x, 
   Msum(Ret(exp(-x^2)), 
-       Bind(Lebesgue(), y, 
+       Bind(Lebesgue(-infinity,infinity), y, 
        Ret(exp(-(x^2+y^2)))))):
 
 CodeTools[Test](value(integrate(model1,z->z)), (sqrt(Pi)+1)/sqrt(3), equal,
@@ -127,7 +127,7 @@ TestHakaru(GammaD(a,b), label="GammaD recog.", ctx = [a>0,b>0]);
 TestHakaru(GammaD(1/2,2), label="GammaD(1/2,2) recog.");
 TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,GammaD(1,2)));
 TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)));
-TestHakaru(Bind(Lebesgue(), x, Weight(1/x^2, Ret(x))));
+TestHakaru(Bind(Lebesgue(-infinity,infinity), x, Weight(1/x^2, Ret(x))));
 TestHakaru(Cauchy(loc,scale), ctx = [scale>0], label="Cauchy recog.");
 TestHakaru(StudentT(nu,loc,scale), ctx=[scale>0], label = "StudentT recog.");
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = [scale>0],
@@ -190,9 +190,9 @@ t7n := Bind(Uniform((-1), 0), a0,
   Bind(Msum(Weight((a0+1), Ret(Unit))), a1, Ret((a0*a0)))):
 t7ns := Bind(Uniform(-1,0),a3,Weight(a3+1,Ret(a3^2))):
 t8 := Bind(Gaussian(0, 10), a0, Bind(Gaussian(a0, 20), a1, Ret(Pair(a0, a1)))):
-t9 := Bind(Lebesgue(), a0, 
+t9 := Bind(Lebesgue(-infinity,infinity), a0, 
   Bind(Msum(Weight(piecewise(And((3<a0), (a0<7)), (1/2), 0), Ret(Unit))), a1, Ret(a0))):
-t9a := Bind(Lebesgue(), a0,
+t9a := Bind(Lebesgue(-infinity,infinity), a0,
   piecewise(3>=a0, Msum(), a0>=7, Msum(), Weight(1/2, Ret(a0)))):
 t9s := Weight(2, Uniform(3,7)):
 
@@ -246,13 +246,13 @@ TestHakaru(t80, t80, label = "t80");
 ###
 # From disintegration paper
 disint1 := 
-Bind(Lebesgue(),y, Weight(piecewise(0<y and y<1, 1, 0), Weight(y/2, Ret(y)))):
+Bind(Lebesgue(-infinity,infinity),y, Weight(piecewise(0<y and y<1, 1, 0), Weight(y/2, Ret(y)))):
 
 TestHakaru(disint1, Weight(1/4,BetaD(2,1)), label="minor miracle");
 
 ind1  := Bind(Uniform(0,1),x, Weight(piecewise(x>0,1,0), Weight(piecewise(x>1/2,0,1), Weight(piecewise(0<x,1,0), Ret(x))))):
 ind1s := Weight(1/2, Uniform(0,1/2)):
-ind2  := Bind(Lebesgue(),x, Weight(piecewise(x<0,0,x<1,x,0), Ret(x))):
+ind2  := Bind(Lebesgue(-infinity,infinity),x, Weight(piecewise(x<0,0,x<1,x,0), Ret(x))):
 ind2s := Weight(1/2, BetaD(2,1)):
 ind3  := Bind(Uniform(0,1),x, Weight(piecewise(1<x and x<0,1,0), Ret(x))):
 ind3s := Msum():
@@ -305,7 +305,7 @@ TestHakaru(unk3, unk3, label="Banish into Integrand 3");
 TestHakaru(unk4, unk4, label="Banish into Integrand 4");
 
 # Disintegration of easierRoadmapProg1 -- variables to be integrated out
-rmProg1 := Msum(Weight(1, Msum(Weight(1, Msum(Weight(1, Msum(Weight(1, Bind(Lebesgue(), a4, Msum(Weight(1, Msum(Weight(1, Bind(Lebesgue(), a5, Msum(Weight(1, Bind(Lebesgue(), a6, Msum(Weight(((exp((-(((p3-a6)*(p3-a6))*(1/(2*exp((ln(a5)*2)))))))*(1/a5))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(1, Bind(Lebesgue(), a7, Msum(Weight(((exp((-(((a6-a7)*(a6-a7))*(1/(2*exp((ln(a4)*2)))))))*(1/a4))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(((exp((-(((p2-a7)*(p2-a7))*(1/(2*exp((ln(a5)*2)))))))*(1/a5))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(((exp((-((a7*a7)*(1/(2*exp((ln(a4)*2)))))))*(1/a4))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight((1/3), Msum(Weight(1, piecewise((a5<4), piecewise((1<a5), Msum(Weight((1/5), Msum(Weight(1, piecewise((a4<8), piecewise((3<a4), Ret(Pair(a4, a5)), Msum()), Msum())), Weight(1, Msum())))), Msum()), Msum())), Weight(1, Msum())))))))))))))))))))))), Weight(1, Msum())))))), Weight(1, Msum())))))):
+rmProg1 := Msum(Weight(1, Msum(Weight(1, Msum(Weight(1, Msum(Weight(1, Bind(Lebesgue(-infinity,infinity), a4, Msum(Weight(1, Msum(Weight(1, Bind(Lebesgue(-infinity,infinity), a5, Msum(Weight(1, Bind(Lebesgue(-infinity,infinity), a6, Msum(Weight(((exp((-(((p3-a6)*(p3-a6))*(1/(2*exp((ln(a5)*2)))))))*(1/a5))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(1, Bind(Lebesgue(-infinity,infinity), a7, Msum(Weight(((exp((-(((a6-a7)*(a6-a7))*(1/(2*exp((ln(a4)*2)))))))*(1/a4))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(((exp((-(((p2-a7)*(p2-a7))*(1/(2*exp((ln(a5)*2)))))))*(1/a5))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(((exp((-((a7*a7)*(1/(2*exp((ln(a4)*2)))))))*(1/a4))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight((1/3), Msum(Weight(1, piecewise((a5<4), piecewise((1<a5), Msum(Weight((1/5), Msum(Weight(1, piecewise((a4<8), piecewise((3<a4), Ret(Pair(a4, a5)), Msum()), Msum())), Weight(1, Msum())))), Msum()), Msum())), Weight(1, Msum())))))))))))))))))))))), Weight(1, Msum())))))), Weight(1, Msum())))))):
 TestHakaru(rmProg1, Weight(1/(2*Pi), Bind(Uniform(3, 8), a4, Bind(Uniform(1, 4), a5, Weight(exp(-(1/2)*(2*p2^2*a4^2+p2^2*a5^2-2*p2*p3*a4^2+p3^2*a4^2+p3^2*a5^2)/(a4^4+3*a4^2*a5^2+a5^4))/sqrt(a4^4+3*a4^2*a5^2+a5^4), Ret(Pair(a4, a5)))))), label="Tests.RoundTrip.rmProg1");
 # easierRoadmapProg4 -- MH transition kernel with unclamped acceptance ratio
 module()

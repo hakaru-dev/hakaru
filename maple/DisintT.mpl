@@ -22,11 +22,11 @@ TestDisint := proc(m,n)
                   set(measure(simplify)), _rest)
 end proc:
 
-d1 := Bind(Lebesgue(), x, Ret(Pair(-5*x,3/x))):
+d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
 d1r := {Weight(1/5,Ret(-15/t))}:
 
 # should try d2 with 1/c as well
-d2 := Bind(Lebesgue(), x, Ret(Pair((-1/7)*x-1,3))):
+d2 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair((-1/7)*x-1,3))):
 d2r := {Weight(7, Ret(3))}:
 
 d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
