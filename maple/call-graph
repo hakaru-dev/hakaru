@@ -12,7 +12,8 @@ my %use;
 my $lhs;
 my $special = join "|", keys %style;
 while (<>) {
-    if (/^NewSLO := module\b/../^end module\b/) {
+    if (/^NewSLO := module\b/../^end module\b/
+        and not /^\s*\(\*/../\*\)\s*$/) {
         s/#.*//;
         s/^  ?//;
         if (not defined $lhs and /^(?:($special)|(\w+).*?:= *proc)\b/) {
