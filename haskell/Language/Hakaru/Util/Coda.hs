@@ -3,12 +3,12 @@
 module Language.Hakaru.Util.Coda where
 
 import Statistics.Autocorrelation
-import qualified Data.Packed.Vector as V
+import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 
 effectiveSampleSize :: [Double] -> Double
-effectiveSampleSize samples = n / (1 + 2*(G.sum rho))
-  where n = fromIntegral (V.dim vec)
+effectiveSampleSize samples = n / (2*(G.sum rho))
+  where n = fromIntegral (V.length vec)
         vec = V.fromList samples
         cov = autocovariance vec
         rho = G.map (/ G.head cov) cov
@@ -20,3 +20,4 @@ meanVariance lst = (av,sigma2)
     av  = sum lst / n
     sigma2 = (foldr (\x acc -> sqr (x - av) + acc) 0 lst) / (n - 1)
     sqr x = x * x
+
