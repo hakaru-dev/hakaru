@@ -28,6 +28,12 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , floatConstE
   , (^>)
   , (^<)
+  , (^||)
+  , (^&&)
+  , (^*)
+  , (^/)
+  , (^-)
+  , (^+)
 
   , varE
   , unaryE
@@ -53,7 +59,6 @@ constExpr = CConst
 stringE :: String -> CExpr
 stringE x = constExpr $ CStrConst (cString x) node
 
-
 unaryE :: String -> CExpr -> CExpr
 unaryE s x = CCall (CVar (builtinIdent s) node) [x] node
 
@@ -67,11 +72,16 @@ exp1m = unaryE "exp1m"
 varE :: Ident -> CExpr
 varE x = CVar x node
 
-(^<) :: CExpr -> CExpr -> CExpr
-a ^< b = CBinary CLeOp a b node
-
-(^>) :: CExpr -> CExpr -> CExpr
-a ^> b = CBinary CGrOp a b node
+(^<),(^>),(^||),(^&&),(^*),(^/),(^-),(^+)
+  :: CExpr -> CExpr -> CExpr
+a ^< b  = CBinary CLeOp a b node
+a ^> b  = CBinary CGrOp a b node
+a ^|| b = CBinary COrOp a b node
+a ^&& b = CBinary CAndOp a b node
+a ^* b  = CBinary CMulOp a b node
+a ^/ b  = CBinary CDivOp a b node
+a ^- b  = CBinary CSubOp a b node
+a ^+ b  = CBinary CAddOp a b node
 
 intConstE :: Integer -> CExpr
 intConstE x = constExpr $ CIntConst (cInteger x) node
