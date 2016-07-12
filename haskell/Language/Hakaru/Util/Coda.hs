@@ -7,7 +7,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 
 effectiveSampleSize :: [Double] -> Double
-effectiveSampleSize samples = n / (2*(G.sum rho))
+effectiveSampleSize samples = n / (2*(G.sum (G.tail rho)))
   where n = fromIntegral (V.length vec)
         vec = V.fromList samples
         cov = autocovariance vec
