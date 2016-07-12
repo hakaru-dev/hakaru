@@ -28,8 +28,8 @@ import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Types.Sing
 
 import Language.Hakaru.CodeGen.CodeGenMonad
+import Language.Hakaru.CodeGen.HOAS.Declaration
 import Language.Hakaru.CodeGen.Flatten
-import Language.Hakaru.CodeGen.HOAS
 import Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Language.C.Data.Ident
@@ -57,7 +57,6 @@ createProgram (TypedAST tt@(SMeasure internalT) abt) =
               , mainWith tt
                          (fmap (\d -> mconcat [cToString d,";"]) decls)
                          (fmap cToString stmts)]
-
 createProgram (TypedAST typ abt) =
   let ident         = builtinIdent "result"
       (decls,stmts) = runCodeGen (do declare $ typeDeclaration typ ident

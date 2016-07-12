@@ -77,7 +77,10 @@ Library
                        Language.Hakaru.CodeGen.Wrapper,
                        Language.Hakaru.CodeGen.Flatten,
                        Language.Hakaru.CodeGen.CodeGenMonad,
-                       Language.Hakaru.CodeGen.HOAS,
+                       Language.Hakaru.CodeGen.LogFloat,
+                       Language.Hakaru.CodeGen.HOAS.Expression,
+                       Language.Hakaru.CodeGen.HOAS.Declaration,
+                       Language.Hakaru.CodeGen.HOAS.Statement,
                        Data.Number.Nat,
                        Data.Number.Natural
 

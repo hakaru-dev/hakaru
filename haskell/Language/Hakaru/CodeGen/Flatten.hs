@@ -1,9 +1,8 @@
 {-# LANGUAGE DataKinds,
-             ExistentialQuantification,
              FlexibleContexts,
-             FlexibleInstances,
              GADTs,
-             KindSignatures  #-}
+             KindSignatures,
+             RankNTypes #-}
 
 ----------------------------------------------------------------
 --                                                    2016.06.23
@@ -26,7 +25,10 @@ module Language.Hakaru.CodeGen.Flatten
   where
 
 import Language.Hakaru.CodeGen.CodeGenMonad
-import Language.Hakaru.CodeGen.HOAS
+import Language.Hakaru.CodeGen.HOAS.Declaration
+import Language.Hakaru.CodeGen.HOAS.Expression
+import Language.Hakaru.CodeGen.LogFloat
+
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
@@ -35,9 +37,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 
 import Language.C.Data.Ident
-import Language.C.Data.Node
 import Language.C.Syntax.AST
-import Language.C.Syntax.Constants
 
 import           Data.Number.Natural
 import           Data.Ratio
@@ -45,8 +45,6 @@ import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
 
-node :: NodeInfo
-node = undefNode
 
 measureIdent :: Ident
 measureIdent = builtinIdent "measure"
@@ -59,7 +57,7 @@ flattenABT abt = caseVarSyn abt flattenVar flattenTerm
 
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
 flattenVar v = do ident <- lookupIdent v
-                  return $ CVar ident node
+                  return (varE ident)
 
 flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
 flattenTerm (NaryOp_ t s)    = flattenNAryOp t s
@@ -89,8 +87,8 @@ flattenNAryOp op args =
                                                   assign ident expr
                                                   return ident)
      let expr = F.foldr (binaryOp op)
-                        (cvar (S.index ids 0))
-                        (fmap cvar (S.drop 1 ids))
+                        (varE (S.index ids 0))
+                        (fmap varE (S.drop 1 ids))
      return expr
 
 opType :: forall (a :: Hakaru). NaryOp a -> Sing a
@@ -110,18 +108,17 @@ opType x = error $ "TODO: opType " ++ show x
 flattenLit :: Literal a -> CodeGen CExpr
 flattenLit lit =
   case lit of
-    (LNat x)  -> return $ CConst $ CIntConst (cInteger $ fromIntegral x) node
-    (LInt x)  -> return $ CConst $ CIntConst (cInteger $ fromIntegral x) node
-    (LReal x) -> return $ CConst $ CFloatConst (cFloat $ fromRational x) node
+    (LNat x)  -> return (intConstE $ fromIntegral x)
+    (LInt x)  -> return (intConstE x)
+    (LReal x) -> return (floatConstE $ fromRational x)
     (LProb x) -> let rat = fromNonNegativeRational x
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
                  in do ident <- genIdent
                        declare $ typeDeclaration SProb ident
-                       assign ident (CCall (CVar (builtinIdent "log") node)
-                                           [CConst (CFloatConst (cFloat x') node)]
-                                           node)
-                       return $ CVar ident node
+                       x'' <- logFloat (floatConstE x')
+                       assign ident x''
+                       return (varE ident)
 ----------------------------------------------------------------
 
 
@@ -134,7 +131,7 @@ flattenArray a body =
      arity' <- flattenABT a
      caseBind body $ \(Variable _ _ typ) _ ->
        do declare (arrayDeclaration typ arity' ident)
-          return $ cvar ident
+          return $ varE ident
 ----------------------------------------------------------------
 
 
@@ -145,7 +142,7 @@ flattenDatum :: (ABT Term abt)
 flattenDatum (Datum _ _ code) =
   do ident <- genIdent
      declare $ structDeclaration code ident
-     return (cvar ident)
+     return (varE ident)
 ----------------------------------------------------------------
 
 
