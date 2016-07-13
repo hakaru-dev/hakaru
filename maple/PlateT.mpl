@@ -90,6 +90,13 @@ TestHakaru(eval(fusion ,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), 
 TestHakaru(eval(fission,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy across plates unrolled", ctx=[z>0]);
 TestHakaru(eval(fusion ,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy in plate unrolled", ctx=[z>0]);
 
+# Don't be confused by extra iterations in plate
+extra_1 := Bind(Plate(n+1,i,Gaussian(0,1)),xs, Plate(n,i,Gaussian(idx(xs,i+1),1))):
+extra_2 := Bind(Plate(n+1,i,Gaussian(0,1)),xs, Plate(n,i,Gaussian(idx(xs,i  ),1))):
+extra_s := Plate(n,i,Gaussian(0,sqrt(2))):
+TestHakaru(extra_1, extra_s, label="Don't be confused by extra iterations at beginning of plate", ctx=[n::nonnegint]);
+TestHakaru(extra_2, extra_s, label="Don't be confused by extra iterations at end of plate"      , ctx=[n::nonnegint]);
+
 # Simplify by size of array
 TestHakaru(Bind(Plate(k,c,Uniform(37,42)),xs,Weight(f(size(xs)),Ret(Unit))),
            Weight(f(k),Ret(Unit)),

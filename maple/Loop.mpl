@@ -97,8 +97,14 @@ Loop := module ()
     e := simplify_assuming(e, kb1);
     r, l, kb1 := genLoop(rr, ll, kb, 'Integrand'(x,e));
     w0, pp := unproducts(e, x, l, kb1);
-    if depends(w0, x) then 'makes'(e, x, rr, ll)
-    else w0 * foldl(product, make(pp,x=r), op(l)) end if
+    if depends(w0, x) then
+      'makes'(e, x, rr, ll)
+    else
+      if nops(l) > 0 then
+        try pp := convert(pp, 'piecewise', op([1,1],l)); catch: end try
+      end if;
+      w0 * foldl(product, make(pp,x=r), op(l))
+    end if
   end proc;
 
   mk_HArray := proc(t::t_type, loops::list(name=range), $)
@@ -160,11 +166,14 @@ Loop := module ()
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
       # So, check that "extract using indets" and "rename using eval" commute.
+      # Also, make sure the indexing isn't guarded by a piecewise.
       s := indets(ind, 'name');
       s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
       if indets(eval(w, s), Hakaru:-idx(identical(var), anything))
-         = {Hakaru:-idx(var, eval(ind, s))} then
-        kb  := assert(lhs(loop)=ind, kb1);
+                = {Hakaru:-idx(var, eval(ind, s))} and
+         and {} = indets(w, And('specfunc(piecewise)',
+                                dependent({var} union map(lhs, s)))) then
+        kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
         res := subs(Hakaru:-idx(var,ind) = Hakaru:-idx(var,lhs(loop)), w);
         res := wrap(heap, res, mode, kb, kb0);
         res := subs(Hakaru:-idx(var,lhs(loop))=dummy, res);
