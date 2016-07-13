@@ -16,9 +16,11 @@ import           System.IO (stderr)
 data Options =
  Options { debug    :: Bool
          , optimize :: Bool
+         , function :: Bool
          , fileIn   :: String
          , fileOut  :: String
          } deriving Show
+
 
 main :: IO ()
 main = do
@@ -34,6 +36,9 @@ options = Options
   <*> switch ( long "optimize"
              <> short 'O'
              <> help "Performs constant folding on Hakaru AST" )
+  <*> switch ( long "function"
+             <> short 'F'
+             <> help "Compiles to a sample function in C" )
   <*> strArgument (metavar "INPUT" <> help "Program to be compiled")
   <*> strOption (short 'o' <> metavar "OUTPUT" <> help "output FILE")
 
@@ -57,7 +62,9 @@ compileHakaru prog = ask >>= \config -> lift $ do
           putErrorLn "\n----------------------------------------------------------------\n"
           putErrorLn $ pack $ show ast'
         putErrorLn "\n----------------------------------------------------------------\n"
-      writeToFile (fileOut config) $ createProgram ast'
+      writeToFile (fileOut config) $ if (function config)
+                                     then createFunction ast'
+                                     else createProgram ast'
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr
