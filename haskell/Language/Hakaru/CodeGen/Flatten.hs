@@ -27,7 +27,6 @@ module Language.Hakaru.CodeGen.Flatten
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.HOAS.Declaration
 import Language.Hakaru.CodeGen.HOAS.Expression
-import Language.Hakaru.CodeGen.LogFloat
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -36,7 +35,6 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 
-import Language.C.Data.Ident
 import Language.C.Syntax.AST
 
 import           Data.Number.Natural
@@ -44,10 +42,6 @@ import           Data.Ratio
 import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
-
-
-measureIdent :: Ident
-measureIdent = builtinIdent "measure"
 
 flattenABT :: ABT Term abt
            => abt '[] a
@@ -116,8 +110,7 @@ flattenLit lit =
                          / (fromIntegral $ denominator rat)
                  in do ident <- genIdent
                        declare $ typeDeclaration SProb ident
-                       x'' <- logFloat (floatConstE x')
-                       assign ident x''
+                       assign ident (floatConstE x')
                        return (varE ident)
 ----------------------------------------------------------------
 
@@ -159,11 +152,7 @@ flattenSCon Let_            =
             assign ident expr'
             flattenABT body'
 flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
-flattenSCon Dirac           =
-  \(e :* End) ->
-    do e' <- flattenABT e
-       assign measureIdent e'
-       return e'
+flattenSCon Dirac           = \(e :* End) -> flattenABT e
 flattenSCon MBind           =
   \(e1 :* e2 :* End) ->
     do e1' <- flattenABT e1
@@ -171,9 +160,8 @@ flattenSCon MBind           =
          do ident <- createIdent v
             declare $ typeDeclaration typ ident
             assign ident e1'
-            assign measureIdent e1'
             flattenABT e2'
-flattenSCon _               = \_ -> error "TODO: flattenSCon"
+flattenSCon x               = \_ -> error $ "TODO: flattenSCon: " ++ show x
 ----------------------------------------------------------------
 
 
@@ -184,4 +172,13 @@ flattenMeasureOp :: ( ABT Term abt
                  => MeasureOp typs a
                  -> SArgs abt args
                  -> CodeGen CExpr
-flattenMeasureOp = error $ "TODO: flattenMeasureOp"
+flattenMeasureOp Uniform = \(a :* b :* End) ->
+  do a' <- flattenABT a
+     b' <- flattenABT b
+     ident <- genIdent
+     declare $ typeDeclaration SReal ident
+     let r    = castE doubleTyp rand
+         rMax = castE doubleTyp (stringVarE "RAND_MAX")
+     assign ident (a' ^+ ((r ^/ rMax) ^* (b' ^- a')))
+     return (varE ident)
+flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x

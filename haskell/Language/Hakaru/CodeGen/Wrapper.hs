@@ -43,20 +43,19 @@ import           Text.PrettyPrint (render)
 import           Data.Monoid
 #endif
 
-measureIdent :: Ident
-measureIdent = builtinIdent "measure"
-
 -- | Create program is the top level C codegen. Depending on the type a program
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST tt@(SMeasure internalT) abt) =
-  let (decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT measureIdent
-                                     flattenABT abt)
+  let ident         = builtinIdent "result"
+      (decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident
+                                     expr <- flattenABT abt
+                                     assign ident expr)
   in  unlines [ header tt
-              , mainWith tt
-                         (fmap (\d -> mconcat [cToString d,";"]) decls)
-                         (fmap cToString stmts)]
+              , measureFunc (fmap (\d -> mconcat [cToString d,";"]) decls)
+                            (fmap cToString stmts)
+              , mainWith tt [] []]
 createProgram (TypedAST typ abt) =
   let ident         = builtinIdent "result"
       (decls,stmts) = runCodeGen (do declare $ typeDeclaration typ ident
@@ -92,6 +91,15 @@ normalC = unlines
         , "  return mu + u * c * sd;"
         , "}" ]
 
+measureFunc :: [Text] -> [Text] -> Text
+measureFunc decl stmts = unlines
+ [ "double measure(){"
+ , unlines decl
+ , unlines stmts
+ , "return result;"
+ , "}"
+ ]
+
 mainWith :: Sing (a :: Hakaru) -> [Text] -> [Text] -> Text
 mainWith typ decl stmts = unlines
  [ "int main(){"
@@ -101,7 +109,7 @@ mainWith typ decl stmts = unlines
  , unlines decl
  , unlines stmts
  , case typ of
-     SMeasure t -> mconcat ["while(1) printf(",printft t,",measure);"]
+     SMeasure t -> mconcat ["while(1) printf(",printft t,",measure());"]
      _          -> mconcat ["printf(",printft typ,",result);"]
  , "return 0;"
  , "}" ]

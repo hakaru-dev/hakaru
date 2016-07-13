@@ -22,6 +22,9 @@ module Language.Hakaru.CodeGen.HOAS.Declaration
     typeDeclaration
   , arrayDeclaration
   , structDeclaration
+
+  , doubleTyp
+  , intTyp
   ) where
 
 import Language.C.Data.Ident
@@ -94,3 +97,7 @@ buildType x = error $ "TODO: buildCType: " ++ show x
 buildData :: Sing (b :: [[HakaruFun]])
           -> CTypeSpec
 buildData d = error $ show d
+
+intTyp,doubleTyp :: CTypeSpec
+intTyp    = CIntType undefNode
+doubleTyp = CDoubleType undefNode
