@@ -125,6 +125,7 @@ primTable =
     ,("equal",       primPrimOp2 U.Equal)
     ,("less",        primPrimOp2 U.Less)
     ,("negate",      primPrimOp1 U.Negate)
+    ,("abs",         primPrimOp1 U.Abs)
     ,("signum",      primPrimOp1 U.Signum)
     ,("recip",       primPrimOp1 U.Recip)
     ,("^",           primPrimOp2 U.NatPow)

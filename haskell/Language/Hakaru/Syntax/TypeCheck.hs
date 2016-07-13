@@ -59,7 +59,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
     , hRing_Sing, sing_HRing, hFractional_Sing, sing_HFractional
-    , hDiscrete_Sing
+    , sing_NonNegative, hDiscrete_Sing
     , HIntegrable(..)
     , HRadical(..), HContinuous(..))
 import Language.Hakaru.Syntax.ABT
@@ -719,6 +719,19 @@ inferType = inferType_
                               CNil -> e'
                               c'   -> unLC_ . coerceTo c' $ LC_ e'
                   return . TypedAST (sing_HRing ring) $
+                         syn (PrimOp_ primop :$ e'' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp U.Abs es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  mode <- getMode
+                  SomeRing ring c <- getHRing typ mode
+                  primop <- Abs <$> return ring
+                  let e'' = case c of
+                              CNil -> e'
+                              c'   -> unLC_ . coerceTo c' $ LC_ e'
+                  return . TypedAST (sing_NonNegative ring) $
                          syn (PrimOp_ primop :$ e'' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
