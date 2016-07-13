@@ -171,7 +171,7 @@ Loop := module ()
       s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
       if indets(eval(w, s), Hakaru:-idx(identical(var), anything))
                 = {Hakaru:-idx(var, eval(ind, s))}
-         and {} = indets(w, And('specfunc(piecewise)',
+         and not hastype(w, And('specfunc(piecewise)',
                                 dependent({var} union map(lhs, s)))) then
         kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
         res := subs(Hakaru:-idx(var,ind) = Hakaru:-idx(var,lhs(loop)), w);
