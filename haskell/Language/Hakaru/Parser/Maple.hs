@@ -296,6 +296,9 @@ maple2AST (InertArgs Func
         [InertName "Datum", InertArgs ExpSeq [InertName h, d]]) =
     mapleDatum2AST h d
 
+maple2AST (InertArgs Func [InertName "Lebesgue", _]) =
+    Var "lebesgue"
+
 maple2AST (InertArgs Func [InertName "Counting", _]) =
     Var "counting"
 
