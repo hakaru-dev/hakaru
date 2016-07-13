@@ -24,7 +24,7 @@ main :: IO ()
 main = do
   opts <- parseOpts
   prog <- readFromFile (fileIn opts)
-  runReaderT (compileHakaru prog) opts
+  runReaderT (compileHakaru prog) (opts { optimize = True })
 
 options :: Parser Options
 options = Options
