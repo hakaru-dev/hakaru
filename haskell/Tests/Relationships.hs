@@ -58,8 +58,13 @@ testRelationships = test [
     -- sum of n exponential(b) random variables is a gamma(n, b) random variable
     "t12"   ~: testSS [t12] (lam $ \b -> gamma 2 b),
 
-    --  Weibull(1, b) random variable is an exponential random variable with mean b
-    "t13"   ~: testSS [t13] (lam $ \b -> exponential (recip b)),
+    --  Weibull(b, 1) random variable is an exponential random variable with mean b
+    --Above comment is wrong. Should be:
+    --X ~ Weibull(a,1)  =>  X ~ Exponential(1/a) 
+    --"t13"   ~: testSS [t13] (lam $ \b -> exponential (recip b)),
+    --Above line is wrong. Should be:
+    "t13"   ~: testSS [t13] (lam $ \a -> exponential(recip a)),
+    --Carl 2016Jul14
 
     -- If X is a standard normal random variable and U is a chi-squared random variable with v degrees of freedom,
     -- then X/sqrt(U/v) is a Student's t(v) random variable
@@ -206,7 +211,9 @@ t12 =
     dirac (x1 + x2)
 
 t13 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HProb)
-t13 = lam $ \b -> weibull one b
+--t13 = lam $ \b -> weibull one b
+--Parameter order wrong in line above.--Carl 2016Jul14
+t13 = lam $ \a -> weibull a one
 
 t14 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HReal)
 t14 =
