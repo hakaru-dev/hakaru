@@ -28,6 +28,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , rand
 
   , castE
+  , condE
 
   , constExpr
   , intConstE
@@ -47,7 +48,6 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , nullaryE
   , unaryE
   , printE
-  , toCUnitOp
   , binaryOp
   ) where
 
@@ -111,26 +111,18 @@ intConstE x = constExpr $ CIntConst (cInteger x) node
 floatConstE :: Float -> CExpr
 floatConstE x = constExpr $ CFloatConst (cFloat x) node
 
-toCUnitOp :: NaryOp a -> CConstant NodeInfo
-toCUnitOp And                   = CIntConst (cInteger 1) node
-toCUnitOp (Sum HSemiring_Nat)   = CIntConst (cInteger 0) node
-toCUnitOp (Sum HSemiring_Int)   = CIntConst (cInteger 0) node
-toCUnitOp (Sum HSemiring_Prob)  = CFloatConst (cFloat 0) node
-toCUnitOp (Sum HSemiring_Real)  = CFloatConst (cFloat 0) node
-toCUnitOp (Prod HSemiring_Nat)  = CIntConst (cInteger 1) node
-toCUnitOp (Prod HSemiring_Int)  = CIntConst (cInteger 1) node
-toCUnitOp (Prod HSemiring_Prob) = CFloatConst (cFloat 1) node
-toCUnitOp (Prod HSemiring_Real) = CFloatConst (cFloat 1) node
-toCUnitOp x = error $ "TODO: unitOp {" ++ show x ++ "}"
-
 binaryOp :: NaryOp a -> CExpr -> CExpr -> CExpr
 binaryOp (Sum HSemiring_Prob)  a b = log (CBinary CAddOp
                                                   (exp a)
                                                   (exp b)
                                                   node)
 binaryOp (Prod HSemiring_Prob) a b = CBinary CMulOp a b node
-binaryOp _                     a b = CBinary CAddOp a b node
+binaryOp (Sum _)               a b = CBinary CAddOp a b node
+binaryOp (Prod _)              a b = CBinary CMulOp a b node
 
 
 castE :: CTypeSpec -> CExpr -> CExpr
 castE t e = CCast (CDecl [CTypeSpec t] [] node) e node
+
+condE :: CExpr -> CExpr -> CExpr -> CExpr
+condE cond thn els = CCond cond (Just thn) els node

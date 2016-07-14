@@ -71,31 +71,21 @@ flattenNAryOp :: ABT Term abt
               -> S.Seq (abt '[] a)
               -> CodeGen CExpr
 flattenNAryOp op args =
-  let typ = opType op in
-  do ids <- T.forM args
-                   (\abt -> do expr <- flattenABT abt
-                               case expr of
-                                 (CVar i _) -> return i
-                                 _          -> do ident <- genIdent
-                                                  declare $ typeDeclaration typ ident
-                                                  assign ident expr
-                                                  return ident)
-     let expr = F.foldr (binaryOp op)
-                        (varE (S.index ids 0))
-                        (fmap varE (S.drop 1 ids))
-     return expr
+  do es <- T.mapM flattenABT args
+     case op of
+       (Sum HSemiring_Prob)  -> do maxId <- genIdent
+                                   declare $ typeDeclaration SProb maxId
+                                   -- assign maxId (maxE es)
+                                   return (varE maxId)
+       (Prod HSemiring_Prob) -> error $ "TODO: prod semiring of prob"
+       _ -> return $ F.foldr (binaryOp op)
+                             (S.index es 0)
+                             (S.drop 1 es)
 
-opType :: forall (a :: Hakaru). NaryOp a -> Sing a
--- opType And                   = SNat
-opType (Sum HSemiring_Nat)   = SNat
-opType (Sum HSemiring_Int)   = SInt
-opType (Sum HSemiring_Prob)  = SProb
-opType (Sum HSemiring_Real)  = SReal
-opType (Prod HSemiring_Nat)  = SNat
-opType (Prod HSemiring_Int)  = SInt
-opType (Prod HSemiring_Prob) = SProb
-opType (Prod HSemiring_Real) = SReal
-opType x = error $ "TODO: opType " ++ show x
+maxE :: S.Seq CExpr -> CExpr
+maxE es = F.foldr check (S.index es 0) (S.drop 1 es)
+  where check a b = condE (a ^> b) a b
+
 ----------------------------------------------------------------
 
 
@@ -151,6 +141,7 @@ flattenSCon Let_            =
             declare $ typeDeclaration typ ident
             assign ident expr'
             flattenABT body'
+flattenSCon (PrimOp_ op)    = \es -> flattenPrimOp op es
 flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
 flattenSCon Dirac           = \(e :* End) -> flattenABT e
 flattenSCon MBind           =
@@ -164,6 +155,16 @@ flattenSCon MBind           =
 flattenSCon x               = \_ -> error $ "TODO: flattenSCon: " ++ show x
 ----------------------------------------------------------------
 
+
+flattenPrimOp :: ( ABT Term abt
+                 , typs ~ UnLCs args
+                 , args ~ LCs typs)
+              => PrimOp typs a
+              -> SArgs abt args
+              -> CodeGen CExpr
+flattenPrimOp t _ = error $ "TODO: flattenPrimOp: " ++ show t
+
+----------------------------------------------------------------
 
 
 flattenMeasureOp :: ( ABT Term abt
