@@ -22,7 +22,7 @@ KB := module ()
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product, chilled, chill, warm,
         ModuleLoad, ModuleUnload;
-  export empty, genLebesgue, genType, genLet, assert, `&assuming`,
+  export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
   global t_kb, `expand/product`, `simplify/int/simplify`;
