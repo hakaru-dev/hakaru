@@ -1042,7 +1042,8 @@ NewSLO := module ()
 
        #Save current vars for comparison with vars after `solve`.
        Ns:= indets(oldarg, symbol);
-       S:= {solve({'y'=oldarg, a <= x, x <= b}, {x}, allsolutions)};
+       #The usage of `explicit` in the next line is undocumented. 
+       S:= {solve({'y'=oldarg, a <= x, x <= b}, {x}, allsolutions, explicit)};
        S:= map(s->`if`(s::specfunc(piecewise), s[], s), S);
        #Use `is` to filter solutions under the assumptions.
        assume(a <= x, x <= b);
