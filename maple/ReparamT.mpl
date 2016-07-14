@@ -30,19 +30,20 @@ TestReparam:= proc(
 )
 local 
      LOform:= toLO(e_in)  #preprocessed input
-;
-     :-infolevel[Reparam]:= infolevels[1];               
+;    
+     printf("\n");  #It reads better when the test results have a blank line between them.
+     :-infolevel[reparam]:= infolevels[1];
      if not CodeTools:-Test(reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest) then
           #If test fails, do same test with diagnostic infolevel setting.
           if infolevels[2] > infolevels[1] then
-               :-infolevel[Reparam]:= infolevels[2];
+               :-infolevel[reparam]:= infolevels[2];
                return CodeTools:-Test(reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest)
           else
                return false
           end if
      else
-          return #If passed, quiet return. 
-     end if            
+          return 
+     end if
 end proc:
 
 #VerifyTools is an undocumented Maple library package similiar to TypeTools.
@@ -71,7 +72,7 @@ TestReparam(
      Lebesgue(-infinity,infinity),
      equal &under fromLO,
      infolevels= [infinity$2],
-     label= "Constant multiple with Lebesgue" #passing
+     label= "(t0a) Constant multiple with Lebesgue" #passing
 );
 
 #Logarithm with Uniform
@@ -80,7 +81,7 @@ TestReparam(
      GammaD(1,1),
      equal &under fromLO,
      infolevels= [infinity$2],
-     label= "Logarithm with Uniform" #passing
+     label= "(t0b) Logarithm with Uniform" #passing
 );
 
 #(t1) Symbolic affine transformation with Gaussian
@@ -98,8 +99,9 @@ TestReparam(
 TestReparam(
      ChiSquare(2*b),
      GammaD(b,2),
-     equal &under fromLO,
-     infolevels= [0,2],
+     equal &under (fromLO, _ctx= foldr(assert, empty, b > 0)),
+     ctx= [b > 0],
+     infolevels= [2,2],
      label= 
           "(t2) ChiSquare with constant multiplier to Gamma "
           "(currently failing)"
@@ -147,7 +149,7 @@ TestReparam(
      Bind(Gaussian(0,1), x1, Bind(Gaussian(0,1), x2, Ret(x1/x2))),
      Cauchy(0,1),
      equal &under fromLO,
-     infolevels= [0,2],
+     infolevels= [2,2],
      label= 
           "(t7) Quotient of standard normals to standard Cauchy "
           "(currently failing)"
@@ -160,15 +162,16 @@ TestReparam(
      Cauchy(a,alpha),
      equal &under (fromLO, _ctx= foldr(assert, empty, alpha > 0)),
      ctx= [alpha > 0],
-     infolevels= [0,2],
+     infolevels= [2,2],
      label= 
           "(t8) Affine translation of quotient of standard normals to Cauchy "
           "(currently failing)"
 );
 
 #(t9) Bernoulli to Binomial with n=1
-#Since neither Bernoulli or Binomial are implemented, this is difficult to test.
-#A Bernoulli is a Categorical with two categories. Categorical is implemented.
+#Since neither Bernoulli nor Binomial are implemented, this is difficult to 
+#test. A Bernoulli is a Categorical with two categories. Categorical is 
+#implemented.
 
 #(t10) Beta(1,1) to Uniform(0,1)
 #This one doesn't require `reparam`, but it passes using `reparam`. 
@@ -191,7 +194,7 @@ TestReparam(
      Bind(GammaD(1,a1), x1, Bind(GammaD(1,a2), x2, Ret(x1-x2))),
      equal &under (fromLO, _ctx= foldr(assert, empty, a1 > 0, a2 > 0)),
      ctx= [a1 > 0, a2 > 0],
-     infolevels= [0,2],
+     infolevels= [2,2],
      label= "(t11) Laplace to difference of Gammas (currently failing)"
 );
 ***********)
@@ -204,6 +207,65 @@ TestReparam(
      GammaD(2,b),
      equal &under (fromLO, _ctx= foldr(assert, empty, b > 0)),
      ctx= [b > 0],
-     infolevel= [0,2],
+     infolevels= [2,2],
      label= "(t12) Sum of iid Exponentials to Gamma (currently failing)"
+);
+
+#(t13) Weibull(1,b) to Exponential(1/b)
+#This test is wrong!!! It should be Weibull(a,1) to Exponential(1/a).
+#Since neither Weibull nor Exponential is implemented in NewSLO, there's
+#not much that I can do here.
+(*********** #Test commented out
+TestReparam(
+     #Doesn't use reparam in any meaningful way.
+     Weibull(a,1),
+     GammaD(1, 1/a),
+     equal &under (fromLO, _ctx= foldr(assert, empty, a > 0)),
+     ctx= [a > 0],
+     infolevels= [2,2],
+     label= "(t13) Weibull(a,1) to Exponential(1/a) (currently failing)"
+);
+************)
+
+#(t14) Standard normal over sqrt(ChiSquare) to StudentT
+#Fails because ChiSquare isn't implemented.
+TestReparam(
+     Bind(Gaussian(0,1), x, Bind(ChiSquare(nu), y, Ret(x/sqrt(y/nu)))),
+     StudentT(nu, 0, 1),
+     equal &under (fromLO, _ctx= foldr(assert, empty, nu > 0)),
+     ctx= [nu > 0],
+     infolevels= [2,2],
+     label= "(t14) Std normal over sqrt(Chi2) to StudentT (currently failing)"
+);
+
+#(t15) 1/InverseGamma(k,1/t) to GammaD(k,t)
+#Fails because InverseGamma isn't implemented.
+TestReparam(
+     Bind(InverseGammaD(k, 1/t), x, Ret(1/x)),
+     GammaD(k,t),
+     equal &under (fromLO, _ctx= foldr(assert, empty, k > 0, t > 0)),
+     ctx= [k > 0, t > 0],
+     infolevels= [2,2],
+     label= "(t15) 1/InverseGammaD(k,1/t) to GammaD(k,t) (currently failing)"
+);
+
+#(t16) Sum of std normals to normal(0,sqrt(2))
+#Fails because it requires a multivariate change of vars.
+TestReparam(
+     Bind(Gaussian(0,1), x1, Bind(Gaussian(0,1), x2, Ret(x1+x2))),
+     Gaussian(0,sqrt(2)),
+     equal &under fromLO,
+     infolevels= [2,2],
+     label= "(t16) Sum of std normals to normal(0,sqrt(2)) (currently failing)"
+);  
+
+#(t17) Sum of std normal and normal to normal
+#Fails because it requires a multivariate change of vars.
+TestReparam(
+     Bind(Gaussian(0,1), x1, Bind(Gaussian(mu,sigma), x2, Ret(x1+x2))),
+     Gaussian(mu, sqrt(1+sigma^2)),
+     equal &under (fromLO, _ctx= foldr(assert, empty, sigma > 0)),
+     ctx= [sigma > 0],
+     infolevels= [2,2],
+     label= "(t17) Sum of std normal and normal to normal (currently failing)"
 );
