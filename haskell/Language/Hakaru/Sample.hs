@@ -342,6 +342,11 @@ evaluatePrimOp (Negate _) (e1 :* End) env =
     VInt  v -> VInt  (negate v)
     VReal v -> VReal (negate v)
     v       -> case v of {}
+evaluatePrimOp (Abs   _) (e1 :* End) env =
+    case evaluate e1 env of
+    VInt  v -> VNat  . unsafeNat   $ abs v
+    VReal v -> VProb . LF.logFloat $ abs v
+    v       -> case v of {}
 evaluatePrimOp (Recip _) (e1 :* End) env = 
     case evaluate e1 env of
     VProb v -> VProb (recip v)
