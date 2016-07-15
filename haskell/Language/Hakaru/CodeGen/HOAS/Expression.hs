@@ -24,6 +24,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , log
   , exp1m
   , exp
+  , sqrt
 
   , rand
 
@@ -35,6 +36,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , floatConstE
   , (^>)
   , (^<)
+  , (^==)
   , (^||)
   , (^&&)
   , (^*)
@@ -59,7 +61,7 @@ import Language.C.Data.Node
 import Language.C.Syntax.Constants
 import Language.C.Syntax.AST
 
-import Prelude hiding (log,exp)
+import Prelude hiding (log,exp,sqrt)
 
 node :: NodeInfo
 node = undefNode
@@ -82,11 +84,12 @@ rand = nullaryE "rand"
 printE :: String -> CExpr
 printE s = unaryE "printf" (stringE s)
 
-log1p,log,exp1m,exp :: CExpr -> CExpr
+log1p,log,exp1m,exp,sqrt :: CExpr -> CExpr
 log1p = unaryE "log1p"
 log   = unaryE "log"
 exp1m = unaryE "exp1m"
 exp   = unaryE "exp"
+sqrt  = unaryE "sqrt"
 
 stringVarE :: String -> CExpr
 stringVarE s = CVar (builtinIdent s) node
@@ -94,11 +97,12 @@ stringVarE s = CVar (builtinIdent s) node
 varE :: Ident -> CExpr
 varE x = CVar x node
 
-(^<),(^>),(^||),(^&&),(^*),(^/),(^-),(^+)
+(^<),(^>),(^==),(^||),(^&&),(^*),(^/),(^-),(^+)
   :: CExpr -> CExpr -> CExpr
 a ^< b  = CBinary CLeOp a b node
 a ^> b  = CBinary CGrOp a b node
-a ^|| b = CBinary COrOp a b node
+a ^== b = CBinary CEqOp a b node
+a ^|| b = CBinary CLorOp a b node
 a ^&& b = CBinary CAndOp a b node
 a ^* b  = CBinary CMulOp a b node
 a ^/ b  = CBinary CDivOp a b node
@@ -112,10 +116,7 @@ floatConstE :: Float -> CExpr
 floatConstE x = constExpr $ CFloatConst (cFloat x) node
 
 binaryOp :: NaryOp a -> CExpr -> CExpr -> CExpr
-binaryOp (Sum HSemiring_Prob)  a b = log (CBinary CAddOp
-                                                  (exp a)
-                                                  (exp b)
-                                                  node)
+binaryOp (Sum HSemiring_Prob)  a b = CBinary CAddOp (exp a) (exp b) node
 binaryOp (Prod HSemiring_Prob) a b = CBinary CAddOp a b node
 binaryOp (Sum _)               a b = CBinary CAddOp a b node
 binaryOp (Prod _)              a b = CBinary CMulOp a b node

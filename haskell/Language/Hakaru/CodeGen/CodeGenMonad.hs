@@ -30,6 +30,8 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , genIdent'
   , createIdent
   , lookupIdent
+  , whileCG
+  , doWhileCG
   ) where
 
 import Control.Monad.State
@@ -40,6 +42,7 @@ import Control.Applicative ((<$>))
 
 import Language.Hakaru.Syntax.ABT hiding (var)
 import Language.Hakaru.Types.DataKind
+import Language.Hakaru.CodeGen.HOAS.Statement
 
 import Language.C.Data.Ident
 import Language.C.Data.Node
@@ -144,3 +147,13 @@ lookupVar x (Env env) = do
     EAssoc _ e' <- IM.lookup (fromNat $ varID x) env
     -- Refl         <- varEq x x' -- extra check?
     return e'
+
+----------------------------------------------------------------
+
+whileCG :: CExpr -> CodeGen () -> CodeGen ()
+whileCG bE m = let (_,stmts) = runCodeGen m
+               in putStat $ whileS bE stmts
+
+doWhileCG :: CExpr -> CodeGen () -> CodeGen ()
+doWhileCG bE m = let (_,stmts) = runCodeGen m
+                 in putStat $ doWhileS bE stmts
