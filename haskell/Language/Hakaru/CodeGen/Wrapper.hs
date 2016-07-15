@@ -134,7 +134,7 @@ mainWith typ decl stmts = unlines
 printft :: Sing (a :: Hakaru) -> Text
 printft SInt         = "\"%d\\n\""
 printft SNat         = "\"%d\\n\""
-printft SProb        = "\"exp(%.17g)\\n\""
+printft SProb        = "\"exp(%.15g)\\n\""
 printft SReal        = "\"%.17g\\n\""
 printft (SMeasure t) = printft t
 printft (SArray t)   = printft t

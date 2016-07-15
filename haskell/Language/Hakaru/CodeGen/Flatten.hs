@@ -75,10 +75,30 @@ flattenNAryOp :: ABT Term abt
 flattenNAryOp op args =
   do es <- T.mapM flattenABT args
      case op of
-       (Sum HSemiring_Prob)  -> do maxId <- genIdent' "max"
-                                   declare $ typeDeclaration SProb maxId
-                                   assign maxId (maxE es)
-                                   return (varE maxId)
+       (Sum HSemiring_Prob)  ->
+         -- logsumexp algorithm for summing probs  
+         do maxId <- genIdent' "max"
+            declare $ typeDeclaration SProb maxId
+            -- first compute max
+            assign maxId (maxE es)
+            let maxVar = varE maxId
+
+            -- compute diffs between max
+            diffs <- T.forM es (\e -> do diffId <- genIdent' "dif"
+                                         declare $ typeDeclaration SProb diffId
+                                         assign diffId (e ^- maxVar)
+                                         return (varE diffId))
+  
+            -- compute $ max + log(exp(diffs) + ...)
+            sumId <- genIdent' "sum"
+            declare $ typeDeclaration SProb sumId
+            assign sumId $  maxVar
+                         ^+ (F.foldr (binaryOp op)
+                                     (S.index diffs 0)
+                                     (S.drop 1 diffs))
+            return (varE sumId)
+
+       -- otherwise
        _ -> return $ F.foldr (binaryOp op)
                              (S.index es 0)
                              (S.drop 1 es)
@@ -99,7 +119,7 @@ flattenLit lit =
     (LProb x) -> let rat = fromNonNegativeRational x
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
-                 in do pId <- genIdent' "prob"
+                 in do pId <- genIdent' "p"
                        declare $ typeDeclaration SProb pId
                        assign pId $ log (floatConstE x')
                        return (varE pId)
