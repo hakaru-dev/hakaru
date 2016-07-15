@@ -290,16 +290,21 @@ NewSLO := module ()
       bnds, loops, kb2 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
       w, pp := unproducts(w, x, loops, kb2);
       w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
+      w := graft(split(peel(lift_piecewiselike(`*`(op(w))))));
+      w := combine(rebase_upper(w));
+      w := combine(rebase_lower(w));
+      w := simplify_assuming(w, kb1);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=bnds);
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb2));
-      weight(simplify_assuming(`*`(op(w0)) * foldl(product, w1, op(loops)), kb),
-        bind(foldl(((mmm,loop) ->
-                    Plate(op([2,2],loop) - op([2,1],loop) + 1,
-                          op(1,loop),
-                          eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
-                   mm, op(loops)),
-             x, weight(simplify_assuming(combine(rebase_lower(combine(rebase_upper(graft(split(peel(lift_piecewiselike(`*`(op(w)))))))))), kb1), m)))
+      mm := foldl(((mmm,loop) ->
+                   Plate(op([2,2],loop) - op([2,1],loop) + 1,
+                         op(1,loop),
+                         eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
+                  mm, op(loops));
+      w0 := `*`(op(w0)) * foldl(product, w1, op(loops));
+      w0 := simplify_assuming(w0, kb);
+      weight(w0, bind(mm, x, weight(w, m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
