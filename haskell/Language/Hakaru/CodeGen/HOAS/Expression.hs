@@ -116,7 +116,7 @@ binaryOp (Sum HSemiring_Prob)  a b = log (CBinary CAddOp
                                                   (exp a)
                                                   (exp b)
                                                   node)
-binaryOp (Prod HSemiring_Prob) a b = CBinary CMulOp a b node
+binaryOp (Prod HSemiring_Prob) a b = CBinary CAddOp a b node
 binaryOp (Sum _)               a b = CBinary CAddOp a b node
 binaryOp (Prod _)              a b = CBinary CMulOp a b node
 

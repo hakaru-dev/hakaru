@@ -27,6 +27,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , assign
   , putStat
   , genIdent
+  , genIdent'
   , createIdent
   , lookupIdent
   ) where
@@ -53,10 +54,12 @@ node :: NodeInfo
 node = undefNode
 
 suffixes :: [String]
-suffixes =
-  [ [letter] ++ show number
-  | letter <- ['a'..'z']
-  , number <- [(1 :: Integer)..]]
+suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
+  where base :: [Char]
+        base = ['0'..'9'] ++ ['a'..'z']
+        names = [[x] | x <- base] `mplus` (do n <- names
+                                              [n++[x] | x <- base])
+
 
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames   :: [String]
@@ -69,7 +72,7 @@ emptyCG = CG suffixes [] [] emptyEnv
 
 
 
-type CodeGen a = State CG a
+type CodeGen = State CG
 
 runCodeGen :: CodeGen a -> ([CDecl], [CStat])
 runCodeGen m =
@@ -80,7 +83,12 @@ runCodeGen m =
 genIdent :: CodeGen Ident
 genIdent = do cg <- get
               put $ cg { freshNames = tail $ freshNames cg }
-              return $ builtinIdent $ head $ freshNames cg
+              return $ builtinIdent $ "_" ++ (head $ freshNames cg)
+
+genIdent' :: String -> CodeGen Ident
+genIdent' s = do cg <- get
+                 put $ cg { freshNames = tail $ freshNames cg }
+                 return $ builtinIdent $ s ++ "_" ++ (head $ freshNames cg)
 
 createIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 createIdent var@(Variable name _ _) =
@@ -113,13 +121,6 @@ assign var expr =
                                         node))
                          node
   in  putStat assignment
-
-
--- -- A monad on top of CodeGen that keeps track of measure effect
--- newtype MCodeGen typ a = MCodeGen $ \typ Ident -> CodeGen a
-
--- instance Monad MCodeGen where
---   return a = MCodeGen $ \typ mIdent -> assign typ a
 
 
 ---------

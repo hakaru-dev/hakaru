@@ -43,6 +43,8 @@ import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
 
+import Prelude hiding (log)
+
 flattenABT :: ABT Term abt
            => abt '[] a
            -> CodeGen CExpr
@@ -73,11 +75,10 @@ flattenNAryOp :: ABT Term abt
 flattenNAryOp op args =
   do es <- T.mapM flattenABT args
      case op of
-       (Sum HSemiring_Prob)  -> do maxId <- genIdent
+       (Sum HSemiring_Prob)  -> do maxId <- genIdent' "max"
                                    declare $ typeDeclaration SProb maxId
-                                   -- assign maxId (maxE es)
+                                   assign maxId (maxE es)
                                    return (varE maxId)
-       (Prod HSemiring_Prob) -> error $ "TODO: prod semiring of prob"
        _ -> return $ F.foldr (binaryOp op)
                              (S.index es 0)
                              (S.drop 1 es)
@@ -98,10 +99,11 @@ flattenLit lit =
     (LProb x) -> let rat = fromNonNegativeRational x
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
-                 in do ident <- genIdent
-                       declare $ typeDeclaration SProb ident
-                       assign ident (floatConstE x')
-                       return (varE ident)
+                 in do pId <- genIdent' "prob"
+                       declare $ typeDeclaration SProb pId
+                       assign pId $ log (floatConstE x')
+                       return (varE pId)
+
 ----------------------------------------------------------------
 
 
