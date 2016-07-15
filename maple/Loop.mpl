@@ -70,7 +70,7 @@ Loop := module ()
          ints, sums,
      # while these are "proper functions"
          mk_HArray, genLoop, unproducts, unproduct,
-         peel, split, graft, rebase;
+         peel, split, graft, rebase_lower, rebase_upper;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Ints, Sums, csgn;
@@ -327,18 +327,19 @@ Loop := module ()
     piecewise_And(rest,e,mode())
   end proc;
 
-  # Rewrite product(piecewise(i=lo,th,el),i=lo..hi)
+  # Rewrite product(piecewise(i+42=lo+42,th,el),i=lo..hi)
   # to eval(th,i=lo)*product(el,i=lo+1..hi)
   peel := proc(ee, $)
     evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
                         anyfunc(And(specfunc(piecewise),
-                                    patfunc(name=anything,anything,anything)),
+                                    patfunc(`=`,anything,anything)),
                                 name=range))',
     proc(e, $)
-      local body, x, r, make, rest;
+      local body, x, r, line, make, rest;
       body := op(1,e);
       x, r := op(op(2,e));
-      if op([1,1],body)=x and not depends(op([1,2],body),x) then
+      line := op([1,1],body) - op([1,2],body);
+      if 1 = degree(line, x) then
         if op(0,e) in {sum,Sum} then
           make := `+`;
         elif op(0,e) in {product,Product} then
@@ -351,10 +352,10 @@ Loop := module ()
         else
           rest := subsop(1=NULL,2=NULL,body);
         end if;
-        if op([1,2],body)=lhs(r) then
+        if Testzero(eval(line, x=lhs(r))) then
           return make(eval(op(2,body),x=lhs(r)),
                       subsop(1=rest, [2,2,1]=lhs(r)+1, e));
-        elif op([1,2],body)=rhs(r) then
+        elif Testzero(eval(line, x=rhs(r))) then
           return make(eval(op(2,body),x=rhs(r)),
                       subsop(1=rest, [2,2,2]=rhs(r)-1, e));
         end if
@@ -409,15 +410,30 @@ Loop := module ()
   end proc:
 
   # Normalize sum(f(i),i=2..hi) to sum(f(i+2),i=0..hi-2)
-  rebase := proc(ee, $)
+  rebase_lower := proc(ee, $)
     evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
-                        anyfunc(anything,name=Or(posint,negint)..anything))',
+                        anyfunc(anything,
+                          name=Not({0,SymbolicInfinity,undefined})..anything))',
     proc(e, $)
       subsop([2,2,1]=0,
              applyop(`-`,
                      [2,2,2],
                      applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,1],e)),
                      op([2,2,1],e)))
+    end proc)
+  end proc:
+
+  # Normalize sum(f(i),i=lo..2) to sum(f(i+2),i=lo-2..0)
+  rebase_upper := proc(ee, $)
+    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
+                        anyfunc(anything,
+                          name=anything..Not({0,SymbolicInfinity,undefined})))',
+    proc(e, $)
+      subsop([2,2,2]=0,
+             applyop(`-`,
+                     [2,2,1],
+                     applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,2],e)),
+                     op([2,2,2],e)))
     end proc)
   end proc:
 

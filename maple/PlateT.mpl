@@ -23,7 +23,7 @@ TestHakaru(ary0, ary0, label="plate roundtripping", ctx = [k::nonnegint]);
 ary1  := Bind(Gaussian(0,1), x,
          Bind(Plate(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit))), ys,
          Ret(x))):
-ary1w := 2^(-(1/2)*n+1/2)*exp((1/2)*((sum(idx(t,i),i=0..n-1))^2-(sum(idx(t,i)^2,i=0..n-1))*n-(sum(idx(t,i)^2,i=0..n-1)))/(n+1))*Pi^(-(1/2)*n)/sqrt(2+2*n):
+ary1w := 2^(-(1/2)*n+1/2)*exp(sum(idx(t,i),i=0..n-1)^2/(n+1)/2)*exp(-sum(idx(t,i)^2,i=0..n-1)/2)*Pi^(-(1/2)*n)/sqrt(2+2*n):
 TestHakaru(ary1, 
   Weight(ary1w, Gaussian((sum(idx(t, i), i = 0 .. n-1))/(n+1), 1/sqrt(n+1))),
   label="Wednesday goal", ctx = [n::nonnegint]);

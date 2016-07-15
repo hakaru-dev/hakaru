@@ -54,14 +54,14 @@ end proc:
 
 Hakaru := module ()
   option package;
-  local p_true, p_false, make_piece,
+  local p_true, p_false, make_piece, lift1_piecewiselike,
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
-         map_piecewiselike, foldr_piecewise,
+         map_piecewiselike, lift_piecewiselike, foldr_piecewise,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
          htype_patterns;
@@ -321,6 +321,21 @@ Hakaru := module ()
       idx(map(f,op(1,p),_rest), op(2,p))
     else
       error "map_piecewiselike: %1 is not t_piecewiselike", p
+    end if
+  end proc;
+
+  lift_piecewiselike := proc(e, $)
+    evalindets(e,
+      'And({`+`,`*`,`^`}, Not(specop(Not(specfunc(piecewise)),anything)))',
+      lift1_piecewiselike)
+  end proc;
+
+  lift1_piecewiselike := proc(e, $)
+    local i;
+    if membertype(t_piecewiselike, [op(e)], i) then
+      map_piecewiselike((arm->lift1_piecewiselike(subsop(i=arm,e))), op(i,e))
+    else
+      e
     end if
   end proc;
 

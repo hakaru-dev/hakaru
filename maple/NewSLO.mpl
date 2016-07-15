@@ -299,7 +299,7 @@ NewSLO := module ()
                           op(1,loop),
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(loops)),
-             x, weight(simplify_assuming(combine(rebase(graft(split(peel(`*`(op(w))))))), kb1), m)))
+             x, weight(simplify_assuming(combine(rebase_lower(combine(rebase_upper(graft(split(peel(lift_piecewiselike(`*`(op(w)))))))))), kb1), m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
