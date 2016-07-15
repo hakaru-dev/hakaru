@@ -43,7 +43,7 @@ import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
 
-import Prelude hiding (log)
+import Prelude hiding (log,exp,sqrt)
 
 flattenABT :: ABT Term abt
            => abt '[] a
@@ -76,7 +76,7 @@ flattenNAryOp op args =
   do es <- T.mapM flattenABT args
      case op of
        (Sum HSemiring_Prob)  ->
-         -- logsumexp algorithm for summing probs  
+         -- logsumexp algorithm for summing probs
          do maxId <- genIdent' "max"
             declare $ typeDeclaration SProb maxId
             -- first compute max
@@ -88,14 +88,14 @@ flattenNAryOp op args =
                                          declare $ typeDeclaration SProb diffId
                                          assign diffId (e ^- maxVar)
                                          return (varE diffId))
-  
+
             -- compute $ max + log(exp(diffs) + ...)
             sumId <- genIdent' "sum"
             declare $ typeDeclaration SProb sumId
             assign sumId $  maxVar
-                         ^+ (F.foldr (binaryOp op)
-                                     (S.index diffs 0)
-                                     (S.drop 1 diffs))
+                         ^+ (log (F.foldr (binaryOp op)
+                                          (S.index diffs 0)
+                                          (S.drop 1 diffs)))
             return (varE sumId)
 
        -- otherwise
@@ -195,6 +195,36 @@ flattenMeasureOp :: ( ABT Term abt
                  => MeasureOp typs a
                  -> SArgs abt args
                  -> CodeGen CExpr
+flattenMeasureOp Normal  = \(a :* b :* End) ->
+  let randomE = (castE doubleTyp rand)
+              ^/ (castE doubleTyp (stringVarE "RAND_MAX")) in
+  do a' <- flattenABT a
+     b' <- flattenABT b
+
+     uId <- genIdent
+     declare $ typeDeclaration SReal uId
+     let varU = varE uId
+
+     vId <- genIdent
+     declare $ typeDeclaration SReal vId
+     let varV = varE vId
+
+     rId <- genIdent
+     let varR = varE rId
+     declare $ typeDeclaration SReal rId
+
+     doWhileCG ((varR ^== (intConstE 0)) ^|| (varR ^> (intConstE 1)))
+       $ do assign uId $ randomE ^* (floatConstE 2) ^- (floatConstE 1)
+            assign vId $ randomE ^* (floatConstE 2) ^- (floatConstE 1)
+            assign rId $ (varU ^* varU) ^+ (varV ^* varV)
+
+     cId <- genIdent
+     declare $ typeDeclaration SReal cId
+     assign cId $ sqrt ((unaryE "-" (intConstE 2)) ^* (log varR ^/ varR))
+     let varC = varE cId
+
+     return (a' ^+ (varU ^* (varC ^* b')))
+
 flattenMeasureOp Uniform = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
