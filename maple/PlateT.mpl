@@ -124,7 +124,7 @@ dirichlet := proc(as)
           * piecewise(0=i, 1, 1-idx(xs,i-1)))))
 end proc:
 categorical := proc(ps)
-  Bind(Counting(0, size(ps)-1), i, Weight(idx(ps,i), Ret(i)))
+  Bind(Counting(0, size(ps)), i, Weight(idx(ps,i), Ret(i)))
 end proc:
 # The next line eta-expands CodeTools[Test] so that its arguments get evaluated
 (proc() CodeTools[Test](_passed) end proc)

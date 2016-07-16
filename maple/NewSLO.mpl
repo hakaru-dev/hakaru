@@ -20,7 +20,7 @@ end proc:
 
 NewSLO := module ()
   option package;
-  local t_pw,
+  local t_pw, t_sum, t_product,
         integrate_known, known_continuous, known_discrete,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
@@ -43,7 +43,7 @@ NewSLO := module ()
          ReparamDetermined, determined, reparam, disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global LO, Integrand, Indicator;
+  global LO, Integrand, Indicator, SumIE, ProductIE;
   uses Hakaru, KB, Loop;
 
   RoundTrip := proc(e, t::t_type)
@@ -56,7 +56,10 @@ NewSLO := module ()
   end proc;
 
   Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
-    SimplifyKB(e, t, foldr(assert, empty, op(ctx)))
+    evalindets(SimplifyKB(e, t, foldr(assert, empty, op(ctx))),
+               And({t_sum, t_product}, anyfunc(anything, anything=range)),
+               e -> subsop(0 = `if`(e::t_sum, SumIE, ProductIE),
+                           applyop(`+`, [2,2,2], e, 1)))
   end proc;
 
   SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
@@ -117,7 +120,9 @@ NewSLO := module ()
       measure(verify), _rest)
   end proc;
 
-  t_pw := 'specfunc(piecewise)';
+  t_pw      := 'specfunc(piecewise)';
+  t_sum     := 'specfunc({sum    ,Sum    ,%sum    ,%Sum    })';
+  t_product := 'specfunc({product,Product,%product,%Product})';
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
@@ -415,7 +420,7 @@ NewSLO := module ()
       if nops(s) > 0 then
         res := ary(hi+1, k, `*`(op(s)));
         if res :: 'list' and nops(convert(res,'set')) = 1 then
-          res := Recognized(Counting(lo, hi), res[1]);
+          res := Recognized(Counting(lo, hi+1), res[1]);
         else
           res := Recognized(Categorical(res), `*`(op(r)));
         end if;
@@ -424,7 +429,7 @@ NewSLO := module ()
     # fallthrough here is like recognizing Lebesgue for all continuous
     # measures.  Ultimately correct, although fairly unsatisfying.
     if res = FAIL then
-      res := Recognized(Counting(lo, hi), w);
+      res := Recognized(Counting(lo, hi+1), w);
     end if;
     map(simplify_assuming, res, kb)
   end proc;
@@ -1480,7 +1485,7 @@ NewSLO := module ()
   bounds[StudentT] := proc(nu, loc, scale, $) -infinity .. infinity end proc;
   bounds[BetaD] := proc(a, b, $) 0 .. 1 end proc;
   bounds[GammaD] := proc(shape, scale, $) 0 .. infinity end proc;
-  bounds[Counting] := `..`;
+  bounds[Counting] := proc(lo, hi, $) lo..hi-1 end proc;
   bounds[Categorical] := proc(a, $) 0 .. size(a)-1 end proc;
   bounds[NegativeBinomial] := proc(r, p, $) 0 .. infinity end proc;
   bounds[PoissonD] := proc(lambda, $) 0 .. infinity end proc;

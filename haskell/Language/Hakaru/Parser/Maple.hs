@@ -400,7 +400,7 @@ maple2AST (InertArgs Func
     Integrate x (maple2AST lo) (maple2AST hi) (maple2AST f)
 
 maple2AST (InertArgs Func
-        [ InertName "sum"
+        [ InertName "SumIE"
         , InertArgs ExpSeq
            [ f
            , InertArgs Equal
@@ -409,7 +409,7 @@ maple2AST (InertArgs Func
     Summate x (maple2AST lo) (maple2AST hi) (maple2AST f)
 
 maple2AST (InertArgs Func
-        [ InertName "product"
+        [ InertName "ProductIE"
         , InertArgs ExpSeq
            [ f
            , InertArgs Equal

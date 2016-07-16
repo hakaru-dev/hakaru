@@ -97,10 +97,10 @@ lam2 (VLam f1) v1 =
     VLam f2 -> f2
     _       -> error "lam2: the impossible happened"
 
-enumFromToValue
+enumFromUntilValue
     :: (HDiscrete a)
     -> Value a
     -> Value a
     -> [Value a]
-enumFromToValue _ (VNat lo) (VNat hi) = map VNat (enumFromTo lo hi)
-enumFromToValue _ (VInt lo) (VInt hi) = map VInt (enumFromTo lo hi)
+enumFromUntilValue _ (VNat lo) (VNat hi) = map VNat (enumFromTo lo (pred hi))
+enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (enumFromTo lo (pred hi))

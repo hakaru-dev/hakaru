@@ -133,7 +133,7 @@ TestHakaru(StudentT(nu,loc,scale), ctx=[scale>0], label = "StudentT recog.");
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = [scale>0],
   label = "StudentT(1,loc,scale) recog.");
 # discrete
-TestHakaru(Weight(1/26,Counting(17,42)), label="Discrete uniform recog.");
+TestHakaru(Weight(1/26,Counting(17,43)), label="Discrete uniform recog.");
 TestHakaru(NegativeBinomial(r,1-p-q), label="NegativeBinomial recog.");
 TestHakaru(Poisson(foo/exp(bar)), label="Poisson recog.");
 
@@ -436,13 +436,13 @@ module()
 end module:
 
 # Categorical distribution
-TestHakaru(Counting(0,10),
+TestHakaru(Counting(0,11),
            label="Counting roundtrip");
-TestHakaru(Bind(Counting(0,1),x,Weight(p^x*(1-p)^(1-x),Ret(x))),
+TestHakaru(Bind(Counting(0,2),x,Weight(p^x*(1-p)^(1-x),Ret(x))),
            Categorical([1-p,p]),
            label="Categorical introduction",
            ctx=[0<=p, p<=1]);
 TestHakaru(Bind(Categorical([p,1-p]),x,Weight(p^x*(1-p)^(1-x),Ret(x))),
-           Weight(p*(1-p),Counting(0,1)),
+           Weight(p*(1-p),Counting(0,2)),
            label="Categorical elimination",
            ctx=[0<=p, p<=1]);

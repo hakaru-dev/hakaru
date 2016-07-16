@@ -1,13 +1,13 @@
 def dirichlet(as array(prob)):
     xs <~ plate i of int2nat(size(as)-1):
-            beta(summate j from i+1 to int2nat(size(as)-1): as[j],
+            beta(summate j from i+1 to size(as): as[j],
                  as[i])
     return array i of size(as):
-             x = product j from 0 to int2nat(i-1): xs[j]
+             x = product j from 0 to i: xs[j]
              x * if i+1==size(as): 1 else: real2prob(1-xs[i])
 
 fn t array(array(nat)):
     plate k of size(t):
       ps <~ dirichlet(array i of size(t[k]): 1.0)
-      weight(product i from 0 to int2nat(size(ps)-1):
+      weight(product i from 0 to size(ps):
                ps[i]^t[k][i], return ps)

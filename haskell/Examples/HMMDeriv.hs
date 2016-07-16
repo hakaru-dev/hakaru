@@ -49,7 +49,7 @@ reflect'
 reflect' m =
     lam $ \i ->
     let v = index (Expect m) i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     superpose [(s,(categorical v))])
 
 -- Transformation #2:
@@ -65,13 +65,13 @@ reflect''
 reflect'' m = 
     lam $ \i ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     let cv = pair (categorical v)
              (lam $ \c ->
-             let_ (summate zero (fromInt (size v - one)) (index v)) $ \tot ->
+             let_ (summate zero (size v) (index v)) $ \tot ->
              if_ (zero < tot)
                 (let vv = mapWithIndex (\i' p -> p * app c i') v in
-                summate zero (fromInt (size vv - one)) (index vv) / tot)
+                summate zero (size vv) (index vv) / tot)
                 zero) in
     let pms = [(s, cv)] in
     pair (superpose [ (p, fst m') | (p, m') <- pms ])
@@ -104,13 +104,13 @@ rr a b m =
     m' =
         lam $ \k ->
         let v = index m k in
-        let s = summate zero (fromInt (size v - one)) (index v) in
+        let s = summate zero (size v) (index v) in
         let cv = pair (categorical v)
                 (lam $ \c ->
-                let_ (summate zero (fromInt (size v - one)) (index v)) $ \tot ->
+                let_ (summate zero (size v) (index v)) $ \tot ->
                 if_ (zero < tot)
                     (let vv = (mapWithIndex (\i' p -> p * app c i') v) in
-                    summate zero (fromInt (size vv - one)) (index vv) / tot)
+                    summate zero (size vv) (index vv) / tot)
                     zero) in
         pair (superpose [ (s, fst cv) ]) 
               (lam $ \c -> s * app (snd cv) c)
@@ -125,13 +125,13 @@ rr1 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     let cv = pair (categorical v)
             (lam $ \c ->
-            let_ (summate zero (fromInt (size v - one)) (index v)) $ \tot ->
+            let_ (summate zero (size v) (index v)) $ \tot ->
             if_ (zero < tot)
                 (let vv = (mapWithIndex (\i' p -> p * app c i') v) in
-                summate zero (fromInt (size vv - one)) (index vv) / tot)
+                summate zero (size vv) (index vv) / tot)
             zero) in
     app (lam $ \c -> s * app (snd cv) c)
         (lam $ \j' -> if_ (j == j') one zero)
@@ -141,12 +141,12 @@ rr2 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     let cc = lam $ \c ->
-            let_ (summate zero (fromInt (size v - one)) (index v)) $ \tot ->
+            let_ (summate zero (size v) (index v)) $ \tot ->
             if_ (zero < tot)
                 (let vv = (mapWithIndex (\i' p -> p * app c i') v) in
-                summate zero (fromInt (size vv - one)) (index vv) / tot)
+                summate zero (size vv) (index vv) / tot)
                 zero in
     s * app cc (lam $ \j' -> if_ (j == j') one zero)
 
@@ -155,13 +155,13 @@ rr3 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     let charf = lam $ \j' -> if_ (j == j') one zero in
     let rest =
-            let_ (summate zero (fromInt (size v - one)) (index v)) $ \tot ->
+            let_ (summate zero (size v) (index v)) $ \tot ->
             if_ (zero < tot)
                 (let vv = (mapWithIndex (\i' p -> p * app charf i') v) in
-                summate zero (fromInt (size vv - one)) (index vv) / tot)
+                summate zero (size vv) (index vv) / tot)
                 zero in
     s * rest
 
@@ -170,13 +170,13 @@ rr4 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     let charf = lam $ \j' -> if_ (j == j') one zero in
     let rest =
-            let_ (summate zero (fromInt (size v - one)) (index v)) $ \tot ->
+            let_ (summate zero (size v) (index v)) $ \tot ->
             if_ (zero < tot)
                 (let vv = array (size v) (\k -> index v k * app charf k) in
-                summate zero (fromInt (size vv - one)) (index vv) / tot)
+                summate zero (size vv) (index vv) / tot)
                 zero in
     s * rest
 
@@ -188,12 +188,12 @@ rr5 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     let rest =
-            let_ (summate zero (fromInt (size v - one)) (index v)) $ \tot ->
+            let_ (summate zero (size v) (index v)) $ \tot ->
             if_ (zero < tot)
                 (let vv = array (size v) $\k -> if_ (j == k) (index v k) zero in
-                summate zero (fromInt (size vv - one)) (index vv) / tot)
+                summate zero (size vv) (index vv) / tot)
                 zero in
     s * rest
 
@@ -203,9 +203,9 @@ rr6 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     let rest =
-            let_ (summate zero (fromInt (size v - one)) (index v)) $ \tot ->
+            let_ (summate zero (size v) (index v)) $ \tot ->
             if_ (zero < tot)
                 (index v j / tot)
                 zero in
@@ -218,7 +218,7 @@ rr7 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     let rest = if_ (zero < s) (index v j / s) zero in
     s * rest
 
@@ -228,7 +228,7 @@ rr8 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     if_ (zero < s) (s * index v j / s) zero
 
 -- Assumption #9: x * y / x ~~ y if x <> 0
@@ -236,7 +236,7 @@ rr9 a b m =
     array a $ \i ->
     array b $ \j ->
     let v = index m i in
-    let s = summate zero (fromInt (size v - one)) (index v) in
+    let s = summate zero (size v) (index v) in
     if_ (zero < s) (index v j) zero
 
 -- Assumption #10: Prob >= 0.  Which has for corrollary

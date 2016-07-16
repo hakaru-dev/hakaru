@@ -267,7 +267,7 @@ evaluateSCon (Summate hd hs) (e1 :* e2 :* e3 :* End) env =
                    evalOp (Sum  hs) t $
                      evaluate e3' (updateEnv (EAssoc x i) env))
                   (identityElement $ Sum hs)
-                  (enumFromToValue hd lo hi)
+                  (enumFromUntilValue hd lo hi)
     v                        -> case v of {}
 
 evaluateSCon (Product hd hs) (e1 :* e2 :* e3 :* End) env =
@@ -278,7 +278,7 @@ evaluateSCon (Product hd hs) (e1 :* e2 :* e3 :* End) env =
                    evalOp (Prod hs) t $
                      evaluate e3' (updateEnv (EAssoc x i) env))
                   (identityElement $ Prod hs)
-                  (enumFromToValue hd lo hi)
+                  (enumFromUntilValue hd lo hi)
     v                        -> case v of {}
 
 evaluateSCon s _ _ = error $ "TODO: evaluateSCon{" ++ show s ++ "}"

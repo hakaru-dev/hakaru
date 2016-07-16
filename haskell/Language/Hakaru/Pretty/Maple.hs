@@ -198,9 +198,9 @@ mapleSCon (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
         . var1 x
         . showChar '='
         . arg e1
-        . showString ".."
+        . showString "..("
         . arg e2
-        . showString ")"
+        . showString ")-1)"
 mapleSCon (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
         showString "product("
@@ -209,9 +209,9 @@ mapleSCon (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
         . var1 x
         . showChar '='
         . arg e1
-        . showString ".."
+        . showString "..("
         . arg e2
-        . showString ")"
+        . showString ")-1)"
 mapleSCon Expect = \(e1 :* e2 :* End) ->
     error "TODO: mapleSCon{Expect}"
     {-

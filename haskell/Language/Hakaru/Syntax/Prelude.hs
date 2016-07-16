@@ -1012,7 +1012,7 @@ sumV = reduce (+) zero -- equivalent to summateV if @a ~ 'HProb@
 
 summateV :: (ABT Term abt) => abt '[] ('HArray 'HProb) -> abt '[] 'HProb
 summateV x =
-    summate (nat_ 0) (unsafeMinusNat (size x) (nat_ 1))
+    summate (nat_ 0) (size x)
         (\i -> x ! i)
 
 -- TODO: a variant of 'if_' for giving us evidence that the subtraction is sound.

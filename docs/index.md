@@ -72,10 +72,11 @@ Defining and using functions
 Hakaru supports a few built-in datatypes, and offers functionality for
 taking them apart and reconstructing them.
 
-### [Arrays](/lang/arrays)
+### [Arrays and loops](/lang/arrays)
 
 We offer special support for arrays, and for probability
 distributions over arrays.
+We also express loops that compute sums and products.
 
 ## Transformations
 
