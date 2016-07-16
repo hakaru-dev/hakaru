@@ -68,7 +68,7 @@ testRelationships = test [
 
     -- If X is a standard normal random variable and U is a chi-squared random variable with v degrees of freedom,
     -- then X/sqrt(U/v) is a Student's t(v) random variable
-    "t14"   ~: testSS [t14] (lam $ \v -> student zero v),
+    "t14"   ~: testSS [t14] (lam $ \v -> studentT zero one v),
 
     "t15"   ~: testSS [t15] (lam $ \k -> lam $ \t -> gamma k t),
 

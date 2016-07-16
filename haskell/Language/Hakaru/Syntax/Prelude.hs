@@ -1559,13 +1559,14 @@ laplace loc scale =
     normal (real_ 0) (prob_ 1) >>= \z ->
     dirac $ loc + z * fromProb (scale * sqrt (prob_ 2 * v))
 
-student
+studentT
     :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HProb
+    -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HReal)
-student loc v =
-    normal loc (prob_ 1) >>= \z ->
+studentT loc scale v =
+    normal loc scale >>= \z ->
     chi2 v >>= \df ->
     dirac $ z * fromProb (sqrt (v / df))
 
