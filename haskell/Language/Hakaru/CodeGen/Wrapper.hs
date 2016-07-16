@@ -48,19 +48,19 @@ import           Data.Monoid
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST tt@(SMeasure internalT) abt) =
-  let ident         = builtinIdent "result"
-      (decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident
-                                     expr <- flattenABT abt
-                                     assign ident expr)
+  let ident           = builtinIdent "result"
+      (_,decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident
+                                       expr <- flattenABT abt
+                                       assign ident expr)
   in  unlines [ header tt
               , measureFunc (fmap (\d -> mconcat [cToString d,";"]) decls)
                             (fmap cToString stmts)
               , mainWith tt [] []]
 createProgram (TypedAST typ abt) =
-  let ident         = builtinIdent "result"
-      (decls,stmts) = runCodeGen (do declare $ typeDeclaration typ ident
-                                     expr <- flattenABT abt
-                                     assign ident expr)
+  let ident           = builtinIdent "result"
+      (_,decls,stmts) = runCodeGen (do declare $ typeDeclaration typ ident
+                                       expr <- flattenABT abt
+                                       assign ident expr)
   in  unlines [ header typ
               , mainWith typ
                          (fmap (\d -> mconcat [cToString d,";"]) decls)
@@ -73,10 +73,10 @@ createProgram (TypedAST typ abt) =
 -- | Create function will produce a C function that samples if it is a measure
 createFunction :: TypedAST (TrivialABT T.Term) -> Text
 createFunction (TypedAST tt@(SMeasure internalT) abt) =
-  let ident         = builtinIdent "result"
-      (decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident
-                                     expr <- flattenABT abt
-                                     assign ident expr)
+  let ident           = builtinIdent "result"
+      (_,decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident
+                                       expr <- flattenABT abt
+                                       assign ident expr)
   in  unlines [ header tt
               , measureFunc (fmap (\d -> mconcat [cToString d,";"]) decls)
                             (fmap cToString stmts)

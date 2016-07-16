@@ -23,13 +23,22 @@
 module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
   , runCodeGen
+
+  -- effects
   , declare
   , assign
+  , include
+  , funDef
   , putStat
+
   , genIdent
   , genIdent'
+
+  -- Hakaru specific
   , createIdent
   , lookupIdent
+
+  -- control mechanisms
   , whileCG
   , doWhileCG
   ) where
@@ -50,6 +59,7 @@ import Language.C.Syntax.AST
 
 import Data.Number.Nat (fromNat)
 import qualified Data.IntMap as IM
+import qualified Data.Set    as S
 import qualified Data.Text   as T
 
 
@@ -66,22 +76,23 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
 
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames   :: [String]
+             , functions    :: S.Set CFunDef
+             , includes     :: S.Set T.Text
              , declarations :: [CDecl]
              , statements   :: [CStat]    -- statements can include assignments as well as other side-effects
              , varEnv       :: Env      }
 
 emptyCG :: CG
-emptyCG = CG suffixes [] [] emptyEnv
-
-
+emptyCG = CG suffixes S.empty S.empty [] [] emptyEnv
 
 type CodeGen = State CG
 
-runCodeGen :: CodeGen a -> ([CDecl], [CStat])
+runCodeGen :: CodeGen a -> ([CFunDef],[CDecl], [CStat])
 runCodeGen m =
   let (_, cg) = runState m emptyCG
-  in  ( reverse $ declarations cg
-      , reverse $ statements  cg )
+  in  ( S.toList $ functions    cg
+      , reverse  $ declarations cg
+      , reverse  $ statements   cg )
 
 genIdent :: CodeGen Ident
 genIdent = do cg <- get
@@ -125,6 +136,12 @@ assign var expr =
                          node
   in  putStat assignment
 
+include :: T.Text -> CodeGen ()
+include _ = error "TODO: add includes to CodeGenMonad"
+
+funDef :: a -> CodeGen ()
+funDef _ = error "TODO: add funDef to CodeGenMonad"
+
 
 ---------
 -- ENV --
@@ -151,9 +168,9 @@ lookupVar x (Env env) = do
 ----------------------------------------------------------------
 
 whileCG :: CExpr -> CodeGen () -> CodeGen ()
-whileCG bE m = let (_,stmts) = runCodeGen m
+whileCG bE m = let (_,_,stmts) = runCodeGen m
                in putStat $ whileS bE stmts
 
 doWhileCG :: CExpr -> CodeGen () -> CodeGen ()
-doWhileCG bE m = let (_,stmts) = runCodeGen m
+doWhileCG bE m = let (_,_,stmts) = runCodeGen m
                  in putStat $ doWhileS bE stmts

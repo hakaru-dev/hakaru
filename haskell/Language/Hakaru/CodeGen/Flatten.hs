@@ -184,7 +184,11 @@ flattenPrimOp :: ( ABT Term abt
               => PrimOp typs a
               -> SArgs abt args
               -> CodeGen CExpr
-flattenPrimOp t _ = error $ "TODO: flattenPrimOp: " ++ show t
+flattenPrimOp Pi = \End -> do ident <- genIdent
+                              declare $ typeDeclaration SProb ident
+                              assign ident $ log (stringVarE "M_PI")
+                              return (varE ident)
+flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
 ----------------------------------------------------------------
 
@@ -212,6 +216,7 @@ flattenMeasureOp Normal  = \(a :* b :* End) ->
      rId <- genIdent
      let varR = varE rId
      declare $ typeDeclaration SReal rId
+
 
      doWhileCG ((varR ^== (intConstE 0)) ^|| (varR ^> (intConstE 1)))
        $ do assign uId $ randomE ^* (floatConstE 2) ^- (floatConstE 1)
