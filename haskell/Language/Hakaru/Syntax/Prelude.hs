@@ -87,7 +87,7 @@ module Language.Hakaru.Syntax.Prelude
     , chi2
     , cauchy
     , laplace
-    , student
+    , studentT
     , weibull
     , bern
     , mix
