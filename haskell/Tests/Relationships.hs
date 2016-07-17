@@ -104,12 +104,14 @@ testRelationships = test [
         gamma (a1 + a2) b),
     "t23"   ~: testSS [t23] (lam $ \n -> lam $ \t -> gamma n t),
 
-    -- Scaling property
-    "t24"   ~: testSS [t24]
-        (lam $ \a ->
-        lam $ \b ->
-        lam $ \k ->
-        weibull (a * (k ** fromProb b)) b),
+--I can't find any evidence for the truth of relationship t24. Indeed,
+--it's trivial to prove false.--Carl 2016Jul16
+--    -- Scaling property
+--    "t24"   ~: testSS [t24]
+--        (lam $ \a ->
+--        lam $ \b ->
+--        lam $ \k ->
+--        weibull (a * (k ** fromProb b)) b),
 
     -- Product property
     "t25"   ~: testSS [t25]
@@ -248,7 +250,10 @@ t18 =
     lam $ \a1 ->
     lam $\a2 ->
     normal_0_1 >>= \x ->
-    dirac (fromProb a1 * x + fromProb a2 * x)
+    normal_0_1 >>= \y
+    --dirac (fromProb a1 * x + fromProb a2 * x)
+    dirac (fromProb a1 * x + fromProb a2 * y)
+--Actually, this relation is also true if a1 < 0 and/or a2 < 0. 
 
 t19 :: (ABT Term abt)
     => abt '[] ('HInt ':-> 'HInt ':-> 'HProb ':-> 'HMeasure 'HInt)
@@ -292,14 +297,16 @@ t23 =
     exponential t >>= \x ->
     dirac (n * x)
 
-t24 :: (ABT Term abt)
-    => abt '[] ('HProb ':-> 'HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
-t24 =
-    lam $ \a ->
-    lam $ \b ->
-    lam $ \k ->
-    weibull a b >>= \x ->
-    dirac (k * x)
+--I can find no evidence for the truth of relationship t24. Indeed, it's
+--trivial to prove false,
+--t24 :: (ABT Term abt)
+--    => abt '[] ('HProb ':-> 'HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
+--t24 =
+--  lam $ \a ->
+--  lam $ \b ->
+--  lam $ \k ->
+--  weibull a b >>= \x ->
+--  dirac (k * x)
 
 t25 :: (ABT Term abt) => abt '[]
     ('HReal ':-> 'HReal ':-> 'HProb ':-> 'HProb ':-> 'HMeasure 'HReal)
