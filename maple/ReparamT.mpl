@@ -62,6 +62,19 @@ VerifyTools:-AddVerification(`&under`= ((e1,e2,Ver,f)-> verify(f(e1,_rest), e2, 
      `type/verification/MapleLibrary`
 ]):
 
+#Automatic simplifications: When an easy transformation can be used to 
+#transform a distribution that we don't support to one that we do, then a
+#procedure in this section does it. These may be moved to NewSLO.
+
+#Bernoulli
+Bern:= proc(p)
+     local i;
+     Bind(Counting(0,1), i, Weight(idx([p,1-p],i) * Ret(i)))
+end proc;
+
+#Exponential
+Exponential:= mu-> GammaD(1,mu); 
+
 #
 #   The tests 
 #
@@ -169,12 +182,19 @@ TestReparam(
 );
 
 #(t9) Bernoulli to Binomial with n=1
-#Since neither Bernoulli nor Binomial are implemented, this is difficult to 
-#test. A Bernoulli is a Categorical with two categories. Categorical is 
-#implemented.
+#Fails because Binomial isn't implemented.
+#Doesn't use reparam in a meaningful way.
+TestReparam(
+     Bern(p),
+     Binomial(1,p),
+     equal &under (fromLO, _ctx= foldr(assert, empty, 0 <= p, p <= 1)),
+     ctx= [0 <= p, p <= 1],
+     infolevels= [2,2],
+     label= "(t9) Bernoulli to Binomial with n=1 (currently failing)"
+);
 
 #(t10) Beta(1,1) to Uniform(0,1)
-#This one doesn't require `reparam`, but it passes using `reparam`. 
+#This one doesn't require reparam, but it passes using reparam. 
 TestReparam(
      #Note: No use of `Bind`. This passes by direct recognition by fromLO
      #without any meaningful use of reparam, although reparam is called. 
@@ -187,8 +207,9 @@ TestReparam(
 
 #(t11) Laplace to difference of Gammas
 #This one fails because Laplace isn't implemented. Also, there's nothing that
-#reparam can do with this.
-(*********** #Test commented out. 
+#reparam can do with this. It's up to fromLO to recognize the compound 
+#expression.
+#Perhaps this should be an automatic simplification.
 TestReparam(
      Laplace(a1,a2),
      Bind(GammaD(1,a1), x1, Bind(GammaD(1,a2), x2, Ret(x1-x2))),
@@ -197,13 +218,11 @@ TestReparam(
      infolevels= [2,2],
      label= "(t11) Laplace to difference of Gammas (currently failing)"
 );
-***********)
 
 #(t12) Sum of iid Exponentials to Gamma
-#We have no Exponential. I can represent it as Gamma.
-#This currently fails because it's two variable.
+#This currently fails because it's multivariate.
 TestReparam(
-     Bind(GammaD(1,b), x1, Bind(GammaD(1,b), x2, Ret(x1+x2))),
+     Bind(Exponential(b), x1, Bind(Exponential(b), x2, Ret(x1+x2))),
      GammaD(2,b),
      equal &under (fromLO, _ctx= foldr(assert, empty, b > 0)),
      ctx= [b > 0],
@@ -212,20 +231,18 @@ TestReparam(
 );
 
 #(t13) Weibull(1,b) to Exponential(1/b)
-#This test is wrong!!! It should be Weibull(a,1) to Exponential(1/a).
-#Since neither Weibull nor Exponential is implemented in NewSLO, there's
-#not much that I can do here.
-(*********** #Test commented out
+#This test is wrong in Relationships.hs!
+#It should be Weibull(a,1) to Exponential(1/a).
+#Fails because Weibull isn't implemented.
 TestReparam(
-     #Doesn't use reparam in any meaningful way.
+     #Straightforward recognition; doesn't use reparam in a meaningful way.
      Weibull(a,1),
-     GammaD(1, 1/a),
+     Exponential(1/a),
      equal &under (fromLO, _ctx= foldr(assert, empty, a > 0)),
      ctx= [a > 0],
      infolevels= [2,2],
      label= "(t13) Weibull(a,1) to Exponential(1/a) (currently failing)"
 );
-************)
 
 #(t14) Standard normal over sqrt(ChiSquare) to StudentT
 #Fails because ChiSquare isn't implemented.
@@ -269,3 +286,99 @@ TestReparam(
      infolevels= [2,2],
      label= "(t17) Sum of std normal and normal to normal (currently failing)"
 );
+
+#(t18) Sum of symbolic multiples of std normals to normal
+#Fails because it requires a multivariate change of vars.
+TestReparam(
+     Bind(Gaussian(0,1), x1, Bind(Gaussian(0,1), x2, Ret(a1*x1 + a2*x2))),
+     Gaussian(0, sqrt(a1^2 + a2^2)),
+     equal &under fromLO,
+     infolevels= [2,2],
+     label= 
+          "(t18) Sum of symbolic multiples of std normals to normal "
+          "(currently failing)"
+);
+
+#(t19) Sum of equiprobable binomials to binomial
+#Fails for three reasons: it's multivariate, it's discrete, and Binomial isn't
+#implemented.
+TestReparam(
+     Bind(Binomial(n1,p), x1, Bind(Binomial(n2,p), x2, Ret(x1+x2))),
+     Binomial(n1+n2, p),
+     equal &under (fromLO,
+          _ctx= foldr(
+               assert, empty, 
+               n1::integer, n1 > 0, n2::integer, n2 > 0, 0 <= p, p <= 1
+          )
+     ),
+     ctx= [n1::integer, n1 > 0, n2::integer, n2 > 0, 0 <= p, p <= 1],
+     infolevels= [2,2],
+     label=
+          "(t19) Sum of equiprobable binomials to binomial "
+          "(currently failing)"
+);
+
+#(t20) Sum of n Bernoullis to Binomial
+#Fails because Binomial isn't implemented.
+TestReparam(
+     Bind(Plate(n, i, Bern(p)), xs, Ret(sum(idx(xs,i),i=0..n-1))),
+     Binomial(n,p),
+     equal &under (fromLO,
+          _ctx= foldr(assert, empty, n::integer, n > 0, 0 <= p, p <= 1)
+     ),
+     ctx= [n::integer, n > 0, 0 <= p, p <= 1],
+     infolevels= [2,2],
+     label= "(t20) Sum of n Bernoullis to Binomial (currently failing)"
+);
+
+#(t21) Sum of Poissons to Poisson
+#Fails because reparam doesn't yet handle summations.
+TestReparam(
+     Bind(PoissonD(lambda1), x1, Bind(PoissonD(lambda2), x2, Ret(x1+x2))),
+     PoissonD(lambda1 + lambda2),
+     equal &under (fromLO,
+          _ctx= foldr(assert, empty, lambda1 > 0, lambda2 > 0)
+     ),
+     ctx= [lambda1 > 0, lambda2 > 0],
+     infolevels= [2,2],
+     label= "(t21) Sum of Poissons to Poisson (currently failing)"
+);
+
+#(t22) Sum of Gammas to Gamma
+#Fails because it's multivariate.
+TestReparam(
+     Bind(GammaD(a1,b), x1, Bind(GammaD(a2,b), x2, Ret(x1+x2))),
+     GammaD(a1+a2, b),
+     equal &under (fromLO, _ctx= foldr(assert, empty, a1 > 0, a2 > 0, b > 0)),
+     ctx= [a1 > 0, a2 > 0, a3 > 0],
+     infolevels= [2,2],
+     label= "(t22) Sum of Gammas to Gamma (currently failing)"
+);
+
+#(t23) Sum of n Exponentials to Gamma
+TestReparam(
+     Bind(Plate(n, i, Exponential(b)), xs, Ret(sum(idx(xs,i), i= 0..n-1))),
+     GammaD(n,b),
+     equal &under (fromLO, _ctx= foldr(assert, empty, n::integer, n > 0, b > 0)),
+     ctx= [n::integer, n > 0, b > 0],
+     infolevels= [2,2],
+     label= "(t23) Sum of n Exponentials to Gamma (currently failing)"
+);   
+
+#(t24) Weibull "scaling" property. 
+#I can find no evidence that this is true; indeed, it seems trivial to disprove
+#it.
+
+#(t25) Product of lognormals is lognormal
+#Fails because it's multivariate.
+TestReparam(
+     Bind(
+          Gaussian(mu1,sigma1), x1, 
+          Bind(Gaussian(mu2,sigma2), x2, Ret(exp(x1)*exp(x2)))
+     ),
+     Bind(Gaussian(mu1+mu2, sqrt(sigma1^2 + sigma2^2)), x3, Ret(exp(x3))),
+     equal &under (fromLO, _ctx= foldr(assert, empty, sigma1 > 0, sigma2 > 0)),
+     ctx= [sigma1 > 0, sigma2 > 0],
+     infolevel= [2,2],
+     label= "(t25) Product of lognormals is lognormal (currently failing)"
+); 
