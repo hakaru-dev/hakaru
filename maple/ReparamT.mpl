@@ -379,6 +379,53 @@ TestReparam(
      Bind(Gaussian(mu1+mu2, sqrt(sigma1^2 + sigma2^2)), x3, Ret(exp(x3))),
      equal &under (fromLO, _ctx= foldr(assert, empty, sigma1 > 0, sigma2 > 0)),
      ctx= [sigma1 > 0, sigma2 > 0],
-     infolevel= [2,2],
+     infolevels= [2,2],
      label= "(t25) Product of lognormals is lognormal (currently failing)"
+);
+
+#(t26) Cauchy of reciprocal to Cauchy
+#Fails due to improper handling of the discontinuity in the substitution. 
+#This should be the first reparam to fix.
+TestReparam(
+     Bind(Cauchy(0, sigma), x, Ret(1/x)),
+     Cauchy(0, 1/sigma),
+     equal &under (fromLO, _ctx= foldr(assert, empty, sigma > 0)),
+     ctx= [sigma > 0],
+     infolevels= [2,2],
+     label= "(t26) Cauchy of reciprocal to Cauchy (currently failing)"
+);
+
+#(t27) Symbolic constant multiple of Gamma to Gamma
+TestReparam(
+     Bind(GammaD(r,lambda), x, Ret(a*x)),
+     GammaD(r, a*lambda),
+     equal &under (fromLO, 
+          _ctx= foldr(assert, empty, r > 0, lambda > 0, a > 0)
+     ),
+     ctx= [r > 0, lambda > 0, a > 0],
+     infolevels= [0,2],
+     label= "(t27) Symbolic constant multiple of Gamma to Gamma" #passing
+);
+
+#(t28) Beta of 1-x to Beta
+TestReparam(
+     Bind(BetaD(a,b), x, Ret(1-x)),
+     BetaD(b,a),
+     equal &under (fromLO, _ctx= foldr(assert, empty, a > 0, b > 0)),
+     ctx= [a > 0, b > 0],
+     infolevels= [0,2],
+     label= "(t28) Beta with 1-x to Beta" #passing
 ); 
+
+#(t29) Binomial of n-x to Binomial
+#Fails because Binomial isn't implemented.
+TestReparam(
+     Bind(Binomial(n,p), x, Ret(n-x)),
+     Binomial(n, 1-p),
+     equal &under (fromLO, 
+          _ctx= foldr(assert, empty, n::integer, n > 0, 0 <= p, p <= 1)
+     ),
+     ctx= [n::integer, n > 0, 0 <= p, p <= 1],
+     infolevels= [2,2],
+     label= "(t29) Binomial of n-x to Binomial (currently failing)"
+);    

@@ -1091,7 +1091,7 @@ NewSLO := module ()
             return subsop(2= 0, e)
        end if;
 
-       #If needed, reverse limits.
+       #If needed, reverse limits. (Need to handle the case where a factor is pulled out of the integral).
        F:= evalb(op([2,2,1], J) > op([2,2,2], J));
        if F::truefalse then
             if F then

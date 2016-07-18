@@ -45,6 +45,8 @@ testRelationships = test [
 
     "t9"   ~: testSS [t9]
         (lam $ \p -> bern p >>= \x -> dirac (if_ x one zero)),
+    --Doesn't (if_ x one zero) simplify to just x?--Carl 2016Jul16
+     
 
     "t10"  ~: testSS [t10] (unsafeProb <$> uniform_0_1),
 
@@ -113,6 +115,8 @@ testRelationships = test [
 --        lam $ \k ->
 --        weibull (a * (k ** fromProb b)) b),
 
+--The next test is wrong. The log x should be exp x (or whatever the
+--exponential function is in Haskell).
     -- Product property
     "t25"   ~: testSS [t25]
         (lam $ \mu1 ->
@@ -123,6 +127,9 @@ testRelationships = test [
         dirac (log x)),
 
     -- Inverse property
+--I can't verify the relationship below. It's easy to prove false, except for
+--the case l=0, where it's true. Where did it come from? It's too complex to
+--have been entered by mistake.--Carl 2016Jul17 
     "t26"   ~: testSS [t26]
         (lam $ \l ->
         lam $ \s ->
@@ -245,6 +252,7 @@ t17 =
     normal mu sigma >>= \x2 ->
     dirac (x1 + x2)
 
+--I corrected the below. The relationship is about two rvs, not one. 
 t18 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HProb ':-> 'HMeasure 'HReal)
 t18 =
     lam $ \a1 ->
@@ -265,6 +273,9 @@ t19 =
     binomial n2 p >>= \x2 ->
     dirac (x1 + x2)
 
+--The next test is completely wrong. It's supposed to express something about
+--the sum of n iid Bernoulli rvs. That's not the same thing as n times a single
+--rv. Also, if_ x one zero simplifies to simply x.
 t20 :: (ABT Term abt) => abt '[] ('HInt ':-> 'HProb ':-> 'HMeasure 'HInt)
 t20 =
     lam $ \n ->
@@ -290,6 +301,9 @@ t22 =
     gamma a2 b >>= \x2 ->
     dirac (x1 + x2)
 
+--The next test is completely wrong. It's supposed to express something about
+--the sum of n iid Exponential rvs. That's not the same thing as n times a single
+--rv. 
 t23 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
 t23 =
     lam $ \n ->
@@ -308,6 +322,7 @@ t23 =
 --  weibull a b >>= \x ->
 --  dirac (k * x)
 
+--The next test is wrong. The logs should be exps.
 t25 :: (ABT Term abt) => abt '[]
     ('HReal ':-> 'HReal ':-> 'HProb ':-> 'HProb ':-> 'HMeasure 'HReal)
 t25 =
