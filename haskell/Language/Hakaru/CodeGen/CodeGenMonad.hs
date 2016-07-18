@@ -27,9 +27,9 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   -- effects
   , declare
   , assign
-  , include
   , funDef
   , putStat
+  , putCpp
 
   , genIdent
   , genIdent'
@@ -77,7 +77,7 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames   :: [String]
              , functions    :: S.Set CFunDef
-             , includes     :: S.Set T.Text
+             , cpp          :: S.Set T.Text
              , declarations :: [CDecl]
              , statements   :: [CStat]    -- statements can include assignments as well as other side-effects
              , varEnv       :: Env      }
@@ -136,11 +136,15 @@ assign var expr =
                          node
   in  putStat assignment
 
-include :: T.Text -> CodeGen ()
-include _ = error "TODO: add includes to CodeGenMonad"
+funDef :: CFunDef -> CodeGen ()
+funDef x = undefined
+  -- do cg <- get
+  --    put $ cg { functions = functions cg `S.union` (S.singleton x) }
 
-funDef :: a -> CodeGen ()
-funDef _ = error "TODO: add funDef to CodeGenMonad"
+putCpp :: T.Text -> CodeGen ()
+putCpp x =
+  do cg <- get
+     put $ cg { cpp = cpp cg `S.union` (S.singleton x) }
 
 
 ---------
