@@ -22,7 +22,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   ( -- math.h functions
     log1p
   , log
-  , exp1m
+  , expm1
   , exp
   , sqrt
 
@@ -84,10 +84,10 @@ rand = nullaryE "rand"
 printE :: String -> CExpr
 printE s = unaryE "printf" (stringE s)
 
-log1p,log,exp1m,exp,sqrt :: CExpr -> CExpr
+log1p,log,expm1,exp,sqrt :: CExpr -> CExpr
 log1p = unaryE "log1p"
 log   = unaryE "log"
-exp1m = unaryE "exp1m"
+expm1 = unaryE "expm1"
 exp   = unaryE "exp"
 sqrt  = unaryE "sqrt"
 
