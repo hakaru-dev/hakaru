@@ -63,7 +63,7 @@ Hakaru := module ()
          case, app, ary, idx, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
-         map_piecewiselike, lift_piecewiselike, foldr_piecewise,
+         piecewise_And, map_piecewiselike, lift_piecewiselike, foldr_piecewise,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
          htype_patterns;
@@ -305,6 +305,14 @@ Hakaru := module ()
       end if
     else
       false
+    end if
+  end proc;
+
+  piecewise_And := proc(cond::list, th, el, $)
+    if nops(cond) = 0 or th = el then
+      th
+    else
+      piecewise(And(op(cond)), th, el)
     end if
   end proc;
 

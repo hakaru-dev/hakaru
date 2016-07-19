@@ -69,7 +69,7 @@ end proc:
 
 Loop := module ()
   option package;
-  local intssums, enter_piecewise, piecewise_And, wrap,
+  local intssums, enter_piecewise, wrap,
         Binder, Stmt, t_binder, t_stmt, t_exp,
         ModuleLoad;
   export
@@ -274,14 +274,6 @@ Loop := module ()
       end if;
     end do;
     e, kb
-  end proc;
-
-  piecewise_And := proc(cond::list, th, el, $)
-    if nops(cond) = 0 or th = el then
-      th
-    else
-      piecewise(And(op(cond)), th, el)
-    end if
   end proc;
 
   wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),

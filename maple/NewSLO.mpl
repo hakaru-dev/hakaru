@@ -324,7 +324,7 @@ NewSLO := module ()
       if m :: Weight(anything, anything) then
         m := weight(simplify_assuming(op(1,m), kb), op(2,m));
       end if;
-      `if`(nops(w0)=0, m, piecewise(And(op(map2(op,1,w0))),m,Msum()))
+      piecewise_And(map2(op,1,w0), m, Msum())
     elif e :: t_pw
          and `and`(seq(not (depends(op(i,e), h)),
                        i=1..nops(e)-1, 2)) then
