@@ -7,10 +7,16 @@
   depends(pred, x minus convert(bvar, 'set'))
 end proc:
 
-`depends/Ints` := proc(body, bvar, rng, loops, x, $)
+`depends/Ints` := proc(body, bvar, rng, loops, x, y, $)
   local xx, i;
-  if depends(body, x minus {bvar}) then return true end if;
-  xx := x; # don't remove bvar from xx!
+  if nargs = 5 then
+    xx := x; # y is ununsed and x lists the variables to look for
+  else
+    xx := y; # x is some KB and y lists the variables to look for
+    if depends(x, y) then return true end if;
+  end if;
+  # don't remove bvar from xx!
+  if depends(body, xx minus {bvar}) then return true end if;
   for i from nops(loops) to 1 by -1 do
     if depends(op([i,2],loops), xx) then return true end if;
     xx := xx minus {op([i,1],loops)};
@@ -29,10 +35,11 @@ end proc:
 
 `eval/Ints` := proc(e, eqs, $)
   local body, bvar, rng, loops, n, i;
-  body, bvar, rng, loops := op(e);
+  body, bvar, rng, loops := op(1..4, e);
   bvar, body := BindingTools:-generic_evalat(bvar, body, eqs);
   eval(op(0,e), eqs)(body, bvar,
-                     BindingTools:-generic_evalatstar(rng, loops, eqs))
+                     BindingTools:-generic_evalatstar(rng, loops, eqs),
+                     op(5..-1,e))
 end proc:
 `eval/Sums` := eval(`eval/Ints`):
 `eval/ints` := eval(`eval/Ints`):
