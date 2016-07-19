@@ -100,10 +100,7 @@ Loop := module ()
     if depends(w0, x) then
       'makes'(e, x, rr, ll)
     else
-      if nops(l) > 0 then
-        try pp := convert(pp, 'piecewise', op([1,1],l)); catch: end try
-      end if;
-      w0 * foldl(product, make(pp,x=r), op(l))
+      simplify_assuming(w0 * foldl(''product'', 'make'(pp,x=r), op(l)), kb1)
     end if
   end proc;
 
@@ -145,6 +142,28 @@ Loop := module ()
       w0 := w0 * `*`(op(w2));
       # w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
     end do;
+    # Rewrite ... * piecewise(i<=kk-1, xs^2, 1)
+    #      to ... * xs ^ (2*piecewise(i<=kk-1, 1))
+    # because the latter is easier to integrate and recognize with respect to xs
+    pp := maptype(`*`,
+      proc (p)
+        local n, s, r;
+        if p :: 'And(specfunc(piecewise), anyfunc(freeof(x), anything, 1))' then
+          n := indets(op(1,p),name);
+           # not hastype(op(2,p), 'idx'('anything','dependent'(n))) then
+          if op(2,p) :: {'exp(anything)', '`^`'('freeof'(n),'anything')} then
+            s, r := selectremove(depends, convert(op([2,-1],p),'list','`*`'), n);
+            subsop(-1 = `*`(piecewise(op(1,p), `*`(op(s))), op(r)), op(2,p))
+          else
+            s, r := selectremove(depends, convert(op(2,p),'list','`*`'), n);
+            `*`(op(r)) ^ piecewise(op(1,p), 1)
+              * `if`(nops(s) > 0, piecewise(op(1,p), `*`(op(s)), 1), 1)
+          end if
+        else
+          p
+        end if
+      end proc,
+      pp);
     w0, pp
   end proc;
 
@@ -161,22 +180,19 @@ Loop := module ()
     if not depends(w, var) then
       return [wrap(heap, w, mode, kb1, kb0), 1]
     end if;
-    ind := map2(op, 2, indets(w, Hakaru:-idx(identical(var), anything)));
+    ind := map2(op, 2, indets(w, idx(identical(var), anything)));
     if nops(ind) = 1 then
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
       # So, check that "extract using indets" and "rename using eval" commute.
-      # Also, make sure the indexing isn't guarded by a piecewise.
       s := indets(ind, 'name');
       s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
-      if indets(eval(w, s), Hakaru:-idx(identical(var), anything))
-                = {Hakaru:-idx(var, eval(ind, s))}
-         and not hastype(w, And('specfunc(piecewise)',
-                                dependent({var} union map(lhs, s)))) then
+      if indets(eval(w, s), idx(identical(var), anything))
+                = {idx(var, eval(ind, s))} then
         kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
-        res := subs(Hakaru:-idx(var,ind) = Hakaru:-idx(var,lhs(loop)), w);
+        res := subs(idx(var,ind) = idx(var,lhs(loop)), w);
         res := wrap(heap, res, mode, kb, kb0);
-        res := subs(Hakaru:-idx(var,lhs(loop))=dummy, res);
+        res := subs(idx(var,lhs(loop))=dummy, res);
         if not depends(res, var) then
           return [1, subs(dummy=var, res)]
         end if
@@ -332,33 +348,63 @@ Loop := module ()
   peel := proc(ee, $)
     evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
                         anyfunc(And(specfunc(piecewise),
-                                    patfunc(`=`,anything,anything)),
+                                    patfunc({`=`,`<`,`<=`},anything,anything)),
                                 name=range))',
     proc(e, $)
-      local body, x, r, line, make, rest;
+      local body, x, r, line, test, make, here, rest, res;
       body := op(1,e);
       x, r := op(op(2,e));
       line := op([1,1],body) - op([1,2],body);
       if 1 = degree(line, x) then
+        if op(1,body) :: `=`  then
+          test := proc (y,z,$)
+            if Testzero(eval(line, x=y)) then true
+            else FAIL end if
+          end proc;
+        elif op(1,body) :: `<` then
+          test := proc (y,z,$)
+            local l;
+            l := [eval(line, x=y), eval(line, x=z)];
+            if   l :: [negative, nonnegative] then true
+            elif l :: [nonnegative, negative] then false
+            else FAIL end if
+          end proc;
+        elif op(1,body) :: `<=` then
+          test := proc (y,z,$)
+            local l;
+            l := [eval(line, x=y), eval(line, x=z)];
+            if   l :: [nonpositive, positive] then true
+            elif l :: [positive, nonpositive] then false
+            else FAIL end if
+          end proc;
+        end if;
         if op(0,e) in {sum,Sum} then
           make := `+`;
         elif op(0,e) in {product,Product} then
           make := `*`;
         end if;
+        here := op(2,body);
         if nops(body)=2 then
           rest := 0;
         elif nops(body)=3 then
           rest := op(3,body);
+        elif {op([1,0],body) , op([3,0],body)} = {`<`, `<=`}
+          and op([1,1],body) = op([3,2],body)
+          and op([1,2],body) = op([3,1],body) then
+          rest := op(4,body);
         else
           rest := subsop(1=NULL,2=NULL,body);
         end if;
-        if Testzero(eval(line, x=lhs(r))) then
-          return make(eval(op(2,body),x=lhs(r)),
-                      subsop(1=rest, [2,2,1]=lhs(r)+1, e));
-        elif Testzero(eval(line, x=rhs(r))) then
-          return make(eval(op(2,body),x=rhs(r)),
-                      subsop(1=rest, [2,2,2]=rhs(r)-1, e));
-        end if
+        res := test(lhs(r), lhs(r)+1);
+        if res <> FAIL then
+          return make(eval(`if`(res, here, rest), x=lhs(r)),
+                      subsop(1 = `if`(res, rest, here), [2,2,1]=lhs(r)+1, e));
+        end if;
+        res := test(rhs(r), rhs(r)-1);
+        if res <> FAIL then
+          return make(eval(`if`(res, here, rest), x=rhs(r)),
+                      subsop(1 = `if`(res, rest, here), [2,2,2]=rhs(r)-1, e));
+        end if;
       end if;
       e
     end proc);

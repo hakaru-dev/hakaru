@@ -76,27 +76,32 @@ flattenNAryOp op args =
   do es <- T.mapM flattenABT args
      case op of
        (Sum HSemiring_Prob)  ->
-         -- logsumexp algorithm for summing probs
-         do maxId <- genIdent' "max"
-            declare $ typeDeclaration SProb maxId
-            -- first compute max
-            assign maxId (maxE es)
-            let maxVar = varE maxId
+         do ident <- genIdent
+            declare $ typeDeclaration SProb ident
+            assign ident $ logSumExp es
+            return (varE ident)
 
-            -- compute diffs between max
-            diffs <- T.forM es (\e -> do diffId <- genIdent' "dif"
-                                         declare $ typeDeclaration SProb diffId
-                                         assign diffId (e ^- maxVar)
-                                         return (varE diffId))
+         -- -- logsumexp algorithm for summing probs
+         -- do maxId <- genIdent' "max"
+         --    declare $ typeDeclaration SProb maxId
+         --    -- first compute max
+         --    assign maxId (maxE es)
+         --    let maxVar = varE maxId
 
-            -- compute $ max + log(exp(diffs) + ...)
-            sumId <- genIdent' "sum"
-            declare $ typeDeclaration SProb sumId
-            assign sumId $  maxVar
-                         ^+ (log (F.foldr (binaryOp op)
-                                          (S.index diffs 0)
-                                          (S.drop 1 diffs)))
-            return (varE sumId)
+         --    -- compute diffs between max
+         --    diffs <- T.forM es (\e -> do diffId <- genIdent' "dif"
+         --                                 declare $ typeDeclaration SProb diffId
+         --                                 assign diffId (e ^- maxVar)
+         --                                 return (varE diffId))
+
+         --    -- compute $ max + log(exp(diffs) + ...)
+         --    sumId <- genIdent' "sum"
+         --    declare $ typeDeclaration SProb sumId
+         --    assign sumId $  maxVar
+         --                 ^+ (log (F.foldr (binaryOp op)
+         --                                  (S.index diffs 0)
+         --                                  (S.drop 1 diffs)))
+         --    return (varE sumId)
 
        -- otherwise
        _ -> return $ F.foldr (binaryOp op)
@@ -106,6 +111,12 @@ flattenNAryOp op args =
 maxE :: S.Seq CExpr -> CExpr
 maxE es = F.foldr check (S.index es 0) (S.drop 1 es)
   where check a b = condE (a ^> b) a b
+
+logSumExp :: S.Seq CExpr -> CExpr
+logSumExp es = F.foldr f (S.index es 0) (S.drop 1 es)
+  where f a b = condE (a ^> b)
+                      (a ^+ (log1p (exp (b ^- a))))
+                      (b ^+ (log1p (exp (a ^- b))))
 
 ----------------------------------------------------------------
 
@@ -121,7 +132,7 @@ flattenLit lit =
                          / (fromIntegral $ denominator rat)
                  in do pId <- genIdent' "p"
                        declare $ typeDeclaration SProb pId
-                       assign pId $ log (floatConstE x')
+                       assign pId $ log1p (floatConstE x' ^- intConstE 1)
                        return (varE pId)
 
 ----------------------------------------------------------------

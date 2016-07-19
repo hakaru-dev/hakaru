@@ -170,15 +170,20 @@ KB := module ()
           end if
         else
           # Try to make b about x using convert/piecewise.
-          try
-            c := 'piecewise'(chill(b), true, false);
-            c := convert(c, 'piecewise', x) assuming op(as);
+          c := 'piecewise'(chill(b), true, false);
+          if not hastype(c, And(name, Not(identical(x)), dependent(x)))
+             # Avoid bug in convert/piecewise:
+             # > convert(piecewise(i<=size[idx[a,i]]-2,true,false),piecewise,i);
+             # Error, (in unknown) too many levels of recursion
+          then
+            try
+              c := convert(c, 'piecewise', x) assuming op(as);
+            catch: c := FAIL end try;
             if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
               c := foldr_piecewise(boolean_if, false, warm(c));
               if c <> b then return assert_deny(c, pol, kb) end if
             end if
-          catch:
-          end try;
+          end if
         end if
       end if;
       # Normalize `=` and `<>` constraints a bit.
