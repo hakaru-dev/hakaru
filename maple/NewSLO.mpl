@@ -669,6 +669,8 @@ NewSLO := module ()
       end if;
       reduce_IntsSums(op(0,e), reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
+    elif e :: 'applyintegrand(anything, anything)' then
+      map(simplify_assuming, e, kb)
     elif e :: `+` then
       map(reduce, e, h, kb)
     elif e :: `*` then
@@ -909,7 +911,16 @@ NewSLO := module ()
   end proc;
 
   banish_guard := proc(make, cond, $)
-    proc(kb,g,$) make(kb, piecewise(cond,g,0)) end proc
+    if cond :: 'And(specfunc(Not), anyfunc(anything))' then
+      # Work around simplify/piecewise bug:
+      #   > simplify(piecewise(Not(i=0), 1, 0))
+      #   a
+      # (due to PiecewiseTools:-ImportImplementation:-UseSolve calling
+      # solve(Not(i=0), {i}, 'AllSolutions', 'SolveOverReals'))
+      proc(kb,g,$) make(kb, piecewise(op(1,cond),0,g)) end proc
+    else
+      proc(kb,g,$) make(kb, piecewise(cond,g,0)) end proc
+    end if
   end proc;
 
   banish_weight := proc(make, w, $)
@@ -1528,7 +1539,8 @@ NewSLO := module ()
     prev := kernelopts(opaquemodules=false);
     try
       PiecewiseTools:-InertFunctions := PiecewiseTools:-InertFunctions
-        union '{Integrand,LO,lam,Branch,Bind,ary,
+        union '{# Do not lift piecewise over a binder
+                Integrand,LO,lam,Branch,Bind,ary,Plate,
                 forall,Ints,Sums,ints,sums,`..`}';
     finally
       kernelopts(opaquemodules=prev);
