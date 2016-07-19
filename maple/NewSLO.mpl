@@ -731,6 +731,22 @@ NewSLO := module ()
     else # op(1,new_rng) = genLet
       if mk=Int then return 0 else make := eval; new_rng := op(3,new_rng) end if
     end if;
+    # Rewrite ... * idx([p,1-p],var)
+    #      to ... * p^idx([1,0],var) * (1-p)^idx([0,1],var)
+    # because the latter is easier to integrate and recognize with respect to p
+    e := maptype(`*`,
+                 proc (f)
+                   local n, i, j;
+                   if f :: idx(list, dependent(var)) then
+                     n := nops(op(1,f));
+                     mul(op([1,i],f) ^ idx([seq(`if`(j=i,1,0), j=1..n)],
+                                           op(2,f)),
+                         i=1..n)
+                   else
+                     f
+                   end if
+                 end proc,
+                 e);
     e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
                          Indicator(op(2,a))
                        end proc,
