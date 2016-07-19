@@ -130,12 +130,13 @@ TestReparam(
 ):
 
 #(t3) Symbolic constant multiple with Gamma
+#Fails because the result is correctly recognized as ChiSquared.
 TestReparam(
      Bind(GammaD(alpha,beta), x, Ret(2*x/beta)),
      GammaD(alpha, 2),
      equal &under (fromLO, _ctx= foldr(assert, empty, alpha > 0, beta > 0)),
      ctx= [alpha > 0, beta > 0],
-     label= "(t3) Symbolic constant multiple with Gamma" #passing
+     label= "(t3) Symbolic constant multiple with Gamma (currently failing)"
 ):
 
 #(t4) Two-variable LFT with Gamma
@@ -163,6 +164,7 @@ TestReparam(
 #implemented yet.
 
 #(t7) Quotient of standard normals to standard Cauchy
+#Fails because it's multivariate.
 #This should be the first multivariate integration to implement, due to
 #simplicity; it might work as a simple multivariate substitution.
 TestReparam(
@@ -177,6 +179,7 @@ TestReparam(
 
 #(t8) Affine translation of quotient of standard normals to Cauchy
 #This is a trivial variation of t7.
+#Fails because it's multivariate.
 TestReparam(
      Bind(Gaussian(0,1), x1, Bind(Gaussian(0,1), x2, Ret(a+alpha*x1/x2))),
      Cauchy(a,alpha),
@@ -251,7 +254,7 @@ TestReparam(
 ):
 
 #(t14) Standard normal over sqrt(ChiSquared) to StudentT
-#Fails because ChiSquared isn't implemented.
+#Fails because it's multivariate.
 TestReparam(
      Bind(Gaussian(0,1), x, Bind(ChiSquared(nu), y, Ret(x/sqrt(y/nu)))),
      StudentT(nu, 0, 1),
@@ -362,6 +365,7 @@ TestReparam(
 ):
 
 #(t23) Sum of n Exponentials to Gamma
+#Fails because it involves a Plate.
 TestReparam(
      Bind(Plate(n, i, Exponential(b)), xs, Ret(sum(idx(xs,i), i= 0..n-1))),
      GammaD(n,b),
@@ -431,4 +435,38 @@ TestReparam(
      ctx= [n::integer, n > 0, 0 <= p, p <= 1],
      infolevels= [2,2],
      label= "(t29) Binomial of n-x to Binomial (currently failing)"
-): 
+):
+
+#(t30) Square of std normal to ChiSquared(1)
+#Fails due to non-invertibility of substitution u= x^2.
+TestReparam(
+     Bind(Gaussian(0,1), x, Ret(x^2)),
+     ChiSquared(1),
+     equal &under fromLO,
+     infolevels= [infinity$2],
+     label= "(t30) Square of std normal to ChiSquared(1) (currently failing)"
+):
+
+#(t31) Sum of squares of n iid std normals to ChiSquared(n)
+#Fails because it involves a Plate.
+TestReparam(
+     Bind(Plate(n, i, Gaussian(0,1)), xs, Ret(sum(idx(xs,i)^2, i= 0..n-1))),
+     ChiSquared(n),
+     equal &under (fromLO, _ctx= foldr(assert, empty, n::integer, n > 0)),
+     ctx= [n::integer, n > 0],
+     infolevels= [2,2],
+     label= 
+          "(t31) Sum of squares of n iid std normals to ChiSquared(n) "
+          "(currently failing)"
+):
+
+#(t32) Sum of ChiSquareds is ChiSquared
+#Fails because it's multivariate.
+TestReparam(
+     Bind(ChiSquared(k1), x1, Bind(ChiSquared(k2), x2, Ret(x1+x2))),
+     ChiSquared(k1+k2),
+     equal &under (fromLO, _ctx= foldr(assert, empty, k1 > 0, k2 > 0)),
+     ctx= [k1 > 0, k2 > 0],
+     infolevels= [infinity$2],
+     label= "(t31) Sum of ChiSquareds is ChiSquared (currently failing)"
+):
