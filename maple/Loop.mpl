@@ -100,10 +100,7 @@ Loop := module ()
     if depends(w0, x) then
       'makes'(e, x, rr, ll)
     else
-      if nops(l) > 0 then
-        try pp := convert(pp, 'piecewise', op([1,1],l)); catch: end try
-      end if;
-      w0 * foldl(product, make(pp,x=r), op(l))
+      simplify_assuming(w0 * foldl(''product'', 'make'(pp,x=r), op(l)), kb1)
     end if
   end proc;
 
