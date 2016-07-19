@@ -70,10 +70,10 @@ VerifyTools:-AddVerification(`&under`= ((e1,e2,Ver,f)-> verify(f(e1,_rest), e2, 
 Bern:= proc(p)
      local i;
      Bind(Counting(0,1), i, Weight(idx([p,1-p],i) * Ret(i)))
-end proc;
+end proc:
 
 #Exponential
-Exponential:= mu-> GammaD(1,mu); 
+Exponential:= mu-> GammaD(1,mu): 
 
 #
 #   The tests 
@@ -428,4 +428,4 @@ TestReparam(
      ctx= [n::integer, n > 0, 0 <= p, p <= 1],
      infolevels= [2,2],
      label= "(t29) Binomial of n-x to Binomial (currently failing)"
-);    
+); 
