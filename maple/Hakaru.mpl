@@ -21,6 +21,7 @@ end proc:
 `depends/ary` := proc(n, i::name, e, x, $)
   depends(n, x) or depends(e, x minus {i})
 end proc:
+`depends/Plate` := eval(`depends/ary`):
 
 `eval/lam` := proc(e, eqs, $)
   local v, t, ee;
@@ -49,6 +50,7 @@ end proc:
   n, i, ee := op(e);
   eval(op(0,e), eqs)(eval(n, eqs), BindingTools:-generic_evalat(i, ee, eqs))
 end proc:
+`eval/Plate` := eval(`eval/ary`):
 
 #############################################################################
 

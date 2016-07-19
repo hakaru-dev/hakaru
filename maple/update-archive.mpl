@@ -14,10 +14,12 @@ LibraryTools:-Save(`depends/lam`, lib):
 LibraryTools:-Save(`depends/Branch`, lib):
 LibraryTools:-Save(`depends/Bind`, lib):
 LibraryTools:-Save(`depends/ary`, lib):
+LibraryTools:-Save(`depends/Plate`, lib):
 LibraryTools:-Save(`eval/lam`, lib):
 LibraryTools:-Save(`eval/Branch`, lib):
 LibraryTools:-Save(`eval/Bind`, lib):
 LibraryTools:-Save(`eval/ary`, lib):
+LibraryTools:-Save(`eval/Plate`, lib):
 LibraryTools:-Save('Hakaru', lib):
 LibraryTools:-Save('KB', lib):
 LibraryTools:-Save(`depends/forall`, lib):
