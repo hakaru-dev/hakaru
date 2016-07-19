@@ -911,7 +911,16 @@ NewSLO := module ()
   end proc;
 
   banish_guard := proc(make, cond, $)
-    proc(kb,g,$) make(kb, piecewise(cond,g,0)) end proc
+    if cond :: 'And(specfunc(Not), anyfunc(anything))' then
+      # Work around simplify/piecewise bug:
+      #   > simplify(piecewise(Not(i=0), 1, 0))
+      #   a
+      # (due to PiecewiseTools:-ImportImplementation:-UseSolve calling
+      # solve(Not(i=0), {i}, 'AllSolutions', 'SolveOverReals'))
+      proc(kb,g,$) make(kb, piecewise(op(1,cond),0,g)) end proc
+    else
+      proc(kb,g,$) make(kb, piecewise(cond,g,0)) end proc
+    end if
   end proc;
 
   banish_weight := proc(make, w, $)
