@@ -1,0 +1,5 @@
+(x <~ normal(0,1)
+ return (left(x). either(real,pair(real,real)), ())) <|>
+(x <~ normal(0,1)
+ y <~ normal(x,1)
+ return (right((x, y)). either(real, pair(real,real)), ()))
