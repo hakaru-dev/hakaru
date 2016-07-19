@@ -234,7 +234,7 @@ NewSLO := module ()
   known_continuous := '{
     Lebesgue(anything, anything), Uniform(anything, anything),
     Gaussian(anything, anything), Cauchy(anything, anything),
-    StudentT(anything, anything, anything),
+    StudentT(anything, anything, anything), ChiSquared(anything),
     BetaD(anything, anything), GammaD(anything, anything)}':
 
   known_discrete := '{Counting(anything, anything),
@@ -538,7 +538,11 @@ NewSLO := module ()
     elif lo = 0 and hi = infinity
          and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
          and ispoly(normal(a0*var/a1), 'linear', var, 'b0', 'b1') then
-      dist := GammaD(1-b0, 1/b1)
+      if Testzero(b1-1/2) then
+        dist := ChiSquared(2*(1-b0))
+      else
+        dist := GammaD(1-b0, 1/b1)
+      end if;
     end if;
     if dist <> FAIL then
       try
@@ -1477,6 +1481,9 @@ NewSLO := module ()
   density[PoissonD] := proc(lambda, $) proc(k,$)
     lambda^k/exp(lambda)/k!
   end proc end proc;
+  density[ChiSquared] := proc(k, $) proc(x,$)
+    x^((1/2)*k-1)*exp(-(1/2)*x)/(2^((1/2)*k)*GAMMA((1/2)*k))
+  end proc end proc:
 
   bounds[Lebesgue] := `..`;
   bounds[Uniform] := proc(a, b, $) a .. b end proc;
@@ -1489,6 +1496,7 @@ NewSLO := module ()
   bounds[Categorical] := proc(a, $) 0 .. size(a)-1 end proc;
   bounds[NegativeBinomial] := proc(r, p, $) 0 .. infinity end proc;
   bounds[PoissonD] := proc(lambda, $) 0 .. infinity end proc;
+  bounds[ChiSquared] := proc(k, $) 0 .. infinity end proc;
 
   mk_sym := proc(var :: name, h, $)
     local x;

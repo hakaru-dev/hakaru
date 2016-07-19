@@ -22,16 +22,22 @@ TestReparam:= proc(
      e_out,   #Expected output, after postprocessing by `verify` and `&under`
      #`verification` is slightly modified (below) from its standard definition.
      # &under is defined below.
-     ver::verification, 
+     ver::verification,
      #First infolevel is for initial test; second is for retest after failure.
      {infolevels::[{nonnegint,identical(infinity)},{nonnegint, identical(infinity)}]:= [0,infinity]},
      {ctx::list:= []} #Assumptions (not necessarily to be passed to `assuming`)
-          
+
 )
-local 
+local
      LOform:= toLO(e_in)  #preprocessed input
-;    
-     printf("\n");  #It reads better when the test results have a blank line between them.
+;
+     # comment this out as for 'production' runs, we want things to be as quiet
+     # as possible.  We would like to do
+     # maple -q < ReparamT.mpl | grep -v "passed"
+     # and get 0 lines of output.
+     # A "pretty" option might be good, to re-enable this for human consumption.
+     # printf("\n");  # It reads better when the test results have a blank line between them.
+
      :-infolevel[reparam]:= infolevels[1];
      if not CodeTools:-Test(reparam(LOform, :-ctx= ctx), e_out, ver, boolout, _rest) then
           #If test fails, do same test with diagnostic infolevel setting.
@@ -42,7 +48,7 @@ local
                return false
           end if
      else
-          return 
+          return
      end if
 end proc:
 
@@ -62,7 +68,7 @@ VerifyTools:-AddVerification(`&under`= ((e1,e2,Ver,f)-> verify(f(e1,_rest), e2, 
      `type/verification/MapleLibrary`
 ]):
 
-#Automatic simplifications: When an easy transformation can be used to 
+#Automatic simplifications: When an easy transformation can be used to
 #transform a distribution that we don't support to one that we do, then a
 #procedure in this section does it. These may be moved to NewSLO.
 
@@ -70,13 +76,13 @@ VerifyTools:-AddVerification(`&under`= ((e1,e2,Ver,f)-> verify(f(e1,_rest), e2, 
 Bern:= proc(p)
      local i;
      Bind(Counting(0,1), i, Weight(idx([p,1-p],i) * Ret(i)))
-end proc;
+end proc:
 
 #Exponential
-Exponential:= mu-> GammaD(1,mu); 
+Exponential:= mu-> GammaD(1,mu):
 
 #
-#   The tests 
+#   The tests
 #
 
 #Constant multiple in integral
@@ -86,7 +92,7 @@ TestReparam(
      equal &under fromLO,
      infolevels= [infinity$2],
      label= "(t0a) Constant multiple with Lebesgue" #passing
-);
+):
 
 #Logarithm with Uniform
 TestReparam(
@@ -95,7 +101,7 @@ TestReparam(
      equal &under fromLO,
      infolevels= [infinity$2],
      label= "(t0b) Logarithm with Uniform" #passing
-);
+):
 
 #(t1) Symbolic affine transformation with Gaussian
 TestReparam(
@@ -105,20 +111,21 @@ TestReparam(
      ctx= [sigma > 0],
      infolevels= [infinity$2],
      label= "(t1) Symbolic affine transformation with Gaussian" #passing
-);
+):
 
-#(t2) ChiSquare with constant multiplier to Gamma
-#This fails due to ChiSquare not being implemented yet.
+#(t2) [inverse of in Relationship]
+# Special case of Gamma now recognized as being ChiSquared
+#This fails due to ChiSquared not being implemented yet.
 TestReparam(
-     ChiSquare(2*b),
      GammaD(b,2),
+     ChiSquared(2*b),
      equal &under (fromLO, _ctx= foldr(assert, empty, b > 0)),
      ctx= [b > 0],
      infolevels= [2,2],
-     label= 
-          "(t2) ChiSquare with constant multiplier to Gamma "
+     label=
+          "(t2) ChiSquared with constant multiplier to Gamma "
           "(currently failing)"
-);
+):
 
 #(t3) Symbolic constant multiple with Gamma
 TestReparam(
@@ -128,17 +135,17 @@ TestReparam(
      ctx= [alpha > 0, beta > 0],
      infolevels= [infinity$2],
      label= "(t3) Symbolic constant multiple with Gamma" #passing
-);
+):
 
 #(t4) Two-variable LFT with Gamma
 #This fails due to multivariate changes of variable not being implemented yet.
 TestReparam(
      Bind(GammaD(a,t), x1, Bind(GammaD(b,t), x2, Ret(x1/(x1+x2)))),
-     BetaD(a,b), 
+     BetaD(a,b),
      equal &under fromLO,
      infolevels= [infinity$2],
      label= "(t4) Two-variable LFT with Gamma (currently failing)"
-);
+):
 
 #(t5) Logarithm with symbolic constant multiplier and Uniform
 TestReparam(
@@ -149,24 +156,24 @@ TestReparam(
      infolevels= [infinity$2],
      label= "(t5) Logarithm with symbolic constant multiplier and Uniform"
      #passing
-);
+):
 
 #(t6) Poisson(mu) -> ? as mu -> infinity
 #The concept of taking the limit at infinity of a distribution parameter isn't
 #implemented yet.
 
 #(t7) Quotient of standard normals to standard Cauchy
-#This should be the first multivariate integration to implement, due to 
+#This should be the first multivariate integration to implement, due to
 #simplicity; it might work as a simple multivariate substitution.
 TestReparam(
      Bind(Gaussian(0,1), x1, Bind(Gaussian(0,1), x2, Ret(x1/x2))),
      Cauchy(0,1),
      equal &under fromLO,
      infolevels= [2,2],
-     label= 
+     label=
           "(t7) Quotient of standard normals to standard Cauchy "
           "(currently failing)"
-);
+):
 
 #(t8) Affine translation of quotient of standard normals to Cauchy
 #This is a trivial variation of t7.
@@ -176,10 +183,10 @@ TestReparam(
      equal &under (fromLO, _ctx= foldr(assert, empty, alpha > 0)),
      ctx= [alpha > 0],
      infolevels= [2,2],
-     label= 
+     label=
           "(t8) Affine translation of quotient of standard normals to Cauchy "
           "(currently failing)"
-);
+):
 
 #(t9) Bernoulli to Binomial with n=1
 #Fails because Binomial isn't implemented.
@@ -191,23 +198,23 @@ TestReparam(
      ctx= [0 <= p, p <= 1],
      infolevels= [2,2],
      label= "(t9) Bernoulli to Binomial with n=1 (currently failing)"
-);
+):
 
 #(t10) Beta(1,1) to Uniform(0,1)
-#This one doesn't require reparam, but it passes using reparam. 
+#This one doesn't require reparam, but it passes using reparam.
 TestReparam(
      #Note: No use of `Bind`. This passes by direct recognition by fromLO
-     #without any meaningful use of reparam, although reparam is called. 
+     #without any meaningful use of reparam, although reparam is called.
      BetaD(1,1),
      Uniform(0,1),
      equal &under fromLO,
      infolevels= [0,2],
      label= "(t10) Beta(1,1) to Uniform(0,1)" #passing
-);
+):
 
 #(t11) Laplace to difference of Gammas
 #This one fails because Laplace isn't implemented. Also, there's nothing that
-#reparam can do with this. It's up to fromLO to recognize the compound 
+#reparam can do with this. It's up to fromLO to recognize the compound
 #expression.
 #Perhaps this should be an automatic simplification.
 TestReparam(
@@ -217,7 +224,7 @@ TestReparam(
      ctx= [a1 > 0, a2 > 0],
      infolevels= [2,2],
      label= "(t11) Laplace to difference of Gammas (currently failing)"
-);
+):
 
 #(t12) Sum of iid Exponentials to Gamma
 #This currently fails because it's multivariate.
@@ -228,7 +235,7 @@ TestReparam(
      ctx= [b > 0],
      infolevels= [2,2],
      label= "(t12) Sum of iid Exponentials to Gamma (currently failing)"
-);
+):
 
 #(t13) Weibull(1,b) to Exponential(1/b)
 #This test is wrong in Relationships.hs!
@@ -242,18 +249,18 @@ TestReparam(
      ctx= [a > 0],
      infolevels= [2,2],
      label= "(t13) Weibull(a,1) to Exponential(1/a) (currently failing)"
-);
+):
 
-#(t14) Standard normal over sqrt(ChiSquare) to StudentT
-#Fails because ChiSquare isn't implemented.
+#(t14) Standard normal over sqrt(ChiSquared) to StudentT
+#Fails because ChiSquared isn't implemented.
 TestReparam(
-     Bind(Gaussian(0,1), x, Bind(ChiSquare(nu), y, Ret(x/sqrt(y/nu)))),
+     Bind(Gaussian(0,1), x, Bind(ChiSquared(nu), y, Ret(x/sqrt(y/nu)))),
      StudentT(nu, 0, 1),
      equal &under (fromLO, _ctx= foldr(assert, empty, nu > 0)),
      ctx= [nu > 0],
      infolevels= [2,2],
      label= "(t14) Std normal over sqrt(Chi2) to StudentT (currently failing)"
-);
+):
 
 #(t15) 1/InverseGamma(k,1/t) to GammaD(k,t)
 #Fails because InverseGamma isn't implemented.
@@ -264,7 +271,7 @@ TestReparam(
      ctx= [k > 0, t > 0],
      infolevels= [2,2],
      label= "(t15) 1/InverseGammaD(k,1/t) to GammaD(k,t) (currently failing)"
-);
+):
 
 #(t16) Sum of std normals to normal(0,sqrt(2))
 #Fails because it requires a multivariate change of vars.
@@ -274,7 +281,7 @@ TestReparam(
      equal &under fromLO,
      infolevels= [2,2],
      label= "(t16) Sum of std normals to normal(0,sqrt(2)) (currently failing)"
-);  
+):
 
 #(t17) Sum of std normal and normal to normal
 #Fails because it requires a multivariate change of vars.
@@ -285,7 +292,7 @@ TestReparam(
      ctx= [sigma > 0],
      infolevels= [2,2],
      label= "(t17) Sum of std normal and normal to normal (currently failing)"
-);
+):
 
 #(t18) Sum of symbolic multiples of std normals to normal
 #Fails because it requires a multivariate change of vars.
@@ -294,10 +301,10 @@ TestReparam(
      Gaussian(0, sqrt(a1^2 + a2^2)),
      equal &under fromLO,
      infolevels= [2,2],
-     label= 
+     label=
           "(t18) Sum of symbolic multiples of std normals to normal "
           "(currently failing)"
-);
+):
 
 #(t19) Sum of equiprobable binomials to binomial
 #Fails for three reasons: it's multivariate, it's discrete, and Binomial isn't
@@ -307,7 +314,7 @@ TestReparam(
      Binomial(n1+n2, p),
      equal &under (fromLO,
           _ctx= foldr(
-               assert, empty, 
+               assert, empty,
                n1::integer, n1 > 0, n2::integer, n2 > 0, 0 <= p, p <= 1
           )
      ),
@@ -316,7 +323,7 @@ TestReparam(
      label=
           "(t19) Sum of equiprobable binomials to binomial "
           "(currently failing)"
-);
+):
 
 #(t20) Sum of n Bernoullis to Binomial
 #Fails because Binomial isn't implemented.
@@ -329,7 +336,7 @@ TestReparam(
      ctx= [n::integer, n > 0, 0 <= p, p <= 1],
      infolevels= [2,2],
      label= "(t20) Sum of n Bernoullis to Binomial (currently failing)"
-);
+):
 
 #(t21) Sum of Poissons to Poisson
 #Fails because reparam doesn't yet handle summations.
@@ -342,7 +349,7 @@ TestReparam(
      ctx= [lambda1 > 0, lambda2 > 0],
      infolevels= [2,2],
      label= "(t21) Sum of Poissons to Poisson (currently failing)"
-);
+):
 
 #(t22) Sum of Gammas to Gamma
 #Fails because it's multivariate.
@@ -353,7 +360,7 @@ TestReparam(
      ctx= [a1 > 0, a2 > 0, a3 > 0],
      infolevels= [2,2],
      label= "(t22) Sum of Gammas to Gamma (currently failing)"
-);
+):
 
 #(t23) Sum of n Exponentials to Gamma
 TestReparam(
@@ -363,9 +370,9 @@ TestReparam(
      ctx= [n::integer, n > 0, b > 0],
      infolevels= [2,2],
      label= "(t23) Sum of n Exponentials to Gamma (currently failing)"
-);   
+):
 
-#(t24) Weibull "scaling" property. 
+#(t24) Weibull "scaling" property.
 #I can find no evidence that this is true; indeed, it seems trivial to disprove
 #it.
 
@@ -373,7 +380,7 @@ TestReparam(
 #Fails because it's multivariate.
 TestReparam(
      Bind(
-          Gaussian(mu1,sigma1), x1, 
+          Gaussian(mu1,sigma1), x1,
           Bind(Gaussian(mu2,sigma2), x2, Ret(exp(x1)*exp(x2)))
      ),
      Bind(Gaussian(mu1+mu2, sqrt(sigma1^2 + sigma2^2)), x3, Ret(exp(x3))),
@@ -381,10 +388,10 @@ TestReparam(
      ctx= [sigma1 > 0, sigma2 > 0],
      infolevels= [2,2],
      label= "(t25) Product of lognormals is lognormal (currently failing)"
-);
+):
 
 #(t26) Cauchy of reciprocal to Cauchy
-#Fails due to improper handling of the discontinuity in the substitution. 
+#Fails due to improper handling of the discontinuity in the substitution.
 #This should be the first reparam to fix.
 TestReparam(
      Bind(Cauchy(0, sigma), x, Ret(1/x)),
@@ -393,19 +400,19 @@ TestReparam(
      ctx= [sigma > 0],
      infolevels= [2,2],
      label= "(t26) Cauchy of reciprocal to Cauchy (currently failing)"
-);
+):
 
 #(t27) Symbolic constant multiple of Gamma to Gamma
 TestReparam(
      Bind(GammaD(r,lambda), x, Ret(a*x)),
      GammaD(r, a*lambda),
-     equal &under (fromLO, 
+     equal &under (fromLO,
           _ctx= foldr(assert, empty, r > 0, lambda > 0, a > 0)
      ),
      ctx= [r > 0, lambda > 0, a > 0],
      infolevels= [0,2],
      label= "(t27) Symbolic constant multiple of Gamma to Gamma" #passing
-);
+):
 
 #(t28) Beta of 1-x to Beta
 TestReparam(
@@ -415,17 +422,17 @@ TestReparam(
      ctx= [a > 0, b > 0],
      infolevels= [0,2],
      label= "(t28) Beta with 1-x to Beta" #passing
-); 
+):
 
 #(t29) Binomial of n-x to Binomial
 #Fails because Binomial isn't implemented.
 TestReparam(
      Bind(Binomial(n,p), x, Ret(n-x)),
      Binomial(n, 1-p),
-     equal &under (fromLO, 
+     equal &under (fromLO,
           _ctx= foldr(assert, empty, n::integer, n > 0, 0 <= p, p <= 1)
      ),
      ctx= [n::integer, n > 0, 0 <= p, p <= 1],
      infolevels= [2,2],
      label= "(t29) Binomial of n-x to Binomial (currently failing)"
-);    
+):
