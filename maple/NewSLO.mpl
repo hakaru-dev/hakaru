@@ -669,6 +669,8 @@ NewSLO := module ()
       end if;
       reduce_IntsSums(op(0,e), reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
+    elif e :: 'applyintegrand(anything, anything)' then
+      map(simplify_assuming, e, kb)
     elif e :: `+` then
       map(reduce, e, h, kb)
     elif e :: `*` then
