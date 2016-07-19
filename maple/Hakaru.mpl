@@ -327,15 +327,25 @@ Hakaru := module ()
   end proc;
 
   lift_piecewiselike := proc(e, $)
-    evalindets(e,
-      'And({`+`,`*`,`^`}, Not(specop(Not(specfunc(piecewise)),anything)))',
-      lift1_piecewiselike)
+    local e1, e2;
+    e2 := e;
+    while e1 <> e2 do
+      e1 := e2;
+      e2 := evalindets(e1,
+              '{And(`+`, Not(specop(Not(specfunc(piecewise)), `+`))),
+                And(`*`, Not(specop(Not(specfunc(piecewise)), `*`))),
+                And(`^`, Not(specop(Not(specfunc(piecewise)), `^`))),
+                exp(specfunc(piecewise))}',
+              lift1_piecewiselike)
+    end do
   end proc;
 
   lift1_piecewiselike := proc(e, $)
-    local i;
+    local i, p;
     if membertype(t_piecewiselike, [op(e)], i) then
-      map_piecewiselike((arm->lift1_piecewiselike(subsop(i=arm,e))), op(i,e))
+      p := op(i,e);
+      if nops(p) = 2 and not (e :: `*`) then p := piecewise(op(p), 0) end if;
+      map_piecewiselike((arm->lift1_piecewiselike(subsop(i=arm,e))), p)
     else
       e
     end if
