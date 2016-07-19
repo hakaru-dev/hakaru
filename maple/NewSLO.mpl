@@ -649,7 +649,7 @@ NewSLO := module ()
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb, $)
     local e, subintegral, w, ww, x, c, kb1;
-    e := elim_intsum(ee, h, kb);
+    e := ee;
     if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
       x, kb1 := `if`(op(0,e)=Int,
         genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
@@ -709,12 +709,12 @@ NewSLO := module ()
 
   reduce_IntSum := proc(mk :: identical(Int, Sum),
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
-    local e, dom_spec, w, rest, var, new_rng, make, i;
+    local e, dom_spec, w, var, new_rng, make, elim;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
-    rest := kb_subtract(foldr(assert, kb1, op(dom_spec)), kb0);
-    new_rng, rest := selectremove(type, rest,
+    dom_spec := kb_subtract(foldr(assert, kb1, op(dom_spec)), kb0);
+    new_rng, dom_spec := selectremove(type, dom_spec,
       {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
        `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
        [identical(genLet), name, anything]});
@@ -731,24 +731,26 @@ NewSLO := module ()
     else # op(1,new_rng) = genLet
       if mk=Int then return 0 else make := eval; new_rng := op(3,new_rng) end if
     end if;
-    dom_spec, rest := selectremove(depends,
-      map(proc(a::[identical(assert),anything]) op(2,a) end proc, rest), var);
-    if type(e, `*`) then
-      (e, w) := selectremove(depends, e, var); # pull out weight
-      w := simplify_assuming(w, kb1);
+    e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
+                         Indicator(op(2,a))
+                       end proc,
+                       dom_spec)));
+    elim := elim_intsum(make(e, var=new_rng), h, kb0);
+    if elim = FAIL then
+      e, w := selectremove(depends, convert(e, 'list', `*`), var);
+      reduce_pw(simplify_assuming(`*`(op(w)), kb0))
+        * make(`*`(op(e)), var=new_rng);
     else
-      w := 1;
-    end if;
-    e := make(w * `if`(dom_spec=[], e, piecewise(And(op(dom_spec)), e, 0)),
-              var=new_rng);
-    e := elim_intsum(e, h, kb0);
-    e := mul(Indicator(i), i in rest)*e;
-    e
+      reduce(elim, h, kb0);
+    end if
   end proc;
 
   reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, $)
+    local e, elim;
     # TODO we should apply domain restrictions like reduce_IntSum does.
-    makes(ee, var, rng, bds);
+    e := makes(ee, var, rng, bds);
+    elim := elim_intsum(e, h, kb);
+    if elim = FAIL then e else reduce(elim, h, kb) end if
   end proc;
 
   get_indicators := proc(e, $)
@@ -766,47 +768,44 @@ NewSLO := module ()
     end if
   end proc;
 
-  elim_intsum := proc(ee, h :: name, kb :: t_kb, $)
-    local e, var, m, elim;
-    e := ee;
-    do
-      if e :: Int(anything, name=anything) and
+  elim_intsum := proc(e, h :: name, kb :: t_kb, $)
+    local var, m, elim;
+    if e :: Int(anything, name=anything) and
+       not hastype(op(1,e), 'applyintegrand'('identical'(h),
+                                             'dependent'(op([2,1],e)))) then
+      var := op([2,1],e);
+      m := proc (kb,g,$) do_elim_intsum(kb, int, g, op(2,e)) end proc;
+    elif e :: Sum(anything, name=anything) and
+       not hastype(op(1,e), 'applyintegrand'('identical'(h),
+                                             'dependent'(op([2,1],e)))) then
+      var := op([2,1],e);
+      m := proc (kb,g,$) do_elim_intsum(kb, sum, g, op(2,e)) end proc;
+    elif e :: Ints(anything, name, range, list(name=range)) and
          not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                               'dependent'(op([2,1],e)))) then
-        var := op([2,1],e);
-        m := proc (kb,g,$) do_elim_intsum(kb, int, g, op(2,e)) end proc;
-      elif e :: Sum(anything, name=anything) and
+                                               'dependent'(op(2,e)))) then
+      var := op(2,e);
+      m := proc (kb,g,$) do_elim_intsum(kb, ints, g, op(2..4,e), kb) end proc;
+    elif e :: Sums(anything, name, range, list(name=range)) and
          not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                               'dependent'(op([2,1],e)))) then
-        var := op([2,1],e);
-        m := proc (kb,g,$) do_elim_intsum(kb, sum, g, op(2,e)) end proc;
-      elif e :: Ints(anything, name, range, list(name=range)) and
-           not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                                 'dependent'(op(2,e)))) then
-        var := op(2,e);
-        m := proc (kb,g,$) do_elim_intsum(kb, ints, g, op(2..4,e), kb) end proc;
-      elif e :: Sums(anything, name, range, list(name=range)) and
-           not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                                 'dependent'(op(2,e)))) then
-        var := op(2,e);
-        m := proc (kb,g,$) do_elim_intsum(kb, sums, g, op(2..4,e), kb) end proc;
-      else
-        break;
-      end if;
-      # try to eliminate unused var
-      elim := banish(op(1,e), h, kb, infinity, var, m);
-      if has(elim, {MeijerG, undefined, FAIL}) then
-        break;
-      end if;
-      e := elim;
-    end do;
-    e;
+                                               'dependent'(op(2,e)))) then
+      var := op(2,e);
+      m := proc (kb,g,$) do_elim_intsum(kb, sums, g, op(2..4,e), kb) end proc;
+    else
+      return FAIL;
+    end if;
+    # try to eliminate unused var
+    elim := banish(op(1,e), h, kb, infinity, var, m);
+    if has(elim, {MeijerG, undefined, FAIL}) or e = elim then
+      return FAIL;
+    end if;
+    elim
   end proc;
 
   do_elim_intsum := proc(kb, f, ee, v)
-    local e;
-    e := simplify_assuming(ee,kb);
-    e := simplify_assuming(f(e,v,_rest),kb);
+    local w, e;
+    w, e := selectremove(type, convert(ee, 'list', `*`), Indicator(anything));
+    e := piecewise_And(map2(op,1,w), `*`(op(e)), 0);
+    e := simplify_assuming('f'(e,v,_rest),kb);
     `if`(hastype(e, And(specfunc(f),
                         patfunc(anything,
                                 `if`(v::`=`, identical(lhs(v))=anything,
