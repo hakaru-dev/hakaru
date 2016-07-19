@@ -158,7 +158,7 @@ Loop := module ()
     if not depends(w, var) then
       return [wrap(heap, w, mode, kb1, kb0), 1]
     end if;
-    ind := map2(op, 2, indets(w, Hakaru:-idx(identical(var), anything)));
+    ind := map2(op, 2, indets(w, idx(identical(var), anything)));
     if nops(ind) = 1 then
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
@@ -168,9 +168,9 @@ Loop := module ()
       if indets(eval(w, s), idx(identical(var), anything))
                 = {idx(var, eval(ind, s))} then
         kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
-        res := subs(Hakaru:-idx(var,ind) = Hakaru:-idx(var,lhs(loop)), w);
+        res := subs(idx(var,ind) = idx(var,lhs(loop)), w);
         res := wrap(heap, res, mode, kb, kb0);
-        res := subs(Hakaru:-idx(var,lhs(loop))=dummy, res);
+        res := subs(idx(var,lhs(loop))=dummy, res);
         if not depends(res, var) then
           return [1, subs(dummy=var, res)]
         end if
