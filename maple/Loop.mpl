@@ -142,6 +142,28 @@ Loop := module ()
       w0 := w0 * `*`(op(w2));
       # w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
     end do;
+    # Rewrite ... * piecewise(i<=kk-1, xs^2, 1)
+    #      to ... * xs ^ (2*piecewise(i<=kk-1, 1))
+    # because the latter is easier to integrate and recognize with respect to xs
+    pp := maptype(`*`,
+      proc (p)
+        local n, s, r;
+        if p :: 'And(specfunc(piecewise), anyfunc(freeof(x), anything, 1))' then
+          n := indets(op(1,p),name);
+           # not hastype(op(2,p), 'idx'('anything','dependent'(n))) then
+          if op(2,p) :: {'exp(anything)', '`^`'('freeof'(n),'anything')} then
+            s, r := selectremove(depends, convert(op([2,-1],p),'list','`*`'), n);
+            subsop(-1 = `*`(piecewise(op(1,p), `*`(op(s))), op(r)), op(2,p))
+          else
+            s, r := selectremove(depends, convert(op(2,p),'list','`*`'), n);
+            `*`(op(r)) ^ piecewise(op(1,p), 1)
+              * `if`(nops(s) > 0, piecewise(op(1,p), `*`(op(s)), 1), 1)
+          end if
+        else
+          p
+        end if
+      end proc,
+      pp);
     w0, pp
   end proc;
 
