@@ -1539,7 +1539,8 @@ NewSLO := module ()
     prev := kernelopts(opaquemodules=false);
     try
       PiecewiseTools:-InertFunctions := PiecewiseTools:-InertFunctions
-        union '{Integrand,LO,lam,Branch,Bind,ary,
+        union '{# Do not lift piecewise over a binder
+                Integrand,LO,lam,Branch,Bind,ary,Plate,
                 forall,Ints,Sums,ints,sums,`..`}';
     finally
       kernelopts(opaquemodules=prev);
