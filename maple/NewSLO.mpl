@@ -838,25 +838,22 @@ NewSLO := module ()
   end proc;
 
   elim_intsum := proc(e, h :: name, kb :: t_kb, $)
-    local var, m, elim;
+    local t, var, m, elim;
+    t := 'applyintegrand'('identical'(h), 'anything');
     if e :: Int(anything, name=anything) and
-       not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                             'dependent'(op([2,1],e)))) then
+       not depends(indets(op(1,e), t), op([2,1],e)) then
       var := op([2,1],e);
       m := proc (kb,g,$) do_elim_intsum(kb, int, g, op(2,e)) end proc;
     elif e :: Sum(anything, name=anything) and
-       not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                             'dependent'(op([2,1],e)))) then
+       not depends(indets(op(1,e), t), op([2,1],e)) then
       var := op([2,1],e);
       m := proc (kb,g,$) do_elim_intsum(kb, sum, g, op(2,e)) end proc;
     elif e :: Ints(anything, name, range, list(name=range)) and
-         not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                               'dependent'(op(2,e)))) then
+         not depends(indets(op(1,e), t), op(2,e)) then
       var := op(2,e);
       m := proc (kb,g,$) do_elim_intsum(kb, ints, g, op(2..4,e), kb) end proc;
     elif e :: Sums(anything, name, range, list(name=range)) and
-         not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                               'dependent'(op(2,e)))) then
+         not depends(indets(op(1,e), t), op(2,e)) then
       var := op(2,e);
       m := proc (kb,g,$) do_elim_intsum(kb, sums, g, op(2..4,e), kb) end proc;
     else
@@ -870,21 +867,20 @@ NewSLO := module ()
     elim
   end proc;
 
-  do_elim_intsum := proc(kb, f, ee, v)
-    local w, e;
+  do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
+    local w, e, x, t, r;
     w, e := selectremove(type, convert(ee, 'list', `*`), Indicator(anything));
     e := piecewise_And(map2(op,1,w), `*`(op(e)), 0);
     e := simplify_assuming('f'(e,v,_rest),kb);
-    `if`(hastype(e, And(specfunc(f),
-                        patfunc(anything,
-                                `if`(v::`=`, identical(lhs(v))=anything,
-                                             identical(v)),
-                                anything),
-                        'Not(sum(anything,
-                                 name=range(Not({SymbolicInfinity,
-                                                 undefined}))))')),
-         FAIL,
-         e)
+    x := `if`(v::name, v, lhs(v));
+    t := {'identical'(x),
+          'identical'(x)
+            = `if`(f='sum', 'Not(range(Not({SymbolicInfinity, undefined})))',
+                            'anything')};
+    for r in indets(e, 'specfunc(f)') do
+      if 1<nops(r) and op(2,r)::t then return FAIL end if
+    end do;
+    e
   end proc;
 
   banish := proc(g, h :: name, kb :: t_kb, levels :: extended_numeric,

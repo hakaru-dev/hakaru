@@ -157,7 +157,6 @@ Loop := module ()
         local n, s, r;
         if p :: 'And(specfunc(piecewise), anyfunc(freeof(x), anything, 1))' then
           n := indets(op(1,p),name);
-           # not hastype(op(2,p), 'idx'('anything','dependent'(n))) then
           if op(2,p) :: {'exp(anything)', '`^`'('freeof'(n),'anything')} then
             s, r := selectremove(depends, convert(op([2,-1],p),'list','`*`'), n);
             subsop(-1 = `*`(piecewise(op(1,p), `*`(op(s))), op(r)), op(2,p))
@@ -346,12 +345,11 @@ Loop := module ()
   # to eval(th,i=lo)*product(el,i=lo+1..hi)
   peel := proc(ee, $)
     evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
-                        anyfunc(And(specfunc(piecewise),
-                                    patfunc({`=`,`<`,`<=`},anything,anything)),
-                                name=range))',
+                        anyfunc(specfunc(piecewise), name=range))',
     proc(e, $)
       local body, x, r, line, test, make, here, rest, res;
       body := op(1,e);
+      if not (1<nops(body) and op(1,body)::{`=`,`<`,`<=`}) then return e end if;
       x, r := op(op(2,e));
       line := op([1,1],body) - op([1,2],body);
       if 1 = degree(line, x) then
