@@ -22,7 +22,7 @@ NewSLO := module ()
   option package;
   local t_pw, t_sum, t_product,
         integrate_known, known_continuous, known_discrete,
-        recognize_continuous, recognize_discrete, get_de, get_se,
+        recognize_continuous, recognize_discrete, unroll_GAMMA, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, bind, weight,
         reduce_IntSum, reduce_IntsSums, get_indicators,
@@ -421,10 +421,16 @@ NewSLO := module ()
     elif lo = 0 and not(hi :: 'SymbolicInfinity') then
       s, r := selectremove(depends, convert(w, 'list', `*`), k);
       if nops(s) > 0 then
-        res := ary(hi+1, k, `*`(op(s)));
+        res := unroll_GAMMA(ary(hi+1, k, `*`(op(s))));
         if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi+1), res[1]);
         else
+          if res :: 'list' then
+            a0  := map[3](maptype, `*`, freeze, res);
+            a1  := foldl(gcd, op(a0));
+            res := thaw(map(`/`, a0, a1));
+            r   := [op(r), thaw(a1)];
+          end if;
           res := Recognized(Categorical(res), `*`(op(r)));
         end if;
       end if;
@@ -436,6 +442,34 @@ NewSLO := module ()
     end if;
     map(simplify_assuming, res, kb)
   end proc;
+
+  unroll_GAMMA := proc(e)
+    local go;
+    go := proc (t, $)
+            local i, r, s;
+            if t :: 'complex(rational)' then
+              t - floor(Re(t))
+            elif t :: 'specfunc(piecewise)' then
+              r := seq(`if`(i::odd and i<nops(t), op(i,t), go(op(i,t))),
+                       i=1..nops(t));
+              `if`(`and`(seq(r[i] = `if`(nops(t)::odd, r[-1], 0), i=2..nops(t), 2)),
+                   r[2],
+                   piecewise(r));
+            elif t :: `+` then
+              map(go, t)
+            else
+              t
+            end if
+          end proc;
+    eval(e, GAMMA=
+      proc (n, $)
+        local l, k, Unroll;
+        l := go(n);
+        'GAMMA'(l)
+          * eval(lift_piecewise(Unroll(n-l), 'Unroll(specfunc(piecewise))'),
+                 Unroll=(d->mul(l+k,k=0..d-1)));
+      end proc)
+  end proc:
 
   get_de := proc(dens, var, Dx, f, $)
     :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
