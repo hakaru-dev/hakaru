@@ -323,11 +323,13 @@ NewSLO := module ()
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
       (w0, w) := selectremove(type, convert(w,'list',`*`), Indicator(anything));
-      m := weight(`*`(op(w)), unintegrate(h, subintegral, kb));
+      w0 := map2(op,1,w0);
+      m := weight(`*`(op(w)),
+                  unintegrate(h, subintegral, foldr(assert, kb, op(w0))));
       if m :: Weight(anything, anything) then
         m := weight(simplify_assuming(op(1,m), kb), op(2,m));
       end if;
-      piecewise_And(map2(op,1,w0), m, Msum())
+      piecewise_And(w0, m, Msum())
     elif e :: t_pw
          and `and`(seq(not (depends(op(i,e), h)),
                        i=1..nops(e)-1, 2)) then
