@@ -56,14 +56,14 @@ end proc:
 
 Hakaru := module ()
   option package;
-  local p_true, p_false, make_piece, lift1_piecewiselike,
+  local p_true, p_false, make_piece, lift1_piecewise,
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
-         piecewise_And, map_piecewiselike, lift_piecewiselike, foldr_piecewise,
+         piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
          htype_patterns;
@@ -334,7 +334,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  lift_piecewiselike := proc(e, extra:={}, $)
+  lift_piecewise := proc(e, extra:={}, $)
     local e1, e2;
     e2 := e;
     while e1 <> e2 do
@@ -345,16 +345,16 @@ Hakaru := module ()
                 And(`*`, Not(specop(Not(specfunc(piecewise)), `*`))),
                 And(`^`, Not(specop(Not(specfunc(piecewise)), `^`))),
                 exp(specfunc(piecewise))}',
-              lift1_piecewiselike)
+              lift1_piecewise)
     end do
   end proc;
 
-  lift1_piecewiselike := proc(e, $)
+  lift1_piecewise := proc(e, $)
     local i, p;
     if membertype(t_piecewiselike, [op(e)], i) then
       p := op(i,e);
       if nops(p) = 2 and not (e :: `*`) then p := piecewise(op(p), 0) end if;
-      map_piecewiselike((arm->lift1_piecewiselike(subsop(i=arm,e))), p)
+      map_piecewiselike((arm->lift1_piecewise(subsop(i=arm,e))), p)
     else
       e
     end if
