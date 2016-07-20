@@ -125,8 +125,8 @@ TestHakaru(Bind(Uniform(0,1),x,Weight(x*2,Ret(x))), BetaD(2,1),
 TestHakaru(BetaD(alpha,beta), label="BetaD recog.");
 TestHakaru(GammaD(a,b), label="GammaD recog.", ctx = [a>0,b>0]);
 TestHakaru(GammaD(1/2,2), label="GammaD(1/2,2) recog.");
-TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,GammaD(1,2)));
-TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)));
+TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,GammaD(1,2)), label="GammaD(1,2) recog.");
+TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)), label="GammaD(2,2) recog.");
 TestHakaru(Bind(Lebesgue(-infinity,infinity), x, Weight(1/x^2, Ret(x))));
 TestHakaru(Cauchy(loc,scale), ctx = [scale>0], label="Cauchy recog.");
 TestHakaru(StudentT(nu,loc,scale), ctx=[scale>0], label = "StudentT recog.");
