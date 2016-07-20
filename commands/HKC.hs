@@ -42,14 +42,13 @@ options = Options
   <*> strArgument (metavar "INPUT" <> help "Program to be compiled")
   <*> strOption (short 'o' <> metavar "OUTPUT" <> help "output FILE")
 
-
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
                        $ fullDesc <> progDesc "Compile Hakaru to C"
 
 compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
-  case parseAndInfer prog of
+  case parseCoalesceThenInfer prog of
     Left err -> putStrLn err
     Right (TypedAST typ ast) -> do
       let ast' = TypedAST typ (if optimize config
@@ -58,6 +57,8 @@ compileHakaru prog = ask >>= \config -> lift $ do
       when (debug config) $ do
         putErrorLn "\n----------------------------------------------------------------\n"
         putErrorLn $ pack $ show ast
+        putErrorLn "\n----------------------------------------------------------------\n"
+        putErrorLn $ pack $ show ast'
         when (optimize config) $ do
           putErrorLn "\n----------------------------------------------------------------\n"
           putErrorLn $ pack $ show ast'

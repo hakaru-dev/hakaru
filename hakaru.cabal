@@ -69,6 +69,7 @@ Library
                        Language.Hakaru.Evaluation.EvalMonad
                        Language.Hakaru.Evaluation.ConstantPropagation,
                        Language.Hakaru.Evaluation.DisintegrationMonad,
+                       Language.Hakaru.Evaluation.Coalesce,
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Evaluation.ExpectMonad,
                        Language.Hakaru.Expect,

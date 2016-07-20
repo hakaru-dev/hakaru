@@ -5,6 +5,7 @@ import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Parser.Parser hiding (style)
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
+import           Language.Hakaru.Evaluation.Coalesce (coalesce)
 import           Language.Hakaru.Syntax.TypeCheck
 
 import           Data.Text
@@ -19,6 +20,16 @@ parseAndInfer x =
     Left  err  -> Left (show err)
     Right past ->
         let m = inferType (resolveAST past) in
+        runTCM m LaxMode
+
+parseCoalesceThenInfer :: Text
+              -> Either String (TypedAST (TrivialABT T.Term))
+parseCoalesceThenInfer x =
+    case parseHakaru x of
+    Left  err  -> Left (show err)
+    Right past ->
+        let ast = coalesce past in
+        let m = inferType (resolveAST ast) in
         runTCM m LaxMode
 
 readFromFile :: String -> IO Text
