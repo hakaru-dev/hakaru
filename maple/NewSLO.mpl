@@ -445,6 +445,20 @@ NewSLO := module ()
     map(simplify_assuming, res, kb)
   end proc;
 
+  # unroll_GAMMA rewrites GAMMA(a+2)
+  #                    to GAMMA(a)*a*(a+1)
+  #
+  # expand/GAMMA does this too, but it further expands the result
+  # to GAMMA(a)*a^2+GAMMA(a)*a , which we don't want.
+  # Also, unroll_GAMMA rewrites GAMMA(a+f(b)+1+piecewise(c<d,1,0))
+  # to GAMMA(a+f(b)) * piecewise(c<d, (a+f(b))*(a+f(b)+1), a+f(b))
+  #
+  # unroll_GAMMA helps us factor out Beta(a,b)/(a+b) from the
+  #   [GAMMA(b)*GAMMA(a+1)/GAMMA(1+a+b),
+  #    GAMMA(b+1)*GAMMA(a)/GAMMA(1+a+b)]
+  # produced by
+  #   simplify([int(x^(a-1)*(1-x)^(b-1)*x    ,x=0..1),
+  #             int(x^(a-1)*(1-x)^(b-1)*(1-x),x=0..1)])
   unroll_GAMMA := proc(e)
     local go;
     go := proc (t, $)
