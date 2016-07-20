@@ -446,3 +446,11 @@ TestHakaru(Bind(Categorical([p,1-p]),x,Weight(p^x*(1-p)^(1-x),Ret(x))),
            Weight(p*(1-p),Counting(0,2)),
            label="Categorical elimination",
            ctx=[0<=p, p<=1]);
+module()
+  local bern, burglary;
+  bern := p -> Bind(Categorical(ary(2,i,piecewise(i=0,p,1-p))), i, Ret(i=0)):
+  burglary := Bind(bern(1/10000), b,
+              Bind(bern(piecewise(b=true,19/20,1/100)), a,
+              Ret(a))):
+  TestHakaru(burglary, bern(5047/500000), label="burglary");
+end module:

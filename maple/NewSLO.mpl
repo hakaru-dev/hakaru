@@ -129,12 +129,15 @@ NewSLO := module ()
 # (probably proc, which should be applied immediately, or a generated symbol).
 
   applyintegrand := proc(h, x, $)
+    local var, body, dummy;
     if h :: 'Integrand(name, anything)' then
-      if x :: {`<`,`<=`} then
-        eval(subs((op(1,h)=true) = op(1,h), op(2,h)), op(1,h) = x)
-      else
-        eval(op(2,h), op(1,h) = x)
+      var, body := op(h);
+      if x :: {boolean, specfunc({And,Or,Not})} then
+        body := eval(body, var=dummy);
+        var  := dummy;
+        body := subs((var=true)=var, body);
       end if;
+      eval(body, var=x)
     elif h :: appliable then
       h(x)
     else
