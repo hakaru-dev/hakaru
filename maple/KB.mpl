@@ -171,7 +171,7 @@ KB := module ()
         else
           # Try to make b about x using convert/piecewise.
           c := 'piecewise'(chill(b), true, false);
-          if not hastype(c, And(name, Not(identical(x)), dependent(x)))
+          if not depends(indets(c, indexed), x)
              # Avoid bug in convert/piecewise:
              # > convert(piecewise(i<=size[idx[a,i]]-2,true,false),piecewise,i);
              # Error, (in unknown) too many levels of recursion
