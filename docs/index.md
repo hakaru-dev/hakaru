@@ -100,7 +100,7 @@ be extended.
 
 AST
 
-ABT
+[ABT](/internals/abt)
 
 Datums
 
@@ -110,4 +110,4 @@ Transformations
 
 Testing
 
-Adding a Language Feature
+[Adding a Language Feature](/internals/newfeature)
