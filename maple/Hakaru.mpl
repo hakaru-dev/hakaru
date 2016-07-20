@@ -334,13 +334,14 @@ Hakaru := module ()
     end if
   end proc;
 
-  lift_piecewiselike := proc(e, $)
+  lift_piecewiselike := proc(e, extra:={}, $)
     local e1, e2;
     e2 := e;
     while e1 <> e2 do
       e1 := e2;
       e2 := evalindets(e1,
-              '{And(`+`, Not(specop(Not(specfunc(piecewise)), `+`))),
+              '{extra,
+                And(`+`, Not(specop(Not(specfunc(piecewise)), `+`))),
                 And(`*`, Not(specop(Not(specfunc(piecewise)), `*`))),
                 And(`^`, Not(specop(Not(specfunc(piecewise)), `^`))),
                 exp(specfunc(piecewise))}',
