@@ -591,11 +591,11 @@ NewSLO := module ()
     elif lo = 0 and hi = infinity
          and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
          and ispoly(normal(a0*var/a1), 'linear', var, 'b0', 'b1') then
-      if Testzero(b1-1/2) then
-        dist := ChiSquared(2*(1-b0))
-      else
+    #  if Testzero(b1-1/2) then
+    #    dist := ChiSquared(2*(1-b0))
+    #  else
         dist := GammaD(1-b0, 1/b1)
-      end if;
+    #  end if;
     end if;
     if dist <> FAIL then
       try
