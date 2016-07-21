@@ -31,6 +31,6 @@ has been renamed `x2`.
 
 ## Density
 
-Find the density of a probability distribution at a particular
+Finding the density of a probability distribution at a particular
 point is actually a special-case of disintegrate and is
-defined in terms of it.
+defined in terms of it and the expectation transformation.
