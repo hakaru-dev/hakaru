@@ -120,23 +120,21 @@ TestReparam(
 #(t2) Gamma to ChiSquared
 #(inverse of relationship given in Relationships.hs)
 # Special case of Gamma now recognized as being ChiSquared
-#This fails due to ChiSquared not being implemented yet.
 TestReparam(
-     GammaD(b,2),
      ChiSquared(2*b),
+     GammaD(b,2),
      equal &under (fromLO, _ctx= foldr(assert, empty, b > 0)),
      ctx= [b > 0],
      label= "(t2) Gamma to ChiSquared" #passing
 ):
 
 #(t3) Symbolic constant multiple with Gamma
-#Fails because the result is correctly recognized as ChiSquared.
 TestReparam(
      Bind(GammaD(alpha,beta), x, Ret(2*x/beta)),
      GammaD(alpha, 2),
      equal &under (fromLO, _ctx= foldr(assert, empty, alpha > 0, beta > 0)),
      ctx= [alpha > 0, beta > 0],
-     label= "(t3) Symbolic constant multiple with Gamma (currently failing)"
+     label= "(t3) Symbolic constant multiple with Gamma"
 ):
 
 #(t4) Two-variable LFT with Gamma
