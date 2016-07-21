@@ -117,7 +117,7 @@ TestReparam(
      label= "(t1) Symbolic affine transformation with Gaussian" #passing
 ):
 
-#(t2) Gamma to ChiSquared
+#(t2) ChiSquared to Gamma
 #(inverse of relationship given in Relationships.hs)
 # Special case of Gamma now recognized as being ChiSquared
 TestReparam(
@@ -125,7 +125,7 @@ TestReparam(
      GammaD(b,2),
      equal &under (fromLO, _ctx= foldr(assert, empty, b > 0)),
      ctx= [b > 0],
-     label= "(t2) Gamma to ChiSquared" #passing
+     label= "(t2) ChiSquared to Gamma" #passing
 ):
 
 #(t3) Symbolic constant multiple with Gamma
@@ -466,5 +466,5 @@ TestReparam(
      equal &under (fromLO, _ctx= foldr(assert, empty, k1 > 0, k2 > 0)),
      ctx= [k1 > 0, k2 > 0],
      infolevels= [infinity$2],
-     label= "(t31) Sum of ChiSquareds is ChiSquared (currently failing)"
+     label= "(t32) Sum of ChiSquareds is ChiSquared (currently failing)"
 ):
