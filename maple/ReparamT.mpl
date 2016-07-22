@@ -25,8 +25,7 @@ TestReparam:= proc(
      #Type `verification` is slightly modified (below) from its standard definition.
      ver::verification,
      #First infolevel is for initial test; second is for retest after failure.
-     #Infinity isn't allowed; 99 is arbitrary large value.
-     {infolevels::[nonnegint, nonnegint]:= [0, 99]},
+     {infolevels::[nonnegative, nonnegative]:= [0, Float(infinity)]},
      {ctx::list:= []}   #Assumptions (not necessarily to be passed to `assuming`)
 )
 # For 'production' runs, we want things to be as quiet
@@ -135,7 +134,7 @@ TestReparam(
      GammaD(alpha, 2),
      equal &under (fromLO, _ctx= foldr(assert, empty, alpha > 0, beta > 0)),
      ctx= [alpha > 0, beta > 0],
-     label= "(t3) Symbolic constant multiple with Gamma"
+     label= "(t3) Symbolic constant multiple with Gamma" #passing
 ):
 
 #(t4) Two-variable LFT with Gamma
@@ -264,14 +263,12 @@ TestReparam(
 ):
 
 #(t15) 1/InverseGamma(k,1/t) to GammaD(k,t)
-#Fails because InverseGamma isn't implemented.
 TestReparam(
      Bind(InverseGammaD(k, 1/t), x, Ret(1/x)),
      GammaD(k,t),
      equal &under (fromLO, _ctx= foldr(assert, empty, k > 0, t > 0)),
      ctx= [k > 0, t > 0],
-     infolevels= [2,2],
-     label= "(t15) 1/InverseGammaD(k,1/t) to GammaD(k,t) (currently failing)"
+     label= "(t15) 1/InverseGammaD(k,1/t) to GammaD(k,t)" #passing
 ):
 
 #(t16) Sum of std normals to normal(0,sqrt(2))
