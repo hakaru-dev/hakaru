@@ -1557,7 +1557,7 @@ NewSLO := module ()
     idx(a,k)
   end proc end proc;
   density[Binomial]:= proc(n,p,$)
-       proc(k,$) p^k*(1-p)^(n-k)*GAMMA(n+1)/GAMMA(x+1)/GAMMA(n-x+1) end proc
+       proc(k,$) p^k*(1-p)^(n-k)*GAMMA(n+1)/GAMMA(k+1)/GAMMA(n-k+1) end proc
   end proc;
   density[NegativeBinomial] := proc(r, p, $) proc(k,$)
     p^k * (1-p)^r * GAMMA(r+k) / GAMMA(k+1) / GAMMA(r)
