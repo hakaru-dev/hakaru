@@ -238,7 +238,9 @@ NewSLO := module ()
     Lebesgue(anything, anything), Uniform(anything, anything),
     Gaussian(anything, anything), Cauchy(anything, anything),
     StudentT(anything, anything, anything), ChiSquared(anything),
-    BetaD(anything, anything), GammaD(anything, anything)}':
+    BetaD(anything, anything), GammaD(anything, anything),
+    InverseGammaD(anything, anything)
+  }';
 
   known_discrete := '{Counting(anything, anything),
     Categorical(anything),
@@ -1545,6 +1547,9 @@ NewSLO := module ()
   density[GammaD] := proc(shape, scale, $) proc(x,$)
     x^(shape-1)/scale^shape*exp(-x/scale)/GAMMA(shape);
   end proc end proc;
+  density[InverseGammaD]:= proc(shape, scale, $)
+       proc(x,$) scale^shape/GAMMA(shape)/x^(shape+1)/exp(scale/x) end proc
+  end proc;
   density[Counting] := proc(lo, hi, $) proc(k,$)
     1
   end proc end proc;
@@ -1571,6 +1576,7 @@ NewSLO := module ()
   bounds[StudentT] := proc(nu, loc, scale, $) -infinity .. infinity end proc;
   bounds[BetaD] := proc(a, b, $) 0 .. 1 end proc;
   bounds[GammaD] := proc(shape, scale, $) 0 .. infinity end proc;
+  bounds[InverseGammaD]:= proc(shape, scale, $) 0..infinity end proc;
   bounds[Counting] := proc(lo, hi, $) lo..hi-1 end proc;
   bounds[Categorical] := proc(a, $) 0 .. size(a)-1 end proc;
   bounds[Binomial]:= proc(n,p,$) 0..n end proc;
