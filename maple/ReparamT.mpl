@@ -21,11 +21,12 @@ with(NewSLO):
 TestReparam:= proc(
      e_in,
      e_out,   #Expected output, after postprocessing by `verify` and `&under`
-     #`verification` is slightly modified (below) from its standard definition.
-     # &under is defined below.
+     #`&under` is defined below.
+     #Type `verification` is slightly modified (below) from its standard definition.
      ver::verification,
      #First infolevel is for initial test; second is for retest after failure.
-     {infolevels::[{nonnegint,identical(infinity)},{nonnegint, identical(infinity)}]:= [0,infinity]},
+     #Infinity isn't allowed; 99 is arbitrary large value.
+     {infolevels::[nonnegint, nonnegint]:= [0, 99]},
      {ctx::list:= []}   #Assumptions (not necessarily to be passed to `assuming`)
 )
 # For 'production' runs, we want things to be as quiet
@@ -143,7 +144,7 @@ TestReparam(
      Bind(GammaD(a,t), x1, Bind(GammaD(b,t), x2, Ret(x1/(x1+x2)))),
      BetaD(a,b),
      equal &under fromLO,
-     infolevels= [infinity$2],
+     infolevels= [2,2],
      label= "(t4) Two-variable LFT with Gamma (currently failing)"
 ):
 
@@ -441,7 +442,7 @@ TestReparam(
      Bind(Gaussian(0,1), x, Ret(x^2)),
      ChiSquared(1),
      equal &under fromLO,
-     infolevels= [infinity$2],
+     infolevels= [2,2],
      label= "(t30) Square of std normal to ChiSquared(1) (currently failing)"
 ):
 
@@ -465,6 +466,6 @@ TestReparam(
      ChiSquared(k1+k2),
      equal &under (fromLO, _ctx= foldr(assert, empty, k1 > 0, k2 > 0)),
      ctx= [k1 > 0, k2 > 0],
-     infolevels= [infinity$2],
+     infolevels= [2,2],
      label= "(t32) Sum of ChiSquareds is ChiSquared (currently failing)"
 ):
