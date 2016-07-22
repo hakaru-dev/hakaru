@@ -242,6 +242,7 @@ NewSLO := module ()
 
   known_discrete := '{Counting(anything, anything),
     Categorical(anything),
+    Binomial(anything,anything),
     NegativeBinomial(anything,anything), PoissonD(anything)}';
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
@@ -1550,6 +1551,9 @@ NewSLO := module ()
   density[Categorical] := proc(a, $) proc(k,$)
     idx(a,k)
   end proc end proc;
+  density[Binomial]:= proc(n,p,$)
+       proc(k,$) p^k*(1-p)^(n-k)*GAMMA(n+1)/GAMMA(x+1)/GAMMA(n-x+1) end proc
+  end proc;
   density[NegativeBinomial] := proc(r, p, $) proc(k,$)
     p^k * (1-p)^r * GAMMA(r+k) / GAMMA(k+1) / GAMMA(r)
   end proc end proc;
@@ -1569,6 +1573,7 @@ NewSLO := module ()
   bounds[GammaD] := proc(shape, scale, $) 0 .. infinity end proc;
   bounds[Counting] := proc(lo, hi, $) lo..hi-1 end proc;
   bounds[Categorical] := proc(a, $) 0 .. size(a)-1 end proc;
+  bounds[Binomial]:= proc(n,p,$) 0..n end proc;
   bounds[NegativeBinomial] := proc(r, p, $) 0 .. infinity end proc;
   bounds[PoissonD] := proc(lambda, $) 0 .. infinity end proc;
   bounds[ChiSquared] := proc(k, $) 0 .. infinity end proc;
