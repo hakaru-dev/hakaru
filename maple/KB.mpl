@@ -25,7 +25,7 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
-  global t_kb, `expand/product`, `simplify/int/simplify`;
+  global t_kb, `expand/product`, `simplify/int/simplify`, `product/indef/indef`;
   uses Hakaru;
 
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
@@ -494,6 +494,26 @@ KB := module ()
         return 'f'(a,r);
       end proc,
       `simplify/int/simplify`]);
+
+    # Prevent product(1/(n-i),i=0..n-1) and product(1/(i-n),n=0..i-1)
+    # from evaluating to 0 (?!)
+    # by preventing `product/indef/indef`(n-i,i)
+    # from evaluating to (-1)^i * GAMMA(i-n)
+    `product/indef/indef` := overload([
+      proc(expr, i, $)
+        option overload;
+        local s, a, b;
+        if has(expr,i) and sign(expr,i) :: negative then
+          if ispoly(expr, linear, i, 'b', 'a') then
+            (-a)^i / GAMMA(1-i-b/a)
+          else
+            error FAIL
+          end if
+        else
+          error "invalid input: cannot product/indef/indef(%1, %2)", expr, i
+        end if
+      end proc,
+      `product/indef/indef`]);
   end proc;
 
   ModuleUnload := proc($)
