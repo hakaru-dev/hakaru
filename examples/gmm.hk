@@ -1,7 +1,18 @@
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from i+1 to size(as): as[j],
+                 as[i])
+    return array i of size(as):
+             x = product j from 0 to i: xs[j]
+             x * if i+1==size(as): 1 else: real2prob(1-xs[i])
+
 fn K nat:
+ fn z array(nat):
   fn t array(real):
-    θs <~ plate k of K: normal(0,1)
-    plate i of size(t):
-      c <~ categorical(array k of K: 1/K)
-      d <~ observe normal(θs[c], 1) t[i]
-      return c
+    topic_prior = array k of K: 1.0
+    theta <~ dirichlet(topic_prior)
+    phi <~ plate k of K: normal(0,1)
+    t <~ plate i of size(t):
+           z <~ observe categorical(theta) z[i]
+           observe normal(phi[z], 1) t[i]
+    return theta
