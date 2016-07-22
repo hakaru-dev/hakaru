@@ -242,7 +242,7 @@ NewSLO := module ()
 
   known_discrete := '{Counting(anything, anything),
     Categorical(anything),
-    NegativeBinomial(anything), PoissonD(anything)}';
+    NegativeBinomial(anything,anything), PoissonD(anything)}';
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
