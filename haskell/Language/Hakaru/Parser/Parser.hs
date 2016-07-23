@@ -28,8 +28,9 @@ import Language.Hakaru.Parser.AST
 ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_", "<|>"]
 types = ["->"]
-names = ["def","fn", "if", "else", "∞", "expect", "observe",
-         "return", "match", "integrate", "summate", "data"]
+names = ["def", "fn", "if", "else", "∞", "expect", "observe",
+         "return", "match", "integrate", "summate", "product",
+         "data", "import"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -296,15 +297,6 @@ match_expr =
         <*> blockOfMany branch_expr
         )
 
-data_expr :: Parser (AST' Text)
-data_expr =
-    reserved "data"
-    *>  (Data
-        <$> identifier
-        <*  parens (commaSep identifier) -- TODO: why throw them away?
-        <*> blockOfMany (try type_app <|> type_var)
-        )
-
 integrate_expr :: Parser (AST' Text)
 integrate_expr =
     reserved "integrate"
@@ -512,3 +504,16 @@ withPos x = do
     x' <- x
     e  <- getPosition
     return $ WithMeta x' (Meta s e)
+
+data_expr :: Parser (AST' Text)
+data_expr =
+    reserved "data"
+    *>  (Data
+        <$> identifier
+        <*  parens (commaSep identifier) -- TODO: why throw them away?
+        <*> blockOfMany (try type_app <|> type_var)
+        )
+
+import_expr :: Parser (Import Text)
+import_expr =
+    reserved "import" *> (Import <$> identifier)
