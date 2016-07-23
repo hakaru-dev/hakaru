@@ -354,7 +354,9 @@ Hakaru := module ()
     local i, p;
     if membertype(t_piecewiselike, [op(e)], i) then
       p := op(i,e);
-      if nops(p) = 2 and not (e :: `*`) then p := piecewise(op(p), 0) end if;
+      if nops(p) :: even and not (e :: `*`) and op(-1,p) <> 0 then
+        p := piecewise(op(p), 0);
+      end if;
       map_piecewiselike((arm->lift1_piecewise(subsop(i=arm,e))), p)
     else
       e
