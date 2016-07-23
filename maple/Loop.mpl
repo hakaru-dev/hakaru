@@ -107,7 +107,7 @@ Loop := module ()
     if depends(w0, x) then
       'makes'(e, x, rr, ll)
     else
-      simplify_assuming(w0 * foldl(''product'', 'make'(pp,x=r), op(l)), kb1)
+      w0 * foldl(''product'', 'make'(pp,x=r), op(l))
     end if
   end proc;
 
