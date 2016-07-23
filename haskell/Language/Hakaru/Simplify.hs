@@ -78,7 +78,7 @@ simplifyDebug
     => Bool -> abt '[] a -> IO (abt '[] a)
 simplifyDebug debug e = do
     let typ = typeOf e
-    let toMaple_ = "use Hakaru, NewSLO in timelimit(30, RoundTrip("
+    let toMaple_ = "use Hakaru, NewSLO in timelimit(90, RoundTrip("
                    ++ Maple.pretty e ++ ", " ++ Maple.mapleType typ ")) end use;"
     when debug (hPutStrLn stderr ("Sent to Maple:\n" ++ toMaple_))
     fromMaple <- maple toMaple_
