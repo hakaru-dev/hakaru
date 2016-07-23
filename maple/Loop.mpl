@@ -253,6 +253,14 @@ Loop := module ()
       return unproduct(eval(op(1,w), op([2,1],w)=x), var, loop,
                        [op(heap), Binder(op(0,w), kb1)], mode, kb, kb0)
     end if;
+    if mode = `*` and w :: '{`+`, specfunc({sum, Sum})}' then
+      # Maybe this w is one of those big sums involving products that are
+      # always equal to 1, left behind by the density of Categorical
+      w1 := graft(split(peel(lift_piecewise(w))));
+      w1 := combine(rebase_upper(w1));
+      w1 := combine(rebase_lower(w1));
+      return [wrap(heap, w1, mode, kb1, kb0), 1]
+    end if;
     return [wrap(heap, w, mode, kb1, kb0), 1]
   end proc;
 
