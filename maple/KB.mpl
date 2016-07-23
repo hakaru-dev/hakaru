@@ -504,7 +504,7 @@ KB := module ()
     `product/indef/indef` := overload([
       proc(expr, i, $)
         option overload;
-        local s, a, b;
+        local a, b;
         if has(expr,i) and sign(expr,i) :: negative then
           if ispoly(expr, linear, i, 'b', 'a') then
             (-a)^i / GAMMA(1-i-b/a)
