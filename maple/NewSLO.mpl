@@ -484,9 +484,14 @@ NewSLO := module ()
       proc (n, $)
         local l, k, Unroll;
         l := go(n);
-        'GAMMA'(l)
-          * eval(lift_piecewise(Unroll(n-l), 'Unroll(specfunc(piecewise))'),
-                 Unroll=(d->mul(l+k,k=0..d-1)));
+        if l :: constant then
+          eval(lift_piecewise(Unroll(n), 'Unroll(specfunc(piecewise))'),
+               Unroll=GAMMA)
+        else
+          'GAMMA'(l)
+            * eval(lift_piecewise(Unroll(n-l), 'Unroll(specfunc(piecewise))'),
+                   Unroll=(d->mul(l+k,k=0..d-1)))
+        end if
       end proc)
   end proc:
 
