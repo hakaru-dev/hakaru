@@ -426,7 +426,7 @@ NewSLO := module ()
     elif lo = 0 and not(hi :: 'SymbolicInfinity') then
       s, r := selectremove(depends, convert(w, 'list', `*`), k);
       if nops(s) > 0 then
-        res := unroll_GAMMA(ary(hi+1, k, `*`(op(s))));
+        res := ary(hi+1, k, `*`(op(s)));
         if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi+1), res[1]);
         else

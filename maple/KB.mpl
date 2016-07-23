@@ -25,7 +25,8 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
-  global t_kb, `expand/product`, `simplify/int/simplify`, `product/indef/indef`;
+  global t_kb, `expand/product`, `simplify/int/simplify`,
+         `product/indef/indef`, `convert/Beta`;
   uses Hakaru;
 
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
@@ -296,6 +297,7 @@ KB := module ()
   simplify_assuming := proc(ee, kb::t_kb, $)
     local e, as;
     e := foldl(eval, ee, op(kb_to_equations(kb)));
+    e := convert(e, 'Beta');
     e := evalindets(e, 'And(specfunc({%product, product}),
                             anyfunc(anything, name=range))', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
@@ -514,6 +516,28 @@ KB := module ()
         end if
       end proc,
       `product/indef/indef`]);
+
+    # Convert GAMMA(x)*GAMMA(y)/GAMMA(x+y) to Beta(x,y)
+    `convert/Beta` := proc(e, $)
+      evalindets(e, 'And(`*`, Not(`*`(Not(specfunc(GAMMA)))),
+                              Not(`*`(Not(1/specfunc(GAMMA)))))',
+        proc(p, $)
+          local s, t, r, i, j, x, y;
+          s, r := selectremove(type, convert(p,'list',`*`), 'specfunc(GAMMA)');
+          t := map2(op, [1,1], select(type, {op(r)}, '1/specfunc(GAMMA)'));
+          for i from nops(s) to 2 by -1 do
+            x := op([i,1],s);
+            for j from i-1 to 1 by -1 do
+              y := op([j,1],s);
+              if x + y in t then
+                s := subsop(j=GAMMA(x+y), i=Beta(x,y), s);
+                break;
+              end if;
+            end do;
+          end do;
+          `*`(op(s), op(r));
+        end proc);
+    end proc;
   end proc;
 
   ModuleUnload := proc($)
