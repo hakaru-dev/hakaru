@@ -143,7 +143,7 @@ symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
 -- | Smart constructor for divide
 divide :: AST' Text -> AST' Text -> AST' Text
-divide (ULiteral x) (ULiteral y) = ULiteral (go x y)
+divide (ULiteral x') (ULiteral y') = ULiteral (go x' y')
   where go :: Literal' -> Literal' -> Literal'
         go (Nat  x) (Nat  y) = Prob (x % y)
         go x        y        = Real (litToRat x / litToRat y)
@@ -486,7 +486,7 @@ term =  try if_expr
     <?> "an expression"
 
 expr :: Parser (AST' Text)
-expr = Ex.buildExpressionParser table term <?> "an expression"
+expr = Ex.buildExpressionParser table (withPos term) <?> "an expression"
 
 
 indentConfig :: Text -> ParserStream

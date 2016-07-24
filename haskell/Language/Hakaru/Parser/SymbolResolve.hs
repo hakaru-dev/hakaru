@@ -333,7 +333,9 @@ symbolResolution symbols ast =
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
     U.Data   _name _typ -> error "TODO: symbolResolution{U.Data}"
-    U.WithMeta _a _meta -> error "TODO: symbolResolution{U.WithMeta}"
+    U.WithMeta a meta -> U.WithMeta
+        <$> symbolResolution symbols a
+        <*> return meta
 
 
 symbolResolveBranch
@@ -519,7 +521,7 @@ makeAST ast =
     U.Msum es -> collapseSuperposes (map makeAST es)
     
     U.Data   _name _typ -> error "TODO: makeAST{U.Data}"
-    U.WithMeta _a _meta -> error "TODO: makeAST{U.WithMeta}"
+    U.WithMeta a _ -> makeAST a
 
     where
     withName :: String -> Symbol U.AST -> (U.Name -> r) -> r
