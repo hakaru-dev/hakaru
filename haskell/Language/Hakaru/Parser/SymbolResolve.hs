@@ -27,6 +27,7 @@ import qualified Language.Hakaru.Syntax.AST      as T
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Variable
 import qualified Language.Hakaru.Parser.AST      as U
+import           Language.Hakaru.Evaluation.Coalesce (coalesce)
 
 data Symbol a
     = TLam (a -> Symbol a)
@@ -539,8 +540,9 @@ resolveAST'
     -> U.AST' Text
     -> U.AST
 resolveAST' syms ast =
-    makeAST .
-    normAST $
+    coalesce .
+    makeAST  .
+    normAST  $
     evalState (symbolResolution
         (insertSymbols syms primTable) ast)
         (nextVarID_ syms)

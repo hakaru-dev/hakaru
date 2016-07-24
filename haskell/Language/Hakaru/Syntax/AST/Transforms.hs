@@ -10,6 +10,8 @@
 ---------------------------------------------------------------
 module Language.Hakaru.Syntax.AST.Transforms where
 
+import qualified Data.Sequence as S
+
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeOf
@@ -63,3 +65,25 @@ expandTransformations =
           Nothing -> syn t
         _                         -> syn t
         
+coalesce
+  :: forall abt a
+  .  (ABT Term abt)
+  => abt '[] a
+  -> abt '[] a
+coalesce abt = caseVarSyn abt var onNaryOps
+  where onNaryOps (NaryOp_ t es) = syn $ NaryOp_ t (coalesceNaryOp t es)
+        onNaryOps term           = syn term
+
+coalesceNaryOp
+  :: ABT Term abt
+  => NaryOp a
+  -> S.Seq (abt '[] a)
+  -> S.Seq (abt '[] a)
+coalesceNaryOp typ args =
+  do abt <- args
+     case viewABT abt of
+       Syn (NaryOp_ typ' args') ->
+         if typ == typ'
+         then coalesceNaryOp typ args'
+         else return (coalesce abt)
+       _ -> return abt
