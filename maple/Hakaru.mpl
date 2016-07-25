@@ -326,7 +326,7 @@ Hakaru := module ()
       # Mind the hygiene
       subsindets(eval(subsop(2 = map[3](applyop, g, 2, op(2,p)), p),
                       g=h(f,_rest)),
-                 'typefunc(anything,specfunc(h))',
+                 'typefunc(specfunc(h))',
                  (e -> op([0,1],e)(op(1,e), op(2..-1,op(0,e)))))
     elif p :: 'idx(list, anything)' then
       idx(map(f,op(1,p),_rest), op(2,p))
