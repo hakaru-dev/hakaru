@@ -274,7 +274,7 @@ ppCoerceTo =
     prettyShow (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
     prettyShow (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
     prettyShow (CCons (Continuous HContinuous_Prob)
-        (CCons (Signed HRing_Real) CNil))                  = "nat2real"
+        (CCons (Signed HRing_Real) CNil))                 = "nat2real"
     prettyShow (CCons (Signed HRing_Int)
         (CCons (Continuous HContinuous_Real) CNil))       = "nat2real"
     prettyShow c = "coerceTo_ " ++ showsPrec 11 c ""
@@ -309,27 +309,27 @@ ppPrimOp p Diff = \(e1 :* e2 :* End) ->
             [ ppArg e1
             , ppArg e2
             ]]
-ppPrimOp p Nand = \(e1 :* e2 :* End) -> ppApply2 p "nand" e1 e2 -- TODO: make infix...
-ppPrimOp p Nor  = \(e1 :* e2 :* End) -> ppApply2 p "nor" e1 e2 -- TODO: make infix...
-ppPrimOp _ Pi        = \End               -> [PP.text "pi"]
-ppPrimOp p Sin       = \(e1 :* End)       -> ppApply1 p "sin"   e1
-ppPrimOp p Cos       = \(e1 :* End)       -> ppApply1 p "cos"   e1
-ppPrimOp p Tan       = \(e1 :* End)       -> ppApply1 p "tan"   e1
-ppPrimOp p Asin      = \(e1 :* End)       -> ppApply1 p "asin"  e1
-ppPrimOp p Acos      = \(e1 :* End)       -> ppApply1 p "acos"  e1
-ppPrimOp p Atan      = \(e1 :* End)       -> ppApply1 p "atan"  e1
-ppPrimOp p Sinh      = \(e1 :* End)       -> ppApply1 p "sinh"  e1
-ppPrimOp p Cosh      = \(e1 :* End)       -> ppApply1 p "cosh"  e1
-ppPrimOp p Tanh      = \(e1 :* End)       -> ppApply1 p "tanh"  e1
-ppPrimOp p Asinh     = \(e1 :* End)       -> ppApply1 p "asinh" e1
-ppPrimOp p Acosh     = \(e1 :* End)       -> ppApply1 p "acosh" e1
-ppPrimOp p Atanh     = \(e1 :* End)       -> ppApply1 p "atanh" e1
-ppPrimOp p RealPow   = \(e1 :* e2 :* End) -> ppBinop "**" 8 RightAssoc p e1 e2
-ppPrimOp p Exp       = \(e1 :* End)       -> ppApply1 p "exp"   e1
-ppPrimOp p Log       = \(e1 :* End)       -> ppApply1 p "log"   e1
-ppPrimOp _ (Infinity _)     = \End        -> [PP.text "infinity"]
-ppPrimOp p GammaFunc = \(e1 :* End)       -> ppApply1 p "gammaFunc" e1
-ppPrimOp p BetaFunc  = \(e1 :* e2 :* End) -> ppApply2 p "betaFunc" e1 e2
+ppPrimOp p Nand = \(e1 :* e2 :* End)        -> ppApply2 p "nand" e1 e2 -- TODO: make infix...
+ppPrimOp p Nor  = \(e1 :* e2 :* End)        -> ppApply2 p "nor" e1 e2 -- TODO: make infix...
+ppPrimOp _ Pi        = \End                 -> [PP.text "pi"]
+ppPrimOp p Sin       = \(e1 :* End)         -> ppApply1 p "sin"   e1
+ppPrimOp p Cos       = \(e1 :* End)         -> ppApply1 p "cos"   e1
+ppPrimOp p Tan       = \(e1 :* End)         -> ppApply1 p "tan"   e1
+ppPrimOp p Asin      = \(e1 :* End)         -> ppApply1 p "asin"  e1
+ppPrimOp p Acos      = \(e1 :* End)         -> ppApply1 p "acos"  e1
+ppPrimOp p Atan      = \(e1 :* End)         -> ppApply1 p "atan"  e1
+ppPrimOp p Sinh      = \(e1 :* End)         -> ppApply1 p "sinh"  e1
+ppPrimOp p Cosh      = \(e1 :* End)         -> ppApply1 p "cosh"  e1
+ppPrimOp p Tanh      = \(e1 :* End)         -> ppApply1 p "tanh"  e1
+ppPrimOp p Asinh     = \(e1 :* End)         -> ppApply1 p "asinh" e1
+ppPrimOp p Acosh     = \(e1 :* End)         -> ppApply1 p "acosh" e1
+ppPrimOp p Atanh     = \(e1 :* End)         -> ppApply1 p "atanh" e1
+ppPrimOp p RealPow   = \(e1 :* e2 :* End)   -> ppBinop "**" 8 RightAssoc p e1 e2
+ppPrimOp p Exp       = \(e1 :* End)         -> ppApply1 p "exp"   e1
+ppPrimOp p Log       = \(e1 :* End)         -> ppApply1 p "log"   e1
+ppPrimOp _ (Infinity _)     = \End          -> [PP.text "infinity"]
+ppPrimOp p GammaFunc = \(e1 :* End)         -> ppApply1 p "gammaFunc" e1
+ppPrimOp p BetaFunc  = \(e1 :* e2 :* End)   -> ppApply2 p "betaFunc" e1 e2
 ppPrimOp p (Equal   _) = \(e1 :* e2 :* End) -> ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) = \(e1 :* e2 :* End) -> ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) = \(e1 :* e2 :* End) -> ppBinop "^"  8 RightAssoc p e1 e2
@@ -340,7 +340,7 @@ ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1 p "recip"  e1
 ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) ->
     -- N.B., argument order is swapped!
     ppBinop "`thRootOf`" 9 LeftAssoc p e2 e1
-ppPrimOp p (Erf _) = \(e1 :* End) -> ppApply1 p "erf" e1
+ppPrimOp p (Erf _) = \(e1 :* End)           -> ppApply1 p "erf" e1
 
 
 -- | Pretty-print a 'ArrayOp' @(:$)@ node in the AST.
