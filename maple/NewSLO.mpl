@@ -121,8 +121,8 @@ NewSLO := module ()
   end proc;
 
   t_pw      := 'specfunc(piecewise)';
-  t_sum     := 'specfunc({sum    ,Sum    ,%sum    ,%Sum    })';
-  t_product := 'specfunc({product,Product,%product,%Product})';
+  t_sum     := 'specfunc({sum    ,Sum    })';
+  t_product := 'specfunc({product,Product})';
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied

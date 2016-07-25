@@ -298,8 +298,7 @@ KB := module ()
     local e, as;
     e := foldl(eval, ee, op(kb_to_equations(kb)));
     e := convert(e, 'Beta');
-    e := subsindets(e, 'And(specfunc({%product, product}),
-                            anyfunc(anything, name=range))', myexpand_product);
+    e := subsindets(e, 'product(anything, name=range)', myexpand_product);
     e := subsindets(e, 'specfunc(sum)', expand);
     as := [op(kb_to_assumptions(kb)),
            op(map(`::`, indets(e, 'specfunc(size)'), nonnegint))];
