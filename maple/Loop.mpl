@@ -352,7 +352,7 @@ Loop := module ()
   # Rewrite product(piecewise(i+42=lo+42,th,el),i=lo..hi)
   # to eval(th,i=lo)*product(el,i=lo+1..hi)
   peel := proc(ee, $)
-    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
+    subsindets(ee, 'And(specfunc({sum,Sum,product,Product}),
                         anyfunc(specfunc(piecewise), name=range))',
     proc(e, $)
       local body, x, r, line, test, make, here, rest, res;
@@ -417,7 +417,7 @@ Loop := module ()
 
   # Expand sum(a*(b-c),q) to sum(a*b,q)-sum(a*c,q)
   split := proc(ee, $)
-    evalindets(ee, 'And(specfunc({sum,Sum}),
+    subsindets(ee, 'And(specfunc({sum,Sum}),
                         anyfunc(And(`*`,Not(`*`(Not(`+`)))),name=anything))',
     proc(e, $)
       local terms, x;
@@ -434,7 +434,7 @@ Loop := module ()
 
   # Simplify f(lo-1)*product(f(i),i=lo..hi) to product(f(i),i=lo-1..hi)
   graft := proc(ee, $)
-    evalindets(ee, 'Or(And(`*`,Not(`*`(Not(specfunc({product,Product}))))),
+    subsindets(ee, 'Or(And(`*`,Not(`*`(Not(specfunc({product,Product}))))),
                        And(`+`,Not(`+`(Not(specfunc({sum    ,Sum    }))))))',
     proc(e, $)
       local produce, factors, i, j;
@@ -462,7 +462,7 @@ Loop := module ()
 
   # Normalize sum(f(i),i=2..hi) to sum(f(i+2),i=0..hi-2)
   rebase_lower := proc(ee, $)
-    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
+    subsindets(ee, 'And(specfunc({sum,Sum,product,Product}),
                         anyfunc(anything,
                           name=Not({0,SymbolicInfinity,undefined})..anything))',
     proc(e, $)
@@ -476,7 +476,7 @@ Loop := module ()
 
   # Normalize sum(f(i),i=lo..2) to sum(f(i+2),i=lo-2..0)
   rebase_upper := proc(ee, $)
-    evalindets(ee, 'And(specfunc({sum,Sum,product,Product}),
+    subsindets(ee, 'And(specfunc({sum,Sum,product,Product}),
                         anyfunc(anything,
                           name=anything..Not({0,SymbolicInfinity,undefined})))',
     proc(e, $)

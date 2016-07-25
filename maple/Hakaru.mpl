@@ -189,8 +189,8 @@ Hakaru := module ()
     end if;
     pSubst := map((x -> `if`(depends(e0,x), x=gensym(x), NULL)),
                   {pattern_binds(p)});
-    eSubst := {e=evalindets(
-                   evalindets[nocache](
+    eSubst := {e=subsindets(
+                   subsindets[nocache](
                      subs(pSubst,
                           p_true=true,
                           p_false=false,
@@ -324,7 +324,7 @@ Hakaru := module ()
                     i=1..nops(p)))
     elif p :: 't_case' then
       # Mind the hygiene
-      evalindets(eval(subsop(2 = map[3](applyop, g, 2, op(2,p)), p),
+      subsindets(eval(subsop(2 = map[3](applyop, g, 2, op(2,p)), p),
                       g=h(f,_rest)),
                  'typefunc(anything,specfunc(h))',
                  (e -> op([0,1],e)(op(1,e), op(2..-1,op(0,e)))))
@@ -340,7 +340,7 @@ Hakaru := module ()
     e2 := e;
     while e1 <> e2 do
       e1 := e2;
-      e2 := evalindets(e1,
+      e2 := subsindets(e1,
               '{extra,
                 And(`+`, Not(specop(Not(specfunc(piecewise)), `+`))),
                 And(`*`, Not(specop(Not(specfunc(piecewise)), `*`))),

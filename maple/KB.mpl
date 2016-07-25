@@ -46,7 +46,7 @@ KB := module ()
     # value is completely respected
     local x, t;
     x := `if`(depends([t,kb,_rest], xx), gensym(xx), xx);
-    t := evalindets(tt, identical(Bound(`>` , -infinity),
+    t := subsindets(tt, identical(Bound(`>` , -infinity),
                                   Bound(`>=`, -infinity),
                                   Bound(`<` ,  infinity),
                                   Bound(`<=`,  infinity)), _->NULL);
@@ -298,9 +298,9 @@ KB := module ()
     local e, as;
     e := foldl(eval, ee, op(kb_to_equations(kb)));
     e := convert(e, 'Beta');
-    e := evalindets(e, 'And(specfunc({%product, product}),
+    e := subsindets(e, 'And(specfunc({%product, product}),
                             anyfunc(anything, name=range))', myexpand_product);
-    e := evalindets(e, 'specfunc(sum)', expand);
+    e := subsindets(e, 'specfunc(sum)', expand);
     as := [op(kb_to_assumptions(kb)),
            op(map(`::`, indets(e, 'specfunc(size)'), nonnegint))];
     e := chill(e);
@@ -519,7 +519,7 @@ KB := module ()
 
     # Convert GAMMA(x)*GAMMA(y)/GAMMA(x+y) to Beta(x,y)
     `convert/Beta` := proc(e, $)
-      evalindets(e, 'And(`*`, Not(`*`(Not(specfunc(GAMMA)))),
+      subsindets(e, 'And(`*`, Not(`*`(Not(specfunc(GAMMA)))),
                               Not(`*`(Not(1/specfunc(GAMMA)))))',
         proc(p, $)
           local s, t, r, i, j, x, y;

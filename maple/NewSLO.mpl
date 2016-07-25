@@ -56,7 +56,7 @@ NewSLO := module ()
   end proc;
 
   Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
-    evalindets(SimplifyKB(e, t, foldr(assert, empty, op(ctx))),
+    subsindets(SimplifyKB(e, t, foldr(assert, empty, op(ctx))),
                And({t_sum, t_product}, anyfunc(anything, anything=range)),
                e -> subsop(0 = `if`(e::t_sum, SumIE, ProductIE),
                            applyop(`+`, [2,2,2], e, 1)))
@@ -376,7 +376,7 @@ NewSLO := module ()
     w := subsindets[flat](w, {`^`, specfunc(exp)},
            proc(e)
              applyop(proc(e)
-                       evalindets[flat](e,
+                       subsindets[flat](e,
                          And({`^`, specfunc(exp)},
                              Not(radfun), Not(algfun), 'freeof'(x)),
                          proc(e) Constant[e] end)

@@ -38,12 +38,16 @@ BindingTools := module ()
   export generic_evalat, generic_evalatstar;
 
   generic_evalat := proc(vv::{name,list(name)}, mm, eqs, $)
-    local v, m, eqsRemain, subsEq, eq, rename, funs;
+    local v, m, eqsRemain, eq, rename, funs;
     funs := map2(op, 0, indets(mm, 'function'));
-    eqsRemain := remove((eq -> op(1,eq) = op(2,eq)), eqs);
-    eqsRemain, subsEq := selectremove((eq -> type(op(1,eq),'name')), eqsRemain);
-    eqsRemain := select((eq -> not has(op(1,eq), vv) and
-      (depends(mm, op(1,eq)) or member(op(1,eq), funs))), eqsRemain);
+    eqsRemain := select(
+      (eq -> op(1,eq) <> op(2,eq)
+             and not has(op(1,eq), vv)
+             and (not (op(1,eq) :: 'name')
+                  or depends(mm, op(1,eq))
+                  or member(op(1,eq), funs))),
+      eqs);
+    if nops(eqsRemain) = 0 then return vv, mm end if;
     m := mm;
     rename := proc(v::name, $)
       local vRename;
@@ -60,11 +64,7 @@ BindingTools := module ()
     else
       v := map(rename, vv);
     end if;
-    m := subs(subsEq,m);
-    if nops(eqsRemain) > 0 then
-      m := eval(m,eqsRemain);
-    end if;
-    v, m;
+    v, eval(m, eqsRemain);
   end proc:
 
   generic_evalatstar := proc(body, bound::list, eqs, $)

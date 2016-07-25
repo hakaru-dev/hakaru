@@ -43,8 +43,8 @@ TestHakaru(Bind(Bind(Uniform(0,1),x,Ret(x^2)),y,Ret(x^3)),
 model3 := Bind(Gaussian(0,1),x,Gaussian(x,1)):
 
 TestHakaru(model3, Gaussian(0,sqrt(2)),
- simp = (lo -> evalindets(lo, 'specfunc(Int)',
-  i -> evalindets(IntegrationTools[CollapseNested](
+ simp = (lo -> subsindets(lo, 'specfunc(Int)',
+  i -> subsindets(IntegrationTools[CollapseNested](
                   IntegrationTools[Combine](i)), 'Int(anything,list)',
   i -> subsop(0=int, applyop(ListTools[Reverse], 2, i))))),
   label = "use simplifier to integrate out variable");
@@ -152,8 +152,8 @@ TestHakaru(
 # and more various
 model_exp := Bind(Uniform(-1,1),x,Ret(exp(x))):
 TestHakaru(model_exp, model_exp, label = "uniform -1..1 into exp");
-TestHakaru(IntegrationTools[Expand](LO(h, Int((1+y)*applyintegrand(h,y),y=0..1))), Msum(Uniform(0,1), Weight(1/2,BetaD(2,1))));
-TestHakaru(Bind(Uniform(0,1),x,Bind(IntegrationTools[Expand](LO(h, Int((1+y)*applyintegrand(h,y),y=0..1))),y,Ret([x,y]))), Weight(3/2,Bind(Uniform(0,1),x,Msum(Weight(2/3,Bind(Uniform(0,1),y,Ret([x,y]))),Weight(1/3,Bind(BetaD(2,1),y,Ret([x,y])))))));
+TestHakaru(LO(h, IntegrationTools[Expand](Int((1+y)*applyintegrand(h,y),y=0..1))), Msum(Uniform(0,1), Weight(1/2,BetaD(2,1))));
+TestHakaru(Bind(Uniform(0,1),x,Bind(LO(h, IntegrationTools[Expand](Int((1+y)*applyintegrand(h,y),y=0..1))),y,Ret([x,y]))), Weight(3/2,Bind(Uniform(0,1),x,Msum(Weight(2/3,Bind(Uniform(0,1),y,Ret([x,y]))),Weight(1/3,Bind(BetaD(2,1),y,Ret([x,y])))))));
 
 # easy-easy-HMM
 eeHMM := Bind(GammaD(1,1),t,
