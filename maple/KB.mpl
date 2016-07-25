@@ -306,9 +306,7 @@ KB := module ()
     e := chill(e);
     as := chill(as);
     try
-      e := evalindets(e, {logical,
-                          specfunc({And,Or,Not}),
-                          specop(algebraic,{`<`,`<=`,`=`,`<>`})},
+      e := evalindets(e, specop(algebraic,{`<`,`<=`,`=`,`<>`}),
         proc(b, $)
           try
             if is(b) assuming op(as) then return true
