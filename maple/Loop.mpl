@@ -321,7 +321,7 @@ Loop := module ()
         (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
         w := `*`(op(w));
         if mode = `*` and not (w = 1) then
-          w := w ^ `if`(make=eval,eval,sum)
+          w := w ^ `if`(make=eval,eval,Sum)
                        (piecewise_And(dom_spec, 1, 0), var=new_rng);
         end if;
         e := w * make(piecewise_And(dom_spec, `*`(op(e)), mode()), var=new_rng);
