@@ -448,10 +448,12 @@ Loop := module ()
                                     'anyfunc(anything,name=range)') then
             if Testzero(op(i,factors) - eval(op([j,1],factors),
                  op([j,2,1],factors)=op([j,2,2,1],factors)-1)) then
-              factors := subsop(i=NULL,applyop(`-`,[j,2,2,1],factors,1))
+              factors := subsop(i=NULL,applyop(`-`,[j,2,2,1],factors,1));
+              break
             elif Testzero(op(i,factors) - eval(op([j,1],factors),
                    op([j,2,1],factors)=op([j,2,2,2],factors)+1)) then
-              factors := subsop(i=NULL,applyop(`+`,[j,2,2,2],factors,1))
+              factors := subsop(i=NULL,applyop(`+`,[j,2,2,2],factors,1));
+              break
             end if
           end if
         end do
