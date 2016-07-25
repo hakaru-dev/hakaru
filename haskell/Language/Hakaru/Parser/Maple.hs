@@ -338,16 +338,11 @@ maple2AST (InertArgs Func
     Index (maple2AST e1) (maple2AST e2)
 
 maple2AST (InertArgs Func
-        [InertName "piecewise", InertArgs ExpSeq (e1:e2:es)]) =
-    If (maple2AST e1) (maple2AST e2) rest
-
-    where
-    rest =
-        case es of
-        [e3]    -> maple2AST e3
-        [_, e3] -> maple2AST e3
-        x       -> maple2AST (InertArgs Func [InertName "piecewise",
-                                                       InertArgs ExpSeq x])
+        [InertName "piecewise", InertArgs ExpSeq es]) = go es where
+  go [e1,e2]      = If (maple2AST e1) (maple2AST e2) (ULiteral (Nat 0))
+  go [e1,e2,e3]   = If (maple2AST e1) (maple2AST e2) (maple2AST e3)
+  go [e1,e2,_,e3] = If (maple2AST e1) (maple2AST e2) (maple2AST e3)
+  go (e1:e2:rest) = If (maple2AST e1) (maple2AST e2) (go rest)
 
 maple2AST (InertArgs Func
         [InertName "max", InertArgs ExpSeq es]) =
