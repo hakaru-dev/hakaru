@@ -525,10 +525,12 @@ Loop := module ()
     # Override sum to fail faster
     unprotect(sum);
     sum := overload([
-      proc(f :: Not({`+`,`+`^integer}), k :: name=Not(range(rational)), $)
+      proc(f :: Not({`+`,`+`^integer}),
+           k :: name=And(range,Not(range(rational))), $)
         option overload;
-        if not (subsindets(f, 'anything^integer', f->op(1,f))
-                :: '{`+`,And(`*`,Not(`*`(Not(`+`))))}')
+        if not (`-`(op(rhs(k))) :: 'rational')
+           and not (subsindets(f, 'anything^integer', f->op(1,f))
+                    :: '{`+`,And(`*`,Not(`*`(Not(`+`))))}')
            and depends(indets(f, 'specfunc(idx)'), op(1,k)) then
           'procname(_passed)'
         else
