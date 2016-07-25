@@ -80,7 +80,7 @@ Loop := module ()
          peel, split, graft, rebase_lower, rebase_upper;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Ints, Sums, csgn;
+  global Ints, Sums, csgn, sum;
   uses Hakaru, KB;
 
   t_binder := 'Binder(identical(product, Product, sum, Sum), t_kb)';
@@ -521,6 +521,22 @@ Loop := module ()
       end proc,
       csgn]);
     protect(csgn);
+
+    # Override sum to fail faster
+    unprotect(sum);
+    sum := overload([
+      proc(f :: Not({`+`,`+`^integer}), k :: name=Not(range(rational)), $)
+        option overload;
+        if not (subsindets(f, 'anything^integer', f->op(1,f))
+                :: '{`+`,And(`*`,Not(`*`(Not(`+`))))}')
+           and depends(indets(f, 'specfunc(idx)'), op(1,k)) then
+          'procname(_passed)'
+        else
+          error "invalid input: cannot fast-fail sum(%1, %2)", _passed
+        end if
+      end proc,
+      sum]);
+    protect(sum);
   end proc;
 
   ModuleLoad();
