@@ -22,7 +22,7 @@ NewSLO := module ()
   option package;
   local t_pw, t_sum, t_product,
         integrate_known, known_continuous, known_discrete,
-        recognize_continuous, recognize_discrete, unroll_GAMMA, get_de, get_se,
+        recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, bind, weight,
         reduce_IntSum, reduce_IntsSums, get_indicators,
@@ -468,53 +468,6 @@ NewSLO := module ()
     end if;
     map(simplify_assuming, res, kb)
   end proc;
-
-  # unroll_GAMMA rewrites GAMMA(a+2)
-  #                    to GAMMA(a)*a*(a+1)
-  #
-  # expand/GAMMA does this too, but it further expands the result
-  # to GAMMA(a)*a^2+GAMMA(a)*a , which we don't want.
-  # Also, unroll_GAMMA rewrites GAMMA(a+f(b)+1+piecewise(c<d,1,0))
-  # to GAMMA(a+f(b)) * piecewise(c<d, (a+f(b))*(a+f(b)+1), a+f(b))
-  #
-  # unroll_GAMMA helps us factor out Beta(a,b)/(a+b) from the
-  #   [GAMMA(b)*GAMMA(a+1)/GAMMA(1+a+b),
-  #    GAMMA(b+1)*GAMMA(a)/GAMMA(1+a+b)]
-  # produced by
-  #   simplify([int(x^(a-1)*(1-x)^(b-1)*x    ,x=0..1),
-  #             int(x^(a-1)*(1-x)^(b-1)*(1-x),x=0..1)])
-  unroll_GAMMA := proc(e)
-    local go;
-    go := proc (t, $)
-            local i, r, s;
-            if t :: 'complex(rational)' then
-              t - floor(Re(t))
-            elif t :: 'specfunc(piecewise)' then
-              r := seq(`if`(i::odd and i<nops(t), op(i,t), go(op(i,t))),
-                       i=1..nops(t));
-              `if`(`and`(seq(r[i] = `if`(nops(t)::odd, r[-1], 0), i=2..nops(t), 2)),
-                   r[2],
-                   piecewise(r));
-            elif t :: `+` then
-              map(go, t)
-            else
-              t
-            end if
-          end proc;
-    eval(e, GAMMA=
-      proc (n, $)
-        local l, k, Unroll;
-        l := go(n);
-        if l :: constant then
-          eval(lift_piecewise(Unroll(n), 'Unroll(specfunc(piecewise))'),
-               Unroll=GAMMA)
-        else
-          'GAMMA'(l)
-            * eval(lift_piecewise(Unroll(n-l), 'Unroll(specfunc(piecewise))'),
-                   Unroll=(d->mul(l+k,k=0..d-1)))
-        end if
-      end proc)
-  end proc:
 
   get_de := proc(dens, var, Dx, f, $)
     :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
