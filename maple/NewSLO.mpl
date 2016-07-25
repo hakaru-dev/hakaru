@@ -37,7 +37,7 @@ NewSLO := module ()
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru,
+         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, Efficient,
          toLO, fromLO, unintegrate, unweight, improve, reduce,
          density, bounds,
          ReparamDetermined, determined, reparam, disint;
@@ -118,6 +118,31 @@ NewSLO := module ()
     kb := foldr(assert, empty, op(ctx));
     CodeTools[Test](fromLO(simp(toLO(m), _ctx=kb), _ctx=kb), n,
       measure(verify), _rest)
+  end proc;
+
+  # Test roughly for "efficient" Hakaru measure terms,
+  # i.e., those we want simplification to produce.
+  Efficient := proc(mm, $)
+    local m, n;
+    m := mm;
+    if has(m, 'undefined') then
+      return false;
+    end if;
+    while m :: 'lam(name, anything, anything)' do m := op(3,m) end do;
+    if m :: 'Weight(anything, anything)' then m := op(2,m) end if;
+    if has(m, '{infinity, Lebesgue, int, Int, Beta, GAMMA}') then
+      return false;
+    end if;
+    for n in `if`(m :: 'specfunc(Msum)', m, [m]) do
+      if n :: 'Weight(anything, anything)' then n := op(2,n) end if;
+      if has(subsindets(n, 'specfunc(Weight(anything, anything), Msum)',
+                        s -> `if`(Testzero(`+`(op(map2(op, 1, s))) - 1),
+			          map2(op, 2, s), s)),
+	     '{Msum, Weight}') then
+	return false;
+      end if;
+    end do;
+    return true;
   end proc;
 
   t_pw      := 'specfunc(piecewise)';
