@@ -400,9 +400,9 @@ KB := module ()
       beta := subsindets(beta, 'specfunc(piecewise)', proc(pw, $)
         # Remove a particular superfluous inequality
         `if`(op(1,pw) :: 'And(specfunc(And), anyfunc(anything<=anything,name=anything))'
-             and op([1,1,2],pw)=rhs(rng)
-             and op([1,2,1],pw)=i
-             and op([1,1,1],pw)=op([1,2,2],pw),
+             and Testzero(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) or
+             op(1,pw) :: 'And(specfunc(And), anyfunc(anything<>anything,name=anything))'
+             and Normalizer(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) :: negative,
              subsop(1=op([1,2],pw), pw),
              pw)
       end proc);
