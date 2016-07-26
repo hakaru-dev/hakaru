@@ -670,23 +670,23 @@ subst x e = start
         case varEq x z of
         Just Refl -> e
         Nothing   -> f
-    loop f (Bind z _) =
-        case varEq x z of
-        Just Refl -> f
-        Nothing   ->
+    loop f (Bind z _)
+        | varID x == varID z = f
+        | otherwise = 
             -- TODO: even if we don't come up with a smarter way
             -- of freshening variables, it'd be better to just pass
             -- both sets to 'freshen' directly and then check them
             -- each; rather than paying for taking their union every
             -- time we go under a binder like this.
-            let z' = freshen z (freeVars e `mappend` freeVars f) in
+            let i  = nextVarID (freeVars e `mappend` freeVars f)
+                z' = i `seq` z{varID = i}
             -- HACK: the 'rename' function requires an ABT not a
             -- View, so we have to use 'caseBind' to give its
             -- input and then 'viewABT' to discard the topmost
             -- annotation. We really should find a way to eliminate
             -- that overhead.
-            caseBind f $ \_ f' ->
-                bind z' . loop f' . viewABT $ rename z z' f'
+            in caseBind f $ \_ f' ->
+                   bind z' . loop f' . viewABT $ rename z z' f'
 
 
 renames
