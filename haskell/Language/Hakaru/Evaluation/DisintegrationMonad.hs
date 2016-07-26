@@ -157,7 +157,13 @@ residualizeListContext ss rho e0 =
             -- TODO: if @body@ is dirac, then treat as 'SLet'
             syn (MBind :$ substs rho (fromLazy body) :* bind x e :* End)
         SLet x body _
-            | not (x `memberVarSet` freeLocs e) -> e
+            | not (x `memberVarSet` freeVars e) ->
+#ifdef __TRACE_DISINTEGRATE__
+               trace ("could not find location" ++ show x ++ "\n"
+                     ++ "in term " ++ show (pretty e) ++ "\n"
+                     ++ "given rho " ++ show (prettyAssocs rho)) $
+#endif                
+                e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
                 case getLazyVariable body of
