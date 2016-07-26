@@ -18,7 +18,7 @@ parseAndInfer x =
     case parseHakaru x of
     Left  err  -> Left (show err)
     Right past ->
-        let m = inferType (resolveAST' [] past) in
+        let m = inferType (resolveAST past) in
         runTCM m LaxMode
 
 readFromFile :: String -> IO Text
