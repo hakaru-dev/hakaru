@@ -567,6 +567,23 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
     showsPrec = showsPrec1
     show      = show1
 
+----------------------------------------------------------------
+
+
+-- | An ABT which carries around metadata at each node.
+
+-- data MetaABT (meta :: *) (syn :: ([k] -> k -> *) -> k -> *) (xs :: [k]) (a :: k) =
+--      MetaABT meta (MemoizedABT syn xs a)
+
+-- getMetadata :: MetaABT meta syn xs a -> meta
+-- getMetadata (MetaABT meta _) = meta
+
+data MetaABT (meta :: *) (abt :: [k] -> k -> *) (xs :: [k]) (a :: k) =
+     MetaABT meta (abt xs a)
+
+getMetadata :: MetaABT meta abt xs a -> meta
+getMetadata (MetaABT meta _) = meta
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
