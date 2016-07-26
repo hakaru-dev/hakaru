@@ -533,7 +533,10 @@ makeAST ast =
 
 resolveAST :: U.AST' Text -> U.AST
 resolveAST ast =
-    makeAST . normAST $ evalState (symbolResolution primTable ast) 0
+    coalesce .
+    makeAST  .
+    normAST $
+    evalState (symbolResolution primTable ast) 0
 
 resolveAST'
     :: [U.Name]
