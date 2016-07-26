@@ -138,25 +138,26 @@ residualizeListContext ss rho e0 =
     -- N.B., we use a left fold because the head of the list of
     -- statements is the one closest to the hole.
 #ifdef __TRACE_DISINTEGRATE__
-    trace ("e0: " ++ show (pretty e0)) $
+    trace ("e0: " ++ show (pretty e0) ++ "\n"
+          ++ show (pretty_Statements (statements ss))) $
 #endif
     foldl step (substs rho e0) (statements ss)
-    where
+    where    
     step
         :: abt '[] ('HMeasure a)
         -> Statement abt 'Impure
         -> abt '[] ('HMeasure a)
-    step e s =
+    step e s =        
 #ifdef __TRACE_DISINTEGRATE__
         trace ("wrapping " ++ show (ppStatement 0 s) ++ "\n"
                ++ "around term " ++ show (pretty e)) $
 #endif  
-        case s of
+        case s of       
         SBind x body _ ->
             -- TODO: if @body@ is dirac, then treat as 'SLet'
             syn (MBind :$ substs rho (fromLazy body) :* bind x e :* End)
         SLet x body _
-            | not (x `memberVarSet` freeVars e) -> e
+            | not (x `memberVarSet` freeLocs e) -> e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
                 case getLazyVariable body of
@@ -172,6 +173,10 @@ residualizeListContext ss rho e0 =
                 , Branch PWild (P.reject $ typeOf e)
                 ]
         SWeight body _ -> syn $ Superpose_ ((substs rho $ fromLazy body, e) :| [])
+    freeLocs :: abt xs e -> VarSet (KindOf e)
+    freeLocs e = let collect fls (SomeVariable x)
+                         = maybe fls (mappend fls . freeVars) (lookupAssoc x rho)
+                 in foldl collect emptyVarSet $ fromVarSet (freeVars e)
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
@@ -328,8 +333,8 @@ residualizeLocs e = do
   rho <- convertLocs newlocs
   putStatements (reverse ss')
 #ifdef __TRACE_DISINTEGRATE__
-  trace ("residualizeLocs: old:\n" ++ show (pretty_Statements ss )) $ return ()
-  trace ("residualizeLocs: new:\n" ++ show (pretty_Statements ss')) $ return ()
+  trace ("residualizeLocs: old heap:\n" ++ show (pretty_Statements ss )) $ return ()
+  trace ("residualizeLocs: new heap:\n" ++ show (pretty_Statements ss')) $ return ()
   locs <- getLocs
   traceM ("oldlocs:\n" ++ show (prettyLocs locs) ++ "\n")
   traceM ("new assoc for renaming:\n" ++ show (prettyAssocs rho))
