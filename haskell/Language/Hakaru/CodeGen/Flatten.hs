@@ -76,47 +76,54 @@ flattenNAryOp op args =
   do es <- T.mapM flattenABT args
      case op of
        (Sum HSemiring_Prob)  ->
-         do ident <- genIdent
+         do ident <- genIdent' "logSumExp"
             declare $ typeDeclaration SProb ident
             assign ident $ logSumExp es
             return (varE ident)
-
-         -- -- logsumexp algorithm for summing probs
-         -- do maxId <- genIdent' "max"
-         --    declare $ typeDeclaration SProb maxId
-         --    -- first compute max
-         --    assign maxId (maxE es)
-         --    let maxVar = varE maxId
-
-         --    -- compute diffs between max
-         --    diffs <- T.forM es (\e -> do diffId <- genIdent' "dif"
-         --                                 declare $ typeDeclaration SProb diffId
-         --                                 assign diffId (e ^- maxVar)
-         --                                 return (varE diffId))
-
-         --    -- compute $ max + log(exp(diffs) + ...)
-         --    sumId <- genIdent' "sum"
-         --    declare $ typeDeclaration SProb sumId
-         --    assign sumId $  maxVar
-         --                 ^+ (log (F.foldr (binaryOp op)
-         --                                  (S.index diffs 0)
-         --                                  (S.drop 1 diffs)))
-         --    return (varE sumId)
 
        -- otherwise
        _ -> return $ F.foldr (binaryOp op)
                              (S.index es 0)
                              (S.drop 1 es)
 
-maxE :: S.Seq CExpr -> CExpr
-maxE es = F.foldr check (S.index es 0) (S.drop 1 es)
-  where check a b = condE (a ^> b) a b
-
+-- logSumExp codegen involves producing a tree of comparisons, where
+-- the leaves are logSumExp expressions
+--
+-- the tree traversal is a depth first search
 logSumExp :: S.Seq CExpr -> CExpr
-logSumExp es = F.foldr f (S.index es 0) (S.drop 1 es)
-  where f a b = condE (a ^> b)
-                      (a ^+ (log1p (exp (b ^- a))))
-                      (b ^+ (log1p (exp (a ^- b))))
+logSumExp es = mkCompTree 0 1
+
+  where lastIndex  = S.length es - 1
+
+        compIndices :: Int -> Int -> CExpr -> CExpr -> CExpr
+        compIndices i j = condE ((S.index es i) ^> (S.index es j))
+
+        mkCompTree :: Int -> Int -> CExpr
+        mkCompTree i j
+          | j == lastIndex = compIndices i j (logSumExp' i) (logSumExp' j)
+          | otherwise      = compIndices i j
+                               (mkCompTree i (succ j))
+                               (mkCompTree j (succ j))
+
+        diffExp :: Int -> Int -> CExpr
+        diffExp a b = expm1 ((S.index es a) ^- (S.index es b))
+
+        -- given the max index, produce a logSumExp expression
+        logSumExp' :: Int -> CExpr
+        logSumExp' 0 = S.index es 0
+          ^+ (log1p $ foldr (\x acc -> diffExp x 0 ^+ acc)
+                            (diffExp 1 0)
+                            [2..S.length es - 1]
+                    ^+ (intConstE $ fromIntegral lastIndex))
+        logSumExp' i = S.index es i
+          ^+ (log1p $ foldr (\x acc -> if i == x
+                                       then acc
+                                       else diffExp x i ^+ acc)
+                            (diffExp 0 i)
+                            [1..S.length es - 1]
+                    ^+ (intConstE $ fromIntegral lastIndex))
+
+
 
 ----------------------------------------------------------------
 
