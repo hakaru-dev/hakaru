@@ -325,7 +325,6 @@ NewSLO := module ()
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       bnds, loops, kb2 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
       w, pp := unproducts(w, x, loops, kb2);
-      w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=bnds);
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb2));
@@ -334,9 +333,10 @@ NewSLO := module ()
                          op(1,loop),
                          eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                   mm, op(loops));
-      w0 := `*`(op(w0)) * foldl(product, w1, op(loops));
-      w0 := simplify_assuming(peel(lift_piecewise(w0)), kb);
-      weight(w0, bind(mm, x, weight(`*`(op(w)), m)))
+      w := w * foldl(product, w1, op(loops));
+      w := simplify_assuming(peel(lift_piecewise(w)), kb1);
+      (w, w0) := factorize(w, x, kb1);
+      weight(w0, bind(mm, x, weight(w, m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
