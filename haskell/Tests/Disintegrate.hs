@@ -262,10 +262,9 @@ testCopy1 :: [TrivialABT Term '[] ('HArray 'HReal ':-> 'HMeasure HUnit)]
 testCopy1 = disintegrate copy1
 
 ----------------------------------------------------------------
--- | TODO fix bug: gives a VarEqTypeError
 copy2 :: TrivialABT Term '[] ('HMeasure (HPair ('HArray 'HReal) HUnit))
 copy2 =
-    plate n (\i -> normal (real_ 0) (prob_ 1)) >>= \u ->
+    plate n (\_ -> normal (real_ 0) (prob_ 1)) >>= \u ->
     plate n (\j -> dirac (u ! j)) >>= \v ->
     dirac (pair v unit)
     where n = nat_ 100
@@ -362,6 +361,8 @@ allTests = test
     , assertAlphaEq "testHelloWorld100" (head testHelloWorld100) helloWorld100'
     , testDis "testCopy1" copy1
     , assertAlphaEq "testCopy1" (head testCopy1) copy1'
+    , testDis "testCopy2" copy2
+    , assertAlphaEq "testCopy2" (head testCopy2) copy1'
     , testDis "testNaiveBayes" naiveBayes
     ]
 
