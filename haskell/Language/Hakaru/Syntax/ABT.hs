@@ -90,6 +90,10 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.Variable
 
+#ifdef __TRACE_DISINTEGRATE__
+import Debug.Trace (trace)
+#endif
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: (probably) parameterize the 'ABT' class over it's
@@ -667,6 +671,9 @@ subst x e = start
     loop :: forall xs' b'. abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
     loop _ (Syn t) = syn $! fmap21 start t
     loop f (Var z) =
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
+#endif        
         case varEq x z of
         Just Refl -> e
         Nothing   -> f
