@@ -332,7 +332,7 @@ KB := module ()
           end try;
           b
         end proc);
-      e := evalindets(e, 'specfunc(anything, Beta)', x -> convert(x, 'GAMMA'));
+      e := subsindets(e, 'specfunc(anything, Beta)', x -> convert(x, 'GAMMA'));
       e := simplify(e) assuming op(as);
       e := convert(e, 'Beta');
     catch "when calling '%1'. Received: 'contradictory assumptions'":
