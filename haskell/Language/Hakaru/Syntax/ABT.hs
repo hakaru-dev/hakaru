@@ -401,9 +401,9 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
     nextBind = go . viewABT
         where
         go :: View (syn (TrivialABT syn)) xs a -> Nat
-        go (Syn  t)   = tr "Syn" $ unMaxNat $ foldMap21 (MaxNat . nextBind) t
-        go (Var  _)   = tr "Var" $ unMaxNat $ mempty -- We mustn't look at variable *uses*!
-        go (Bind x v) = tr "Bind" $ max (1 + varID x) (go v)
+        go (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . nextBind) t
+        go (Var  _)   = unMaxNat $ mempty -- We mustn't look at variable *uses*!
+        go (Bind x v) = max (1 + varID x) (go v)
 
 
     -- Deforest the intermediate 'VarSet' of the default 'nextFree'
