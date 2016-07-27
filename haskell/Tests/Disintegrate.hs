@@ -359,9 +359,9 @@ allTests = test
     , testDis "testDisintegrateEasyRoad" easyRoad
     , assertAlphaEq "testDisintegrateEasyRoad" (head testDisintegrateEasyRoad) easyRoad'
     , testDis "testHelloWorld100" helloWorld100
-    -- , assertAlphaEq "testHelloWorld100" (head testHelloWorld100) helloWorld100'
+    , assertAlphaEq "testHelloWorld100" (head testHelloWorld100) helloWorld100'
     , testDis "testCopy1" copy1
-    -- , assertAlphaEq "testCopy1" (head testCopy1) copy1'
+    , assertAlphaEq "testCopy1" (head testCopy1) copy1'
     , testDis "testNaiveBayes" naiveBayes
     ]
 

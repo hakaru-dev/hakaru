@@ -685,7 +685,7 @@ subst x e = start
             -- both sets to 'freshen' directly and then check them
             -- each; rather than paying for taking their union every
             -- time we go under a binder like this.
-            let i  = nextVarID (freeVars e `mappend` freeVars f)
+            let i  = maxNextFreeOrBind [Some2 e, Some2 f] -- (freeVars e `mappend` freeVars f)
                 z' = i `seq` z{varID = i}
             -- HACK: the 'rename' function requires an ABT not a
             -- View, so we have to use 'caseBind' to give its
@@ -693,8 +693,7 @@ subst x e = start
             -- annotation. We really should find a way to eliminate
             -- that overhead.
             in caseBind f $ \_ f' ->
-                   bind z' . loop f' . viewABT $ rename z z' f'
-
+                   bind z' . loop f' . viewABT $ rename z z' f'                       
 
 renames
     :: forall
