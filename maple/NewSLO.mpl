@@ -844,10 +844,10 @@ NewSLO := module ()
   end proc;
 
   do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
-    local w, e, x, t, r, var, ei;
-    var := `if`(v::name, v, op(1,v));
+    local w, e, x, t, r, ei;
+    x := `if`(v::name, v, lhs(v));
     w , e := selectremove(type, convert(ee, 'list', `*`), Indicator(anything));
-    ei, e := selectremove(type, e, 'idx'(dependent(var), freeof(var)));
+    ei, e := selectremove(type, e, 'idx'(dependent(x), freeof(x)));
     if nops(ei) = 1 then
       e := map(z -> do_elim_intsum(kb, f, `*`(op(w)) * `*`(op(e))*z, v, _rest), 
                op([1,1], ei));
@@ -857,7 +857,6 @@ NewSLO := module ()
     else
       e := piecewise_And(map2(op,1,w), `*`(op(e)), 0);
       e := simplify_assuming('f'(e,v,_rest),kb);
-      x := `if`(v::name, v, lhs(v));
       t := {'identical'(x),
             'identical'(x)
               = `if`(f='sum', 'Not(range(Not({SymbolicInfinity, undefined})))',
