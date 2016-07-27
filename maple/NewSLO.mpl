@@ -769,19 +769,19 @@ NewSLO := module ()
     # Rewrite ... * idx([p,1-p],var)
     #      to ... * p^idx([1,0],var) * (1-p)^idx([0,1],var)
     # because the latter is easier to integrate and recognize with respect to p
-    e := maptype(`*`,
-                 proc (f)
-                   local n, i, j;
-                   if f :: idx(list, dependent(var)) then
-                     n := nops(op(1,f));
-                     mul(op([1,i],f) ^ idx([seq(`if`(j=i,1,0), j=1..n)],
-                                           op(2,f)),
-                         i=1..n)
-                   else
-                     f
-                   end if
-                 end proc,
-                 e);
+#    e := maptype(`*`,
+#                 proc (f)
+#                   local n, i, j;
+#                   if f :: idx(list, dependent(var)) then
+#                     n := nops(op(1,f));
+#                     mul(op([1,i],f) ^ idx([seq(`if`(j=i,1,0), j=1..n)],
+#                                           op(2,f)),
+#                         i=1..n)
+#                   else
+#                     f
+#                   end if
+#                 end proc,
+#                 e);
     e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
                          Indicator(op(2,a))
                        end proc,
@@ -850,19 +850,29 @@ NewSLO := module ()
   end proc;
 
   do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
-    local w, e, x, t, r;
-    w, e := selectremove(type, convert(ee, 'list', `*`), Indicator(anything));
-    e := piecewise_And(map2(op,1,w), `*`(op(e)), 0);
-    e := simplify_assuming('f'(e,v,_rest),kb);
-    x := `if`(v::name, v, lhs(v));
-    t := {'identical'(x),
-          'identical'(x)
-            = `if`(f='sum', 'Not(range(Not({SymbolicInfinity, undefined})))',
-                            'anything')};
-    for r in indets(e, 'specfunc(f)') do
-      if 1<nops(r) and op(2,r)::t then return FAIL end if
-    end do;
-    e
+    local w, e, x, t, r, var, ei;
+    var := `if`(v::name, v, op(1,v));
+    w , e := selectremove(type, convert(ee, 'list', `*`), Indicator(anything));
+    ei, e := selectremove(type, e, 'idx'(dependent(var), freeof(var)));
+    if nops(ei) = 1 then
+      e := map(z -> do_elim_intsum(kb, f, `*`(op(w)) * `*`(op(e))*z, v, _rest), 
+               op([1,1], ei));
+      if not member(FAIL, e) then idx(e, op([1,2], ei)) else FAIL end if;
+    elif nops(ei) > 1 then
+      return FAIL
+    else
+      e := piecewise_And(map2(op,1,w), `*`(op(e)), 0);
+      e := simplify_assuming('f'(e,v,_rest),kb);
+      x := `if`(v::name, v, lhs(v));
+      t := {'identical'(x),
+            'identical'(x)
+              = `if`(f='sum', 'Not(range(Not({SymbolicInfinity, undefined})))',
+                              'anything')};
+      for r in indets(e, 'specfunc(f)') do
+        if 1<nops(r) and op(2,r)::t then return FAIL end if
+      end do;
+      e;
+    end if;
   end proc;
 
   banish := proc(g, h :: name, kb :: t_kb, levels :: extended_numeric,

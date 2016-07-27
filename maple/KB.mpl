@@ -298,7 +298,6 @@ KB := module ()
   simplify_assuming := proc(ee, kb::t_kb, $)
     local e, as;
     e := foldl(eval, ee, op(kb_to_equations(kb)));
-    e := hack_Beta(e);
     e := subsindets(e, 'product(anything, name=range)', myexpand_product);
     e := subsindets(e, 'specfunc({sum,Sum})', expand);
     as := [op(kb_to_assumptions(kb)),
@@ -333,7 +332,9 @@ KB := module ()
           end try;
           b
         end proc);
+      e := evalindets(e, 'specfunc(anything, Beta)', x -> convert(x, 'GAMMA'));
       e := simplify(e) assuming op(as);
+      e := convert(e, 'Beta');
     catch "when calling '%1'. Received: 'contradictory assumptions'":
       # We seem to be on an unreachable control path
       userinfo(1, 'procname', "Received contradictory assumptions.")
@@ -455,7 +456,7 @@ KB := module ()
     (body, quantifier) := op(prod);
     x := op(1, quantifier);
     p := proc(e, $)
-      local ee;
+      local ee, r;
       if e :: 'exp(anything)' then
         ee := expand(op(1,e));
         ee := convert(ee, 'list', `+`);
@@ -464,10 +465,9 @@ KB := module ()
         op(1,e) ^ expand(sum(op(2,e), quantifier))
       elif e :: ('anything' ^ 'freeof'(x)) then
         p(op(1,e)) ^ op(2,e)
-#  This is the right thing to do, but breaks things.  
-#      elif e :: 'idx'('freeof'(x),'anything') then
-#        l := op(1,e);
-#        product(idx(l,i)^sum(piecewise(op(2,e)=i, 1, 0), quantifier), i=0..size(l)-1);
+#      elif e :: `*` then
+#        (ee, r) := selectremove(depends, e, x);
+#        `*`(op(map(p, ee))) * product(`*`(op(r)), quantifier)
       else
         product(e, quantifier)
       end if
