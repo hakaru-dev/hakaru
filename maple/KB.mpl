@@ -303,25 +303,49 @@ KB := module ()
     e := subsindets(e, 'specfunc({sum,Sum})', expand);
     as := [op(kb_to_assumptions(kb)),
            op(map(`::`, indets(e, 'specfunc(size)'), nonnegint))];
-    e := subsindets(e,
-      '{product(And(specfunc(piecewise), anyfunc(`=`,anything,1)), name=range),
-        sum    (And(specfunc(piecewise),{anyfunc(`=`,anything,0),
-                                         anyfunc(`=`,anything)}), name=range)}',
-      proc(p, $)
-        local x, rng, val;
-        val, rng := op(p);
-        x, rng := op(rng);
-        if   op([1,1],val) = x then val := op([1,2],val)
-        elif op([1,2],val) = x then val := op([1,1],val)
-        else return p end if;
-        if not depends(val, x) and
-           is(And(val :: integer, lhs(rng) <= val,
-                                  val <= rhs(rng))) assuming op(as) then
-          eval(op([1,2],p), x=val)
-        else p end if
-      end proc);
     e := chill(e);
     as := chill(as);
+    e := subsindets(e,
+      'And(specfunc({product,Product,sum,Sum}),
+           anyfunc(anything, name=range))',
+      proc(p, $)
+        local o, body, x, rng, val, a, go;
+        o := subs(Sum=sum, Product=product, op(0,p));
+        body, rng := op(p);
+        x, rng := op(rng);
+        if rng :: 'range({integer,
+                          And(specfunc(piecewise),
+                              Or(anyfunc(anything,integer),
+                                 anyfunc(anything,integer,integer))),
+                          `+`({integer,
+                               And(specfunc(piecewise),
+                                   Or(anyfunc(anything,integer),
+                                      anyfunc(anything,integer,integer)))})})'
+        then
+          rng := lift_piecewise(rng,
+                   'And(range, Not(range(Not(specfunc(piecewise)))))');
+          if rng :: 'specfunc(piecewise)' then
+            val := map_piecewiselike((r -> o(go(x), x=r)), rng);
+          else
+            val := o(go(x), x=rng);
+          end if;
+          # Work around this bug:
+          # > product(Sum(f(j),j=0..n-1),j=0..0)
+          # Sum(f(0),0=0..n-1)
+          return eval(val, go = (i -> eval(body, x=i)));
+        elif body :: 'specfunc(piecewise)' and
+             body :: `if`(o=product,
+                          'anyfunc(`=`,anything,1)',
+                          '{anyfunc(`=`,anything,0), anyfunc(`=`,anything)}')
+             and ispoly(`-`(op(op(1,body))), 'linear', x, 'val', 'a') then
+          val := Normalizer(-val/a);
+          if is(And(val :: integer, lhs(rng) <= val,
+                                    val <= rhs(rng))) assuming op(as) then
+            return eval(op(2,body), x=val)
+          end if
+        end if;
+        p
+      end proc);
     try
       e := evalindets(e, specop(algebraic,{`<`,`<=`,`=`,`<>`}),
         proc(b, $)
@@ -338,6 +362,21 @@ KB := module ()
       # We seem to be on an unreachable control path
       userinfo(1, 'procname', "Received contradictory assumptions.")
     end try;
+    e := subsindets(e,
+      'And(specfunc({Sum,Product}), anyfunc(anything, name=range))',
+      proc(p, $)
+        local go;
+        if `-`(op(op([2,2],p))) :: integer then
+          # Work around this bug:
+          # > product(Sum(f(j),j=0..n-1),j=0..0)
+          # Sum(f(0),0=0..n-1)
+          eval(subs(Sum=sum, Product=product, op(0,p))
+                   (go(op([2,1],p)), op(2,p)),
+               go = (i -> eval(op(1,p), op([2,1],p)=i)))
+        else
+          p
+        end if
+      end proc);
     e := warm(e);
     eval(e, exp = expand @ exp);
   end proc;
