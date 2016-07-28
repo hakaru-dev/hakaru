@@ -451,12 +451,6 @@ NewSLO := module ()
         if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi+1), res[1]);
         else
-          if res :: 'list' then
-            a0  := map[3](maptype, `*`, freeze, res);
-            a1  := foldl(gcd, op(a0));
-            res := thaw(map(`/`, a0, a1));
-            r   := [op(r), thaw(a1)];
-          end if;
           res := Recognized(Categorical(res), `*`(op(r)));
         end if;
       end if;
