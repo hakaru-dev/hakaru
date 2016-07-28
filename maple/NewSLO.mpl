@@ -445,13 +445,13 @@ NewSLO := module ()
         end if
       end if;
     elif lo = 0 and not(hi :: 'SymbolicInfinity') then
-      s, r := selectremove(depends, convert(w, 'list', `*`), k);
-      if nops(s) > 0 then
-        res := ary(hi+1, k, `*`(op(s)));
+      s, r := factorize(w, k, kb);
+      if s <> 1 then
+        res := ary(hi+1, k, s);
         if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi+1), res[1]);
         else
-          res := Recognized(Categorical(res), `*`(op(r)));
+          res := Recognized(Categorical(res), r);
         end if;
       end if;
     end if;
