@@ -245,10 +245,7 @@ Loop := module ()
     end if;
     if w :: And(specfunc(`if`(mode = `*`, {product, Product}, {sum, Sum})),
                 anyfunc(anything, name=range(freeof(var)))) then
-      x, kb := genType(op([2,1],w),
-                       HInt(Bound(`>=`,op([2,2,1],w)),
-                            Bound(`<=`,op([2,2,2],w))),
-                       kb1,
+      x, kb := genType(op([2,1],w), HInt(closed_bounds(op([2,2],w))), kb1,
                        w, var, loop, heap);
       return unproduct(eval(op(1,w), op([2,1],w)=x), var, loop,
                        [op(heap), Binder(op(0,w), kb1)], mode, kb, kb0)
