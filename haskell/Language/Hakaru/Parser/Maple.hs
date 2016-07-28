@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
-import           Prelude             hiding (and, sum, product)
+import           Prelude             hiding (or, and, sum, product)
 import           Control.Monad.Identity
 import           Data.Text           (Text)
 import qualified Data.Text           as Text
@@ -106,8 +106,8 @@ data ArgOp
     = Float | Power  | Rational
     | Func  | ExpSeq | Sum_
     | Prod_ | Less   | Equal
-    | And_  | Range  | List
-    | NotEq
+    | And_  | NotEq  | Or_
+    | Range | List
     deriving (Eq, Show)
 
 data InertExpr
@@ -192,6 +192,12 @@ and =
     <$> (text "_Inert_AND" *> return And_)
     <*> arg expr
 
+or :: Parser InertExpr
+or =
+    InertArgs
+    <$> (text "_Inert_OR" *> return Or_)
+    <*> arg expr
+
 list :: Parser InertExpr
 list =
     InertArgs
@@ -222,12 +228,13 @@ lessthan =
     <$> (text "_Inert_LESSTHAN" *> return Less)
     <*> arg expr
 
--- BUG: <= does not equal <
 lesseq :: Parser InertExpr
-lesseq =
-    InertArgs
-    <$> (text "_Inert_LESSEQ" *> return Less)
-    <*> arg expr
+lesseq = do
+    text "_Inert_LESSEQ"
+    args <- arg expr
+    return $ InertArgs Or_
+               [ InertArgs Less  args
+               , InertArgs Equal args]
 
 equal :: Parser InertExpr
 equal =
@@ -246,6 +253,7 @@ expr =  try func
     <|> try name
     <|> try list
     <|> try and
+    <|> try or
     <|> try assignedname
     <|> try assignedlocalname
     <|> try lessthan
