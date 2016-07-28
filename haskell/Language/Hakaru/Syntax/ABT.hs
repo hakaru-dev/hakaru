@@ -394,23 +394,23 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
     -- 'TrivialABT' type is mainly intended for testing rather than
     -- production use, we avoid using this optimization so as to
     -- err on the side of soundness.
-    nextBind = go . viewABT
+    nextBind = go 0 . viewABT
         where
-        go :: View (syn (TrivialABT syn)) xs a -> Nat
-        go (Syn  t)   = tr "Syn" $ unMaxNat $ foldMap21 (MaxNat . nextBind) t
-        go (Var  _)   = tr "Var" $ unMaxNat $ mempty -- We mustn't look at variable *uses*!
-        go (Bind x v) = tr "Bind" $ max (1 + varID x) (go v)
+        go :: Nat -> View (syn (TrivialABT syn)) xs a -> Nat
+        go n (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . go n . viewABT) t
+        go n (Var  _)   = n -- We musn't look at variable *uses*!
+        go n (Bind x v) = go (n `max` (1 + varID x)) v
 
 
     -- Deforest the intermediate 'VarSet' of the default 'nextFree'
     -- implementation, and fuse the two passes of 'nextFree' and
     -- 'nextBind' into a single pass.
-    nextFreeOrBind = go . viewABT
+    nextFreeOrBind = go 0 . viewABT
         where
-        go :: View (syn (TrivialABT syn)) xs a -> Nat
-        go (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . nextFreeOrBind) t
-        go (Var  x)   = 1 + varID x
-        go (Bind x v) = max (1 + varID x) (go v)
+        go :: Nat -> View (syn (TrivialABT syn)) xs a -> Nat
+        go n (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . go n . viewABT) t
+        go n (Var  x)   = n `max` (1 + varID x)
+        go n (Bind x v) = go (n `max` (1 + varID x)) v
 
 
 -- BUG: requires UndecidableInstances
