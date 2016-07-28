@@ -7,9 +7,10 @@ def dirichlet(as array(prob)):
              x * if i+1==size(as): 1 else: real2prob(1-xs[i])
 
 fn as array(prob):
- fn z array(nat):
-  fn t array(real):
-   fn docUpdate nat:
+fn z array(nat):
+fn t array(real):
+fn docUpdate nat:
+  if size(z) == size(t) && docUpdate < size(z):
 
     theta <~ dirichlet(as)
     phi <~ plate k of size(as): normal(0,1)
@@ -20,3 +21,5 @@ fn as array(prob):
            observe normal(phi[zz], 1) t[i]
 
     return zNew
+
+  else: reject . measure(nat)

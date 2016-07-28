@@ -14,6 +14,8 @@ def naive_bayes( topic_prior array(prob)
                , doc array(nat)
                , docUpdate nat ):
 
+  if docUpdate < size(z):
+
     # priors
     theta <~ dirichlet(topic_prior)   # topic prevalence
     phi   <~ plate k of size(topic_prior):
@@ -29,5 +31,7 @@ def naive_bayes( topic_prior array(prob)
             observe categorical(phi[z[doc[n]]]) w[n]
 
     return zNew
+
+  else: reject . measure(nat)
 
 naive_bayes

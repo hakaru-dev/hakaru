@@ -128,8 +128,10 @@ NewSLO := module ()
     if has(m, 'undefined') then
       return false;
     end if;
-    while m :: '{lam(name, anything, anything), Context(anything, anything)}' do
-      m := op(-1,m);
+    while m :: '{lam(name, anything, anything),
+                 Context(anything, anything),
+                 And(specfunc(piecewise), anyfunc(anything, anything, Msum()))}' do
+      m := op(`if`(op(0,m)='lam',3,2),m);
     end do;
     if m :: 'Weight(anything, anything)' then m := op(2,m) end if;
     if has(m, '{infinity, Lebesgue, int, Int, Beta, GAMMA}') then
