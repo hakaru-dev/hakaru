@@ -137,9 +137,9 @@ NewSLO := module ()
       if n :: 'Weight(anything, anything)' then n := op(2,n) end if;
       if has(subsindets(n, 'specfunc(Weight(anything, anything), Msum)',
                         s -> `if`(Testzero(`+`(op(map2(op, 1, s))) - 1),
-			          map2(op, 2, s), s)),
-	     '{Msum, Weight}') then
-	return false;
+                                  map2(op, 2, s), s)),
+             '{Msum, Weight}') then
+        return false;
       end if;
     end do;
     return true;
