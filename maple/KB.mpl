@@ -342,8 +342,10 @@ KB := module ()
     eval(e, exp = expand @ exp);
   end proc;
 
-  hack_Beta := proc(ee, $)
-    local graft_pw, GAMMAratio, e;
+  hack_Beta := module ()
+    export ModuleApply;
+    local graft_pw, GAMMAratio;
+
     # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
     #      to piecewise(i<=j,1,0) + ...
     # and rewrite piecewise(And(i<=j-1,a<b),1) + piecewise(And(a<b,i=j),1) + ...
@@ -376,6 +378,7 @@ KB := module ()
         `+`(op(terms))
       end proc)
     end proc;
+
     # GAMMAratio(s, r) = GAMMA(s+r) / GAMMA(r)
     GAMMAratio := proc(s, r, $)
       local var;
@@ -391,64 +394,68 @@ KB := module ()
         Product(var+r, var=0..s-1) # inert so as to not become GAMMA
       end if
     end proc;
-    e := convert(ee, 'Beta');
-    # Temporary hack to show desired output for examples/{dice_predict,gmm_gibbs,naive_bayes_gibbs}.hk
-    e := subsindets(e, 'product(specfunc(`+`, Beta), name=range)', proc(prodbeta, $)
-      local i, rng, beta, s1, r1, s2, r2, sg, rg;
-      beta, rng := op(prodbeta);
-      i, rng := op(rng);
-      beta := subsindets(beta, 'specfunc(piecewise)', proc(pw, $)
-        # Remove a particular superfluous inequality
-        `if`(op(1,pw) :: 'And(specfunc(And), anyfunc(anything<=anything,name=anything))'
-             and Testzero(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) or
-             op(1,pw) :: 'And(specfunc(And), anyfunc(anything<>anything,name=anything))'
-             and Normalizer(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) :: negative,
-             subsop(1=op([1,2],pw), pw),
-             pw)
+
+    ModuleApply := proc(ee, $)
+      local e;
+      e := convert(ee, 'Beta');
+      # Temporary hack to show desired output for examples/{dice_predict,gmm_gibbs,naive_bayes_gibbs}.hk
+      e := subsindets(e, 'product(specfunc(`+`, Beta), name=range)', proc(prodbeta, $)
+        local i, rng, beta, s1, r1, s2, r2, sg, rg;
+        beta, rng := op(prodbeta);
+        i, rng := op(rng);
+        beta := subsindets(beta, 'specfunc(piecewise)', proc(pw, $)
+          # Remove a particular superfluous inequality
+          `if`(op(1,pw) :: 'And(specfunc(And), anyfunc(anything<=anything,name=anything))'
+               and Testzero(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) or
+               op(1,pw) :: 'And(specfunc(And), anyfunc(anything<>anything,name=anything))'
+               and Normalizer(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) :: negative,
+               subsop(1=op([1,2],pw), pw),
+               pw)
+        end proc);
+        s1, r1 := op(map(`+`@op, [selectremove(has, convert(op(1,beta), 'list', `+`), piecewise)]));
+        s2, r2 := op(map(`+`@op, [selectremove(has, convert(op(2,beta), 'list', `+`), piecewise)]));
+        sg := graft_pw(combine(s1+s2));
+        rg := Loop:-graft(r1+r2);
+        if rg = eval(r2,i=i-1) and sg = eval(s2,i=i-1) then
+          # Telescoping match!
+        elif rg = eval(r1,i=i-1) and sg = eval(s1,i=i-1) then
+          # Telescoping match, but swap Beta arguments
+          s1, s2 := s2, s1;
+          r1, r2 := r2, r1;
+        else
+          # No telescoping match -- bail out
+          return 'product'(beta, i=rng);
+        end if;
+        # At this point we know that beta = Beta(s1+r1, s2+r2)
+        #   and that s2 = eval(s2, i=rhs(rng)+1) + sum(s1, i=i+1..rhs(rng)+1)
+        #   and that r2 = eval(r2, i=rhs(rng)+1) + sum(r1, i=i+1..rhs(rng)+1)
+        # So the job of the remainder of this proc is to express
+        #   product(Beta(s1+r1, eval(s2+r2, i=rhs(rng)+1) + sum(s1+r1, i=i+1..rhs(rng)+1)), i=rng)
+        # in terms of
+        #   product(Beta(   r1, eval(   r2, i=rhs(rng)+1) + sum(   r1, i=i+1..rhs(rng)+1)), i=rng)
+        'product'('Beta'(r1, eval(r2, i=rhs(rng)+1) + 'sum'(r1, i=i+1..rhs(rng)+1)), i=rng)
+          * Loop:-graft('product'(GAMMAratio(s1, r1), i=rng)
+                        * eval('GAMMAratio'(s1 (* + s2 *), r1 + r2), i=rhs(rng)+1))
+                          # Unsound HACK: assuming eval(s2, i=rhs(rng)+1) = 0
+                          #   (Discharging this assumption sometimes requires checking idx(w,k) < size(word_prior) for symbolic k)
+          / eval('GAMMAratio'(s2, r2), i=lhs(rng)-1)
       end proc);
-      s1, r1 := op(map(`+`@op, [selectremove(has, convert(op(1,beta), 'list', `+`), piecewise)]));
-      s2, r2 := op(map(`+`@op, [selectremove(has, convert(op(2,beta), 'list', `+`), piecewise)]));
-      sg := graft_pw(combine(s1+s2));
-      rg := Loop:-graft(r1+r2);
-      if rg = eval(r2,i=i-1) and sg = eval(s2,i=i-1) then
-        # Telescoping match!
-      elif rg = eval(r1,i=i-1) and sg = eval(s1,i=i-1) then
-        # Telescoping match, but swap Beta arguments
-        s1, s2 := s2, s1;
-        r1, r2 := r2, r1;
-      else
-        # No telescoping match -- bail out
-        return 'product'(beta, i=rng);
-      end if;
-      # At this point we know that beta = Beta(s1+r1, s2+r2)
-      #   and that s2 = eval(s2, i=rhs(rng)+1) + sum(s1, i=i+1..rhs(rng)+1)
-      #   and that r2 = eval(r2, i=rhs(rng)+1) + sum(r1, i=i+1..rhs(rng)+1)
-      # So the job of the remainder of this proc is to express
-      #   product(Beta(s1+r1, eval(s2+r2, i=rhs(rng)+1) + sum(s1+r1, i=i+1..rhs(rng)+1)), i=rng)
-      # in terms of
-      #   product(Beta(   r1, eval(   r2, i=rhs(rng)+1) + sum(   r1, i=i+1..rhs(rng)+1)), i=rng)
-      'product'('Beta'(r1, eval(r2, i=rhs(rng)+1) + 'sum'(r1, i=i+1..rhs(rng)+1)), i=rng)
-        * Loop:-graft('product'(GAMMAratio(s1, r1), i=rng)
-                      * eval('GAMMAratio'(s1 (* + s2 *), r1 + r2), i=rhs(rng)+1))
-                        # Unsound HACK: assuming eval(s2, i=rhs(rng)+1) = 0
-                        #   (Discharging this assumption sometimes requires checking idx(w,k) < size(word_prior) for symbolic k)
-        / eval('GAMMAratio'(s2, r2), i=lhs(rng)-1)
-    end proc);
-    # Temporary hack to show desired output for the "integrate BetaD out of BetaD-Bernoulli" test
-    e := subsindets(e, 'specfunc(And(`+`, Not(`+`(Not(idx({[1,0],[0,1]}, anything))))), Beta)', proc(beta, $)
-      local s1, r1, s2, r2;
-      s1, r1 := selectremove(type, op(1,beta), 'idx({[1,0],[0,1]}, anything)');
-      s2, r2 := selectremove(type, op(2,beta), 'idx({[1,0],[0,1]}, anything)');
-      if s1 :: 'idx([1,0], anything)' and s2 :: 'idx([0,1], anything)' and op(2,s1) = op(2,s2) then
-        Beta(r1, r2) * idx([r1, r2], op(2,s1)) / (r1 + r2)
-      elif s1 :: 'idx([0,1], anything)' and s2 :: 'idx([1,0], anything)' and op(2,s1) = op(2,s2) then
-        Beta(r1, r2) * idx([r2, r1], op(2,s1)) / (r1 + r2)
-      else
-        beta
-      end if
-    end proc);
-    e
-  end proc;
+      # Temporary hack to show desired output for the "integrate BetaD out of BetaD-Bernoulli" test
+      e := subsindets(e, 'specfunc(And(`+`, Not(`+`(Not(idx({[1,0],[0,1]}, anything))))), Beta)', proc(beta, $)
+        local s1, r1, s2, r2;
+        s1, r1 := selectremove(type, op(1,beta), 'idx({[1,0],[0,1]}, anything)');
+        s2, r2 := selectremove(type, op(2,beta), 'idx({[1,0],[0,1]}, anything)');
+        if s1 :: 'idx([1,0], anything)' and s2 :: 'idx([0,1], anything)' and op(2,s1) = op(2,s2) then
+          Beta(r1, r2) * idx([r1, r2], op(2,s1)) / (r1 + r2)
+        elif s1 :: 'idx([0,1], anything)' and s2 :: 'idx([1,0], anything)' and op(2,s1) = op(2,s2) then
+          Beta(r1, r2) * idx([r2, r1], op(2,s1)) / (r1 + r2)
+        else
+          beta
+        end if
+      end proc);
+      e
+    end proc;
+  end module; # hack_Beta
 
   myexpand_product := proc(prod :: anyfunc(anything, name=range), $)
     local x, p, body, quantifier, l, i;
