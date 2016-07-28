@@ -46,7 +46,7 @@ KB := module ()
     # A variable created using genType is a parameter, in the sense that its
     # value is completely respected
     local x, t;
-    x := `if`(depends([t,kb,_rest], xx), gensym(xx), xx);
+    x := `if`(depends([tt,kb,_rest], xx), gensym(xx), xx);
     t := subsindets(tt, identical(Bound(`>` , -infinity),
                                   Bound(`>=`, -infinity),
                                   Bound(`<` ,  infinity),
