@@ -124,6 +124,34 @@ putStatements ss =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+
+-- | Capturing substitution: 
+plug :: forall abt a xs b
+     .  (ABT Term abt)
+     => Variable a
+     -> abt '[] a
+     -> abt xs b
+     -> abt xs b
+plug x e = start
+    where
+      start :: forall xs' b' . abt xs' b' -> abt xs' b'
+      start f = loop f (viewABT f)
+      loop :: forall xs' b'. abt xs' b' -> View (Term abt) xs' b' -> abt xs' b'
+      loop _ (Syn t) = syn $! fmap21 start t
+      loop f (Var z) = case varEq x z of
+                       Just Refl -> e
+                       Nothing   -> f
+      loop f (Bind _ _) = caseBind f $ \z f' -> 
+                          bind z (loop f' (viewABT f'))
+
+-- | Perform multiple capturing substitutions
+plugs :: forall abt xs a
+      .  (ABT Term abt)
+      => Assocs (abt '[]) 
+      -> abt xs a
+      -> abt xs a
+plugs rho0 e0 = F.foldl (\e (Assoc x v) -> plug x v e) e0 (unAssocs rho0)
+
 -- | Plug a term into a context. That is, the 'statements' of the
 -- context specifies a program with a hole in it; so we plug the
 -- given term into that hole, returning the complete program.
@@ -141,7 +169,7 @@ residualizeListContext ss rho e0 =
     trace ("e0: " ++ show (pretty e0) ++ "\n"
           ++ show (pretty_Statements (statements ss))) $
 #endif
-    foldl step (substs rho e0) (statements ss)
+    foldl step (plugs rho e0) (statements ss)
     where    
     step
         :: abt '[] ('HMeasure a)
@@ -155,7 +183,7 @@ residualizeListContext ss rho e0 =
         case s of       
         SBind x body _ ->
             -- TODO: if @body@ is dirac, then treat as 'SLet'
-            syn (MBind :$ substs rho (fromLazy body) :* bind x e :* End)
+            syn (MBind :$ plugs rho (fromLazy body) :* bind x e :* End)
         SLet x body _
             | not (x `memberVarSet` freeVars e) ->
 #ifdef __TRACE_DISINTEGRATE__
@@ -167,22 +195,18 @@ residualizeListContext ss rho e0 =
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
                 case getLazyVariable body of
-                Just y  -> subst x (substs rho (var y)) e
+                Just y  -> plug x (plugs rho (var y)) e
                 Nothing ->
                     case getLazyLiteral body of
-                    Just v  -> subst x (syn $ Literal_ v) e
+                    Just v  -> plug x (syn $ Literal_ v) e
                     Nothing ->
-                        syn (Let_ :$ substs rho (fromLazy body) :* bind x e :* End)
+                        syn (Let_ :$ plugs rho (fromLazy body) :* bind x e :* End)
         SGuard xs pat scrutinee _ ->
-            syn $ Case_ (substs rho $ fromLazy scrutinee)
+            syn $ Case_ (plugs rho $ fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild (P.reject $ typeOf e)
                 ]
-        SWeight body _ -> syn $ Superpose_ ((substs rho $ fromLazy body, e) :| [])
-    freeLocs :: abt xs e -> VarSet (KindOf e)
-    freeLocs e = let collect fls (SomeVariable x)
-                         = maybe fls (mappend fls . freeVars) (lookupAssoc x rho)
-                 in foldl collect emptyVarSet $ fromVarSet (freeVars e)
+        SWeight body _ -> syn $ Superpose_ ((plugs rho $ fromLazy body, e) :| [])
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
