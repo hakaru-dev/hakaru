@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
-import           Prelude             hiding (or, and, sum, product)
+import           Prelude             hiding (not, and, sum, product)
 import           Control.Monad.Identity
 import           Data.Text           (Text)
 import qualified Data.Text           as Text
@@ -106,7 +106,7 @@ data ArgOp
     = Float | Power  | Rational
     | Func  | ExpSeq | Sum_
     | Prod_ | Less   | Equal
-    | And_  | NotEq  | Or_
+    | NotEq | Not_   | And_
     | Range | List
     deriving (Eq, Show)
 
@@ -192,12 +192,6 @@ and =
     <$> (text "_Inert_AND" *> return And_)
     <*> arg expr
 
-or :: Parser InertExpr
-or =
-    InertArgs
-    <$> (text "_Inert_OR" *> return Or_)
-    <*> arg expr
-
 list :: Parser InertExpr
 list =
     InertArgs
@@ -228,13 +222,18 @@ lessthan =
     <$> (text "_Inert_LESSTHAN" *> return Less)
     <*> arg expr
 
+not :: Parser InertExpr
+not =
+    InertArgs
+    <$> (text "_Inert_NOT" *> return Not_)
+    <*> arg expr
+
 lesseq :: Parser InertExpr
 lesseq = do
     text "_Inert_LESSEQ"
     args <- arg expr
-    return $ InertArgs Or_
-               [ InertArgs Less  args
-               , InertArgs Equal args]
+    return $ InertArgs Not_
+               [ InertArgs Less (reverse args)]
 
 equal :: Parser InertExpr
 equal =
@@ -253,13 +252,13 @@ expr =  try func
     <|> try name
     <|> try list
     <|> try and
-    <|> try or
-    <|> try assignedname
-    <|> try assignedlocalname
+    <|> try not
     <|> try lessthan
     <|> try lesseq
     <|> try equal
     <|> try noteq
+    <|> try assignedname
+    <|> try assignedlocalname
     <|> try expseq
     <|> try intpos
     <|> try intneg
@@ -427,6 +426,9 @@ maple2AST (InertArgs Func
 maple2AST (InertArgs And_  es) = NaryOp And  (collapseNaryOp And  (map maple2AST es))
 maple2AST (InertArgs Sum_  es) = NaryOp Sum  (collapseNaryOp Sum  (map maple2AST es))
 maple2AST (InertArgs Prod_ es) = NaryOp Prod (collapseNaryOp Prod (map maple2AST es))
+
+maple2AST (InertArgs Not_ [e])  =
+    App (Var "not") (maple2AST e)
 
 maple2AST (InertArgs Less es)  =
     foldl App (Var "less")  (map maple2AST es)
