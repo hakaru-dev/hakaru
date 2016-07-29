@@ -620,10 +620,10 @@ rename
     -> abt xs b
     -> abt xs b
 rename x y =
--- #ifdef __TRACE_DISINTEGRATE__
---     trace ("renaming " ++ show (varID x)
---            ++ " to " ++ show (varID y)) $
--- #endif           
+#ifdef __TRACE_DISINTEGRATE__
+    trace ("renaming " ++ show (varID x)
+           ++ " to " ++ show (varID y)) $
+#endif           
     start
     where
     start :: forall xs' b'. abt xs' b' -> abt xs' b'
@@ -637,9 +637,9 @@ rename x y =
         Just Refl -> var y
         Nothing   -> e
     loop e (Bind z v) =
--- #ifdef __TRACE_DISINTEGRATE__
---         trace ("checking varEq "++ show (varID x) ++ " " ++ show (varID z)) $
--- #endif
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("checking varEq "++ show (varID x) ++ " " ++ show (varID z)) $
+#endif
         case varEq x z of
         Just Refl -> e
         Nothing   -> bind z $ loop (caseBind e $ const id) v
@@ -670,9 +670,9 @@ subst
     -> abt xs   b
     -> abt xs   b
 subst x e =
--- #ifdef __TRACE_DISINTEGRATE__
---     trace ("about to subst " ++ show (varID x)) $
--- #endif            
+#ifdef __TRACE_DISINTEGRATE__
+    trace ("about to subst " ++ show (varID x)) $
+#endif            
     start (maxNextFreeOrBind [Some2 (var x), Some2 e])
     where
     -- TODO: we could use the director-strings approach to optimize this (for MemoizedABT, but pessimizing for TrivialABT) by first checking whether @x@ is free in @f@; if so then recurse, if not then we're done.
@@ -683,9 +683,9 @@ subst x e =
     loop :: forall xs' b'. Nat -> abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
     loop n _ (Syn t) = syn $! fmap21 (start n) t
     loop _ f (Var z) =
--- #ifdef __TRACE_DISINTEGRATE__
-        -- trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
--- #endif        
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
+#endif        
         case varEq x z of
         Just Refl -> e
         Nothing   -> f
