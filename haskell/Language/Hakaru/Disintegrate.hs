@@ -1787,9 +1787,8 @@ constrainOutcomeMeasureOp v0 = go
     go Counting = \End -> return ()
 
     go Categorical = \(e1 :* End) -> do
-        v0' <- emitLet' v0
         -- TODO: check that v0' is < then length of e1
-        pushWeight (P.densityCategorical e1 v0')
+        pushWeight (P.densityCategorical e1 v0)
 
     -- Per the paper
     go Uniform = \(lo :* hi :* End) -> do
