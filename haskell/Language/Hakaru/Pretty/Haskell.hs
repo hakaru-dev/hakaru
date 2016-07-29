@@ -120,9 +120,9 @@ ppBinder e =
     go xs (Var  x)   = (reverse xs, [ppVariable x])
     go xs (Bind x v) =
         -- HACK: how can we avoid calling 'unviewABT' here?
-        let x' = if x `memberVarSet` freeVars (unviewABT v)
-                then ppVariable x
-                else PP.char '_'
+        let x' = if True -- x `memberVarSet` freeVars (unviewABT v)
+                 then ppVariable x
+                 else PP.char '_'
         in go (x' : xs) v
 
 
