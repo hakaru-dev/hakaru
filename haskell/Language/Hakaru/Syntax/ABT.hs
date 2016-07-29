@@ -619,7 +619,12 @@ rename
     -> Variable a
     -> abt xs b
     -> abt xs b
-rename x y = start
+rename x y =
+-- #ifdef __TRACE_DISINTEGRATE__
+--     trace ("renaming " ++ show (varID x)
+--            ++ " to " ++ show (varID y)) $
+-- #endif           
+    start
     where
     start :: forall xs' b'. abt xs' b' -> abt xs' b'
     start e = loop e (viewABT e)
@@ -632,6 +637,9 @@ rename x y = start
         Just Refl -> var y
         Nothing   -> e
     loop e (Bind z v) =
+-- #ifdef __TRACE_DISINTEGRATE__
+--         trace ("checking varEq "++ show (varID x) ++ " " ++ show (varID z)) $
+-- #endif
         case varEq x z of
         Just Refl -> e
         Nothing   -> bind z $ loop (caseBind e $ const id) v
@@ -661,23 +669,27 @@ subst
     -> abt '[]  a
     -> abt xs   b
     -> abt xs   b
-subst x e = start
+subst x e =
+-- #ifdef __TRACE_DISINTEGRATE__
+--     trace ("about to subst " ++ show (varID x)) $
+-- #endif            
+    start (maxNextFreeOrBind [Some2 (var x), Some2 e])
     where
     -- TODO: we could use the director-strings approach to optimize this (for MemoizedABT, but pessimizing for TrivialABT) by first checking whether @x@ is free in @f@; if so then recurse, if not then we're done.
-    start :: forall xs' b'. abt xs' b' -> abt xs' b'
-    start f = loop f (viewABT f)
+    start :: forall xs' b'. Nat -> abt xs' b' -> abt xs' b'
+    start n f = loop n f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
-    loop :: forall xs' b'. abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
-    loop _ (Syn t) = syn $! fmap21 start t
-    loop f (Var z) =
-#ifdef __TRACE_DISINTEGRATE__
-        trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
-#endif        
+    loop :: forall xs' b'. Nat -> abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
+    loop n _ (Syn t) = syn $! fmap21 (start n) t
+    loop _ f (Var z) =
+-- #ifdef __TRACE_DISINTEGRATE__
+        -- trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
+-- #endif        
         case varEq x z of
         Just Refl -> e
         Nothing   -> f
-    loop f (Bind z _)
+    loop n f (Bind z _)
         | varID x == varID z = f
         | otherwise = 
             -- TODO: even if we don't come up with a smarter way
@@ -685,7 +697,7 @@ subst x e = start
             -- both sets to 'freshen' directly and then check them
             -- each; rather than paying for taking their union every
             -- time we go under a binder like this.
-            let i  = maxNextFreeOrBind [Some2 e, Some2 f] -- (freeVars e `mappend` freeVars f)
+            let i  = 1 + max n (nextFreeOrBind f) -- (freeVars e `mappend` freeVars f)
                 z' = i `seq` z{varID = i}
             -- HACK: the 'rename' function requires an ABT not a
             -- View, so we have to use 'caseBind' to give its
@@ -693,7 +705,8 @@ subst x e = start
             -- annotation. We really should find a way to eliminate
             -- that overhead.
             in caseBind f $ \_ f' ->
-                   bind z' . loop f' . viewABT $ rename z z' f'                       
+                   let f'' = rename z z' f' in
+                   bind z' (loop i f'' (viewABT f''))
 
 renames
     :: forall
