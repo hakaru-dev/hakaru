@@ -20,7 +20,7 @@ KB := module ()
   option package;
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
-        myexpand_product, chilled, chill, warm,
+        myexpand_product, myexpand_GAMMA, chilled, chill, warm,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
          kb_subtract, simplify_assuming, hack_Beta,
@@ -333,6 +333,7 @@ KB := module ()
           b
         end proc);
       e := subsindets(e, 'specfunc(anything, Beta)', x -> convert(x, 'GAMMA'));
+      e := subsindets(e, 'specfunc(anything, GAMMA)', myexpand_GAMMA);
       e := simplify(e) assuming op(as);
       e := convert(e, 'Beta');
     catch "when calling '%1'. Received: 'contradictory assumptions'":
@@ -474,6 +475,24 @@ KB := module ()
     end proc;
     maptype(`*`, p, body)
   end proc;
+
+  myexpand_GAMMA := proc(gg, $)
+    local pw, rest,g;
+    g := op(1,gg);
+    if type(g,`+`) then
+      (pw, rest) := selectremove(type, g, 'specfunc(piecewise)');
+      if type(pw, 'specfunc(piecewise)') then # TODO: handle sum of pw too!
+        if nops(pw) :: even then # need to explicit add the 0 !
+          pw := piecewise(op(pw),0);
+        end if; # float out the GAMMA for cancellation
+        GAMMA(rest)*map_piecewiselike(x -> expand(GAMMA(x + rest))/GAMMA(rest), pw);
+      else
+        gg
+      end if;
+    else
+      gg
+    end;
+  end;
 
   kb_to_assumptions := proc(kb, $)
     map(proc(k, $)
