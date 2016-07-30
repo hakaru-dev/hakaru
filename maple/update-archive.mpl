@@ -4,6 +4,7 @@ if FileTools:-Exists(lib) then FileTools:-Remove(lib) end if:
 LibraryTools:-Create(lib):
 
 read("./BindingTools.mpl"):
+read("./Piecewise.mpl"):
 read("./Hakaru.mpl"):
 read("./KB.mpl"):
 read("./Loop.mpl"):
@@ -20,6 +21,7 @@ LibraryTools:-Save(`eval/Branch`, lib):
 LibraryTools:-Save(`eval/Bind`, lib):
 LibraryTools:-Save(`eval/ary`, lib):
 LibraryTools:-Save(`eval/Plate`, lib):
+LibraryTools:-Save('Piecewise', lib):
 LibraryTools:-Save('Hakaru', lib):
 LibraryTools:-Save('KB', lib):
 LibraryTools:-Save(`depends/forall`, lib):

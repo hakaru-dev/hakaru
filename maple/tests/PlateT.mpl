@@ -5,6 +5,7 @@ if not (NewSLO :: `module`) then
   `quit`(3);
 end if;
 
+with(Piecewise):
 with(Hakaru):
 with(NewSLO):
 
@@ -47,10 +48,10 @@ bry1  := Bind(BetaD(alpha,beta), x,
                                  (1-x)^piecewise(idx(y,i)=false,1),
                           Ret(Unit))), ys,
          Ret(x))):
-bry1s := Weight(Beta(alpha+sum(piecewise(idx(y,i)=true ,1), i=0..n-1),
-                     beta +sum(piecewise(idx(y,i)=false,1), i=0..n-1))/Beta(alpha,beta),
-         BetaD(alpha+sum(piecewise(idx(y,i)=true ,1), i=0..n-1),
-               beta +sum(piecewise(idx(y,i)=false,1), i=0..n-1))):
+bry1s := Weight(Beta(alpha+sum(piecewise(idx(y,i)=true ,1,0), i=0..n-1),
+                     beta +sum(piecewise(idx(y,i)=false,1,0), i=0..n-1))/Beta(alpha,beta),
+         BetaD(alpha+sum(piecewise(idx(y,i)=true ,1,0), i=0..n-1),
+               beta +sum(piecewise(idx(y,i)=false,1,0), i=0..n-1))):
 TestHakaru(bry1, bry1s, 
   label="first way to express flipping a biased coin many times",
   ctx = [n::nonnegint]);

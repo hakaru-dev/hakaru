@@ -21,14 +21,15 @@ KB := module ()
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product, myexpand_GAMMA, chilled, chill, warm,
+        `convert/Beta/internal`,
         ModuleLoad, ModuleUnload;
-  export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
+  export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
          kb_subtract, simplify_assuming, hack_Beta,
          kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, range_of_HInt;
   global t_kb, `expand/product`, `simplify/int/simplify`,
          `product/indef/indef`, `convert/Beta`;
-  uses Hakaru;
+  uses Piecewise, Hakaru;
 
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
   t_lo    := 'identical(`>`,`>=`)';
@@ -660,25 +661,41 @@ KB := module ()
       `product/indef/indef`]);
 
     # Convert GAMMA(x)*GAMMA(y)/GAMMA(x+y) to Beta(x,y)
+    # even in the presence of multiplicities and extra occurences of GAMMAs
+    `convert/Beta/internal` :=
+    proc(p, $)
+      local s, t, r, i, j, x, y, inds, mult;
+      s, r := selectremove(type, convert(p,'list',`*`),
+              {'specfunc(GAMMA)', 'specfunc(GAMMA) ^ integer'});
+      t := table(map((z -> `if`(z::specfunc(GAMMA), op(1,z) = 1, op([1,1],z) = op(2,z))), s));
+      inds := map(op, [indices(t)]);
+      for i from nops(inds) to 2 by -1 do
+        x := inds[i];
+        if t[x] = 0 then next end if;
+        for j from i-1 to 1 by -1 do
+          y := inds[j];
+          if assigned(t[x + y]) and t[y] <> 0 and t[x+y] <> 0 then
+            if t[x] > 0 then
+              mult := min(t[x], t[y]);
+              r := [Beta(x,y) ^ mult, op(r)]; # inefficient, but not likely an issue
+              t[x] := t[x] - mult;
+              t[y] := t[y] - mult;
+              t[x+y] := t[x+y] + mult;
+            else
+              mult := max(t[x], t[y]);
+              r := [ Beta(x,y) ^ mult, op(r)];;
+              t[x] := t[x] - mult;
+              t[y] := t[y] - mult;
+              t[x+y] := t[x+y] + mult;
+            end if;
+          end if;
+        end do;
+      end do;
+      `*`(seq(GAMMA(i) ^ t[i], i in inds), op(r));
+    end proc;
     `convert/Beta` := proc(e, $)
-      subsindets(e, 'And(`*`, Not(`*`(Not(specfunc(GAMMA)))),
-                              Not(`*`(Not(1/specfunc(GAMMA)))))',
-        proc(p, $)
-          local s, t, r, i, j, x, y;
-          s, r := selectremove(type, convert(p,'list',`*`), 'specfunc(GAMMA)');
-          t := map2(op, [1,1], select(type, {op(r)}, '1/specfunc(GAMMA)'));
-          for i from nops(s) to 2 by -1 do
-            x := op([i,1],s);
-            for j from i-1 to 1 by -1 do
-              y := op([j,1],s);
-              if x + y in t then
-                s := subsop(j=GAMMA(x+y), i=Beta(x,y), s);
-                break;
-              end if;
-            end do;
-          end do;
-          `*`(op(s), op(r));
-        end proc);
+      subsindets(e, 'And(`*`, Not(`*`(Not({specfunc(GAMMA), specfunc(GAMMA)^integer}))))',
+                 `convert/Beta/internal`);
     end proc;
   end proc;
 
