@@ -204,9 +204,9 @@ Hakaru := module ()
     eSubst, pSubst
   end proc;
 
+  # Try to prevent PiecewiseTools:-Is from complaining
+  # "Wrong kind of parameters in piecewise"
   make_piece := proc(rel, $)
-    # Try to prevent PiecewiseTools:-Is from complaining
-    # "Wrong kind of parameters in piecewise"
     if rel :: {specfunc(anything, {And,Or,Not}), `and`, `or`, `not`} then
       map(make_piece, rel)
     elif rel :: {'`::`', 'boolean', '`in`'} then
@@ -216,6 +216,7 @@ Hakaru := module ()
     end if
   end proc;
 
+  # dig out all the contents of all PVar in a pattern
   pattern_binds := proc(p, $)
     if p = PWild or p = PDone then
       NULL
@@ -233,6 +234,7 @@ Hakaru := module ()
     end if
   end proc:
 
+  # Best attempt at verifying that two measure expressions are equivalent
   verify_measure := proc(m, n, v:='boolean', $)
     local mv, x, i, j, k;
     mv := measure(v);
@@ -284,6 +286,7 @@ Hakaru := module ()
     end if
   end proc;
 
+  # pattern equivalence
   pattern_equiv := proc(p, q, $) :: {identical(false),set(`=`)};
     local r, s;
     if ormap((t->andmap(`=`, [p,q], t)), [PWild, PDone]) then
@@ -309,6 +312,7 @@ Hakaru := module ()
     end if
   end proc;
 
+  # do some trivial simplifications of a piecewise of an And of conditions
   piecewise_And := proc(cond::list, th, el, $)
     if nops(cond) = 0 or th = el then
       th
@@ -317,6 +321,7 @@ Hakaru := module ()
     end if
   end proc;
 
+  # map into piecewise, case and idx
   map_piecewiselike := proc(f, p::t_piecewiselike)
     local i, g, h;
     if p :: 'specfunc(piecewise)' then
@@ -335,6 +340,7 @@ Hakaru := module ()
     end if
   end proc;
 
+  # "lift" piecewise from inside `+`, `*`, `^` and exp to outside
   lift_piecewise := proc(e, extra:={}, $)
     local e1, e2;
     e2 := e;
@@ -350,9 +356,11 @@ Hakaru := module ()
     end do
   end proc;
 
+  # given an expression where one of the argument operands is a
+  # piecewise, lift that piecewise to the top
   lift1_piecewise := proc(e, $)
     local i, p;
-    if membertype(t_piecewiselike, [op(e)], i) then
+    if membertype(t_piecewiselike, [op(e)], 'i') then
       p := op(i,e);
       if nops(p) :: even and not (e :: `*`) and op(-1,p) <> 0 then
         p := piecewise(op(p), 0);
