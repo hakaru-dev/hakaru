@@ -2,9 +2,10 @@
 
 Piecewise := module()
   option package;
-  local lift1_piecewise, ModuleLoad, ModuleUnload;
+  local lift1_piecewise;
   export piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
-    make_piece;
+    make_piece,
+    ModuleLoad, ModuleUnload;
   global
      # Structure types for piecewise-like expressions:
      # piecewise, case, and idx into literal array
@@ -92,15 +93,14 @@ Piecewise := module()
     end if
   end proc;
 
-  ModuleLoad := proc($)
+  thismodule:-ModuleLoad := proc($)
     TypeTools[AddType](t_piecewiselike,
       '{specfunc(piecewise), t_case, idx(list, anything)}');
   end proc;
 
-  ModuleUnload := proc($)
+  thismodule:-ModuleUnload := proc($)
     TypeTools[RemoveType](t_piecewiselike);
   end proc;
 
-  ModuleLoad();
-
+  thismodule:-ModuleLoad();
 end:

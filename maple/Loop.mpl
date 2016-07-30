@@ -70,14 +70,15 @@ end proc:
 Loop := module ()
   option package;
   local intssums, enter_piecewise, wrap,
-        Binder, Stmt, t_binder, t_stmt, t_exp,
-        ModuleLoad;
+        Binder, Stmt, t_binder, t_stmt, t_exp;
   export
      # These first few are smart constructors (for themselves):
          ints, sums,
      # while these are "proper functions"
          mk_HArray, genLoop, unproducts, unproduct,
-         peel, split, graft, rebase_lower, rebase_upper;
+         peel, split, graft, rebase_lower, rebase_upper,
+     # and this utiliy must be exported, not local
+        ModuleLoad;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Ints, Sums, csgn, sum;
@@ -490,7 +491,7 @@ Loop := module ()
     end proc)
   end proc:
 
-  ModuleLoad := proc($)
+  thismodule:-ModuleLoad := proc($)
     # Override csgn to work a little bit harder on piecewise and sum
     # (to get rid of csgn(1/2+1/2*sum(piecewise(...,1,0),...))
     #  produced by int on a Gaussian mixture model)
@@ -541,6 +542,6 @@ Loop := module ()
     protect(sum);
   end proc;
 
-  ModuleLoad();
+  thismodule:-ModuleLoad();
 
 end module; # Loop

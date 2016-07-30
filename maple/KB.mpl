@@ -21,12 +21,12 @@ KB := module ()
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product, myexpand_GAMMA, chilled, chill, warm,
-        `convert/Beta/internal`,
-        ModuleLoad, ModuleUnload;
+        `convert/Beta/internal`;
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
          kb_subtract, simplify_assuming, hack_Beta,
          kb_to_assumptions, kb_to_equations,
-         kb_piecewise, list_of_mul, range_of_HInt;
+         kb_piecewise, list_of_mul, range_of_HInt,
+         ModuleLoad, ModuleUnload;
   global t_kb, `expand/product`, `simplify/int/simplify`,
          `product/indef/indef`, `convert/Beta`;
   uses Piecewise, Hakaru;
@@ -608,8 +608,8 @@ KB := module ()
   chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
   warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
 
-  ModuleLoad := proc($)
-    Hakaru; # Make sure the KB module is loaded, for the type t_type
+  thismodule:-ModuleLoad := proc($)
+    uses Hakaru; # Make sure the KB module is loaded, for the type t_type
     TypeTools[AddType](t_kb,
       'specfunc({
          Introduce(name, t_type),
@@ -699,9 +699,9 @@ KB := module ()
     end proc;
   end proc;
 
-  ModuleUnload := proc($)
+  thismodule:-ModuleUnload := proc($)
     TypeTools[RemoveType](t_kb);
   end proc;
 
-  ModuleLoad();
+  thismodule:-ModuleLoad();
 end module; # KB

@@ -56,8 +56,7 @@ end proc:
 
 Hakaru := module ()
   option package;
-  local p_true, p_false, 
-        ModuleLoad, ModuleUnload;
+  local p_true, p_false;
   export
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, size, Datum,
@@ -65,7 +64,9 @@ Hakaru := module ()
          verify_measure, pattern_equiv,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
-         htype_patterns;
+         htype_patterns,
+     # sigh, these must be exported, not local
+        ModuleLoad, ModuleUnload;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global
@@ -396,7 +397,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  ModuleLoad := proc($)
+  thismodule:-ModuleLoad := proc($)
     VerifyTools[AddVerification](measure = eval(verify_measure));
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
@@ -410,12 +411,12 @@ Hakaru := module ()
       'case(anything, specfunc(Branch(anything, anything), Branches))');
   end proc;
 
-  ModuleUnload := proc($)
+  thismodule:-ModuleUnload := proc($)
     TypeTools[RemoveType](t_case);
     TypeTools[RemoveType](t_type);
     VerifyTools[RemoveVerification](measure);
   end proc;
 
-  ModuleLoad();
+  thismodule:-ModuleLoad();
 
 end module; # Hakaru

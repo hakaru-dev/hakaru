@@ -31,8 +31,7 @@ NewSLO := module ()
         find_vars, kb_from_path, interpret, reconstruct, invert,
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2,
-        mk_sym, mk_ary, mk_idx,
-        ModuleLoad;
+        mk_sym, mk_ary, mk_idx;
   export
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
@@ -40,7 +39,9 @@ NewSLO := module ()
          RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, Efficient,
          toLO, fromLO, unintegrate, unweight, improve, reduce,
          density, bounds,
-         ReparamDetermined, determined, reparam, disint;
+         ReparamDetermined, determined, reparam, disint,
+     # must export
+        ModuleLoad;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global LO, Integrand, Indicator, SumIE, ProductIE;
@@ -1589,7 +1590,7 @@ NewSLO := module ()
           e, op(loops));
   end proc;
 
-  ModuleLoad := proc($)
+  thismodule:-ModuleLoad := proc($)
     local prev;
     Hakaru; # Make sure the KB module is loaded, for the type t_type
     KB;     # Make sure the KB module is loaded, for the type t_kb
@@ -1604,6 +1605,6 @@ NewSLO := module ()
     end try;
   end proc;
 
-  ModuleLoad();
+  thismodule:-ModuleLoad();
 
 end module; # NewSLO
