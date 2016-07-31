@@ -61,11 +61,10 @@ module Language.Hakaru.Syntax.ABT
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
-    {-
     -- *** Highly experimental
-    , Hint(..)
-    , multibinder
-    -}
+    -- , Hint(..)
+    -- , multibinder
+    , withMetadata
     -- ** Abstract nonsense
     , cataABT
     , paraABT
@@ -73,6 +72,7 @@ module Language.Hakaru.Syntax.ABT
     -- * Some ABT instances
     , TrivialABT()
     , MemoizedABT()
+    , MetaABT(..)
     ) where
 
 import           Data.Text         (Text)
@@ -575,23 +575,98 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
 
 
 -- | An ABT which carries around metadata at each node.
+--
+-- Right now this essentially inlines the the TrivialABT instance
+-- but it would be nice if it was abstract in the choice of ABT.
+data MetaABT
+    (meta :: *)
+    (syn  :: ([k] -> k -> *) -> k -> *)
+    (xs   :: [k])
+    (a    :: k) =
+    MetaABT
+    { getMetadata  :: !(Maybe meta)
+    , metaView     :: !(View (syn (MetaABT meta syn)) xs a)
+    }
 
--- data MetaABT (meta :: *) (syn :: ([k] -> k -> *) -> k -> *) (xs :: [k]) (a :: k) =
---      MetaABT meta (MemoizedABT syn xs a)
+withMetadata
+    :: meta
+    -> MetaABT meta syn xs a
+    -> MetaABT meta syn xs a
+withMetadata x (MetaABT _ v) = MetaABT (Just x) v
 
--- getMetadata :: MetaABT meta syn xs a -> meta
--- getMetadata (MetaABT meta _) = meta
+instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
+    => ABT (syn :: ([k] -> k -> *) -> k -> *) (MetaABT meta syn)
+    where
+    syn t                   = MetaABT Nothing (Syn  t)
+    var x                   = MetaABT Nothing (Var  x)
+    bind x (MetaABT meta v) = MetaABT meta    (Bind x v)
 
-data MetaABT (meta :: *) (abt :: [k] -> k -> *) (xs :: [k]) (a :: k) =
-     MetaABT meta (abt xs a)
+    caseBind (MetaABT meta v) k =
+        case v of
+        Bind x v' -> k x (MetaABT meta v')
 
-getMetadata :: MetaABT meta abt xs a -> meta
-getMetadata (MetaABT meta _) = meta
+    viewABT  = metaView
+
+    freeVars = go . viewABT
+        where
+        go  :: View (syn (MetaABT meta syn)) xs a
+            -> VarSet (KindOf a)
+        go (Syn  t)   = foldMap21 freeVars t
+        go (Var  x)   = singletonVarSet x
+        go (Bind x v) = deleteVarSet x (go v)
+
+    nextBind = go . viewABT
+        where
+        go :: View (syn (MetaABT meta syn)) xs a -> Nat
+        go (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . nextBind) t
+        go (Var  _)   = unMaxNat $ mempty
+        go (Bind x v) = max (1 + varID x) (go v)
+
+
+    -- Deforest the intermediate 'VarSet' of the default 'nextFree'
+    -- implementation, and fuse the two passes of 'nextFree' and
+    -- 'nextBind' into a single pass.
+    nextFreeOrBind = go . viewABT
+        where
+        go :: View (syn (MetaABT meta syn)) xs a -> Nat
+        go (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . nextFreeOrBind) t
+        go (Var  x)   = 1 + varID x
+        go (Bind x v) = max (1 + varID x) (go v)
+
+
+
+instance ( Show1 (Sing :: k -> *)
+         , Show1 (syn (MetaABT meta syn))
+         , Show  meta)
+    => Show2 (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *))
+    where
+    showsPrec2 p (MetaABT meta v) =
+        showParen (p > 9)
+            ( showString "MetaABT "
+            . showsPrec  11 meta
+            . showString " "
+            . showsPrec1 11 v
+            )
+
+instance ( Show1 (Sing :: k -> *)
+         , Show1 (syn (MetaABT meta syn))
+         , Show  meta)
+    => Show1 (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *) xs)
+    where
+    showsPrec1 = showsPrec2
+    show1      = show2
+
+instance ( Show1 (Sing :: k -> *)
+         , Show1 (syn (MetaABT meta syn))
+         , Show  meta)
+    => Show (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *) xs a)
+    where
+    showsPrec = showsPrec1
+    show      = show1
 
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: should we export 'freshen' and 'rename'?
 
 -- TODO: do something smarter
 -- | If the variable is in the set, then construct a new one which
