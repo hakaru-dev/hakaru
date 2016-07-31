@@ -21,6 +21,7 @@ KB := module ()
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product, myexpand_GAMMA, chilled, chill, warm,
+        graft_pw,
         `convert/Beta/internal`;
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
          kb_subtract, simplify_assuming, hack_Beta,
@@ -345,40 +346,41 @@ KB := module ()
     eval(e, exp = expand @ exp);
   end proc;
 
+  # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
+  #      to piecewise(i<=j,1,0) + ...
+  # and rewrite piecewise(And(i<=j-1,a<b),1) + piecewise(And(a<b,i=j),1) + ...
+  #          to piecewise(And(i<=j,a<b),1) + ...
+  graft_pw := proc(ee, $)
+    subsindets(ee, 'And(`+`, Not(`+`(Not(specfunc(piecewise)))))', proc(e, $)
+      local terms, j, i, jcond, icond, conds;
+      terms := sort(convert(e,'list'),
+		    key = proc(term, $) local rel; -add(numboccur(term,rel), rel in indets(term,`<=`)) end proc);
+      for i from nops(terms) to 2 by -1 do
+	if not (op(i,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
+	icond := op([i,1],terms);
+	icond := `if`(icond :: 'specfunc(And)', {op(icond)}, {icond});
+	for j from i-1 to 1 by -1 do
+	  if not (op(j,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
+	  jcond := op([j,1],terms);
+	  jcond := `if`(jcond :: 'specfunc(And)', {op(jcond)}, {jcond});
+	  conds := jcond intersect icond;
+	  jcond := jcond minus conds;
+	  icond := icond minus conds;
+	  if not (nops(jcond) = 1 and nops(icond) = 1) then next end if;
+	  jcond := op(jcond);
+	  icond := op(icond);
+	  if not (jcond :: `<=` and icond :: `=`) then next end if;
+	  if not Testzero(`-`(op(jcond)) - `-`(op(icond)) - 1) then next end if; # Unsound HACK: assuming integers, so jcond<=-1 is equivalent to jcond<0
+	  terms := subsop(i=NULL, [j,1]=maptype('specfunc(And)', (c -> `if`(c=jcond, subsop(0=`<=`,icond), c)), op([j,1],terms)), terms);
+	  break
+	end do
+      end do;
+      `+`(op(terms))
+    end proc)
+  end proc;
+
   hack_Beta := proc(ee, $)
-    local graft_pw, GAMMAratio, e;
-    # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
-    #      to piecewise(i<=j,1,0) + ...
-    # and rewrite piecewise(And(i<=j-1,a<b),1) + piecewise(And(a<b,i=j),1) + ...
-    #          to piecewise(And(i<=j,a<b),1) + ...
-    graft_pw := proc(ee, $)
-      subsindets(ee, 'And(`+`, Not(`+`(Not(specfunc(piecewise)))))', proc(e, $)
-        local terms, j, i, jcond, icond, conds;
-        terms := sort(convert(e,'list'),
-                      key = proc(term, $) local rel; -add(numboccur(term,rel), rel in indets(term,`<=`)) end proc);
-        for i from nops(terms) to 2 by -1 do
-          if not (op(i,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
-          icond := op([i,1],terms);
-          icond := `if`(icond :: 'specfunc(And)', {op(icond)}, {icond});
-          for j from i-1 to 1 by -1 do
-            if not (op(j,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
-            jcond := op([j,1],terms);
-            jcond := `if`(jcond :: 'specfunc(And)', {op(jcond)}, {jcond});
-            conds := jcond intersect icond;
-            jcond := jcond minus conds;
-            icond := icond minus conds;
-            if not (nops(jcond) = 1 and nops(icond) = 1) then next end if;
-            jcond := op(jcond);
-            icond := op(icond);
-            if not (jcond :: `<=` and icond :: `=`) then next end if;
-            if not Testzero(`-`(op(jcond)) - `-`(op(icond)) - 1) then next end if; # Unsound HACK: assuming integers, so jcond<=-1 is equivalent to jcond<0
-            terms := subsop(i=NULL, [j,1]=maptype('specfunc(And)', (c -> `if`(c=jcond, subsop(0=`<=`,icond), c)), op([j,1],terms)), terms);
-            break
-          end do
-        end do;
-        `+`(op(terms))
-      end proc)
-    end proc;
+    local GAMMAratio, e;
     # GAMMAratio(s, r) = GAMMA(s+r) / GAMMA(r)
     GAMMAratio := proc(s, r, $)
       local var;
@@ -481,9 +483,10 @@ KB := module ()
     local pw, rest,g;
     g := op(1,gg);
     if type(g,`+`) then
+      g := graft_pw(g); # merge some of the pw
       (pw, rest) := selectremove(type, g, 'specfunc(piecewise)');
       if type(pw, 'specfunc(piecewise)') then # TODO: handle sum of pw too!
-        if nops(pw) :: even then # need to explicit add the 0 !
+        if nops(pw) :: even then # need to explicitly add the 0 !
           pw := piecewise(op(pw),0);
         end if; # float out the GAMMA for cancellation
         GAMMA(rest)*map_piecewiselike(x -> expand(GAMMA(x + rest))/GAMMA(rest), pw);
