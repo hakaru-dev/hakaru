@@ -81,7 +81,7 @@ Loop := module ()
         ModuleLoad;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Ints, Sums, csgn, sum;
+  global Ints, Sums, csgn, sum, product;
   uses Piecewise, Hakaru, KB;
 
   t_binder := 'Binder(identical(product, Product, sum, Sum), t_kb)';
@@ -153,24 +153,24 @@ Loop := module ()
     # Rewrite ... * piecewise(i<=kk-1, xs^2, 1)
     #      to ... * xs ^ (2*piecewise(i<=kk-1, 1))
     # because the latter is easier to integrate and recognize with respect to xs
-    pp := maptype(`*`,
-      proc (p)
-        local n, s, r;
-        if p :: 'And(specfunc(piecewise), anyfunc(freeof(x), anything, 1))' then
-          n := indets(op(1,p),name);
-          if op(2,p) :: {'exp(anything)', '`^`'('freeof'(n),'anything')} then
-            s, r := selectremove(depends, convert(op([2,-1],p),'list','`*`'), n);
-            subsop(-1 = `*`(piecewise(op(1,p), `*`(op(s))), op(r)), op(2,p))
-          else
-            s, r := selectremove(depends, convert(op(2,p),'list','`*`'), n);
-            `*`(op(r)) ^ piecewise(op(1,p), 1)
-              * `if`(nops(s) > 0, piecewise(op(1,p), `*`(op(s)), 1), 1)
-          end if
-        else
-          p
-        end if
-      end proc,
-      pp);
+#    pp := maptype(`*`,
+#      proc (p)
+#        local n, s, r;
+#        if p :: 'And(specfunc(piecewise), anyfunc(freeof(x), anything, 1))' then
+#          n := indets(op(1,p),name);
+#          if op(2,p) :: {'exp(anything)', '`^`'('freeof'(n),'anything')} then
+#            s, r := selectremove(depends, convert(op([2,-1],p),'list','`*`'), n);
+#            subsop(-1 = `*`(piecewise(op(1,p), `*`(op(s))), op(r)), op(2,p))
+#          else
+#            s, r := selectremove(depends, convert(op(2,p),'list','`*`'), n);
+#            `*`(op(r)) ^ piecewise(op(1,p), 1)
+#              * `if`(nops(s) > 0, piecewise(op(1,p), `*`(op(s)), 1), 1)
+#          end if
+#        else
+#          p
+#        end if
+#      end proc,
+#      pp);
     w0, pp
   end proc;
 
@@ -183,7 +183,7 @@ Loop := module ()
   unproduct := proc(w, var::name, loop::(name=range),
                     heap::list, mode::identical(`*`,`+`),
                     kb1::t_kb, kb0::t_kb, $)
-    local ind, res, dummy, kb, kbThen, i, w1, pp, s, r, x;
+    local ind, res, dummy, kb, kbThen, i, w1, pp, s, s0, r, x, shape;
     if not depends(w, var) then
       return [wrap(heap, w, mode, kb1, kb0), 1]
     end if;
@@ -192,8 +192,8 @@ Loop := module ()
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
       # So, check that "extract using indets" and "rename using eval" commute.
-      s := indets(ind, 'name');
-      s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
+      s0 := indets(ind, 'name');
+      s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s0);
       if indets(eval(w, s), idx(identical(var), anything))
                 = {idx(var, eval(ind, s))} then
         kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
@@ -208,7 +208,21 @@ Loop := module ()
     if w :: mode then
       res := map(unproduct, `if`(mode=`*`, list_of_mul(w,kb1), [op(w)]),
                  var, loop, heap, mode, kb1, kb0);
-      return [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
+      w1 := `*`(op(map2(op,1,res))); 
+      pp := map2(op,2,res);
+      s, r := selectremove(type, pp, 'specfunc(piecewise)');
+      if s=[] then
+        return [w1, `*`(op(pp))];
+      else
+        r := `*`(op(r));
+        error "need to combine piecewise";
+        shape := s[1];
+        pp := piecewise(seq(
+          `if`(i::even or i=nops(shape), r*mul(op(i,x),x=s), op(i,shape)),
+          i=1..nops(shape)));
+
+        return [w1, pp]
+      end if;
     end if;
     if w :: 'specfunc(piecewise)' then
       kb := kb1;
@@ -246,13 +260,20 @@ Loop := module ()
     end if;
     if w :: And(specfunc(`if`(mode = `*`, {product, Product}, {sum, Sum})),
                 anyfunc(anything, name=range(freeof(var)))) then
-      x, kb := genType(op([2,1],w),
-                       HInt(Bound(`>=`,op([2,2,1],w)),
-                            Bound(`<=`,op([2,2,2],w))),
-                       kb1,
-                       w, var, loop, heap);
-      return unproduct(eval(op(1,w), op([2,1],w)=x), var, loop,
-                       [op(heap), Binder(op(0,w), kb1)], mode, kb, kb0)
+      # if peel has an effect, then it's much better to recurse,
+      # even though we might end up right back here
+      w1 := peel(w);
+      if w1 :: `*` then
+        return unproduct(w1, var, loop, heap, mode, kb1, kb0)
+      else
+        x, kb := genType(op([2,1],w),
+                         HInt(Bound(`>=`,op([2,2,1],w)),
+                              Bound(`<=`,op([2,2,2],w))),
+                         kb1,
+                         w, var, loop, heap);
+          return unproduct(eval(op(1,w), op([2,1],w)=x), var, loop,
+                           [op(heap), Binder(op(0,w), kb1)], mode, kb, kb0)
+      end if;
     end if;
     if mode = `*` and w :: '{`+`, specfunc({sum, Sum})}' then
       # Maybe this w is one of those big sums involving products that are
@@ -540,6 +561,11 @@ Loop := module ()
       end proc,
       sum]);
     protect(sum);
+
+    # Patch product to have option remember
+    unprotect(product);
+    product := subsop(3=op([(op(3,eval(product)),remember,system)]), eval(product));
+    protect(product);
   end proc;
 
   thismodule:-ModuleLoad();
