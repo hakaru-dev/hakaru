@@ -398,6 +398,9 @@ Hakaru := module ()
   end proc;
 
   thismodule:-ModuleLoad := proc($)
+    # sigh, just the uses is not enough to get the ModuleLoad to execute!
+    Piecewise;
+
     VerifyTools[AddVerification](measure = eval(verify_measure));
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
