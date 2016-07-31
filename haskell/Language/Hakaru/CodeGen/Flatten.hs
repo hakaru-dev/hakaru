@@ -39,6 +39,7 @@ import Language.C.Syntax.AST
 
 import           Data.Number.Natural
 import           Data.Ratio
+import           Data.List.NonEmpty
 import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
@@ -64,7 +65,7 @@ flattenTerm (Case_ _ _)      = error "TODO: flattenTerm Case"
 flattenTerm (Array_ a es)    = flattenArray a es
 flattenTerm (x :$ ys)        = flattenSCon x ys
 flattenTerm (Reject_ _)      = error "TODO: flattenTerm Reject"
-flattenTerm (Superpose_ _)   = error "TODO: flattenTerm Superpose"
+flattenTerm (Superpose_ wes) = flattenSuperpose wes
 
 
 ----------------------------------------------------------------
@@ -258,3 +259,38 @@ flattenMeasureOp Uniform = \(a :* b :* End) ->
      assign ident (a' ^+ ((r ^/ rMax) ^* (b' ^- a')))
      return (varE ident)
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
+
+----------------------------------------------------------------
+
+flattenSuperpose
+    :: (ABT Term abt)
+    => NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
+    -> CodeGen CExpr
+
+-- do we need to normalize?
+flattenSuperpose wes =
+  let wes' = toList wes in
+  do ident <- genIdent' "rand"
+     declare $ typeDeclaration SReal ident
+     let r    = castE doubleTyp rand
+         rMax = castE doubleTyp (stringVarE "RAND_MAX")
+     assign ident ((r ^/ rMax) ^* (intConstE 1))
+
+     wes'' <- T.forM  wes' $ \(p,m) -> do p' <- flattenABT p
+                                          m' <- flattenABT m
+                                          return (p',m')
+
+     return (varE ident)
+    -- case evaluate m env of
+    -- VMeasure m' ->
+    --     let pms'     = L.toList pms
+    --         weights  = map ((flip evaluate env) . fst) pms'
+    --         (x,y,ys) = normalize weights
+    --     in VMeasure $ \(VProb p) g ->
+    --         if not (y > (0::Double)) then return Nothing else do
+    --         u <- MWC.uniformR (0, y) g
+    --         case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms', u <= v ] of
+    --             m2 : _ ->
+    --                 case evaluate m2 env of
+    --                 VMeasure m2' -> m2' (VProb $ p * x * LF.logFloat y) g
+    --             []     -> m' (VProb $ p * x * LF.logFloat y) g
