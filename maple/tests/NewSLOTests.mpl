@@ -351,7 +351,7 @@ TestHakaru(gaussian_invgamma_gaussian, gaussian_invgamma_gaussian_s,
   label="gaussian_invgamma_gaussian conjugacy",
   ctx = [mu0::real, nu>0, shape>0, scale>0, x::real]);
 gamma_gamma   := Bind(GammaD(alpha0,1/beta0),beta, Weight(NewSLO:-density[GammaD](alpha,1/beta)(x), Ret(beta))):
-gamma_gamma_s := Weight(beta0^alpha0*x^(alpha-1)*GAMMA(alpha+alpha0)*(beta0+x)^(-alpha-alpha0)/(GAMMA(alpha0)*GAMMA(alpha)), GammaD(alpha+alpha0, 1/(beta0+x))):
+gamma_gamma_s := Weight(beta0^alpha0*x^(alpha-1)/Beta(alpha,alpha0)*(beta0+x)^(-alpha-alpha0), GammaD(alpha+alpha0, 1/(beta0+x))):
 TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy", 
   ctx = [alpha0>0, beta0>0, alpha>0, x>0]);
 gamma_poisson   := Bind(GammaD(shape,scale),lambda, Weight(NewSLO:-density[PoissonD](lambda)(k), Ret(lambda))):
