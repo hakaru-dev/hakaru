@@ -1,5 +1,6 @@
 module Language.Hakaru.CodeGen.HOAS.Statement
-  ( ifS
+  ( assignS
+  , ifS
   , listOfIfsS
   , guardS
   , gotoS
@@ -16,10 +17,16 @@ import Language.C.Data.Ident
 
 import Language.Hakaru.CodeGen.HOAS.Expression
 
-import           Data.List.NonEmpty
-
 node :: NodeInfo
 node = undefNode
+
+assignS :: Ident -> CExpr -> CStat
+assignS var expr = CExpr (Just (CAssign CAssignOp
+                                        (CVar var node)
+                                        expr
+                                        node))
+                         node
+
 
 ifS :: CExpr -> CStat -> CStat -> CStat
 ifS e thn els = CIf e thn (Just els) node
@@ -33,12 +40,10 @@ guardS e thn = CIf e thn Nothing node
 --    else if <bool> <stat>;
 --    else if <bool> <stat>;
 --    ...
-listOfIfsS :: NonEmpty (CExpr,CStat) -> CStat
-listOfIfsS xs = undefined -- F.foldl f (guardS (head xs')) (tail xs')
-  -- where xs'     = reverse xs
-  --       f acc x = 
--- listOfIfsS ((b,s) :| []) = guardS b s
--- listOfIfsS ((b,s) :| xs) = ifS b s (listOfIfsS xs)
+listOfIfsS :: [(CExpr,CStat)] -> CStat
+listOfIfsS []         = error "listOfIfsS on empty list"
+listOfIfsS ((b,s):[]) = guardS b s
+listOfIfsS ((b,s):xs) = ifS b s (listOfIfsS xs)
 
 gotoS :: Ident -> CStat
 gotoS i = CGoto i node

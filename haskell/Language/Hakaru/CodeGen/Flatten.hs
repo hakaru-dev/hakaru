@@ -27,6 +27,7 @@ module Language.Hakaru.CodeGen.Flatten
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.HOAS.Declaration
 import Language.Hakaru.CodeGen.HOAS.Expression
+import Language.Hakaru.CodeGen.HOAS.Statement
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -270,27 +271,21 @@ flattenSuperpose
 -- do we need to normalize?
 flattenSuperpose wes =
   let wes' = toList wes in
-  do ident <- genIdent' "rand"
-     declare $ typeDeclaration SReal ident
+  do randId <- genIdent' "rand"
+     declare $ typeDeclaration SReal randId
      let r    = castE doubleTyp rand
          rMax = castE doubleTyp (stringVarE "RAND_MAX")
-     assign ident ((r ^/ rMax) ^* (intConstE 1))
+         rVar = varE randId
+     assign randId ((r ^/ rMax) ^* (intConstE 1))
 
-     wes'' <- T.forM  wes' $ \(p,m) -> do p' <- flattenABT p
-                                          m' <- flattenABT m
-                                          return (p',m')
 
-     return (varE ident)
-    -- case evaluate m env of
-    -- VMeasure m' ->
-    --     let pms'     = L.toList pms
-    --         weights  = map ((flip evaluate env) . fst) pms'
-    --         (x,y,ys) = normalize weights
-    --     in VMeasure $ \(VProb p) g ->
-    --         if not (y > (0::Double)) then return Nothing else do
-    --         u <- MWC.uniformR (0, y) g
-    --         case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms', u <= v ] of
-    --             m2 : _ ->
-    --                 case evaluate m2 env of
-    --                 VMeasure m2' -> m2' (VProb $ p * x * LF.logFloat y) g
-    --             []     -> m' (VProb $ p * x * LF.logFloat y) g
+     outId <- genIdent
+     declare $ typeDeclaration SReal outId
+
+     wes'' <- T.forM  wes'  $ \(p,m) -> do p' <- flattenABT p
+                                           m' <- flattenABT m
+                                           return ((exp p') ^< rVar, assignS outId m')
+
+     putStat (listOfIfsS wes'')
+
+     return (varE outId)

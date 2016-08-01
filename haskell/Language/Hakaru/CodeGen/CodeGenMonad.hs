@@ -54,7 +54,6 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.CodeGen.HOAS.Statement
 
 import Language.C.Data.Ident
-import Language.C.Data.Node
 import Language.C.Syntax.AST
 
 import Data.Number.Nat (fromNat)
@@ -62,9 +61,6 @@ import qualified Data.IntMap as IM
 import qualified Data.Set    as S
 import qualified Data.Text   as T
 
-
-node :: NodeInfo
-node = undefNode
 
 suffixes :: [String]
 suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
@@ -128,16 +124,12 @@ putStat s = do cg <- get
                put $ cg { statements = s:(statements cg) }
 
 assign :: Ident -> CExpr -> CodeGen ()
-assign var expr =
-  let assignment = CExpr (Just (CAssign CAssignOp
-                                        (CVar var node)
-                                        expr
-                                        node))
-                         node
-  in  putStat assignment
+assign v e = putStat (assignS v e)
 
+
+-- Need some notion of C function equality before this can be implemented
 funDef :: CFunDef -> CodeGen ()
-funDef x = undefined
+funDef _ = undefined
   -- do cg <- get
   --    put $ cg { functions = functions cg `S.union` (S.singleton x) }
 
