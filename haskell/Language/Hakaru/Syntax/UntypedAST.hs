@@ -13,7 +13,7 @@
 ----------------------------------------------------------------
 --                                                    2015.10.31
 -- |
--- Module      :  Language.Hakaru.Syntax.Untyped
+-- Module      :  Language.Hakaru.Syntax.UntypedAST
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -28,11 +28,10 @@
 -- parser, then that definition should move to @Language.Hakaru.Parser.*@
 -- somewhere.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.U where
+module Language.Hakaru.Syntax.UntypedAST where
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.Variable
 import Language.Hakaru.Types.Sing (Sing, SingI(..))
 
 import Data.Typeable hiding (Refl)
