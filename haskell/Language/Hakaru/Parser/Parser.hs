@@ -514,7 +514,7 @@ withPos x = do
     s  <- getPosition
     x' <- x
     e  <- getPosition
-    return $ WithMeta x' (Meta s e)
+    return $ WithMeta x' (SourceSpan s e)
 
 data_expr :: Parser (AST' Text)
 data_expr =
