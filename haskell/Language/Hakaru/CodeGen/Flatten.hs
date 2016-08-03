@@ -27,6 +27,7 @@ module Language.Hakaru.CodeGen.Flatten
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.HOAS.Declaration
 import Language.Hakaru.CodeGen.HOAS.Expression
+import Language.Hakaru.CodeGen.HOAS.Statement
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -39,6 +40,7 @@ import Language.C.Syntax.AST
 
 import           Data.Number.Natural
 import           Data.Ratio
+import           Data.List.NonEmpty
 import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
@@ -64,7 +66,7 @@ flattenTerm (Case_ _ _)      = error "TODO: flattenTerm Case"
 flattenTerm (Array_ a es)    = flattenArray a es
 flattenTerm (x :$ ys)        = flattenSCon x ys
 flattenTerm (Reject_ _)      = error "TODO: flattenTerm Reject"
-flattenTerm (Superpose_ _)   = error "TODO: flattenTerm Superpose"
+flattenTerm (Superpose_ wes) = flattenSuperpose wes
 
 
 ----------------------------------------------------------------
@@ -76,47 +78,54 @@ flattenNAryOp op args =
   do es <- T.mapM flattenABT args
      case op of
        (Sum HSemiring_Prob)  ->
-         do ident <- genIdent
+         do ident <- genIdent' "logSumExp"
             declare $ typeDeclaration SProb ident
             assign ident $ logSumExp es
             return (varE ident)
-
-         -- -- logsumexp algorithm for summing probs
-         -- do maxId <- genIdent' "max"
-         --    declare $ typeDeclaration SProb maxId
-         --    -- first compute max
-         --    assign maxId (maxE es)
-         --    let maxVar = varE maxId
-
-         --    -- compute diffs between max
-         --    diffs <- T.forM es (\e -> do diffId <- genIdent' "dif"
-         --                                 declare $ typeDeclaration SProb diffId
-         --                                 assign diffId (e ^- maxVar)
-         --                                 return (varE diffId))
-
-         --    -- compute $ max + log(exp(diffs) + ...)
-         --    sumId <- genIdent' "sum"
-         --    declare $ typeDeclaration SProb sumId
-         --    assign sumId $  maxVar
-         --                 ^+ (log (F.foldr (binaryOp op)
-         --                                  (S.index diffs 0)
-         --                                  (S.drop 1 diffs)))
-         --    return (varE sumId)
 
        -- otherwise
        _ -> return $ F.foldr (binaryOp op)
                              (S.index es 0)
                              (S.drop 1 es)
 
-maxE :: S.Seq CExpr -> CExpr
-maxE es = F.foldr check (S.index es 0) (S.drop 1 es)
-  where check a b = condE (a ^> b) a b
-
+-- logSumExp codegen involves producing a tree of comparisons, where
+-- the leaves are logSumExp expressions
+--
+-- the tree traversal is a depth first search
 logSumExp :: S.Seq CExpr -> CExpr
-logSumExp es = F.foldr f (S.index es 0) (S.drop 1 es)
-  where f a b = condE (a ^> b)
-                      (a ^+ (log1p (exp (b ^- a))))
-                      (b ^+ (log1p (exp (a ^- b))))
+logSumExp es = mkCompTree 0 1
+
+  where lastIndex  = S.length es - 1
+
+        compIndices :: Int -> Int -> CExpr -> CExpr -> CExpr
+        compIndices i j = condE ((S.index es i) ^> (S.index es j))
+
+        mkCompTree :: Int -> Int -> CExpr
+        mkCompTree i j
+          | j == lastIndex = compIndices i j (logSumExp' i) (logSumExp' j)
+          | otherwise      = compIndices i j
+                               (mkCompTree i (succ j))
+                               (mkCompTree j (succ j))
+
+        diffExp :: Int -> Int -> CExpr
+        diffExp a b = expm1 ((S.index es a) ^- (S.index es b))
+
+        -- given the max index, produce a logSumExp expression
+        logSumExp' :: Int -> CExpr
+        logSumExp' 0 = S.index es 0
+          ^+ (log1p $ foldr (\x acc -> diffExp x 0 ^+ acc)
+                            (diffExp 1 0)
+                            [2..S.length es - 1]
+                    ^+ (intConstE $ fromIntegral lastIndex))
+        logSumExp' i = S.index es i
+          ^+ (log1p $ foldr (\x acc -> if i == x
+                                       then acc
+                                       else diffExp x i ^+ acc)
+                            (diffExp 0 i)
+                            [1..S.length es - 1]
+                    ^+ (intConstE $ fromIntegral lastIndex))
+
+
 
 ----------------------------------------------------------------
 
@@ -251,3 +260,32 @@ flattenMeasureOp Uniform = \(a :* b :* End) ->
      assign ident (a' ^+ ((r ^/ rMax) ^* (b' ^- a')))
      return (varE ident)
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
+
+----------------------------------------------------------------
+
+flattenSuperpose
+    :: (ABT Term abt)
+    => NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
+    -> CodeGen CExpr
+
+-- do we need to normalize?
+flattenSuperpose wes =
+  let wes' = toList wes in
+  do randId <- genIdent' "rand"
+     declare $ typeDeclaration SReal randId
+     let r    = castE doubleTyp rand
+         rMax = castE doubleTyp (stringVarE "RAND_MAX")
+         rVar = varE randId
+     assign randId ((r ^/ rMax) ^* (intConstE 1))
+
+
+     outId <- genIdent
+     declare $ typeDeclaration SReal outId
+
+     wes'' <- T.forM  wes'  $ \(p,m) -> do p' <- flattenABT p
+                                           m' <- flattenABT m
+                                           return ((exp p') ^< rVar, assignS outId m')
+
+     putStat (listOfIfsS wes'')
+
+     return (varE outId)

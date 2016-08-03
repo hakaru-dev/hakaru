@@ -61,11 +61,10 @@ module Language.Hakaru.Syntax.ABT
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
-    {-
     -- *** Highly experimental
-    , Hint(..)
-    , multibinder
-    -}
+    -- , Hint(..)
+    -- , multibinder
+    , withMetadata
     -- ** Abstract nonsense
     , cataABT
     , paraABT
@@ -73,6 +72,7 @@ module Language.Hakaru.Syntax.ABT
     -- * Some ABT instances
     , TrivialABT()
     , MemoizedABT()
+    , MetaABT(..)
     ) where
 
 import           Data.Text         (Text)
@@ -89,6 +89,10 @@ import Language.Hakaru.Syntax.IClasses
 -- of the definition of Hakaru's types.
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.Variable
+
+#ifdef __TRACE_DISINTEGRATE__
+import Debug.Trace (trace)
+#endif
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -394,23 +398,23 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
     -- 'TrivialABT' type is mainly intended for testing rather than
     -- production use, we avoid using this optimization so as to
     -- err on the side of soundness.
-    nextBind = go 0 . viewABT
+    nextBind = go . viewABT
         where
-        go :: Nat -> View (syn (TrivialABT syn)) xs a -> Nat
-        go n (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . go n . viewABT) t
-        go n (Var  _)   = n -- We musn't look at variable *uses*!
-        go n (Bind x v) = go (n `max` (1 + varID x)) v
+        go :: View (syn (TrivialABT syn)) xs a -> Nat
+        go (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . nextBind) t
+        go (Var  _)   = unMaxNat $ mempty -- We mustn't look at variable *uses*!
+        go (Bind x v) = max (1 + varID x) (go v)
 
 
     -- Deforest the intermediate 'VarSet' of the default 'nextFree'
     -- implementation, and fuse the two passes of 'nextFree' and
     -- 'nextBind' into a single pass.
-    nextFreeOrBind = go 0 . viewABT
+    nextFreeOrBind = go . viewABT
         where
-        go :: Nat -> View (syn (TrivialABT syn)) xs a -> Nat
-        go n (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . go n . viewABT) t
-        go n (Var  x)   = n `max` (1 + varID x)
-        go n (Bind x v) = go (n `max` (1 + varID x)) v
+        go :: View (syn (TrivialABT syn)) xs a -> Nat
+        go (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . nextFreeOrBind) t
+        go (Var  x)   = 1 + varID x
+        go (Bind x v) = max (1 + varID x) (go v)
 
 
 -- BUG: requires UndecidableInstances
@@ -567,10 +571,102 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
     showsPrec = showsPrec1
     show      = show1
 
+----------------------------------------------------------------
+
+
+-- | An ABT which carries around metadata at each node.
+--
+-- Right now this essentially inlines the the TrivialABT instance
+-- but it would be nice if it was abstract in the choice of ABT.
+data MetaABT
+    (meta :: *)
+    (syn  :: ([k] -> k -> *) -> k -> *)
+    (xs   :: [k])
+    (a    :: k) =
+    MetaABT
+    { getMetadata  :: !(Maybe meta)
+    , metaView     :: !(View (syn (MetaABT meta syn)) xs a)
+    }
+
+withMetadata
+    :: meta
+    -> MetaABT meta syn xs a
+    -> MetaABT meta syn xs a
+withMetadata x (MetaABT _ v) = MetaABT (Just x) v
+
+instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
+    => ABT (syn :: ([k] -> k -> *) -> k -> *) (MetaABT meta syn)
+    where
+    syn t                   = MetaABT Nothing (Syn  t)
+    var x                   = MetaABT Nothing (Var  x)
+    bind x (MetaABT meta v) = MetaABT meta    (Bind x v)
+
+    caseBind (MetaABT meta v) k =
+        case v of
+        Bind x v' -> k x (MetaABT meta v')
+
+    viewABT  = metaView
+
+    freeVars = go . viewABT
+        where
+        go  :: View (syn (MetaABT meta syn)) xs a
+            -> VarSet (KindOf a)
+        go (Syn  t)   = foldMap21 freeVars t
+        go (Var  x)   = singletonVarSet x
+        go (Bind x v) = deleteVarSet x (go v)
+
+    nextBind = go . viewABT
+        where
+        go :: View (syn (MetaABT meta syn)) xs a -> Nat
+        go (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . nextBind) t
+        go (Var  _)   = unMaxNat $ mempty
+        go (Bind x v) = max (1 + varID x) (go v)
+
+
+    -- Deforest the intermediate 'VarSet' of the default 'nextFree'
+    -- implementation, and fuse the two passes of 'nextFree' and
+    -- 'nextBind' into a single pass.
+    nextFreeOrBind = go . viewABT
+        where
+        go :: View (syn (MetaABT meta syn)) xs a -> Nat
+        go (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . nextFreeOrBind) t
+        go (Var  x)   = 1 + varID x
+        go (Bind x v) = max (1 + varID x) (go v)
+
+
+
+instance ( Show1 (Sing :: k -> *)
+         , Show1 (syn (MetaABT meta syn))
+         , Show  meta)
+    => Show2 (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *))
+    where
+    showsPrec2 p (MetaABT meta v) =
+        showParen (p > 9)
+            ( showString "MetaABT "
+            . showsPrec  11 meta
+            . showString " "
+            . showsPrec1 11 v
+            )
+
+instance ( Show1 (Sing :: k -> *)
+         , Show1 (syn (MetaABT meta syn))
+         , Show  meta)
+    => Show1 (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *) xs)
+    where
+    showsPrec1 = showsPrec2
+    show1      = show2
+
+instance ( Show1 (Sing :: k -> *)
+         , Show1 (syn (MetaABT meta syn))
+         , Show  meta)
+    => Show (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *) xs a)
+    where
+    showsPrec = showsPrec1
+    show      = show1
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: should we export 'freshen' and 'rename'?
 
 -- TODO: do something smarter
 -- | If the variable is in the set, then construct a new one which
@@ -598,7 +694,12 @@ rename
     -> Variable a
     -> abt xs b
     -> abt xs b
-rename x y = start
+rename x y =
+#ifdef __TRACE_DISINTEGRATE__
+    trace ("renaming " ++ show (varID x)
+           ++ " to " ++ show (varID y)) $
+#endif           
+    start
     where
     start :: forall xs' b'. abt xs' b' -> abt xs' b'
     start e = loop e (viewABT e)
@@ -611,6 +712,9 @@ rename x y = start
         Just Refl -> var y
         Nothing   -> e
     loop e (Bind z v) =
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("checking varEq "++ show (varID x) ++ " " ++ show (varID z)) $
+#endif
         case varEq x z of
         Just Refl -> e
         Nothing   -> bind z $ loop (caseBind e $ const id) v
@@ -640,37 +744,44 @@ subst
     -> abt '[]  a
     -> abt xs   b
     -> abt xs   b
-subst x e = start
+subst x e =
+#ifdef __TRACE_DISINTEGRATE__
+    trace ("about to subst " ++ show (varID x)) $
+#endif            
+    start (maxNextFreeOrBind [Some2 (var x), Some2 e])
     where
     -- TODO: we could use the director-strings approach to optimize this (for MemoizedABT, but pessimizing for TrivialABT) by first checking whether @x@ is free in @f@; if so then recurse, if not then we're done.
-    start :: forall xs' b'. abt xs' b' -> abt xs' b'
-    start f = loop f (viewABT f)
+    start :: forall xs' b'. Nat -> abt xs' b' -> abt xs' b'
+    start n f = loop n f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
-    loop :: forall xs' b'. abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
-    loop _ (Syn t) = syn $! fmap21 start t
-    loop f (Var z) =
+    loop :: forall xs' b'. Nat -> abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
+    loop n _ (Syn t) = syn $! fmap21 (start n) t
+    loop _ f (Var z) =
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
+#endif        
         case varEq x z of
         Just Refl -> e
         Nothing   -> f
-    loop f (Bind z _) =
-        case varEq x z of
-        Just Refl -> f
-        Nothing   ->
+    loop n f (Bind z _)
+        | varID x == varID z = f
+        | otherwise = 
             -- TODO: even if we don't come up with a smarter way
             -- of freshening variables, it'd be better to just pass
             -- both sets to 'freshen' directly and then check them
             -- each; rather than paying for taking their union every
             -- time we go under a binder like this.
-            let z' = freshen z (freeVars e `mappend` freeVars f) in
+            let i  = 1 + max n (nextFreeOrBind f) -- (freeVars e `mappend` freeVars f)
+                z' = i `seq` z{varID = i}
             -- HACK: the 'rename' function requires an ABT not a
             -- View, so we have to use 'caseBind' to give its
             -- input and then 'viewABT' to discard the topmost
             -- annotation. We really should find a way to eliminate
             -- that overhead.
-            caseBind f $ \_ f' ->
-                bind z' . loop f' . viewABT $ rename z z' f'
-
+            in caseBind f $ \_ f' ->
+                   let f'' = rename z z' f' in
+                   bind z' (loop i f'' (viewABT f''))
 
 renames
     :: forall

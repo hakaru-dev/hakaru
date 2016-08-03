@@ -7,7 +7,7 @@ representation and sending to Maple to be algebraically-simplified.
 For example, the following represents a program from values of type
 `prob` to a measure of real numbers.
 
-````
+````nohighlight
 fn a prob:
   x <~ normal(a,1)
   y <~ normal(x,1)
@@ -17,6 +17,6 @@ fn a prob:
 
 And it will simplify to the following equivalent program.
 
-````
+````nohighlight
 fn a prob: normal(prob2real(a), sqrt(3))
 ````

@@ -18,6 +18,7 @@ import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Syntax.IClasses (Some2(..), TypeEq(..), jmEq1)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
+import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Evaluation.Types               (fromWhnf)
 import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
@@ -261,11 +262,10 @@ testCopy1 :: [TrivialABT Term '[] ('HArray 'HReal ':-> 'HMeasure HUnit)]
 testCopy1 = disintegrate copy1
 
 ----------------------------------------------------------------
--- | TODO fix bug: gives a VarEqTypeError
 copy2 :: TrivialABT Term '[] ('HMeasure (HPair ('HArray 'HReal) HUnit))
 copy2 =
     plate n (\_ -> normal (real_ 0) (prob_ 1)) >>= \u ->
-    plate n (\i -> dirac (u ! i)) >>= \v ->
+    plate n (\j -> dirac (u ! j)) >>= \v ->
     dirac (pair v unit)
     where n = nat_ 100
 
@@ -307,8 +307,7 @@ testNaiveBayes = disintegrate naiveBayes
 runPerform
     :: TrivialABT Term '[] ('HMeasure a)
     -> [TrivialABT Term '[] ('HMeasure a)]
-runPerform e = runDis (fromWhnf `Prelude.fmap` perform e) [Some2 e]
-
+runPerform e = runDis (fromWhnf `Prelude.fmap` perform e) [Some2 e]               
 
 -- | Tests that disintegration doesn't error and produces at least
 -- one solution.
@@ -323,6 +322,11 @@ testDis p =
     . Prelude.null
     . disintegrate
 
+showFirst :: TrivialABT Term '[] ('HMeasure (HPair a b)) -> Prelude.IO ()
+showFirst e = let anss = disintegrate e
+              in if Prelude.null anss
+                 then Prelude.putStrLn $ "no disintegration found"
+                 else Prelude.print    $ pretty (head anss)
 
 -- TODO: put all the "perform" tests in here
 allTests :: Test
@@ -357,6 +361,8 @@ allTests = test
     , assertAlphaEq "testHelloWorld100" (head testHelloWorld100) helloWorld100'
     , testDis "testCopy1" copy1
     , assertAlphaEq "testCopy1" (head testCopy1) copy1'
+    , testDis "testCopy2" copy2
+    , assertAlphaEq "testCopy2" (head testCopy2) copy1'
     , testDis "testNaiveBayes" naiveBayes
     ]
 

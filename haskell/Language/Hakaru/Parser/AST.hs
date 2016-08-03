@@ -50,7 +50,7 @@ data PDatum a = DV Name' [Pattern' a]
     deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
-data Meta = Meta !SourcePos !SourcePos
+data SourceSpan = SourceSpan !SourcePos !SourcePos
     deriving (Eq, Show)
 
 data Literal'
@@ -101,7 +101,7 @@ data AST' a
     | Observe  (AST' a) (AST' a)
     | Msum  [AST' a]
     | Data  a [TypeAST']
-    | WithMeta (AST' a) Meta
+    | WithMeta (AST' a) SourceSpan
     deriving (Eq, Show)
 
 data Import a = Import a 

@@ -1,5 +1,7 @@
 module Language.Hakaru.CodeGen.HOAS.Statement
-  ( ifS
+  ( assignS
+  , ifS
+  , listOfIfsS
   , guardS
   , gotoS
   , exitS
@@ -18,11 +20,30 @@ import Language.Hakaru.CodeGen.HOAS.Expression
 node :: NodeInfo
 node = undefNode
 
+assignS :: Ident -> CExpr -> CStat
+assignS var expr = CExpr (Just (CAssign CAssignOp
+                                        (CVar var node)
+                                        expr
+                                        node))
+                         node
+
+
 ifS :: CExpr -> CStat -> CStat -> CStat
 ifS e thn els = CIf e thn (Just els) node
 
 guardS :: CExpr -> CStat -> CStat
 guardS e thn = CIf e thn Nothing node
+
+-- | will produce a series of if and else ifs
+--   Such as:
+--    if <bool> <stat>;
+--    else if <bool> <stat>;
+--    else if <bool> <stat>;
+--    ...
+listOfIfsS :: [(CExpr,CStat)] -> CStat
+listOfIfsS []         = error "listOfIfsS on empty list"
+listOfIfsS ((b,s):[]) = guardS b s
+listOfIfsS ((b,s):xs) = ifS b s (listOfIfsS xs)
 
 gotoS :: Ident -> CStat
 gotoS i = CGoto i node

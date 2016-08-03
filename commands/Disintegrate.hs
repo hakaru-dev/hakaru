@@ -2,7 +2,7 @@
 
 module Main where
 
-import           Language.Hakaru.Pretty.Concrete  
+import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Syntax.IClasses
 

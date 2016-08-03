@@ -21,7 +21,6 @@ KB := module ()
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product, myexpand_GAMMA, chilled, chill, warm,
-        graft_pw,
         `convert/Beta/internal`;
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
          kb_subtract, simplify_assuming, hack_Beta,
@@ -48,7 +47,7 @@ KB := module ()
     # A variable created using genType is a parameter, in the sense that its
     # value is completely respected
     local x, t;
-    x := `if`(depends([t,kb,_rest], xx), gensym(xx), xx);
+    x := `if`(depends([tt,kb,_rest], xx), gensym(xx), xx);
     t := subsindets(tt, identical(Bound(`>` , -infinity),
                                   Bound(`>=`, -infinity),
                                   Bound(`<` ,  infinity),
@@ -304,25 +303,49 @@ KB := module ()
     e := subsindets(e, 'specfunc({sum,Sum})', expand);
     as := [op(kb_to_assumptions(kb)),
            op(map(`::`, indets(e, 'specfunc(size)'), nonnegint))];
-    e := subsindets(e,
-      '{product(And(specfunc(piecewise), anyfunc(`=`,anything,1)), name=range),
-        sum    (And(specfunc(piecewise),{anyfunc(`=`,anything,0),
-                                         anyfunc(`=`,anything)}), name=range)}',
-      proc(p, $)
-        local x, rng, val;
-        val, rng := op(p);
-        x, rng := op(rng);
-        if   op([1,1],val) = x then val := op([1,2],val)
-        elif op([1,2],val) = x then val := op([1,1],val)
-        else return p end if;
-        if not depends(val, x) and
-           is(And(val :: integer, lhs(rng) <= val,
-                                  val <= rhs(rng))) assuming op(as) then
-          eval(op([1,2],p), x=val)
-        else p end if
-      end proc);
     e := chill(e);
     as := chill(as);
+    e := subsindets(e,
+      'And(specfunc({product,Product,sum,Sum}),
+           anyfunc(anything, name=range))',
+      proc(p, $)
+        local o, body, x, rng, val, a, go;
+        o := subs(Sum=sum, Product=product, op(0,p));
+        body, rng := op(p);
+        x, rng := op(rng);
+        if rng :: 'range({integer,
+                          And(specfunc(piecewise),
+                              Or(anyfunc(anything,integer),
+                                 anyfunc(anything,integer,integer))),
+                          `+`({integer,
+                               And(specfunc(piecewise),
+                                   Or(anyfunc(anything,integer),
+                                      anyfunc(anything,integer,integer)))})})'
+        then
+          rng := lift_piecewise(rng,
+                   'And(range, Not(range(Not(specfunc(piecewise)))))');
+          if rng :: 'specfunc(piecewise)' then
+            val := map_piecewiselike((r -> o(go(x), x=r)), rng);
+          else
+            val := o(go(x), x=rng);
+          end if;
+          # Work around this bug:
+          # > product(Sum(f(j),j=0..n-1),j=0..0)
+          # Sum(f(0),0=0..n-1)
+          return eval(val, go = (i -> eval(body, x=i)));
+        elif body :: 'specfunc(piecewise)' and
+             body :: `if`(o=product,
+                          'anyfunc(`=`,anything,1)',
+                          '{anyfunc(`=`,anything,0), anyfunc(`=`,anything)}')
+             and ispoly(`-`(op(op(1,body))), 'linear', x, 'val', 'a') then
+          val := Normalizer(-val/a);
+          if is(And(val :: integer, lhs(rng) <= val,
+                                    val <= rhs(rng))) assuming op(as) then
+            return eval(op(2,body), x=val)
+          end if
+        end if;
+        p
+      end proc);
     try
       e := evalindets(e, specop(algebraic,{`<`,`<=`,`=`,`<>`}),
         proc(b, $)
@@ -342,45 +365,62 @@ KB := module ()
       # We seem to be on an unreachable control path
       userinfo(1, 'procname', "Received contradictory assumptions.")
     end try;
+    e := subsindets(e,
+      'And(specfunc({Sum,Product}), anyfunc(anything, name=range))',
+      proc(p, $)
+        local go;
+        if `-`(op(op([2,2],p))) :: integer then
+          # Work around this bug:
+          # > product(Sum(f(j),j=0..n-1),j=0..0)
+          # Sum(f(0),0=0..n-1)
+          eval(subs(Sum=sum, Product=product, op(0,p))
+                   (go(op([2,1],p)), op(2,p)),
+               go = (i -> eval(op(1,p), op([2,1],p)=i)))
+        else
+          p
+        end if
+      end proc);
     e := warm(e);
     eval(e, exp = expand @ exp);
   end proc;
 
-  # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
-  #      to piecewise(i<=j,1,0) + ...
-  # and rewrite piecewise(And(i<=j-1,a<b),1) + piecewise(And(a<b,i=j),1) + ...
-  #          to piecewise(And(i<=j,a<b),1) + ...
-  graft_pw := proc(ee, $)
-    subsindets(ee, 'And(`+`, Not(`+`(Not(specfunc(piecewise)))))', proc(e, $)
-      local terms, j, i, jcond, icond, conds;
-      terms := sort(convert(e,'list'),
-		    key = proc(term, $) local rel; -add(numboccur(term,rel), rel in indets(term,`<=`)) end proc);
-      for i from nops(terms) to 2 by -1 do
-	if not (op(i,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
-	icond := op([i,1],terms);
-	icond := `if`(icond :: 'specfunc(And)', {op(icond)}, {icond});
-	for j from i-1 to 1 by -1 do
-	  if not (op(j,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
-	  jcond := op([j,1],terms);
-	  jcond := `if`(jcond :: 'specfunc(And)', {op(jcond)}, {jcond});
-	  conds := jcond intersect icond;
-	  jcond := jcond minus conds;
-	  icond := icond minus conds;
-	  if not (nops(jcond) = 1 and nops(icond) = 1) then next end if;
-	  jcond := op(jcond);
-	  icond := op(icond);
-	  if not (jcond :: `<=` and icond :: `=`) then next end if;
-	  if not Testzero(`-`(op(jcond)) - `-`(op(icond)) - 1) then next end if; # Unsound HACK: assuming integers, so jcond<=-1 is equivalent to jcond<0
-	  terms := subsop(i=NULL, [j,1]=maptype('specfunc(And)', (c -> `if`(c=jcond, subsop(0=`<=`,icond), c)), op([j,1],terms)), terms);
-	  break
-	end do
-      end do;
-      `+`(op(terms))
-    end proc)
-  end proc;
+  hack_Beta := module ()
+    export ModuleApply;
+    local graft_pw, GAMMAratio;
 
-  hack_Beta := proc(ee, $)
-    local GAMMAratio, e;
+    # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
+    #      to piecewise(i<=j,1,0) + ...
+    # and rewrite piecewise(And(i<=j-1,a<b),1) + piecewise(And(a<b,i=j),1) + ...
+    #          to piecewise(And(i<=j,a<b),1) + ...
+    graft_pw := proc(ee, $)
+      subsindets(ee, 'And(`+`, Not(`+`(Not(specfunc(piecewise)))))', proc(e, $)
+        local terms, j, i, jcond, icond, conds;
+        terms := sort(convert(e,'list'),
+                      key = proc(term, $) local rel; -add(numboccur(term,rel), rel in indets(term,`<=`)) end proc);
+        for i from nops(terms) to 2 by -1 do
+          if not (op(i,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
+          icond := op([i,1],terms);
+          icond := `if`(icond :: 'specfunc(And)', {op(icond)}, {icond});
+          for j from i-1 to 1 by -1 do
+            if not (op(j,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
+            jcond := op([j,1],terms);
+            jcond := `if`(jcond :: 'specfunc(And)', {op(jcond)}, {jcond});
+            conds := jcond intersect icond;
+            jcond := jcond minus conds;
+            icond := icond minus conds;
+            if not (nops(jcond) = 1 and nops(icond) = 1) then next end if;
+            jcond := op(jcond);
+            icond := op(icond);
+            if not (jcond :: `<=` and icond :: `=`) then next end if;
+            if not Testzero(`-`(op(jcond)) - `-`(op(icond)) - 1) then next end if; # Unsound HACK: assuming integers, so jcond<=-1 is equivalent to jcond<0
+            terms := subsop(i=NULL, [j,1]=maptype('specfunc(And)', (c -> `if`(c=jcond, subsop(0=`<=`,icond), c)), op([j,1],terms)), terms);
+            break
+          end do
+        end do;
+        `+`(op(terms))
+      end proc)
+    end proc;
+
     # GAMMAratio(s, r) = GAMMA(s+r) / GAMMA(r)
     GAMMAratio := proc(s, r, $)
       local var;
@@ -396,64 +436,68 @@ KB := module ()
         Product(var+r, var=0..s-1) # inert so as to not become GAMMA
       end if
     end proc;
-    e := convert(ee, 'Beta');
-    # Temporary hack to show desired output for examples/{dice_predict,gmm_gibbs,naive_bayes_gibbs}.hk
-    e := subsindets(e, 'product(specfunc(`+`, Beta), name=range)', proc(prodbeta, $)
-      local i, rng, beta, s1, r1, s2, r2, sg, rg;
-      beta, rng := op(prodbeta);
-      i, rng := op(rng);
-      beta := subsindets(beta, 'specfunc(piecewise)', proc(pw, $)
-        # Remove a particular superfluous inequality
-        `if`(op(1,pw) :: 'And(specfunc(And), anyfunc(anything<=anything,name=anything))'
-             and op([1,1,2],pw)=rhs(rng)
-             and op([1,2,1],pw)=i
-             and op([1,1,1],pw)=op([1,2,2],pw),
-             subsop(1=op([1,2],pw), pw),
-             pw)
+
+    ModuleApply := proc(ee, $)
+      local e;
+      e := convert(ee, 'Beta');
+      # Temporary hack to show desired output for examples/{dice_predict,gmm_gibbs,naive_bayes_gibbs}.hk
+      e := subsindets(e, 'product(specfunc(`+`, Beta), name=range)', proc(prodbeta, $)
+        local i, rng, beta, s1, r1, s2, r2, sg, rg;
+        beta, rng := op(prodbeta);
+        i, rng := op(rng);
+        beta := subsindets(beta, 'specfunc(piecewise)', proc(pw, $)
+          # Remove a particular superfluous inequality
+          `if`(op(1,pw) :: 'And(specfunc(And), anyfunc(anything<=anything,name=anything))'
+               and Testzero(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) or
+               op(1,pw) :: 'And(specfunc(And), anyfunc(anything<>anything,name=anything))'
+               and Normalizer(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) :: negative,
+               subsop(1=op([1,2],pw), pw),
+               pw)
+        end proc);
+        s1, r1 := op(map(`+`@op, [selectremove(has, convert(op(1,beta), 'list', `+`), piecewise)]));
+        s2, r2 := op(map(`+`@op, [selectremove(has, convert(op(2,beta), 'list', `+`), piecewise)]));
+        sg := graft_pw(combine(s1+s2));
+        rg := Loop:-graft(r1+r2);
+        if rg = eval(r2,i=i-1) and sg = eval(s2,i=i-1) then
+          # Telescoping match!
+        elif rg = eval(r1,i=i-1) and sg = eval(s1,i=i-1) then
+          # Telescoping match, but swap Beta arguments
+          s1, s2 := s2, s1;
+          r1, r2 := r2, r1;
+        else
+          # No telescoping match -- bail out
+          return 'product'(beta, i=rng);
+        end if;
+        # At this point we know that beta = Beta(s1+r1, s2+r2)
+        #   and that s2 = eval(s2, i=rhs(rng)+1) + sum(s1, i=i+1..rhs(rng)+1)
+        #   and that r2 = eval(r2, i=rhs(rng)+1) + sum(r1, i=i+1..rhs(rng)+1)
+        # So the job of the remainder of this proc is to express
+        #   product(Beta(s1+r1, eval(s2+r2, i=rhs(rng)+1) + sum(s1+r1, i=i+1..rhs(rng)+1)), i=rng)
+        # in terms of
+        #   product(Beta(   r1, eval(   r2, i=rhs(rng)+1) + sum(   r1, i=i+1..rhs(rng)+1)), i=rng)
+        'product'('Beta'(r1, eval(r2, i=rhs(rng)+1) + 'sum'(r1, i=i+1..rhs(rng)+1)), i=rng)
+          * Loop:-graft('product'(GAMMAratio(s1, r1), i=rng)
+                        * eval('GAMMAratio'(s1 (* + s2 *), r1 + r2), i=rhs(rng)+1))
+                          # Unsound HACK: assuming eval(s2, i=rhs(rng)+1) = 0
+                          #   (Discharging this assumption sometimes requires checking idx(w,k) < size(word_prior) for symbolic k)
+          / eval('GAMMAratio'(s2, r2), i=lhs(rng)-1)
       end proc);
-      s1, r1 := op(map(`+`@op, [selectremove(has, convert(op(1,beta), 'list', `+`), piecewise)]));
-      s2, r2 := op(map(`+`@op, [selectremove(has, convert(op(2,beta), 'list', `+`), piecewise)]));
-      sg := graft_pw(combine(s1+s2));
-      rg := Loop:-graft(r1+r2);
-      if rg = eval(r2,i=i-1) and sg = eval(s2,i=i-1) then
-        # Telescoping match!
-      elif rg = eval(r1,i=i-1) and sg = eval(s1,i=i-1) then
-        # Telescoping match, but swap Beta arguments
-        s1, s2 := s2, s1;
-        r1, r2 := r2, r1;
-      else
-        # No telescoping match -- bail out
-        return 'product'(beta, i=rng);
-      end if;
-      # At this point we know that beta = Beta(s1+r1, s2+r2)
-      #   and that s2 = eval(s2, i=rhs(rng)+1) + sum(s1, i=i+1..rhs(rng)+1)
-      #   and that r2 = eval(r2, i=rhs(rng)+1) + sum(r1, i=i+1..rhs(rng)+1)
-      # So the job of the remainder of this proc is to express
-      #   product(Beta(s1+r1, eval(s2+r2, i=rhs(rng)+1) + sum(s1+r1, i=i+1..rhs(rng)+1)), i=rng)
-      # in terms of
-      #   product(Beta(   r1, eval(   r2, i=rhs(rng)+1) + sum(   r1, i=i+1..rhs(rng)+1)), i=rng)
-      'product'('Beta'(r1, eval(r2, i=rhs(rng)+1) + 'sum'(r1, i=i+1..rhs(rng)+1)), i=rng)
-        * Loop:-graft('product'(GAMMAratio(s1, r1), i=rng)
-                      * eval('GAMMAratio'(s1 (* + s2 *), r1 + r2), i=rhs(rng)+1))
-                        # Unsound HACK: assuming eval(s2, i=rhs(rng)+1) = 0
-                        #   (Discharging this assumption sometimes requires checking idx(w,k) < size(word_prior) for symbolic k)
-        / eval('GAMMAratio'(s2, r2), i=lhs(rng)-1)
-    end proc);
-    # Temporary hack to show desired output for the "integrate BetaD out of BetaD-Bernoulli" test
-    e := subsindets(e, 'specfunc(And(`+`, Not(`+`(Not(idx({[1,0],[0,1]}, anything))))), Beta)', proc(beta, $)
-      local s1, r1, s2, r2;
-      s1, r1 := selectremove(type, op(1,beta), 'idx({[1,0],[0,1]}, anything)');
-      s2, r2 := selectremove(type, op(2,beta), 'idx({[1,0],[0,1]}, anything)');
-      if s1 :: 'idx([1,0], anything)' and s2 :: 'idx([0,1], anything)' and op(2,s1) = op(2,s2) then
-        Beta(r1, r2) * idx([r1, r2], op(2,s1)) / (r1 + r2)
-      elif s1 :: 'idx([0,1], anything)' and s2 :: 'idx([1,0], anything)' and op(2,s1) = op(2,s2) then
-        Beta(r1, r2) * idx([r2, r1], op(2,s1)) / (r1 + r2)
-      else
-        beta
-      end if
-    end proc);
-    e
-  end proc;
+      # Temporary hack to show desired output for the "integrate BetaD out of BetaD-Bernoulli" test
+      e := subsindets(e, 'specfunc(And(`+`, Not(`+`(Not(idx({[1,0],[0,1]}, anything))))), Beta)', proc(beta, $)
+        local s1, r1, s2, r2;
+        s1, r1 := selectremove(type, op(1,beta), 'idx({[1,0],[0,1]}, anything)');
+        s2, r2 := selectremove(type, op(2,beta), 'idx({[1,0],[0,1]}, anything)');
+        if s1 :: 'idx([1,0], anything)' and s2 :: 'idx([0,1], anything)' and op(2,s1) = op(2,s2) then
+          Beta(r1, r2) * idx([r1, r2], op(2,s1)) / (r1 + r2)
+        elif s1 :: 'idx([0,1], anything)' and s2 :: 'idx([1,0], anything)' and op(2,s1) = op(2,s2) then
+          Beta(r1, r2) * idx([r2, r1], op(2,s1)) / (r1 + r2)
+        else
+          beta
+        end if
+      end proc);
+      e
+    end proc;
+  end module; # hack_Beta
 
   myexpand_product := proc(prod :: anyfunc(anything, name=range), $)
     local x, p, body, quantifier, l, i;

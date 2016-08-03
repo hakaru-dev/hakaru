@@ -24,7 +24,7 @@ NewSLO := module ()
         integrate_known, known_continuous, known_discrete,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
-        factorize, bind, weight,
+        factorize, termize, bind, weight,
         reduce_IntSum, reduce_IntsSums, get_indicators,
         elim_intsum, do_elim_intsum, banish, banish_guard, banish_weight,
         reduce_pw, nub_piecewise, piecewise_if,
@@ -129,7 +129,11 @@ NewSLO := module ()
     if has(m, 'undefined') then
       return false;
     end if;
-    while m :: 'lam(name, anything, anything)' do m := op(3,m) end do;
+    while m :: '{lam(name, anything, anything),
+                 Context(anything, anything),
+                 And(specfunc(piecewise), anyfunc(anything, anything, Msum()))}' do
+      m := op(`if`(op(0,m)='lam',3,2),m);
+    end do;
     if m :: 'Weight(anything, anything)' then m := op(2,m) end if;
     if has(m, '{infinity, Lebesgue, int, Int, Beta, GAMMA}') then
       return false;
@@ -138,9 +142,9 @@ NewSLO := module ()
       if n :: 'Weight(anything, anything)' then n := op(2,n) end if;
       if has(subsindets(n, 'specfunc(Weight(anything, anything), Msum)',
                         s -> `if`(Testzero(`+`(op(map2(op, 1, s))) - 1),
-			          map2(op, 2, s), s)),
-	     '{Msum, Weight}') then
-	return false;
+                                  map2(op, 2, s), s)),
+             '{Msum, Weight}') then
+        return false;
       end if;
     end do;
     return true;
@@ -320,7 +324,6 @@ NewSLO := module ()
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       bnds, loops, kb2 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
       w, pp := unproducts(w, x, loops, kb2);
-      w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=bnds);
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb2));
@@ -329,9 +332,10 @@ NewSLO := module ()
                          op(1,loop),
                          eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                   mm, op(loops));
-      w0 := `*`(op(w0)) * foldl(product, w1, op(loops));
-      w0 := simplify_assuming(peel(lift_piecewise(w0)), kb);
-      weight(w0, bind(mm, x, weight(`*`(op(w)), m)))
+      w := w * foldl(product, w1, op(loops));
+      w := simplify_assuming(peel(lift_piecewise(w)), kb1);
+      (w, w0) := factorize(w, x, kb1);
+      weight(w0, bind(mm, x, weight(w, m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
@@ -440,19 +444,13 @@ NewSLO := module ()
         end if
       end if;
     elif lo = 0 and not(hi :: 'SymbolicInfinity') then
-      s, r := selectremove(depends, convert(w, 'list', `*`), k);
-      if nops(s) > 0 then
-        res := ary(hi+1, k, `*`(op(s)));
+      s, r := factorize(w, k, kb);
+      if s <> 1 then
+        res := ary(hi+1, k, s);
         if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi+1), res[1]);
         else
-          if res :: 'list' then
-            a0  := map[3](maptype, `*`, freeze, res);
-            a1  := foldl(gcd, op(a0));
-            res := thaw(map(`/`, a0, a1));
-            r   := [op(r), thaw(a1)];
-          end if;
-          res := Recognized(Categorical(res), `*`(op(r)));
+          res := Recognized(Categorical(res), r);
         end if;
       end if;
     end if;
@@ -626,21 +624,119 @@ NewSLO := module ()
     end if;
   end proc;
 
-  factorize := proc(w, x, kb, $)
-    local s, r;
-    if w :: `*` then
-      s, r := selectremove(depends, w, x)
-    elif depends(w, x) then
-      s, r := w, 1
-    else
-      s, r := 1, w
+  # (s,r):=factorize(e,var,kb) expresses e in the context kb as s*r,
+  # where r doesn't depend on var and s is as simple as possible
+  # (and non-negative if possible).
+  factorize := proc(e, var, kb, $)
+    local res, x, y, kb1, s, r;
+    if not depends(e, var) then
+      return 1, e;
     end if;
-    # Try to keep s positive, because s is about to become a weight
-    if simplify_assuming('signum'(s), kb) = -1 then
-      -s, -r
-    else
-      s, r
-    end if
+    if e :: `*` then
+      res := map(`[]`@factorize, list_of_mul(e,kb), var, kb);
+      return `*`(op(map2(op,1,res))),
+             `*`(op(map2(op,2,res)));
+    end if;
+    if e :: 'anything^freeof(var)' then
+      s, r := factorize(op(1,e), var, kb);
+      return s^op(2,e),
+             r^op(2,e);
+    end if;
+    if e :: 'And(specfunc({product,Product}),
+                 anyfunc(anything, name=range(freeof(var))))' then
+      x, kb1 := genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb, var);
+      s, r := factorize(eval(op(1,e), op([2,1],e)=x), var, kb1);
+      return op(0,e)(s, x=op([2,2],e)),
+             op(0,e)(r, x=op([2,2],e));
+    end if;
+    if e :: 'And(specfunc({product,Product}),
+                 anyfunc(anything, name=range))'
+       and not depends(subsop([2,2,2]=undefined,e), var) then
+      s, r := termize(op([2,2,2],e), var, kb);
+      x := op([2,1],e);
+      y := `if`(depends(r,x), gensym(x), x);
+      return op(0,e)(eval(op(1,e),x=r+1+y), y=0..s-1),
+             op(0,e)(op(1,e), x=op([2,2,1],e)..r);
+    end if;
+    e, 1;
+  end proc;
+
+  # (s,r):=termize(e,var,kb) expresses e in the context kb as s+r,
+  # where r doesn't depend on var and s is as simple as possible.
+  termize := proc(e, var, kb, $)
+    local res, x, y, kb1, s, r, i, conds, pw;
+    if not depends(e, var) then
+      return 0, e;
+    end if;
+    if e :: `+` then
+      res := map(`[]`@termize, [op(e)], var, kb);
+      return `+`(op(map2(op,1,res))),
+             `+`(op(map2(op,2,res)));
+    end if;
+    if e :: `*` then
+      s, r := selectremove(depends, e, var);
+      if r <> 1 then return op(map(`*`, [termize(s, var, kb)], r)) end if;
+    end if;
+    if e :: 'And(specfunc({sum,Sum}),
+                 anyfunc(anything, name=range(freeof(var))))' then
+      x, kb1 := genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb, var);
+      s, r := termize(eval(op(1,e), op([2,1],e)=x), var, kb1);
+      return op(0,e)(s, x=op([2,2],e)),
+             op(0,e)(r, x=op([2,2],e));
+    end if;
+    if e :: 'And(specfunc({sum,Sum}),
+                 anyfunc(anything, name=range))'
+       and not depends(subsop([2,2,2]=undefined,e), var) then
+      s, r := termize(op([2,2,2],e), var, kb);
+      x := op([2,1],e);
+      y := `if`(depends(r,x), gensym(x), x);
+      return op(0,e)(eval(op(1,e),x=r+1+y), y=0..s-1),
+             op(0,e)(op(1,e), x=op([2,2,1],e)..r);
+    end if;
+    if e :: 'specfunc(piecewise)' then
+      conds := [seq(op(i,e), i=1..nops(e)-1, 2)];
+      if depends(conds, var) then
+        # Too bad the conditions depend on var.
+        # But maybe the conditions depend on var only in certain cases
+        # (whose conditions in turn do not depend on var)?
+        pw := select(proc(pw, $)
+                        local i;
+                        if not depends(pw, var) then return false end if;
+                        for i from 1 by 2 to nops(pw)-1 do
+                          if depends(op(i,pw), var) then return false end if;
+                        end do;
+                        for i from 2 by 2 to nops(pw)-1 do
+                          if not depends(op(i,pw), var) then return true end if;
+                        end do;
+                        return not depends(op(-1,pw), var);
+                      end proc,
+                      indets(conds, 'specfunc(piecewise)'));
+        if nops(pw) > 0 then
+          pw := op(1, pw); # Pick any eligible piecewise to lift
+          pw := piecewise(seq(`if`(i::odd and i<nops(pw),
+                                   op(i,pw),
+                                   subs(pw=op(i,pw), e)),
+                              i=1..nops(pw)));
+          return termize(pw, var, kb);
+        end if;
+      else
+        # Yay, the conditions don't depend on var.
+        # So just map into the piecewise.
+        res := kb_piecewise(e, kb, ((cond, kb) -> cond),
+                                   ((ee, kb) -> [termize(ee, var, kb)]));
+        if res :: 'specfunc(piecewise)'
+           and [seq(op(i,res), i=2..nops(res)-1, 2), op(-1,res)]
+               :: 'list([anything, anything])' then
+          return piecewise(seq(op(`if`(i::odd and i<nops(res), i, [i,1]), res),
+                               i=1..nops(res))),
+                 piecewise(seq(op(`if`(i::odd and i<nops(res), i, [i,2]), res),
+                               i=1..nops(res)));
+        elif res :: '[anything, anything]' then
+          return op(res)
+        end if;
+      end if;
+    end if;
+    e, 0;
   end proc;
 
   ###

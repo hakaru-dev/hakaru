@@ -141,6 +141,12 @@ reservedOp = Tok.reservedOp lexer
 symbol :: Text -> Parser Text
 symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
+app1 :: Text -> AST' Text -> AST' Text
+app1 s x = Var s `App` x
+
+app2 :: Text -> AST' Text -> AST' Text -> AST' Text
+app2 s x y = Var s `App` x `App` y
+
 -- | Smart constructor for divide
 divide :: AST' Text -> AST' Text -> AST' Text
 divide (ULiteral x') (ULiteral y') = ULiteral (go x' y')
@@ -153,21 +159,24 @@ divide (ULiteral x') (ULiteral y') = ULiteral (go x' y')
         litToRat (Int  x) = toRational x
         litToRat (Prob x) = toRational x
         litToRat (Real x) = toRational x
-divide x y = NaryOp Prod [x, Var "recip" `App` y]
-        
+divide x y = NaryOp Prod [x, app1 "recip" y]
 
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
 binop s x y
     | s == "+"   = NaryOp Sum  [x, y]
-    | s == "-"   = NaryOp Sum  [x, Var "negate" `App` y]
+    | s == "-"   = NaryOp Sum  [x, app1 "negate" y]
     | s == "*"   = NaryOp Prod [x, y]
     | s == "/"   = x `divide` y
-    | s == "<"   = Var "less"  `App` x `App` y
-    | s == ">"   = Var "less"  `App` y `App` x
-    | s == "=="  = Var "equal" `App` x `App` y
+    | s == "<"   = app2 "less"  x y
+    | s == ">"   = app2 "less"  y x
+    | s == "=="  = app2 "equal" x y
+    | s == "<="  = NaryOp Or [ app2 "less"  x y
+                             , app2 "equal" x y]
+    | s == ">="  = NaryOp Or [ app2 "less"  y x
+                             , app2 "equal" x y]
     | s == "&&"  = NaryOp And  [x, y]
     | s == "<|>" = Msum [x, y]
-    | otherwise = Var s `App` x `App` y
+    | otherwise  = app2 s x y
 
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
 binary s = Ex.Infix (binop (Text.pack s) <$ reservedOp s)
@@ -195,6 +204,8 @@ table =
     , [ binary "<|>" Ex.AssocRight]
     , [ binary "<"   Ex.AssocLeft
       , binary ">"   Ex.AssocLeft
+      , binary "<="  Ex.AssocLeft
+      , binary ">="  Ex.AssocLeft
       , binary "=="  Ex.AssocLeft]
     , [ binary "&&"  Ex.AssocLeft]]
 
@@ -503,7 +514,7 @@ withPos x = do
     s  <- getPosition
     x' <- x
     e  <- getPosition
-    return $ WithMeta x' (Meta s e)
+    return $ WithMeta x' (SourceSpan s e)
 
 data_expr :: Parser (AST' Text)
 data_expr =

@@ -6,9 +6,14 @@
 Hakaru
 ======
 
-A probabilistic programming language.
+A simply-typed probabilistic programming language, designed for easy
+specification of probabilistic models, and inference algorithms.
 
 Warning: this code is alpha and experimental.
+
+Documentation
+-------------
+Learn more at [hakaru-dev.github.io](http://hakaru-dev.github.io).
 
 Installation
 ------------

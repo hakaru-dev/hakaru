@@ -97,7 +97,7 @@ import           Data.Number.Nat
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit, sUnArray)
+import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
@@ -124,6 +124,34 @@ putStatements ss =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+
+-- | Capturing substitution: 
+plug :: forall abt a xs b
+     .  (ABT Term abt)
+     => Variable a
+     -> abt '[] a
+     -> abt xs b
+     -> abt xs b
+plug x e = start
+    where
+      start :: forall xs' b' . abt xs' b' -> abt xs' b'
+      start f = loop f (viewABT f)
+      loop :: forall xs' b'. abt xs' b' -> View (Term abt) xs' b' -> abt xs' b'
+      loop _ (Syn t) = syn $! fmap21 start t
+      loop f (Var z) = case varEq x z of
+                       Just Refl -> e
+                       Nothing   -> f
+      loop f (Bind _ _) = caseBind f $ \z f' -> 
+                          bind z (loop f' (viewABT f'))
+
+-- | Perform multiple capturing substitutions
+plugs :: forall abt xs a
+      .  (ABT Term abt)
+      => Assocs (abt '[]) 
+      -> abt xs a
+      -> abt xs a
+plugs rho0 e0 = F.foldl (\e (Assoc x v) -> plug x v e) e0 (unAssocs rho0)
+
 -- | Plug a term into a context. That is, the 'statements' of the
 -- context specifies a program with a hole in it; so we plug the
 -- given term into that hole, returning the complete program.
@@ -138,40 +166,47 @@ residualizeListContext ss rho e0 =
     -- N.B., we use a left fold because the head of the list of
     -- statements is the one closest to the hole.
 #ifdef __TRACE_DISINTEGRATE__
-    trace ("e0: " ++ show (pretty e0)) $
+    trace ("e0: " ++ show (pretty e0) ++ "\n"
+          ++ show (pretty_Statements (statements ss))) $
 #endif
-    foldl step (substs rho e0) (statements ss)
-    where
+    foldl step (plugs rho e0) (statements ss)
+    where    
     step
         :: abt '[] ('HMeasure a)
         -> Statement abt 'Impure
         -> abt '[] ('HMeasure a)
-    step e s =
+    step e s =        
 #ifdef __TRACE_DISINTEGRATE__
         trace ("wrapping " ++ show (ppStatement 0 s) ++ "\n"
                ++ "around term " ++ show (pretty e)) $
 #endif  
-        case s of
+        case s of       
         SBind x body _ ->
             -- TODO: if @body@ is dirac, then treat as 'SLet'
-            syn (MBind :$ substs rho (fromLazy body) :* bind x e :* End)
+            syn (MBind :$ plugs rho (fromLazy body) :* bind x e :* End)
         SLet x body _
-            | not (x `memberVarSet` freeVars e) -> e
+            | not (x `memberVarSet` freeVars e) ->
+#ifdef __TRACE_DISINTEGRATE__
+               trace ("could not find location" ++ show x ++ "\n"
+                     ++ "in term " ++ show (pretty e) ++ "\n"
+                     ++ "given rho " ++ show (prettyAssocs rho)) $
+#endif                
+                e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
                 case getLazyVariable body of
-                Just y  -> subst x (substs rho (var y)) e
+                Just y  -> plug x (plugs rho (var y)) e
                 Nothing ->
                     case getLazyLiteral body of
-                    Just v  -> subst x (syn $ Literal_ v) e
+                    Just v  -> plug x (syn $ Literal_ v) e
                     Nothing ->
-                        syn (Let_ :$ substs rho (fromLazy body) :* bind x e :* End)
+                        syn (Let_ :$ plugs rho (fromLazy body) :* bind x e :* End)
         SGuard xs pat scrutinee _ ->
-            syn $ Case_ (substs rho $ fromLazy scrutinee)
+            syn $ Case_ (plugs rho $ fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild (P.reject $ typeOf e)
                 ]
-        SWeight body _ -> syn $ Superpose_ ((substs rho $ fromLazy body, e) :| [])
+        SWeight body _ -> syn $ Superpose_ ((plugs rho $ fromLazy body, e) :| [])
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
@@ -328,8 +363,8 @@ residualizeLocs e = do
   rho <- convertLocs newlocs
   putStatements (reverse ss')
 #ifdef __TRACE_DISINTEGRATE__
-  trace ("residualizeLocs: old:\n" ++ show (pretty_Statements ss )) $ return ()
-  trace ("residualizeLocs: new:\n" ++ show (pretty_Statements ss')) $ return ()
+  trace ("residualizeLocs: old heap:\n" ++ show (pretty_Statements ss )) $ return ()
+  trace ("residualizeLocs: new heap:\n" ++ show (pretty_Statements ss')) $ return ()
   locs <- getLocs
   traceM ("oldlocs:\n" ++ show (prettyLocs locs) ++ "\n")
   traceM ("new assoc for renaming:\n" ++ show (prettyAssocs rho))
@@ -410,30 +445,23 @@ fromLoc name typ (i:is) = fromLoc name (SArray typ) is P.! var i
 convertLocs :: (ABT Term abt)
             => Assocs Name
             -> Dis abt (Assocs (abt '[]))
-convertLocs newlocs =  do oldlocs <- fromAssocs <$> getLocs
-                          foldM step emptyAssocs oldlocs
+convertLocs newlocs = F.foldr step emptyAssocs . fromAssocs <$> getLocs
     where
       build :: (ABT Term abt)
             => Assoc (Loc (abt '[]))
             -> Name a
-            -> Dis abt (Assoc (abt '[]))
+            -> Assoc (abt '[])
       build (Assoc x loc) name =
+          Assoc x (fromLoc name (varType x)
+                    (case loc of Loc _ js -> js; MultiLoc _ js -> js))
+      step assoc@(Assoc _ loc) = insertAssoc $
           case loc of
-            Loc      _ js -> return $ Assoc x (fromLoc name (varType x) js)
-            MultiLoc l js -> do
-                     j <- sizeInnermostInd l >>= freshInd
-                     let js'   = extendLocInds (indVar j) js
-                         bodyA = fromLoc name (sUnArray $ varType x) js'
-                     return $ Assoc x $ P.arrayWithVar (indSize j) (indVar j) bodyA
-      step rho assoc@(Assoc _ loc) = do
-          r <- case loc of
                  Loc      l _ -> maybe (freeLocError l)
                                        (build assoc)
                                        (lookupAssoc l newlocs)
                  MultiLoc l _ -> maybe (freeLocError l)
                                        (build assoc)
                                        (lookupAssoc l newlocs)
-          return $ insertAssoc r rho                 
 
 freeLocError :: Variable (a :: Hakaru) -> b
 freeLocError l = error $ "Found a free location " ++ show l

@@ -13,7 +13,7 @@
 ----------------------------------------------------------------
 --                                                    2015.10.31
 -- |
--- Module      :  Language.Hakaru.Syntax.U
+-- Module      :  Language.Hakaru.Syntax.UntypedAST
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -28,17 +28,17 @@
 -- parser, then that definition should move to @Language.Hakaru.Parser.*@
 -- somewhere.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.U where
+module Language.Hakaru.Syntax.UntypedAST where
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.Variable
 import Language.Hakaru.Types.Sing (Sing, SingI(..))
 
 import Data.Typeable hiding (Refl)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
 #endif
+import Data.Text
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -91,6 +91,10 @@ instance Foldable21 TLC where
     foldMap21 f (App e1 e2) = f e1 `mappend` f e2
     foldMap21 f (Add e1 e2) = f e1 `mappend` f e2
 
+lam :: ABT TLC abt
+    => Text
+    -> (abt '[] 'U -> abt '[] 'U)
+    -> TLC abt 'U
 lam n f = Lam $ binder n SU f
 
 

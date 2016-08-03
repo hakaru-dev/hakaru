@@ -82,9 +82,9 @@ t2 f = TLam $ \a -> TLam $ \b -> TNeu (f a b)
 t3 :: (U.AST -> U.AST -> U.AST -> U.AST) -> Symbol U.AST
 t3 f = TLam $ \a -> TLam $ \b -> TLam $ \c -> TNeu (f a b c)
 
-type SymbolTable a = [(Text, Symbol U.AST)]
+type SymbolTable = [(Text, Symbol U.AST)]
 
-primTable :: SymbolTable a
+primTable :: SymbolTable
 primTable =
     [-- Datatype constructors
      ("left",        primLeft)
@@ -220,16 +220,16 @@ gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
 mkSym  :: U.Name -> Symbol U.AST
 mkSym = TNeu . U.Var_
 
-insertSymbol :: U.Name -> SymbolTable a -> SymbolTable a
+insertSymbol :: U.Name -> SymbolTable -> SymbolTable
 insertSymbol n@(U.Name _ name) sym = (name, mkSym n) : sym
 
-insertSymbols :: [U.Name] -> SymbolTable a -> SymbolTable a
+insertSymbols :: [U.Name] -> SymbolTable -> SymbolTable
 insertSymbols []     sym = sym
 insertSymbols (n:ns) sym = insertSymbols ns (insertSymbol n sym)
 
 
 resolveBinder
-    :: SymbolTable a
+    :: SymbolTable
     -> Text
     -> U.AST' Text
     -> U.AST' Text
@@ -245,10 +245,10 @@ resolveBinder symbols name e1 e2 f = do
         <*> symbolResolution (insertSymbol name' symbols) e2        
     
 
--- TODO: clean up by merging the @Reader (SymbolTable a)@ and @State Int@ monads
+-- TODO: clean up by merging the @Reader (SymbolTable)@ and @State Int@ monads
 -- | Figure out symbols and types.
 symbolResolution
-    :: SymbolTable a
+    :: SymbolTable
     -> U.AST' Text
     -> State Int (U.AST' (Symbol U.AST))
 symbolResolution symbols ast =
@@ -340,7 +340,7 @@ symbolResolution symbols ast =
 
 
 symbolResolveBranch
-    :: SymbolTable a
+    :: SymbolTable
     -> U.Branch' Text
     -> State Int (U.Branch' (Symbol U.AST))
 symbolResolveBranch symbols (U.Branch' pat ast) = do
@@ -533,7 +533,10 @@ makeAST ast =
 
 resolveAST :: U.AST' Text -> U.AST
 resolveAST ast =
-    makeAST . normAST $ evalState (symbolResolution primTable ast) 0
+    coalesce .
+    makeAST  .
+    normAST $
+    evalState (symbolResolution primTable ast) 0
 
 resolveAST'
     :: [U.Name]

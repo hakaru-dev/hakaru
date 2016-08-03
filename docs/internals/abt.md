@@ -3,7 +3,7 @@
 Hakaru makes use of many program transformations in its codebase.
 Because of this, a special mechanism is included for handing
 variable bindings and substitutions. We abstract this into its
-own typeclass called `ABT`.
+own typeclass called `ABT`. This can be found in `Language.Hakaru.Syntax.ABT`.
 
 Below is an excerpt of this typeclass
 
