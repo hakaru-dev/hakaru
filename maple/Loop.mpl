@@ -215,12 +215,8 @@ Loop := module ()
         return [w1, `*`(op(pp))];
       else
         r := `*`(op(r));
-        error "need to combine piecewise";
-        shape := s[1];
-        pp := piecewise(seq(
-          `if`(i::even or i=nops(shape), r*mul(op(i,x),x=s), op(i,shape)),
-          i=1..nops(shape)));
-
+        pp := combine_pw(`*`, s);
+        pp := map_piecewiselike(x -> r * x, pp);
         return [w1, pp]
       end if;
     end if;

@@ -2,9 +2,9 @@
 
 Piecewise := module()
   option package;
-  local lift1_piecewise;
+  local lift1_piecewise, extract_cond;
   export piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
-    make_piece,
+    make_piece, combine_pw,
     ModuleLoad, ModuleUnload;
   global
      # Structure types for piecewise-like expressions:
@@ -91,6 +91,35 @@ Piecewise := module()
     else
       cons(true, pw, nil)
     end if
+  end proc;
+
+  # given a piecewise function, return the list of conditions
+  extract_cond := proc(pw)
+    [seq(`if`(i::odd, op(i,pw), (NULL)), i=1..nops(pw)-1)];
+  end proc;
+
+  # given a construstor c, a list l of piecewises, return a single
+  # piecewise with the conditions combined properly.
+  combine_pw := proc(c,l::list(specfunc(piecewise)))
+    local conds, shape, i, len_pw, len_l, j;
+
+    conds := map(extract_cond,l);
+
+    # some useful, easy special cases
+    # there is only one!
+    if nops(l) = 1 then
+      op(l)
+    # when the conditions are all the same
+    elif nops(convert(conds,'set')) = 1 then
+      shape := l[1];
+      len_pw := nops(shape);
+      len_l := nops(l);
+      piecewise(seq(`if`(i::even or i=len_pw,
+        c(seq(op([j,i],l),j=1..len_l)),
+        op(i,shape)), i=1..len_pw));
+    else
+      error "need to combine pw";
+    end if;
   end proc;
 
   thismodule:-ModuleLoad := proc($)
