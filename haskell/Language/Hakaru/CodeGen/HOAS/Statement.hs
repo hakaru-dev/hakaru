@@ -1,3 +1,17 @@
+----------------------------------------------------------------
+--                                                    2016.07.01
+-- |
+-- Module      :  Language.Hakaru.CodeGen.HOAS.Statement
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  zsulliva@indiana.edu
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- Provides tools for building C statements
+--
+----------------------------------------------------------------
+
 module Language.Hakaru.CodeGen.HOAS.Statement
   ( assignS
   , ifS

@@ -183,6 +183,10 @@ flattenSCon Let_            =
             declare $ typeDeclaration typ ident
             assign ident expr'
             flattenABT body'
+flattenSCon Lam_            =
+  \(e1 :* End) ->
+    caseBind e1 $ \_ e1' ->
+      flattenABT e1'
 flattenSCon (PrimOp_ op)    = \es -> flattenPrimOp op es
 flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
 flattenSCon Dirac           = \(e :* End) -> flattenABT e

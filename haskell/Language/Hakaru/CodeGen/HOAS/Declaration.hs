@@ -6,7 +6,7 @@
 ----------------------------------------------------------------
 --                                                    2016.07.11
 -- |
--- Module      :  Language.Hakaru.CodeGen.Declaration
+-- Module      :  Language.Hakaru.CodeGen.HOAS.Declaration
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  zsulliva@indiana.edu
@@ -22,6 +22,8 @@ module Language.Hakaru.CodeGen.HOAS.Declaration
     typeDeclaration
   , arrayDeclaration
   , structDeclaration
+
+  , buildType
 
   , doubleTyp
   , intTyp

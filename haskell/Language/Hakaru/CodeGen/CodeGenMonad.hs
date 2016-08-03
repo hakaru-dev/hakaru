@@ -58,7 +58,6 @@ import Language.C.Syntax.AST
 
 import Data.Number.Nat (fromNat)
 import qualified Data.IntMap as IM
-import qualified Data.Set    as S
 import qualified Data.Text   as T
 
 
@@ -72,23 +71,23 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
 
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames   :: [String]
-             , functions    :: S.Set CFunDef
-             , cpp          :: S.Set T.Text
+             , functions    :: [CFunDef]
+             -- , cpp          :: S.Set T.Text
              , declarations :: [CDecl]
              , statements   :: [CStat]    -- statements can include assignments as well as other side-effects
              , varEnv       :: Env      }
 
 emptyCG :: CG
-emptyCG = CG suffixes S.empty S.empty [] [] emptyEnv
+emptyCG = CG suffixes [] [] [] emptyEnv
 
 type CodeGen = State CG
 
 runCodeGen :: CodeGen a -> ([CFunDef],[CDecl], [CStat])
 runCodeGen m =
   let (_, cg) = runState m emptyCG
-  in  ( S.toList $ functions    cg
-      , reverse  $ declarations cg
-      , reverse  $ statements   cg )
+  in  ( reverse $ functions    cg
+      , reverse $ declarations cg
+      , reverse $ statements   cg )
 
 genIdent :: CodeGen Ident
 genIdent = do cg <- get
@@ -129,14 +128,13 @@ assign v e = putStat (assignS v e)
 
 -- Need some notion of C function equality before this can be implemented
 funDef :: CFunDef -> CodeGen ()
-funDef _ = undefined
-  -- do cg <- get
-  --    put $ cg { functions = functions cg `S.union` (S.singleton x) }
+funDef f = do cg <- get
+              put $ cg { functions = f:(functions cg) }
 
 putCpp :: T.Text -> CodeGen ()
-putCpp x =
-  do cg <- get
-     put $ cg { cpp = cpp cg `S.union` (S.singleton x) }
+putCpp _ = undefined
+  -- do cg <- get
+  --    put $ cg { cpp = cpp cg `S.union` (S.singleton x) }
 
 
 ---------

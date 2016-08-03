@@ -6,7 +6,7 @@
 ----------------------------------------------------------------
 --                                                    2016.07.01
 -- |
--- Module      :  Language.Hakaru.CodeGen.Expression
+-- Module      :  Language.Hakaru.CodeGen.HOAS.Expression
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  zsulliva@indiana.edu

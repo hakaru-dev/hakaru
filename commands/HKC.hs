@@ -1,9 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GADTs,
+             OverloadedStrings #-}
 
 module Main where
 
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
+import Language.Hakaru.Types.Sing (Sing(SFun))
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 
@@ -63,9 +65,11 @@ compileHakaru prog = ask >>= \config -> lift $ do
           putErrorLn "\n----------------------------------------------------------------\n"
           putErrorLn $ pack $ show ast'
         putErrorLn "\n----------------------------------------------------------------\n"
-      writeToFile (fileOut config) $ if (function config)
+      writeToFile (fileOut config) $ if (function config) || isFunc typ
                                      then createFunction ast'
                                      else createProgram ast'
+  where isFunc (SFun _ _) = True
+        isFunc _          = False
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr
