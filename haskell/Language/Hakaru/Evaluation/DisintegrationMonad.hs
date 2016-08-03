@@ -97,7 +97,7 @@ import           Data.Number.Nat
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit, sUnArray)
+import Language.Hakaru.Types.Sing    (Sing(..), sUnMeasure, sUnPair, sUnit)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
@@ -445,30 +445,23 @@ fromLoc name typ (i:is) = fromLoc name (SArray typ) is P.! var i
 convertLocs :: (ABT Term abt)
             => Assocs Name
             -> Dis abt (Assocs (abt '[]))
-convertLocs newlocs =  do oldlocs <- fromAssocs <$> getLocs
-                          foldM step emptyAssocs oldlocs
+convertLocs newlocs = F.foldr step emptyAssocs . fromAssocs <$> getLocs
     where
       build :: (ABT Term abt)
             => Assoc (Loc (abt '[]))
             -> Name a
-            -> Dis abt (Assoc (abt '[]))
+            -> Assoc (abt '[])
       build (Assoc x loc) name =
+          Assoc x (fromLoc name (varType x)
+                    (case loc of Loc _ js -> js; MultiLoc _ js -> js))
+      step assoc@(Assoc _ loc) = insertAssoc $
           case loc of
-            Loc      _ js -> return $ Assoc x (fromLoc name (varType x) js)
-            MultiLoc l js -> do
-                     j <- sizeInnermostInd l >>= freshInd
-                     let js'   = extendLocInds (indVar j) js
-                         bodyA = fromLoc name (sUnArray $ varType x) js'
-                     return $ Assoc x $ P.arrayWithVar (indSize j) (indVar j) bodyA
-      step rho assoc@(Assoc _ loc) = do
-          r <- case loc of
                  Loc      l _ -> maybe (freeLocError l)
                                        (build assoc)
                                        (lookupAssoc l newlocs)
                  MultiLoc l _ -> maybe (freeLocError l)
                                        (build assoc)
                                        (lookupAssoc l newlocs)
-          return $ insertAssoc r rho                 
 
 freeLocError :: Variable (a :: Hakaru) -> b
 freeLocError l = error $ "Found a free location " ++ show l
