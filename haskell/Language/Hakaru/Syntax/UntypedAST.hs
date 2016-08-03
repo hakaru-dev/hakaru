@@ -38,6 +38,7 @@ import Data.Typeable hiding (Refl)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
 #endif
+import Data.Text
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -90,6 +91,10 @@ instance Foldable21 TLC where
     foldMap21 f (App e1 e2) = f e1 `mappend` f e2
     foldMap21 f (Add e1 e2) = f e1 `mappend` f e2
 
+lam :: ABT TLC abt
+    => Text
+    -> (abt '[] 'U -> abt '[] 'U)
+    -> TLC abt 'U
 lam n f = Lam $ binder n SU f
 
 
