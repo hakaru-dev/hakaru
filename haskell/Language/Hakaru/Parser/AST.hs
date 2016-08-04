@@ -22,7 +22,7 @@ import qualified Data.List.NonEmpty  as L
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT    hiding (Var, Bind)
 import Language.Hakaru.Syntax.AST
     (Literal(..), MeasureOp(..), LCs(), UnLCs ())
 import Language.Hakaru.Syntax.IClasses
@@ -116,8 +116,73 @@ data AST' a
     | Msum  [AST' a]
     | Data  a [TypeAST']
     | WithMeta (AST' a) SourceSpan
-    deriving (Eq, Show)
+    deriving (Show)
 
+instance Eq a => Eq (AST' a) where
+    (Var t)             == (Var t')                 = t    == t'
+    (Lam n  e1 e2)      == (Lam n' e1' e2')         = n    == n'  &&
+                                                      e1   == e1' &&
+                                                      e2   == e2'
+    (App    e1 e2)      == (App    e1' e2')         = e1   == e1' &&
+                                                      e2   == e2'
+    (Let n  e1 e2)      == (Let n' e1' e2')         = n    == n'  &&
+                                                      e1   == e1' &&
+                                                      e2   == e2'
+    (If  c  e1 e2)      == (If  c' e1' e2')         = c    == c'  &&
+                                                      e1   == e1' &&
+                                                      e2   == e2'
+    (Ann e typ)         == (Ann e' typ')            = e    == e'  &&
+                                                      typ  == typ'
+    Infinity'           == Infinity'                = True
+    (ULiteral v)        == (ULiteral v')            = v    == v'
+    (NaryOp op args)    == (NaryOp op' args')       = op   == op' &&
+                                                      args == args'
+    Unit                == Unit                     = True
+    Empty               == Empty                    = True
+    (Pair  e1 e2)       == (Pair   e1' e2')         = e1   == e1' &&
+                                                      e2   == e2'
+    (Array e1 e2 e3)    == (Array  e1' e2' e3')     = e1   == e1' &&
+                                                      e2   == e2' &&
+                                                      e3   == e3'
+    (Index e1 e2)       == (Index  e1' e2')         = e1   == e1' &&
+                                                      e2   == e2'
+    (Case  e1 bs)       == (Case   e1' bs')         = e1   == e1' &&
+                                                      bs   == bs'
+    (Dirac e1)          == (Dirac  e1')             = e1   == e1'
+    (Bind  e1 e2 e3)    == (Bind   e1' e2' e3')     = e1   == e1' &&
+                                                      e2   == e2' &&
+                                                      e3   == e3'
+    (Plate e1 e2 e3)    == (Plate  e1' e2' e3')     = e1   == e1' &&
+                                                      e2   == e2' &&
+                                                      e3   == e3'
+    (Chain e1 e2 e3 e4) == (Chain  e1' e2' e3' e4') = e1   == e1' &&
+                                                      e2   == e2' &&
+                                                      e3   == e3' &&
+                                                      e4   == e4'
+    (Integrate a b c d) == (Integrate  a' b' c' d') = a    == a' &&
+                                                      b    == b' &&
+                                                      c    == c' &&
+                                                      d    == d'
+    (Summate   a b c d) == (Summate    a' b' c' d') = a    == a' &&
+                                                      b    == b' &&
+                                                      c    == c' &&
+                                                      d    == d'
+    (Product   a b c d) == (Product    a' b' c' d') = a    == a' &&
+                                                      b    == b' &&
+                                                      c    == c' &&
+                                                      d    == d'
+    (Expect e1 e2 e3)   == (Expect e1' e2' e3')     = e1   == e1' &&
+                                                      e2   == e2' &&
+                                                      e3   == e3'
+    (Observe  e1 e2)    == (Observe    e1' e2')     = e1   == e1' &&
+                                                      e2   == e2'
+    (Msum  es)          == (Msum   es')             = es   == es'
+    (Data  e1 ts)       == (Data   e1' ts')         = e1   == e1' &&
+                                                      ts   == ts'
+    (WithMeta e1 _ )    == e2                       = e1   == e2
+    e1                  == (WithMeta e2 _)          = e1   == e2
+    _                   == _                        = False
+                                 
 data Import a = Import a 
 
 ----------------------------------------------------------------
@@ -231,8 +296,6 @@ foldDatum f (Datum _ dcode) = fdcode f dcode
 -- | The kind containing exactly one type.
 data Untyped = U
     deriving (Read, Show)
-
-deriving instance Typeable 'U
 
 data instance Sing (a :: Untyped) where
     SU :: Sing 'U

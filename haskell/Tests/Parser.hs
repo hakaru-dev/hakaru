@@ -73,15 +73,11 @@ instance Arbitrary a => Arbitrary (AST' a) where
         , ( 1, Bind  <$> arbitrary <*> arbitrary <*> arbitrary)
         ]
 
-stripMetadata :: AST' Text -> AST' Text
-stripMetadata (WithMeta ast _) = ast
-stripMetadata ast              = ast
-
 testParse :: Text -> AST' Text -> Assertion
 testParse s p =
     case parseHakaru s of
     Left  m  -> assertFailure (unpack s ++ "\n" ++ show m)
-    Right p' -> assertEqual "" p (stripMetadata p')
+    Right p' -> assertEqual "" p p'
 
 if1, if2, if3, if4, if5 :: Text
 

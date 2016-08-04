@@ -497,7 +497,7 @@ term =  try if_expr
     <?> "an expression"
 
 expr :: Parser (AST' Text)
-expr = Ex.buildExpressionParser table term <?> "an expression"
+expr = Ex.buildExpressionParser table (withPos term) <?> "an expression"
 
 
 indentConfig :: Text -> ParserStream
