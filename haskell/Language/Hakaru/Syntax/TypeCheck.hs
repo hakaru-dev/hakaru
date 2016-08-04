@@ -40,7 +40,7 @@ module Language.Hakaru.Syntax.TypeCheck
 import           Prelude hiding (id, (.))
 import           Control.Category
 import           Data.Proxy            (KProxy(..))
-import           Data.Text             (pack)
+import           Data.Text             (pack, Text())
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
 import qualified Data.List.NonEmpty    as L
@@ -91,10 +91,10 @@ inferable = not . mustCheck
 -- the lub of their types in order to know which coercions to
 -- introduce.
 mustCheck :: U.AST -> Bool
-mustCheck = go
+mustCheck e = caseVarSyn e (const False) go
     where
-    go (U.Var_ _)       = False
-    go (U.Lam_ _ _ e2)  = mustCheck e2
+    go :: U.MetaTerm -> Bool
+    go (U.Lam_ _  e2)     = mustCheck' e2
 
     -- In general, applications don't require checking; we infer
     -- the first applicand to get the type of the second and of the
@@ -107,14 +107,14 @@ mustCheck = go
     -- However, do note that the above only applies to lambda-defined
     -- functions, not to all \"function-like\" things. In particular,
     -- data constructors require checking (see the note below).
-    go (U.App_ _  _) = False
+    go (U.App_ _  _)      = False
 
     -- We follow Dunfield & Pientka and \Pi\Sigma in inferring or
     -- checking depending on what the body requires. This is as
     -- opposed to the TLDI'05 paper, which always infers @e2@ but
     -- will check or infer the @e1@ depending on whether it has a
     -- type annotation or not.
-    go (U.Let_ _ _ e2)    = mustCheck e2
+    go (U.Let_ _ e2)      = mustCheck' e2
 
     go (U.Ann_ _ _)       = False
     go (U.CoerceTo_ _ _)  = False
@@ -161,8 +161,8 @@ mustCheck = go
     -- record types, we should be able to infer the whole type
     -- provided we can infer the various subterms.
     go U.Empty_          = True
-    go (U.Pair_ e1 e2)   = mustCheck e1 && mustCheck e2
-    go (U.Array_ _ _ e1) = mustCheck e1
+    go (U.Pair_ e1 e2)   = mustCheck  e1 && mustCheck e2
+    go (U.Array_ _ e1)   = mustCheck' e1
     go (U.Datum_ _)      = True
 
     -- TODO: everyone says this, but it seems to me that if we can
@@ -170,20 +170,24 @@ mustCheck = go
     -- we should be able to infer the whole thing... Or maybe the
     -- problem is that the change-of-direction rule might send us
     -- down the wrong path?
-    go (U.Case_ _ _)      = True
+    go (U.Case_ _ _)     = True
 
-    go (U.Dirac_  e1)          = mustCheck e1
-    go (U.MBind_  _ _ e2)      = mustCheck e2
-    go (U.Plate_  _ _ e2)      = mustCheck e2
-    go (U.Chain_  _ _ e2 e3)   = mustCheck e2 && mustCheck e3
-    go (U.MeasureOp_ _ _)      = False
-    go (U.Integrate_  _ _ _ _) = False
-    go (U.Summate_    _ _ _ _) = False
-    go (U.Product_    _ _ _ _) = False
-    go U.Reject_               = True
-    go (U.Expect_ _ _ e2)      = mustCheck e2
-    go (U.Observe_ e1  _)      = mustCheck e1
+    go (U.Dirac_  e1)        = mustCheck  e1
+    go (U.MBind_  _   e2)    = mustCheck' e2
+    go (U.Plate_  _   e2)    = mustCheck' e2
+    go (U.Chain_  _   e2 e3) = mustCheck  e2 && mustCheck' e3
+    go (U.MeasureOp_ _ _)    = False
+    go (U.Integrate_  _ _ _) = False
+    go (U.Summate_    _ _ _) = False
+    go (U.Product_    _ _ _) = False
+    go U.Reject_             = True
+    go (U.Expect_ _ e2)      = mustCheck' e2
+    go (U.Observe_  e1  _)   = mustCheck  e1
 
+mustCheck'
+    :: MetaABT U.SourceSpan U.Term '[ 'U.U ] 'U.U
+    -> Bool
+mustCheck' e = caseBind e $ \_ e' -> mustCheck e'
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -272,9 +276,9 @@ missingLub typ1 typ2 =
     failwith $ "No lub of types " ++ show typ1 ++ " and " ++ show typ2
 
 -- we can't have free variables, so it must be a typo
-ambiguousFreeVariable :: U.Name -> TypeCheckMonad r
+ambiguousFreeVariable :: Text -> TypeCheckMonad r
 ambiguousFreeVariable x =
-    failwith $ "Name not in scope: " ++ show (U.hintID x) ++ "; perhaps it is a typo?"
+    failwith $ "Name not in scope: " ++ show x ++ "; perhaps it is a typo?"
 
 ambiguousNullCoercion :: TypeCheckMonad r
 ambiguousNullCoercion =
@@ -308,20 +312,22 @@ instance Show2 abt => Show (TypedAST abt) where
         showParen_12 p "TypedAST" typ e
 
 
-makeVar :: forall (a :: Hakaru). U.Name -> Sing a -> Variable a
-makeVar name typ =
-    Variable (U.hintID name) (U.nameID name) typ
+makeVar :: forall (a :: Hakaru). Variable 'U.U -> Sing a -> Variable a
+makeVar (Variable hintID nameID _) typ =
+    Variable hintID nameID typ
 
 
 inferBinder
     :: (ABT Term abt)
-    => Variable a
-    -> U.AST
+    => Sing a
+    -> MetaABT U.SourceSpan U.Term '[ 'U.U ] 'U.U
     -> (forall b. Sing b -> abt '[ a ] b -> TypeCheckMonad r)
     -> TypeCheckMonad r
-inferBinder x e k = do
-    TypedAST typ e' <- pushCtx x (inferType e)
-    k typ (bind x e')
+inferBinder typ e k =
+    caseBind e $ \x e1 -> do
+    let x' = x {varType = typ}
+    TypedAST typ1 e1' <- pushCtx x' (inferType e1)
+    k typ1 (bind x' e1')
 
 inferBinders
     :: (ABT Term abt)
@@ -344,12 +350,14 @@ inferBinders = \xs e k -> do
 
 checkBinder
     :: (ABT Term abt)
-    => Variable a
+    => Sing a
     -> Sing b
-    -> U.AST
+    -> MetaABT U.SourceSpan U.Term '[ 'U.U ] 'U.U
     -> TypeCheckMonad (abt '[ a ] b)
-checkBinder x eTyp e =
-    pushCtx x (bind x <$> checkType eTyp e)
+checkBinder typ eTyp e =
+    caseBind e $ \x e1 -> do
+    let x' = x {varType = typ}
+    pushCtx x' (bind x' <$> checkType eTyp e1)
 
 
 checkBinders
@@ -386,235 +394,243 @@ inferType = inferType_
   inferOneCheckOthers_ = inferOneCheckOthers
 
 
+  inferVariable ::
+      Variable 'U.U -> TypeCheckMonad (TypedAST abt)
+  inferVariable (Variable hintID nameID _) = do
+      ctx <- getCtx
+      case IM.lookup (fromNat nameID) (unVarSet ctx) of
+        Just (SomeVariable x') ->
+            return $ TypedAST (varType x') (var x')
+        Nothing -> ambiguousFreeVariable hintID
+
+
   -- HACK: We need this monomorphic binding so that GHC doesn't get
   -- confused about which @(ABT AST abt)@ instance to use in recursive
   -- calls.
   inferType_ :: U.AST -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
-    case e0 of
-    U.Var_ x -> do
-        ctx <- getCtx
-        case IM.lookup (fromNat $ U.nameID x) (unVarSet ctx) of
-            Just (SomeVariable x') ->
-                return $ TypedAST (varType x') (var x')
-            Nothing -> ambiguousFreeVariable x
+    caseVarSyn e0 inferVariable go
+    where
+    go :: U.MetaTerm -> TypeCheckMonad (TypedAST abt)
+    go t =
+      case t of
+       U.Lam_ (U.SSing typ) e -> do
+           inferBinder typ e $ \typ2 e2 ->
+               return . TypedAST (SFun typ typ2) $ syn (Lam_ :$ e2 :* End)
 
-    U.Lam_ x (U.SSing typ) e -> do
-        inferBinder (makeVar x typ) e $ \typ2 e' ->
-            return . TypedAST (SFun typ typ2) $ syn (Lam_ :$ e' :* End)
+       U.App_ e1 e2 -> do
+           TypedAST typ1 e1' <- inferType_ e1
+           case typ1 of
+               SFun typ2 typ3 -> do
+                   e2' <- checkType_ typ2 e2
+                   return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
+               _ -> typeMismatch (Left "function type") (Right typ1)
+           -- The above is the standard rule that everyone uses.
+           -- However, if the @e1@ is a lambda (rather than a primop
+           -- or a variable), then it will require a type annotation.
+           -- Couldn't we just as well add an additional rule that
+           -- says to infer @e2@ and then infer @e1@ under the assumption
+           -- that the variable has the same type as the argument? (or
+           -- generalize that idea to keep track of a bunch of arguments
+           -- being passed in; sort of like a dual to our typing
+           -- environments?) Is this at all related to what Dunfield
+           -- & Neelk are doing in their ICFP'13 paper with that
+           -- \"=>=>\" judgment? (prolly not, but...)
 
-    U.App_ e1 e2 -> do
-        TypedAST typ1 e1' <- inferType_ e1
-        case typ1 of
-            SFun typ2 typ3 -> do
-                e2' <- checkType_ typ2 e2
-                return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
-            _ -> typeMismatch (Left "function type") (Right typ1)
-        -- The above is the standard rule that everyone uses.
-        -- However, if the @e1@ is a lambda (rather than a primop
-        -- or a variable), then it will require a type annotation.
-        -- Couldn't we just as well add an additional rule that
-        -- says to infer @e2@ and then infer @e1@ under the assumption
-        -- that the variable has the same type as the argument? (or
-        -- generalize that idea to keep track of a bunch of arguments
-        -- being passed in; sort of like a dual to our typing
-        -- environments?) Is this at all related to what Dunfield
-        -- & Neelk are doing in their ICFP'13 paper with that
-        -- \"=>=>\" judgment? (prolly not, but...)
+       U.Let_ e1 e2 -> do
+           TypedAST typ1 e1' <- inferType_ e1
+           inferBinder typ1 e2 $ \typ2 e2' ->
+               return . TypedAST typ2 $ syn (Let_ :$ e1' :* e2' :* End)
 
-    U.Let_ x e1 e2 -> do
-        TypedAST typ1 e1' <- inferType_ e1
-        inferBinder (makeVar x typ1) e2 $ \typ2 e2' ->
-            return . TypedAST typ2 $ syn (Let_ :$ e1' :* e2' :* End)
+       U.Ann_ (U.SSing typ1) e1 -> do
+           -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
+           -- since we can't generate a 'Sing' from a 'Proxy'.
+           TypedAST typ1 <$> checkType_ typ1 e1
 
-    U.Ann_ e1 (U.SSing typ1) -> do
-        -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
-        -- since we can't generate a 'Sing' from a 'Proxy'.
-        TypedAST typ1 <$> checkType_ typ1 e1
+       U.PrimOp_  op es -> inferPrimOp  op es
+       U.ArrayOp_ op es -> inferArrayOp op es
+       U.NaryOp_  op es -> do
+           mode <- getMode
+           TypedASTs typ es' <-
+               case mode of
+               StrictMode -> inferOneCheckOthers_ es
+               LaxMode    -> inferLubType es
+               UnsafeMode -> inferLubType es -- error "TODO: inferType{NaryOp_} in UnsafeMode"
+           op' <- make_NaryOp typ op
+           return . TypedAST typ $ syn (NaryOp_ op' $ S.fromList es')
 
-    U.PrimOp_  op es -> inferPrimOp  op es
+       U.Literal_ (Some1 v) ->
+           -- TODO: in truth, we can infer this to be any supertype
+           -- (adjusting the concrete @v@ as necessary). That is, the
+           -- surface language treats numeric literals as polymorphic,
+           -- so we should capture that somehow--- even if we're not
+           -- in 'LaxMode'. We'll prolly need to handle this
+           -- subtype-polymorphism the same way as we do for for
+           -- everything when in 'UnsafeMode'.
+           return . TypedAST (sing_Literal v) $ syn (Literal_ v)
 
-    U.ArrayOp_ op es -> inferArrayOp op es
+       -- TODO: we can try to do 'U.Case_' by using branch-based
+       -- variants of 'inferOneCheckOthers' and 'inferLubType' depending
+       -- on the mode; provided we can in fact infer the type of the
+       -- scrutinee. N.B., if we add this case, then we need to update
+       -- 'mustCheck' to return the right thing.
 
-    U.NaryOp_  op es -> do
-        mode <- getMode
-        TypedASTs typ es' <-
-            case mode of
-            StrictMode -> inferOneCheckOthers_ es
-            LaxMode    -> inferLubType es
-            UnsafeMode -> inferLubType es -- error "TODO: inferType{NaryOp_} in UnsafeMode"
-        op' <- make_NaryOp typ op
-        return . TypedAST typ $ syn (NaryOp_ op' $ S.fromList es')
+       U.CoerceTo_ (Some2 c) e1 ->
+           case singCoerceDomCod c of
+           Nothing
+               | inferable e1 -> inferType_ e1
+               | otherwise    -> ambiguousNullCoercion
+           Just (dom,cod) -> do
+               e1' <- checkType_ dom e1
+               return . TypedAST cod $ syn (CoerceTo_ c :$ e1' :* End)
 
-    U.Literal_ (Some1 v) ->
-        -- TODO: in truth, we can infer this to be any supertype
-        -- (adjusting the concrete @v@ as necessary). That is, the
-        -- surface language treats numeric literals as polymorphic,
-        -- so we should capture that somehow--- even if we're not
-        -- in 'LaxMode'. We'll prolly need to handle this
-        -- subtype-polymorphism the same way as we do for for
-        -- everything when in 'UnsafeMode'.
-        return . TypedAST (sing_Literal v) $ syn (Literal_ v)
+       U.UnsafeTo_ (Some2 c) e1 ->
+           case singCoerceDomCod c of
+           Nothing
+               | inferable e1 -> inferType_ e1
+               | otherwise    -> ambiguousNullCoercion
+           Just (dom,cod) -> do
+               e1' <- checkType_ cod e1
+               return . TypedAST dom $ syn (UnsafeFrom_ c :$ e1' :* End)
 
-    -- TODO: we can try to do 'U.Case_' by using branch-based
-    -- variants of 'inferOneCheckOthers' and 'inferLubType' depending
-    -- on the mode; provided we can in fact infer the type of the
-    -- scrutinee. N.B., if we add this case, then we need to update
-    -- 'mustCheck' to return the right thing.
+       U.MeasureOp_ (U.SomeOp op) es -> do
+           let (typs, typ1) = sing_MeasureOp op
+           es' <- checkSArgs typs es
+           return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
 
-    U.CoerceTo_ (Some2 c) e1 ->
-        case singCoerceDomCod c of
-        Nothing
-            | inferable e1 -> inferType_ e1
-            | otherwise    -> ambiguousNullCoercion
-        Just (dom,cod) -> do
-            e1' <- checkType_ dom e1
-            return . TypedAST cod $ syn (CoerceTo_ c :$ e1' :* End)
+       U.Pair_ e1 e2 -> do
+           TypedAST typ1 e1' <- inferType_ e1
+           TypedAST typ2 e2' <- inferType_ e2
+           return . TypedAST (sPair typ1 typ2) $
+                  syn (Datum_ $ dPair_ typ1 typ2 e1' e2')
 
-    U.UnsafeTo_ (Some2 c) e1 ->
-        case singCoerceDomCod c of
-        Nothing
-            | inferable e1 -> inferType_ e1
-            | otherwise    -> ambiguousNullCoercion
-        Just (dom,cod) -> do
-            e1' <- checkType_ cod e1
-            return . TypedAST dom $ syn (UnsafeFrom_ c :$ e1' :* End)
+       U.Array_ e1 e2 -> do
+           e1' <- checkType_ SNat e1
+           inferBinder SNat e2 $ \typ2 e2' ->
+               return . TypedAST (SArray typ2) $ syn (Array_ e1' e2')
 
-    U.MeasureOp_ (U.SealedOp op) es -> do
-        let (typs, typ1) = sing_MeasureOp op
-        es' <- checkSArgs typs es
-        return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
-               
-    U.Pair_ e1 e2 -> do
-        TypedAST typ1 e1' <- inferType_ e1
-        TypedAST typ2 e2' <- inferType_ e2
-        return . TypedAST (sPair typ1 typ2) $
-               syn (Datum_ $ dPair_ typ1 typ2 e1' e2')
+       U.Case_ e1 branches -> do
+           TypedAST typ1 e1' <- inferType_ e1
+           mode <- getMode
+           case mode of
+               StrictMode -> inferCaseStrict typ1 e1' branches
+               LaxMode    -> inferCaseLax typ1 e1' branches
+               UnsafeMode -> inferCaseLax typ1 e1' branches
 
-    U.Array_ e1 x e2 -> do
-        e1' <- checkType_ SNat e1
-        inferBinder (makeVar x SNat) e2 $ \typ2 e2' ->
-            return . TypedAST (SArray typ2) $ syn (Array_ e1' e2')
+       U.Dirac_ e1 -> do
+           TypedAST typ1 e1' <- inferType_ e1
+           return . TypedAST (SMeasure typ1) $ syn (Dirac :$ e1' :* End)
 
-    U.Case_ e1 branches -> do
-        TypedAST typ1 e1' <- inferType_ e1
-        mode <- getMode
-        case mode of
-            StrictMode -> inferCaseStrict typ1 e1' branches
-            LaxMode    -> inferCaseLax typ1 e1' branches
-            UnsafeMode -> inferCaseLax typ1 e1' branches
+       U.MBind_ e1 e2 ->
+           caseBind e2 $ \x e2' -> do
+           TypedAST typ1 e1' <- inferType_ e1
+           case typ1 of
+               SMeasure typ2 ->
+                   let x' = makeVar x typ2 in
+                   pushCtx x' $ do
+                       TypedAST typ3 e3' <- inferType_ e2'
+                       case typ3 of
+                           SMeasure _ ->
+                               return . TypedAST typ3 $
+                                   syn (MBind :$ e1' :* bind x' e3' :* End)
+                           _ -> typeMismatch (Left "HMeasure") (Right typ3)
+                   {-
+                   -- BUG: the \"ambiguous\" @abt@ issue again...
+                   inferBinder typ2 e2 $ \typ3 e2' ->
+                       case typ3 of
+                       SMeasure _ -> return . TypedAST typ3 $
+                           syn (MBind :$ e1' :* e2' :* End)
+                       _ -> typeMismatch (Left "HMeasure") (Right typ3)
+                   -}
+               _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
-    U.Dirac_ e1 -> do
-        TypedAST typ1 e1' <- inferType_ e1
-        return . TypedAST (SMeasure typ1) $ syn (Dirac :$ e1' :* End)
+       U.Plate_ e1 e2 ->
+           caseBind e2 $ \x e2' -> do
+           e1' <- checkType_ SNat e1
+           let x' = makeVar x SNat
+           pushCtx x' $ do
+               TypedAST typ2 e3' <- inferType_ e2'
+               case typ2 of
+                   SMeasure typ3 ->
+                       return . TypedAST (SMeasure . SArray $ typ3) $
+                              syn (Plate :$ e1' :* bind x' e3' :* End)
+                   _ -> typeMismatch (Left "HMeasure") (Right typ2)
 
-    U.MBind_ x e1 e2 -> do
-        TypedAST typ1 e1' <- inferType_ e1
-        case typ1 of
-            SMeasure typ2 ->
-                let x' = makeVar x typ2 in
-                pushCtx x' $ do
-                    TypedAST typ3 e2' <- inferType_ e2
-                    case typ3 of
-                        SMeasure _ ->
-                            return . TypedAST typ3 $
-                                syn (MBind :$ e1' :* bind x' e2' :* End)
-                        _ -> typeMismatch (Left "HMeasure") (Right typ3)
-                {-
-                -- BUG: the \"ambiguous\" @abt@ issue again...
-                inferBinder (makeVar x typ2) e2 $ \typ3 e2' ->
-                    case typ3 of
-                    SMeasure _ -> return . TypedAST typ3 $
-                        syn (MBind :$ e1' :* e2' :* End)
-                    _ -> typeMismatch (Left "HMeasure") (Right typ3)
-                -}
-            _ -> typeMismatch (Left "HMeasure") (Right typ1)
+       U.Chain_ e1 e2 e3 ->
+           caseBind e3 $ \x e3' -> do
+           e1' <- checkType_ SNat e1
+           TypedAST typ2 e2' <- inferType_ e2
+           let x' = makeVar x typ2
+           pushCtx x' $ do
+               TypedAST typ3 e4' <- inferType_ e3'
+               case typ3 of
+                   SMeasure (SData (STyCon sym `STyApp` a `STyApp` b) _) ->
+                       case (jmEq1 sym sSymbol_Pair, jmEq1 b typ2) of
+                       (Just Refl, Just Refl) ->
+                           return . TypedAST (SMeasure $ sPair (SArray a) typ2) $
+                                  syn (Chain :$ e1' :* e2' :* bind x' e4' :* End)
+                       _ -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
+                   _     -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
 
-    U.Plate_ x e1 e2 -> do
-        e1' <- checkType_ SNat e1
-        let x' = makeVar x SNat
-        pushCtx x' $ do
-            TypedAST typ2 e2' <- inferType_ e2
-            case typ2 of
-                SMeasure typ3 ->
-                    return . TypedAST (SMeasure . SArray $ typ3) $
-                           syn (Plate :$ e1' :* bind x' e2' :* End)
-                _ -> typeMismatch (Left "HMeasure") (Right typ2)
+       U.Integrate_ e1 e2 e3 -> do
+           e1' <- checkType_ SReal e1
+           e2' <- checkType_ SReal e2
+           e3' <- checkBinder SReal SProb e3
+           return . TypedAST SProb $
+                  syn (Integrate :$ e1' :* e2' :* e3' :* End)
 
-    U.Chain_ x e1 e2 e3 -> do
-        e1' <- checkType_ SNat e1
-        TypedAST typ2 e2' <- inferType_ e2
-        let x' = makeVar x typ2
-        pushCtx x' $ do
-            TypedAST typ3 e3' <- inferType_ e3
-            case typ3 of
-                SMeasure (SData (STyCon sym `STyApp` a `STyApp` b) _) ->
-                    case (jmEq1 sym sSymbol_Pair, jmEq1 b typ2) of
-                    (Just Refl, Just Refl) ->
-                        return . TypedAST (SMeasure $ sPair (SArray a) typ2) $
-                               syn (Chain :$ e1' :* e2' :* bind x' e3' :* End)
-                    _ -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
-                _     -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
+       U.Summate_ e1 e2 e3 -> do
+           TypedAST typ1 e1' <- inferType e1
+           e2' <- checkType_ typ1 e2
+           inferBinder typ1 e3 $ \typ2 ee' ->
+               case (hDiscrete_Sing typ1, hSemiring_Sing typ2) of
+                 (Just h1, Just h2) ->
+                     return . TypedAST typ2 $
+                            syn (Summate h1 h2 :$ e1' :* e2' :* ee' :* End)
+                 _                  -> failwith "Summate given bounds which are not discrete"
 
-    U.Integrate_ x e1 e2 e3 -> do
-        e1' <- checkType_ SReal e1
-        e2' <- checkType_ SReal e2
-        e3' <- checkBinder (makeVar x SReal) SProb e3
-        return . TypedAST SProb $ 
-               syn (Integrate :$ e1' :* e2' :* e3' :* End)
+       U.Product_ e1 e2 e3 -> do
+           TypedAST typ1 e1' <- inferType e1
+           e2' <- checkType_ typ1 e2
+           inferBinder typ1 e3 $ \typ2 e3' ->
+               case (hDiscrete_Sing typ1, hSemiring_Sing typ2) of
+                 (Just h1, Just h2) ->
+                     return . TypedAST typ2 $
+                            syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
+                 _                  -> failwith "Product given bounds which are not discrete"
 
-    U.Summate_ x e1 e2 e3 -> do
-        TypedAST typ1 e1' <- inferType e1
-        e2' <- checkType_ typ1 e2
-        inferBinder (makeVar x typ1) e3 $ \typ2 e3' ->
-            case (hDiscrete_Sing typ1, hSemiring_Sing typ2) of
-              (Just h1, Just h2) ->
-                  return . TypedAST typ2 $ 
-                         syn (Summate h1 h2 :$ e1' :* e2' :* e3' :* End)
-              _                  -> failwith "Summate given bounds which are not discrete"
+       U.Expect_ e1 e2 -> do
+           TypedAST typ1 e1' <- inferType_ e1
+           case typ1 of
+               SMeasure typ2 -> do
+                   e2' <- checkBinder typ2 SProb e2
+                   return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
+               _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
-    U.Product_ x e1 e2 e3 -> do
-        TypedAST typ1 e1' <- inferType e1
-        e2' <- checkType_ typ1 e2
-        inferBinder (makeVar x typ1) e3 $ \typ2 e3' ->
-            case (hDiscrete_Sing typ1, hSemiring_Sing typ2) of
-              (Just h1, Just h2) ->
-                  return . TypedAST typ2 $ 
-                         syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
-              _                  -> failwith "Product given bounds which are not discrete"
+       U.Observe_ e1 e2 -> do
+           TypedAST typ1 e1' <- inferType_ e1
+           case typ1 of
+               SMeasure typ2 -> do
+                   e2' <- checkType_ typ2 e2
+                   return . TypedAST typ1 $ syn (Observe :$ e1' :* e2' :* End)
+               _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
-    U.Expect_ x e1 e2 -> do
-        TypedAST typ1 e1' <- inferType_ e1
-        case typ1 of
-            SMeasure typ2 -> do
-                e2' <- checkBinder (makeVar x typ2) SProb e2
-                return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
-            _ -> typeMismatch (Left "HMeasure") (Right typ1)
+       U.Superpose_ pes -> do
+           -- TODO: clean up all this @map fst@, @map snd@, @zip@ stuff
+           mode <- getMode
+           TypedASTs typ es' <-
+               case mode of
+               StrictMode -> inferOneCheckOthers_ (L.toList $ fmap snd pes)
+               LaxMode    -> inferLubType         (L.toList $ fmap snd pes)
+               UnsafeMode -> inferLubType         (L.toList $ fmap snd pes)
+           case typ of
+               SMeasure _ -> do
+                   ps' <- T.traverse (checkType SProb) (fmap fst pes)
+                   return $ TypedAST typ (syn (Superpose_ (L.zip ps' (L.fromList es'))))
+               _ -> typeMismatch (Left "HMeasure") (Right typ)
 
-    U.Observe_ e1 e2 -> do
-        TypedAST typ1 e1' <- inferType_ e1
-        case typ1 of
-            SMeasure typ2 -> do
-                e2' <- checkType_ typ2 e2
-                return . TypedAST typ1 $ syn (Observe :$ e1' :* e2' :* End)
-            _ -> typeMismatch (Left "HMeasure") (Right typ1)
-
-    U.Superpose_ pes -> do
-        -- TODO: clean up all this @map fst@, @map snd@, @zip@ stuff
-        mode <- getMode
-        TypedASTs typ es' <-
-            case mode of
-            StrictMode -> inferOneCheckOthers_ (map snd pes)
-            LaxMode    -> inferLubType         (map snd pes)
-            UnsafeMode -> inferLubType         (map snd pes) --error "TODO: inferType{Superpose_} in UnsafeMode"
-        case typ of
-            SMeasure _ -> do
-                ps' <- T.traverse (checkType SProb) (fmap fst pes)
-                return $ TypedAST typ (syn (Superpose_ (L.fromList $ zip ps' es')))
-            _ -> typeMismatch (Left "HMeasure") (Right typ)
-
-    _   | mustCheck e0 -> ambiguousMustCheck
-        | otherwise    -> error "inferType: missing an inferable branch!"
+       _   | mustCheck e0 -> ambiguousMustCheck
+           | otherwise    -> error "inferType: missing an inferable branch!"
 
   inferPrimOp :: U.PrimOp
           -> [U.AST]
@@ -1007,7 +1023,7 @@ inferCaseStrict typA e1 = inferOne []
     inferOne ls []
         | null ls   = ambiguousEmptyNary
         | otherwise = ambiguousMustCheckNary
-    inferOne ls (b@(U.Branch pat e):rs) = do
+    inferOne ls (b@(U.Branch_ pat e):rs) = do
         SP pat' vars <- checkPattern typA pat
         m <- try $ inferBinders vars e $ \typ e' -> do
                     ls' <- checkOthers typ ls
@@ -1050,7 +1066,7 @@ inferCaseLax typA e1 = start
     where
     start :: [U.Branch] -> TypeCheckMonad (TypedAST abt)
     start []     = ambiguousEmptyNary
-    start ((U.Branch pat e):us) = do
+    start ((U.Branch_ pat e):us) = do
         SP pat' vars <- checkPattern typA pat
         inferBinders vars e $ \typ1 e' -> do
             SomeBranch typ2 bs <- F.foldlM step (SomeBranch typ1 [Branch pat' e']) us
@@ -1060,7 +1076,7 @@ inferCaseLax typA e1 = start
     step :: SomeBranch a abt
         -> U.Branch
         -> TypeCheckMonad (SomeBranch a abt)
-    step (SomeBranch typB bs) (U.Branch pat e) = do
+    step (SomeBranch typB bs) (U.Branch_ pat e) = do
         SP pat' vars <- checkPattern typA pat
         inferBinders vars e $ \typE e' ->
             case findLub typB typE of
@@ -1107,25 +1123,45 @@ checkType = checkType_
     inferType_ :: U.AST -> TypeCheckMonad (TypedAST abt)
     inferType_ = inferType
 
+    checkVariable
+        :: forall b
+        .  Sing b
+        -> Variable 'U.U
+        -> TypeCheckMonad (abt '[] b)
+    checkVariable typ0 x = do
+      TypedAST typ' e0' <- inferType_ (var x)
+      mode <- getMode
+      case mode of
+        StrictMode ->
+            case jmEq1 typ0 typ' of
+              Just Refl -> return e0'
+              Nothing   -> typeMismatch (Right typ0) (Right typ')
+        LaxMode    -> checkOrCoerce       e0' typ' typ0
+        UnsafeMode -> checkOrUnsafeCoerce e0' typ' typ0
+
+
     checkType_
         :: forall b. Sing b -> U.AST -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
-        case e0 of
+      caseVarSyn e0 (checkVariable typ0) go
+      where
+      go t =
+        case t of
         -- Change of direction rule suggests this doesn't need to be here
         -- We keep it here in case, we later use a U.Lam which doesn't
         -- carry the type of its variable 
-        U.Lam_ x (U.SSing typ) e1 ->
+        U.Lam_ (U.SSing typ) e1 ->
             case typ0 of
             SFun typ1 typ2 ->
                 case jmEq1 typ1 typ of
-                  Just Refl -> do e1' <- checkBinder (makeVar x typ1) typ2 e1
+                  Just Refl -> do e1' <- checkBinder typ1 typ2 e1
                                   return $ syn (Lam_ :$ e1' :* End)
                   Nothing   -> typeMismatch (Right typ1) (Right typ)
             _ -> typeMismatch (Right typ0) (Left "function type")
 
-        U.Let_ x e1 e2 -> do
+        U.Let_ e1 e2 -> do
             TypedAST typ1 e1' <- inferType_ e1
-            e2' <- checkBinder (makeVar x typ1) typ0 e2
+            e2' <- checkBinder typ1 typ0 e2
             return $ syn (Let_ :$ e1' :* e2' :* End)
 
         U.CoerceTo_ (Some2 c) e1 ->
@@ -1177,7 +1213,7 @@ checkType = checkType_
                 case es' of
                   Just es'' -> return es''
                   Nothing   -> do
-                    TypedAST typ e0' <- inferType (U.NaryOp_ op es)
+                    TypedAST typ e0' <- inferType (syn $ U.NaryOp_ op es)
                     checkOrUnsafeCoerce e0' typ typ0
             where
             safeNaryOp :: forall c. Sing c -> TypeCheckMonad (abt '[] c)
@@ -1202,11 +1238,11 @@ checkType = checkType_
                 Nothing    -> typeMismatch (Right typ0) (Left "HPair")
             _              -> typeMismatch (Right typ0) (Left "HPair")
 
-        U.Array_ e1 x e2 ->
+        U.Array_ e1 e2 ->
             case typ0 of
             SArray typ1 -> do
-                e1' <- checkType_ SNat e1
-                e2' <- checkBinder (makeVar x SNat) typ1 e2
+                e1' <- checkType_  SNat e1
+                e2' <- checkBinder SNat typ1 e2
                 return $ syn (Array_ e1' e2')
             _ -> typeMismatch (Right typ0) (Left "HArray")
 
@@ -1229,48 +1265,48 @@ checkType = checkType_
                 return $ syn (Dirac :$ e1' :* End)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
 
-        U.MBind_ x e1 e2 ->
+        U.MBind_ e1 e2 ->
             case typ0 of
             SMeasure _ -> do
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
                     SMeasure typ2 -> do
-                        e2' <- checkBinder (makeVar x typ2) typ0 e2
+                        e2' <- checkBinder typ2 typ0 e2
                         return $ syn (MBind :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ0) (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
 
-        U.Plate_ x e1 e2 ->
+        U.Plate_ e1 e2 ->
             case typ0 of
             SMeasure typ1 -> do
                 e1' <- checkType_ SNat e1
                 case typ1 of
                     SArray typ2 -> do
-                        e2' <- checkBinder (makeVar x SNat) (SMeasure typ2) e2
+                        e2' <- checkBinder SNat (SMeasure typ2) e2
                         return $ syn (Plate :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ1) (Left "HArray")
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
 
-        U.Chain_ x e1 e2 e3 ->
+        U.Chain_ e1 e2 e3 ->
             case typ0 of
             SMeasure (SData (STyCon sym `STyApp` (SArray a) `STyApp` s) _) ->
                 case jmEq1 sym sSymbol_Pair of
                 Just Refl -> do
-                    e1' <- checkType_ SNat e1
-                    e2' <- checkType_ s e2
-                    e3' <- checkBinder (makeVar x s) (SMeasure $ sPair a s) e3
+                    e1' <- checkType_  SNat e1
+                    e2' <- checkType_  s    e2
+                    e3' <- checkBinder s    (SMeasure $ sPair a s) e3
                     return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
                 Nothing -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
             _           -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
 
 
-        U.Expect_ x e1 e2 ->
+        U.Expect_ e1 e2 ->
             case typ0 of
             SProb -> do
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
                     SMeasure typ2 -> do
-                        e2' <- checkBinder (makeVar x typ2) typ0 e2
+                        e2' <- checkBinder typ2 typ0 e2
                         return $ syn (Expect :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Left "HMeasure") (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HProb")
@@ -1286,7 +1322,7 @@ checkType = checkType_
         U.Superpose_ pes ->
             case typ0 of
             SMeasure _ ->
-                fmap (syn . Superpose_ . L.fromList) .
+                fmap (syn . Superpose_) .
                     T.forM pes $ \(p,e) ->
                         (,) <$> checkType_ SProb p <*> checkType_ typ0 e
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
@@ -1316,7 +1352,7 @@ checkType = checkType_
         :: forall xss t
         .  Sing (HData' t)
         -> Sing xss
-        -> U.DCode
+        -> U.DCode_
         -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
     checkDatumCode typA typ d =
         case d of
@@ -1333,7 +1369,7 @@ checkType = checkType_
         :: forall xs t
         .  Sing (HData' t)
         -> Sing xs
-        -> U.DStruct
+        -> U.DStruct_
         -> TypeCheckMonad (DatumStruct xs (abt '[]) (HData' t))
     checkDatumStruct typA typ d =
         case d of
@@ -1352,7 +1388,7 @@ checkType = checkType_
         :: forall x t
         .  Sing (HData' t)
         -> Sing x
-        -> U.DFun
+        -> U.DFun_
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))
     checkDatumFun typA typ d =
         case d of
@@ -1397,7 +1433,7 @@ checkBranch
     -> Sing b
     -> U.Branch
     -> TypeCheckMonad (Branch a abt b)
-checkBranch patTyp bodyTyp (U.Branch pat body) = do
+checkBranch patTyp bodyTyp (U.Branch_ pat body) = do
     SP pat' vars <- checkPattern patTyp pat
     Branch pat' <$> checkBinders vars bodyTyp body
 
@@ -1407,7 +1443,7 @@ checkPattern
     -> TypeCheckMonad (SomePattern a)
 checkPattern = \typA pat ->
     case pat of
-    U.PVar x -> return $ SP PVar (Cons1 (makeVar x typA) Nil1)
+    U.PVar x -> return $ SP PVar (Cons1 (makeVar (U.nameToVar x) typA) Nil1)
     U.PWild  -> return $ SP PWild Nil1
     U.PDatum hint pat1 ->
         case typA of
@@ -1503,9 +1539,9 @@ checkOrUnsafeCoerce e typA typB =
     Nothing ->
         case (typA, typB) of
           -- mighty, mighty hack!
-          (SMeasure typ1, SMeasure _) ->
-            let x = U.Name 0 (pack "") in do
-            e2' <- checkBinder (makeVar x typ1) typB (U.Dirac_ $ U.Var_ x)
+          (SMeasure typ1, SMeasure _) -> do
+            let x = Variable (pack "") 0 U.SU
+            e2' <- checkBinder typ1 typB (bind x $ syn $ U.Dirac_ (var x))
             return $ syn (MBind :$ e :* e2' :* End)
           (_ ,  _) -> typeMismatch (Right typB) (Right typA)
 

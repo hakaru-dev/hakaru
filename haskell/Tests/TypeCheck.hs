@@ -31,10 +31,10 @@ five :: Text
 five = "2 + 3"
 
 fiveU :: U.AST
-fiveU =
+fiveU = syn $ 
     U.NaryOp_ U.Sum
-        [ U.Literal_ $ Some1 $ T.LNat 2
-        , U.Literal_ $ Some1 $ T.LNat 3
+        [ syn $ U.Literal_ $ Some1 $ T.LNat 2
+        , syn $ U.Literal_ $ Some1 $ T.LNat 3
         ]
 
 fiveT :: TrivialABT T.Term '[] 'HNat
@@ -45,10 +45,10 @@ fiveT =
         ]
 
 normal01 :: U.AST
-normal01 =
-    U.MeasureOp_ (U.SealedOp T.Normal)
-        [ U.Literal_ $ Some1 $ T.LReal 0
-        , U.Literal_ $ Some1 $ T.LProb 1
+normal01 = syn $
+    U.MeasureOp_ (U.SomeOp T.Normal)
+        [ syn $ U.Literal_ $ Some1 $ T.LReal 0
+        , syn $ U.Literal_ $ Some1 $ T.LProb 1
         ]
 
 normal01T :: TrivialABT T.Term '[] ('HMeasure 'HReal)
@@ -58,17 +58,18 @@ normal01T =
         T.:* (syn $ T.Literal_ $ T.LProb 1)
         T.:* T.End)
 
-xname :: U.Name
-xname =  U.Name (unsafeNat 0) "x"
+xname :: Variable 'U.U
+xname =  Variable "x" (unsafeNat 0) U.SU
 
 normalb :: U.AST
-normalb =
-    U.MBind_ xname
+normalb = syn $
+    U.MBind_
         normal01
-        (U.MeasureOp_ (U.SealedOp T.Normal)
-            [ U.Var_ xname
-            , U.Literal_ $ Some1 $ T.LProb 1
-            ])
+        (bind xname $
+              syn $ U.MeasureOp_ (U.SomeOp T.Normal)
+                      [ var xname
+                      , syn $ U.Literal_ $ Some1 $ T.LProb 1
+                      ])
 
 
 inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))

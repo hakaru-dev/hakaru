@@ -7,7 +7,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve where
 
-import Data.Text hiding (concat, map, maximum, foldr1)
+import Data.Text hiding (concat, map, maximum, foldr1, singleton)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Functor                     ((<$>))
 import Control.Applicative              ((<*>))
@@ -19,14 +19,16 @@ import qualified Data.IntMap                     as IM
 import           Data.Foldable                   as F
 import           Data.Ratio
 import           Data.Proxy                      (KProxy(..))
+import           Data.List.NonEmpty              as L (NonEmpty(..), fromList)
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind  hiding (Symbol)
 import           Language.Hakaru.Types.HClasses
 import qualified Language.Hakaru.Syntax.AST      as T
+import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.Variable
-import qualified Language.Hakaru.Parser.AST      as U
+import           Language.Hakaru.Syntax.Variable ()
+import qualified Language.Hakaru.Parser.AST   as U
 import           Language.Hakaru.Evaluation.Coalesce (coalesce)
 
 data Symbol a
@@ -36,6 +38,9 @@ data Symbol a
 data Symbol' a
     = TLam' ([a] -> a)
     | TNeu' a
+
+singleton :: a -> L.NonEmpty a
+singleton x = x :| []
 
 primPat :: [(Text, Symbol' U.Pattern)]
 primPat =
@@ -100,19 +105,19 @@ primTable =
     ,("nat2prob",    primCoerce cNat2Prob)
     ,("nat2int",     primCoerce cNat2Int)
      -- Measures
-    ,("lebesgue",    TNeu $ U.MeasureOp_ (U.SealedOp T.Lebesgue) [])
-    ,("counting",    TNeu $ U.MeasureOp_ (U.SealedOp T.Counting) [])
-    ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
-    ,("normal",      primMeasure2 (U.SealedOp T.Normal))
-    ,("poisson",     primMeasure1 (U.SealedOp T.Poisson))
-    ,("gamma",       primMeasure2 (U.SealedOp T.Gamma))
-    ,("beta",        primMeasure2 (U.SealedOp T.Beta))
-    ,("categorical", primMeasure1 (U.SealedOp T.Categorical))
+    ,("lebesgue",    TNeu $ syn $ U.MeasureOp_ (U.SomeOp T.Lebesgue) [])
+    ,("counting",    TNeu $ syn $ U.MeasureOp_ (U.SomeOp T.Counting) [])
+    ,("uniform",     primMeasure2 (U.SomeOp T.Uniform))
+    ,("normal",      primMeasure2 (U.SomeOp T.Normal))
+    ,("poisson",     primMeasure1 (U.SomeOp T.Poisson))
+    ,("gamma",       primMeasure2 (U.SomeOp T.Gamma))
+    ,("beta",        primMeasure2 (U.SomeOp T.Beta))
+    ,("categorical", primMeasure1 (U.SomeOp T.Categorical))
     ,("bern",        primBern)
     ,("factor",      primFactor)
     ,("weight",      primWeight)
-    ,("dirac",       TLam $ TNeu . U.Dirac_)
-    ,("reject",      TNeu $ U.Reject_)    
+    ,("dirac",       TLam $ TNeu . syn . U.Dirac_)
+    ,("reject",      TNeu $ syn U.Reject_)
     -- PrimOps
     ,("not",         primPrimOp1 U.Not)
     ,("pi",          primPrimOp0 U.Pi)
@@ -131,32 +136,32 @@ primTable =
     ,("recip",       primPrimOp1 U.Recip)
     ,("^",           primPrimOp2 U.NatPow)
     ,("natroot",     primPrimOp2 U.NatRoot)
-    ,("sqrt",        TLam $ \x -> TNeu $ U.PrimOp_ U.NatRoot [x, two])
+    ,("sqrt",        TLam $ \x -> TNeu . syn $ U.PrimOp_ U.NatRoot [x, two])
     ,("erf",         primPrimOp1 U.Erf)
     -- ArrayOps
-    ,("size",        TLam $ \x -> TNeu $ U.ArrayOp_ U.Size [x])
-    ,("reduce",      t3 $ \x y z -> U.ArrayOp_ U.Reduce [x, y, z])
+    ,("size",        TLam $ \x -> TNeu . syn $ U.ArrayOp_ U.Size [x])
+    ,("reduce",      t3 $ \x y z -> syn $ U.ArrayOp_ U.Reduce [x, y, z])
     -- NaryOps
-    ,("min",         t2 $ \x y -> U.NaryOp_ U.Min [x, y])
-    ,("max",         t2 $ \x y -> U.NaryOp_ U.Max [x, y])
+    ,("min",         t2 $ \x y -> syn $ U.NaryOp_ U.Min [x, y])
+    ,("max",         t2 $ \x y -> syn $ U.NaryOp_ U.Max [x, y])
     ]
 
 primPrimOp0, primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
-primPrimOp0 a = TNeu $ U.PrimOp_ a []
-primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ a [x]
-primPrimOp2 a = t2 $ \x y -> U.PrimOp_ a [x, y]
+primPrimOp0 a = TNeu . syn $ U.PrimOp_ a []
+primPrimOp1 a = TLam $ \x -> TNeu . syn $ U.PrimOp_ a [x]
+primPrimOp2 a = t2 $ \x y ->        syn $ U.PrimOp_ a [x, y]
 
-primMeasure1 :: U.SealedOp T.MeasureOp -> Symbol U.AST
-primMeasure1 m = TLam $ \x -> TNeu $ U.MeasureOp_ m [x]
+primMeasure1 :: U.SomeOp T.MeasureOp -> Symbol U.AST
+primMeasure1 m = TLam $ \x -> TNeu . syn $ U.MeasureOp_ m [x]
 
-primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
-primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
+primMeasure2 :: U.SomeOp T.MeasureOp -> Symbol U.AST
+primMeasure2 m = t2 $ \x y -> syn $ U.MeasureOp_ m [x, y]
 
 primCoerce :: Coercion a b -> Symbol U.AST
-primCoerce c = TLam $ TNeu . U.CoerceTo_  (Some2 c)
+primCoerce c = TLam $ TNeu . syn . U.CoerceTo_  (Some2 c)
 
 primUnsafe :: Coercion a b -> Symbol U.AST
-primUnsafe c = TLam $ TNeu . U.UnsafeTo_  (Some2 c)
+primUnsafe c = TLam $ TNeu . syn . U.UnsafeTo_  (Some2 c)
 
 cProb2Real :: Coercion 'HProb 'HReal
 cProb2Real = signed
@@ -175,50 +180,51 @@ cNat2Real = CCons (Signed HRing_Int) continuous
 
 unit_ :: U.AST
 unit_ =
-    U.Ann_ (U.Datum_ (U.Datum "unit" . U.Inl $ U.Done))
-         (U.SSing sUnit)
+    syn $ U.Ann_ (U.SSing sUnit)
+                 (syn $ U.Datum_ (U.Datum "unit" . U.Inl $ U.Done))
 
 true_, false_ :: U.AST
 true_  =
-    U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
-        (U.SSing sBool)
+    syn $ U.Ann_ (U.SSing sBool)
+                 (syn $ U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
+
 false_ =
-    U.Ann_ (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
-        (U.SSing sBool)
+    syn $ U.Ann_ (U.SSing sBool)
+                 (syn $ U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
 
 unsafeFrom_ :: U.AST -> U.AST
-unsafeFrom_ = U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
+unsafeFrom_ = syn . U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 
 primLeft, primRight :: Symbol U.AST
 primLeft =
-    TLam $ TNeu . U.Datum_ .
+    TLam $ TNeu . syn . U.Datum_ .
         U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
 primRight =
-    TLam $ TNeu . U.Datum_ .
+    TLam $ TNeu . syn . U.Datum_ .
         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
 
 primWeight, primFactor, primBern :: Symbol U.AST
-primWeight = t2 $ \w m -> U.Superpose_ [(w, m)]
-primFactor = TLam $ \w -> TNeu $
-              U.Superpose_ [(w, U.Dirac_ unit_)]
+primWeight = t2 $ \w m -> syn $ U.Superpose_ (singleton (w, m))
+primFactor = TLam $ \w -> TNeu . syn . U.Superpose_ $
+              singleton (w, syn $ U.Dirac_ unit_)
 primBern   =
-    TLam $ \p -> TNeu (U.Superpose_
-        [ (p, U.Dirac_ true_)
-        , (unsafeFrom_ $ U.NaryOp_ U.Sum
-            [ U.Literal_ (Some1 $ T.LReal 1.0)
-            , U.PrimOp_ U.Negate [p]
+    TLam $ \p -> TNeu . syn . U.Superpose_ . L.fromList $
+        [ (p, syn $ U.Dirac_ true_)
+        , (unsafeFrom_ . syn $ U.NaryOp_ U.Sum
+            [ syn $ U.Literal_ (Some1 $ T.LReal 1.0)
+            , syn $ U.PrimOp_ U.Negate [p]
             ]
-            , U.Dirac_ false_)
-        ])
+            , syn $ U.Dirac_ false_)
+        ]
 
 two :: U.AST
-two = U.Literal_ . U.val . U.Nat $ 2
+two = syn . U.Literal_ . U.val . U.Nat $ 2
 
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
 
 mkSym  :: U.Name -> Symbol U.AST
-mkSym = TNeu . U.Var_
+mkSym (U.Name i t) = TNeu $ var (Variable t i U.SU)
 
 insertSymbol :: U.Name -> SymbolTable -> SymbolTable
 insertSymbol n@(U.Name _ name) sym = (name, mkSym n) : sym
@@ -419,14 +425,16 @@ branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
 branchNorm (U.Branch'' pat e2') = U.Branch'' pat (normAST e2')
 
 collapseSuperposes :: [U.AST] -> U.AST
-collapseSuperposes es = U.Superpose_ (F.concatMap go es)
+collapseSuperposes es = syn $ U.Superpose_ (fromList $ F.concatMap go es)
     where
     go :: U.AST -> [(U.AST, U.AST)]
-    go (U.Superpose_ es') = es'
-    go e'                 = [(prob_ 1, e')]
+    go e = caseVarSyn e (\x -> [(prob_ 1, var x)]) $ \t ->
+              case t of
+              U.Superpose_ es' -> F.toList es'
+              _                -> [(prob_ 1, e)]
 
     prob_ :: Ratio Integer -> U.AST
-    prob_ = U.Literal_ . U.val . U.Prob
+    prob_ = syn . U.Literal_ . U.val . U.Prob
 
 makeType :: U.TypeAST' -> U.SSing
 makeType (U.TypeVar t) =
@@ -456,14 +464,14 @@ makePattern (U.PData' (U.DV name args)) =
     Nothing -> error $ "Data constructor " ++ show name ++ " not found"
 
 makeBranch :: U.Branch' (Symbol U.AST) -> U.Branch
-makeBranch (U.Branch'' pat ast) = U.Branch (makePattern pat) (makeAST ast)
+makeBranch (U.Branch'' pat ast) = U.Branch_ (makePattern pat) (makeAST ast)
 makeBranch (U.Branch'  _   _)   = error "branch was not symbol resolved"
 
 makeTrue, makeFalse :: U.AST' (Symbol U.AST) -> U.Branch
 makeTrue  e =
-    U.Branch (makePattern (U.PData' (U.DV "true"  []))) (makeAST e)
+    U.Branch_ (makePattern (U.PData' (U.DV "true"  []))) (makeAST e)
 makeFalse e =
-    U.Branch (makePattern (U.PData' (U.DV "false" []))) (makeAST e)
+    U.Branch_ (makePattern (U.PData' (U.DV "false" []))) (makeAST e)
         
         
 makeAST :: U.AST' (Symbol U.AST) -> U.AST
@@ -476,60 +484,60 @@ makeAST ast =
     U.Var (TNeu e) -> e
     U.Lam s typ e1 ->
         withName "U.Lam" s $ \name ->
-            U.Lam_ name (makeType typ) (makeAST e1)
+            syn $ U.Lam_ (makeType typ) (bind name $ makeAST e1)
     U.App e1 e2 ->
-        U.App_ (makeAST e1) (makeAST e2)
+        syn $ U.App_ (makeAST e1) (makeAST e2)
     U.Let s e1 e2 ->
         withName "U.Let" s $ \name ->
-            U.Let_ name (makeAST e1) (makeAST e2)
+            syn $ U.Let_ (makeAST e1) (bind name $ makeAST e2)
     U.If e1 e2 e3 ->
-        U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
-    U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
-    U.Infinity'       -> U.PrimOp_ U.Infinity []
-    U.ULiteral v      -> U.Literal_  (U.val v)
-    U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
+        syn $ U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
+    U.Ann e typ       -> syn $ U.Ann_ (makeType typ) (makeAST e)
+    U.Infinity'       -> syn $ U.PrimOp_ U.Infinity []
+    U.ULiteral v      -> syn $ U.Literal_  (U.val v)
+    U.NaryOp op es    -> syn $ U.NaryOp_ op (map makeAST es)
     U.Unit            -> unit_
-    U.Empty           -> U.Empty_
-    U.Pair e1 e2      -> U.Pair_ (makeAST e1) (makeAST e2)
+    U.Empty           -> syn $ U.Empty_
+    U.Pair e1 e2      -> syn $ U.Pair_ (makeAST e1) (makeAST e2)
     U.Array s e1 e2 ->
         withName "U.Array" s $ \name ->
-            U.Array_ (makeAST e1) name (makeAST e2)
-    U.Index e1 e2     -> U.ArrayOp_ U.Index_ [(makeAST e1), (makeAST e2)]
-    U.Case e bs       -> U.Case_ (makeAST e) (map makeBranch bs)
-    U.Dirac e1        -> U.Dirac_ (makeAST e1)
+            syn $ U.Array_ (makeAST e1) (bind name $ makeAST e2)
+    U.Index e1 e2     -> syn $ U.ArrayOp_ U.Index_ [(makeAST e1), (makeAST e2)]
+    U.Case e bs       -> syn $ U.Case_ (makeAST e) (map makeBranch bs)
+    U.Dirac e1        -> syn $ U.Dirac_ (makeAST e1)
     U.Bind s e1 e2 ->
         withName "U.Bind" s $ \name ->
-            U.MBind_ name (makeAST e1) (makeAST e2)
+            syn $ U.MBind_ (makeAST e1) (bind name $ makeAST e2)
     U.Plate s e1 e2 ->
         withName "U.Plate" s $ \name ->
-            U.Plate_ name (makeAST e1) (makeAST e2)
+            syn $ U.Plate_ (makeAST e1) (bind name $ makeAST e2)
     U.Chain s e1 e2 e3 ->
         withName "U.Chain" s $ \name ->
-            U.Chain_ name (makeAST e1) (makeAST e2) (makeAST e3)
+            syn $ U.Chain_ (makeAST e1) (makeAST e2) (bind name $ makeAST e3)
     U.Integrate s e1 e2 e3 ->
         withName "U.Integrate" s $ \name ->
-            U.Integrate_ name (makeAST e1) (makeAST e2) (makeAST e3)
+            syn $ U.Integrate_ (makeAST e1) (makeAST e2) (bind name $ makeAST e3)
     U.Summate s e1 e2 e3 ->
         withName "U.Summate" s $ \name ->
-            U.Summate_ name (makeAST e1) (makeAST e2) (makeAST e3)
+            syn $ U.Summate_ (makeAST e1) (makeAST e2) (bind name $ makeAST e3)
     U.Product s e1 e2 e3 ->
         withName "U.Product" s $ \name ->
-            U.Product_ name (makeAST e1) (makeAST e2) (makeAST e3)
+            syn $ U.Product_ (makeAST e1) (makeAST e2) (bind name $ makeAST e3)
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
-            U.Expect_ name (makeAST e1) (makeAST e2)
-    U.Observe e1 e2  -> U.Observe_ (makeAST e1) (makeAST e2)
+            syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)
+    U.Observe e1 e2  -> syn $ U.Observe_ (makeAST e1) (makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
     
     U.Data   _name _typ -> error "TODO: makeAST{U.Data}"
-    U.WithMeta a _ -> makeAST a
+    U.WithMeta a meta -> withMetadata meta (makeAST a)
 
     where
-    withName :: String -> Symbol U.AST -> (U.Name -> r) -> r
+    withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r
     withName fun s k =
         case s of
-        TNeu (U.Var_ name) -> k name
-        _                  -> error $ "makeAST: bad " ++ fun
+        TNeu e -> caseVarSyn e k (error $ "makeAST: bad " ++ fun)
+        _      -> error $ "makeAST: bad " ++ fun
 
 resolveAST :: U.AST' Text -> U.AST
 resolveAST ast =
