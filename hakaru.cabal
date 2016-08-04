@@ -41,7 +41,6 @@ Library
                        Language.Hakaru.Syntax.Datum,
                        Language.Hakaru.Syntax.DatumABT,
                        Language.Hakaru.Syntax.DatumCase,
-                       Language.Hakaru.Syntax.UntypedAST,
                        Language.Hakaru.Types.DataKind,
                        Language.Hakaru.Types.Sing,
                        Language.Hakaru.Types.HClasses,
