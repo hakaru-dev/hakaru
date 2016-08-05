@@ -77,7 +77,7 @@ inferType' = inferType
 
 testTC :: Sing b -> U.AST -> TrivialABT T.Term '[] b -> Assertion
 testTC typ uast tast =
-    case runTCM (inferType' uast) StrictMode of
+    case runTCM (inferType' uast) Nothing StrictMode of
     Left _err                 -> assertFailure (show tast)
     Right (TypedAST _typ ast) ->
         case jmEq1 _typ typ of

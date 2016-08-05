@@ -9,7 +9,7 @@ module Tests.TestTools where
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Parser.Parser
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
-import Language.Hakaru.Command (parseAndInfer)
+import Language.Hakaru.Command (parseAndInfer, splitLines)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
@@ -105,7 +105,7 @@ testWithConcrete s mode k =
       Left  err  -> assertFailure (show err)
       Right past ->
           let m = inferType (resolveAST past) in
-          case runTCM m mode of
+          case runTCM m (splitLines s) mode of
             Left err                 -> assertFailure err
             Right (TypedAST typ ast) -> k typ ast
 

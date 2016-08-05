@@ -16,7 +16,6 @@ import           Control.Arrow ((***))
 import qualified Data.Foldable       as F
 import qualified Data.Number.Nat     as N
 import qualified Data.Number.Natural as N
-import           Data.Typeable       hiding (Refl)
 import qualified Data.List.NonEmpty  as L
 
 import Language.Hakaru.Types.DataKind

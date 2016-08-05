@@ -46,6 +46,7 @@ import qualified Data.Traversable      as T
 import qualified Data.List.NonEmpty    as L
 import qualified Data.Foldable         as F
 import qualified Data.Sequence         as S
+import qualified Data.Vector           as V
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
@@ -192,6 +193,8 @@ mustCheck' e = caseBind e $ \_ e' -> mustCheck e'
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
+type Input = Maybe (V.Vector Text)
+
 type Ctx = VarSet ('KProxy :: KProxy Hakaru)
 
 data TypeCheckMode = StrictMode | LaxMode | UnsafeMode
@@ -200,25 +203,28 @@ data TypeCheckMode = StrictMode | LaxMode | UnsafeMode
 type TypeCheckError = String -- TODO: something better
 
 newtype TypeCheckMonad a =
-    TCM { unTCM :: Ctx -> TypeCheckMode -> Either TypeCheckError a }
+    TCM { unTCM :: Ctx
+                -> Input
+                -> TypeCheckMode
+                -> Either TypeCheckError a }
 
-runTCM :: TypeCheckMonad a -> TypeCheckMode -> Either TypeCheckError a
+runTCM :: TypeCheckMonad a -> Input -> TypeCheckMode -> Either TypeCheckError a
 runTCM m = unTCM m emptyVarSet
 
 instance Functor TypeCheckMonad where
-    fmap f m = TCM $ \ctx mode -> fmap f (unTCM m ctx mode)
+    fmap f m = TCM $ \ctx input mode -> fmap f (unTCM m ctx input mode)
 
 instance Applicative TypeCheckMonad where
-    pure x    = TCM $ \_ _ -> Right x
+    pure x    = TCM $ \_ _ _ -> Right x
     mf <*> mx = mf >>= \f -> fmap f mx
 
 -- TODO: ensure this instance has the appropriate strictness
 instance Monad TypeCheckMonad where
     return   = pure
     mx >>= k =
-        TCM $ \ctx mode ->
-        unTCM mx ctx mode >>= \x ->
-        unTCM (k x) ctx mode
+        TCM $ \ctx input mode ->
+        unTCM mx ctx input mode >>= \x ->
+        unTCM (k x) ctx input mode
 
 {-
 -- We could provide this instance, but there's no decent error
@@ -234,8 +240,12 @@ instance Alternative TypeCheckMonad where
 -}
 
 -- | Return the mode in which we're checking\/inferring types.
+getInput :: TypeCheckMonad Input
+getInput = TCM $ \_ input _ -> Right input
+
+-- | Return the mode in which we're checking\/inferring types.
 getMode :: TypeCheckMonad TypeCheckMode
-getMode = TCM (const Right)
+getMode = TCM $ \_ _ mode -> Right mode
 
 -- | Extend the typing context, but only locally.
 pushCtx
@@ -245,10 +255,10 @@ pushCtx
 pushCtx x (TCM m) = TCM (m . insertVarSet x)
 
 getCtx :: TypeCheckMonad Ctx
-getCtx = TCM (const . Right)
+getCtx = TCM $ \ctx _ _ -> Right ctx
 
 failwith :: TypeCheckError -> TypeCheckMonad a
-failwith e = TCM $ \_ _ -> Left e
+failwith e = TCM $ \_ _ _ -> Left e
 
 -- | Fail with a type-mismatch error.
 typeMismatch
@@ -968,15 +978,15 @@ inferOneCheckOthers = inferOne []
 -- | a la @optional :: Alternative f => f a -> f (Maybe a)@ but
 -- without needing the 'empty' of the 'Alternative' class.
 try :: TypeCheckMonad a -> TypeCheckMonad (Maybe a)
-try m = TCM $ \ctx mode -> Right $
-    case unTCM m ctx mode of
+try m = TCM $ \ctx input mode -> Right $
+    case unTCM m ctx input mode of
     Left  _ -> Nothing -- Don't worry; no side effects to unwind
     Right e -> Just e
 
 -- | Tries to typecheck in a given mode
 tryWith :: TypeCheckMode -> TypeCheckMonad a -> TypeCheckMonad (Maybe a)
-tryWith mode m = TCM $ \ctx _ -> Right $
-    case unTCM m ctx mode of
+tryWith mode m = TCM $ \ctx input _ -> Right $
+    case unTCM m ctx input mode of
     Left  _ -> Nothing
     Right e -> Just e
 

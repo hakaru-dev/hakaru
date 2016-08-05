@@ -92,7 +92,7 @@ simplifyDebug debug e = do
           past <- leftShow $ parseMaple (pack fromMaple)
           let m = checkType typ
                    (SR.resolveAST' (getNames e) (maple2AST past))
-          leftShow $ unTCM m (freeVars e) UnsafeMode
+          leftShow $ unTCM m (freeVars e) Nothing UnsafeMode
       _ -> throw (MapleException toMaple_ fromMaple)
 
     where

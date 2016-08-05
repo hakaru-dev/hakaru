@@ -7,24 +7,28 @@ import           Language.Hakaru.Parser.Parser hiding (style)
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Syntax.TypeCheck
 
-import           Data.Text
+import qualified Data.Text    as Text
 import qualified Data.Text.IO as IO
+import           Data.Vector
 
 type Term a = TrivialABT T.Term '[] a
 
-parseAndInfer :: Text
+parseAndInfer :: Text.Text
               -> Either String (TypedAST (TrivialABT T.Term))
 parseAndInfer x =
     case parseHakaru x of
     Left  err  -> Left (show err)
     Right past ->
         let m = inferType (resolveAST past) in
-        runTCM m LaxMode
+        runTCM m (splitLines x) LaxMode
 
-readFromFile :: String -> IO Text
+splitLines :: Text.Text -> Maybe (Vector Text.Text)
+splitLines = Just . fromList . Text.lines
+
+readFromFile :: String -> IO Text.Text
 readFromFile "-" = IO.getContents
 readFromFile x   = IO.readFile x
 
-writeToFile :: String -> (Text -> IO ())
+writeToFile :: String -> (Text.Text -> IO ())
 writeToFile "-" = IO.putStrLn
 writeToFile x   = IO.writeFile x
