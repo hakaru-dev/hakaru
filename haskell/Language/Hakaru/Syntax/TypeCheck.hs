@@ -7,6 +7,7 @@
            , TypeOperators
            , FlexibleContexts
            , FlexibleInstances
+           , OverloadedStrings
            , Rank2Types
            #-}
 
@@ -49,6 +50,7 @@ import qualified Data.Sequence         as S
 import qualified Data.Vector           as V
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
+import           Data.Monoid           (Monoid(..))
 #endif
 import qualified Language.Hakaru.Parser.AST as U
 
@@ -200,7 +202,7 @@ type Ctx = VarSet ('KProxy :: KProxy Hakaru)
 data TypeCheckMode = StrictMode | LaxMode | UnsafeMode
     deriving (Read, Show)
 
-type TypeCheckError = String -- TODO: something better
+type TypeCheckError = Text -- TODO: something better
 
 newtype TypeCheckMonad a =
     TCM { unTCM :: Ctx
@@ -239,6 +241,13 @@ instance Alternative TypeCheckMonad where
         Right e -> Right e
 -}
 
+showT :: Show a => a -> Text
+showT = pack . show
+
+show1T :: Show1 a => a (i :: Hakaru) -> Text
+show1T = pack . show1
+
+
 -- | Return the mode in which we're checking\/inferring types.
 getInput :: TypeCheckMonad Input
 getInput = TCM $ \_ input _ -> Right input
@@ -262,33 +271,37 @@ failwith e = TCM $ \_ _ _ -> Left e
 
 -- | Fail with a type-mismatch error.
 typeMismatch
-    :: Either String (Sing (a :: Hakaru))
-    -> Either String (Sing (b :: Hakaru))
+    :: Either Text (Sing (a :: Hakaru))
+    -> Either Text (Sing (b :: Hakaru))
     -> TypeCheckMonad r
 typeMismatch typ1 typ2 =
-    failwith $ "Type Mismatch: expected " ++ msg1 ++ ", found " ++ msg2
+    failwith . mconcat $ [ "Type Mismatch: expected "
+                         , msg1
+                         , ", found "
+                         , msg2
+                         ]
     where
-    msg1 = case typ1 of { Left msg -> msg; Right typ -> show1 typ }
-    msg2 = case typ2 of { Left msg -> msg; Right typ -> show1 typ }
+    msg1 = case typ1 of { Left msg -> msg; Right typ -> show1T typ }
+    msg2 = case typ2 of { Left msg -> msg; Right typ -> show1T typ }
 
 missingInstance
-    :: String
+    :: Text
     -> Sing (a :: Hakaru)
     -> TypeCheckMonad r
 missingInstance clas typ =
-    failwith $ "No " ++ clas ++ " instance for type " ++ show typ
+    failwith . mconcat $ ["No ", clas, " instance for type ", showT typ]
 
 missingLub
     :: Sing (a :: Hakaru)
     -> Sing (b :: Hakaru)
     -> TypeCheckMonad r
 missingLub typ1 typ2 =
-    failwith $ "No lub of types " ++ show typ1 ++ " and " ++ show typ2
+    failwith . mconcat $ ["No lub of types ", showT typ1, " and ", showT typ2]
 
 -- we can't have free variables, so it must be a typo
 ambiguousFreeVariable :: Text -> TypeCheckMonad r
 ambiguousFreeVariable x =
-    failwith $ "Name not in scope: " ++ show x ++ "; perhaps it is a typo?"
+    failwith . mconcat $ ["Name not in scope: ", showT x, "; perhaps it is a typo?"]
 
 ambiguousNullCoercion :: TypeCheckMonad r
 ambiguousNullCoercion =

@@ -106,7 +106,7 @@ testWithConcrete s mode k =
       Right past ->
           let m = inferType (resolveAST past) in
           case runTCM m (splitLines s) mode of
-            Left err                 -> assertFailure err
+            Left err                 -> assertFailure (show err)
             Right (TypedAST typ ast) -> k typ ast
 
 

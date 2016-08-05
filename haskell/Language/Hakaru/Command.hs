@@ -14,10 +14,10 @@ import           Data.Vector
 type Term a = TrivialABT T.Term '[] a
 
 parseAndInfer :: Text.Text
-              -> Either String (TypedAST (TrivialABT T.Term))
+              -> Either Text.Text (TypedAST (TrivialABT T.Term))
 parseAndInfer x =
     case parseHakaru x of
-    Left  err  -> Left (show err)
+    Left  err  -> Left (Text.pack . show $ err)
     Right past ->
         let m = inferType (resolveAST past) in
         runTCM m (splitLines x) LaxMode
