@@ -28,6 +28,7 @@ import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.HOAS.Declaration
 import Language.Hakaru.CodeGen.HOAS.Expression
 import Language.Hakaru.CodeGen.HOAS.Statement
+import Language.Hakaru.CodeGen.HOAS.Function
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -183,13 +184,21 @@ flattenSCon Let_            =
             declare $ typeDeclaration typ ident
             assign ident expr'
             flattenABT body'
+
 flattenSCon Lam_            =
   \(e1 :* End) ->
-    caseBind e1 $ \_ e1' ->
-      flattenABT e1'
+    caseBind e1 $ \v@(Variable _ _ typ) e1' ->
+      do funcId <- genIdent' "fn"
+         vId <- createIdent v
+         let vDec = typeDeclaration typ vId
+         e1'' <- flattenABT e1'
+         funDef (function typ funcId [vDec] [returnS e1''])
+         return e1''
+
 flattenSCon (PrimOp_ op)    = \es -> flattenPrimOp op es
 flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
 flattenSCon Dirac           = \(e :* End) -> flattenABT e
+
 flattenSCon MBind           =
   \(e1 :* e2 :* End) ->
     do e1' <- flattenABT e1
@@ -198,6 +207,7 @@ flattenSCon MBind           =
             declare $ typeDeclaration typ ident
             assign ident e1'
             flattenABT e2'
+
 flattenSCon x               = \_ -> error $ "TODO: flattenSCon: " ++ show x
 ----------------------------------------------------------------
 

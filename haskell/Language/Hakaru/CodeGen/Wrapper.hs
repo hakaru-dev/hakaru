@@ -72,7 +72,8 @@ createProgram (TypedAST typ abt) =
 
 -- | Create function will produce a C function that samples if it is a measure
 createFunction :: TypedAST (TrivialABT T.Term) -> Text
-createFunction (TypedAST (SFun _ _) _) = undefined
+createFunction (TypedAST (SFun _ _) abt) = let (fs,_,_) = runCodeGen $ flattenABT abt
+                                           in mconcat (fmap cToString fs)
 createFunction (TypedAST tt@(SMeasure internalT) abt) =
   let ident           = builtinIdent "result"
       (_,decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident

@@ -31,12 +31,12 @@ node = undefNode
 
 function :: Sing (a :: Hakaru)
          -> Ident
-         -> CDecl
+         -> [CDecl]
          -> [CStat]
          -> CFunDef
-function typ ident _ _ =
+function typ ident declrs stmts =
   CFunDef [CTypeSpec (buildType typ)]
-          (CDeclr (Just ident) [CFunDeclr (Left []) [] node] Nothing [] node)
+          (CDeclr (Just ident) [CFunDeclr (Right (declrs,False)) [] node] Nothing [] node)
           []
-          undefined
+          (CCompound [] (fmap CBlockStmt stmts) node)
           node

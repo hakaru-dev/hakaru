@@ -23,6 +23,7 @@ module Language.Hakaru.CodeGen.HOAS.Statement
   , labelS
   , whileS
   , doWhileS
+  , returnS
   ) where
 
 import Language.C.Syntax.AST
@@ -76,3 +77,6 @@ whileS b stmts = CWhile b (CCompound [] (fmap CBlockStmt stmts) node) False node
 
 doWhileS :: CExpr -> [CStat] -> CStat
 doWhileS b stmts = CWhile b (CCompound [] (fmap CBlockStmt stmts) node) True node
+
+returnS :: CExpr -> CStat
+returnS e = CReturn (Just e) node        
