@@ -27,7 +27,7 @@ main = do
 runDisintegrate :: Text -> IO ()
 runDisintegrate prog =
     case parseAndInfer prog of
-    Left  err                -> putStrLn err
+    Left  err                -> IO.putStrLn err
     Right (TypedAST typ ast) ->
         case typ of
             SMeasure (SData (STyCon sym `STyApp` _ `STyApp` _) _) ->

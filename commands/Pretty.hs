@@ -23,6 +23,6 @@ main = do
 runPretty :: Text -> IO ()
 runPretty prog =
     case parseAndInfer prog of
-    Left  err              -> putStrLn err
+    Left  err              -> IO.putStrLn err
     Right (TypedAST _ ast) -> print . pretty . expandTransformations $ ast
 

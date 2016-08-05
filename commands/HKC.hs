@@ -51,7 +51,7 @@ parseOpts = execParser $ info (helper <*> options)
 compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
-    Left err -> putStrLn err
+    Left err -> IO.putStrLn err
     Right (TypedAST typ ast) -> do
       let ast' = TypedAST typ (if optimize config
                                then constantPropagation ast

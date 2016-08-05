@@ -51,7 +51,7 @@ illustrate _ _ x =   putStrLn
 runHakaru :: MWC.GenIO -> Text -> IO ()
 runHakaru g prog =
     case parseAndInfer prog of
-      Left err                 -> putStrLn err
+      Left err                 -> IO.putStrLn err
       Right (TypedAST typ ast) -> do
         case typ of
           SMeasure _ -> forever (illustrate typ g $ run ast)

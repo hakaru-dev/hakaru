@@ -28,7 +28,7 @@ main = do
 runNormalize :: Text -> IO ()
 runNormalize prog =
     case parseAndInfer prog of
-    Left  err                -> putStrLn err
+    Left  err                -> IO.putStrLn err
     Right (TypedAST typ ast) -> do
       case typ of
         SMeasure _          -> print . pretty . constantPropagation . normalize $ ast
