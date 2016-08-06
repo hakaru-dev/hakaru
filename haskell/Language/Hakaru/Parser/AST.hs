@@ -5,15 +5,18 @@
            , ExistentialQuantification
            , StandaloneDeriving
            , TypeFamilies
+           , OverloadedStrings
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 
 module Language.Hakaru.Parser.AST where
 
+import           Prelude       hiding (replicate, unlines)
 import           Control.Arrow ((***))
 
 import qualified Data.Foldable       as F
+import qualified Data.Vector         as V
 import qualified Data.Number.Nat     as N
 import qualified Data.Number.Natural as N
 import qualified Data.List.NonEmpty  as L
@@ -31,7 +34,9 @@ import Data.Monoid   (Monoid(..))
 #endif
 
 import Data.Text
+import Text.Printf
 import Text.Parsec (SourcePos)
+import Text.Parsec.Pos
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
 data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
@@ -65,6 +70,24 @@ data PDatum a = DV Name' [Pattern' a]
 -- Meta stores start and end position for AST in source code
 data SourceSpan = SourceSpan !SourcePos !SourcePos
     deriving (Eq, Show)
+
+numberLine :: Text -> Int -> Text
+numberLine s n = append (pack (printf "%5d| " n)) s
+
+printSourceSpan :: SourceSpan -> V.Vector Text -> Text
+printSourceSpan (SourceSpan start stop) input
+    | sourceLine start == sourceLine stop =
+        unlines [ numberLine endLine (sourceLine stop)
+                , append "       " textSpan
+                ]
+    | otherwise                           =
+        unlines $ flip fmap [sourceLine start .. sourceLine stop] $ \i ->
+            numberLine (input V.! (i - 1)) i
+   where endLine  = input V.! (sourceLine stop - 1)
+         spanLen  = sourceColumn stop - sourceColumn start
+         textSpan =
+             append (replicate (sourceColumn start - 1) " ")
+                    (replicate spanLen "^")
 
 data Literal'
     = Nat  Integer
