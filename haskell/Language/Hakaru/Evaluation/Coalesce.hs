@@ -22,12 +22,11 @@ module Language.Hakaru.Evaluation.Coalesce
 
 import qualified Language.Hakaru.Parser.AST as U
 import           Language.Hakaru.Syntax.ABT
-import qualified Data.Foldable                 as F
+import qualified Data.Foldable              as F
 
 coalesce
-    :: (ABT U.Term abt)
-    => abt '[] a
-    -> abt '[] a
+    :: U.AST
+    -> U.AST
 coalesce =
     cataABT var bind alg
     where
