@@ -48,20 +48,47 @@ typeDeclaration typ ident =
         [(Just $ CDeclr (Just ident) [] Nothing [] node,Nothing,Nothing)]
         node
 
+-- and array declaration just requires the type
 arrayDeclaration :: Sing (a :: Hakaru)
-                 -> CExpr -- ^ cexpr representing arity (could lead to bugs?)
                  -> Ident
                  -> CDecl
-arrayDeclaration typ n ident =
-  CDecl [CTypeSpec $ buildType typ]
+arrayDeclaration typ ident =
+  CDecl [CTypeSpec $ CSUType (CStruct CStructTag
+                                      Nothing
+                                      (Just [ -- contains and int and pointer to type
+                                              CDecl [CTypeSpec $ buildType SInt]
+                                                    [(Just $ CDeclr (Just (internalIdent "size"))
+                                                                    []
+                                                                    Nothing
+                                                                    []
+                                                                    node
+                                                     ,Nothing
+                                                     ,Nothing)]
+                                                    node
+                                            , CDecl [CTypeSpec $ buildType typ]
+                                                    [(Just $ CDeclr (Just (internalIdent "data"))
+                                                                    [CPtrDeclr [] node]
+                                                                    Nothing
+                                                                    []
+                                                                    node
+                                                     ,Nothing
+                                                     ,Nothing)]
+                                                    node
+                                            ]
+                                      )
+                                      []
+                                      node)
+                             node
+        ]
         [( Just $ CDeclr (Just ident)
-                         [CArrDeclr [] (CArrSize False n) node]
+                         []
                          Nothing
                          []
                          node
-         , Nothing
-         , Nothing)]
+        , Nothing
+        , Nothing)]
         node
+
 
 structDeclaration :: (ABT Term abt)
                   => DatumCode (Code t) (abt '[]) (HData' t)

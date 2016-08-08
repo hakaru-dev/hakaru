@@ -156,7 +156,7 @@ flattenArray a body =
   do ident <- genIdent
      arity' <- flattenABT a
      caseBind body $ \(Variable _ _ typ) _ ->
-       do declare (arrayDeclaration typ arity' ident)
+       do declare (arrayDeclaration typ ident)
           return $ varE ident
 ----------------------------------------------------------------
 
@@ -185,13 +185,15 @@ flattenSCon Let_            =
             assign ident expr'
             flattenABT body'
 
+-- Needs to be updated to work with multiple arguments
+-- Also need work on the wrapper for this function
 flattenSCon Lam_            =
   \(e1 :* End) ->
     caseBind e1 $ \v@(Variable _ _ typ) e1' ->
       do funcId <- genIdent' "fn"
-         vId <- createIdent v
+         vId    <- createIdent v
          let vDec = typeDeclaration typ vId
-         e1'' <- flattenABT e1'
+         e1''   <- flattenABT e1'
          funDef (function typ funcId [vDec] [returnS e1''])
          return e1''
 
