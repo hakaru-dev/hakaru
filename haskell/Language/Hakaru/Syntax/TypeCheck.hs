@@ -284,6 +284,29 @@ typeMismatch typ1 typ2 =
     msg1 = case typ1 of { Left msg -> msg; Right typ -> show1T typ }
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1T typ }
 
+typeMismatch2
+    :: Maybe U.SourceSpan
+    -> Either Text (Sing (a :: Hakaru))
+    -> Either Text (Sing (b :: Hakaru))
+    -> TypeCheckMonad r
+typeMismatch2 sourceSpan typ1 typ2 = do
+    input_ <- getInput
+    case (sourceSpan, input_) of
+      (Just s, Just input) ->
+          failwith . mconcat $ [ "Type Mismatch:\n\n"
+                               , U.printSourceSpan s input
+                               , "expected ", msg1
+                               , ", found ", msg2, "\n"
+                               ]
+      _                    ->
+          failwith . mconcat $ [ "Type Mismatch: "
+                               , "expected ", msg1
+                               , ", found ", msg2
+                               ]
+    where
+    msg1 = case typ1 of { Left msg -> msg; Right typ -> show1T typ }
+    msg2 = case typ2 of { Left msg -> msg; Right typ -> show1T typ }
+
 missingInstance
     :: Text
     -> Sing (a :: Hakaru)
@@ -436,6 +459,7 @@ inferType = inferType_
     where
     go :: U.MetaTerm -> TypeCheckMonad (TypedAST abt)
     go t =
+      let sourceSpan = getMetadata e0 in
       case t of
        U.Lam_ (U.SSing typ) e -> do
            inferBinder typ e $ \typ2 e2 ->
@@ -1159,8 +1183,8 @@ checkType = checkType_
             case jmEq1 typ0 typ' of
               Just Refl -> return e0'
               Nothing   -> typeMismatch (Right typ0) (Right typ')
-        LaxMode    -> checkOrCoerce       e0' typ' typ0
-        UnsafeMode -> checkOrUnsafeCoerce e0' typ' typ0
+        LaxMode    -> checkOrCoerce       Nothing e0' typ' typ0
+        UnsafeMode -> checkOrUnsafeCoerce Nothing e0' typ' typ0
 
 
     checkType_
@@ -1169,6 +1193,7 @@ checkType = checkType_
       caseVarSyn e0 (checkVariable typ0) go
       where
       go t =
+        let sourceSpan = getMetadata e0 in
         case t of
         -- Change of direction rule suggests this doesn't need to be here
         -- We keep it here in case, we later use a U.Lam which doesn't
@@ -1197,7 +1222,7 @@ checkType = checkType_
                 Just Refl -> do
                     e1' <- checkType_ dom e1
                     return $ syn (CoerceTo_ c :$ e1' :* End)
-                Nothing -> typeMismatch (Right typ0) (Right cod)
+                Nothing -> typeMismatch2 sourceSpan (Right typ0) (Right cod)
 
         U.UnsafeTo_ (Some2 c) e1 ->
             case singCoerceDomCod c of
@@ -1209,19 +1234,19 @@ checkType = checkType_
                 Just Refl -> do
                     e1' <- checkType_ cod e1
                     return $ syn (UnsafeFrom_ c :$ e1' :* End)
-                Nothing -> typeMismatch (Right typ0) (Right dom)
+                Nothing -> typeMismatch2 sourceSpan (Right typ0) (Right dom)
 
         -- TODO: Find better place to put this logic
         U.PrimOp_ U.Infinity [] -> do
             case typ0 of
               SNat  ->  return $
                          syn (PrimOp_ (Infinity HIntegrable_Nat) :$ End)
-              SInt  -> checkOrCoerce (syn (PrimOp_ (Infinity HIntegrable_Nat) :$ End))
+              SInt  -> checkOrCoerce sourceSpan (syn (PrimOp_ (Infinity HIntegrable_Nat) :$ End))
                          SNat
                          SInt
               SProb -> return $
                          syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End)
-              SReal -> checkOrCoerce (syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End))
+              SReal -> checkOrCoerce sourceSpan (syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End))
                          SProb
                          SReal
               _     -> failwith "Infinity can only be checked against nat or prob"
@@ -1237,7 +1262,7 @@ checkType = checkType_
                   Just es'' -> return es''
                   Nothing   -> do
                     TypedAST typ e0' <- inferType (syn $ U.NaryOp_ op es)
-                    checkOrUnsafeCoerce e0' typ typ0
+                    checkOrUnsafeCoerce sourceSpan e0' typ typ0
             where
             safeNaryOp :: forall c. Sing c -> TypeCheckMonad (abt '[] c)
             safeNaryOp typ = do
@@ -1363,8 +1388,8 @@ checkType = checkType_
                     case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
                     Nothing   -> typeMismatch (Right typ0) (Right typ')
-                  LaxMode    -> checkOrCoerce       e0' typ' typ0
-                  UnsafeMode -> checkOrUnsafeCoerce e0' typ' typ0
+                  LaxMode    -> checkOrCoerce       sourceSpan e0' typ' typ0
+                  UnsafeMode -> checkOrUnsafeCoerce sourceSpan e0' typ' typ0
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
 
@@ -1536,22 +1561,24 @@ checkPattern = \typA pat ->
 
 checkOrCoerce
     :: (ABT Term abt)
-    => abt '[] a
+    => Maybe (U.SourceSpan)
+    -> abt '[] a
     -> Sing a
     -> Sing b
     -> TypeCheckMonad (abt '[] b)
-checkOrCoerce e typA typB =
+checkOrCoerce s e typA typB =
     case findCoercion typA typB of
     Just c  -> return . unLC_ . coerceTo c $ LC_ e
-    Nothing -> typeMismatch (Right typB) (Right typA)
+    Nothing -> typeMismatch2 s (Right typB) (Right typA)
 
 checkOrUnsafeCoerce
     :: (ABT Term abt)
-    => abt '[] a
+    => Maybe (U.SourceSpan)
+    -> abt '[] a
     -> Sing a
     -> Sing b
     -> TypeCheckMonad (abt '[] b)
-checkOrUnsafeCoerce e typA typB =
+checkOrUnsafeCoerce s e typA typB =
     case findEitherCoercion typA typB of
     Just (Unsafe  c) ->
         return . unLC_ . coerceFrom c $ LC_ e
@@ -1566,7 +1593,7 @@ checkOrUnsafeCoerce e typA typB =
             let x = Variable (pack "") 0 U.SU
             e2' <- checkBinder typ1 typB (bind x $ syn $ U.Dirac_ (var x))
             return $ syn (MBind :$ e :* e2' :* End)
-          (_ ,  _) -> typeMismatch (Right typB) (Right typA)
+          (_ ,  _) -> typeMismatch2 s (Right typB) (Right typA)
 
 
 
