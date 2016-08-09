@@ -142,7 +142,8 @@ symbol :: Text -> Parser Text
 symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
 app1 :: Text -> AST' Text -> AST' Text
-app1 s x = Var s `App` x
+app1 s x@(WithMeta _ m) = WithMeta (Var s `App` x) m
+app1 s x                = Var s `App` x
 
 app2 :: Text -> AST' Text -> AST' Text -> AST' Text
 app2 s x y = Var s `App` x `App` y
@@ -197,7 +198,7 @@ table =
       , binary "/"  Ex.AssocLeft]
     , [ binary "+"  Ex.AssocLeft
       , binary "-"  Ex.AssocLeft
-      , prefix "-"  (App (Var "negate"))]
+      , prefix "-"  (app1 "negate")]
     -- TODO: add "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
     , [ postfix ann_expr ]
