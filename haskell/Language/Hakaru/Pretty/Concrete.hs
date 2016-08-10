@@ -483,10 +483,17 @@ ppArrayOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> ArrayOp typs a -> SArgs abt args -> Docs
 ppArrayOp p (Index   _) = \(e1 :* e2 :* End) ->
-    [(toDoc $ ppArg e1) <>
+    [(toDoc $ parensIf (isArray e1) $ ppArg e1) <>
      PP.text "["        <>
      (toDoc $ ppArg e2) <>
      PP.text "]"]
+  where isArray e = caseVarSyn e (const False) $ \t ->
+                      case t of
+                      Array_ _ _ -> True
+                      _          -> False
+        parensIf True  e = parens True e
+        parensIf False e = e
+
 ppArrayOp p (Size    _) = \(e1 :* End)       -> ppApply1 p "size" e1
 ppArrayOp p (Reduce  _) = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "reduce"
