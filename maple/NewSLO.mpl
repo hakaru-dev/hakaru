@@ -31,7 +31,7 @@ NewSLO := module ()
         find_vars, kb_from_path, interpret, reconstruct, invert,
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2,
-        mk_sym, mk_ary, mk_idx,
+        mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
@@ -1156,42 +1156,89 @@ NewSLO := module ()
     return true
   end proc;
 
-  #Written by Carl 2016Jun17.
-  reparam:= proc(
-       e::LO(symbol, Int(algebraic, symbol= range(algebraic))),
-       {ctx::list:= []},
-       $
-  )
-  uses IT= IntegrationTools;
+  #Beginning of Carl's code devoted to the reparameterization (aka change of variables) of 
+  #integrals and sums.
+
+  #Finds the innermost Ints or Sums in an expression, that is, those which
+  #don't contain further Ints or Sumss
+  innermostIntSum:= proc(e::anything, $)::set(specfunc({Int,Sum}));
+       select(IS-> nops(indets(IS, specfunc({Int,Sum}))) = 1, indets(e, specfunc({Int,Sum})))
+  end proc;
+
+  #My substitute for IntegrationTools:-Change.
+  ChangeVarInt:= proc(J::specfunc(Int), target::algebraic, $)
   local
-       J:= op(2, e),   #the integral
-       x::symbol:= op([2,1], J),   #var of integration
-       a::algebraic:= op([2,2,1], J),  #lower limit
-       b::algebraic:= op([2,2,2], J),  #upper limit
-       #possible subs target(s)
-       oldarg::{algebraic, set(algebraic)}:= map2(op, 2, indets(J, specfunc(applyintegrand))),
-       Ns::set(symbol):= indets(oldarg, symbol),   #symbols in subs target(s)
-       u::symbol:= gensym('u'),   #new variable
-       y::symbol,   #just a name for `solve`
-       S,   #result from `solve`
-       F::{`<`, truefalse}   #Boolean: flip integral?
-  ;
-       #If more than one reparam is possible, return unevaluated.
-       if nops(oldarg) <> 1 then
-            WARNING("More than 1 reparam possible.");
-            userinfo(1, thisproc, "Possible reparams:", subs(x= ':-x', oldarg));
-            return 'procname'(e)
+       newJ, #What J will become.
+       x::name:= op([2,1], J),
+       u::name:= gensym('u'),  #new variable of integration
+       s,                      #What x will become
+       F                       #Boolean: flip integral?
+  ;  
+       s:= {solve({u = target}, {x})};
+       if nops(s) = 0 then
+            userinfo(1, reparam, "Can't solve substitution target.");
+            return e
+       end if;
+       if nops(s) > 1 then
+            userinfo(1, reparam, "Case of multi-branched substitution not handled.");
+            return e
+       end if;
+       s:= s[];
+                   
+       newJ:= Int(
+            eval(implicitdiff(u = target, x, u)*op(1,J), s),
+            u= 
+                 limit(target, x= op([2,2,1], J), right).. #lower limit
+                 limit(target, x= op([2,2,2], J), left),   #upper limit
+            op(3.., J) #optional Int args (unlikely to be used)
+       );
+       
+       #If lower limit > upper limit, then flip limits of integration.
+       F:= is(op([2,2,1], newJ) > op([2,2,2], newJ));
+       if F::truefalse then
+            if F then
+                 userinfo(2, reparam, "Switching limits:", op([2,2], newJ));
+                 newJ:= IntegrationTools:-Flip(newJ)
+            end if
+       else #If inequality can't be decided, then don't reverse.
+            userinfo(1, reparam, "Can't order new limits:", op([2,2], newJ))
        end if;
 
+       newJ
+  end proc;
+ 
+  #main procedure for int/sum reparamterizations 
+  reparam:= proc(e::LO(symbol, algebraic), {ctx::list:= []}, $)
+  local
+       J:= innermostIntSum(e),   #the integral or sum
+       newJ, #What J will become
+       #possible subs target(s)
+       oldarg::{algebraic, set(algebraic)}:= map2(op, 2, indets(e, specfunc(applyintegrand)))
+  ;
+       if nops(J) = 0 then
+            userinfo(2, procname, "No sum or integral found.");
+            return e
+       end if;
+       if nops(J) > 1 then
+            userinfo(1, reparam, "Case of multiple innermost Int or Sums not yet handled.");
+            return 'procname'(e)
+       end if;
+       J:= J[];
+       if J::specfunc(Sum) then
+            userinfo(1, reparam, "Sums not yet handled.");
+            return 'procname'(e)
+       end if;
+       
+       if nops(oldarg) <> 1 then
+            userinfo(1, thisproc, "More than 1 reparam possible:", oldarg);
+            return 'procname'(e)
+       end if;
        oldarg:= oldarg[];   #Extract the reparam target.
 
        #If the target is simply a name, return input unchanged.
-       if oldarg::symbol then return e end if;
-
-       #If target doesn't depend on x, return input unchanged.
-       if not depends(simplify(oldarg), x) then
-            userinfo(2, procname, "Target doesn't depend on x. Target:", oldarg);
-            return e
+       if oldarg::symbol then
+            userinfo(2, procname, "No need for a reparameterization.");
+            return e 
        end if;
 
        (*#************ This isn't currently used. **********************************
@@ -1223,44 +1270,32 @@ NewSLO := module ()
        *******************************************************************************)
 
        #Make the change of vars.
-       J:= simplify_assuming('IT:-Change(J, u= oldarg, [u])', foldr(assert, empty, ctx[]));
+       newJ:= simplify_assuming('ChangeVarInt(J, oldarg)', foldr(assert, empty, ctx[]));
  
-       if J=0 then
+       if newJ = 0 then
             WARNING("Integral is 0, likely due to improper handling of an infinity issue.");
             userinfo(
                  1, procname, "u subs:",
                  print(
-                      #Reformat the IT:-Change command for readability.
-                      'IT:-Change'(
-                           subs(
-                                x= ':-x',
+                      #Reformat the ChangeVarInt command for readability.
+                      subs(
+                           x= ':-x',
+                           'ChangeVarInt'(
                                 subsindets(
-                                     op(2,e),
+                                     J,
                                      specfunc(applyintegrand),
                                      f-> ':-h'(op(2,f))
                                 )
                            ),
-                           ':-u'= subs(x= ':-x', oldarg),
-                           [':-u']
+                           oldarg
                       )
                  )
-            );
-            return subsop(2= 0, e)
+            )
        end if;
 
-       #If needed, reverse limits. (Need to handle the case where a factor is pulled out of the integral).
-       F:= evalb(op([2,2,1], J) > op([2,2,2], J));
-       if F::truefalse then
-            if F then
-                 userinfo(2, procname, "Switching limits:", op([2,2], J));
-                 J:= IT:-Flip(J)
-            end if
-       else #If inequality can't be decided, then don't reverse.
-            userinfo(1, procname, "Can't order new limits:", op([2,2], J));
-       end if;
-
-       subsop(2= J, e)
+       subs(J= newJ, e)
   end proc;
+  ###################### End of Carl's reparam code ######################
 
   ###
   # prototype disintegrator - main entry point
