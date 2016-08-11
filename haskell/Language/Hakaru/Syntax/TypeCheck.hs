@@ -471,7 +471,7 @@ inferType = inferType_
                SFun typ2 typ3 -> do
                    e2' <- checkType_ typ2 e2
                    return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
-               _ -> typeMismatch (Left "function type") (Right typ1)
+               _ -> typeMismatch2 sourceSpan (Left "function type") (Right typ1)
            -- The above is the standard rule that everyone uses.
            -- However, if the @e1@ is a lambda (rather than a primop
            -- or a variable), then it will require a type annotation.
@@ -580,7 +580,7 @@ inferType = inferType_
                            SMeasure _ ->
                                return . TypedAST typ3 $
                                    syn (MBind :$ e1' :* bind x' e3' :* End)
-                           _ -> typeMismatch (Left "HMeasure") (Right typ3)
+                           _ -> typeMismatch2 sourceSpan (Left "HMeasure") (Right typ3)
                    {-
                    -- BUG: the \"ambiguous\" @abt@ issue again...
                    inferBinder typ2 e2 $ \typ3 e2' ->
@@ -589,7 +589,7 @@ inferType = inferType_
                            syn (MBind :$ e1' :* e2' :* End)
                        _ -> typeMismatch (Left "HMeasure") (Right typ3)
                    -}
-               _ -> typeMismatch (Left "HMeasure") (Right typ1)
+               _ -> typeMismatch2 sourceSpan (Left "HMeasure") (Right typ1)
 
        U.Plate_ e1 e2 ->
            caseBind e2 $ \x e2' -> do
@@ -601,7 +601,7 @@ inferType = inferType_
                    SMeasure typ3 ->
                        return . TypedAST (SMeasure . SArray $ typ3) $
                               syn (Plate :$ e1' :* bind x' e3' :* End)
-                   _ -> typeMismatch (Left "HMeasure") (Right typ2)
+                   _ -> typeMismatch2 sourceSpan (Left "HMeasure") (Right typ2)
 
        U.Chain_ e1 e2 e3 ->
            caseBind e3 $ \x e3' -> do
