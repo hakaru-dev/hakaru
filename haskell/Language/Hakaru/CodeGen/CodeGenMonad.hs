@@ -41,6 +41,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   -- control mechanisms
   , whileCG
   , doWhileCG
+  , forCG
   ) where
 
 import Control.Monad.State
@@ -160,11 +161,17 @@ lookupVar x (Env env) = do
     return e'
 
 ----------------------------------------------------------------
+-- Control Flow
 
 whileCG :: CExpr -> CodeGen () -> CodeGen ()
-whileCG bE m = let (_,_,stmts) = runCodeGen m
-               in putStat $ whileS bE stmts
+whileCG bE m =
+  let (_,_,stmts) = runCodeGen m
+  in putStat $ whileS bE stmts
 
 doWhileCG :: CExpr -> CodeGen () -> CodeGen ()
-doWhileCG bE m = let (_,_,stmts) = runCodeGen m
-                 in putStat $ doWhileS bE stmts
+doWhileCG bE m =
+  let (_,_,stmts) = runCodeGen m
+  in putStat $ doWhileS bE stmts
+
+forCG :: CExpr -> CExpr -> CExpr -> CodeGen () -> CodeGen ()
+forCG start cond iter m = undefined

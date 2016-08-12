@@ -21,9 +21,12 @@ module Language.Hakaru.CodeGen.HOAS.Statement
   , exitS
   , printS
   , labelS
+  , returnS
+
+  -- control flow
   , whileS
   , doWhileS
-  , returnS
+  , forS
   ) where
 
 import Language.C.Syntax.AST
@@ -72,11 +75,16 @@ printS s = CExpr (Just $ printE s) node
 labelS :: Ident -> CStat
 labelS i = CLabel i (CCont node) [] node
 
+returnS :: CExpr -> CStat
+returnS e = CReturn (Just e) node
+
+-- Control Flow
+
 whileS :: CExpr -> [CStat] -> CStat
 whileS b stmts = CWhile b (CCompound [] (fmap CBlockStmt stmts) node) False node
 
 doWhileS :: CExpr -> [CStat] -> CStat
 doWhileS b stmts = CWhile b (CCompound [] (fmap CBlockStmt stmts) node) True node
 
-returnS :: CExpr -> CStat
-returnS e = CReturn (Just e) node        
+forS :: CExpr -> CExpr -> CExpr -> [CStat] -> CStat
+forS = undefined

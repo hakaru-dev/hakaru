@@ -38,6 +38,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 
 import Language.C.Syntax.AST
+import Language.C.Data.Ident
 
 import           Data.Number.Natural
 import           Data.Ratio
@@ -152,9 +153,11 @@ flattenArray :: (ABT Term abt)
              => (abt '[] 'HNat)
              -> (abt '[ 'HNat ] a)
              -> CodeGen CExpr
-flattenArray a body =
+flattenArray _ body =
   do ident <- genIdent
-     arity' <- flattenABT a
+     -- arity' <- flattenABT a
+     -- allocate mem
+     -- forM
      caseBind body $ \(Variable _ _ typ) _ ->
        do declare (arrayDeclaration typ ident)
           return $ varE ident
@@ -165,10 +168,14 @@ flattenArray a body =
 flattenDatum :: (ABT Term abt)
              => Datum (abt '[]) (HData' a)
              -> CodeGen CExpr
-flattenDatum (Datum _ _ code) =
+flattenDatum (Datum _ typ code) =
   do ident <- genIdent
-     declare $ structDeclaration code ident
+     declare $ datumDeclaration typ ident
+     assignDatum code ident
      return (varE ident)
+
+assignDatum :: (DatumCode (Code t) ast (HData' t)) -> Ident -> CodeGen ()
+assignDatum code ident = error "TODO: assignDatum"
 ----------------------------------------------------------------
 
 

@@ -47,6 +47,7 @@ import           Data.Monoid
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
+createProgram (TypedAST tt@(SData _ _) abt) = undefined
 createProgram (TypedAST tt@(SMeasure internalT) abt) =
   let ident           = builtinIdent "result"
       (_,decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident

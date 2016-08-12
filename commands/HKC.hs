@@ -59,8 +59,6 @@ compileHakaru prog = ask >>= \config -> lift $ do
       when (debug config) $ do
         putErrorLn "\n----------------------------------------------------------------\n"
         putErrorLn $ pack $ show ast
-        putErrorLn "\n----------------------------------------------------------------\n"
-        putErrorLn $ pack $ show ast'
         when (optimize config) $ do
           putErrorLn "\n----------------------------------------------------------------\n"
           putErrorLn $ pack $ show ast'

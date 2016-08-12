@@ -26,7 +26,12 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , exp
   , sqrt
 
+  -- memory operations
+  , malloc
+  , free
+
   , rand
+  , sizeof
 
   , castE
   , condE
@@ -84,12 +89,16 @@ rand = nullaryE "rand"
 printE :: String -> CExpr
 printE s = unaryE "printf" (stringE s)
 
-log1p,log,expm1,exp,sqrt :: CExpr -> CExpr
-log1p = unaryE "log1p"
-log   = unaryE "log"
-expm1 = unaryE "expm1"
-exp   = unaryE "exp"
-sqrt  = unaryE "sqrt"
+log1p,log,expm1,exp,sqrt,malloc,free,sizeof
+  :: CExpr -> CExpr
+log1p  = unaryE "log1p"
+log    = unaryE "log"
+expm1  = unaryE "expm1"
+exp    = unaryE "exp"
+sqrt   = unaryE "sqrt"
+malloc = unaryE "malloc"
+free   = unaryE "free"
+sizeof = unaryE "sizeof"
 
 stringVarE :: String -> CExpr
 stringVarE s = CVar (builtinIdent s) node
