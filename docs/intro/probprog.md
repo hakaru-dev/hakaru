@@ -106,7 +106,10 @@ the difference of strengths, and we want to not just whether Alice
 will win, but by how much.
 
 As we pose more complex questions, posing our models as rejection
-samplers becomes increasing inefficient.
+samplers becomes increasing inefficient. Instead we would like to
+directly transform our models into those which only generate the
+data we observed and don't waste any computation simulating data
+which we know will never exist.
 
 <div class="panel panel-warning">
     <div class="panel-heading">
