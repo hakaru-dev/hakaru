@@ -63,10 +63,16 @@ createProgram (TypedAST tt abt) =
                 expr <- flattenABT abt
                 assign ident expr
       (funcs,decls,stmts) = runCodeGen m
+      decls' = fmap (\d -> mconcat [cToString d,";"]) decls
+      stmts' = fmap cToString stmts
+
   in  unlines [ header tt
-              , measureFunc (fmap (\d -> mconcat [cToString d,";"]) decls)
-                            (fmap cToString stmts)
-              , mainWith tt [] []]
+              , unlines (fmap cToString funcs)
+              , case tt of
+                 (SMeasure _) -> unlines [ measureFunc decls' stmts'
+                                         , mainWith tt [] []]
+                 _ -> mainWith tt decls' stmts'
+              ]
 
 ----------------------------------------------------------------
 
