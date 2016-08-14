@@ -171,11 +171,12 @@ flattenDatum :: (ABT Term abt)
 flattenDatum (Datum _ typ code) =
   do ident <- genIdent
      declare $ datumDeclaration typ ident
-     assignDatum code ident
+     -- assignDatum code ident
      return (varE ident)
 
 assignDatum :: (DatumCode (Code t) ast (HData' t)) -> Ident -> CodeGen ()
 assignDatum code ident = error "TODO: assignDatum"
+
 ----------------------------------------------------------------
 
 

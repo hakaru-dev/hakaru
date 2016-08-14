@@ -35,9 +35,6 @@ import Language.C.Data.Ident
 import Language.C.Data.Node
 import Language.C.Syntax.AST
 
--- import Language.Hakaru.Syntax.ABT
--- import Language.Hakaru.Syntax.AST
--- import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 
@@ -57,10 +54,7 @@ arrayDeclaration
   -> CDecl
 arrayDeclaration typ ident =
   CDecl [ CTypeSpec
-          $ CSUType (CStruct CStructTag
-                             Nothing
-                             (Just [ -- contains and int and pointer to type
-                                     CDecl [CTypeSpec $ buildType SInt]
+          $ buildStruct [ CDecl [CTypeSpec $ buildType SInt]
                                            [( Just $ CDeclr (Just (internalIdent "size"))
                                                             []
                                                             Nothing
@@ -69,7 +63,7 @@ arrayDeclaration typ ident =
                                              , Nothing
                                              , Nothing)]
                                             node
-                                   , CDecl [CTypeSpec $ buildType typ]
+                        , CDecl [CTypeSpec $ buildType typ]
                                            [( Just $ CDeclr (Just (internalIdent "data"))
                                                             [CPtrDeclr [] node]
                                                             Nothing
@@ -78,10 +72,7 @@ arrayDeclaration typ ident =
                                             , Nothing
                                             , Nothing)]
                                             node
-                                    ])
-                              []
-                              node)
-            node
+                        ]
        ]
        [ ( Just $ CDeclr (Just ident) [] Nothing [] node
          , Nothing
@@ -93,17 +84,15 @@ datumDeclaration
   :: (Sing (HData' t))
   -> Ident
   -> CDecl
-datumDeclaration dcode ident =
-  CDecl [CTypeSpec $ CSUType (CStruct CStructTag Nothing (Just []) [] node) node]
-        [( Just $ CDeclr (Just ident)
-                         []
-                         Nothing
-                         []
-                         node
-         , Nothing
-         , Nothing)]
-        node
-
+datumDeclaration (SData _ SVoid) _               = error $ "TODO: datumDeclaration: IS this possible?"
+datumDeclaration (SData _ (SPlus SDone SVoid)) _ = error $ "TODO: datumDeclaration Unit"
+datumDeclaration (SData _ (SPlus x rest)) _      = error $ "TODO: datumDeclaration Unit"
+  -- case dcode of
+  --   SDone -> CDecl [CTypeSpec $ CSUType (CStruct CStructTag Nothing (Just []) [] node) node]
+  --                  [( Just $ CDeclr (Just ident) [] Nothing [] node
+  --                   , Nothing
+  --                   , Nothing)]
+  --                  node
 
 ----------------------------------------------------------------
 -- | buildType function do the work of describing how the Hakaru
@@ -117,6 +106,16 @@ buildType SReal        = CDoubleType undefNode
 buildType (SMeasure x) = buildType x
 buildType (SArray x)   = buildType x
 buildType _ = error $ "TODO: buildCType "
+
+buildStruct :: [CDecl] -> CTypeSpec
+buildStruct declrs =
+ CSUType (CStruct CStructTag Nothing (Just declrs) [] node) node
+
+buildUnion :: [CDecl] -> CTypeSpec 
+buildUnion declrs =
+ CSUType (CStruct CUnionTag Nothing (Just declrs) [] node) node
+
+            
 
 intTyp,doubleTyp :: CTypeSpec
 intTyp    = CIntType undefNode
