@@ -324,7 +324,7 @@ missingLub typ1 typ2 =
 -- we can't have free variables, so it must be a typo
 ambiguousFreeVariable :: Text -> TypeCheckMonad r
 ambiguousFreeVariable x =
-    failwith . mconcat $ ["Name not in scope: ", showT x, "; perhaps it is a typo?"]
+    failwith . mconcat $ ["Name not in scope: ", x, "; perhaps it is a typo?"]
 
 ambiguousNullCoercion :: TypeCheckMonad r
 ambiguousNullCoercion =
@@ -1239,7 +1239,7 @@ checkType = checkType_
         -- TODO: Find better place to put this logic
         U.PrimOp_ U.Infinity [] -> do
             case typ0 of
-              SNat  ->  return $
+              SNat  -> return $
                          syn (PrimOp_ (Infinity HIntegrable_Nat) :$ End)
               SInt  -> checkOrCoerce sourceSpan (syn (PrimOp_ (Infinity HIntegrable_Nat) :$ End))
                          SNat
@@ -1249,7 +1249,7 @@ checkType = checkType_
               SReal -> checkOrCoerce sourceSpan (syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End))
                          SProb
                          SReal
-              _     -> failwith "Infinity can only be checked against nat or prob"
+              _     -> failwith "Type Mismatch: infinity can only be checked against nat or prob"
 
         U.NaryOp_ op es -> do
             mode <- getMode
