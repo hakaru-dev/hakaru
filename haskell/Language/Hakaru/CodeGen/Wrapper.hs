@@ -147,5 +147,5 @@ printft SProb        = "\"exp(%.17f)\\n\""
 printft SReal        = "\"%.17f\\n\""
 printft (SMeasure t) = printft t
 printft (SArray t)   = printft t
-printft (SData _ _)  = "TODO: printft datum"     
+printft (SData _ _)  = "\"TODO: printft datum\""
 printft x     = error $ "TODO: printft: " ++ show x

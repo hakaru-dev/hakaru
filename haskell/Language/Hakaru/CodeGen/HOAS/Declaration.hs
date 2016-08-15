@@ -18,8 +18,10 @@
 ----------------------------------------------------------------
 
 module Language.Hakaru.CodeGen.HOAS.Declaration
-  ( -- tools for building C types
-    typeDeclaration
+  ( buildDeclaration
+
+  -- tools for building C types
+  , typeDeclaration
   , arrayDeclaration
   , datumDeclaration
 
@@ -47,6 +49,9 @@ import Language.Hakaru.Types.Sing
 
 node :: NodeInfo
 node = undefNode
+
+buildDeclaration :: Sing (a :: Hakaru) -> Maybe Ident -> CDecl
+buildDeclaration = undefined
 
 typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typeDeclaration typ ident =
@@ -86,51 +91,55 @@ arrayDeclaration typ ident =
          , Nothing) ]
        node
 
+--------------------------------------------------------------------------------
+-- | datumProd and datumSum use a store of names, which needs to match up with
+-- the names used when they are assigned and printed
 
 datumDeclaration
   :: (Sing (HData' t))
   -> Ident
   -> CDecl
-datumDeclaration (SData _ SVoid) _                   =
-  error $ "TODO: datumDeclaration: SVoid > is this possible?"
-datumDeclaration (SData _ (SPlus x SVoid)) ident =
-  CDecl [ CTypeSpec . buildStruct . return $
-          CDecl [CTypeSpec intTyp ]
-                [( Just $ CDeclr (Just (internalIdent "index"))
-                                 []
-                                 Nothing
-                                 []
-                                 node
-                  , Nothing
-                  , Nothing)]
-                 node
-        ]
-        [ ( Just $ CDeclr (Just ident) [] Nothing [] node
-        , Nothing
-        , Nothing) ]
-        node
-datumDeclaration (SData _ (SPlus x rest)) _      = error $ "TODO: datumDeclaration Unit"
+datumDeclaration (SData _ typ) ident = datumSum typ ident
+
+datumSum :: Sing (a :: [[HakaruFun]]) -> Ident -> CDecl
+datumSum funs ident =
+  let declrs = fst $ runState (datumSum' funs) datumNames
+      union  = CDecl [ CTypeSpec . buildUnion $ declrs ]
+                     [ ( Just $ CDeclr (Just (internalIdent "sum")) [] Nothing [] node
+                       , Nothing
+                       , Nothing)]
+                     node
+      index  = CDecl [ CTypeSpec intTyp ]
+                     [ ( Just $ CDeclr (Just (internalIdent "index")) [] Nothing [] node
+                       , Nothing
+                       , Nothing)]
+                     node
+  in CDecl [ CTypeSpec . buildStruct $ [index,union] ]
+           [ ( Just $ CDeclr (Just ident) [] Nothing [] node
+             , Nothing
+             , Nothing)]
+           node
+  where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
+        base = ['0'..'9'] ++ ['a'..'z']
+        names = [[x] | x <- base] `mplus` (do n <- names
+                                              [n++[x] | x <- base])
+
+datumSum' :: Sing (a :: [[HakaruFun]]) -> State [String] [CDecl]
+datumSum' SVoid          = return []
+datumSum' (SPlus prod rest) =
+  do (name:names) <- get
+     put names
+     let ident = internalIdent name
+         decl  = datumProd prod ident
+     rest' <- datumSum' rest
+     return $ [decl] ++ rest'
 
 
-datumSum :: Sing (a :: [[HakaruFun]]) -> CDecl
-datumSum SVoid
-  = CDecl [ CTypeSpec intTyp ]
-          [ ( Just $ CDeclr (Just (internalIdent "index")) [] Nothing [] node
-            , Nothing
-            , Nothing)]
-          node
-datumSum (SPlus x rest)
-  = CDecl [ CTypeSpec . buildUnion $ [datumSum rest, datumProd x] ]
-          [ ( Just $ CDeclr (Just (internalIdent "index")) [] Nothing [] node
-            , Nothing
-            , Nothing)]
-          node
-
-datumProd :: Sing (a :: [HakaruFun]) -> CDecl
-datumProd funs =
+datumProd :: Sing (a :: [HakaruFun]) -> Ident -> CDecl
+datumProd funs ident =
   let declrs = fst $ runState (datumProd' funs) datumNames
   in  CDecl [ CTypeSpec . buildStruct $ declrs ]
-            [ ( Just $ CDeclr (Just (internalIdent "product")) [] Nothing [] node
+            [ ( Just $ CDeclr (Just ident) [] Nothing [] node
               , Nothing
               , Nothing)]
             node
@@ -140,10 +149,11 @@ datumProd funs =
                                               [n++[x] | x <- base])
 
 
+
 -- datumProd uses a store of names, which needs to match up with the names used
 -- when they are assigned as well as printed
 datumProd' :: Sing (a :: [HakaruFun]) -> State [String] [CDecl]
-datumProd' SDone                 = return []           
+datumProd' SDone                 = return []
 datumProd' (SEt (SKonst t) rest) =
   do (name:names) <- get
      put names
@@ -155,6 +165,9 @@ datumProd' (SEt (SKonst t) rest) =
                        node
      rest' <- datumProd' rest
      return $ [decl] ++ rest'
+datumProd' (SEt SIdent rest) = error "TODO: datumProd' SIdent"
+
+
 
 ----------------------------------------------------------------
 -- | buildType function do the work of describing how the Hakaru
