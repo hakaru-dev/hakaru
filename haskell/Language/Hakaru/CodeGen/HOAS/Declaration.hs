@@ -127,7 +127,13 @@ datumSum (SPlus x rest)
           node
 
 datumProd :: Sing (a :: [HakaruFun]) -> CDecl
-datumProd funs = fst $ runState (datumProd' funs) datumNames
+datumProd funs =
+  let declrs = fst $ runState (datumProd' funs) datumNames
+  in  CDecl [ CTypeSpec . buildStruct $ declrs ]
+            [ ( Just $ CDeclr (Just (internalIdent "product")) [] Nothing [] node
+              , Nothing
+              , Nothing)]
+            node
   where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
         base = ['0'..'9'] ++ ['a'..'z']
         names = [[x] | x <- base] `mplus` (do n <- names
@@ -136,20 +142,19 @@ datumProd funs = fst $ runState (datumProd' funs) datumNames
 
 -- datumProd uses a store of names, which needs to match up with the names used
 -- when they are assigned as well as printed
-datumProd' :: Sing (a :: [HakaruFun]) -> State [String] CDecl
-datumProd' SDone                 = return
-  $ CDecl [ CTypeSpec . buildStruct $ [] ]
-          [ ( Just $ CDeclr (Just (internalIdent "product")) [] Nothing [] node
-            , Nothing
-            , Nothing)]
-          node
-datumProd' (SEt (SKonst s) rest) = return
-  $ CDecl [ CTypeSpec . buildStruct $ [] ]
-          [ ( Just $ CDeclr (Just (internalIdent "product")) [] Nothing [] node
-            , Nothing
-            , Nothing)]
-          node
-datumProd' (SEt SIdent _)        = error "TODO: datumProd' for SIdent"
+datumProd' :: Sing (a :: [HakaruFun]) -> State [String] [CDecl]
+datumProd' SDone                 = return []           
+datumProd' (SEt (SKonst t) rest) =
+  do (name:names) <- get
+     put names
+     let ident = internalIdent name
+         decl  = CDecl [ CTypeSpec . buildType $ t ]
+                       [ ( Just $ CDeclr (Just ident) [] Nothing [] node
+                         , Nothing
+                         , Nothing)]
+                       node
+     rest' <- datumProd' rest
+     return $ [decl] ++ rest'
 
 ----------------------------------------------------------------
 -- | buildType function do the work of describing how the Hakaru
