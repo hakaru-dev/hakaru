@@ -496,12 +496,11 @@ inferType = inferType_
   -- calls.
   inferType_ :: U.AST -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
-    let sourceSpan = getMetadata e0 in
-    caseVarSyn e0 (inferVariable sourceSpan) go
+    let s = getMetadata e0 in
+    caseVarSyn e0 (inferVariable s) (go s)
     where
-    go :: U.MetaTerm -> TypeCheckMonad (TypedAST abt)
-    go t =
-      let sourceSpan = getMetadata e0 in
+    go :: Maybe U.SourceSpan -> U.MetaTerm -> TypeCheckMonad (TypedAST abt)
+    go sourceSpan t =
       case t of
        U.Lam_ (U.SSing typ) e -> do
            inferBinder typ e $ \typ2 e2 ->
@@ -721,9 +720,10 @@ inferType = inferType_
        _   | mustCheck e0 -> ambiguousMustCheck sourceSpan
            | otherwise    -> error "inferType: missing an inferable branch!"
 
-  inferPrimOp :: U.PrimOp
-          -> [U.AST]
-          -> TypeCheckMonad (TypedAST abt)
+  inferPrimOp
+      :: U.PrimOp
+      -> [U.AST]
+      -> TypeCheckMonad (TypedAST abt)
   inferPrimOp U.Not es =
       case es of
         [e] -> do e' <- checkType_ sBool e
@@ -1214,27 +1214,28 @@ checkType = checkType_
     checkVariable
         :: forall b
         .  Sing b
+        -> Maybe U.SourceSpan
         -> Variable 'U.U
         -> TypeCheckMonad (abt '[] b)
-    checkVariable typ0 x = do
+    checkVariable typ0 sourceSpan x = do
       TypedAST typ' e0' <- inferType_ (var x)
       mode <- getMode
       case mode of
         StrictMode ->
             case jmEq1 typ0 typ' of
               Just Refl -> return e0'
-              Nothing   -> typeMismatch Nothing (Right typ0) (Right typ')
-        LaxMode    -> checkOrCoerce       Nothing e0' typ' typ0
-        UnsafeMode -> checkOrUnsafeCoerce Nothing e0' typ' typ0
+              Nothing   -> typeMismatch sourceSpan (Right typ0) (Right typ')
+        LaxMode    -> checkOrCoerce       sourceSpan e0' typ' typ0
+        UnsafeMode -> checkOrUnsafeCoerce sourceSpan e0' typ' typ0
 
 
     checkType_
         :: forall b. Sing b -> U.AST -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
-      caseVarSyn e0 (checkVariable typ0) go
+      let s = getMetadata e0 in
+      caseVarSyn e0 (checkVariable typ0 s) (go s)
       where
-      go t =
-        let sourceSpan = getMetadata e0 in
+      go sourceSpan t =
         case t of
         -- Change of direction rule suggests this doesn't need to be here
         -- We keep it here in case, we later use a U.Lam which doesn't
