@@ -202,7 +202,7 @@ type Ctx = VarSet ('KProxy :: KProxy Hakaru)
 data TypeCheckMode = StrictMode | LaxMode | UnsafeMode
     deriving (Read, Show)
 
-type TypeCheckError = Text -- TODO: something better
+type TypeCheckError = Text
 
 newtype TypeCheckMonad a =
     TCM { unTCM :: Ctx
@@ -266,43 +266,43 @@ pushCtx x (TCM m) = TCM (m . insertVarSet x)
 getCtx :: TypeCheckMonad Ctx
 getCtx = TCM $ \ctx _ _ -> Right ctx
 
-failwith :: TypeCheckError -> TypeCheckMonad a
+failwith :: TypeCheckError -> TypeCheckMonad r
 failwith e = TCM $ \_ _ _ -> Left e
+
+failwith_ :: TypeCheckError -> TypeCheckMonad r
+failwith_ = failwith
+
+makeErrMsg
+    :: Text
+    -> Maybe U.SourceSpan
+    -> Text
+    -> TypeCheckMonad TypeCheckError
+makeErrMsg header sourceSpan footer = do
+  input_ <- getInput
+  case (sourceSpan, input_) of
+    (Just s, Just input) ->
+          return $ mconcat [ header
+                           , U.printSourceSpan s input
+                           , footer
+                           ]
+    _                    ->
+          return $ mconcat [ header, footer]
 
 -- | Fail with a type-mismatch error.
 typeMismatch
-    :: Either Text (Sing (a :: Hakaru))
-    -> Either Text (Sing (b :: Hakaru))
-    -> TypeCheckMonad r
-typeMismatch typ1 typ2 =
-    failwith . mconcat $ [ "Type Mismatch: expected "
-                         , msg1
-                         , ", found "
-                         , msg2
-                         ]
-    where
-    msg1 = case typ1 of { Left msg -> msg; Right typ -> show1T typ }
-    msg2 = case typ2 of { Left msg -> msg; Right typ -> show1T typ }
-
-typeMismatch2
     :: Maybe U.SourceSpan
     -> Either Text (Sing (a :: Hakaru))
     -> Either Text (Sing (b :: Hakaru))
     -> TypeCheckMonad r
-typeMismatch2 sourceSpan typ1 typ2 = do
-    input_ <- getInput
-    case (sourceSpan, input_) of
-      (Just s, Just input) ->
-          failwith . mconcat $ [ "Type Mismatch:\n\n"
-                               , U.printSourceSpan s input
-                               , "expected ", msg1
-                               , ", found ", msg2, "\n"
-                               ]
-      _                    ->
-          failwith . mconcat $ [ "Type Mismatch: "
-                               , "expected ", msg1
-                               , ", found ", msg2
-                               ]
+typeMismatch s typ1 typ2 = failwith =<<
+    makeErrMsg
+     "Type Mismatch:"
+     s
+     (mconcat [ "expected "
+              , msg1
+              , ", found "
+              , msg2
+              ])
     where
     msg1 = case typ1 of { Left msg -> msg; Right typ -> show1T typ }
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1T typ }
@@ -310,37 +310,76 @@ typeMismatch2 sourceSpan typ1 typ2 = do
 missingInstance
     :: Text
     -> Sing (a :: Hakaru)
+    -> Maybe U.SourceSpan
     -> TypeCheckMonad r
-missingInstance clas typ =
-    failwith . mconcat $ ["No ", clas, " instance for type ", showT typ]
+missingInstance clas typ s = failwith =<<
+   makeErrMsg
+    "Missing Instance: "
+    s
+    (mconcat $ ["No ", clas, " instance for type ", showT typ])
 
 missingLub
     :: Sing (a :: Hakaru)
     -> Sing (b :: Hakaru)
+    -> Maybe U.SourceSpan
     -> TypeCheckMonad r
-missingLub typ1 typ2 =
-    failwith . mconcat $ ["No lub of types ", showT typ1, " and ", showT typ2]
+missingLub typ1 typ2 s = failwith =<<
+    makeErrMsg
+     "Missing common type: "
+     s
+     (mconcat ["No lub of types ", showT typ1, " and ", showT typ2])
 
 -- we can't have free variables, so it must be a typo
-ambiguousFreeVariable :: Text -> TypeCheckMonad r
-ambiguousFreeVariable x =
-    failwith . mconcat $ ["Name not in scope: ", x, "; perhaps it is a typo?"]
+ambiguousFreeVariable
+    :: Text
+    -> Maybe U.SourceSpan
+    -> TypeCheckMonad r
+ambiguousFreeVariable x s = failwith =<<
+    makeErrMsg
+     (mconcat $ ["Name not in scope: ", x])
+     s
+     " perhaps it is a typo?"
 
-ambiguousNullCoercion :: TypeCheckMonad r
-ambiguousNullCoercion =
-    failwith "Cannot infer type for null-coercion over a checking term. Please add a type annotation to either the term being coerced or the result of the coercion."
+ambiguousNullCoercion
+    :: Maybe U.SourceSpan
+    -> TypeCheckMonad r
+ambiguousNullCoercion s = failwith =<<
+    makeErrMsg
+     "Cannot infer type for null-coercion over a checking term."
+     s
+     "Please add a type annotation to either the term being coerced or the result of the coercion."
 
-ambiguousEmptyNary :: TypeCheckMonad r
-ambiguousEmptyNary =
-    failwith "Cannot infer unambiguous type for empty n-ary operator. Try adding an annotation on the result of the operator."
+ambiguousEmptyNary
+    :: Maybe U.SourceSpan
+    -> TypeCheckMonad r
+ambiguousEmptyNary s = failwith =<<
+    makeErrMsg
+     "Cannot infer unambiguous type for empty n-ary operator."
+     s
+     "Try adding an annotation on the result of the operator."
 
-ambiguousMustCheckNary :: TypeCheckMonad r
-ambiguousMustCheckNary =
-    failwith "Could not infer any of the arguments. Try adding a type annotation to at least one of them."
+ambiguousMustCheckNary
+    :: Maybe U.SourceSpan
+    -> TypeCheckMonad r
+ambiguousMustCheckNary s = failwith =<<
+    makeErrMsg
+     "Could not infer any of the arguments."
+     s
+     "Try adding a type annotation to at least one of them."
 
-ambiguousMustCheck :: TypeCheckMonad r
-ambiguousMustCheck =
-    failwith "Cannot infer types for checking terms. Please add a type annotation."
+ambiguousMustCheck
+    :: Maybe U.SourceSpan
+    -> TypeCheckMonad r
+ambiguousMustCheck s = failwith =<<
+    makeErrMsg
+     "Cannot infer types for checking terms."
+     s
+     "Please add a type annotation."
+
+argumentNumberError
+     :: TypeCheckMonad r
+argumentNumberError = failwith =<<
+    makeErrMsg "Argument error:" Nothing "Passed wrong number of arguments"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -440,14 +479,16 @@ inferType = inferType_
   inferOneCheckOthers_ = inferOneCheckOthers
 
 
-  inferVariable ::
-      Variable 'U.U -> TypeCheckMonad (TypedAST abt)
-  inferVariable (Variable hintID nameID _) = do
+  inferVariable
+      :: Maybe U.SourceSpan
+      -> Variable 'U.U
+      -> TypeCheckMonad (TypedAST abt)
+  inferVariable sourceSpan (Variable hintID nameID _) = do
       ctx <- getCtx
       case IM.lookup (fromNat nameID) (unVarSet ctx) of
         Just (SomeVariable x') ->
             return $ TypedAST (varType x') (var x')
-        Nothing -> ambiguousFreeVariable hintID
+        Nothing -> ambiguousFreeVariable hintID sourceSpan
 
 
   -- HACK: We need this monomorphic binding so that GHC doesn't get
@@ -455,7 +496,8 @@ inferType = inferType_
   -- calls.
   inferType_ :: U.AST -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
-    caseVarSyn e0 inferVariable go
+    let sourceSpan = getMetadata e0 in
+    caseVarSyn e0 (inferVariable sourceSpan) go
     where
     go :: U.MetaTerm -> TypeCheckMonad (TypedAST abt)
     go t =
@@ -471,7 +513,7 @@ inferType = inferType_
                SFun typ2 typ3 -> do
                    e2' <- checkType_ typ2 e2
                    return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
-               _ -> typeMismatch2 sourceSpan (Left "function type") (Right typ1)
+               _ -> typeMismatch sourceSpan (Left "function type") (Right typ1)
            -- The above is the standard rule that everyone uses.
            -- However, if the @e1@ is a lambda (rather than a primop
            -- or a variable), then it will require a type annotation.
@@ -526,7 +568,7 @@ inferType = inferType_
            case singCoerceDomCod c of
            Nothing
                | inferable e1 -> inferType_ e1
-               | otherwise    -> ambiguousNullCoercion
+               | otherwise    -> ambiguousNullCoercion sourceSpan
            Just (dom,cod) -> do
                e1' <- checkType_ dom e1
                return . TypedAST cod $ syn (CoerceTo_ c :$ e1' :* End)
@@ -535,7 +577,7 @@ inferType = inferType_
            case singCoerceDomCod c of
            Nothing
                | inferable e1 -> inferType_ e1
-               | otherwise    -> ambiguousNullCoercion
+               | otherwise    -> ambiguousNullCoercion sourceSpan
            Just (dom,cod) -> do
                e1' <- checkType_ cod e1
                return . TypedAST dom $ syn (UnsafeFrom_ c :$ e1' :* End)
@@ -580,7 +622,7 @@ inferType = inferType_
                            SMeasure _ ->
                                return . TypedAST typ3 $
                                    syn (MBind :$ e1' :* bind x' e3' :* End)
-                           _ -> typeMismatch2 sourceSpan (Left "HMeasure") (Right typ3)
+                           _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ3)
                    {-
                    -- BUG: the \"ambiguous\" @abt@ issue again...
                    inferBinder typ2 e2 $ \typ3 e2' ->
@@ -589,7 +631,7 @@ inferType = inferType_
                            syn (MBind :$ e1' :* e2' :* End)
                        _ -> typeMismatch (Left "HMeasure") (Right typ3)
                    -}
-               _ -> typeMismatch2 sourceSpan (Left "HMeasure") (Right typ1)
+               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
 
        U.Plate_ e1 e2 ->
            caseBind e2 $ \x e2' -> do
@@ -601,7 +643,7 @@ inferType = inferType_
                    SMeasure typ3 ->
                        return . TypedAST (SMeasure . SArray $ typ3) $
                               syn (Plate :$ e1' :* bind x' e3' :* End)
-                   _ -> typeMismatch2 sourceSpan (Left "HMeasure") (Right typ2)
+                   _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ2)
 
        U.Chain_ e1 e2 e3 ->
            caseBind e3 $ \x e3' -> do
@@ -616,8 +658,8 @@ inferType = inferType_
                        (Just Refl, Just Refl) ->
                            return . TypedAST (SMeasure $ sPair (SArray a) typ2) $
                                   syn (Chain :$ e1' :* e2' :* bind x' e4' :* End)
-                       _ -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
-                   _     -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
+                       _ -> typeMismatch sourceSpan (Left "HMeasure(HPair)") (Right typ3)
+                   _     -> typeMismatch sourceSpan (Left "HMeasure(HPair)") (Right typ3)
 
        U.Integrate_ e1 e2 e3 -> do
            e1' <- checkType_ SReal e1
@@ -634,7 +676,7 @@ inferType = inferType_
                  (Just h1, Just h2) ->
                      return . TypedAST typ2 $
                             syn (Summate h1 h2 :$ e1' :* e2' :* ee' :* End)
-                 _                  -> failwith "Summate given bounds which are not discrete"
+                 _                  -> failwith_ "Summate given bounds which are not discrete"
 
        U.Product_ e1 e2 e3 -> do
            TypedAST typ1 e1' <- inferType e1
@@ -644,7 +686,7 @@ inferType = inferType_
                  (Just h1, Just h2) ->
                      return . TypedAST typ2 $
                             syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
-                 _                  -> failwith "Product given bounds which are not discrete"
+                 _                  -> failwith_ "Product given bounds which are not discrete"
 
        U.Expect_ e1 e2 -> do
            TypedAST typ1 e1' <- inferType_ e1
@@ -652,7 +694,7 @@ inferType = inferType_
                SMeasure typ2 -> do
                    e2' <- checkBinder typ2 SProb e2
                    return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
-               _ -> typeMismatch (Left "HMeasure") (Right typ1)
+               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
 
        U.Observe_ e1 e2 -> do
            TypedAST typ1 e1' <- inferType_ e1
@@ -660,7 +702,7 @@ inferType = inferType_
                SMeasure typ2 -> do
                    e2' <- checkType_ typ2 e2
                    return . TypedAST typ1 $ syn (Observe :$ e1' :* e2' :* End)
-               _ -> typeMismatch (Left "HMeasure") (Right typ1)
+               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
 
        U.Superpose_ pes -> do
            -- TODO: clean up all this @map fst@, @map snd@, @zip@ stuff
@@ -674,9 +716,9 @@ inferType = inferType_
                SMeasure _ -> do
                    ps' <- T.traverse (checkType SProb) (fmap fst pes)
                    return $ TypedAST typ (syn (Superpose_ (L.zip ps' (L.fromList es'))))
-               _ -> typeMismatch (Left "HMeasure") (Right typ)
+               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ)
 
-       _   | mustCheck e0 -> ambiguousMustCheck
+       _   | mustCheck e0 -> ambiguousMustCheck sourceSpan
            | otherwise    -> error "inferType: missing an inferable branch!"
 
   inferPrimOp :: U.PrimOp
@@ -686,18 +728,18 @@ inferType = inferType_
       case es of
         [e] -> do e' <- checkType_ sBool e
                   return . TypedAST sBool $ syn (PrimOp_ Not :$ e' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   inferPrimOp U.Pi es =
       case es of
         [] -> return . TypedAST SProb $ syn (PrimOp_ Pi :$ End)
-        _  -> failwith "Passed wrong number of arguments"
+        _  -> argumentNumberError
 
   inferPrimOp U.Cos es =
       case es of
         [e] -> do e' <- checkType_ SReal e
                   return . TypedAST SReal $ syn (PrimOp_ Cos :$ e' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   inferPrimOp U.RealPow es =
       case es of
@@ -705,31 +747,31 @@ inferType = inferType_
                        e2' <- checkType_ SReal e2
                        return . TypedAST SProb $
                               syn (PrimOp_ RealPow :$ e1' :* e2' :* End)
-        _        -> failwith "Passed wrong number of arguments"
+        _        -> argumentNumberError
 
   inferPrimOp U.Exp es =
       case es of
         [e] -> do e' <- checkType_ SReal e
                   return . TypedAST SProb $ syn (PrimOp_ Exp :$ e' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   inferPrimOp U.Log es =
       case es of
         [e] -> do e' <- checkType_ SProb e
                   return . TypedAST SReal $ syn (PrimOp_ Log :$ e' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   inferPrimOp U.Infinity es =
       case es of
         [] -> return . TypedAST SProb $
                      syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End)
-        _  -> failwith "Passed wrong number of arguments"
+        _  -> argumentNumberError
 
   inferPrimOp U.GammaFunc es =
       case es of
         [e] -> do e' <- checkType_ SReal e
                   return . TypedAST SProb $ syn (PrimOp_ GammaFunc :$ e' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   inferPrimOp U.BetaFunc es =
       case es of
@@ -737,7 +779,7 @@ inferType = inferType_
                        e2' <- checkType_ SProb e2
                        return . TypedAST SProb $
                               syn (PrimOp_ BetaFunc :$ e1' :* e2' :* End)
-        _        -> failwith "Passed wrong number of arguments"
+        _        -> argumentNumberError
 
   inferPrimOp U.Equal es =
       case es of
@@ -749,7 +791,7 @@ inferType = inferType_
                      primop <- Equal <$> getHEq typ
                      return . TypedAST sBool $
                             syn (PrimOp_ primop :$ e1' :* e2' :* End)
-        _      -> failwith "Passed wrong number of arguments"
+        _      -> argumentNumberError
 
   inferPrimOp U.Less es =
       case es of
@@ -761,7 +803,7 @@ inferType = inferType_
                      primop <- Less <$> getHOrd typ
                      return . TypedAST sBool $
                             syn (PrimOp_ primop :$ e1' :* e2' :* End)
-        _      -> failwith "Passed wrong number of arguments"
+        _      -> argumentNumberError
 
   inferPrimOp U.NatPow es =
       case es of
@@ -770,7 +812,7 @@ inferType = inferType_
                        primop <- NatPow <$> getHSemiring typ
                        return . TypedAST typ $
                               syn (PrimOp_ primop :$ e1' :* e2' :* End)
-        _        -> failwith "Passed wrong number of arguments"
+        _        -> argumentNumberError
 
   inferPrimOp U.Negate es =
       case es of
@@ -783,7 +825,7 @@ inferType = inferType_
                               c'   -> unLC_ . coerceTo c' $ LC_ e'
                   return . TypedAST (sing_HRing ring) $
                          syn (PrimOp_ primop :$ e'' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   inferPrimOp U.Abs es =
       case es of
@@ -796,7 +838,7 @@ inferType = inferType_
                               c'   -> unLC_ . coerceTo c' $ LC_ e'
                   return . TypedAST (sing_NonNegative ring) $
                          syn (PrimOp_ primop :$ e'' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   inferPrimOp U.Signum es =
       case es of
@@ -809,7 +851,7 @@ inferType = inferType_
                               c'   -> unLC_ . coerceTo c' $ LC_ e'
                   return . TypedAST (sing_HRing ring) $
                          syn (PrimOp_ primop :$ e'' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   inferPrimOp U.Recip es =
       case es of
@@ -822,7 +864,7 @@ inferType = inferType_
                               c'   -> unLC_ . coerceTo c' $ LC_ e'
                   return . TypedAST (sing_HFractional frac) $
                          syn (PrimOp_ primop :$ e'' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   -- BUG: Only defined for HRadical_Prob
   inferPrimOp U.NatRoot es =
@@ -832,7 +874,7 @@ inferType = inferType_
                        return . TypedAST SProb $
                               syn (PrimOp_ (NatRoot HRadical_Prob)
                                    :$ e1' :* e2' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        _   -> argumentNumberError
 
   -- BUG: Only defined for HContinuous_Real
   inferPrimOp U.Erf es =
@@ -841,8 +883,7 @@ inferType = inferType_
                   return . TypedAST SReal $
                          syn (PrimOp_ (Erf HContinuous_Real)
                               :$ e' :* End)
-        _   -> failwith "Passed wrong number of arguments"
-
+        _   -> argumentNumberError
 
   inferPrimOp x _ = error ("TODO: inferPrimOp: " ++ show x)
 
@@ -858,8 +899,8 @@ inferType = inferType_
                            e2' <- checkType_ SNat e2
                            return . TypedAST typ2 $
                                   syn (ArrayOp_ (Index typ2) :$ e1' :* e2' :* End)
-                         _ -> typeMismatch (Left "HArray") (Right typ1)
-        _        -> failwith "Passed wrong number of arguments"
+                         _ -> typeMismatch Nothing (Left "HArray") (Right typ1)
+        _        -> argumentNumberError
 
   inferArrayOp U.Size es =
       case es of
@@ -868,8 +909,8 @@ inferType = inferType_
                     SArray typ1 -> do
                        return . TypedAST SNat $
                               syn (ArrayOp_ (Size typ1) :$ e' :* End)
-                    _ -> typeMismatch (Left "HArray") (Right typ)
-        _   -> failwith "Passed wrong number of arguments"
+                    _ -> typeMismatch Nothing (Left "HArray") (Right typ)
+        _   -> argumentNumberError
 
   inferArrayOp U.Reduce es =
       case es of
@@ -883,8 +924,8 @@ inferType = inferType_
                return . TypedAST typ1 $
                       syn (ArrayOp_ (Reduce typ1)
                            :$ e1' :* e2' :* e3' :* End)
-             _ -> typeMismatch (Right typ) (Left "HFun")
-        _            -> failwith "Passed wrong number of arguments"
+             _ -> typeMismatch Nothing (Right typ) (Left "HFun")
+        _            -> argumentNumberError
 
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And  = isBool a >>= \Refl -> return And
@@ -900,7 +941,7 @@ isBool :: Sing a -> TypeCheckMonad (TypeEq a HBool)
 isBool typ =
     case jmEq1 typ sBool of
     Just proof -> return proof
-    Nothing    -> typeMismatch (Left "HBool") (Right typ)
+    Nothing    -> typeMismatch Nothing (Left "HBool") (Right typ)
 
 jmEq1_ :: Sing (a :: Hakaru)
        -> Sing (b :: Hakaru)
@@ -908,52 +949,52 @@ jmEq1_ :: Sing (a :: Hakaru)
 jmEq1_ typA typB =
     case jmEq1 typA typB of
     Just proof -> return proof
-    Nothing    -> typeMismatch (Right typA) (Right typB)
+    Nothing    -> typeMismatch Nothing (Right typA) (Right typB)
 
 
 getHEq :: Sing a -> TypeCheckMonad (HEq a)
 getHEq typ =
     case hEq_Sing typ of
     Just theEq -> return theEq
-    Nothing    -> missingInstance "HEq" typ
+    Nothing    -> missingInstance "HEq" typ Nothing
 
 getHOrd :: Sing a -> TypeCheckMonad (HOrd a)
 getHOrd typ =
     case hOrd_Sing typ of
     Just theOrd -> return theOrd
-    Nothing     -> missingInstance "HOrd" typ
+    Nothing     -> missingInstance "HOrd" typ Nothing
 
 getHSemiring :: Sing a -> TypeCheckMonad (HSemiring a)
 getHSemiring typ =
     case hSemiring_Sing typ of
     Just theSemi -> return theSemi
-    Nothing      -> missingInstance "HSemiring" typ
+    Nothing      -> missingInstance "HSemiring" typ Nothing
 
 getHRing :: Sing a -> TypeCheckMode -> TypeCheckMonad (SomeRing a)
 getHRing typ mode =
     case mode of
     StrictMode -> case hRing_Sing typ of
                     Just theRing -> return (SomeRing theRing CNil)
-                    Nothing      -> missingInstance "HRing" typ
+                    Nothing      -> missingInstance "HRing" typ Nothing
     LaxMode    -> case findRing typ of
                     Just proof   -> return proof
-                    Nothing      -> missingInstance "HRing" typ
+                    Nothing      -> missingInstance "HRing" typ Nothing
     UnsafeMode -> case findRing typ of
                     Just proof   -> return proof
-                    Nothing      -> missingInstance "HRing" typ
+                    Nothing      -> missingInstance "HRing" typ Nothing
 
 getHFractional :: Sing a -> TypeCheckMode -> TypeCheckMonad (SomeFractional a)
 getHFractional typ mode =
     case mode of
     StrictMode -> case hFractional_Sing typ of
                     Just theFrac -> return (SomeFractional theFrac CNil)
-                    Nothing      -> missingInstance "HFractional" typ
+                    Nothing      -> missingInstance "HFractional" typ Nothing
     LaxMode    -> case findFractional typ of
                     Just proof   -> return proof
-                    Nothing      -> missingInstance "HFractional" typ
+                    Nothing      -> missingInstance "HFractional" typ Nothing
     UnsafeMode -> case findFractional typ of
                     Just proof   -> return proof
-                    Nothing      -> missingInstance "HFractional" typ
+                    Nothing      -> missingInstance "HFractional" typ Nothing
 
 
 
@@ -991,8 +1032,8 @@ inferOneCheckOthers = inferOne []
     where
     inferOne :: [U.AST] -> [U.AST] -> TypeCheckMonad (TypedASTs abt)
     inferOne ls []
-        | null ls   = ambiguousEmptyNary
-        | otherwise = ambiguousMustCheckNary
+        | null ls   = ambiguousEmptyNary Nothing
+        | otherwise = ambiguousMustCheckNary Nothing
     inferOne ls (e:rs) = do
         m <- try $ inferType e
         case m of
@@ -1039,7 +1080,7 @@ inferLubType
 inferLubType = start
     where
     start :: [U.AST] -> TypeCheckMonad (TypedASTs abt)
-    start []     = ambiguousEmptyNary
+    start []     = ambiguousEmptyNary Nothing
     start (u:us) = do
         TypedAST  typ1 e1 <- inferType u
         TypedASTs typ2 es <- F.foldlM step (TypedASTs typ1 [e1]) us
@@ -1050,7 +1091,7 @@ inferLubType = start
     step (TypedASTs typ1 es) u = do
         TypedAST typ2 e2 <- inferType u
         case findLub typ1 typ2 of
-            Nothing              -> missingLub typ1 typ2
+            Nothing              -> missingLub typ1 typ2 Nothing
             Just (Lub typ c1 c2) ->
                 let es' = map (unLC_ . coerceTo c1 . LC_) es
                     e2' = unLC_ . coerceTo c2 $ LC_ e2
@@ -1068,8 +1109,8 @@ inferCaseStrict typA e1 = inferOne []
     where
     inferOne :: [U.Branch] -> [U.Branch] -> TypeCheckMonad (TypedAST abt)
     inferOne ls []
-        | null ls   = ambiguousEmptyNary
-        | otherwise = ambiguousMustCheckNary
+        | null ls   = ambiguousEmptyNary Nothing
+        | otherwise = ambiguousMustCheckNary Nothing
     inferOne ls (b@(U.Branch_ pat e):rs) = do
         SP pat' vars <- checkPattern typA pat
         m <- try $ inferBinders vars e $ \typ e' -> do
@@ -1112,7 +1153,7 @@ inferCaseLax
 inferCaseLax typA e1 = start
     where
     start :: [U.Branch] -> TypeCheckMonad (TypedAST abt)
-    start []     = ambiguousEmptyNary
+    start []     = ambiguousEmptyNary Nothing
     start ((U.Branch_ pat e):us) = do
         SP pat' vars <- checkPattern typA pat
         inferBinders vars e $ \typ1 e' -> do
@@ -1127,7 +1168,7 @@ inferCaseLax typA e1 = start
         SP pat' vars <- checkPattern typA pat
         inferBinders vars e $ \typE e' ->
             case findLub typB typE of
-            Nothing                     -> missingLub typB typE
+            Nothing                     -> missingLub typB typE Nothing
             Just (Lub typLub coeB coeE) ->
                 return $ SomeBranch typLub
                     ( Branch pat' (coerceTo_nonLC coeE e')
@@ -1182,7 +1223,7 @@ checkType = checkType_
         StrictMode ->
             case jmEq1 typ0 typ' of
               Just Refl -> return e0'
-              Nothing   -> typeMismatch (Right typ0) (Right typ')
+              Nothing   -> typeMismatch Nothing (Right typ0) (Right typ')
         LaxMode    -> checkOrCoerce       Nothing e0' typ' typ0
         UnsafeMode -> checkOrUnsafeCoerce Nothing e0' typ' typ0
 
@@ -1204,8 +1245,8 @@ checkType = checkType_
                 case jmEq1 typ1 typ of
                   Just Refl -> do e1' <- checkBinder typ1 typ2 e1
                                   return $ syn (Lam_ :$ e1' :* End)
-                  Nothing   -> typeMismatch (Right typ1) (Right typ)
-            _ -> typeMismatch (Right typ0) (Left "function type")
+                  Nothing   -> typeMismatch sourceSpan (Right typ1) (Right typ)
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "function type")
 
         U.Let_ e1 e2 -> do
             TypedAST typ1 e1' <- inferType_ e1
@@ -1222,7 +1263,7 @@ checkType = checkType_
                 Just Refl -> do
                     e1' <- checkType_ dom e1
                     return $ syn (CoerceTo_ c :$ e1' :* End)
-                Nothing -> typeMismatch2 sourceSpan (Right typ0) (Right cod)
+                Nothing -> typeMismatch sourceSpan (Right typ0) (Right cod)
 
         U.UnsafeTo_ (Some2 c) e1 ->
             case singCoerceDomCod c of
@@ -1234,7 +1275,7 @@ checkType = checkType_
                 Just Refl -> do
                     e1' <- checkType_ cod e1
                     return $ syn (UnsafeFrom_ c :$ e1' :* End)
-                Nothing -> typeMismatch2 sourceSpan (Right typ0) (Right dom)
+                Nothing -> typeMismatch sourceSpan (Right typ0) (Right dom)
 
         -- TODO: Find better place to put this logic
         U.PrimOp_ U.Infinity [] -> do
@@ -1249,7 +1290,11 @@ checkType = checkType_
               SReal -> checkOrCoerce sourceSpan (syn (PrimOp_ (Infinity HIntegrable_Prob) :$ End))
                          SProb
                          SReal
-              _     -> failwith "Type Mismatch: infinity can only be checked against nat or prob"
+              _     -> failwith =<<
+                        makeErrMsg
+                         "Type Mismatch:"
+                         sourceSpan
+                         "infinity can only be checked against nat or prob"
 
         U.NaryOp_ op es -> do
             mode <- getMode
@@ -1273,7 +1318,7 @@ checkType = checkType_
         U.Empty_ ->
             case typ0 of
             SArray _ -> return $ syn (Empty_ typ0)
-            _        -> typeMismatch (Right typ0) (Left "HArray")
+            _        -> typeMismatch sourceSpan (Right typ0) (Left "HArray")
 
         U.Pair_ e1 e2 ->
             case typ0 of
@@ -1283,8 +1328,8 @@ checkType = checkType_
                     e1' <- checkType_ a e1
                     e2' <- checkType_ b e2
                     return $ syn (Datum_ $ dPair_ a b e1' e2')
-                Nothing    -> typeMismatch (Right typ0) (Left "HPair")
-            _              -> typeMismatch (Right typ0) (Left "HPair")
+                Nothing    -> typeMismatch sourceSpan (Right typ0) (Left "HPair")
+            _              -> typeMismatch sourceSpan (Right typ0) (Left "HPair")
 
         U.Array_ e1 e2 ->
             case typ0 of
@@ -1292,14 +1337,14 @@ checkType = checkType_
                 e1' <- checkType_  SNat e1
                 e2' <- checkBinder SNat typ1 e2
                 return $ syn (Array_ e1' e2')
-            _ -> typeMismatch (Right typ0) (Left "HArray")
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HArray")
 
         U.Datum_ (U.Datum hint d) ->
             case typ0 of
             SData _ typ2 ->
                 (syn . Datum_ . Datum hint typ0)
                     <$> checkDatumCode typ0 typ2 d
-            _ -> typeMismatch (Right typ0) (Left "HData")
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HData")
 
         U.Case_ e1 branches -> do
             TypedAST typ1 e1' <- inferType_ e1
@@ -1311,7 +1356,7 @@ checkType = checkType_
             SMeasure typ1 -> do
                 e1' <- checkType_ typ1 e1
                 return $ syn (Dirac :$ e1' :* End)
-            _ -> typeMismatch (Right typ0) (Left "HMeasure")
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
         U.MBind_ e1 e2 ->
             case typ0 of
@@ -1321,8 +1366,8 @@ checkType = checkType_
                     SMeasure typ2 -> do
                         e2' <- checkBinder typ2 typ0 e2
                         return $ syn (MBind :$ e1' :* e2' :* End)
-                    _ -> typeMismatch (Right typ0) (Right typ1)
-            _ -> typeMismatch (Right typ0) (Left "HMeasure")
+                    _ -> typeMismatch sourceSpan (Right typ0) (Right typ1)
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
         U.Plate_ e1 e2 ->
             case typ0 of
@@ -1332,8 +1377,8 @@ checkType = checkType_
                     SArray typ2 -> do
                         e2' <- checkBinder SNat (SMeasure typ2) e2
                         return $ syn (Plate :$ e1' :* e2' :* End)
-                    _ -> typeMismatch (Right typ1) (Left "HArray")
-            _ -> typeMismatch (Right typ0) (Left "HMeasure")
+                    _ -> typeMismatch sourceSpan (Right typ1) (Left "HArray")
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
         U.Chain_ e1 e2 e3 ->
             case typ0 of
@@ -1344,8 +1389,8 @@ checkType = checkType_
                     e2' <- checkType_  s    e2
                     e3' <- checkBinder s    (SMeasure $ sPair a s) e3
                     return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
-                Nothing -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
-            _           -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
+                Nothing -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure(HPair(HArray, s)")
+            _           -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure(HPair(HArray, s)")
 
 
         U.Expect_ e1 e2 ->
@@ -1356,8 +1401,8 @@ checkType = checkType_
                     SMeasure typ2 -> do
                         e2' <- checkBinder typ2 typ0 e2
                         return $ syn (Expect :$ e1' :* e2' :* End)
-                    _ -> typeMismatch (Left "HMeasure") (Right typ1)
-            _ -> typeMismatch (Right typ0) (Left "HProb")
+                    _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HProb")
 
         U.Observe_ e1 e2 ->
             case typ0 of
@@ -1365,7 +1410,7 @@ checkType = checkType_
                 e1' <- checkType_ typ0 e1
                 e2' <- checkType_ typ2 e2
                 return $ syn (Observe :$ e1' :* e2' :* End)
-            _ -> typeMismatch (Right typ0) (Left "HMeasure")
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
         U.Superpose_ pes ->
             case typ0 of
@@ -1373,12 +1418,12 @@ checkType = checkType_
                 fmap (syn . Superpose_) .
                     T.forM pes $ \(p,e) ->
                         (,) <$> checkType_ SProb p <*> checkType_ typ0 e
-            _ -> typeMismatch (Right typ0) (Left "HMeasure")
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
         U.Reject_ ->
             case typ0 of
             SMeasure _ -> return $ syn (Reject_ typ0)
-            _          -> typeMismatch (Right typ0) (Left "HMeasure")
+            _          -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0
@@ -1387,7 +1432,7 @@ checkType = checkType_
                   StrictMode ->
                     case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
-                    Nothing   -> typeMismatch (Right typ0) (Right typ')
+                    Nothing   -> typeMismatch sourceSpan (Right typ0) (Right typ')
                   LaxMode    -> checkOrCoerce       sourceSpan e0' typ' typ0
                   UnsafeMode -> checkOrUnsafeCoerce sourceSpan e0' typ' typ0
             | otherwise -> error "checkType: missing an mustCheck branch!"
@@ -1407,11 +1452,11 @@ checkType = checkType_
         U.Inr d2 ->
             case typ of
             SPlus _ typ2 -> Inr <$> checkDatumCode typA typ2 d2
-            _            -> failwith "expected datum of `inr' type"
+            _            -> failwith_ "expected datum of `inr' type"
         U.Inl d1 ->
             case typ of
             SPlus typ1 _ -> Inl <$> checkDatumStruct typA typ1 d1
-            _            -> failwith "expected datum of `inl' type"
+            _            -> failwith_ "expected datum of `inl' type"
 
     checkDatumStruct
         :: forall xs t
@@ -1426,11 +1471,11 @@ checkType = checkType_
             SEt typ1 typ2 -> Et
                 <$> checkDatumFun    typA typ1 d1
                 <*> checkDatumStruct typA typ2 d2
-            _     -> failwith "expected datum of `et' type"
+            _     -> failwith_ "expected datum of `et' type"
         U.Done ->
             case typ of
             SDone -> return Done
-            _     -> failwith "expected datum of `done' type"
+            _     -> failwith_ "expected datum of `done' type"
 
     checkDatumFun
         :: forall x t
@@ -1443,11 +1488,11 @@ checkType = checkType_
         U.Ident e1 ->
             case typ of
             SIdent      -> Ident <$> checkType_ typA e1
-            _           -> failwith "expected datum of `I' type"
+            _           -> failwith_ "expected datum of `I' type"
         U.Konst e1 ->
             case typ of
             SKonst typ1 -> Konst <$> checkType_ typ1 e1
-            _           -> failwith "expected datum of `K' type"
+            _           -> failwith_ "expected datum of `K' type"
 
 
 ----------------------------------------------------------------
@@ -1498,7 +1543,7 @@ checkPattern = \typA pat ->
         SData _ typ1 -> do
             SPC pat1' xs <- checkPatternCode typA typ1 pat1
             return $ SP (PDatum hint pat1') xs
-        _ -> typeMismatch (Right typA) (Left "HData")
+        _ -> typeMismatch Nothing (Right typA) (Left "HData")
     where
     checkPatternCode
         :: Sing (HData' t)
@@ -1512,13 +1557,13 @@ checkPattern = \typA pat ->
             SPlus _ typ2 -> do
                 SPC pat2' xs <- checkPatternCode typA typ2 pat2
                 return $ SPC (PInr pat2') xs
-            _            -> failwith "expected pattern of `sum' type"
+            _            -> failwith_ "expected pattern of `sum' type"
         U.PInl pat1 ->
             case typ of
             SPlus typ1 _ -> do
                 SPS pat1' xs <- checkPatternStruct typA typ1 pat1
                 return $ SPC (PInl pat1') xs
-            _ -> failwith "expected pattern of `zero' type"
+            _ -> failwith_ "expected pattern of `zero' type"
 
     checkPatternStruct
         :: Sing (HData' t)
@@ -1533,11 +1578,11 @@ checkPattern = \typA pat ->
                 SPF pat1' xs <- checkPatternFun    typA typ1 pat1
                 SPS pat2' ys <- checkPatternStruct typA typ2 pat2
                 return $ SPS (PEt pat1' pat2') (append1 xs ys)
-            _ -> failwith "expected pattern of `et' type"
+            _ -> failwith_ "expected pattern of `et' type"
         U.PDone ->
             case typ of
             SDone -> return $ SPS PDone Nil1
-            _     -> failwith "expected pattern of `done' type"
+            _     -> failwith_ "expected pattern of `done' type"
 
     checkPatternFun
         :: Sing (HData' t)
@@ -1551,13 +1596,13 @@ checkPattern = \typA pat ->
             SIdent -> do
                 SP pat1' xs <- checkPattern typA pat1
                 return $ SPF (PIdent pat1') xs
-            _ -> failwith "expected pattern of `I' type"
+            _ -> failwith_ "expected pattern of `I' type"
         U.PKonst pat1 ->
             case typ of
             SKonst typ1 -> do
                 SP pat1' xs <- checkPattern typ1 pat1
                 return $ SPF (PKonst pat1') xs
-            _ -> failwith "expected pattern of `K' type"
+            _ -> failwith_ "expected pattern of `K' type"
 
 checkOrCoerce
     :: (ABT Term abt)
@@ -1569,7 +1614,7 @@ checkOrCoerce
 checkOrCoerce s e typA typB =
     case findCoercion typA typB of
     Just c  -> return . unLC_ . coerceTo c $ LC_ e
-    Nothing -> typeMismatch2 s (Right typB) (Right typA)
+    Nothing -> typeMismatch s (Right typB) (Right typA)
 
 checkOrUnsafeCoerce
     :: (ABT Term abt)
@@ -1593,7 +1638,7 @@ checkOrUnsafeCoerce s e typA typB =
             let x = Variable (pack "") 0 U.SU
             e2' <- checkBinder typ1 typB (bind x $ syn $ U.Dirac_ (var x))
             return $ syn (MBind :$ e :* e2' :* End)
-          (_ ,  _) -> typeMismatch2 s (Right typB) (Right typA)
+          (_ ,  _) -> typeMismatch s (Right typB) (Right typA)
 
 
 

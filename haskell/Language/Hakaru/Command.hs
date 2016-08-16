@@ -14,7 +14,7 @@ import           Data.Vector
 type Term a = TrivialABT T.Term '[] a
 
 parseAndInfer :: Text.Text
-              -> Either TypeCheckError (TypedAST (TrivialABT T.Term))
+              -> Either Text.Text (TypedAST (TrivialABT T.Term))
 parseAndInfer x =
     case parseHakaru x of
     Left  err  -> Left (Text.pack . show $ err)
