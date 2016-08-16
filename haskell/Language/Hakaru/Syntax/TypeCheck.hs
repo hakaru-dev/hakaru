@@ -296,7 +296,7 @@ typeMismatch
     -> TypeCheckMonad r
 typeMismatch s typ1 typ2 = failwith =<<
     makeErrMsg
-     "Type Mismatch:"
+     "Type Mismatch:\n\n"
      s
      (mconcat [ "expected "
               , msg1
