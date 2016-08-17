@@ -98,16 +98,16 @@ The internals section of the manual provides some insight into how
 Hakaru is implemented and offers guidance into how the system can
 be extended.
 
-AST
+[AST](/internals/ast)
 
 [ABT](/internals/abt)
 
-Datums
+[Datums](/internals/datums)
 
-Coercions
+[Coercions](/internals/coercions)
 
-Transformations
+[Transformations](/internals/transforms)
 
-Testing
+[Testing](/internals/testing)
 
 [Adding a Language Feature](/internals/newfeature)
