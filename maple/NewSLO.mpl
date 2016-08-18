@@ -32,7 +32,6 @@ NewSLO := module ()
         get_var_pos, get_int_pos,
         avoid_capture, change_var, old_disint, disint2,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
-        fst, snd,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
@@ -1159,16 +1158,16 @@ NewSLO := module ()
     return true
   end proc;
 
-  #Beginning of Carl's code devoted to the reparameterization (aka change of variables) of 
-  #integrals and sums.
+  #Beginning of Carl's code devoted to disintegration and the reparametrization (aka change
+  #of variables) of integrals and sums.
 
   #Finds the innermost Ints or Sums in an expression, that is, those which
-  #don't contain further Ints or Sumss
+  #don't contain further Ints or Sums
   innermostIntSum:= proc(e::anything, $)::set(specfunc({Int,Sum}));
        select(IS-> nops(indets(IS, specfunc({Int,Sum}))) = 1, indets(e, specfunc({Int,Sum})))
   end proc;
 
-  #My substitute for IntegrationTools:-Change.
+  #my substitute for IntegrationTools:-Change
   ChangeVarInt:= proc(J::specfunc(Int), target::algebraic, $)
   local
        newJ, #What J will become.
@@ -1299,18 +1298,7 @@ NewSLO := module ()
        subs(J= newJ, e)
   end proc;
 
-  ### begin code for disintegration ################################
-
-  #Extract the first member of a Pair.
-  fst:= proc(p, $)
-       `if`(p::Pair(anything$2), op(1,p), 'procname'(p))
-  end proc;
-
-  #Extract the second member of a Pair.
-  snd:= proc(p, $)
-       `if`(p::Pair(anything$2), op(2,p), 'procname'(p))
-  end proc;
-
+  ### main procedure for disintegration ################################
   disint:= proc(
        m, #same form as as used by toLO: anything
        a::name, 

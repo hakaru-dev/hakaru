@@ -60,7 +60,7 @@ Hakaru := module ()
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
-         case, app, ary, idx, size, Datum,
+         case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
@@ -409,6 +409,16 @@ Hakaru := module ()
     else
       'procname(_passed)'
     end if
+  end proc;
+
+  #Extract the first member of a Pair.
+  fst:= proc(p, $)
+       `if`(p::'Pair'('anything'$2), op(1,p), 'procname'(p))
+  end proc;
+
+  #Extract the second member of a Pair.
+  snd:= proc(p, $)
+       `if`(p::'Pair'('anything'$2), op(2,p), 'procname'(p))
   end proc;
 
   size := proc(a, $)
