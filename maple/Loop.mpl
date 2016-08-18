@@ -528,7 +528,8 @@ Loop := module ()
         if not (`-`(op(rhs(k))) :: 'rational')
            and not (subsindets(f, 'anything^integer', f->op(1,f))
                     :: '{`+`,And(`*`,Not(`*`(Not(`+`))))}')
-           and depends(indets(f, 'specfunc(idx)'), op(1,k)) then
+           and depends(indets(f, '{specfunc(idx), specindex(idx)}'), op(1,k))
+        then
           'procname(_passed)'
         else
           error "invalid input: cannot fast-fail sum(%1, %2)", _passed
