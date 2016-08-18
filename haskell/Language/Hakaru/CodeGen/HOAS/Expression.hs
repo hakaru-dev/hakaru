@@ -50,6 +50,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , (^+)
 
   , varE
+  , memberE
   , stringE
   , stringVarE
   , nullaryE
@@ -136,3 +137,6 @@ castE t e = CCast (CDecl [CTypeSpec t] [] node) e node
 
 condE :: CExpr -> CExpr -> CExpr -> CExpr
 condE cond thn els = CCond cond (Just thn) els node
+
+memberE :: CExpr -> Ident -> CExpr
+memberE var ident = CMember var ident False node
