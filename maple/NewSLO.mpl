@@ -886,7 +886,7 @@ NewSLO := module ()
                        dom_spec)));
     elim := elim_intsum(make(e, var=new_rng), h, kb0);
     if elim = FAIL then
-      e, w := selectremove(depends, convert(e, 'list', `*`), var);
+      e, w := selectremove(depends, list_of_mul(e), var);
       reduce_pw(simplify_assuming(`*`(op(w)), kb0))
         * make(`*`(op(e)), var=new_rng);
     else
