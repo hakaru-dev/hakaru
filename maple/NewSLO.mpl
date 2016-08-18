@@ -341,7 +341,8 @@ NewSLO := module ()
       w := w * foldl(product, w1, op(loops));
       w := simplify_assuming(peel(lift_piecewise(w)), kb1);
       (w, w0) := factorize(w, x, kb1);
-      weight(w0, bind(mm, x, weight(w, m)))
+      weight(simplify_assuming(w0, kb),
+             bind(mm, x, weight(simplify_assuming(w, kb1), m)))
     elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,e))
     elif e = 0 then
