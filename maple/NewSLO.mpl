@@ -1319,7 +1319,7 @@ NewSLO := module ()
        p:= gensym('p'),
        mc:= Bind(m, p, piecewise(fst(p) <= a, Ret(snd(p)), 0))
   ;
-       fromLO(applyop(diff, 2, improve(toLO(mc)), a))      
+       fromLO(applyop(diff, 2, improve(toLO(mc), _ctx= ctx), a), _ctx= ctx)      
   end proc;
   ###################### end of Carl's code ######################
   
