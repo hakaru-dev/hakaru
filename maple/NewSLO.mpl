@@ -30,8 +30,9 @@ NewSLO := module ()
         reduce_pw, nub_piecewise, piecewise_if,
         find_vars, kb_from_path, interpret, reconstruct, invert,
         get_var_pos, get_int_pos,
-        avoid_capture, change_var, disint2,
+        avoid_capture, change_var, old_disint, disint2,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
+        fst, snd,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
@@ -1295,11 +1296,37 @@ NewSLO := module ()
 
        subs(J= newJ, e)
   end proc;
-  ###################### End of Carl's reparam code ######################
+
+  ### begin code for disintegration ################################
+
+  #Extract the first member of a Pair.
+  fst:= proc(p, $)
+       `if`(p::Pair(anything$2), op(1,p), 'procname'(p))
+  end proc;
+
+  #Extract the second member of a Pair.
+  snd:= proc(p, $)
+       `if`(p::Pair(anything$2), op(2,p), 'procname'(p))
+  end proc;
+
+  disint:= proc(
+       m, #same form as as used by toLO: anything
+       a::name, 
+       {ctx::list:= []},
+       $
+  )
+  local
+       p:= gensym('p'),
+       mc:= Bind(m, p, piecewise(fst(p) <= a, Ret(snd(p)), 0))
+  ;
+       fromLO(applyop(diff, 2, improve(toLO(mc)), a))      
+  end proc;
+  ###################### end of Carl's code ######################
+  
 
   ###
   # prototype disintegrator - main entry point
-  disint := proc(lo :: LO(name,anything), t::name)
+  old_disint := proc(lo :: LO(name,anything), t::name)
     local h, integ, occurs, oper_call, ret, var, plan;
     h := gensym(op(1,lo));
     integ := eval(op(2,lo), op(1,lo) = h);
@@ -1328,6 +1355,7 @@ NewSLO := module ()
           (kb, p) := op(info);
           if type(b, specfunc(%int)) then
             (lo, hi) := op(op([1,2],b));
+ 
             x, kb := genLebesgue(op([1,1], b), lo, hi, kb);
             [kb, [ %int(x = lo..hi), p]];
           elif type(b, specfunc(%weight)) then
