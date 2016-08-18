@@ -14,12 +14,11 @@ with(NewSLO):
 #
 #####################################################################
 
-# this uses a *global* variable 't'.
+# this uses a *global* name 't'.
 assume(t::real);
 TestDisint := proc(m,n)
-  global t;
-  CodeTools[Test](map(fromLO@improve,disint(toLO(m),t)), n, 
-                  set(measure(simplify)), _rest)
+  #global t;
+  CodeTools[Test](disint(m,t), n, set(measure(simplify)), _rest)
 end proc:
 
 d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
@@ -80,12 +79,15 @@ burgalarm :=
   Ret(Pair(alarm, burglary)))):
 burgalarmr := {}:
 
-TestDisint(d1, d1r, label = "Disintegrate linear function");
-TestDisint(d2, d2r, label = "Disintegrate linear function II");
-TestDisint(d3, d3r, label = "Disintegrate U(0,1) twice, over x-y");
-TestDisint(d4, d4r, label = "Disintegrate U(0,1) twice, over x/y");
-TestDisint(d5, d5r, label = "Disintegrate N(0,1)*N(x,1), over y");
-TestDisint(d6, d6r, label = "Disintegrate N(0,1)*N(x,1), over x");
-TestDisint(normalFB1, normalFB1r, label = "Disintegrate N(0,1)*N(x,1), over (y+y)+x");
+TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
+TestDisint(d2, d2r, label = "(d2) Disintegrate linear function II");
+TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
+TestDisint(d4, d4r, label = "(d4) Disintegrate U(0,1) twice, over x/y");
+TestDisint(d5, d5r, label = "(d5) Disintegrate N(0,1)*N(x,1), over y");
+TestDisint(d6, d6r, label = "(d6) Disintegrate N(0,1)*N(x,1), over x");
+TestDisint(
+     normalFB1, normalFB1r, 
+     label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
+);
 
-TestDisint(burgalarm, burgalarmr, label = "D Burgler Alarm example");
+TestDisint(burgalarm, burgalarmr, label = "(d8_Burglar) Burglar Alarm example");

@@ -1316,12 +1316,13 @@ NewSLO := module ()
        a::name, 
        {ctx::list:= []},
        $
-  )
+  )::set;
   local
        p:= gensym('p'),
-       mc:= Bind(m, p, piecewise(fst(p) <= a, Ret(snd(p)), 0))
+       mc:= Bind(m, p, piecewise(fst(p) <= a, Ret(snd(p)), 0)),
+       kb:= foldr(assert, empty, ctx[])
   ;
-       fromLO(applyop(diff, 2, improve(toLO(mc), _ctx= ctx), a), _ctx= ctx)      
+       {fromLO(applyop(diff, 2, improve(toLO(mc), _ctx= kb), a), _ctx= kb)}      
   end proc;
   ###################### end of Carl's code ######################
   
