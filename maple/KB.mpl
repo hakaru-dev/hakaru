@@ -593,12 +593,14 @@ KB := module ()
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
-  list_of_mul := proc(e, kb::t_kb, $)
+  list_of_mul := proc(e, $)
     local rest, should_negate, can_negate, fsn;
     rest := convert(e, 'list', `*`);
-    rest := zip(((f,s) -> [f, s, `if`(f::specfunc({Sum,sum}), applyop(`-`,1,f),
-                                                              -f)]),
-                rest, simplify_assuming(map(''signum'', rest), kb));
+    rest := map((f -> [f, signum(f),
+                       `if`(f::specfunc({Sum,sum}), applyop(`-`,1,f),
+                       `if`(f::specfunc(ln)       , applyop(`/`,1,f),
+                                                    -f))]),
+                rest);
     should_negate, rest := selectremove(type, rest,
       '[anything, -1, Not(`*`)]');
     if nops(should_negate) :: even then

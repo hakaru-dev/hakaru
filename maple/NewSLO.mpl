@@ -639,7 +639,7 @@ NewSLO := module ()
       return 1, e;
     end if;
     if e :: `*` then
-      res := map(`[]`@factorize, list_of_mul(e,kb), var, kb);
+      res := map(`[]`@factorize, list_of_mul(e), var, kb);
       return `*`(op(map2(op,1,res))),
              `*`(op(map2(op,2,res)));
     end if;

@@ -205,7 +205,7 @@ Loop := module ()
       end if
     end if;
     if w :: mode then
-      res := map(unproduct, `if`(mode=`*`, list_of_mul(w,kb1), [op(w)]),
+      res := map(unproduct, `if`(mode=`*`, list_of_mul(w), [op(w)]),
                  var, loop, heap, mode, kb1, kb0);
       return [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
     end if;
