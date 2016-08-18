@@ -358,6 +358,16 @@ gamma_poisson_s := Weight(scale^k*(scale+1)^(-k-shape)*GAMMA(k+shape)/(GAMMA(sha
 TestHakaru(gamma_poisson, gamma_poisson_s, label="gamma_poisson conjugacy",
            ctx=[shape>0, scale>0, k::nonnegint]);
 
+# For the following test, banishing fails because Maple currently evaluates
+#   int(piecewise(x < y, 1/(1-x), 0), x = 0 .. 1) assuming y<1
+# to "undefined".  (See ppaml-l discussion "NewSLO giving weird output"
+# around 2015-12-10.)  The test is that we handle the failure gracefully.
+TestHakaru(Bind(Uniform(0,1), x, Uniform(x,1)),
+          {Bind(Uniform(0,1), x, Uniform(x,1)),
+           Bind(Uniform(0,1), x, Weight(ln(1/(1-x)), Ret(x)))},
+  verify='member(measure(simplify))',
+  label="roundtrip despite banishing failure");
+
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
 
 #####################################################################

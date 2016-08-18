@@ -608,7 +608,7 @@ KB := module ()
        seq(op(1,fsn), fsn=rest)]
     else
       can_negate, rest := selectremove(type, rest,
-        '[{`+`, specfunc({Sum,sum})}, Not(1), Not(`*`)]');
+        '[{`+`, specfunc({Sum,sum,ln})}, Not(1), Not(`*`)]');
       if nops(can_negate) > 0 then
         [seq(op(3,fsn), fsn=should_negate),
          op([1,3], can_negate),

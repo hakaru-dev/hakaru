@@ -113,7 +113,7 @@ NewSLO := module ()
     CodeTools[Test](Simplify(m,t,op(s)), n, measure(verify), op(r))
   end proc;
 
-  TestHakaru := proc(m, n::algebraic:=m,
+  TestHakaru := proc(m, n::{set(algebraic),algebraic}:=m,
                      {simp:=improve, verify:=simplify, ctx::list:=[]})
     local kb;
     kb := foldr(assert, empty, op(ctx));
