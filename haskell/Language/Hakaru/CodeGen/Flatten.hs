@@ -171,11 +171,23 @@ flattenDatum :: (ABT Term abt)
 flattenDatum (Datum _ typ code) =
   do ident <- genIdent
      declare $ datumDeclaration typ ident
-     -- assignDatum code ident
-     return (intConstE 1)
+     assignDatum code ident
+     return (varE ident)
 
 assignDatum :: (DatumCode (Code t) ast (HData' t)) -> Ident -> CodeGen ()
-assignDatum code ident = error "TODO: assignDatum"
+-- special cases for true/unit and false
+assignDatum (Inl Done) ident       = putStat $ assignExprS (memberE (varE ident) (builtinIdent "index"))
+                                                           (intConstE 0)
+assignDatum (Inr (Inl Done)) ident = putStat $ assignExprS (memberE (varE ident) (builtinIdent "index"))
+                                                           (intConstE 1)
+assignDatum code _ = error $ "TODO: assignDatum"
+  -- let index     = 0
+  --     indexExpr = memberE (varE ident) (builtinIdent "index")
+  -- in  putStat $ assignExprS indexExpr (intConstE index)
+  -- where getIndex :: DatumCode xss b c -> Int
+  --       getIndex (Inl x)    = 0
+  --       getIndex (Inr rest) = succ (getIndex rest)
+
 
 ----------------------------------------------------------------
 
@@ -228,10 +240,21 @@ flattenPrimOp :: ( ABT Term abt
               => PrimOp typs a
               -> SArgs abt args
               -> CodeGen CExpr
-flattenPrimOp Pi = \End -> do ident <- genIdent
-                              declare $ typeDeclaration SProb ident
-                              assign ident $ log (stringVarE "M_PI")
-                              return (varE ident)
+flattenPrimOp Pi = \End ->
+  do ident <- genIdent
+     declare $ typeDeclaration SProb ident
+     assign ident $ log1p ((stringVarE "M_PI") ^- (intConstE 1))
+     return (varE ident)
+flattenPrimOp (Equal _) = \(a :* b :* End) ->
+  do a' <- flattenABT a
+     b' <- flattenABT b
+     boolIdent <- genIdent' "eq"
+  
+     declare $ datumDeclaration sBool boolIdent
+     putStat $ assignExprS (memberE (varE boolIdent) (builtinIdent "index"))
+                           (condE (a' ^== b') (intConstE 0) (intConstE 1))
+  
+     return (varE boolIdent)
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
 ----------------------------------------------------------------

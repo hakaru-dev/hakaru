@@ -14,6 +14,7 @@
 
 module Language.Hakaru.CodeGen.HOAS.Statement
   ( assignS
+  , assignExprS
   , ifS
   , listOfIfsS
   , guardS
@@ -44,6 +45,14 @@ assignS var expr = CExpr (Just (CAssign CAssignOp
                                         expr
                                         node))
                          node
+
+assignExprS :: CExpr -> CExpr -> CStat
+assignExprS var expr = CExpr (Just (CAssign CAssignOp
+                                            var
+                                            expr
+                                            node))
+                             node
+
 
 
 ifS :: CExpr -> CStat -> CStat -> CStat
