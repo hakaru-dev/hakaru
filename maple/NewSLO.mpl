@@ -502,6 +502,7 @@ NewSLO := module ()
       # ser := series(sum(dens * x^var, var=0..infinity), x);
       # re := gfun[seriestorec](ser, f(var));
       # re, gftype := op(re);
+      _EnvFormal := true;
       de := gfun[holexprtodiffeq](sum(dens*x^var, var=0..infinity), f(x));
       re := gfun[diffeqtorec](de, f(x), u(var));
       re := gfun[rectohomrec](re, u(var));

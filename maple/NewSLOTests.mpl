@@ -129,7 +129,7 @@ TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,Gam
 TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)), label="GammaD(2,2) recog.");
 TestHakaru(Bind(Lebesgue(-infinity,infinity), x, Weight(1/x^2, Ret(x))));
 TestHakaru(Cauchy(loc,scale), ctx = [scale>0], label="Cauchy recog.");
-TestHakaru(StudentT(nu,loc,scale), ctx=[scale>0], label = "StudentT recog.");
+TestHakaru(StudentT(nu,loc,scale), ctx=[nu>0,scale>0], label = "StudentT recog.");
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = [scale>0],
   label = "StudentT(1,loc,scale) recog.");
 # discrete
