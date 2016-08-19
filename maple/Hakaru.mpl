@@ -484,6 +484,7 @@ Hakaru := module ()
   end proc;
 
   ModuleLoad := proc($)
+  local g; #Iterator over thismodule's globals
     VerifyTools[AddVerification](measure = eval(verify_measure));
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
@@ -500,7 +501,13 @@ Hakaru := module ()
 
     #Protect the keywords of the Hakaru language.
     #op([2,6], ...) of a module is its globals.
-    protect(op([2,6], thismodule))
+    for g in op([2,6], thismodule) do
+         if g <> eval(g) then
+              unassign(g);
+              WARNING("Previous value of Hakaru keyword '%1' erased.", g)              
+         end if;
+         protect(g)
+    end do
   end proc;
 
   ModuleUnload := proc($)
@@ -508,6 +515,8 @@ Hakaru := module ()
     TypeTools[RemoveType](t_case);
     TypeTools[RemoveType](t_type);
     VerifyTools[RemoveVerification](measure);
+    unprotect(op([2,6], thismodule)); #See comment in ModuleLoad.
+    #Skip restoring the globals to any prior value they had.
   end proc;
 
   ModuleLoad();
