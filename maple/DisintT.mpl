@@ -16,9 +16,9 @@ with(NewSLO):
 
 # this uses a *global* name 't'.
 assume(t::real);
-TestDisint := proc(m,n)
+TestDisint := proc(m,n,{ctx::list:= []})
   #global t;
-  CodeTools[Test](disint(m,t), n, set(measure(simplify)), _rest)
+  CodeTools[Test]({disint(m, :-t, :-ctx= ctx)}, n, set(measure(simplify)), _rest)
 end proc:
 
 d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
@@ -50,8 +50,8 @@ d4r := {
 }:
 
 d5 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(y,x)))):
-d5r := {Weight((1/2)*exp(-(1/4)*t^2)/Pi^(1/2), 
-        Gaussian((1/2)*t, (1/2)*2^(1/2)))}:
+d5r := {Weight((1/2)*exp(-(1/4)*t^2)/Pi^(1/2), Gaussian((1/2)*t, (1/2)*2^(1/2)))}:
+
 d6 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(x,y)))):
 d6r := {Weight(1/2*2^(1/2)/Pi^(1/2)*exp(-1/2*t^2),Gaussian(t,1))}:
 

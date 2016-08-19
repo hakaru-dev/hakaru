@@ -1301,20 +1301,19 @@ NewSLO := module ()
   ### main procedure for disintegration ################################
   disint:= proc(
        m, #same form as as used by toLO: anything
-       a::name, 
-       {ctx::list:= []},
+       a::name, #differentiated wrt 
+       {ctx::list:= []}, #context: parameter assumptions, "knowledge"
        $
-  )::set;
+  )
   local
-       p:= gensym('p'),
-       mc:= Bind(m, p, piecewise(fst(p) <= a, Ret(snd(p)), 0)),
+       pair:= gensym('Pair'),
+       mc:= Bind(m, pair, piecewise(fst(pair) <= a, Ret(snd(pair)), 0)),
        kb:= foldr(assert, empty, ctx[])
   ;
-       {fromLO(applyop(diff, 2, improve(toLO(mc), _ctx= kb), a), _ctx= kb)}      
+       fromLO(applyop(diff, 2, improve(toLO(mc), _ctx= kb), a), _ctx= kb)
   end proc;
   ###################### end of Carl's code ######################
   
-
   ###
   # prototype disintegrator - main entry point
   old_disint := proc(lo :: LO(name,anything), t::name)
