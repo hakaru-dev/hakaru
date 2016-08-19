@@ -71,7 +71,7 @@ Hakaru := module ()
   # used as global names, so document that here.
   global
      # Basic syntax for composing measures
-         Bind, Weight, Ret, Msum, Plate, Context,
+         Bind, Weight, Ret, Msum, Plate, Context, Pair,
      # Primitive (known) measures
          Lebesgue, Uniform, Gaussian, Cauchy, StudentT, BetaD,
          GammaD, ChiSquared,
