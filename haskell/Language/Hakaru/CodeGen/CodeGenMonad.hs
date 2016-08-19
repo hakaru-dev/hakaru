@@ -49,6 +49,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
 import Control.Monad.State
 
 #if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (Monoid(..))
 import Control.Applicative ((<$>))
 #endif
 
