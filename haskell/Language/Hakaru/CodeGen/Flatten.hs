@@ -64,7 +64,7 @@ flattenTerm (NaryOp_ t s)    = flattenNAryOp t s
 flattenTerm (Literal_ x)     = flattenLit x
 flattenTerm (Empty_ _)       = error "TODO: flattenTerm Empty"
 flattenTerm (Datum_ d)       = flattenDatum d
-flattenTerm (Case_ _ _)      = error "TODO: flattenTerm Case"
+flattenTerm (Case_ c bs)     = flattenCase c bs
 flattenTerm (Array_ a es)    = flattenArray a es
 flattenTerm (x :$ ys)        = flattenSCon x ys
 flattenTerm (Reject_ _)      = error "TODO: flattenTerm Reject"
@@ -191,6 +191,19 @@ assignDatum code _ = error $ "TODO: assignDatum"
 
 ----------------------------------------------------------------
 
+flattenCase
+  :: forall abt a b
+  .  (ABT Term abt)
+  => abt '[] a
+  -> [Branch a abt b]
+  -> CodeGen CExpr
+flattenCase c bs =
+  do c' <- flattenABT c
+     return c'
+        
+
+----------------------------------------------------------------
+
 
 flattenSCon :: (ABT Term abt)
             => SCon args a
@@ -214,7 +227,7 @@ flattenSCon Lam_            =
          vId    <- createIdent v
          let vDec = typeDeclaration typ vId
          e1''   <- flattenABT e1'
-         funDef (function typ funcId [vDec] [returnS e1''])
+         extDeclare $ CFDefExt (function typ funcId [vDec] [returnS e1''])
          return e1''
 
 flattenSCon (PrimOp_ op)    = \es -> flattenPrimOp op es
@@ -249,11 +262,11 @@ flattenPrimOp (Equal _) = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
      boolIdent <- genIdent' "eq"
-  
+
      declare $ datumDeclaration sBool boolIdent
      putStat $ assignExprS (memberE (varE boolIdent) (builtinIdent "index"))
                            (condE (a' ^== b') (intConstE 0) (intConstE 1))
-  
+
      return (varE boolIdent)
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 

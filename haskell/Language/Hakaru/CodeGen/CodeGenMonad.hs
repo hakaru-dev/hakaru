@@ -1,9 +1,12 @@
 {-# LANGUAGE CPP,
              DataKinds,
              FlexibleContexts,
+             FlexibleInstances,
              GADTs,
              KindSignatures,
+             StandaloneDeriving,
              RankNTypes        #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 ----------------------------------------------------------------
 --                                                    2016.07.01
@@ -27,9 +30,8 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   -- effects
   , declare
   , assign
-  , funDef
   , putStat
-  , putCpp
+  , extDeclare
 
   , genIdent
   , genIdent'
@@ -55,11 +57,13 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.CodeGen.HOAS.Statement
 
 import Language.C.Data.Ident
+import Language.C.Data.Node
 import Language.C.Syntax.AST
 
 import Data.Number.Nat (fromNat)
 import qualified Data.IntMap as IM
 import qualified Data.Text   as T
+import qualified Data.Set    as S
 
 
 suffixes :: [String]
@@ -72,23 +76,22 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
 
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames   :: [String]
-             , functions    :: [CFunDef]
-             -- , cpp          :: S.Set T.Text
+             , extDecls     :: S.Set CExtDecl
              , declarations :: [CDecl]
              , statements   :: [CStat]    -- statements can include assignments as well as other side-effects
              , varEnv       :: Env      }
 
 emptyCG :: CG
-emptyCG = CG suffixes [] [] [] emptyEnv
+emptyCG = CG suffixes mempty [] [] emptyEnv
 
 type CodeGen = State CG
 
-runCodeGen :: CodeGen a -> ([CFunDef],[CDecl], [CStat])
+runCodeGen :: CodeGen a -> ([CExtDecl],[CDecl], [CStat])
 runCodeGen m =
   let (_, cg) = runState m emptyCG
-  in  ( reverse $ functions    cg
-      , reverse $ declarations cg
-      , reverse $ statements   cg )
+  in  ( S.toList $ extDecls     cg
+      , reverse  $ declarations cg
+      , reverse  $ statements   cg )
 
 genIdent :: CodeGen Ident
 genIdent = do cg <- get
@@ -127,16 +130,9 @@ assign :: Ident -> CExpr -> CodeGen ()
 assign v e = putStat (assignS v e)
 
 
--- Need some notion of C function equality before this can be implemented
-funDef :: CFunDef -> CodeGen ()
-funDef f = do cg <- get
-              put $ cg { functions = f:(functions cg) }
-
-putCpp :: T.Text -> CodeGen ()
-putCpp _ = undefined
-  -- do cg <- get
-  --    put $ cg { cpp = cpp cg `S.union` (S.singleton x) }
-
+extDeclare :: CExtDecl -> CodeGen ()
+extDeclare d = do cg <- get
+                  put $ cg { extDecls = d `S.insert` extDecls cg }
 
 ---------
 -- ENV --
@@ -174,4 +170,60 @@ doWhileCG bE m =
   in putStat $ doWhileS bE stmts
 
 forCG :: CExpr -> CExpr -> CExpr -> CodeGen () -> CodeGen ()
-forCG start cond iter m = undefined
+forCG _ _ _ _ = undefined
+
+
+
+----------------------------------------------------------------
+-- Deriving Eq instances for C ASTs
+
+-- this is done in this module because the CodeGen monad is the
+-- only thing that cares about the uniqueness of generated code
+-- Orphaned instances beware
+
+deriving instance Eq (CExternalDeclaration NodeInfo)
+deriving instance Eq (CDeclaration NodeInfo)
+deriving instance Eq (CStringLiteral NodeInfo)
+deriving instance Eq (CExpression NodeInfo)
+deriving instance Eq (CFunctionDef NodeInfo)
+deriving instance Eq (CInitializer NodeInfo)
+deriving instance Eq (CDeclarator NodeInfo)
+deriving instance Eq (CDerivedDeclarator NodeInfo)
+deriving instance Eq (CPartDesignator NodeInfo)
+deriving instance Eq (CDeclarationSpecifier NodeInfo)
+deriving instance Eq (CTypeSpecifier NodeInfo)
+deriving instance Eq (CTypeQualifier NodeInfo)
+deriving instance Eq (CAttribute NodeInfo)
+deriving instance Eq (CStatement NodeInfo)
+deriving instance Eq (CArraySize NodeInfo)
+deriving instance Eq (CStructureUnion NodeInfo)
+deriving instance Eq (CConstant NodeInfo)
+deriving instance Eq (CEnumeration NodeInfo)
+deriving instance Eq (CCompoundBlockItem NodeInfo)
+deriving instance Eq (CBuiltinThing NodeInfo)
+deriving instance Eq (CAssemblyStatement NodeInfo)
+deriving instance Eq (CAssemblyOperand NodeInfo)
+
+deriving instance Ord (CExternalDeclaration NodeInfo)
+deriving instance Ord (CDeclaration NodeInfo)
+deriving instance Ord (CStringLiteral NodeInfo)
+deriving instance Ord (CExpression NodeInfo)
+deriving instance Ord (CFunctionDef NodeInfo)
+deriving instance Ord (CInitializer NodeInfo)
+deriving instance Ord (CDeclarator NodeInfo)
+deriving instance Ord (CDerivedDeclarator NodeInfo)
+deriving instance Ord (CPartDesignator NodeInfo)
+deriving instance Ord (CDeclarationSpecifier NodeInfo)
+deriving instance Ord (CTypeSpecifier NodeInfo)
+deriving instance Ord (CTypeQualifier NodeInfo)
+deriving instance Ord (CAttribute NodeInfo)
+deriving instance Ord (CStatement NodeInfo)
+deriving instance Ord (CArraySize NodeInfo)
+deriving instance Ord (CStructureUnion NodeInfo)
+deriving instance Ord (CConstant NodeInfo)
+deriving instance Ord (CEnumeration NodeInfo)
+deriving instance Ord (CCompoundBlockItem NodeInfo)
+deriving instance Ord (CBuiltinThing NodeInfo)
+deriving instance Ord (CAssemblyStatement NodeInfo)
+deriving instance Ord (CAssemblyOperand NodeInfo)
+deriving instance Ord CStructTag
