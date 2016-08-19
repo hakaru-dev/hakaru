@@ -497,6 +497,10 @@ Hakaru := module ()
       'case(anything, specfunc(Branch(anything, anything), Branches))');
     TypeTools[AddType](t_piecewiselike,
       '{specfunc(piecewise), t_case, idx(list, anything)}');
+
+    #Protect the keywords of the Hakaru language.
+    #op([2,6], ...) of a module is its globals.
+    protect(op([2,6], thismodule))
   end proc;
 
   ModuleUnload := proc($)
