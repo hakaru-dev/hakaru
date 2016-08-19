@@ -2,7 +2,7 @@
 
 Piecewise := module()
   option package;
-  local lift1_piecewise, extract_cond;
+  local lift1_piecewise, extract_cond, flip_cond, unsat;
   export piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
     make_piece, combine_pw,
     ModuleLoad, ModuleUnload;
@@ -98,10 +98,28 @@ Piecewise := module()
     [seq(`if`(i::odd, op(i,pw), (NULL)), i=1..nops(pw)-1)];
   end proc;
 
+  # take a condition and return its negation
+  flip_cond := proc(rel :: relation)
+    if rel :: `<` then `>=`(op(rel))
+    elif rel :: `<=` then `>`(op(rel))
+    elif rel :: `=` then `<>`(op(rel))
+    elif rel :: `<>` then `=`(op(rel))
+    else error "%1 is an unknown relation";
+    end if;
+    #subs({`<`=`>=`, `<=`=`>`,
+    #     `>`=`<=`, `>=`=`<`,
+    #     `=`=`<>`, `<>`=`=`}, rel)
+  end proc;
+
+  # given a condition, return 'true' if it is unsatisfiable,
+  # 'false' otherwise -- i.e. if it is satisfiable OR we can't tell.
+  unsat := proc(rel)
+  end;
+
   # given a construstor c, a list l of piecewises, return a single
   # piecewise with the conditions combined properly.
   combine_pw := proc(c,l::list(specfunc(piecewise)))
-    local conds, shape, i, len_pw, len_l, j;
+    local conds, shape, i, len_pw, len_l, j, pwa, pwb, rel, Nrel, a, b;
 
     conds := map(extract_cond,l);
 
@@ -117,8 +135,28 @@ Piecewise := module()
       piecewise(seq(`if`(i::even or i=len_pw,
         c(seq(op([j,i],l),j=1..len_l)),
         op(i,shape)), i=1..len_pw));
+    # when there are only two, the first has length 3 and its condition is
+    # a pure relation
+    elif nops(l)=2 and nops(l[1])=3 and (op([1,1],l) :: relation) then
+      # c(pw(rel, a, b), pw(c1, x1, c2, x2, ..., cn-1, xn-1, xn)) =
+      # pw(And(rel,c1), c(a,x1), ..., And(rel, cn-1), xn-1, rel, c(a,xn),
+      #    And(Not(rel), c1), c(b,x1), ..., And(Not(rel), cn-1), c(b,xn-1), 
+      #    c(b,xn))
+      # where Not(rel) is done via flip_cond.
+      (pwa, pwb) := op(l);
+      len_pw := nops(pwb);
+      rel := op(1,pwa);
+      Nrel := flip_cond(rel);
+      (a,b) := op(2..3, pwa);
+      piecewise(
+        seq(`if`(i::even,   c(a,op(i,pwb)),
+            `if`(i<len_pw,  And(rel, op(i,pwb)),
+                            op([rel, c(a, op(i,pwb))]))), i=1..len_pw),
+        seq(`if`(i::even,   c(b,op(i,pwb)),
+            `if`(i<len_pw,  And(Nrel, op(i,pwb)),
+                            c(b, op(i,pwb)))), i=1..len_pw));
     else
-      error "need to combine pw";
+      error "need to combine pw %1", l;
     end if;
   end proc;
 

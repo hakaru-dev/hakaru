@@ -385,8 +385,8 @@ KB := module ()
   end proc;
 
   hack_Beta := module ()
-    export ModuleApply;
-    local graft_pw, GAMMAratio;
+    export ModuleApply, graft_pw;
+    local GAMMAratio;
 
     # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
     #      to piecewise(i<=j,1,0) + ...
@@ -523,11 +523,12 @@ KB := module ()
     maptype(`*`, p, body)
   end proc;
 
+  # this is possibly no longer needed (JC)
   myexpand_GAMMA := proc(gg, $)
     local pw, rest,g;
     g := op(1,gg);
     if type(g,`+`) then
-      g := graft_pw(g); # merge some of the pw
+      g := hack_Beta:-graft_pw(g); # merge some of the pw
       (pw, rest) := selectremove(type, g, 'specfunc(piecewise)');
       if type(pw, 'specfunc(piecewise)') then # TODO: handle sum of pw too!
         if nops(pw) :: even then # need to explicitly add the 0 !
