@@ -19,11 +19,15 @@
 
 module Language.Hakaru.CodeGen.HOAS.Declaration
   ( buildDeclaration
+  , extDecl
+  , extFunc
 
   -- tools for building C types
   , typeDeclaration
   , arrayDeclaration
   , datumDeclaration
+  , datumStruct
+  , datumName
 
   , datumSum
   , datumProd
@@ -36,6 +40,7 @@ module Language.Hakaru.CodeGen.HOAS.Declaration
   , intTyp
   , doublePtr
   , intPtr
+  , boolTyp
   ) where
 
 import Control.Monad.State
@@ -50,9 +55,18 @@ import Language.Hakaru.Types.Sing
 node :: NodeInfo
 node = undefNode
 
-buildDeclaration :: Sing (a :: Hakaru) -> Maybe Ident -> CDecl
-buildDeclaration = undefined
+buildDeclaration :: CTypeSpec -> Ident -> CDecl
+buildDeclaration ctyp ident =
+  CDecl [CTypeSpec ctyp]
+        [(Just $ CDeclr (Just ident) [] Nothing [] node,Nothing,Nothing)]
+        node
 
+extDecl :: CDecl -> CExtDecl
+extDecl = CDeclExt
+
+extFunc :: CFunDef -> CExtDecl
+extFunc = CFDefExt
+                 
 typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typeDeclaration typ ident =
   CDecl [CTypeSpec $ buildType typ]
@@ -66,7 +80,8 @@ arrayDeclaration
   -> CDecl
 arrayDeclaration typ ident =
   CDecl [ CTypeSpec
-          $ buildStruct [ CDecl [CTypeSpec intTyp ]
+          $ buildStruct Nothing
+                        [ CDecl [CTypeSpec intTyp ]
                                            [( Just $ CDeclr (Just (internalIdent "size"))
                                                             []
                                                             Nothing
@@ -94,12 +109,26 @@ arrayDeclaration typ ident =
 --------------------------------------------------------------------------------
 -- | datumProd and datumSum use a store of names, which needs to match up with
 -- the names used when they are assigned and printed
+-- datumDeclaration declares struct internally
+-- datumStruct declares struct definitions externally
+   
+-- | datumName provides a unique name to identify a struct type
+datumName :: Sing (a :: [[HakaruFun]]) -> String
+datumName SVoid = "V"
+datumName (SPlus prod sum) = concat ["S",datumName' prod,datumName sum]
+  where datumName' :: Sing (a :: [HakaruFun]) -> String
+        datumName' SDone = "U"
+        datumName' (SEt (SKonst x) prod') = concat ["S",tail . show $ x,datumName' prod']
+        datumName' (SEt SIdent prod')     = error "TODO: datumName of SIdent"
+
+datumStruct :: (Sing (HData' t)) -> CExtDecl
+datumStruct (SData _ typ) = extDecl $ datumSum typ (builtinIdent (datumName typ))
 
 datumDeclaration
   :: (Sing (HData' t))
   -> Ident
   -> CDecl
-datumDeclaration (SData _ typ) ident = datumSum typ ident
+datumDeclaration (SData _ typ) = buildDeclaration (callStruct (datumName typ))
 
 datumSum :: Sing (a :: [[HakaruFun]]) -> Ident -> CDecl
 datumSum funs ident =
@@ -114,8 +143,8 @@ datumSum funs ident =
                        , Nothing
                        , Nothing)]
                      node
-  in CDecl [ CTypeSpec . buildStruct $ [index,union] ]
-           [ ( Just $ CDeclr (Just ident) [] Nothing [] node
+  in CDecl [ CTypeSpec . buildStruct (Just ident) $ [index,union] ]
+           [ ( Just $ CDeclr Nothing [] Nothing [] node
              , Nothing
              , Nothing)]
            node
@@ -138,7 +167,7 @@ datumSum' (SPlus prod rest) =
 datumProd :: Sing (a :: [HakaruFun]) -> Ident -> CDecl
 datumProd funs ident =
   let declrs = fst $ runState (datumProd' funs) datumNames
-  in  CDecl [ CTypeSpec . buildStruct $ declrs ]
+  in  CDecl [ CTypeSpec . buildStruct Nothing $ declrs ]
             [ ( Just $ CDeclr (Just ident) [] Nothing [] node
               , Nothing
               , Nothing)]
@@ -182,11 +211,16 @@ buildType (SMeasure x) = buildType x
 buildType (SArray x)   = buildType x
 buildType _ = error $ "TODO: buildCType "
 
-buildStruct :: [CDecl] -> CTypeSpec
-buildStruct [] =
- CSUType (CStruct CStructTag Nothing Nothing [] node) node
-buildStruct declrs =
- CSUType (CStruct CStructTag Nothing (Just declrs) [] node) node
+buildStruct :: Maybe Ident -> [CDecl] -> CTypeSpec
+buildStruct mi [] =
+  CSUType (CStruct CStructTag mi Nothing [] node) node
+buildStruct mi declrs =
+  CSUType (CStruct CStructTag mi (Just declrs) [] node) node
+
+-- | callStruct will give the type spec calling a struct we have already declared externally 
+callStruct :: String -> CTypeSpec
+callStruct name =
+  CSUType (CStruct CStructTag (Just (internalIdent name)) Nothing [] node) node
 
 buildUnion :: [CDecl] -> CTypeSpec
 buildUnion [] =
@@ -203,3 +237,18 @@ doubleTyp = CDoubleType undefNode
 intPtr,doublePtr :: CDecl
 intPtr    = undefined
 doublePtr = undefined
+
+boolTyp :: CDecl
+boolTyp =
+  CDecl [CTypeSpec
+          (CSUType
+            (CStruct CStructTag
+                     (Just (internalIdent "bool"))
+                     (Just [CDecl [CTypeSpec (CIntType node)]
+                                  [(Just (CDeclr (Just (internalIdent "index")) [] Nothing [] node),Nothing,Nothing)]
+                                  node])
+                     []
+                     node)
+            node)]
+        []
+        node

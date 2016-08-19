@@ -170,6 +170,7 @@ flattenDatum :: (ABT Term abt)
              -> CodeGen CExpr
 flattenDatum (Datum _ typ code) =
   do ident <- genIdent
+     extDeclare $ datumStruct typ
      declare $ datumDeclaration typ ident
      assignDatum code ident
      return (varE ident)
@@ -200,7 +201,7 @@ flattenCase
 flattenCase c bs =
   do c' <- flattenABT c
      return c'
-        
+
 
 ----------------------------------------------------------------
 
@@ -227,7 +228,7 @@ flattenSCon Lam_            =
          vId    <- createIdent v
          let vDec = typeDeclaration typ vId
          e1''   <- flattenABT e1'
-         extDeclare $ CFDefExt (function typ funcId [vDec] [returnS e1''])
+         extDeclare $ CFDefExt (functionDef typ funcId [vDec] [returnS e1''])
          return e1''
 
 flattenSCon (PrimOp_ op)    = \es -> flattenPrimOp op es

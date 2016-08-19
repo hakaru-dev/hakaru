@@ -16,7 +16,9 @@
 ----------------------------------------------------------------
 
 module Language.Hakaru.CodeGen.HOAS.Function
-  (function) where
+  ( functionDef
+  -- , functionCall
+  ) where
 
 import Language.C.Data.Node
 import Language.C.Data.Ident
@@ -29,12 +31,13 @@ import Language.Hakaru.Types.Sing
 node :: NodeInfo
 node = undefNode
 
-function :: Sing (a :: Hakaru)
-         -> Ident
-         -> [CDecl]
-         -> [CStat]
-         -> CFunDef
-function typ ident declrs stmts =
+functionDef
+  :: Sing (a :: Hakaru)
+  -> Ident
+  -> [CDecl]
+  -> [CStat]
+  -> CFunDef
+functionDef typ ident declrs stmts =
   CFunDef [CTypeSpec (buildType typ)]
           (CDeclr (Just ident) [CFunDeclr (Right (declrs,False)) [] node] Nothing [] node)
           []

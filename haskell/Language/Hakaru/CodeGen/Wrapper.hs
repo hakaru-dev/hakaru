@@ -51,7 +51,8 @@ createProgram (TypedAST tt abt) =
   let ident = builtinIdent "result"
       m = case tt of
            (SData _ _) ->
-             do declare $ datumDeclaration tt ident
+             do extDeclare $ datumStruct tt
+                declare $ datumDeclaration tt ident
                 expr <- flattenABT abt
                 assign ident expr
            (SMeasure internalT) ->
@@ -79,8 +80,9 @@ createProgram (TypedAST tt abt) =
 
 -- | Create function will produce a C function that samples if it is a measure
 createFunction :: TypedAST (TrivialABT T.Term) -> Text
-createFunction (TypedAST (SFun _ _) abt) = let (fs,_,_) = runCodeGen $ flattenABT abt
-                                           in mconcat (fmap cToString fs)
+createFunction (TypedAST (SFun _ _) abt) =
+  let (fs,_,_) = runCodeGen $ flattenABT abt
+  in  mconcat (fmap cToString fs)
 createFunction (TypedAST tt@(SMeasure internalT) abt) =
   let ident           = builtinIdent "result"
       (_,decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident
