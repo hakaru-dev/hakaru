@@ -9,10 +9,8 @@ cd hakaru
 
 Hakaru can then be installed either with `cabal install` or `stack install`
 
-## Installing on Windows
-
-Due to a [ghc bug](https://ghc.haskell.org/trac/ghc/ticket/3242), until ghc 8.0
-is released Windows machines need to install the logfloat library separately
+Due to a [ghc bug](https://ghc.haskell.org/trac/ghc/ticket/3242), Windows users
+using GHC 7.10 and below need to install the logfloat library separately
 
 ````bash
 cabal install -j logfloat -f -useffi
