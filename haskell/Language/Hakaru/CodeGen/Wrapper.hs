@@ -2,7 +2,8 @@
              OverloadedStrings,
              DataKinds,
              GADTs,
-             KindSignatures #-}
+             KindSignatures,
+             ScopedTypeVariables #-}
 
 ----------------------------------------------------------------
 --                                                    2016.06.23
@@ -149,5 +150,8 @@ printft SProb        = "\"exp(%.17f)\\n\""
 printft SReal        = "\"%.17f\\n\""
 printft (SMeasure t) = printft t
 printft (SArray t)   = printft t
-printft (SData _ _)  = "\"TODO: printft datum\""
-printft x     = error $ "TODO: printft: " ++ show x
+printft (SFun _ _)   = error "TODO: printft SFun"
+printft (SData _ _)  = "\"TODO: printft datum\\n\""
+-- printft (SData (STyCon x) _) = printft x
+--   where printft' :: Sing (a :: Symbol) -> Text
+--         printft' (SingSymbol :: Sing "Unit") = "()\\n"

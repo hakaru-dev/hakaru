@@ -143,7 +143,10 @@ datumSum funs ident =
                        , Nothing
                        , Nothing)]
                      node
-  in CDecl [ CTypeSpec . buildStruct (Just ident) $ [index,union] ]
+      struct = buildStruct (Just ident) $ case declrs of
+                                            [] -> [index]
+                                            _  -> [index,union]
+  in CDecl [ CTypeSpec struct ]
            [ ( Just $ CDeclr Nothing [] Nothing [] node
              , Nothing
              , Nothing)]
@@ -159,19 +162,22 @@ datumSum' (SPlus prod rest) =
   do (name:names) <- get
      put names
      let ident = internalIdent name
-         decl  = datumProd prod ident
+         mdecl = datumProd prod ident
      rest' <- datumSum' rest
-     return $ [decl] ++ rest'
+     case mdecl of
+       Nothing -> return rest'
+       Just d  -> return $ [d] ++ rest'
 
 
-datumProd :: Sing (a :: [HakaruFun]) -> Ident -> CDecl
-datumProd funs ident =
+datumProd :: Sing (a :: [HakaruFun]) -> Ident -> Maybe CDecl
+datumProd SDone ident = Nothing
+datumProd funs ident  =
   let declrs = fst $ runState (datumProd' funs) datumNames
-  in  CDecl [ CTypeSpec . buildStruct Nothing $ declrs ]
-            [ ( Just $ CDeclr (Just ident) [] Nothing [] node
-              , Nothing
-              , Nothing)]
-            node
+  in  Just $ CDecl [ CTypeSpec . buildStruct Nothing $ declrs ]
+                   [ ( Just $ CDeclr (Just ident) [] Nothing [] node
+                     , Nothing
+                     , Nothing)]
+                   node
   where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
         base = ['0'..'9'] ++ ['a'..'z']
         names = [[x] | x <- base] `mplus` (do n <- names
