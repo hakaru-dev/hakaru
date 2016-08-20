@@ -98,7 +98,7 @@ footer typ =
   , "  g <- MWC.createSystemRandom"
   , case typ of
       SMeasure _ -> "  forever $ run g prog"
-      _          -> "  run g prog"
+      _          -> "  print prog"
   ]
 
 footerWalk :: [Text]

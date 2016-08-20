@@ -121,7 +121,7 @@ product
     -> Integer
     -> (Integer -> a)
     -> a
-product a b f = P.product $ map f [a .. b]
+product a b f = P.product $ map f [a .. b-1]
 
 summate
     :: Num a
@@ -129,11 +129,11 @@ summate
     -> Integer
     -> (Integer -> a)
     -> a
-summate a b f = sum $ map f [a .. b]
+summate a b f = sum $ map f [a .. b-1]
 
 run :: Show a
     => MWC.GenIO
-    -> (Measure a)
+    -> Measure a
     -> IO ()
 run g k = k g M.>>= print
 
