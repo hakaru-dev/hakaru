@@ -11,8 +11,8 @@ import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
 import qualified Data.Vector                     as V
 import qualified Control.Monad                   as M
-import           Prelude hiding ((>>=))
-
+import           Prelude                         hiding (product, (>>=))
+import qualified Prelude                         as P
 
 lam :: (a -> b) -> a -> b
 lam = id
@@ -115,10 +115,33 @@ prob_ = fromRational . fromNonNegativeRational
 thRootOf :: Integer -> Double -> Double
 thRootOf a b = b ** (recip $ fromIntegral a)
 
-run :: Show a => MWC.GenIO -> (Measure a) -> IO ()
+product
+    :: Num a
+    => Integer
+    -> Integer
+    -> (Integer -> a)
+    -> a
+product a b f = P.product $ map f [a .. b]
+
+summate
+    :: Num a
+    => Integer
+    -> Integer
+    -> (Integer -> a)
+    -> a
+summate a b f = sum $ map f [a .. b]
+
+run :: Show a
+    => MWC.GenIO
+    -> (Measure a)
+    -> IO ()
 run g k = k g M.>>= print
 
-iterateM_ :: Monad m => (a -> m a) -> a -> m b
+iterateM_
+    :: Monad m
+    => (a -> m a)
+    -> a
+    -> m b
 iterateM_ f = g
     where g x = f x M.>>= g
 
