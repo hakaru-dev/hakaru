@@ -63,22 +63,6 @@ normalFB1 :=
 
 normalFB1r := {Weight(1/26*exp(-1/26*t^2)/Pi^(1/2)*13^(1/2)*2^(1/2),Ret(Unit))}:
 
-###########
-#
-#  Convenient short-hands.  These come in this way from Hakaru too.
-#
-###########
-
-bern := proc(p) Msum(Weight(p, Ret(true)), Weight(1-p, Ret(false))) end proc:
-
-###########
-
-burgalarm := 
-  Bind(bern(10^(-4)), burglary,
-  Bind(bern(piecewise(burglary = true, 95/100, 1/100)), alarm,
-  Ret(Pair(alarm, burglary)))):
-burgalarmr := {}:
-
 TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
 TestDisint(d2, d2r, label = "(d2) Disintegrate linear function II");
 TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
@@ -89,5 +73,3 @@ TestDisint(
      normalFB1, normalFB1r, 
      label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
 );
-
-TestDisint(burgalarm, burgalarmr, label = "(d8_Burglar) Burglar Alarm example");
