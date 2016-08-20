@@ -943,7 +943,7 @@ NewSLO := module ()
     end if;
     # try to eliminate unused var
     elim := banish(op(1,e), h, kb, infinity, var, m);
-    if has(elim, {MeijerG, undefined, FAIL}) or e = elim then
+    if has(elim, {MeijerG, undefined, FAIL}) or e = elim or elim :: SymbolicInfinity then
       return FAIL;
     end if;
     elim
