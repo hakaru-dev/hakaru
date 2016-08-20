@@ -241,6 +241,8 @@ NewSLO := module ()
       integrate(op(3,m), h, [op(2,m)=0..op(1,m)-1, op(loops)])
     elif m :: 'Context(anything, anything)' then
       applyop(integrate, 2, m, h, loops)
+    elif Testzero(m) then
+      0
     elif h :: appliable then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)), loops)
@@ -1308,7 +1310,7 @@ NewSLO := module ()
        $
   )
   local
-       pair:= gensym('Pair'),
+       pair:= gensym('p'),
        mc:= Bind(m, pair, piecewise(fst(pair) <= a, Ret(snd(pair)), 0)),
        kb:= foldr(assert, empty, ctx[])
   ;
