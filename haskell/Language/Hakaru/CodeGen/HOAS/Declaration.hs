@@ -115,11 +115,11 @@ arrayDeclaration typ ident =
 -- | datumName provides a unique name to identify a struct type
 datumName :: Sing (a :: [[HakaruFun]]) -> String
 datumName SVoid = "V"
-datumName (SPlus prod sum) = concat ["S",datumName' prod,datumName sum]
+datumName (SPlus prodD sumD) = concat ["S",datumName' prodD,datumName sumD]
   where datumName' :: Sing (a :: [HakaruFun]) -> String
         datumName' SDone = "U"
         datumName' (SEt (SKonst x) prod') = concat ["S",tail . show $ x,datumName' prod']
-        datumName' (SEt SIdent prod')     = error "TODO: datumName of SIdent"
+        datumName' (SEt SIdent _)         = error "TODO: datumName of SIdent"
 
 datumStruct :: (Sing (HData' t)) -> CExtDecl
 datumStruct (SData _ typ) = extDecl $ datumSum typ (builtinIdent (datumName typ))
@@ -170,7 +170,7 @@ datumSum' (SPlus prod rest) =
 
 
 datumProd :: Sing (a :: [HakaruFun]) -> Ident -> Maybe CDecl
-datumProd SDone ident = Nothing
+datumProd SDone _     = Nothing
 datumProd funs ident  =
   let declrs = fst $ runState (datumProd' funs) datumNames
   in  Just $ CDecl [ CTypeSpec . buildStruct Nothing $ declrs ]
@@ -200,7 +200,7 @@ datumProd' (SEt (SKonst t) rest) =
                        node
      rest' <- datumProd' rest
      return $ [decl] ++ rest'
-datumProd' (SEt SIdent rest) = error "TODO: datumProd' SIdent"
+datumProd' (SEt SIdent _) = error "TODO: datumProd' SIdent"
 
 
 

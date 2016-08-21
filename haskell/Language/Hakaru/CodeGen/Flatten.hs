@@ -186,40 +186,67 @@ assignDatum
 assignDatum code ident =
   let index     = getIndex code
       indexExpr = memberE (varE ident) (builtinIdent "index")
-  in  do putStat $ assignExprS indexExpr (intConstE index)
-         sequence_ . fst $ runState (assignSum code ident) datumNames
+  in  do putStat   $ assignExprS indexExpr (intConstE index)
+         sequence_ $ assignSum code ident
   where getIndex :: DatumCode xss b c -> Integer
         getIndex (Inl _)    = 0
         getIndex (Inr rest) = succ (getIndex rest)
-
-        datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
-        base = ['0'..'9'] ++ ['a'..'z']
-        names = [[x] | x <- base] `mplus` (do n <- names
-                                              [n++[x] | x <- base])
 
 assignSum
   :: (ABT Term abt)
   => DatumCode xs (abt '[]) c
   -> Ident
+  -> [CodeGen ()]
+assignSum code ident = fst $ runState (assignSum' code ident) datumNames
+  where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
+        base = ['0'..'9'] ++ ['a'..'z']
+        names = [[x] | x <- base] `mplus` (do n <- names
+                                              [n++[x] | x <- base])
+
+assignSum'
+  :: (ABT Term abt)
+  => DatumCode xs (abt '[]) c
+  -> Ident
   -> State [String] [CodeGen ()]
-assignSum (Inr rest) = assignSum rest
-assignSum (Inl x)    = assignProd x
+assignSum' (Inr rest) topIdent =
+  do (_:names) <- get
+     put names
+     assignSum' rest topIdent
+assignSum' (Inl prod) topIdent =
+  do (name:_) <- get
+     return $ assignProd prod topIdent (builtinIdent name)
 
 assignProd
   :: (ABT Term abt)
   => DatumStruct xs (abt '[]) c
   -> Ident
+  -> Ident
+  -> [CodeGen ()]
+assignProd dstruct topIdent sumIdent =
+  fst $ runState (assignProd' dstruct topIdent sumIdent) datumNames
+  where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
+        base = ['0'..'9'] ++ ['a'..'z']
+        names = [[x] | x <- base] `mplus` (do n <- names
+                                              [n++[x] | x <- base])
+
+assignProd'
+  :: (ABT Term abt)
+  => DatumStruct xs (abt '[]) c
+  -> Ident
+  -> Ident
   -> State [String] [CodeGen ()]
-assignProd Done _                    = return []
-assignProd (Et (Konst d) rest) ident =
+assignProd' Done _ _ = return []
+assignProd' (Et (Konst d) rest) topIdent sumIdent =
   do (name:names) <- get
      put names
-     let varName  = memberE (memberE (varE ident) (builtinIdent "sum")) (internalIdent name)
+     let varName  = memberE (memberE (memberE (varE topIdent)
+                                              (builtinIdent "sum"))
+                                     sumIdent)
+                            (internalIdent name)
          assignCG = putStat =<< assignExprS varName <$> flattenABT d
-     rest' <- assignProd rest ident
+     rest' <- assignProd' rest topIdent sumIdent
      return $ [assignCG] ++ rest'
-assignProd _ _  = error $ "TODO: assignProd Ident"
-
+assignProd' _ _ _  = error $ "TODO: assignProd Ident"
 
 
 ----------------------------------------------------------------
