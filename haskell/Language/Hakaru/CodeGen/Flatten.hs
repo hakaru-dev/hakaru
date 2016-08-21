@@ -40,9 +40,11 @@ import Language.Hakaru.Types.Sing
 import Language.C.Syntax.AST
 import Language.C.Data.Ident
 
+import Control.Monad.State
+
 import           Data.Number.Natural
 import           Data.Ratio
-import           Data.List.NonEmpty
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
@@ -165,9 +167,10 @@ flattenArray _ body =
 
 
 
-flattenDatum :: (ABT Term abt)
-             => Datum (abt '[]) (HData' a)
-             -> CodeGen CExpr
+flattenDatum
+  :: (ABT Term abt)
+  => Datum (abt '[]) (HData' a)
+  -> CodeGen CExpr
 flattenDatum (Datum _ typ code) =
   do ident <- genIdent
      extDeclare $ datumStruct typ
@@ -175,19 +178,48 @@ flattenDatum (Datum _ typ code) =
      assignDatum code ident
      return (varE ident)
 
-assignDatum :: (DatumCode (Code t) ast (HData' t)) -> Ident -> CodeGen ()
--- special cases for true/unit and false
-assignDatum (Inl Done) ident       = putStat $ assignExprS (memberE (varE ident) (builtinIdent "index"))
-                                                           (intConstE 0)
-assignDatum (Inr (Inl Done)) ident = putStat $ assignExprS (memberE (varE ident) (builtinIdent "index"))
-                                                           (intConstE 1)
-assignDatum code _ = error $ "TODO: assignDatum"
-  -- let index     = 0
-  --     indexExpr = memberE (varE ident) (builtinIdent "index")
-  -- in  putStat $ assignExprS indexExpr (intConstE index)
-  -- where getIndex :: DatumCode xss b c -> Int
-  --       getIndex (Inl x)    = 0
-  --       getIndex (Inr rest) = succ (getIndex rest)
+assignDatum
+  :: (ABT Term abt)
+  => DatumCode xss (abt '[]) c
+  -> Ident
+  -> CodeGen ()
+assignDatum code ident =
+  let index     = getIndex code
+      indexExpr = memberE (varE ident) (builtinIdent "index")
+  in  do putStat $ assignExprS indexExpr (intConstE index)
+         sequence_ . fst $ runState (assignSum code ident) datumNames
+  where getIndex :: DatumCode xss b c -> Integer
+        getIndex (Inl _)    = 0
+        getIndex (Inr rest) = succ (getIndex rest)
+
+        datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
+        base = ['0'..'9'] ++ ['a'..'z']
+        names = [[x] | x <- base] `mplus` (do n <- names
+                                              [n++[x] | x <- base])
+
+assignSum
+  :: (ABT Term abt)
+  => DatumCode xs (abt '[]) c
+  -> Ident
+  -> State [String] [CodeGen ()]
+assignSum (Inr rest) = assignSum rest
+assignSum (Inl x)    = assignProd x
+
+assignProd
+  :: (ABT Term abt)
+  => DatumStruct xs (abt '[]) c
+  -> Ident
+  -> State [String] [CodeGen ()]
+assignProd Done _                    = return []
+assignProd (Et (Konst d) rest) ident =
+  do (name:names) <- get
+     put names
+     let varName  = memberE (memberE (varE ident) (builtinIdent "sum")) (internalIdent name)
+         assignCG = putStat =<< assignExprS varName <$> flattenABT d
+     rest' <- assignProd rest ident
+     return $ [assignCG] ++ rest'
+assignProd _ _  = error $ "TODO: assignProd Ident"
+
 
 
 ----------------------------------------------------------------
@@ -198,7 +230,7 @@ flattenCase
   => abt '[] a
   -> [Branch a abt b]
   -> CodeGen CExpr
-flattenCase c bs =
+flattenCase c _ =
   do c' <- flattenABT c
      return c'
 
@@ -326,12 +358,12 @@ flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
 
 flattenSuperpose
     :: (ABT Term abt)
-    => NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
+    => NE.NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
     -> CodeGen CExpr
 
 -- do we need to normalize?
 flattenSuperpose wes =
-  let wes' = toList wes in
+  let wes' = NE.toList wes in
   do randId <- genIdent' "rand"
      declare $ typeDeclaration SReal randId
      let r    = castE doubleTyp rand

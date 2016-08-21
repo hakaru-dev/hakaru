@@ -66,7 +66,7 @@ extDecl = CDeclExt
 
 extFunc :: CFunDef -> CExtDecl
 extFunc = CFDefExt
-                 
+
 typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typeDeclaration typ ident =
   CDecl [CTypeSpec $ buildType typ]
@@ -111,7 +111,7 @@ arrayDeclaration typ ident =
 -- the names used when they are assigned and printed
 -- datumDeclaration declares struct internally
 -- datumStruct declares struct definitions externally
-   
+
 -- | datumName provides a unique name to identify a struct type
 datumName :: Sing (a :: [[HakaruFun]]) -> String
 datumName SVoid = "V"
@@ -223,7 +223,7 @@ buildStruct mi [] =
 buildStruct mi declrs =
   CSUType (CStruct CStructTag mi (Just declrs) [] node) node
 
--- | callStruct will give the type spec calling a struct we have already declared externally 
+-- | callStruct will give the type spec calling a struct we have already declared externally
 callStruct :: String -> CTypeSpec
 callStruct name =
   CSUType (CStruct CStructTag (Just (internalIdent name)) Nothing [] node) node
