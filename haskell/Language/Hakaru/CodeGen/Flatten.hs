@@ -52,7 +52,7 @@ import qualified Data.Traversable   as T
 
 
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Functor (<$>)
+import           Data.Functor
 #endif
        
 
