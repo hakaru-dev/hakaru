@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE CPP
+           , GADTs
            , DataKinds
            , OverloadedStrings
            #-}
@@ -6,6 +7,10 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 #-}
 module Language.Hakaru.Runtime.Prelude where
 
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Functor                  ((<$>))
+import           Control.Applicative           (Applicative(..))
+#endif
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
@@ -16,6 +21,9 @@ import qualified Prelude                         as P
 
 lam :: (a -> b) -> a -> b
 lam = id
+
+app :: (a -> b) -> a -> b
+app f x = f x
 
 let_ :: a -> (a -> b) -> b
 let_ x f = let x1 = x in f x1
@@ -31,12 +39,25 @@ uniform lo hi g = MWC.uniformR (lo, hi) g
 normal :: Double -> Double -> Measure Double
 normal mu sd g = MWCD.normal mu sd g
 
+beta :: Double -> Double -> Measure Double
+beta a b g = MWCD.beta a b g
+
+categorical :: V.Vector Double -> Measure Integer
+categorical a g = fromIntegral <$> MWCD.categorical a g
+
+plate :: Integer -> (Integer -> Measure a) -> Measure (V.Vector a)
+plate n f g = V.generateM (fromIntegral n) $ \x ->
+                f (fromIntegral x) g
+
 pair :: a -> b -> (a, b)
 pair = (,)
 
 true, false :: Bool
 true  = True
 false = False
+
+unit :: ()
+unit = ()
 
 data Pattern = PVar | PWild
 newtype Branch a b =
@@ -82,11 +103,18 @@ superpose pms g = do
   let m = snd (pms !! i)
   m g
 
+-- TODO: something better
+reject :: Measure a
+reject = superpose []
+
 nat_ :: Integer -> Integer
 nat_ = id
 
 int_ :: Integer -> Integer
 int_ = id
+
+unsafeNat :: Integer -> Integer
+unsafeNat = id
 
 nat2prob :: Integer -> Double
 nat2prob = fromIntegral
@@ -114,6 +142,18 @@ prob_ = fromRational . fromNonNegativeRational
 
 thRootOf :: Integer -> Double -> Double
 thRootOf a b = b ** (recip $ fromIntegral a)
+
+array
+    :: Integer
+    -> (Integer -> a)
+    -> V.Vector a
+array n f = V.generate (fromIntegral n) (f . fromIntegral)
+
+(!) :: V.Vector a -> Integer -> a
+a ! b = a V.! (fromIntegral b)
+
+size :: V.Vector a -> Integer
+size v = fromIntegral (V.length v)
 
 product
     :: Num a

@@ -32,6 +32,6 @@ def naive_bayes( topic_prior array(prob)
 
     return zNew
 
-  else: reject . measure(nat)
+  else: reject. measure(nat)
 
 naive_bayes
