@@ -1,4 +1,5 @@
-{-# LANGUAGE DataKinds,
+{-# LANGUAGE CPP,
+             DataKinds,
              FlexibleContexts,
              GADTs,
              KindSignatures,
@@ -48,6 +49,12 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence      as S
 import qualified Data.Foldable      as F
 import qualified Data.Traversable   as T
+
+
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Functor (<$>)
+#endif
+       
 
 import Prelude hiding (log,exp,sqrt)
 
