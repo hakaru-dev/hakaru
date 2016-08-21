@@ -215,7 +215,7 @@ buildType SProb        = CDoubleType undefNode
 buildType SReal        = CDoubleType undefNode
 buildType (SMeasure x) = buildType x
 buildType (SArray x)   = buildType x
-buildType _ = error $ "TODO: buildCType "
+buildType x = error $ "TODO: buildCType " ++ show x
 
 buildStruct :: Maybe Ident -> [CDecl] -> CTypeSpec
 buildStruct mi [] =

@@ -57,17 +57,18 @@ compileHakaru prog = ask >>= \config -> lift $ do
                                then constantPropagation ast
                                else ast)
       when (debug config) $ do
-        putErrorLn "\n----------------------------------------------------------------\n"
+        putErrorLn hrule
         putErrorLn $ pack $ show ast
         when (optimize config) $ do
-          putErrorLn "\n----------------------------------------------------------------\n"
+          putErrorLn hrule
           putErrorLn $ pack $ show ast'
-        putErrorLn "\n----------------------------------------------------------------\n"
+        putErrorLn hrule
       writeToFile (fileOut config) $ if (function config) || isFunc typ
                                      then createFunction ast'
                                      else createProgram ast'
   where isFunc (SFun _ _) = True
         isFunc _          = False
+        hrule = "\n----------------------------------------------------------------\n"
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr

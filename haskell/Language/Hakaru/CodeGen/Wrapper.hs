@@ -29,7 +29,6 @@ import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Types.Sing
 
 import Language.Hakaru.CodeGen.CodeGenMonad
-import Language.Hakaru.CodeGen.HOAS.Declaration
 import Language.Hakaru.CodeGen.Flatten
 import Language.Hakaru.Types.DataKind (Hakaru(..))
 
@@ -50,20 +49,9 @@ import           Data.Monoid
 createProgram :: TypedAST (TrivialABT T.Term) -> Text
 createProgram (TypedAST tt abt) =
   let ident = builtinIdent "result"
-      m = case tt of
-           (SData _ _) ->
-             do extDeclare $ datumStruct tt
-                declare $ datumDeclaration tt ident
-                expr <- flattenABT abt
-                assign ident expr
-           (SMeasure internalT) ->
-             do declare $ typeDeclaration internalT ident
-                expr <- flattenABT abt
-                assign ident expr
-           _ ->
-             do declare $ typeDeclaration tt ident
-                expr <- flattenABT abt
-                assign ident expr
+      m = do declare tt ident
+             expr <- flattenABT abt
+             assign ident expr
       (funcs,decls,stmts) = runCodeGen m
       decls' = fmap (\d -> mconcat [cToString d,";"]) decls
       stmts' = fmap cToString stmts
@@ -86,7 +74,7 @@ createFunction (TypedAST (SFun _ _) abt) =
   in  mconcat (fmap cToString fs)
 createFunction (TypedAST tt@(SMeasure internalT) abt) =
   let ident           = builtinIdent "result"
-      (_,decls,stmts) = runCodeGen (do declare $ typeDeclaration internalT ident
+      (_,decls,stmts) = runCodeGen (do declare internalT ident
                                        expr <- flattenABT abt
                                        assign ident expr)
   in  unlines [ header tt

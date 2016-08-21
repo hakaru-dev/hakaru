@@ -55,6 +55,8 @@ import Control.Applicative ((<$>))
 
 import Language.Hakaru.Syntax.ABT hiding (var)
 import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
+import Language.Hakaru.CodeGen.HOAS.Declaration
 import Language.Hakaru.CodeGen.HOAS.Statement
 
 import Language.C.Data.Ident
@@ -119,9 +121,24 @@ lookupIdent var = do cg <- get
                        Nothing -> error $ "lookupIdent: var not found"
                        Just i  -> return i
 
-declare :: CDecl -> CodeGen ()
-declare d = do cg <- get
-               put $ cg { declarations = d:(declarations cg) }
+-- | types like SData and SMeasure are impure in that they will produce extra
+--   code in the CodeGenMonad while literal types SReal, SInt, SNat, and SProb
+--   do not
+declare :: Sing (a :: Hakaru) -> Ident -> CodeGen ()
+declare SInt          = declare' . typeDeclaration SInt
+declare SNat          = declare' . typeDeclaration SNat
+declare SProb         = declare' . typeDeclaration SProb
+declare SReal         = declare' . typeDeclaration SReal
+declare (SMeasure x)  = declare x
+declare (SArray x)    = declare x
+declare (SFun _ _)    = error "TODO: declare SFun"
+declare d@(SData _ _) = \i -> do extDeclare $ datumStruct d
+                                 declare' $ datumDeclaration d i
+
+
+declare' :: CDecl -> CodeGen ()
+declare' d = do cg <- get
+                put $ cg { declarations = d:(declarations cg) }
 
 putStat :: CStat -> CodeGen ()
 putStat s = do cg <- get

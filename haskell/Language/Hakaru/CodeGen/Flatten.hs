@@ -90,7 +90,7 @@ flattenNAryOp op args =
      case op of
        (Sum HSemiring_Prob)  ->
          do ident <- genIdent' "logSumExp"
-            declare $ typeDeclaration SProb ident
+            declare SProb ident
             assign ident $ logSumExp es
             return (varE ident)
 
@@ -151,7 +151,7 @@ flattenLit lit =
                      x'  = (fromIntegral $ numerator rat)
                          / (fromIntegral $ denominator rat)
                  in do pId <- genIdent' "p"
-                       declare $ typeDeclaration SProb pId
+                       declare SProb pId
                        assign pId $ log1p (floatConstE x' ^- intConstE 1)
                        return (varE pId)
 
@@ -168,7 +168,7 @@ flattenArray _ body =
      -- allocate mem
      -- forM
      caseBind body $ \(Variable _ _ typ) _ ->
-       do declare (arrayDeclaration typ ident)
+       do declare typ ident -- (arrayDeclaration typ ident)
           return $ varE ident
 ----------------------------------------------------------------
 
@@ -181,7 +181,7 @@ flattenDatum
 flattenDatum (Datum _ typ code) =
   do ident <- genIdent
      extDeclare $ datumStruct typ
-     declare $ datumDeclaration typ ident
+     declare typ ident
      assignDatum code ident
      return (varE ident)
 
@@ -281,7 +281,7 @@ flattenSCon Let_            =
     do expr' <- flattenABT expr
        caseBind body $ \v@(Variable _ _ typ) body'->
          do ident <- createIdent v
-            declare $ typeDeclaration typ ident
+            declare typ ident
             assign ident expr'
             flattenABT body'
 
@@ -306,7 +306,7 @@ flattenSCon MBind           =
     do e1' <- flattenABT e1
        caseBind e2 $ \v@(Variable _ _ typ) e2'->
          do ident <- createIdent v
-            declare $ typeDeclaration typ ident
+            declare typ ident
             assign ident e1'
             flattenABT e2'
 
@@ -322,7 +322,7 @@ flattenPrimOp :: ( ABT Term abt
               -> CodeGen CExpr
 flattenPrimOp Pi = \End ->
   do ident <- genIdent
-     declare $ typeDeclaration SProb ident
+     declare SProb ident
      assign ident $ log1p ((stringVarE "M_PI") ^- (intConstE 1))
      return (varE ident)
 flattenPrimOp (Equal _) = \(a :* b :* End) ->
@@ -330,7 +330,7 @@ flattenPrimOp (Equal _) = \(a :* b :* End) ->
      b' <- flattenABT b
      boolIdent <- genIdent' "eq"
 
-     declare $ datumDeclaration sBool boolIdent
+     declare sBool boolIdent
      putStat $ assignExprS (memberE (varE boolIdent) (builtinIdent "index"))
                            (condE (a' ^== b') (intConstE 0) (intConstE 1))
 
@@ -353,16 +353,16 @@ flattenMeasureOp Normal  = \(a :* b :* End) ->
      b' <- flattenABT b
 
      uId <- genIdent
-     declare $ typeDeclaration SReal uId
+     declare SReal uId
      let varU = varE uId
 
      vId <- genIdent
-     declare $ typeDeclaration SReal vId
+     declare SReal vId
      let varV = varE vId
 
      rId <- genIdent
      let varR = varE rId
-     declare $ typeDeclaration SReal rId
+     declare SReal rId
 
 
      doWhileCG ((varR ^== (intConstE 0)) ^|| (varR ^> (intConstE 1)))
@@ -371,7 +371,7 @@ flattenMeasureOp Normal  = \(a :* b :* End) ->
             assign rId $ (varU ^* varU) ^+ (varV ^* varV)
 
      cId <- genIdent
-     declare $ typeDeclaration SReal cId
+     declare SReal cId
      assign cId $ sqrt ((unaryE "-" (intConstE 2)) ^* (log varR ^/ varR))
      let varC = varE cId
 
@@ -381,7 +381,7 @@ flattenMeasureOp Uniform = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
      ident <- genIdent
-     declare $ typeDeclaration SReal ident
+     declare SReal ident
      let r    = castE doubleTyp rand
          rMax = castE doubleTyp (stringVarE "RAND_MAX")
      assign ident (a' ^+ ((r ^/ rMax) ^* (b' ^- a')))
@@ -399,7 +399,7 @@ flattenSuperpose
 flattenSuperpose wes =
   let wes' = NE.toList wes in
   do randId <- genIdent' "rand"
-     declare $ typeDeclaration SReal randId
+     declare SReal randId
      let r    = castE doubleTyp rand
          rMax = castE doubleTyp (stringVarE "RAND_MAX")
          rVar = varE randId
@@ -407,7 +407,7 @@ flattenSuperpose wes =
 
 
      outId <- genIdent
-     declare $ typeDeclaration SReal outId
+     declare SReal outId
 
      wes'' <- T.forM  wes'  $ \(p,m) -> do p' <- flattenABT p
                                            m' <- flattenABT m
