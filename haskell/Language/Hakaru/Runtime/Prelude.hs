@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP
            , GADTs
            , DataKinds
+           , LambdaCase
            , OverloadedStrings
            #-}
 
@@ -31,23 +32,39 @@ let_ x f = let x1 = x in f x1
 ann_ :: a -> b -> b
 ann_ _ a = a
 
-type Measure a = MWC.GenIO -> IO a
+newtype Measure a = Measure { unMeasure :: MWC.GenIO -> IO (Maybe a) }
+
+instance Functor Measure where
+    fmap  = M.liftM
+
+instance Applicative Measure where
+    pure x = Measure $ \_ -> return (Just x)
+    (<*>)  = M.ap
+
+instance Monad Measure where
+    return  = pure
+    m >>= f = Measure $ \g -> do
+                          Just x <- unMeasure m g
+                          unMeasure (f x) g
+
+makeMeasure :: (MWC.GenIO -> IO a) -> Measure a
+makeMeasure f = Measure $ \g -> Just <$> f g
 
 uniform :: Double -> Double -> Measure Double
-uniform lo hi g = MWC.uniformR (lo, hi) g
+uniform lo hi = makeMeasure $ MWC.uniformR (lo, hi)
 
 normal :: Double -> Double -> Measure Double
-normal mu sd g = MWCD.normal mu sd g
+normal mu sd = makeMeasure $ MWCD.normal mu sd
 
 beta :: Double -> Double -> Measure Double
-beta a b g = MWCD.beta a b g
+beta a b = makeMeasure $ MWCD.beta a b
 
 categorical :: V.Vector Double -> Measure Integer
-categorical a g = fromIntegral <$> MWCD.categorical a g
+categorical a = makeMeasure (\g -> fromIntegral <$> MWCD.categorical a g)
 
 plate :: Integer -> (Integer -> Measure a) -> Measure (V.Vector a)
-plate n f g = V.generateM (fromIntegral n) $ \x ->
-                f (fromIntegral x) g
+plate n f = V.generateM (fromIntegral n) $ \x ->
+             f (fromIntegral x)
 
 pair :: a -> b -> (a, b)
 pair = (,)
@@ -85,27 +102,20 @@ case_ e_ bs_ = go e_ bs_
 branch :: (c -> Branch a b) -> c -> Branch a b
 branch pat body = pat body
 
-(>>=) :: Measure a
-      -> (a -> Measure b)
-      -> Measure b
-m >>= f = \g -> m g M.>>= flip f g
-
 dirac :: a -> Measure a
-dirac x _ = return x
+dirac = return
 
 pose :: Double -> Measure a -> Measure a
 pose _ a = a
 
 superpose :: [(Double, Measure a)]
           -> Measure a
-superpose pms g = do
-  i <- MWCD.categorical (V.fromList $ map fst pms) g
-  let m = snd (pms !! i)
-  m g
+superpose pms = do
+  i <- makeMeasure $ MWCD.categorical (V.fromList $ map fst pms)
+  snd (pms !! i)
 
--- TODO: something better
 reject :: Measure a
-reject = superpose []
+reject = Measure $ \_ -> return Nothing
 
 nat_ :: Integer -> Integer
 nat_ = id
@@ -175,7 +185,9 @@ run :: Show a
     => MWC.GenIO
     -> Measure a
     -> IO ()
-run g k = k g M.>>= print
+run g k = unMeasure k g M.>>= \case
+           Just a  -> print a
+           Nothing -> return ()
 
 iterateM_
     :: Monad m
