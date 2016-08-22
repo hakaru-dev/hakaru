@@ -54,7 +54,7 @@ import qualified Data.Traversable   as T
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor
 #endif
-       
+
 
 import Prelude hiding (log,exp,sqrt)
 
@@ -185,6 +185,12 @@ flattenDatum (Datum _ typ code) =
      assignDatum code ident
      return (varE ident)
 
+datumNames :: [String]
+datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
+  where base = ['0'..'9'] ++ ['a'..'z']
+        names = [[x] | x <- base] `mplus` (do n <- names
+                                              [n++[x] | x <- base])
+
 assignDatum
   :: (ABT Term abt)
   => DatumCode xss (abt '[]) c
@@ -205,10 +211,6 @@ assignSum
   -> Ident
   -> [CodeGen ()]
 assignSum code ident = fst $ runState (assignSum' code ident) datumNames
-  where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
-        base = ['0'..'9'] ++ ['a'..'z']
-        names = [[x] | x <- base] `mplus` (do n <- names
-                                              [n++[x] | x <- base])
 
 assignSum'
   :: (ABT Term abt)
@@ -231,10 +233,6 @@ assignProd
   -> [CodeGen ()]
 assignProd dstruct topIdent sumIdent =
   fst $ runState (assignProd' dstruct topIdent sumIdent) datumNames
-  where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
-        base = ['0'..'9'] ++ ['a'..'z']
-        names = [[x] | x <- base] `mplus` (do n <- names
-                                              [n++[x] | x <- base])
 
 assignProd'
   :: (ABT Term abt)
@@ -311,6 +309,7 @@ flattenSCon MBind           =
             flattenABT e2'
 
 flattenSCon x               = \_ -> error $ "TODO: flattenSCon: " ++ show x
+
 ----------------------------------------------------------------
 
 

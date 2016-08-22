@@ -121,6 +121,12 @@ datumName (SPlus prodD sumD) = concat ["S",datumName' prodD,datumName sumD]
         datumName' (SEt (SKonst x) prod') = concat ["S",tail . show $ x,datumName' prod']
         datumName' (SEt SIdent _)         = error "TODO: datumName of SIdent"
 
+datumNames :: [String]
+datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
+  where base = ['0'..'9'] ++ ['a'..'z']
+        names = [[x] | x <- base] `mplus` (do n <- names
+                                              [n++[x] | x <- base])
+
 datumStruct :: (Sing (HData' t)) -> CExtDecl
 datumStruct (SData _ typ) = extDecl $ datumSum typ (builtinIdent (datumName typ))
 
@@ -151,10 +157,6 @@ datumSum funs ident =
              , Nothing
              , Nothing)]
            node
-  where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
-        base = ['0'..'9'] ++ ['a'..'z']
-        names = [[x] | x <- base] `mplus` (do n <- names
-                                              [n++[x] | x <- base])
 
 datumSum' :: Sing (a :: [[HakaruFun]]) -> State [String] [CDecl]
 datumSum' SVoid          = return []
@@ -178,12 +180,6 @@ datumProd funs ident  =
                      , Nothing
                      , Nothing)]
                    node
-  where datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
-        base = ['0'..'9'] ++ ['a'..'z']
-        names = [[x] | x <- base] `mplus` (do n <- names
-                                              [n++[x] | x <- base])
-
-
 
 -- datumProd uses a store of names, which needs to match up with the names used
 -- when they are assigned as well as printed
