@@ -53,7 +53,6 @@ import qualified Data.Traversable   as T
 
 
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid
 import           Data.Functor
 #endif
 
@@ -164,14 +163,16 @@ flattenArray :: (ABT Term abt)
              => (abt '[] 'HNat)
              -> (abt '[ 'HNat ] a)
              -> CodeGen CExpr
-flattenArray _ body =
-  do ident <- genIdent
-     -- arity' <- flattenABT a
+flattenArray arity body =
+  do arity' <- flattenABT arity
+     -- let dataVar = 
      -- allocate mem
      -- forM
-     caseBind body $ \(Variable _ _ typ) _ ->
-       do declare typ ident -- (arrayDeclaration typ ident)
-          return $ varE ident
+     caseBind body $ \v@(Variable _ _ typ) _ ->
+       do ident <- createIdent v
+          declare typ ident
+          return arity'
+          --return $ varE ident
 ----------------------------------------------------------------
 
 

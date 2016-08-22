@@ -155,7 +155,7 @@ declare SNat          = declare' . typeDeclaration SNat
 declare SProb         = declare' . typeDeclaration SProb
 declare SReal         = declare' . typeDeclaration SReal
 declare (SMeasure x)  = declare x
-declare (SArray x)    = declare x
+declare (SArray t)    = declare' . arrayDeclaration t
 declare (SFun _ _)    = error "TODO: declare SFun"
 declare d@(SData _ _) = \i -> do extDeclare $ datumStruct d
                                  declare' $ datumDeclaration d i
