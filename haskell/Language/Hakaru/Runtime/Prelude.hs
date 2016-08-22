@@ -16,8 +16,8 @@ import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
 import qualified Data.Vector                     as V
-import qualified Control.Monad                   as M
-import           Prelude                         hiding (product, (>>=))
+import           Control.Monad
+import           Prelude                         hiding (product)
 import qualified Prelude                         as P
 
 lam :: (a -> b) -> a -> b
@@ -35,11 +35,11 @@ ann_ _ a = a
 newtype Measure a = Measure { unMeasure :: MWC.GenIO -> IO (Maybe a) }
 
 instance Functor Measure where
-    fmap  = M.liftM
+    fmap  = liftM
 
 instance Applicative Measure where
     pure x = Measure $ \_ -> return (Just x)
-    (<*>)  = M.ap
+    (<*>)  = ap
 
 instance Monad Measure where
     return  = pure
@@ -185,7 +185,7 @@ run :: Show a
     => MWC.GenIO
     -> Measure a
     -> IO ()
-run g k = unMeasure k g M.>>= \case
+run g k = unMeasure k g >>= \case
            Just a  -> print a
            Nothing -> return ()
 
@@ -195,7 +195,7 @@ iterateM_
     -> a
     -> m b
 iterateM_ f = g
-    where g x = f x M.>>= g
+    where g x = f x >>= g
 
 withPrint :: Show a => (a -> IO b) -> a -> IO b
 withPrint f x = print x >> f x

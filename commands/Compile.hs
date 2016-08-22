@@ -82,11 +82,11 @@ header =
   [ "{-# LANGUAGE DataKinds, NegativeLiterals #-}"
   , "module Main where"
   , ""
-  , "import           Prelude                          hiding (product, (>>=))"
+  , "import           Prelude                          hiding (product)"
   , "import           Language.Hakaru.Runtime.Prelude"
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
-  , "import           Control.Monad                    hiding ((>>=))"
+  , "import           Control.Monad"
   , ""
   ]
 
