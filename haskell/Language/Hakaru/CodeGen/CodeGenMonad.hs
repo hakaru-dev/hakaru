@@ -26,8 +26,13 @@
 module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
   , runCodeGen
+  , runCodeGenWithNames
+  , emptyCG
 
-  -- effects
+  , getNames
+  , setNames
+
+  -- codegen effects
   , declare
   , declare'
   , assign
@@ -96,6 +101,25 @@ runCodeGen m =
   in  ( S.toList $ extDecls     cg
       , reverse  $ declarations cg
       , reverse  $ statements   cg )
+
+runCodeGenWithNames
+  :: CodeGen a
+  -> [String]
+  -> ([String],[CExtDecl],[CDecl], [CStat])
+runCodeGenWithNames m names =
+  let (_, cg) = runState m $ CG names mempty [] [] emptyEnv
+  in  ( freshNames cg
+      , S.toList $ extDecls     cg
+      , reverse  $ declarations cg
+      , reverse  $ statements   cg )
+
+
+getNames :: CodeGen [String]
+getNames = freshNames <$> get
+
+setNames :: [String] -> CodeGen ()
+setNames n = do cg <- get
+                put $ cg { freshNames = n }
 
 genIdent :: CodeGen Ident
 genIdent = do cg <- get

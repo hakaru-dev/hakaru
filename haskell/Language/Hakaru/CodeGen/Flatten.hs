@@ -53,6 +53,7 @@ import qualified Data.Traversable   as T
 
 
 #if __GLASGOW_HASKELL__ < 710
+import           Data.Monoid
 import           Data.Functor
 #endif
 
@@ -267,8 +268,12 @@ flattenCase c (Branch (PDatum _ (PInl PDone)) x:Branch (PDatum _ (PInr (PInl PDo
   do c' <- flattenABT c
      result <- genIdent
      declare (typeOf x) result
-     let (xExts,xDecls,xStats) = runCodeGen $ assign result =<< flattenABT x
-         (yExts,yDecls,yStats) = runCodeGen $ assign result =<< flattenABT y
+     names <- getNames
+     let (names', xExts,xDecls,xStats) =
+           runCodeGenWithNames (assign result =<< flattenABT x) names
+         (names'',yExts,yDecls,yStats) =
+           runCodeGenWithNames (assign result =<< flattenABT y) names'
+     setNames names''
      mapM_ extDeclare (xExts ++ yExts)
      mapM_ declare' (xDecls ++ yDecls)
      putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 0)) xStats
