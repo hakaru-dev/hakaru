@@ -29,6 +29,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
 
   -- effects
   , declare
+  , declare'
   , assign
   , putStat
   , extDeclare

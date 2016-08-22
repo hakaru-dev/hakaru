@@ -33,6 +33,7 @@ import Language.Hakaru.CodeGen.HOAS.Function
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.TypeOf (typeOf)       
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
@@ -262,9 +263,18 @@ flattenCase
   => abt '[] a
   -> [Branch a abt b]
   -> CodeGen CExpr
-flattenCase c _ =
+flattenCase c (Branch (PDatum _ (PInl PDone)) x:Branch (PDatum _ (PInr (PInl PDone))) y:[]) =
   do c' <- flattenABT c
-     return c'
+     result <- genIdent
+     declare (typeOf x) result
+     let (xExts,xDecls,xStats) = runCodeGen $ assign result =<< flattenABT x
+         (yExts,yDecls,yStats) = runCodeGen $ assign result =<< flattenABT y
+     mapM_ extDeclare (xExts ++ yExts)
+     mapM_ declare' (xDecls ++ yDecls)
+     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 0)) xStats
+     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 1)) yStats
+     return (varE result)
+flattenCase _ _ = error "TODO: flattenCase"
 
 
 ----------------------------------------------------------------

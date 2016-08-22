@@ -51,6 +51,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
 
   , varE
   , memberE
+  , (^!)
   , stringE
   , stringVarE
   , nullaryE
@@ -140,3 +141,7 @@ condE cond thn els = CCond cond (Just thn) els node
 
 memberE :: CExpr -> Ident -> CExpr
 memberE var ident = CMember var ident False node
+
+-- infix memberE
+(^!) :: CExpr -> Ident -> CExpr
+(^!) = memberE
