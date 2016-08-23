@@ -33,7 +33,7 @@ import Language.Hakaru.CodeGen.HOAS.Function
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.TypeOf (typeOf)       
+import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
@@ -166,7 +166,7 @@ flattenArray :: (ABT Term abt)
 flattenArray arity body =
   caseBind body $ \v@(Variable _ _ typ) body' ->
     do iterIdent  <- createIdent v
-       arrayIdent <- genIdent' "a"
+       arrayIdent <- genIdent' "arr"
        arity'     <- flattenABT arity
        declare (SArray typ) arrayIdent
        declare SNat iterIdent
@@ -183,7 +183,7 @@ flattenArray arity body =
        let iter    = varE iterIdent
            cond    = iter ^< arity'
            inc     = postInc iter
-           m       = return () -- need to ad body
+           m       = return ()
            (_,cg') = runState m $ cg { statements = [] }
        put $ cg' { statements = statements cg }
        putStat $ forS iter cond inc (statements cg')

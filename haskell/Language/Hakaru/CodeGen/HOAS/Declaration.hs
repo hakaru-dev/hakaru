@@ -25,9 +25,11 @@ module Language.Hakaru.CodeGen.HOAS.Declaration
   -- tools for building C types
   , typeDeclaration
   , arrayDeclaration
+  , arrayName
+  , arrayStruct
   , datumDeclaration
-  , datumStruct
   , datumName
+  , datumStruct
 
   , datumSum
   , datumProd
@@ -77,38 +79,36 @@ typeDeclaration typ ident =
         [(Just $ CDeclr (Just ident) [] Nothing [] node,Nothing,Nothing)]
         node
 
--- and array declaration just requires the type
+--------------------------------------------------------------------------------
+--
+
+arrayName :: Sing (a :: Hakaru) -> String
+arrayName SInt  = "arrayInt"
+arrayName SNat  = "arrayNat"
+arrayName SReal = "arrayReal"
+arrayName SProb = "arrayProb"
+arrayName t    = error $ "arrayName: cannot make array from type: " ++ show t
+
+arrayStruct :: Sing (a :: Hakaru) -> CExtDecl
+arrayStruct t = extDecl $ CDecl [CTypeSpec aStruct] [] node
+  where aSize   = CDecl [CTypeSpec intTyp ]
+                        [( Just $ CDeclr (Just (internalIdent "size")) [] Nothing [] node
+                         , Nothing
+                         , Nothing)]
+                        node
+        aData   = CDecl [CTypeSpec $ buildType t]
+                        [( Just $ CDeclr (Just (internalIdent "data")) [CPtrDeclr [] node] Nothing [] node
+                         , Nothing
+                         , Nothing)]
+                        node
+        aStruct = buildStruct (Just . builtinIdent . arrayName $ t) [aSize,aData]
+
+
 arrayDeclaration
   :: Sing (a :: Hakaru)
   -> Ident
   -> CDecl
-arrayDeclaration typ ident =
-  CDecl [ CTypeSpec
-          $ buildStruct Nothing
-                        [ CDecl [CTypeSpec intTyp ]
-                                           [( Just $ CDeclr (Just (internalIdent "size"))
-                                                            []
-                                                            Nothing
-                                                            []
-                                                            node
-                                             , Nothing
-                                             , Nothing)]
-                                            node
-                        , CDecl [CTypeSpec $ buildType typ]
-                                           [( Just $ CDeclr (Just (internalIdent "data"))
-                                                            [CPtrDeclr [] node]
-                                                            Nothing
-                                                            []
-                                                            node
-                                            , Nothing
-                                            , Nothing)]
-                                            node
-                        ]
-       ]
-       [ ( Just $ CDeclr (Just ident) [] Nothing [] node
-         , Nothing
-         , Nothing) ]
-       node
+arrayDeclaration typ = buildDeclaration (callStruct (arrayName typ))
 
 --------------------------------------------------------------------------------
 -- | datumProd and datumSum use a store of names, which needs to match up with

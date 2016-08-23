@@ -88,13 +88,14 @@ cToString :: C.Pretty a => a -> Text
 cToString = pack . render . C.pretty
 
 
-
+-- This should be handled in the CodeGenMonad eventually
 header :: Sing (a :: Hakaru) -> Text
 header (SMeasure _) = unlines [ "#include <time.h>"
                               , "#include <stdlib.h>"
                               , "#include <stdio.h>"
                               , "#include <math.h>" ]
 header _            = unlines [ "#include <stdio.h>"
+                              , "#include <stdlib.h>"
                               , "#include <math.h>" ]
 
 normalC :: Text
