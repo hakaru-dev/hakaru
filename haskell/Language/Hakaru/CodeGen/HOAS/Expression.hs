@@ -54,6 +54,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , varE
   , memberE
   , (^!)
+  , indirectE
   , stringE
   , stringVarE
   , nullaryE
@@ -146,6 +147,10 @@ condE cond thn els = CCond cond (Just thn) els node
 
 memberE :: CExpr -> Ident -> CExpr
 memberE var ident = CMember var ident False node
+
+-- for assigning to pointers        
+indirectE :: CExpr -> CExpr
+indirectE var = CUnary CIndOp var node
 
 -- infix memberE
 (^!) :: CExpr -> Ident -> CExpr

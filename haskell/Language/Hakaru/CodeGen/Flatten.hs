@@ -165,17 +165,19 @@ flattenArray :: (ABT Term abt)
              -> CodeGen CExpr
 flattenArray arity body =
   caseBind body $ \v@(Variable _ _ typ) body' ->
-    do iterIdent  <- createIdent v
-       arrayIdent <- genIdent' "arr"
-       arity'     <- flattenABT arity
+    do arrayIdent <- genIdent' "arr"
        declare (SArray typ) arrayIdent
-       declare SNat iterIdent
+
+       arity'     <- flattenABT arity
 
        let dataPtr = varE arrayIdent ^! (builtinIdent "data")
            dataTyp = buildType typ -- this should be a literal type (unless we can have an array of measures)
 
        -- setup loop
        putStat $ assignExprS dataPtr $ castE (mkPtrDecl dataTyp) (malloc (arity' ^* (sizeof . mkDecl $ dataTyp)))
+
+       iterIdent  <- createIdent v
+       declare SNat iterIdent
        assign iterIdent $ intConstE 0
 
        -- manage loop
@@ -183,7 +185,8 @@ flattenArray arity body =
        let iter    = varE iterIdent
            cond    = iter ^< arity'
            inc     = postInc iter
-           m       = return ()
+           currInd = indirectE (dataPtr ^+ iter)
+           m       = putStat =<< assignExprS currInd <$> flattenABT body'
            (_,cg') = runState m $ cg { statements = [] }
        put $ cg' { statements = statements cg }
        putStat $ forS iter cond inc (statements cg')
