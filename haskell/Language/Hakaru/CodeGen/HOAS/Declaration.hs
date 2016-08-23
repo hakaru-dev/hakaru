@@ -33,11 +33,15 @@ module Language.Hakaru.CodeGen.HOAS.Declaration
   , datumProd
 
   , buildType
+  , mkDecl
+  , mkPtrDecl
   , buildStruct
   , buildUnion
 
   , doubleTyp
   , intTyp
+  , intDecl
+  , doubleDecl
   , doublePtr
   , intPtr
   , boolTyp
@@ -213,6 +217,20 @@ buildType (SMeasure x) = buildType x
 buildType (SArray x)   = buildType x
 buildType x = error $ "TODO: buildCType " ++ show x
 
+mkDecl :: CTypeSpec -> CDecl
+mkDecl t = CDecl [CTypeSpec t]
+                 [( Nothing
+                  , Nothing
+                  , Nothing)]
+                 node
+
+mkPtrDecl :: CTypeSpec -> CDecl
+mkPtrDecl t = CDecl [CTypeSpec t]
+                    [( Just (CDeclr Nothing [CPtrDeclr [] node] Nothing [] node)
+                     , Nothing
+                     , Nothing)]
+                    node
+
 buildStruct :: Maybe Ident -> [CDecl] -> CTypeSpec
 buildStruct mi [] =
   CSUType (CStruct CStructTag mi Nothing [] node) node
@@ -236,9 +254,14 @@ intTyp,doubleTyp :: CTypeSpec
 intTyp    = CIntType undefNode
 doubleTyp = CDoubleType undefNode
 
+
+intDecl,doubleDecl :: CDecl
+intDecl    = mkDecl intTyp
+doubleDecl = mkDecl doubleTyp
+
 intPtr,doublePtr :: CDecl
-intPtr    = undefined
-doublePtr = undefined
+intPtr    = mkPtrDecl intTyp
+doublePtr = mkPtrDecl doubleTyp
 
 boolTyp :: CDecl
 boolTyp =

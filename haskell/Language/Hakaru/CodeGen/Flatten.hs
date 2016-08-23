@@ -164,15 +164,32 @@ flattenArray :: (ABT Term abt)
              -> (abt '[ 'HNat ] a)
              -> CodeGen CExpr
 flattenArray arity body =
-  do arity' <- flattenABT arity
-     -- let dataVar = 
-     -- allocate mem
-     -- forM
-     caseBind body $ \v@(Variable _ _ typ) _ ->
-       do ident <- createIdent v
-          declare typ ident
-          return arity'
-          --return $ varE ident
+  caseBind body $ \v@(Variable _ _ typ) body' ->
+    do iterIdent  <- createIdent v
+       arrayIdent <- genIdent' "a"
+       arity'     <- flattenABT arity
+       declare (SArray typ) arrayIdent
+       declare SNat iterIdent
+
+       let dataPtr = varE arrayIdent ^! (builtinIdent "data")
+           dataTyp = buildType typ -- this should be a literal type (unless we can have an array of measures)
+
+       -- setup loop
+       putStat $ assignExprS dataPtr $ castE (mkPtrDecl dataTyp) (malloc (arity' ^* (sizeof . mkDecl $ dataTyp)))
+       assign iterIdent $ intConstE 0
+
+       -- manage loop
+       cg <- get
+       let iter    = varE iterIdent
+           cond    = iter ^< arity'
+           inc     = postInc iter
+           m       = return () -- need to ad body
+           (_,cg') = runState m $ cg { statements = [] }
+       put $ cg' { statements = statements cg }
+       putStat $ forS iter cond inc (statements cg')
+
+       return (varE arrayIdent)
+
 ----------------------------------------------------------------
 
 
@@ -346,7 +363,7 @@ flattenPrimOp (Equal _) = \(a :* b :* End) ->
      boolIdent <- genIdent' "eq"
 
      declare sBool boolIdent
-     putStat $ assignExprS (memberE (varE boolIdent) (builtinIdent "index"))
+     putStat $ assignExprS ((varE boolIdent) ^! (builtinIdent "index"))
                            (condE (a' ^== b') (intConstE 0) (intConstE 1))
 
      return (varE boolIdent)
@@ -362,8 +379,8 @@ flattenMeasureOp :: ( ABT Term abt
                  -> SArgs abt args
                  -> CodeGen CExpr
 flattenMeasureOp Normal  = \(a :* b :* End) ->
-  let randomE = (castE doubleTyp rand)
-              ^/ (castE doubleTyp (stringVarE "RAND_MAX")) in
+  let randomE = (castE doubleDecl rand)
+              ^/ (castE doubleDecl (stringVarE "RAND_MAX")) in
   do a' <- flattenABT a
      b' <- flattenABT b
 
@@ -397,8 +414,8 @@ flattenMeasureOp Uniform = \(a :* b :* End) ->
      b' <- flattenABT b
      ident <- genIdent
      declare SReal ident
-     let r    = castE doubleTyp rand
-         rMax = castE doubleTyp (stringVarE "RAND_MAX")
+     let r    = castE doubleDecl rand
+         rMax = castE doubleDecl (stringVarE "RAND_MAX")
      assign ident (a' ^+ ((r ^/ rMax) ^* (b' ^- a')))
      return (varE ident)
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
@@ -415,8 +432,8 @@ flattenSuperpose wes =
   let wes' = NE.toList wes in
   do randId <- genIdent' "rand"
      declare SReal randId
-     let r    = castE doubleTyp rand
-         rMax = castE doubleTyp (stringVarE "RAND_MAX")
+     let r    = castE doubleDecl rand
+         rMax = castE doubleDecl (stringVarE "RAND_MAX")
          rVar = varE randId
      assign randId ((r ^/ rMax) ^* (intConstE 1))
 

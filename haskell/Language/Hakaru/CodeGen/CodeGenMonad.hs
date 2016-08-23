@@ -25,6 +25,7 @@
 
 module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
+  , CG(..)
   , runCodeGen
   , runCodeGenWithNames
   , emptyCG
@@ -102,6 +103,7 @@ runCodeGen m =
       , reverse  $ declarations cg
       , reverse  $ statements   cg )
 
+
 runCodeGenWithNames
   :: CodeGen a
   -> [String]
@@ -142,7 +144,8 @@ createIdent var@(Variable name _ _) =
 
 lookupIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 lookupIdent var = do cg <- get
-                     case lookupVar var (varEnv cg) of
+                     let env = varEnv cg
+                     case lookupVar var env of
                        Nothing -> error $ "lookupIdent: var not found"
                        Just i  -> return i
 

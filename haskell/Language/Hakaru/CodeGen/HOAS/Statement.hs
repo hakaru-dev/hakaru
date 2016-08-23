@@ -77,7 +77,12 @@ doWhileS :: CExpr -> [CStat] -> CStat
 doWhileS b stmts = CWhile b (CCompound [] (fmap CBlockStmt stmts) node) True node
 
 forS :: CExpr -> CExpr -> CExpr -> [CStat] -> CStat
-forS = undefined
+forS var bool inc stmts =
+  CFor (Left (Just var))
+       (Just bool)
+       (Just inc)
+       (CCompound [] (fmap CBlockStmt stmts) node)
+       node
 
 
 ifS :: CExpr -> CStat -> CStat -> CStat

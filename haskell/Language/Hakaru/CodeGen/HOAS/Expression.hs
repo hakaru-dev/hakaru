@@ -49,6 +49,8 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , (^-)
   , (^+)
 
+  , postInc
+
   , varE
   , memberE
   , (^!)
@@ -91,16 +93,19 @@ rand = nullaryE "rand"
 printE :: String -> CExpr
 printE s = unaryE "printf" (stringE s)
 
-log1p,log,expm1,exp,sqrt,malloc,free,sizeof
+log1p,log,expm1,exp,sqrt,malloc,free,postInc
   :: CExpr -> CExpr
-log1p  = unaryE "log1p"
-log    = unaryE "log"
-expm1  = unaryE "expm1"
-exp    = unaryE "exp"
-sqrt   = unaryE "sqrt"
-malloc = unaryE "malloc"
-free   = unaryE "free"
-sizeof = unaryE "sizeof"
+log1p   = unaryE "log1p"
+log     = unaryE "log"
+expm1   = unaryE "expm1"
+exp     = unaryE "exp"
+sqrt    = unaryE "sqrt"
+malloc  = unaryE "malloc"
+free    = unaryE "free"
+postInc = \expr -> CUnary CPostIncOp expr node
+
+sizeof :: CDecl -> CExpr
+sizeof d = CSizeofType d node
 
 stringVarE :: String -> CExpr
 stringVarE s = CVar (builtinIdent s) node
@@ -133,8 +138,8 @@ binaryOp (Sum _)               a b = CBinary CAddOp a b node
 binaryOp (Prod _)              a b = CBinary CMulOp a b node
 
 
-castE :: CTypeSpec -> CExpr -> CExpr
-castE t e = CCast (CDecl [CTypeSpec t] [] node) e node
+castE :: CDecl -> CExpr -> CExpr
+castE d e = CCast d e node
 
 condE :: CExpr -> CExpr -> CExpr -> CExpr
 condE cond thn els = CCond cond (Just thn) els node
