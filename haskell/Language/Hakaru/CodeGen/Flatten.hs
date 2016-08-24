@@ -79,6 +79,50 @@ flattenTerm (x :$ ys)        = flattenSCon x ys
 flattenTerm (Reject_ _)      = error "TODO: flattenTerm Reject"
 flattenTerm (Superpose_ wes) = flattenSuperpose wes
 
+----------------------------------------------------------------
+
+
+flattenSCon :: (ABT Term abt)
+            => SCon args a
+            -> SArgs abt args
+            -> CodeGen CExpr
+flattenSCon Let_            =
+  \(expr :* body :* End) ->
+    do expr' <- flattenABT expr
+       caseBind body $ \v@(Variable _ _ typ) body'->
+         do ident <- createIdent v
+            declare typ ident
+            assign ident expr'
+            flattenABT body'
+
+-- Needs to be updated to work with multiple arguments
+-- Also need work on the wrapper for this function
+flattenSCon Lam_            =
+  \(e1 :* End) ->
+    caseBind e1 $ \v@(Variable _ _ typ) e1' ->
+      do funcId <- genIdent' "fn"
+         vId    <- createIdent v
+         let vDec = typeDeclaration typ vId
+         e1''   <- flattenABT e1'
+         extDeclare $ CFDefExt (functionDef typ funcId [vDec] [returnS e1''])
+         return e1''
+
+flattenSCon (PrimOp_ op)    = flattenPrimOp op
+flattenSCon (ArrayOp_ op)   = flattenArrayOp op
+flattenSCon (MeasureOp_ op) = flattenMeasureOp op
+flattenSCon Dirac           = \(e :* End) -> flattenABT e
+
+flattenSCon MBind           =
+  \(e1 :* e2 :* End) ->
+    do e1' <- flattenABT e1
+       caseBind e2 $ \v@(Variable _ _ typ) e2'->
+         do ident <- createIdent v
+            declare typ ident
+            assign ident e1'
+            flattenABT e2'
+
+flattenSCon x               = \_ -> error $ "TODO: flattenSCon: " ++ show x
+
 
 ----------------------------------------------------------------
 flattenNAryOp :: ABT Term abt
@@ -169,8 +213,11 @@ flattenArray arity body =
 
        arity'     <- flattenABT arity
 
-       let dataPtr = varE arrayIdent ^! (builtinIdent "data")
+       let arrVar  = varE arrayIdent
+           dataPtr = arrVar ^! (builtinIdent "data")
+           sizeVar = arrVar ^! (builtinIdent "size")
            dataTyp = buildType typ -- this should be a literal type (unless we can have an array of measures)
+       putStat $ assignExprS sizeVar arity'
 
        -- setup loop
        putStat $ assignExprS dataPtr $ castE (mkPtrDecl dataTyp)
@@ -185,10 +232,30 @@ flattenArray arity body =
            cond     = iter ^< arity'
            inc      = postInc iter
            currInd  = indirectE (dataPtr ^+ iter)
-           loopBody = putStat =<< assignExprS currInd <$> flattenABT body'                  
+           loopBody = putStat =<< assignExprS currInd <$> flattenABT body'
        forCG iter cond inc loopBody
 
        return (varE arrayIdent)
+
+----------------------------------------------------------------
+
+flattenArrayOp
+  :: ( ABT Term abt
+     , typs ~ UnLCs args
+     , args ~ LCs typs)
+  => ArrayOp typs a
+  -> SArgs abt args
+  -> CodeGen CExpr
+flattenArrayOp (Index _)  = \(e1 :* e2 :* End) ->
+  do arr <- flattenABT e1
+     ind <- flattenABT e2
+     let dataPtr = arr ^! (builtinIdent "data")
+     return . indirectE $ (dataPtr ^+ ind)
+flattenArrayOp (Size _)   = \(e1 :* End) ->
+  do arr <- flattenABT e1
+     return (arr ^! (builtinIdent "size"))
+flattenArrayOp (Reduce _) = undefined
+
 
 ----------------------------------------------------------------
 
@@ -299,49 +366,6 @@ flattenCase c (Branch (PDatum _ (PInl PDone)) x:Branch (PDatum _ (PInr (PInl PDo
      return (varE result)
 flattenCase _ _ = error "TODO: flattenCase"
 
-
-----------------------------------------------------------------
-
-
-flattenSCon :: (ABT Term abt)
-            => SCon args a
-            -> SArgs abt args
-            -> CodeGen CExpr
-flattenSCon Let_            =
-  \(expr :* body :* End) ->
-    do expr' <- flattenABT expr
-       caseBind body $ \v@(Variable _ _ typ) body'->
-         do ident <- createIdent v
-            declare typ ident
-            assign ident expr'
-            flattenABT body'
-
--- Needs to be updated to work with multiple arguments
--- Also need work on the wrapper for this function
-flattenSCon Lam_            =
-  \(e1 :* End) ->
-    caseBind e1 $ \v@(Variable _ _ typ) e1' ->
-      do funcId <- genIdent' "fn"
-         vId    <- createIdent v
-         let vDec = typeDeclaration typ vId
-         e1''   <- flattenABT e1'
-         extDeclare $ CFDefExt (functionDef typ funcId [vDec] [returnS e1''])
-         return e1''
-
-flattenSCon (PrimOp_ op)    = \es -> flattenPrimOp op es
-flattenSCon (MeasureOp_  m) = \es -> flattenMeasureOp m es
-flattenSCon Dirac           = \(e :* End) -> flattenABT e
-
-flattenSCon MBind           =
-  \(e1 :* e2 :* End) ->
-    do e1' <- flattenABT e1
-       caseBind e2 $ \v@(Variable _ _ typ) e2'->
-         do ident <- createIdent v
-            declare typ ident
-            assign ident e1'
-            flattenABT e2'
-
-flattenSCon x               = \_ -> error $ "TODO: flattenSCon: " ++ show x
 
 ----------------------------------------------------------------
 
