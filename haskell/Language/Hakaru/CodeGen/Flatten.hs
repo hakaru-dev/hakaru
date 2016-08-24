@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP,
+             BangPatterns,
              DataKinds,
              FlexibleContexts,
              GADTs,
@@ -42,8 +43,7 @@ import Language.Hakaru.Types.Sing
 import Language.C.Syntax.AST
 import Language.C.Data.Ident
 
-import Control.Monad.State
-
+import           Control.Monad.State
 import           Data.Number.Natural
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
@@ -66,8 +66,7 @@ flattenABT abt = caseVarSyn abt flattenVar flattenTerm
 
 
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
-flattenVar v = do ident <- lookupIdent v
-                  return (varE ident)
+flattenVar v = varE <$> lookupIdent v
 
 flattenTerm :: ABT Term abt => Term abt a -> CodeGen CExpr
 flattenTerm (NaryOp_ t s)    = flattenNAryOp t s
@@ -75,7 +74,7 @@ flattenTerm (Literal_ x)     = flattenLit x
 flattenTerm (Empty_ _)       = error "TODO: flattenTerm Empty"
 flattenTerm (Datum_ d)       = flattenDatum d
 flattenTerm (Case_ c bs)     = flattenCase c bs
-flattenTerm (Array_ a es)    = flattenArray a es
+flattenTerm (Array_ s e)     = flattenArray s e
 flattenTerm (x :$ ys)        = flattenSCon x ys
 flattenTerm (Reject_ _)      = error "TODO: flattenTerm Reject"
 flattenTerm (Superpose_ wes) = flattenSuperpose wes
@@ -174,22 +173,20 @@ flattenArray arity body =
            dataTyp = buildType typ -- this should be a literal type (unless we can have an array of measures)
 
        -- setup loop
-       putStat $ assignExprS dataPtr $ castE (mkPtrDecl dataTyp) (malloc (arity' ^* (sizeof . mkDecl $ dataTyp)))
+       putStat $ assignExprS dataPtr $ castE (mkPtrDecl dataTyp)
+                                             (malloc (arity' ^* (sizeof . mkDecl $ dataTyp)))
 
        iterIdent  <- createIdent v
        declare SNat iterIdent
-       assign iterIdent $ intConstE 0
+       assign iterIdent (intConstE 0)
 
        -- manage loop
-       cg <- get
-       let iter    = varE iterIdent
-           cond    = iter ^< arity'
-           inc     = postInc iter
-           currInd = indirectE (dataPtr ^+ iter)
-           m       = putStat =<< assignExprS currInd <$> flattenABT body'
-           (_,cg') = runState m $ cg { statements = [] }
-       put $ cg' { statements = statements cg }
-       putStat $ forS iter cond inc (statements cg')
+       let iter     = varE iterIdent
+           cond     = iter ^< arity'
+           inc      = postInc iter
+           currInd  = indirectE (dataPtr ^+ iter)
+           loopBody = putStat =<< assignExprS currInd <$> flattenABT body'                  
+       forCG iter cond inc loopBody
 
        return (varE arrayIdent)
 

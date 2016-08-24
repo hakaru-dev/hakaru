@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP,
+             BangPatterns,
              DataKinds,
              FlexibleContexts,
              FlexibleInstances,
@@ -53,7 +54,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , forCG
   ) where
 
-import Control.Monad.State
+import Control.Monad.State.Strict
 
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (Monoid(..))
@@ -74,7 +75,6 @@ import Data.Number.Nat (fromNat)
 import qualified Data.IntMap as IM
 import qualified Data.Text   as T
 import qualified Data.Set    as S
-
 
 suffixes :: [String]
 suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
@@ -135,19 +135,20 @@ genIdent' s = do cg <- get
 
 createIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 createIdent var@(Variable name _ _) =
-  do cg <- get
+  do !cg <- get
      let ident = builtinIdent $ (T.unpack name) ++ "_" ++ (head $ freshNames cg)
-         env'  = updateEnv (EAssoc var ident) (varEnv cg)
-     put $ cg { freshNames = tail $ freshNames cg
-              , varEnv     = env' }
+         env'  = updateEnv var ident (varEnv cg)
+     put $! cg { freshNames = tail $ freshNames cg
+               , varEnv     = env' }
      return ident
 
 lookupIdent :: Variable (a :: Hakaru) -> CodeGen Ident
-lookupIdent var = do cg <- get
-                     let env = varEnv cg
-                     case lookupVar var env of
-                       Nothing -> error $ "lookupIdent: var not found"
-                       Just i  -> return i
+lookupIdent var =
+  do !cg <- get
+     let !env = varEnv cg
+     case lookupVar var env of
+       Nothing -> error $ "lookupIdent: var not found --" ++ show env
+       Just i  -> return i
 
 -- | types like SData and SMeasure are impure in that they will produce extra
 --   code in the CodeGenMonad while literal types SReal, SInt, SNat, and SProb
@@ -185,23 +186,19 @@ extDeclare d = do cg <- get
 -- ENV --
 ---------
 
-data EAssoc =
-    forall (a :: Hakaru). EAssoc !(Variable a) !Ident
-
-newtype Env = Env (IM.IntMap EAssoc)
+newtype Env = Env (IM.IntMap Ident)
+  deriving Show
 
 emptyEnv :: Env
 emptyEnv = Env IM.empty
 
-updateEnv :: EAssoc -> Env -> Env
-updateEnv v@(EAssoc x _) (Env xs) =
-    Env $ IM.insert (fromNat $ varID x) v xs
+updateEnv :: Variable (a :: Hakaru) -> Ident -> Env -> Env
+updateEnv (Variable _ nat _) ident (Env env) =
+  Env $! IM.insert (fromNat nat) ident env
 
 lookupVar :: Variable (a :: Hakaru) -> Env -> Maybe Ident
-lookupVar x (Env env) = do
-    EAssoc _ e' <- IM.lookup (fromNat $ varID x) env
-    -- Refl         <- varEq x x' -- extra check?
-    return e'
+lookupVar (Variable _ nat _) (Env env) =
+  IM.lookup (fromNat nat) env
 
 ----------------------------------------------------------------
 -- Control Flow
@@ -217,7 +214,11 @@ doWhileCG bE m =
   in putStat $ doWhileS bE stmts
 
 forCG :: CExpr -> CExpr -> CExpr -> CodeGen () -> CodeGen ()
-forCG _ _ _ _ = undefined
+forCG iter cond inc body =
+  do cg <- get
+     let (_,cg') = runState body $ cg { statements = [] }
+     put $ cg' { statements = statements cg }
+     putStat $ forS iter cond inc (statements cg')
 
 
 
