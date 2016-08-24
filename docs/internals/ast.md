@@ -1,7 +1,7 @@
 # Internal Representation of Hakaru terms
 
 The Hakaru AST can be found defined in
-[haskell/Language/Hakaru/Syntax.AST.hs](https://github.com/hakaru-dev/hakaru/blob/master/haskell/Language/Hakaru/Syntax/AST.hs). It is made up of several parts which this section and the next one will explain.
+[haskell/Language/Hakaru/Syntax/AST.hs](https://github.com/hakaru-dev/hakaru/blob/master/haskell/Language/Hakaru/Syntax/AST.hs). It is made up of several parts which this section and the next one will explain.
 
 We should note, this datatype makes use of
 [Abstract Binding Trees](http://winterkoninkje.dreamwidth.org/103978.html)
