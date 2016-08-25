@@ -59,6 +59,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , stringVarE
   , nullaryE
   , unaryE
+  , callFuncE
   , printE
   , binaryOp
   ) where
@@ -87,6 +88,9 @@ unaryE s x = CCall (CVar (builtinIdent s) node) [x] node
 
 nullaryE :: String -> CExpr
 nullaryE s = CCall (CVar (builtinIdent s) node) [] node
+
+callFuncE :: CExpr -> [CExpr] -> CExpr
+callFuncE nameE argsEs = CCall nameE argsEs node
 
 rand :: CExpr
 rand = nullaryE "rand"
@@ -148,7 +152,7 @@ condE cond thn els = CCond cond (Just thn) els node
 memberE :: CExpr -> Ident -> CExpr
 memberE var ident = CMember var ident False node
 
--- for assigning to pointers        
+-- for assigning to pointers
 indirectE :: CExpr -> CExpr
 indirectE var = CUnary CIndOp var node
 

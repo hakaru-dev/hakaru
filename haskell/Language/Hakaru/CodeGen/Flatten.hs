@@ -30,7 +30,6 @@ import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.HOAS.Declaration
 import Language.Hakaru.CodeGen.HOAS.Expression
 import Language.Hakaru.CodeGen.HOAS.Statement
-import Language.Hakaru.CodeGen.HOAS.Function
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -38,12 +37,12 @@ import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
-import Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.Sing       
 
 import Language.C.Syntax.AST
 import Language.C.Data.Ident
 
-import           Control.Monad.State
+import           Control.Monad.State.Strict
 import           Data.Number.Natural
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
@@ -98,14 +97,24 @@ flattenSCon Let_            =
 -- Needs to be updated to work with multiple arguments
 -- Also need work on the wrapper for this function
 flattenSCon Lam_            =
-  \(e1 :* End) ->
-    caseBind e1 $ \v@(Variable _ _ typ) e1' ->
+  \(body :* End) ->
+    caseBind body $ \v@(Variable _ _ typ) body' ->
       do funcId <- genIdent' "fn"
          vId    <- createIdent v
-         let vDec = typeDeclaration typ vId
-         e1''   <- flattenABT e1'
-         extDeclare $ CFDefExt (functionDef typ funcId [vDec] [returnS e1''])
-         return e1''
+         let vDec  = typeDeclaration typ vId  
+
+         -- run body stateM
+         cg <- get
+         let m = do bodyE <- flattenABT body'
+                    case typeOf body' of
+                      (SFun _ _) -> putStat . returnS $ callFuncE bodyE [varE vId]
+                      _          -> putStat . returnS $ bodyE
+             (_, cg') = runState m $ cg { statements = [] }
+         put $ cg' { statements = statements cg }
+  
+         extDeclare . extFunc $ functionDef typ funcId [vDec] (statements cg')
+         return (varE funcId)
+
 
 flattenSCon (PrimOp_ op)    = flattenPrimOp op
 flattenSCon (ArrayOp_ op)   = flattenArrayOp op
@@ -241,8 +250,9 @@ flattenArray arity body =
 
 flattenArrayOp
   :: ( ABT Term abt
-     , typs ~ UnLCs args
-     , args ~ LCs typs)
+     -- , typs ~ UnLCs args
+     , args ~ LCs typs
+     )
   => ArrayOp typs a
   -> SArgs abt args
   -> CodeGen CExpr
@@ -254,8 +264,11 @@ flattenArrayOp (Index _)  = \(e1 :* e2 :* End) ->
 flattenArrayOp (Size _)   = \(e1 :* End) ->
   do arr <- flattenABT e1
      return (arr ^! (builtinIdent "size"))
-flattenArrayOp (Reduce _) = undefined
-
+flattenArrayOp (Reduce _) = \(f :* u :* a :* End) ->
+  do -- _  <- flattenABT f
+     u'  <- flattenABT u
+     _ <- flattenABT a
+     return u'
 
 ----------------------------------------------------------------
 

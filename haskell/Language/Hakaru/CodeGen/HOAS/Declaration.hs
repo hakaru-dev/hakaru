@@ -30,6 +30,7 @@ module Language.Hakaru.CodeGen.HOAS.Declaration
   , datumDeclaration
   , datumName
   , datumStruct
+  , functionDef
 
   , datumSum
   , datumProd
@@ -202,7 +203,20 @@ datumProd' (SEt (SKonst t) rest) =
      return $ [decl] ++ rest'
 datumProd' (SEt SIdent _) = error "TODO: datumProd' SIdent"
 
+----------------------------------------------------------------
 
+functionDef
+  :: Sing (a :: Hakaru)
+  -> Ident
+  -> [CDecl]
+  -> [CStat]
+  -> CFunDef
+functionDef typ ident declrs stmts =
+  CFunDef [CTypeSpec (buildType typ)]
+          (CDeclr (Just ident) [CFunDeclr (Right (declrs,False)) [] node] Nothing [] node)
+          []
+          (CCompound [] (fmap CBlockStmt stmts) node)
+          node
 
 ----------------------------------------------------------------
 -- | buildType function do the work of describing how the Hakaru

@@ -5,7 +5,6 @@ module Main where
 
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Types.Sing (Sing(SFun))
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 
@@ -63,12 +62,10 @@ compileHakaru prog = ask >>= \config -> lift $ do
           putErrorLn hrule
           putErrorLn $ pack $ show ast'
         putErrorLn hrule
-      writeToFile (fileOut config) $ if (function config) || isFunc typ
+      writeToFile (fileOut config) $ if (function config)
                                      then createFunction ast'
                                      else createProgram ast'
-  where isFunc (SFun _ _) = True
-        isFunc _          = False
-        hrule = "\n----------------------------------------------------------------\n"
+  where hrule = "\n----------------------------------------------------------------\n"
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr

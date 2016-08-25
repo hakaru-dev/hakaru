@@ -59,6 +59,7 @@ createProgram (TypedAST tt abt) =
   in  unlines [ header tt
               , unlines (fmap cToString funcs)
               , case tt of
+                 (SFun _ _)   -> ""
                  (SMeasure _) -> unlines [ measureFunc decls' stmts'
                                          , mainWith tt [] []]
                  _ -> mainWith tt decls' stmts'
@@ -139,7 +140,7 @@ printft SProb        = "\"exp(%.17f)\\n\""
 printft SReal        = "\"%.17f\\n\""
 printft (SMeasure t) = printft t
 printft (SArray t)   = printft t
-printft (SFun _ _)   = error "TODO: printft SFun"
+printft (SFun _ _)   = ""
 printft (SData _ _)  = "\"TODO: printft datum\\n\""
 -- printft (SData (STyCon x) _) = printft x
 --   where printft' :: Sing (a :: Symbol) -> Text

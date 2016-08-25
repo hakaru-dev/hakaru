@@ -6,6 +6,7 @@
              GADTs,
              KindSignatures,
              StandaloneDeriving,
+             TypeOperators,
              RankNTypes        #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -161,9 +162,18 @@ declare SReal         = declare' . typeDeclaration SReal
 declare (SMeasure x)  = declare x
 declare (SArray t)    = \i -> do extDeclare $ arrayStruct t
                                  declare'   $ arrayDeclaration t i
-declare (SFun _ _)    = error "TODO: declare SFun"
 declare d@(SData _ _) = \i -> do extDeclare $ datumStruct d
                                  declare'   $ datumDeclaration d i
+declare (SFun _ _)    = \_ -> return () -- function definitions handeled in flatten
+  -- where
+  --       coalesceFun :: forall (a :: Hakaru)
+  --                             (b :: Hakaru)
+  --                             (c :: Hakaru)
+  --                   .  Sing a -> ('[Sing c], Sing b)
+  --       coalesceFun (SFun i o) = let (ins,out) = coalesceFun o
+  --                                in  (i:ins,out)
+  --       coalesceFun x          = ([],x)  
+
 
 
 declare' :: CDecl -> CodeGen ()
