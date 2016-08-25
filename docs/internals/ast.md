@@ -13,6 +13,9 @@ and not be specific to a particular AST.
 
 ## Datakind
 
+The AST is typed using the Hakaru kind, defined in [haskell/Language/Types/DataKind.hs](https://github.com/hakaru-dev/hakaru/blob/master/haskell/Language/Hakaru/Types/DataKind.hs). All Hakaru types are defined in terms of
+the primitives in this datakind.
+
 ## Term
 
 ## SCons and SArgs
