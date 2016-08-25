@@ -63,7 +63,7 @@ compileRandomWalk f1 f2 = do
     p2 <- IO.readFile f2
     let output = replaceFileName f1 (takeBaseName f1) ++ ".hs"
     case (parseAndInfer p1, parseAndInfer p2) of
-      ( Right (TypedAST _ ast1), Right (TypedAST _ ast2)) -> do
+      (Right (TypedAST _ ast1), Right (TypedAST _ ast2)) -> do
         -- TODO: Check that programs have the right types before
         --       compiling them.
         IO.writeFile output . Data.Text.unlines $
