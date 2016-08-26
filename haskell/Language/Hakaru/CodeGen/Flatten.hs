@@ -119,10 +119,11 @@ flattenSCon (PrimOp_ op)    = flattenPrimOp op
 flattenSCon (ArrayOp_ op)   = flattenArrayOp op
 flattenSCon (MeasureOp_ op) = flattenMeasureOp op
 flattenSCon Dirac           = \(e :* End) -> flattenABT e
+
 flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
   do loE <- flattenABT lo
      hiE <- flattenABT hi
-     caseBind body $ \v@(Variable _ _ typ) body' ->
+     caseBind body $ \v body' ->
        do iterI <- createIdent v
           declare SNat iterI
           assign iterI loE
@@ -133,6 +134,7 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
   
           let accVar  = varE accI
               iterVar = varE iterI
+          -- logSumExp for probabilities
           forCG iterVar (iterVar ^< hiE) (postInc iterVar) $
             do bodyE <- flattenABT body'
                assign accI (accVar ^+ bodyE)
@@ -143,7 +145,7 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
 flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
   do loE <- flattenABT lo
      hiE <- flattenABT hi
-     caseBind body $ \v@(Variable _ _ typ) body' ->
+     caseBind body $ \v body' ->
        do iterI <- createIdent v
           declare SNat iterI
           assign iterI loE
@@ -304,9 +306,9 @@ flattenArrayOp (Index _)  = \(e1 :* e2 :* End) ->
 flattenArrayOp (Size _)   = \(e1 :* End) ->
   do arr <- flattenABT e1
      return (arr ^! (builtinIdent "size"))
-flattenArrayOp (Reduce _) = \(fun :* unit :* arr :* End) ->
-  do f'    <- flattenABT fun
-     unitE <- flattenABT unit
+flattenArrayOp (Reduce _) = \(fun :* base :* arr :* End) ->
+  do funE  <- flattenABT fun
+     baseE <- flattenABT base
      arrE  <- flattenABT arr
      accI  <- genIdent' "acc"
      iterI <- genIdent' "iter"
@@ -316,13 +318,12 @@ flattenArrayOp (Reduce _) = \(fun :* unit :* arr :* End) ->
          accE  = varE accI
          cond  = iterE ^< sizeE
          inc   = postInc iterE
-         -- currInd = indirectE (dataPtr ^+ iter)
 
-
-     declare (typeOf unit) accI
+     declare (typeOf base) accI
      declare SInt iterI
-     assign accI unitE
-     forCG iterE cond inc $ return ()
+     assign accI baseE
+     forCG iterE cond inc $
+       assign accI $ callFuncE funE [accE]
 
      return accE
 
