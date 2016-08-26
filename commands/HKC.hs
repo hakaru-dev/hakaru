@@ -17,9 +17,11 @@ import           System.IO (stderr)
 data Options =
  Options { debug    :: Bool
          , optimize :: Bool
-         , function :: Bool
+         -- , cuda    :: Bool
+         -- , jobs    :: Maybe Int
+         , asFunc   :: Maybe String
          , fileIn   :: String
-         , fileOut  :: String
+         , fileOut  :: Maybe String
          } deriving Show
 
 
@@ -37,11 +39,11 @@ options = Options
   <*> switch ( long "optimize"
              <> short 'O'
              <> help "Performs constant folding on Hakaru AST" )
-  <*> switch ( long "function"
-             <> short 'F'
-             <> help "Compiles to a sample function in C" )
+  <*> (optional $ strOption ( long "as-function"
+                            <> short 'F'
+                            <> help "Compiles to a sampling C function with the name ARG" ))
   <*> strArgument (metavar "INPUT" <> help "Program to be compiled")
-  <*> strOption (short 'o' <> metavar "OUTPUT" <> help "output FILE")
+  <*> (optional $ strOption (short 'o' <> metavar "OUTPUT" <> help "output FILE"))
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -52,9 +54,15 @@ compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
     Left err -> IO.putStrLn err
     Right (TypedAST typ ast) -> do
-      let ast' = TypedAST typ (if optimize config
-                               then constantPropagation ast
-                               else ast)
+      let ast'    = TypedAST typ $ if optimize config
+                                   then constantPropagation ast
+                                   else ast
+          outPath = case fileOut config of
+                      (Just f) -> f
+                      Nothing  -> "-"
+          output  = case asFunc config of
+                      (Just name) -> createFunction ast' name
+                      Nothing     -> createProgram ast'
       when (debug config) $ do
         putErrorLn hrule
         putErrorLn $ pack $ show ast
@@ -62,9 +70,8 @@ compileHakaru prog = ask >>= \config -> lift $ do
           putErrorLn hrule
           putErrorLn $ pack $ show ast'
         putErrorLn hrule
-      writeToFile (fileOut config) $ if (function config)
-                                     then createFunction ast'
-                                     else createProgram ast'
+      writeToFile outPath output
+
   where hrule = "\n----------------------------------------------------------------\n"
 
 putErrorLn :: Text -> IO ()

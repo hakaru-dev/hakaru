@@ -69,20 +69,22 @@ createProgram (TypedAST tt abt) =
 
 
 -- | Create function will produce a C function that samples if it is a measure
-createFunction :: TypedAST (TrivialABT T.Term) -> Text
-createFunction (TypedAST (SFun _ _) abt) =
-  let (fs,_,_) = runCodeGen $ flattenABT abt
-  in  mconcat (fmap cToString fs)
-createFunction (TypedAST tt@(SMeasure internalT) abt) =
-  let ident           = builtinIdent "result"
-      (_,decls,stmts) = runCodeGen (do declare internalT ident
-                                       expr <- flattenABT abt
-                                       assign ident expr)
-  in  unlines [ header tt
-              , measureFunc (fmap (\d -> mconcat [cToString d,";"]) decls)
-                            (fmap cToString stmts)
-              ]
-createFunction _ = error $ "createFunction only works on programs of type 'Measure a' and 'Fun a b'"
+createFunction :: TypedAST (TrivialABT T.Term) -> String -> Text
+createFunction _ _ = error "TODO: createFunction"
+-- createFunction (TypedAST (SFun _ _) abt) name =
+--   let (fs,_,_) = runCodeGen $ flattenABT abt
+--   in  mconcat (fmap cToString fs)
+-- createFunction (TypedAST tt@(SMeasure internalT) abt) name =
+--   let ident           = builtinIdent "result"
+--       (_,decls,stmts) = runCodeGen (do declare internalT ident
+--                                        expr <- flattenABT abt
+--                                        assign ident expr)
+--   in  unlines [ header tt
+--               , measureFunc (fmap (\d -> mconcat [cToString d,";"]) decls)
+--                             (fmap cToString stmts)
+--               ]
+createFunction _ _ =
+  error $ "createFunction only works on programs of type 'Measure a' and 'Fun a b'"
 
 ----------------------------------------------------------------
 cToString :: C.Pretty a => a -> Text

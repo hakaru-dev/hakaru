@@ -54,7 +54,10 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , varE
   , memberE
   , (^!)
+
   , indirectE
+  , addressE
+
   , stringE
   , stringVarE
   , nullaryE
@@ -155,6 +158,10 @@ memberE var ident = CMember var ident False node
 -- for assigning to pointers
 indirectE :: CExpr -> CExpr
 indirectE var = CUnary CIndOp var node
+
+-- for getting addresses of vars
+addressE :: CExpr -> CExpr
+addressE var = CUnary CAdrOp var node
 
 -- infix memberE
 (^!) :: CExpr -> Ident -> CExpr

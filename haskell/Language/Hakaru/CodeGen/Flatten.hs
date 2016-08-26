@@ -37,7 +37,7 @@ import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
-import Language.Hakaru.Types.Sing       
+import Language.Hakaru.Types.Sing
 
 import Language.C.Syntax.AST
 import Language.C.Data.Ident
@@ -94,26 +94,25 @@ flattenSCon Let_            =
             assign ident expr'
             flattenABT body'
 
--- Needs to be updated to work with multiple arguments
--- Also need work on the wrapper for this function
+-- Lambdas produce functions and then return a function pointer
 flattenSCon Lam_            =
   \(body :* End) ->
     caseBind body $ \v@(Variable _ _ typ) body' ->
       do funcId <- genIdent' "fn"
          vId    <- createIdent v
-         let vDec  = typeDeclaration typ vId  
+         let vDec  = typeDeclaration typ vId
 
          -- run body stateM
          cg <- get
          let m = do bodyE <- flattenABT body'
                     case typeOf body' of
-                      (SFun _ _) -> putStat . returnS $ callFuncE bodyE [varE vId]
+                      (SFun _ _) -> putStat . returnS $ callFuncE (indirectE bodyE) [varE vId]
                       _          -> putStat . returnS $ bodyE
              (_, cg') = runState m $ cg { statements = [] }
          put $ cg' { statements = statements cg }
-  
+
          extDeclare . extFunc $ functionDef typ funcId [vDec] (statements cg')
-         return (varE funcId)
+         return . addressE . varE $ funcId
 
 
 flattenSCon (PrimOp_ op)    = flattenPrimOp op
@@ -264,11 +263,27 @@ flattenArrayOp (Index _)  = \(e1 :* e2 :* End) ->
 flattenArrayOp (Size _)   = \(e1 :* End) ->
   do arr <- flattenABT e1
      return (arr ^! (builtinIdent "size"))
-flattenArrayOp (Reduce _) = \(f :* u :* a :* End) ->
-  do -- _  <- flattenABT f
-     u'  <- flattenABT u
-     _ <- flattenABT a
-     return u'
+flattenArrayOp (Reduce _) = \(fun :* unit :* arr :* End) ->
+  do f'    <- flattenABT fun
+     unitE <- flattenABT unit
+     arrE  <- flattenABT arr
+     accI  <- genIdent' "acc"
+     iterI <- genIdent' "iter"
+
+     let sizeE = arrE ^! (builtinIdent "size")
+         iterE = varE iterI
+         accE  = varE accI
+         cond  = iterE ^< sizeE
+         inc   = postInc iterE
+         -- currInd = indirectE (dataPtr ^+ iter)
+
+
+     declare (typeOf unit) accI
+     declare SInt iterI
+     assign accI unitE
+     forCG iterE cond inc $ return ()
+
+     return accE
 
 ----------------------------------------------------------------
 
