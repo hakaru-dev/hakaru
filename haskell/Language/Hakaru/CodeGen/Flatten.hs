@@ -119,6 +119,47 @@ flattenSCon (PrimOp_ op)    = flattenPrimOp op
 flattenSCon (ArrayOp_ op)   = flattenArrayOp op
 flattenSCon (MeasureOp_ op) = flattenMeasureOp op
 flattenSCon Dirac           = \(e :* End) -> flattenABT e
+flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
+  do loE <- flattenABT lo
+     hiE <- flattenABT hi
+     caseBind body $ \v@(Variable _ _ typ) body' ->
+       do iterI <- createIdent v
+          declare SNat iterI
+          assign iterI loE
+
+          accI <- genIdent' "acc"
+          declare (sing_HSemiring sr) accI
+          assign accI (intConstE 0)
+  
+          let accVar  = varE accI
+              iterVar = varE iterI
+          forCG iterVar (iterVar ^< hiE) (postInc iterVar) $
+            do bodyE <- flattenABT body'
+               assign accI (accVar ^+ bodyE)
+
+          return accVar
+
+     
+flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
+  do loE <- flattenABT lo
+     hiE <- flattenABT hi
+     caseBind body $ \v@(Variable _ _ typ) body' ->
+       do iterI <- createIdent v
+          declare SNat iterI
+          assign iterI loE
+
+          accI <- genIdent' "acc"
+          declare (sing_HSemiring sr) accI
+          assign accI (intConstE 1)  
+  
+          let accVar  = varE accI
+              iterVar = varE iterI
+          forCG iterVar (iterVar ^< hiE) (postInc iterVar) $
+            do bodyE <- flattenABT body'
+               assign accI (accVar ^* bodyE)
+
+          return accVar
+
 
 flattenSCon MBind           =
   \(e1 :* e2 :* End) ->
