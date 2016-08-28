@@ -413,12 +413,24 @@ Hakaru := module ()
 
   #Extract the first member of a Pair.
   fst:= proc(p, $)
-       `if`(p::'Pair'('anything'$2), op(1,p), 'procname'(p))
+    if p :: 'Pair'('anything'$2) then
+      op(1,p)
+    elif p :: t_piecewiselike then
+      map_piecewiselike(fst, p)
+    else
+      'procname'(p)
+    end if;
   end proc;
 
   #Extract the second member of a Pair.
   snd:= proc(p, $)
-       `if`(p::'Pair'('anything'$2), op(2,p), 'procname'(p))
+    if p :: 'Pair'('anything'$2) then
+      op(2,p)
+    elif p :: t_piecewiselike then
+      map_piecewiselike(snd, p)
+    else
+      'procname'(p)
+    end if;
   end proc;
 
   size := proc(a, $)
