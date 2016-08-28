@@ -21,6 +21,7 @@ KB := module ()
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product, chilled, chill, warm,
+        simp_pw,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
          kb_subtract, simplify_assuming, hack_Beta,
@@ -300,17 +301,18 @@ KB := module ()
   # that what we have is an expression all of whose parts are known to Maple,
   # is that it is valued over something that embeds into the reals.
   simplify_assuming := proc(ee, kb::t_kb, $)
-    local e, as;
-    e := foldl(eval, ee, op(kb_to_equations(kb)));
-    e := hack_Beta(e);
-    e := subsindets(e, 'product(anything, name=range)', myexpand_product);
-    e := subsindets(e, 'specfunc({sum,Sum})', expand);
+    local e, as;                                                         # for debugging
+    e := foldl(eval, ee, op(kb_to_equations(kb)));                         `eval`;
+    e := hack_Beta(e);                                                     `hack_Beta`;
+    e := subsindets(e, 'product(anything, name=range)', myexpand_product); `expand_prod`;
+    e := subsindets(e, 'specfunc({sum,Sum})', expand);                     `expand_sum`;
     as := [op(kb_to_assumptions(kb)),
            op(map(`::`, indets(e, 'specfunc(size)'), nonnegint))];
-    e := chill(e);
+    e := chill(e);                                                        `chill`;
     # actually compute integrals which are all in the Weights.
-    e := subsindets(e, 'Int'(anything, name=range), value);
+    e := subsindets(e, 'Int'(anything, name=range), value);               `value@Int`;
     as := chill(as);
+    e := subsindets(e, 'specfunc(piecewise)', simp_pw);                   `triw pw`;
     e := subsindets(e,
       'And(specfunc({product,Product,sum,Sum}),
            anyfunc(anything, name=range))',
@@ -351,10 +353,10 @@ KB := module ()
           end if
         end if;
         p
-      end proc);
+      end proc);                                                `process [Ss]um/[pProd]`;
     try
       e := evalindets(e, specop(algebraic,{`<`,`<=`,`=`,`<>`}),
-        proc(b, $)
+        proc(b, $) local pw;
           try
             if is(b) assuming op(as) then return true
             elif false = coulditbe(b) assuming op(as) then return false
@@ -362,8 +364,8 @@ KB := module ()
           catch:
           end try;
           b
-        end proc);
-      e := simplify(e) assuming op(as);
+        end proc);                                              `simplify inequations`;
+      e := simplify(e) assuming op(as);                         `simplify @ assuming`;
     catch "when calling '%1'. Received: 'contradictory assumptions'":
       # We seem to be on an unreachable control path
       userinfo(1, 'procname', "Received contradictory assumptions.")
@@ -382,9 +384,18 @@ KB := module ()
         else
           p
         end if
-      end proc);
-    e := warm(e);
+      end proc);                                             `more Sum/Product`;
+    e := warm(e);                                            `warm (then expand@exp)`;
     eval(e, exp = expand @ exp);
+  end proc;
+
+  # simplify/piecewise does not simplify some straightforward things...
+  simp_pw := proc(p)
+    if nops(p)=3 and Testzero(op(3,p)-op(2,p)) then
+      op(2,p)
+    else
+      p
+    end if;
   end proc;
 
   hack_Beta := module ()
