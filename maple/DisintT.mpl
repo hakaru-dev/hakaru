@@ -55,13 +55,29 @@ d5r := {Weight((1/2)*exp(-(1/4)*t^2)/Pi^(1/2), Gaussian((1/2)*t, (1/2)*2^(1/2)))
 d6 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(x,y)))):
 d6r := {Weight(1/2*2^(1/2)/Pi^(1/2)*exp(-1/2*t^2),Gaussian(t,1))}:
 
-# great test: scope extrusion!
-normalFB1 := 
+# note (y+y), which gives trouble for a syntactic approach
+normalFB1 :=
   Bind(Gaussian(0,1), x, 
   Bind(Gaussian(x,1), y, 
   Ret(Pair((y+y)+x, Unit)))):
 
 normalFB1r := {Weight(1/26*exp(-1/26*t^2)/Pi^(1/2)*13^(1/2)*2^(1/2),Ret(Unit))}:
+
+# tests taken from haskell/Tests/Disintegrate.hs
+# use same names, to be clearer
+norm0a :=
+  Bind(Gaussian(0,1), x,
+  Bind(Gaussian(x,1), y,
+  Ret(Pair(y, x)))):
+  # note that the answer below is much nicer than the one expected in Haskell
+norm0r := {Weight(1/2/Pi^(1/2)/exp(t^2)^(1/4),Gaussian(t/2,sqrt(2)/2))}:
+
+norm1a :=
+  Bind(Gaussian(3,2), x,Ret(piecewise(x<0, Pair(-x, Unit), Pair(x, Unit)))):
+norm1b :=
+  Bind(Gaussian(3,2), x,piecewise(x<0, Ret(Pair(-x, Unit)), Ret(Pair(x, Unit)))):
+
+norm1r := {}:
 
 TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
 TestDisint(d2, d2r, label = "(d2) Disintegrate linear function II");
@@ -69,7 +85,15 @@ TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
 TestDisint(d4, d4r, label = "(d4) Disintegrate U(0,1) twice, over x/y");
 TestDisint(d5, d5r, label = "(d5) Disintegrate N(0,1)*N(x,1), over y");
 TestDisint(d6, d6r, label = "(d6) Disintegrate N(0,1)*N(x,1), over x");
-TestDisint(
-     normalFB1, normalFB1r, 
+TestDisint( normalFB1, normalFB1r,
      label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
+);
+TestDisint(norm0a, norm0r,
+     label = "(norm0a) U(0,1) >>= \x -> U(x,1) >>= \y -> Ret(y,x)"
+);
+TestDisint(norm1a, norm1r,
+     label = "(norm1a) U(0,1) into Ret of pw"
+);
+TestDisint(norm1b, norm1r,
+     label = "(norm1b) U(0,1) into pw of Ret"
 );
