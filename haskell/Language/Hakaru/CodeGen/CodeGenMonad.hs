@@ -73,9 +73,9 @@ import Language.C.Data.Node
 import Language.C.Syntax.AST
 
 import Data.Number.Nat (fromNat)
-import qualified Data.IntMap as IM
-import qualified Data.Text   as T
-import qualified Data.Set    as S
+import qualified Data.IntMap.Strict as IM
+import qualified Data.Text          as T
+import qualified Data.Set           as S
 
 suffixes :: [String]
 suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
@@ -148,7 +148,7 @@ lookupIdent var =
   do !cg <- get
      let !env = varEnv cg
      case lookupVar var env of
-       Nothing -> error $ "lookupIdent: var not found --" ++ show env
+       Nothing -> error $ "lookupIdent: var not found --" ++ show var
        Just i  -> return i
 
 -- | types like SData and SMeasure are impure in that they will produce extra
@@ -165,15 +165,6 @@ declare (SArray t)    = \i -> do extDeclare $ arrayStruct t
 declare d@(SData _ _) = \i -> do extDeclare $ datumStruct d
                                  declare'   $ datumDeclaration d i
 declare (SFun _ _)    = \_ -> return () -- function definitions handeled in flatten
-  -- where
-  --       coalesceFun :: forall (a :: Hakaru)
-  --                             (b :: Hakaru)
-  --                             (c :: Hakaru)
-  --                   .  Sing a -> ('[Sing c], Sing b)
-  --       coalesceFun (SFun i o) = let (ins,out) = coalesceFun o
-  --                                in  (i:ins,out)
-  --       coalesceFun x          = ([],x)  
-
 
 
 declare' :: CDecl -> CodeGen ()
@@ -228,7 +219,7 @@ forCG iter cond inc body =
   do cg <- get
      let (_,cg') = runState body $ cg { statements = [] }
      put $ cg' { statements = statements cg }
-     putStat $ forS iter cond inc (statements cg')
+     putStat $ forS iter cond inc (reverse $ statements cg')
 
 
 
