@@ -273,16 +273,17 @@ flattenArray :: (ABT Term abt)
              -> (abt '[ 'HNat ] a)
              -> CodeGen CExpr
 flattenArray arity body =
-  caseBind body $ \v@(Variable _ _ typ) body' ->
-    do arrayIdent <- genIdent' "arr"
-       declare (SArray typ) arrayIdent
+  caseBind body $ \v body' ->
+    do let arrTyp = typeOf body'
+       arrayIdent <- genIdent' "arr"
+       declare (SArray arrTyp) arrayIdent
 
        arity'     <- flattenABT arity
 
        let arrVar  = varE arrayIdent
            dataPtr = arrVar ^! (builtinIdent "data")
            sizeVar = arrVar ^! (builtinIdent "size")
-           dataTyp = buildType typ -- this should be a literal type (unless we can have an array of measures)
+           dataTyp = buildType arrTyp -- this should be a literal type (unless we can have an array of measures)
        putStat $ assignExprS sizeVar arity'
 
        -- setup loop

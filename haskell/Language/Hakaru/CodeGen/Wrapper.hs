@@ -130,20 +130,26 @@ mainWith typ decl stmts = unlines
  , unlines decl
  , unlines stmts
  , case typ of
-     SMeasure t -> mconcat ["while(1) printf(",printft t,",measure());"]
-     _          -> mconcat ["printf(",printft typ,",result);"]
+     SMeasure t -> mconcat ["while(1) printf(\"",printft t,"\\n\",measure());"]
+     SArray t   -> unlines ["printf(\"[ \");"
+                           ,"for (int i = 0; i < result.size; i++) {"
+                           , mconcat ["  printf(\"",printft t," \",*(result.data + i));"]
+                           ,"}"
+                           ,"printf(\"]\\n\");"]
+
+     _          -> mconcat ["printf(\"",printft typ,"\\n\",result);"]
  , "return 0;"
  , "}" ]
 
 printft :: Sing (a :: Hakaru) -> Text
-printft SInt         = "\"%d\\n\""
-printft SNat         = "\"%d\\n\""
-printft SProb        = "\"exp(%.17f)\\n\""
-printft SReal        = "\"%.17f\\n\""
+printft SInt         = "%d"
+printft SNat         = "%d"
+printft SProb        = "exp(%.17f)"
+printft SReal        = "%.17f"
 printft (SMeasure t) = printft t
 printft (SArray t)   = printft t
 printft (SFun _ _)   = ""
-printft (SData _ _)  = "\"TODO: printft datum\\n\""
+printft (SData _ _)  = "TODO: printft datum"
 -- printft (SData (STyCon x) _) = printft x
 --   where printft' :: Sing (a :: Symbol) -> Text
 --         printft' (SingSymbol :: Sing "Unit") = "()\\n"
