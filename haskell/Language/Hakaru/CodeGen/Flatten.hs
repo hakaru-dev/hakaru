@@ -4,7 +4,9 @@
              FlexibleContexts,
              GADTs,
              KindSignatures,
-             RankNTypes #-}
+             ScopedTypeVariables,
+             RankNTypes,
+             TypeOperators #-}
 
 ----------------------------------------------------------------
 --                                                    2016.06.23
@@ -96,23 +98,36 @@ flattenSCon Let_            =
 
 -- Lambdas produce functions and then return a function pointer
 flattenSCon Lam_            =
-  \(body :* End) ->
-    caseBind body $ \v@(Variable _ _ typ) body' ->
-      do funcId <- genIdent' "fn"
-         vId    <- createIdent v
-         let vDec  = typeDeclaration typ vId
+  \(body :* End) -> undefined
+    -- let (vars, body') = caseBinds body
+    -- in  do funcId <- genIdent' "fn"
+    --        decls  <- mapM (\v -> mkVarDecl v <$> createIdent v) vars
 
-         -- run body stateM
-         cg <- get
-         let m = do bodyE <- flattenABT body'
-                    case typeOf body' of
-                      (SFun _ _) -> putStat . returnS $ callFuncE (indirectE bodyE) [varE vId]
-                      _          -> putStat . returnS $ bodyE
-             (_, cg') = runState m $ cg { statements = [] }
-         put $ cg' { statements = statements cg }
+    --        cg <- get
+    --        let m       = putStat . returnS =<< flattenABT body'
+    --            (_,cg') = runState m $ cg { statements = [] }
+    --        put $ cg' { statements = statements cg }
 
-         extDeclare . extFunc $ functionDef typ funcId [vDec] (statements cg')
-         return . addressE . varE $ funcId
+    --        extDeclare . extFunc $ functionDef (typeOf body')
+    --                                           funcId
+    --                                           decls
+    --                                           (statements cg')
+    --        return . varE $ funcId
+           
+  where
+        -- coalesceLambda :: abt vars a -> ([q],abt '[] a)
+        -- coalesceLambda = go . viewABT
+        --   where go  :: forall (a :: Hakaru) syn abt xs
+        --             .  (ABT syn abt)
+        --             => View (syn abt) xs a
+        --             -> ([Variable xs], abt '[] a)
+        --         go (Syn  t)   = ([], syn t)
+        --         go (Var  x)   = ([], var x)
+        --         go (Bind v b) = let (vs,b') = go b in  (v:vs,b')
+
+
+        mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CDecl
+        mkVarDecl (Variable _ _ typ) = typeDeclaration typ
 
 
 flattenSCon (PrimOp_ op)    = flattenPrimOp op
@@ -131,7 +146,7 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
           accI <- genIdent' "acc"
           declare (sing_HSemiring sr) accI
           assign accI (intConstE 0)
-  
+
           let accVar  = varE accI
               iterVar = varE iterI
           -- logSumExp for probabilities
@@ -141,7 +156,7 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
 
           return accVar
 
-     
+
 flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
   do loE <- flattenABT lo
      hiE <- flattenABT hi
@@ -152,8 +167,8 @@ flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
 
           accI <- genIdent' "acc"
           declare (sing_HSemiring sr) accI
-          assign accI (intConstE 1)  
-  
+          assign accI (intConstE 1)
+
           let accVar  = varE accI
               iterVar = varE iterI
           forCG iterVar (iterVar ^< hiE) (postInc iterVar) $
@@ -283,7 +298,7 @@ flattenArray arity body =
            cond     = iter ^< arity'
            inc      = postInc iter
            currInd  = indirectE (dataPtr ^+ iter)
-           loopBody = putStat =<< assignExprS currInd <$> flattenABT body'
+           loopBody = putStat . assignExprS currInd =<< flattenABT body'
        forCG iter cond inc loopBody
 
        return (varE arrayIdent)
@@ -419,20 +434,19 @@ flattenCase
   => abt '[] a
   -> [Branch a abt b]
   -> CodeGen CExpr
-flattenCase c (Branch (PDatum _ (PInl PDone)) x:Branch (PDatum _ (PInr (PInl PDone))) y:[]) =
+flattenCase c (Branch (PDatum _ (PInl PDone)) trueB:Branch (PDatum _ (PInr (PInl PDone))) falseB:[]) =
   do c' <- flattenABT c
      result <- genIdent
-     declare (typeOf x) result
-     names <- getNames
-     let (names', xExts,xDecls,xStats) =
-           runCodeGenWithNames (assign result =<< flattenABT x) names
-         (names'',yExts,yDecls,yStats) =
-           runCodeGenWithNames (assign result =<< flattenABT y) names'
-     setNames names''
-     mapM_ extDeclare (xExts ++ yExts)
-     mapM_ declare' (xDecls ++ yDecls)
-     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 0)) xStats
-     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 1)) yStats
+     declare (typeOf trueB) result
+     cg <- get
+     let trueM    = assign result =<< flattenABT trueB
+         falseM   = assign result =<< flattenABT falseB
+         (_,cg')  = runState trueM $ cg { statements = [] }
+         (_,cg'') = runState falseM $ cg' { statements = [] }
+     put $ cg'' { statements = statements cg }
+
+     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 0)) (reverse $ statements cg')
+     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 1)) (reverse $ statements cg'')
      return (varE result)
 flattenCase _ _ = error "TODO: flattenCase"
 
