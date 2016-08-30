@@ -37,6 +37,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
@@ -83,7 +84,7 @@ flattenTerm (Superpose_ wes) = flattenSuperpose wes
 ----------------------------------------------------------------
 
 
-flattenSCon :: (ABT Term abt)
+flattenSCon :: ( ABT Term abt )
             => SCon args a
             -> SArgs abt args
             -> CodeGen CExpr
@@ -98,33 +99,35 @@ flattenSCon Let_            =
 
 -- Lambdas produce functions and then return a function pointer
 flattenSCon Lam_            =
-  \(body :* End) -> undefined
-    -- let (vars, body') = caseBinds body
-    -- in  do funcId <- genIdent' "fn"
-    --        decls  <- mapM (\v -> mkVarDecl v <$> createIdent v) vars
+  \(body :* End) ->
+    coalesceLambda body $ \vars body' ->
+    let varMs = foldMap11 (\v -> [mkVarDecl v <$> createIdent v]) vars
+    in  do funcId <- genIdent' "fn"
+           decls  <- sequence varMs
 
-    --        cg <- get
-    --        let m       = putStat . returnS =<< flattenABT body'
-    --            (_,cg') = runState m $ cg { statements = [] }
-    --        put $ cg' { statements = statements cg }
+           cg <- get
+           let m       = putStat . returnS =<< flattenABT body'
+               (_,cg') = runState m $ cg { statements = [] }
+           put $ cg' { statements = statements cg }
 
-    --        extDeclare . extFunc $ functionDef (typeOf body')
-    --                                           funcId
-    --                                           decls
-    --                                           (statements cg')
-    --        return . varE $ funcId
-           
-  where
-        -- coalesceLambda :: abt vars a -> ([q],abt '[] a)
-        -- coalesceLambda = go . viewABT
-        --   where go  :: forall (a :: Hakaru) syn abt xs
-        --             .  (ABT syn abt)
-        --             => View (syn abt) xs a
-        --             -> ([Variable xs], abt '[] a)
-        --         go (Syn  t)   = ([], syn t)
-        --         go (Var  x)   = ([], var x)
-        --         go (Bind v b) = let (vs,b') = go b in  (v:vs,b')
-
+           extDeclare . extFunc $ functionDef (typeOf body')
+                                              funcId
+                                              decls
+                                              (statements cg')
+           return . varE $ funcId
+-- do at top level
+  where coalesceLambda
+          :: ( ABT Term abt )
+          => abt '[x] a
+          -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
+          -> r
+        coalesceLambda abt k =
+          caseBind abt $ \v abt' ->
+            caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
+              case term of
+                (Lam_ :$ body :* End) ->
+                  coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt'' 
+                _ -> k (Cons1 v Nil1) abt'
 
         mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CDecl
         mkVarDecl (Variable _ _ typ) = typeDeclaration typ

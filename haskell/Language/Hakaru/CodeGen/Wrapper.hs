@@ -70,7 +70,6 @@ createProgram (TypedAST tt abt) =
 
 -- | Create function will produce a C function that samples if it is a measure
 createFunction :: TypedAST (TrivialABT T.Term) -> String -> Text
-createFunction _ _ = error "TODO: createFunction"
 -- createFunction (TypedAST (SFun _ _) abt) name =
 --   let (fs,_,_) = runCodeGen $ flattenABT abt
 --   in  mconcat (fmap cToString fs)

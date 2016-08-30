@@ -229,7 +229,8 @@ buildType SProb        = CDoubleType undefNode
 buildType SReal        = CDoubleType undefNode
 buildType (SMeasure x) = buildType x
 buildType (SArray x)   = buildType x
-buildType x = error $ "TODO: buildCType " ++ show x
+buildType (SFun _ x)   = error "buildType of SFun is undefined"-- buildType x -- build type the function return
+buildType x = error $ "TODO: buildType " ++ show x
 
 mkDecl :: CTypeSpec -> CDecl
 mkDecl t = CDecl [CTypeSpec t]
