@@ -52,6 +52,11 @@ import           Text.PrettyPrint (render)
 
 import           Data.Monoid
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
+#endif
+                 
+
 -- | Create program is the top level C codegen. Depending on the type a program
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
