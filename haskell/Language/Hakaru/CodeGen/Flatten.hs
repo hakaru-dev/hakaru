@@ -102,7 +102,7 @@ flattenSCon Let_            =
 flattenSCon Lam_            =
   \(body :* End) ->
     coalesceLambda body $ \vars body' ->
-    let varMs = foldMap11 (\v -> [mkVarDecl v <$> createIdent v]) vars
+    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
     in  do funcId <- genIdent' "fn"
            decls  <- sequence varMs
 
@@ -130,8 +130,16 @@ flattenSCon Lam_            =
                   coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
                 _ -> k (Cons1 v Nil1) abt'
 
-        mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CDecl
-        mkVarDecl (Variable _ _ typ) = typeDeclaration typ
+        mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
+        mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
+        mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
+        mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
+        mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
+        mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
+                                                       return $ arrayDeclaration t i
+        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
+                                                          return $ datumDeclaration d i
+        mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
 
 
 flattenSCon (PrimOp_ op)    = flattenPrimOp op
