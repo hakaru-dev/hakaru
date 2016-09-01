@@ -29,11 +29,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
   , CG(..)
   , runCodeGen
-  , runCodeGenWithNames
   , emptyCG
-
-  , getNames
-  , setNames
 
   -- codegen effects
   , declare
@@ -41,7 +37,9 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , assign
   , putStat
   , extDeclare
+  , defineFunction
 
+  , reserveName
   , genIdent
   , genIdent'
 
@@ -86,14 +84,15 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
 
 
 -- CG after "codegen", holds the state of a codegen computation
-data CG = CG { freshNames   :: [String]
-             , extDecls     :: S.Set CExtDecl
-             , declarations :: [CDecl]
-             , statements   :: [CStat]    -- statements can include assignments as well as other side-effects
-             , varEnv       :: Env      }
+data CG = CG { freshNames    :: [String]
+             , reservedNames :: S.Set String
+             , extDecls      :: S.Set CExtDecl
+             , declarations  :: [CDecl]
+             , statements    :: [CStat]    -- statements can include assignments as well as other side-effects
+             , varEnv        :: Env      }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty [] [] emptyEnv
+emptyCG = CG suffixes mempty mempty [] [] emptyEnv
 
 type CodeGen = State CG
 
@@ -104,35 +103,42 @@ runCodeGen m =
       , reverse  $ declarations cg
       , reverse  $ statements   cg )
 
+reserveName :: String -> CodeGen ()
+reserveName s =
+  get >>= \cg -> put $ cg { reservedNames = s `S.insert` reservedNames cg }
 
-runCodeGenWithNames
-  :: CodeGen a
-  -> [String]
-  -> ([String],[CExtDecl],[CDecl], [CStat])
-runCodeGenWithNames m names =
-  let (_, cg) = runState m $ CG names mempty [] [] emptyEnv
-  in  ( freshNames cg
-      , S.toList $ extDecls     cg
-      , reverse  $ declarations cg
-      , reverse  $ statements   cg )
-
-
-getNames :: CodeGen [String]
-getNames = freshNames <$> get
-
-setNames :: [String] -> CodeGen ()
-setNames n = do cg <- get
-                put $ cg { freshNames = n }
 
 genIdent :: CodeGen Ident
-genIdent = do cg <- get
-              put $ cg { freshNames = tail $ freshNames cg }
-              return $ builtinIdent $ "_" ++ (head $ freshNames cg)
+genIdent =
+  do cg <- get
+     let (freshNs,name) = pullName (freshNames cg) (reservedNames cg)
+     put $ cg { freshNames = freshNs }
+     return $ builtinIdent name
+  where pullName :: [String] -> S.Set String -> ([String],String)
+        pullName (n:names) reserved =
+          let name = "_" ++ n in
+          if S.member name reserved
+          then let (names',out) = pullName names reserved
+               in  (n:names',out)
+          else (names,name)
+        pullName _ _ = error "should not happen, names is infinite"
 
 genIdent' :: String -> CodeGen Ident
-genIdent' s = do cg <- get
-                 put $ cg { freshNames = tail $ freshNames cg }
-                 return $ builtinIdent $ s ++ "_" ++ (head $ freshNames cg)
+genIdent' s =
+  do cg <- get
+     let (freshNs,name) = pullName (freshNames cg) (reservedNames cg)
+     put $ cg { freshNames = freshNs }
+     return $ builtinIdent name
+  where pullName :: [String] -> S.Set String -> ([String],String)
+        pullName (n:names) reserved =
+          let name = s ++ "_" ++ n in
+          if S.member name reserved
+          then let (names',out) = pullName names reserved
+               in  (n:names',out)
+          else (names,name)
+        pullName _ _ = error "should not happen, names is infinite"
+
+
 
 createIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 createIdent var@(Variable name _ _) =
@@ -183,6 +189,26 @@ extDeclare :: CExtDecl -> CodeGen ()
 extDeclare d = do cg <- get
                   put $ cg { extDecls = d `S.insert` extDecls cg }
 
+defineFunction :: Sing (a :: Hakaru) -> Ident -> CodeGen () -> CodeGen ()
+defineFunction typ ident mbody =
+  do cg <- get
+     mbody
+     !cg' <- get
+     let decls = reverse . declarations $ cg'
+         stmts = reverse . statements   $ cg'
+         def SInt         = functionDef SInt  ident [] decls stmts
+         def SNat         = functionDef SNat  ident [] decls stmts
+         def SProb        = functionDef SProb ident [] decls stmts
+         def SReal        = functionDef SReal ident [] decls stmts
+         def (SMeasure t) = functionDef t ident [] decls stmts
+         def t            = error $ "TODO: defined function of type: " ++ show t
+
+     -- reset local statements and declarations
+     put $ cg' { statements   = statements cg
+               , declarations = declarations cg }
+     extDeclare . extFunc $ def typ
+
+
 ---------
 -- ENV --
 ---------
@@ -220,7 +246,6 @@ forCG iter cond inc body =
      let (_,cg') = runState body $ cg { statements = [] }
      put $ cg' { statements = statements cg }
      putStat $ forS iter cond inc (reverse $ statements cg')
-
 
 
 ----------------------------------------------------------------

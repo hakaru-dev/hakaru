@@ -63,7 +63,6 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , nullaryE
   , unaryE
   , callFuncE
-  , printE
   , binaryOp
   ) where
 
@@ -97,9 +96,6 @@ callFuncE nameE argsEs = CCall nameE argsEs node
 
 rand :: CExpr
 rand = nullaryE "rand"
-
-printE :: String -> CExpr
-printE s = unaryE "printf" (stringE s)
 
 log1p,log,expm1,exp,sqrt,malloc,free,postInc
   :: CExpr -> CExpr

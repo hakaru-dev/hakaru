@@ -25,7 +25,7 @@
 
 
 module Language.Hakaru.CodeGen.Flatten
-  (flattenABT)
+  ( flattenABT )
   where
 
 import Language.Hakaru.CodeGen.CodeGenMonad
@@ -67,6 +67,55 @@ flattenABT :: ABT Term abt
            -> CodeGen CExpr
 flattenABT abt = caseVarSyn abt flattenVar flattenTerm
 
+flattenLambda
+  :: ABT Term abt
+  => abt '[] a
+  -> Ident
+  -> CodeGen ()
+flattenLambda abt name =
+    coalesceLambda abt $ \vars abt' ->
+    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+    in  do argDecls <- sequence varMs
+
+           cg <- get
+           let m       = putStat . returnS =<< flattenABT abt'
+               (_,cg') = runState m $ cg { statements = []
+                                         , declarations = [] }
+           put $ cg' { statements   = statements cg
+                     , declarations = declarations cg }
+
+           extDeclare . extFunc $ functionDef (typeOf abt')
+                                              name
+                                              argDecls
+                                              (reverse $ declarations cg')
+                                              (reverse $ statements cg')
+  -- do at top level
+  where coalesceLambda
+          :: ABT Term abt
+          => abt '[] a
+          -> ( forall (ys :: [Hakaru]) b
+             . List1 Variable ys -> abt '[] b -> r)
+          -> r
+        coalesceLambda abt k =
+          caseVarSyn abt (const (k Nil1 abt)) $ \term ->
+            case term of
+              (Lam_ :$ body :* End) ->
+                caseBind body $ \v body' ->
+                  coalesceLambda body' $ \vars body'' -> k (Cons1 v vars) body''
+              _ -> k Nil1 abt
+            
+
+        mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
+        mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
+        mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
+        mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
+        mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
+        mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
+                                                       return $ arrayDeclaration t i
+        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
+                                                          return $ datumDeclaration d i
+        mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
+                      
 
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
 flattenVar v = varE <$> lookupIdent v
@@ -104,16 +153,19 @@ flattenSCon Lam_            =
     coalesceLambda body $ \vars body' ->
     let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
     in  do funcId <- genIdent' "fn"
-           decls  <- sequence varMs
+           argDecls <- sequence varMs
 
            cg <- get
            let m       = putStat . returnS =<< flattenABT body'
-               (_,cg') = runState m $ cg { statements = [] }
-           put $ cg' { statements = statements cg }
+               (_,cg') = runState m $ cg { statements = []
+                                         , declarations = [] }
+           put $ cg' { statements   = statements cg
+                     , declarations = declarations cg }
 
            extDeclare . extFunc $ functionDef (typeOf body')
                                               funcId
-                                              decls
+                                              argDecls
+                                              (reverse $ declarations cg')
                                               (reverse $ statements cg')
            return . varE $ funcId
   -- do at top level

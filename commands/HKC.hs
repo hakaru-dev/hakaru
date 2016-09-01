@@ -60,9 +60,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
-          output  = case asFunc config of
-                      (Just name) -> createFunction ast' name
-                      Nothing     -> createProgram ast'
+          output  = wrapProgram ast' (asFunc config)
       when (debug config) $ do
         putErrorLn hrule
         putErrorLn $ pack $ show ast

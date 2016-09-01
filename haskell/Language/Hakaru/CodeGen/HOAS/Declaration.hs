@@ -91,7 +91,10 @@ arrayName SProb = "arrayProb"
 arrayName t    = error $ "arrayName: cannot make array from type: " ++ show t
 
 arrayStruct :: Sing (a :: Hakaru) -> CExtDecl
-arrayStruct t = extDecl $ CDecl [CTypeSpec aStruct] [] node
+arrayStruct t = extDecl $ CDecl [CTypeSpec $ arrayStruct' t] [] node
+
+arrayStruct' :: Sing (a :: Hakaru) -> CTypeSpec
+arrayStruct' t = aStruct
   where aSize   = CDecl [CTypeSpec intTyp ]
                         [( Just $ CDeclr (Just (internalIdent "size")) [] Nothing [] node
                          , Nothing
@@ -209,13 +212,14 @@ functionDef
   :: Sing (a :: Hakaru)
   -> Ident
   -> [CDecl]
+  -> [CDecl]
   -> [CStat]
   -> CFunDef
-functionDef typ ident declrs stmts =
+functionDef typ ident argDecls internalDecls stmts =
   CFunDef [CTypeSpec (buildType typ)]
-          (CDeclr (Just ident) [CFunDeclr (Right (declrs,False)) [] node] Nothing [] node)
+          (CDeclr (Just ident) [CFunDeclr (Right (argDecls,False)) [] node] Nothing [] node)
           []
-          (CCompound [] (fmap CBlockStmt stmts) node)
+          (CCompound [] ((fmap CBlockDecl internalDecls) ++ (fmap CBlockStmt stmts)) node)
           node
 
 ----------------------------------------------------------------
@@ -228,9 +232,9 @@ buildType SNat         = CIntType undefNode
 buildType SProb        = CDoubleType undefNode
 buildType SReal        = CDoubleType undefNode
 buildType (SMeasure x) = buildType x
-buildType (SArray x)   = buildType x
-buildType (SFun _ x)   = error "buildType of SFun is undefined"-- buildType x -- build type the function return
-buildType x = error $ "TODO: buildType " ++ show x
+buildType (SArray t)   = callStruct $ arrayName t
+buildType (SFun _ x)   = buildType x -- build type the function returns
+buildType (SData _ t)  = callStruct $ datumName t
 
 mkDecl :: CTypeSpec -> CDecl
 mkDecl t = CDecl [CTypeSpec t]
