@@ -526,13 +526,33 @@ flattenPrimOp (Recip t) =
 flattenPrimOp (Equal _) = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
+     -- special case for booleans
+     let a'' = case typeOf a of
+                 (SData _ (SPlus SDone (SPlus SDone SVoid))) -> (a' ^! (builtinIdent "index"))
+                 _ -> a'
+         b'' = case typeOf a of
+                 (SData _ (SPlus SDone (SPlus SDone SVoid))) -> (b' ^! (builtinIdent "index"))
+                 _ -> b'
      boolIdent <- genIdent' "eq"
 
      declare sBool boolIdent
      putStat $ assignExprS ((varE boolIdent) ^! (builtinIdent "index"))
-                           (condE (a' ^== b') (intConstE 0) (intConstE 1))
+                           (condE (a'' ^== b'') (intConstE 0) (intConstE 1))
 
      return (varE boolIdent)
+
+  
+flattenPrimOp (Less _) = \(a :* b :* End) ->
+  do a' <- flattenABT a
+     b' <- flattenABT b
+     boolIdent <- genIdent' "less"
+
+     declare sBool boolIdent
+     putStat $ assignExprS ((varE boolIdent) ^! (builtinIdent "index"))
+                           (condE (a' ^< b') (intConstE 0) (intConstE 1))
+
+     return (varE boolIdent)
+  
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
 ----------------------------------------------------------------
