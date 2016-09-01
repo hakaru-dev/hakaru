@@ -17,8 +17,8 @@ import           System.IO (stderr)
 data Options =
  Options { debug    :: Bool
          , optimize :: Bool
-         -- , cuda    :: Bool
-         -- , jobs    :: Maybe Int
+         -- , accelerate :: Either CUDA OpenCL
+         -- , jobs       :: Maybe Int
          , asFunc   :: Maybe String
          , fileIn   :: String
          , fileOut  :: Maybe String

@@ -40,6 +40,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.Sing
 
 import Language.C.Syntax.AST
@@ -115,7 +116,7 @@ flattenSCon Lam_            =
                                               decls
                                               (statements cg')
            return . varE $ funcId
--- do at top level
+  -- do at top level
   where coalesceLambda
           :: ( ABT Term abt )
           => abt '[x] a
@@ -126,7 +127,7 @@ flattenSCon Lam_            =
             caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
               case term of
                 (Lam_ :$ body :* End) ->
-                  coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt'' 
+                  coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
                 _ -> k (Cons1 v Nil1) abt'
 
         mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CDecl
@@ -189,6 +190,36 @@ flattenSCon MBind           =
             declare typ ident
             assign ident e1'
             flattenABT e2'
+
+-- at this point, only nonrecusive coersions are implemented
+flattenSCon (CoerceTo_ (CCons t CNil)) =
+  \(e :* End) ->
+    do e' <- flattenABT e
+       coerceToType t (typeOf e) e' 
+  where coerceToType
+          :: PrimCoercion b c
+          -> Sing (a :: Hakaru)
+          -> CExpr
+          -> CodeGen CExpr
+        coerceToType (Signed HRing_Int)  SNat  = nat2int
+        coerceToType (Signed HRing_Real) SProb = prob2real
+        coerceToType (Continuous HContinuous_Prob) SNat = nat2prob
+        coerceToType (Continuous HContinuous_Real) SInt = int2real
+        coerceToType t1 t2 = error $ "TODO? coerceToType: " ++ show t1 ++ " to " ++ show t2
+
+        -- implementing ONLY functions found in Hakaru.Syntax.AST
+        nat2int,nat2prob,prob2real,int2real
+          :: CExpr -> CodeGen CExpr
+        nat2int   = return
+        nat2prob  = \n -> do ident <- genIdent' "p"
+                             declare SProb ident
+                             assign ident . log1p $ n ^- (intConstE 1)
+                             return (varE ident)
+        prob2real = \p -> do ident <- genIdent' "r"
+                             declare SReal ident
+                             assign ident $ (expm1 p) ^+ (intConstE 1)
+                             return (varE ident)
+        int2real  = return . castE doubleDecl
 
 flattenSCon x               = \_ -> error $ "TODO: flattenSCon: " ++ show x
 

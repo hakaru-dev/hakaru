@@ -26,11 +26,14 @@ module Language.Hakaru.CodeGen.Wrapper where
 import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.TypeCheck
+import           Language.Hakaru.Syntax.TypeOf (typeOf)                        
 import           Language.Hakaru.Types.Sing
+import           Language.Hakaru.CodeGen.CodeGenMonad
+import           Language.Hakaru.CodeGen.Flatten
+import           Language.Hakaru.CodeGen.HOAS.Statement
+import           Language.Hakaru.CodeGen.HOAS.Declaration                 
+import           Language.Hakaru.Types.DataKind (Hakaru(..))
 
-import Language.Hakaru.CodeGen.CodeGenMonad
-import Language.Hakaru.CodeGen.Flatten
-import Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Language.C.Data.Ident
 import qualified Language.C.Pretty as C
@@ -70,20 +73,21 @@ createProgram (TypedAST tt abt) =
 
 -- | Create function will produce a C function that samples if it is a measure
 createFunction :: TypedAST (TrivialABT T.Term) -> String -> Text
--- createFunction (TypedAST (SFun _ _) abt) name =
---   let (fs,_,_) = runCodeGen $ flattenABT abt
---   in  mconcat (fmap cToString fs)
--- createFunction (TypedAST tt@(SMeasure internalT) abt) name =
---   let ident           = builtinIdent "result"
---       (_,decls,stmts) = runCodeGen (do declare internalT ident
---                                        expr <- flattenABT abt
---                                        assign ident expr)
---   in  unlines [ header tt
---               , measureFunc (fmap (\d -> mconcat [cToString d,";"]) decls)
---                             (fmap cToString stmts)
---               ]
-createFunction _ _ =
-  error $ "createFunction only works on programs of type 'Measure a' and 'Fun a b'"
+createFunction (TypedAST tt abt) name =
+  let funcId = builtinIdent name
+      m = do body <- flattenABT abt
+             -- -- cg <- get
+             extDeclare . extFunc $ functionDef (typeOf abt)
+                                                funcId
+                                                []
+                                                ([returnS body])
+
+      (funcs,_,_) = runCodeGen m
+
+  in  unlines [ header tt
+              , unlines (fmap cToString funcs)
+              ]
+
 
 ----------------------------------------------------------------
 cToString :: C.Pretty a => a -> Text
@@ -99,17 +103,6 @@ header (SMeasure _) = unlines [ "#include <time.h>"
 header _            = unlines [ "#include <stdio.h>"
                               , "#include <stdlib.h>"
                               , "#include <math.h>" ]
-
-normalC :: Text
-normalC = unlines
-        [ "double normal(double mu, double sd) {"
-        , "  double u = ((double)rand() / (RAND_MAX)) * 2 - 1;"
-        , "  double v = ((double)rand() / (RAND_MAX)) * 2 - 1;"
-        , "  double r = u*u + v*v;"
-        , "  if (r==0 || r>1) return normal(mu,sd);"
-        , "  double c = sqrt(-2 * log(r) / r);"
-        , "  return mu + u * c * sd;"
-        , "}" ]
 
 measureFunc :: [Text] -> [Text] -> Text
 measureFunc decl stmts = unlines
