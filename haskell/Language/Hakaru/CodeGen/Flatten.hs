@@ -114,7 +114,7 @@ flattenSCon Lam_            =
            extDeclare . extFunc $ functionDef (typeOf body')
                                               funcId
                                               decls
-                                              (statements cg')
+                                              (reverse $ statements cg')
            return . varE $ funcId
   -- do at top level
   where coalesceLambda
@@ -500,6 +500,21 @@ flattenPrimOp Pi = \End ->
      declare SProb ident
      assign ident $ log1p ((stringVarE "M_PI") ^- (intConstE 1))
      return (varE ident)
+flattenPrimOp (Recip t) =
+  \(a :* End) ->
+    do aE <- flattenABT a
+       recipIdent <- genIdent
+       let recipV = varE recipIdent
+       case t of
+         HFractional_Real ->
+           do declare SReal recipIdent
+              assign recipIdent ((intConstE 1) ^/ aE)
+              return recipV
+         HFractional_Prob ->
+           do declare SProb recipIdent
+              assign recipIdent (log1p (((intConstE 1) ^/ (expm1 (aE ^+ (intConstE 1)))) ^- (intConstE 1)))
+              return recipV
+         
 flattenPrimOp (Equal _) = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
