@@ -645,7 +645,7 @@ flattenMeasureOp Normal  = \(a :* b :* End) ->
      assign cId $ sqrt ((unaryE "-" (intConstE 2)) ^* (log varR ^/ varR))
      let varC = varE cId
 
-     return (a' ^+ (varU ^* (varC ^* b')))
+     return (a' ^+ (varU ^* (varC ^* ((expm1 b') ^+ (intConstE 1)))))
 
 flattenMeasureOp Uniform = \(a :* b :* End) ->
   do a' <- flattenABT a
