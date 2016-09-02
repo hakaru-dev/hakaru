@@ -67,56 +67,6 @@ flattenABT :: ABT Term abt
            -> CodeGen CExpr
 flattenABT abt = caseVarSyn abt flattenVar flattenTerm
 
-flattenLambda
-  :: ABT Term abt
-  => abt '[] a
-  -> Ident
-  -> CodeGen ()
-flattenLambda abt name =
-    coalesceLambda abt $ \vars abt' ->
-    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
-    in  do argDecls <- sequence varMs
-
-           cg <- get
-           let m       = putStat . returnS =<< flattenABT abt'
-               (_,cg') = runState m $ cg { statements = []
-                                         , declarations = [] }
-           put $ cg' { statements   = statements cg
-                     , declarations = declarations cg }
-
-           extDeclare . extFunc $ functionDef (typeOf abt')
-                                              name
-                                              argDecls
-                                              (reverse $ declarations cg')
-                                              (reverse $ statements cg')
-  -- do at top level
-  where coalesceLambda
-          :: ABT Term abt
-          => abt '[] a
-          -> ( forall (ys :: [Hakaru]) b
-             . List1 Variable ys -> abt '[] b -> r)
-          -> r
-        coalesceLambda abt k =
-          caseVarSyn abt (const (k Nil1 abt)) $ \term ->
-            case term of
-              (Lam_ :$ body :* End) ->
-                caseBind body $ \v body' ->
-                  coalesceLambda body' $ \vars body'' -> k (Cons1 v vars) body''
-              _ -> k Nil1 abt
-            
-
-        mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
-        mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
-        mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
-        mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
-        mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
-        mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
-                                                       return $ arrayDeclaration t i
-        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
-                                                          return $ datumDeclaration d i
-        mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
-                      
-
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
 flattenVar v = varE <$> lookupIdent v
 
@@ -255,7 +205,7 @@ flattenSCon MBind           =
 flattenSCon (CoerceTo_ (CCons t CNil)) =
   \(e :* End) ->
     do e' <- flattenABT e
-       coerceToType t (typeOf e) e' 
+       coerceToType t (typeOf e) e'
   where coerceToType
           :: PrimCoercion b c
           -> Sing (a :: Hakaru)
@@ -292,6 +242,11 @@ flattenNAryOp :: ABT Term abt
 flattenNAryOp op args =
   do es <- T.mapM flattenABT args
      case op of
+       And -> boolNaryOp op "and" es
+       Or  -> boolNaryOp op "or"  es
+       Xor -> boolNaryOp op "xor" es
+       Iff -> boolNaryOp op "iff" es
+
        (Sum HSemiring_Prob)  ->
          do ident <- genIdent' "logSumExp"
             declare SProb ident
@@ -302,6 +257,18 @@ flattenNAryOp op args =
        _ -> return $ F.foldr (binaryOp op)
                              (S.index es 0)
                              (S.drop 1 es)
+  where boolNaryOp op' str es' =
+          do ident <- genIdent' str
+             declare sBool ident
+             let indexOf x = x ^! (builtinIdent "index")
+                 es''      = fmap indexOf es'
+                 v         = varE ident
+                 expr      = F.foldr (binaryOp op')
+                                     (S.index es'' 0)
+                                     (S.drop 1 es'')
+             putStat $ assignExprS (indexOf v) expr
+             return v
+
 
 -- logSumExp codegen involves producing a tree of comparisons, where
 -- the leaves are logSumExp expressions
@@ -574,7 +541,7 @@ flattenPrimOp (Recip t) =
            do declare SProb recipIdent
               assign recipIdent (log1p (((intConstE 1) ^/ (expm1 (aE ^+ (intConstE 1)))) ^- (intConstE 1)))
               return recipV
-         
+
 flattenPrimOp (Equal _) = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
@@ -593,7 +560,7 @@ flattenPrimOp (Equal _) = \(a :* b :* End) ->
 
      return (varE boolIdent)
 
-  
+
 flattenPrimOp (Less _) = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
@@ -604,7 +571,7 @@ flattenPrimOp (Less _) = \(a :* b :* End) ->
                            (condE (a' ^< b') (intConstE 0) (intConstE 1))
 
      return (varE boolIdent)
-  
+
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
 ----------------------------------------------------------------

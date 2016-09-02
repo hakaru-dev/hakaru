@@ -140,21 +140,9 @@ binaryOp (Sum HSemiring_Prob)  a b = CBinary CAddOp (exp a) (exp b) node
 binaryOp (Prod HSemiring_Prob) a b = CBinary CAddOp a b node
 binaryOp (Sum _)               a b = CBinary CAddOp a b node
 binaryOp (Prod _)              a b = CBinary CMulOp a b node
--- vvvvv NaryOps on Bools vvvvvv
-binaryOp And                   a b =
-  let aInd = memberE a (builtinIdent "index")
-      bInd = memberE b (builtinIdent "index")
-  in CBinary CAndOp aInd bInd node
-binaryOp Or                    a b =
-  let aInd = memberE a (builtinIdent "index")
-      bInd = memberE b (builtinIdent "index")
-  in CBinary COrOp aInd bInd node
-binaryOp Xor                   a b =
-  let aInd = memberE a (builtinIdent "index")
-      bInd = memberE b (builtinIdent "index")
-  in CBinary CXorOp aInd bInd node
-
--- ^^^^^                 ^^^^^
+binaryOp And                   a b = CBinary CAndOp a b node
+binaryOp Or                    a b = CBinary COrOp  a b node
+binaryOp Xor                   a b = CBinary CXorOp a b node
 binaryOp x _ _ = error $ "TODO: binaryOp " ++ show x
 
 
