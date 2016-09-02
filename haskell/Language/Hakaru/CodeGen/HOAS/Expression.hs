@@ -64,6 +64,7 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , unaryE
   , callFuncE
   , binaryOp
+  , assignE
   ) where
 
 import Language.Hakaru.Syntax.AST
@@ -166,3 +167,6 @@ addressE var = CUnary CAdrOp var node
 -- infix memberE
 (^!) :: CExpr -> Ident -> CExpr
 (^!) = memberE
+
+assignE :: CExpr -> CExpr -> CExpr
+assignE var expr = CAssign CAssignOp var expr node

@@ -155,7 +155,6 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
      caseBind body $ \v body' ->
        do iterI <- createIdent v
           declare SNat iterI
-          assign iterI loE
 
           accI <- genIdent' "acc"
           declare (sing_HSemiring sr) accI
@@ -164,7 +163,7 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
           let accVar  = varE accI
               iterVar = varE iterI
           -- logSumExp for probabilities
-          forCG iterVar (iterVar ^< hiE) (postInc iterVar) $
+          forCG (assignE iterVar loE) (iterVar ^< hiE) (postInc iterVar) $
             do bodyE <- flattenABT body'
                assign accI (accVar ^+ bodyE)
 
@@ -177,7 +176,6 @@ flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
      caseBind body $ \v body' ->
        do iterI <- createIdent v
           declare SNat iterI
-          assign iterI loE
 
           accI <- genIdent' "acc"
           declare (sing_HSemiring sr) accI
@@ -185,7 +183,7 @@ flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
 
           let accVar  = varE accI
               iterVar = varE iterI
-          forCG iterVar (iterVar ^< hiE) (postInc iterVar) $
+          forCG (assignE iterVar loE) (iterVar ^< hiE) (postInc iterVar) $
             do bodyE <- flattenABT body'
                assign accI (accVar ^* bodyE)
 
@@ -353,7 +351,6 @@ flattenArray arity body =
 
        iterIdent  <- createIdent v
        declare SNat iterIdent
-       assign iterIdent (intConstE 0)
 
        -- manage loop
        let iter     = varE iterIdent
@@ -361,7 +358,7 @@ flattenArray arity body =
            inc      = postInc iter
            currInd  = indirectE (dataPtr ^+ iter)
            loopBody = putStat . assignExprS currInd =<< flattenABT body'
-       forCG iter cond inc loopBody
+       forCG (assignE iter (intConstE 0)) cond inc loopBody
 
        return (varE arrayIdent)
 
@@ -399,7 +396,7 @@ flattenArrayOp (Reduce _) = \(fun :* base :* arr :* End) ->
      declare (typeOf base) accI
      declare SInt iterI
      assign accI baseE
-     forCG iterE cond inc $
+     forCG (assignE iterE (intConstE 0)) cond inc $
        assign accI $ callFuncE funE [accE]
 
      return accE
