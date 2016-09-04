@@ -55,14 +55,15 @@ import           Data.Monoid
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative
 #endif
-                 
+
 
 -- | Create program is the top level C codegen. Depending on the type a program
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
 wrapProgram :: TypedAST (TrivialABT Term) -> Maybe String -> Text
 wrapProgram tast@(TypedAST typ _) mn = unlines [ header typ
-                                               , unlines . mainLast . fmap cToString $ extdecls ]
+                                               , unlines . mainLast . fmap cToString
+                                                 $ extdecls ]
   where mainLast []     = []
         mainLast (x:xs) = if D.take 10 x == "int main()"
                           then xs <> pure x
@@ -79,7 +80,7 @@ wrapProgram tast@(TypedAST typ _) mn = unlines [ header typ
 
               ( TypedAST typ'       abt, Just name ) ->
                 do reserveName name
-                   defineFunction typ
+                   defineFunction typ'
                                   (builtinIdent name)
                                   (putStat . returnS =<< flattenABT abt)
 
@@ -117,7 +118,7 @@ mainFunction typ@(SMeasure _) abt =
 
          -- need to set seed
          -- srand(time(NULL));
-  
+
          reserveName "main"
          printf typ (varE ident)
          putStat . returnS $ intConstE 0
@@ -159,9 +160,8 @@ printf (SMeasure t) arg =
 printf (SArray t)   arg =
   do iterId <- genIdent' "it"
      declare SInt iterId
-     assign iterId (intConstE 0)
      let iter   = varE iterId
-         result = varE . builtinIdent $ "result"
+         result = arg
          dataPtr = result ^! (builtinIdent "data")
          sizeVar = result ^! (builtinIdent "size")
          cond     = iter ^< sizeVar
@@ -172,7 +172,7 @@ printf (SArray t)   arg =
 
 
      putString "[ "
-     forCG iter cond inc loopBody
+     forCG (assignE iter (intConstE 0)) cond inc loopBody
      putString "]\n"
   where putString s = putStat . exprS $ callFuncE (varE . builtinIdent $ "printf")
                                                   [stringE s]
@@ -224,13 +224,13 @@ flattenTopLambda abt name =
           -> ( forall (ys :: [Hakaru]) b
              . List1 Variable ys -> abt '[] b -> r)
           -> r
-        coalesceLambda abt k =
-          caseVarSyn abt (const (k Nil1 abt)) $ \term ->
+        coalesceLambda abt_ k =
+          caseVarSyn abt_ (const (k Nil1 abt_)) $ \term ->
             case term of
               (Lam_ :$ body :* End) ->
                 caseBind body $ \v body' ->
                   coalesceLambda body' $ \vars body'' -> k (Cons1 v vars) body''
-              _ -> k Nil1 abt
+              _ -> k Nil1 abt_
 
 
         mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl

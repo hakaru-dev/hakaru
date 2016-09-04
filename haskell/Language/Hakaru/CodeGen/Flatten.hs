@@ -47,6 +47,7 @@ import Language.C.Syntax.AST
 import Language.C.Data.Ident
 
 import           Control.Monad.State.Strict
+import           Control.Monad (replicateM)
 import           Data.Number.Natural
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
@@ -306,6 +307,24 @@ logSumExp es = mkCompTree 0 1
                     ^+ (intConstE $ fromIntegral lastIndex))
 
 
+-- | logSumExpCG creates a functions for every n-ary logSumExp function
+-- this function shouldn't be used until CodeGen has a partial ordering on ExtDecls   
+logSumExpCG :: S.Seq CExpr -> CodeGen CExpr
+logSumExpCG seqE =
+  let size   = S.length $ seqE
+      name   = "logSumExp" ++ (show size)
+      funcId = builtinIdent name
+  in  do argIds <- replicateM size genIdent
+         let decls = fmap (typeDeclaration SProb) argIds
+             vars  = fmap varE argIds
+         extDeclare . extFunc $ functionDef SProb
+                                            funcId
+                                            decls
+                                            []
+                                            [returnS $ logSumExp $ S.fromList vars ]
+         return $ callFuncE (varE funcId) (F.toList seqE)
+
+
 
 ----------------------------------------------------------------
 
@@ -524,6 +543,12 @@ flattenPrimOp Pi = \End ->
      declare SProb ident
      assign ident $ log1p ((stringVarE "M_PI") ^- (intConstE 1))
      return (varE ident)
+
+flattenPrimOp RealPow =
+  \(a :* b :* End) ->
+  do ident <- genIdent' "pow"
+     error "TODO: flattenPrimOp RealPow"
+
 flattenPrimOp (Recip t) =
   \(a :* End) ->
     do aE <- flattenABT a
@@ -632,21 +657,36 @@ flattenSuperpose
 -- do we need to normalize?
 flattenSuperpose wes =
   let wes' = NE.toList wes in
-  do randId <- genIdent' "rand"
-     declare SReal randId
-     let r    = castE doubleDecl rand
-         rMax = castE doubleDecl (stringVarE "RAND_MAX")
-         rVar = varE randId
-     assign randId ((r ^/ rMax) ^* (intConstE 1))
 
+  if length wes' == 1
+  then flattenABT . snd . head $ wes'
+  else do weights <- mapM (flattenABT . fst) wes'
 
-     outId <- genIdent
-     declare SReal outId
+          weightSumId <- genIdent' "wSum"
+          declare SProb weightSumId
+          assign weightSumId $ logSumExp $ S.fromList weights
+          let weightSum = varE weightSumId
 
-     wes'' <- T.forM  wes'  $ \(p,m) -> do p' <- flattenABT p
-                                           m' <- flattenABT m
-                                           return ((exp p') ^< rVar, assignS outId m')
+          -- randId <- genIdent' "rand"
+          -- declare SReal randId
+          -- let r    = castE doubleDecl rand
+          --     rMax = castE doubleDecl (stringVarE "RAND_MAX")
+          --     rVar = varE randId
+          -- assign randId ((r ^/ rMax) ^* weightSum)
 
-     putStat (listOfIfsS wes'')
+          outId <- genIdent
+          declare SReal outId
 
-     return (varE outId)
+          -- iterId <- genIdent' "it"
+          -- declare SProb iterId
+          -- assign iterId $ log (intConstE 0)
+
+          -- let porportion p = (exp p) ^/ (exp weightSum)
+          --     iter         = varE iterId
+
+          -- _ <- forM wes' $ \(_,m) ->
+          --        do
+          --           putStat $ guardS (iter ^< rVar) (assignS outId m)
+          --           assign iterId $ logSumExp $ S.fromList [iter, porportion e]
+
+          return (varE outId)

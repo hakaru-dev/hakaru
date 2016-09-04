@@ -38,6 +38,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , putStat
   , extDeclare
   , defineFunction
+  , runCodeGenBlock
 
   , reserveName
   , genIdent
@@ -102,6 +103,19 @@ runCodeGen m =
   in  ( S.toList $ extDecls     cg
       , reverse  $ declarations cg
       , reverse  $ statements   cg )
+
+
+runCodeGenBlock :: CodeGen a -> CodeGen CStat
+runCodeGenBlock m =
+  do cg <- get
+     let (_,cg') = runState m $ cg { statements = []
+                                   , declarations = [] }
+     put $ cg' { statements   = statements cg
+               , declarations = declarations cg }
+     return $ (CCompound [] ((fmap CBlockDecl (declarations cg'))
+                            ++ (fmap CBlockStmt (statements cg'))) undefNode)
+
+
 
 reserveName :: String -> CodeGen ()
 reserveName s =
