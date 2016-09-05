@@ -64,7 +64,7 @@ exitS :: CStat
 exitS = CReturn (Just $ intConstE 0) node
 
 labelS :: Ident -> CStat
-labelS i = CLabel i (CCont node) [] node
+labelS i = CLabel i (CExpr Nothing node) [] node
 
 returnS :: CExpr -> CStat
 returnS e = CReturn (Just e) node

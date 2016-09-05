@@ -112,8 +112,8 @@ runCodeGenBlock m =
                                    , declarations = [] }
      put $ cg' { statements   = statements cg
                , declarations = declarations cg }
-     return $ (CCompound [] ((fmap CBlockDecl (declarations cg'))
-                            ++ (fmap CBlockStmt (statements cg'))) undefNode)
+     return $ (CCompound [] ((fmap CBlockDecl (reverse $ declarations cg'))
+                            ++ (fmap CBlockStmt (reverse $statements cg'))) undefNode)
 
 
 

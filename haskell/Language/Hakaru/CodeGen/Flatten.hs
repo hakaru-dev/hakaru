@@ -662,31 +662,43 @@ flattenSuperpose wes =
   then flattenABT . snd . head $ wes'
   else do weights <- mapM (flattenABT . fst) wes'
 
+          -- compute sum of weights
           weightSumId <- genIdent' "wSum"
           declare SProb weightSumId
           assign weightSumId $ logSumExp $ S.fromList weights
           let weightSum = varE weightSumId
 
-          -- randId <- genIdent' "rand"
-          -- declare SReal randId
-          -- let r    = castE doubleDecl rand
-          --     rMax = castE doubleDecl (stringVarE "RAND_MAX")
-          --     rVar = varE randId
-          -- assign randId ((r ^/ rMax) ^* weightSum)
+          -- draw number from uniform(0, weightSum)
+          randId <- genIdent' "rand"
+          declare SReal randId
+          let r    = castE doubleDecl rand
+              rMax = castE doubleDecl (stringVarE "RAND_MAX")
+              rVar = varE randId
+          assign randId ((r ^/ rMax) ^* (exp weightSum))
 
+       
           outId <- genIdent
           declare SReal outId
+          outLabel <- genIdent' "super"
 
-          -- iterId <- genIdent' "it"
-          -- declare SProb iterId
-          -- assign iterId $ log (intConstE 0)
+          iterId <- genIdent' "it"
+          declare SProb iterId
+          let iter = varE iterId  
 
-          -- let porportion p = (exp p) ^/ (exp weightSum)
-          --     iter         = varE iterId
+          -- try the first element
+          assign iterId (head weights)
+          stat <- runCodeGenBlock (do m' <- flattenABT (snd . head $ wes')
+                                      assign outId m'
+                                      putStat $ gotoS outLabel)
+          putStat $ guardS (rVar ^< (exp iter)) stat
 
-          -- _ <- forM wes' $ \(_,m) ->
-          --        do
-          --           putStat $ guardS (iter ^< rVar) (assignS outId m)
-          --           assign iterId $ logSumExp $ S.fromList [iter, porportion e]
 
+          forM_ (zip (tail weights) (fmap snd (tail wes'))) $ \(e,m) ->
+            do assign iterId $ logSumExp $ S.fromList [iter, e]
+               stat <- runCodeGenBlock (do m' <- flattenABT m
+                                           assign outId m'
+                                           putStat $ gotoS outLabel) 
+               putStat $ guardS (rVar ^< (exp iter)) stat
+
+          putStat $ labelS outLabel
           return (varE outId)
