@@ -232,18 +232,32 @@ flattenSCon MBind           =
             flattenABT e2'
 
 -- at this point, only nonrecusive coersions are implemented
-flattenSCon (CoerceTo_ (CCons t CNil)) =
-  \(e :* End) -> flattenABT e >>= coerceToType t (typeOf e)
+flattenSCon (CoerceTo_ ctyp) =
+  \(e :* End) -> flattenABT e >>= coerceToType ctyp (typeOf e)
   where coerceToType
-          :: PrimCoercion b c
-          -> Sing (a :: Hakaru)
+          :: Coercion a b
+          -> Sing (c :: Hakaru)
           -> CExpr
           -> CodeGen CExpr
-        coerceToType (Signed HRing_Int)  SNat  = nat2int
-        coerceToType (Signed HRing_Real) SProb = prob2real
-        coerceToType (Continuous HContinuous_Prob) SNat = nat2prob
-        coerceToType (Continuous HContinuous_Real) SInt = int2real
-        coerceToType t1 t2 = error $ "TODO? coerceToType: " ++ show t1 ++ " to " ++ show t2
+        coerceToType (CCons p rest) typ =
+          \e ->  primitiveCoerce p typ e >>= coerceToType rest typ
+        coerceToType CNil            _  = return . id
+
+        primitiveCoerce
+          :: PrimCoercion a b
+          -> Sing (c :: Hakaru)
+          -> CExpr
+          -> CodeGen CExpr
+        primitiveCoerce (Signed HRing_Int)            SNat  = nat2int
+        primitiveCoerce (Signed HRing_Real)           SProb = prob2real
+        primitiveCoerce (Continuous HContinuous_Prob) SNat  = nat2prob
+        primitiveCoerce (Continuous HContinuous_Real) SInt  = int2real
+        primitiveCoerce (Continuous HContinuous_Real) SNat  = int2real  
+        primitiveCoerce a b = error $ "flattenSCon CoerceTo_: cannot preform coersion "
+                                    ++ show a
+                                    ++ " to "
+                                    ++ show b
+
 
         -- implementing ONLY functions found in Hakaru.Syntax.AST
         nat2int,nat2prob,prob2real,int2real
