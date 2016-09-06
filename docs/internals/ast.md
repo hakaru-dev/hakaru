@@ -99,6 +99,22 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 ## SCons and SArgs
 
+When using `(:$)` we have a way to describe primitives where we
+know the number of arguments they should get. In that regard,
+SArgs is a typed list of abt terms indexed by its size.
+
+````haskell
+-- | The arguments to a @(':$')@ node in the 'Term'; that is, a list
+-- of ASTs, where the whole list is indexed by a (type-level) list
+-- of the indices of each element.
+data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
+    where
+    End :: SArgs abt '[]
+    (:*) :: !(abt vars a)
+        -> !(SArgs abt args)
+        -> SArgs abt ( '(vars, a) ': args)
+````haskell
+
 ## PrimOp
 
 ## MeasureOp
