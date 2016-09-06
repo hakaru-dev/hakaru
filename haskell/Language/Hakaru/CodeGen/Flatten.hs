@@ -149,6 +149,9 @@ flattenSCon (PrimOp_ op)    = flattenPrimOp op
 flattenSCon (ArrayOp_ op)   = flattenArrayOp op
 flattenSCon (MeasureOp_ op) = flattenMeasureOp op
 flattenSCon Dirac           = \(e :* End) -> flattenABT e
+flattenSCon Plate           = \(s :* b :* End) ->
+  caseBind b $ \v body ->
+    error "TODO: flattenSCon Plate"
 
 flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
   do loE <- flattenABT lo
@@ -202,9 +205,7 @@ flattenSCon MBind           =
 
 -- at this point, only nonrecusive coersions are implemented
 flattenSCon (CoerceTo_ (CCons t CNil)) =
-  \(e :* End) ->
-    do e' <- flattenABT e
-       coerceToType t (typeOf e) e'
+  \(e :* End) -> flattenABT e >>= coerceToType t (typeOf e)
   where coerceToType
           :: PrimCoercion b c
           -> Sing (a :: Hakaru)
@@ -308,7 +309,7 @@ logSumExp es = mkCompTree 0 1
 
 
 -- | logSumExpCG creates a functions for every n-ary logSumExp function
--- this function shouldn't be used until CodeGen has a partial ordering on ExtDecls   
+-- this function shouldn't be used until CodeGen has a partial ordering on ExtDecls
 logSumExpCG :: S.Seq CExpr -> CodeGen CExpr
 logSumExpCG seqE =
   let size   = S.length $ seqE
@@ -547,7 +548,12 @@ flattenPrimOp Pi = \End ->
 flattenPrimOp RealPow =
   \(a :* b :* End) ->
   do ident <- genIdent' "pow"
-     error "TODO: flattenPrimOp RealPow"
+     declare SReal ident
+     aE <- flattenABT a -- first argument is a Prob
+     bE <- flattenABT b
+     let realPow = callFuncE (varE . builtinIdent $ "pow") [ expm1 aE ^+ (intConstE 1), bE]
+     assign ident $ log1p (realPow ^- (intConstE 1))
+     return $ varE ident
 
 flattenPrimOp (Recip t) =
   \(a :* End) ->
@@ -676,14 +682,14 @@ flattenSuperpose wes =
               rVar = varE randId
           assign randId ((r ^/ rMax) ^* (exp weightSum))
 
-       
+
           outId <- genIdent
           declare SReal outId
           outLabel <- genIdent' "super"
 
           iterId <- genIdent' "it"
           declare SProb iterId
-          let iter = varE iterId  
+          let iter = varE iterId
 
           -- try the first element
           assign iterId (head weights)
@@ -697,7 +703,7 @@ flattenSuperpose wes =
             do assign iterId $ logSumExp $ S.fromList [iter, e]
                stat <- runCodeGenBlock (do m' <- flattenABT m
                                            assign outId m'
-                                           putStat $ gotoS outLabel) 
+                                           putStat $ gotoS outLabel)
                putStat $ guardS (rVar ^< (exp iter)) stat
 
           putStat $ labelS outLabel
