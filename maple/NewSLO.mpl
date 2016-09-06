@@ -774,7 +774,10 @@ NewSLO := module ()
 # Step 2 of 3: computer algebra
 
   improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
-    LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx))
+  local r:= LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx)), `&context`;
+       userinfo(3, improve, "input: ", print(lo &context _ctx));
+       userinfo(3, improve, "output: ", print(r));
+       r
   end proc;
 
   # Walk through integrals and simplify, recursing through grammar
@@ -1302,7 +1305,7 @@ NewSLO := module ()
 
   ### main procedure for disintegration ################################
   disint:= proc(
-       m, #same form as as used by toLO: anything
+       m, #same form as used by toLO: anything
        a::name, #differentiated wrt 
        {ctx::list:= []}, #context: parameter assumptions, "knowledge"
        $

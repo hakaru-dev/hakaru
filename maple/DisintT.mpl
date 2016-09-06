@@ -103,7 +103,7 @@ easyRoadr:=
 : 
 helloWorld:=
   Bind(Gaussian(0,1), mu,
-  Bind(Plate(n, _, Gaussian(mu, 1)), nu,
+  Bind(Plate(n, k, Gaussian(mu, 1)), nu,
   Ret(Pair(nu, mu))
   ))
 :
