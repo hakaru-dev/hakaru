@@ -149,9 +149,37 @@ flattenSCon (PrimOp_ op)    = flattenPrimOp op
 flattenSCon (ArrayOp_ op)   = flattenArrayOp op
 flattenSCon (MeasureOp_ op) = flattenMeasureOp op
 flattenSCon Dirac           = \(e :* End) -> flattenABT e
-flattenSCon Plate           = \(s :* b :* End) ->
+flattenSCon Plate           = \(size :* b :* End) ->
   caseBind b $ \v body ->
-    error "TODO: flattenSCon Plate"
+    do let arrTyp = sUnMeasure . typeOf $ body
+       arrayIdent <- genIdent' "plate"
+       declare (SArray arrTyp) arrayIdent
+
+       arity <- flattenABT size
+
+       let arrVar  = varE arrayIdent
+           dataPtr = arrVar ^! (builtinIdent "data")
+           sizeVar = arrVar ^! (builtinIdent "size")
+           dataTyp = buildType arrTyp -- this should be a literal type (unless we can have an array of measures)
+       putStat $ assignExprS sizeVar arity
+
+       -- setup loop
+       putStat $ assignExprS dataPtr $ castE (mkPtrDecl dataTyp)
+                                             (malloc (arity ^* (sizeof . mkDecl $ dataTyp)))
+
+       iterIdent  <- createIdent v
+       declare SNat iterIdent
+
+       -- manage loop
+       let iter     = varE iterIdent
+           cond     = iter ^< arity
+           inc      = postInc iter
+           currInd  = indirectE (dataPtr ^+ iter)
+           loopBody = putStat . assignExprS currInd =<< flattenABT body
+       forCG (assignE iter (intConstE 0)) cond inc loopBody
+
+       return (varE arrayIdent)
+
 
 flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
   do loE <- flattenABT lo

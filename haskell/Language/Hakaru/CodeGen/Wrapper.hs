@@ -151,11 +151,16 @@ mainFunction typ abt =
                                             (P.reverse $ statements cg)
 
 printf :: Sing (a :: Hakaru) -> CExpr -> CodeGen ()
+
 printf (SMeasure t) arg =
-  putStat . whileS (intConstE 1) . (:[]) . exprS
-    $ callFuncE (varE . builtinIdent $ "printf")
-                [ printfText t "\n"
-                , callFuncE arg [] ]
+  let stat typ@(SArray _) = do mId <- genIdent' "meas"
+                               declare typ mId
+                               runCodeGenBlock (do assign mId $ callFuncE arg []
+                                                   printf typ (varE mId))
+      stat typ = return . exprS $ callFuncE (varE . builtinIdent $ "printf")
+                                            [ printfText typ "\n"
+                                            , callFuncE arg [] ]
+  in putStat . whileS (intConstE 1) . (:[]) =<< stat t
 
 printf (SArray t)   arg =
   do iterId <- genIdent' "it"
