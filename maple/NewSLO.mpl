@@ -459,8 +459,6 @@ NewSLO := module ()
         end if;
       end if;
     end if;
-    # fallthrough here is like recognizing Lebesgue for all continuous
-    # measures.  Ultimately correct, although fairly unsatisfying.
     if res = FAIL then
       res := Recognized(Counting(lo, hi+1), w);
     end if;
