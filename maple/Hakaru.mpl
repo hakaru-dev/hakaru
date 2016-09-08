@@ -484,7 +484,7 @@ Hakaru := module ()
   end proc;
 
   ModuleLoad := proc($)
-  local g; #Iterator over thismodule's globals
+    local g; #Iterator over thismodule's globals
     VerifyTools[AddVerification](measure = eval(verify_measure));
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
