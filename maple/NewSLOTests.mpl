@@ -459,5 +459,5 @@ module()
   TestHakaru(burglary, bern(5047/500000), label="burglary");
   TestHakaru(Bind(BetaD(alpha,beta), p, bern(p)),
              Weight(1/(alpha+beta), Bind(Categorical([alpha,beta]), i, Ret(i=0))),
-             label="integrate BetaD out of BetaD-Bernoulli (currently failing -- due to Beta vs GAMMA)"):
+             label="integrate BetaD out of BetaD-Bernoulli"):
 end module:
