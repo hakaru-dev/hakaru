@@ -591,6 +591,20 @@ flattenPrimOp Pi = \End ->
      assign ident $ log1p ((stringVarE "M_PI") ^- (intConstE 1))
      return (varE ident)
 
+flattenPrimOp Exp = \(a :* End) ->
+  do ident <- genIdent
+     declare SProb ident
+     aE <- flattenABT a
+     assign ident $ expm1 aE ^+ (intConstE 1)
+     return (varE ident)
+
+flattenPrimOp Log = \(a :* End) ->
+  do ident <- genIdent
+     declare SProb ident
+     aE <- flattenABT a
+     assign ident $ log1p (aE ^- (intConstE 1))
+     return (varE ident)
+
 flattenPrimOp RealPow =
   \(a :* b :* End) ->
   do ident <- genIdent' "pow"
@@ -752,10 +766,10 @@ flattenSuperpose wes =
 
           forM_ (zip (tail weights) (fmap snd (tail wes'))) $ \(e,m) ->
             do assign iterId $ logSumExp $ S.fromList [iter, e]
-               stat <- runCodeGenBlock (do m' <- flattenABT m
-                                           assign outId m'
-                                           putStat $ gotoS outLabel)
-               putStat $ guardS (rVar ^< (exp iter)) stat
+               stat2 <- runCodeGenBlock (do m' <- flattenABT m
+                                            assign outId m'
+                                            putStat $ gotoS outLabel)
+               putStat $ guardS (rVar ^< (exp iter)) stat2
 
           putStat $ labelS outLabel
           return weightSum

@@ -5,6 +5,7 @@ module Main where
 
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
+import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 
@@ -61,8 +62,8 @@ compileHakaru prog = ask >>= \config -> lift $ do
     Left err -> IO.putStrLn err
     Right (TypedAST typ ast) -> do
       let ast'    = TypedAST typ $ if optimize config
-                                   then constantPropagation ast
-                                   else ast
+                                   then constantPropagation . expandTransformations $  ast
+                                   else expandTransformations ast
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
