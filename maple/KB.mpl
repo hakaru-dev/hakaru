@@ -227,7 +227,7 @@ KB := module ()
 
   log_metric := proc(e, x, $)
     local m, L;
-    m := indets(e, 'exp'('dependent'(x)));
+    m := select(depends, indets(e, 'exp(anything)'), x);
     length(subsindets(map2(op, 1, m), name, _->L));
   end proc:
 
