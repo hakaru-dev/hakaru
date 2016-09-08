@@ -77,18 +77,18 @@ conjugacies5:= Bind(Gaussian(f(0), sqrt(2)), x0,
                Bind(Gaussian(f(3), sqrt(2)), x3,
                Bind(Gaussian(f(4), sqrt(2)), x4,
                Ret([x0,x1,x2,x3,x4])))))):
-TestHakaru(     fission                  ,      conjugacies                   , verify=normal, label="Conjugacy across plates (function)");
-TestHakaru(     fusion                   ,      conjugacies                   , verify=normal, label="Conjugacy in plate (function)");
-TestHakaru(eval(fission,{k=5           }),      conjugacies5                  , verify=normal, label="Conjugacy across plates unrolled (function)");
-TestHakaru(eval(fusion ,{k=5           }),      conjugacies5                  , verify=normal, label="Conjugacy in plate unrolled (function)");
-TestHakaru(eval(fission,{    f=1       }), eval(conjugacies ,{    f=1       }), verify=normal, label="Conjugacy across iid plates");
-TestHakaru(eval(fusion ,{    f=1       }), eval(conjugacies ,{    f=1       }), verify=normal, label="Conjugacy in iid plate");
-TestHakaru(eval(fission,{k=5,f=1       }), eval(conjugacies5,{    f=1       }), verify=normal, label="Conjugacy across iid plates unrolled");
-TestHakaru(eval(fusion ,{k=5,f=1       }), eval(conjugacies5,{    f=1       }), verify=normal, label="Conjugacy in iid plate unrolled");
-TestHakaru(eval(fission,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), verify=normal, label="Conjugacy across plates", ctx=[z>0]);
-TestHakaru(eval(fusion ,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), verify=normal, label="Conjugacy in plate", ctx=[z>0]);
-TestHakaru(eval(fission,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy across plates unrolled", ctx=[z>0]);
-TestHakaru(eval(fusion ,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy in plate unrolled", ctx=[z>0]);
+TestHakaru(     fission                  ,      conjugacies                   , verify=normal, ctx=[k::nonnegint], label="Conjugacy across plates (function)");
+TestHakaru(     fusion                   ,      conjugacies                   , verify=normal, ctx=[k::nonnegint], label="Conjugacy in plate (function)");
+TestHakaru(eval(fission,{k=5           }),      conjugacies5                  , verify=normal,                     label="Conjugacy across plates unrolled (function)");
+TestHakaru(eval(fusion ,{k=5           }),      conjugacies5                  , verify=normal,                     label="Conjugacy in plate unrolled (function)");
+TestHakaru(eval(fission,{    f=1       }), eval(conjugacies ,{    f=1       }), verify=normal, ctx=[k::nonnegint], label="Conjugacy across iid plates");
+TestHakaru(eval(fusion ,{    f=1       }), eval(conjugacies ,{    f=1       }), verify=normal, ctx=[k::nonnegint], label="Conjugacy in iid plate");
+TestHakaru(eval(fission,{k=5,f=1       }), eval(conjugacies5,{    f=1       }), verify=normal,                     label="Conjugacy across iid plates unrolled");
+TestHakaru(eval(fusion ,{k=5,f=1       }), eval(conjugacies5,{    f=1       }), verify=normal,                     label="Conjugacy in iid plate unrolled");
+TestHakaru(eval(fission,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), verify=normal, ctx=[k::nonnegint], label="Conjugacy across plates", ctx=[z>0]);
+TestHakaru(eval(fusion ,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), verify=normal, ctx=[k::nonnegint], label="Conjugacy in plate", ctx=[z>0]);
+TestHakaru(eval(fission,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal,                     label="Conjugacy across plates unrolled", ctx=[z>0]);
+TestHakaru(eval(fusion ,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal,                     label="Conjugacy in plate unrolled", ctx=[z>0]);
 
 # Don't be confused by extra iterations in plate
 extra_1 := Bind(Plate(n+1,i,Gaussian(0,1)),xs, Plate(n,i,Gaussian(idx(xs,i+1),1))):
