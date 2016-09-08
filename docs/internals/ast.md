@@ -113,7 +113,7 @@ data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
     (:*) :: !(abt vars a)
         -> !(SArgs abt args)
         -> SArgs abt ( '(vars, a) ': args)
-````haskell
+````
 
 ## PrimOp
 
