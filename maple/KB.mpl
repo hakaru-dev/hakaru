@@ -77,7 +77,7 @@ KB := module ()
     elif bb :: '{specfunc(anything, Not), `not`}' then
       foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
     else
-      as := chill(kb_to_assumptions(kb));
+      as := chill(kb_to_assumptions(kb, bb));
       b := chill(bb);
       try
         b := simplify(b) assuming op(as);
@@ -319,8 +319,7 @@ KB := module ()
     e := hack_Beta(e);
     e := subsindets(e, 'product(anything, name=range)', myexpand_product);
     e := subsindets(e, 'specfunc({sum,Sum})', expand);
-    as := [op(kb_to_assumptions(kb)),
-           op(map(`::`, indets(e, 'specfunc(size)'), nonnegint))];
+    as := kb_to_assumptions(kb, e);
     e := chill(e);
     as := chill(as);
     e := subsindets(e,
@@ -539,7 +538,11 @@ KB := module ()
     maptype(`*`, p, body)
   end proc;
 
-  kb_to_assumptions := proc(kb, $)
+  kb_to_assumptions := proc(kb, e:={}, $)
+    local n;
+    remove((a -> a :: `=` and has(a,piecewise)),
+      # The "remove" above is because the following takes forever:
+      # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_ = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1, i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] = size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
     map(proc(k, $)
       local x;
       if k :: t_intro then
@@ -555,7 +558,8 @@ KB := module ()
       else
         NULL # Maple doesn't understand our other types
       end if
-    end proc, [op(coalesce_bounds(kb))])
+    end proc, [op(coalesce_bounds(kb)),
+               seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]))
   end proc;
 
   (*** #Code removed by Carl 2016Jul8. Maybe we'll need it again.
