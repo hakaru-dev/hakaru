@@ -351,10 +351,9 @@ NewSLO := module ()
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      (w0, w) := selectremove(type, convert(w,'list',`*`), Indicator(anything));
-      w0 := map2(op,1,w0);
-      m := weight(`*`(op(w)),
-                  unintegrate(h, subintegral, foldr(assert, kb, op(w0))));
+      (w0, w) := get_indicators(w);
+      kb1 := foldr(assert, kb, op(w0));
+      m := weight(w, unintegrate(h, subintegral, kb1));
       if m :: Weight(anything, anything) then
         m := weight(simplify_assuming(op(1,m), kb), op(2,m));
       end if;
@@ -949,9 +948,9 @@ NewSLO := module ()
 
   do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
     local w, e, x, t, r;
-    w, e := selectremove(type, convert(ee, 'list', `*`), Indicator(anything));
-    e := piecewise_And(map2(op,1,w), `*`(op(e)), 0);
     e := simplify_assuming('f'(e,v,_rest),kb);
+    w, e := get_indicators(ee);
+    e := piecewise_And(w, e, 0);
     x := `if`(v::name, v, lhs(v));
     t := {'identical'(x),
           'identical'(x)

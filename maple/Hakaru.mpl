@@ -309,7 +309,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  piecewise_And := proc(cond::list, th, el, $)
+  piecewise_And := proc(cond::{list,set}, th, el, $)
     if nops(cond) = 0 or th = el then
       th
     else
