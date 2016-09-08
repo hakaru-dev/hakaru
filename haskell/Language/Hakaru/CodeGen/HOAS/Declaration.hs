@@ -24,6 +24,7 @@ module Language.Hakaru.CodeGen.HOAS.Declaration
 
   -- tools for building C types
   , typeDeclaration
+  , typePtrDeclaration
   , arrayDeclaration
   , arrayName
   , arrayStruct
@@ -78,6 +79,12 @@ typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typeDeclaration typ ident =
   CDecl [CTypeSpec $ buildType typ]
         [(Just $ CDeclr (Just ident) [] Nothing [] node,Nothing,Nothing)]
+        node
+
+typePtrDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
+typePtrDeclaration typ ident =
+  CDecl [CTypeSpec $ buildType typ]
+        [(Just $ CDeclr (Just ident) [CPtrDeclr [] node] Nothing [] node,Nothing,Nothing)]
         node
 
 --------------------------------------------------------------------------------
@@ -236,6 +243,8 @@ buildType (SArray t)   = callStruct $ arrayName t
 buildType (SFun _ x)   = buildType x -- build type the function returns
 buildType (SData _ t)  = callStruct $ datumName t
 
+
+-- these mk...Decl functions are used in coersions
 mkDecl :: CTypeSpec -> CDecl
 mkDecl t = CDecl [CTypeSpec t]
                  [( Nothing

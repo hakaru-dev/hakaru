@@ -5,6 +5,7 @@
              FlexibleInstances,
              GADTs,
              KindSignatures,
+             PolyKinds,
              StandaloneDeriving,
              TypeOperators,
              RankNTypes        #-}
@@ -203,24 +204,33 @@ extDeclare :: CExtDecl -> CodeGen ()
 extDeclare d = do cg <- get
                   put $ cg { extDecls = d `S.insert` extDecls cg }
 
-defineFunction :: Sing (a :: Hakaru) -> Ident -> CodeGen () -> CodeGen ()
-defineFunction typ ident mbody =
+defineFunction :: Sing (a :: Hakaru) -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
+defineFunction typ ident args mbody =
   do cg <- get
      mbody
      !cg' <- get
      let decls = reverse . declarations $ cg'
          stmts = reverse . statements   $ cg'
-         def SInt         = functionDef SInt  ident [] decls stmts
-         def SNat         = functionDef SNat  ident [] decls stmts
-         def SProb        = functionDef SProb ident [] decls stmts
-         def SReal        = functionDef SReal ident [] decls stmts
-         def (SMeasure t) = functionDef t ident [] decls stmts
+         def SInt         = functionDef SInt  ident args decls stmts
+         def SNat         = functionDef SNat  ident args decls stmts
+         def SProb        = functionDef SProb ident args decls stmts
+         def SReal        = functionDef SReal ident args decls stmts
+         def (SMeasure t) = functionDef t ident args decls stmts
          def t            = error $ "TODO: defined function of type: " ++ show t
 
      -- reset local statements and declarations
      put $ cg' { statements   = statements cg
                , declarations = declarations cg }
      extDeclare . extFunc $ def typ
+
+
+--------------------------------------------------------------------------------
+-- CODE
+
+data CCode :: * where
+  CPP         :: String -> CCode
+  Statement   :: CStat  -> CCode
+  Declaration :: CDecl  -> CCode
 
 
 ---------

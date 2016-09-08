@@ -82,6 +82,7 @@ wrapProgram tast@(TypedAST typ _) mn = unlines [ header typ
                 do reserveName name
                    defineFunction typ'
                                   (builtinIdent name)
+                                  []
                                   (putStat . returnS =<< flattenABT abt)
 
               ( TypedAST typ'       abt, Nothing   ) ->
@@ -110,15 +111,23 @@ mainFunction
   => Sing (a :: Hakaru)
   -> abt '[] (a :: Hakaru)
   -> CodeGen ()
-mainFunction typ@(SMeasure _) abt =
+mainFunction typ@(SMeasure t) abt =
   let ident = builtinIdent "measure"
       funId = builtinIdent "main"
   in  do reserveName "measure"
-         defineFunction typ ident (putStat . returnS =<< flattenABT abt)
+         reserveName "sample"
+         let body      = do putStat . returnS =<< flattenABT abt
+             sample    = builtinIdent "sample"
+             samplePtr = typePtrDeclaration t sample
+         defineFunction typ ident [samplePtr] body
+
+         declare t sample
 
          -- need to set seed
          -- srand(time(NULL));
 
+
+         -- insert main function
          reserveName "main"
          printf typ (varE ident)
          putStat . returnS $ intConstE 0
@@ -153,14 +162,18 @@ mainFunction typ abt =
 printf :: Sing (a :: Hakaru) -> CExpr -> CodeGen ()
 
 printf (SMeasure t) arg =
-  let stat typ@(SArray _) = do mId <- genIdent' "meas"
+  let sample              = varE . builtinIdent $ "sample"
+      sampleLoc           = addressE sample
+      stat typ@(SArray _) = do mId <- genIdent' "meas"
                                declare typ mId
                                runCodeGenBlock (do assign mId $ callFuncE arg []
                                                    printf typ (varE mId))
       stat typ = return . exprS $ callFuncE (varE . builtinIdent $ "printf")
                                             [ printfText typ "\n"
-                                            , callFuncE arg [] ]
-  in putStat . whileS (intConstE 1) . (:[]) =<< stat t
+                                            , sample ]
+  in do s <- stat t
+        putStat . whileS (intConstE 1) $ [ exprS $ callFuncE arg [sampleLoc]
+                                         , s ]
 
 printf (SArray t)   arg =
   do iterId <- genIdent' "it"

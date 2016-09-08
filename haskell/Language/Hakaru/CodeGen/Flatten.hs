@@ -148,7 +148,11 @@ flattenSCon Lam_            =
 flattenSCon (PrimOp_ op)    = flattenPrimOp op
 flattenSCon (ArrayOp_ op)   = flattenArrayOp op
 flattenSCon (MeasureOp_ op) = flattenMeasureOp op
-flattenSCon Dirac           = \(e :* End) -> flattenABT e
+flattenSCon Dirac           = \(e :* End) ->
+  let sample = builtinIdent "sample"
+  in  do e' <- flattenABT e
+         putStat $ assignExprS (indirectE . varE $ sample) e'
+         return (intConstE 0)
 flattenSCon Plate           = \(size :* b :* End) ->
   caseBind b $ \v body ->
     do let arrTyp = sUnMeasure . typeOf $ body
@@ -252,7 +256,7 @@ flattenSCon (CoerceTo_ ctyp) =
         primitiveCoerce (Signed HRing_Real)           SProb = prob2real
         primitiveCoerce (Continuous HContinuous_Prob) SNat  = nat2prob
         primitiveCoerce (Continuous HContinuous_Real) SInt  = int2real
-        primitiveCoerce (Continuous HContinuous_Real) SNat  = int2real  
+        primitiveCoerce (Continuous HContinuous_Real) SNat  = int2real
         primitiveCoerce a b = error $ "flattenSCon CoerceTo_: cannot preform coersion "
                                     ++ show a
                                     ++ " to "
@@ -682,17 +686,21 @@ flattenMeasureOp Normal  = \(a :* b :* End) ->
      assign cId $ sqrt ((unaryE "-" (intConstE 2)) ^* (log varR ^/ varR))
      let varC = varE cId
 
-     return (a' ^+ (varU ^* (varC ^* ((expm1 b') ^+ (intConstE 1)))))
+     let sample = builtinIdent "sample"
+         value  = a' ^+ (varU ^* (varC ^* ((expm1 b') ^+ (intConstE 1))))
+
+     putStat $ assignExprS (indirectE . varE $ sample) value
+     return (intConstE 0)
 
 flattenMeasureOp Uniform = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
-     ident <- genIdent
-     declare SReal ident
-     let r    = castE doubleDecl rand
-         rMax = castE doubleDecl (stringVarE "RAND_MAX")
-     assign ident (a' ^+ ((r ^/ rMax) ^* (b' ^- a')))
-     return (varE ident)
+     let r      = castE doubleDecl rand
+         rMax   = castE doubleDecl (stringVarE "RAND_MAX")
+         sample = builtinIdent "sample"
+         value  = (a' ^+ ((r ^/ rMax) ^* (b' ^- a')))
+     putStat $ assignExprS (indirectE . varE $ sample) value
+     return (intConstE 0)
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
 
 ----------------------------------------------------------------
@@ -707,7 +715,8 @@ flattenSuperpose wes =
   let wes' = NE.toList wes in
 
   if length wes' == 1
-  then flattenABT . snd . head $ wes'
+  then do _ <- flattenABT . snd . head $ wes'
+          flattenABT . fst . head $ wes'
   else do weights <- mapM (flattenABT . fst) wes'
 
           -- compute sum of weights
@@ -749,4 +758,4 @@ flattenSuperpose wes =
                putStat $ guardS (rVar ^< (exp iter)) stat
 
           putStat $ labelS outLabel
-          return (varE outId)
+          return weightSum

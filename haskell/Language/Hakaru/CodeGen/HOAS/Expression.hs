@@ -141,9 +141,10 @@ binaryOp (Sum HSemiring_Prob)  a b = CBinary CAddOp (exp a) (exp b) node
 binaryOp (Prod HSemiring_Prob) a b = CBinary CAddOp a b node
 binaryOp (Sum _)               a b = CBinary CAddOp a b node
 binaryOp (Prod _)              a b = CBinary CMulOp a b node
-binaryOp And                   a b = CBinary CAndOp a b node
-binaryOp Or                    a b = CBinary COrOp  a b node
-binaryOp Xor                   a b = CBinary CXorOp a b node
+-- vvv Operations on bools, keeping in mind that in Hakaru-C: 0 is true and 1 is false
+binaryOp And                   a b = CUnary CNegOp (CBinary CEqOp  a b node) node -- still wrong
+binaryOp Or                    a b = CBinary CAndOp a b node                      -- still wrong
+binaryOp Xor                   a b = CBinary CLorOp a b node                      -- still wrong
 binaryOp x _ _ = error $ "TODO: binaryOp " ++ show x
 
 
