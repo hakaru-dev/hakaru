@@ -101,7 +101,6 @@ Loop := module ()
     if nops(ll) > 0 then
       kb1 := assert(size(x)=op([-1,2,2],ll)-op([-1,2,1],ll)+1, kb1);
     end if;
-    e := simplify_assuming(e, kb1);
     r, l, kb1 := genLoop(rr, ll, kb, 'Integrand'(x,e));
     w0, pp := unproducts(e, x, l, kb1);
     if depends(w0, x) then
@@ -293,7 +292,6 @@ Loop := module ()
                                               {product,Product})) then
           print("Warning: heap mode inconsistency", heap, mode1)
         end if;
-        e := simplify_assuming(e, op(2,entry));
         e, kb := enter_piecewise(e, kb, mode);
         rest := kb_subtract(kb, op(2,entry));
         new_rng, rest := selectremove(type, rest,
