@@ -588,8 +588,15 @@ flattenPrimOp :: ( ABT Term abt
 flattenPrimOp Pi = \End ->
   do ident <- genIdent
      declare SProb ident
-     assign ident $ log1p ((stringVarE "M_PI") ^- (intConstE 1))
+     assign ident $ log1p ((callFuncE (varE . builtinIdent $ "acos")
+                                      [ (intConstE 0) ^- (intConstE 1)])
+                             ^- (intConstE 1))
      return (varE ident)
+
+flattenPrimOp (Negate _) = \(a :* End) ->
+  do aE <- flattenABT a
+     return ((intConstE 0) ^- aE)
+
 
 flattenPrimOp Exp = \(a :* End) ->
   do ident <- genIdent
@@ -614,6 +621,33 @@ flattenPrimOp RealPow =
      let realPow = callFuncE (varE . builtinIdent $ "pow") [ expm1 aE ^+ (intConstE 1), bE]
      assign ident $ log1p (realPow ^- (intConstE 1))
      return $ varE ident
+
+flattenPrimOp (NatPow baseT) =
+  \(a :* b :* End) ->
+  let singBase = sing_HSemiring baseT in
+  do ident <- genIdent' "pow"
+     declare singBase ident
+     aE <- flattenABT a
+     bE <- flattenABT b
+     let powerOf x y = callFuncE (varE . builtinIdent $ "pow") [x,y]
+         value = case singBase of
+                        SProb -> log1p (powerOf (expm1 aE ^+ (intConstE 1)) bE
+                                         ^- (intConstE 1))
+                        _     -> powerOf (expm1 aE ^+ (intConstE 1)) bE
+     assign ident $ value
+     return $ varE ident
+
+flattenPrimOp (NatRoot _) =
+  \(a :* b :* End) ->
+  do ident <- genIdent' "root"
+     declare SProb ident
+     aE <- flattenABT a
+     bE <- flattenABT b
+     let powerOf x y = callFuncE (varE . builtinIdent $ "pow") [x,y]
+         recipBE = (intConstE 1) ^/ bE
+     assign ident $ log1p (powerOf (expm1 aE ^+ (intConstE 1)) recipBE ^- (intConstE 1))
+     return $ varE ident
+
 
 flattenPrimOp (Recip t) =
   \(a :* End) ->
