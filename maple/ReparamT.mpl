@@ -79,7 +79,7 @@ VerifyTools:-AddVerification(`&under`= ((e1,e2,Ver,f)-> verify(f(e1,_rest), e2, 
 #Bernoulli
 Bern:= proc(p)
      local i;
-     Bind(Counting(0,1), i, Weight(idx([p,1-p],i) * Ret(i)))
+     Bind(Counting(0,1), i, Weight(idx([p,1-p],i), Ret(i)))
 end proc:
 
 #Exponential

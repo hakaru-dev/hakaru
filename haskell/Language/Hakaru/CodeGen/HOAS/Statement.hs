@@ -16,9 +16,9 @@ module Language.Hakaru.CodeGen.HOAS.Statement
   ( assignS
   , assignExprS
   , exitS
-  , printS
   , labelS
   , returnS
+  , exprS
 
   -- control flow
   , whileS
@@ -53,17 +53,18 @@ assignExprS var expr = CExpr (Just (CAssign CAssignOp
                                             expr
                                             node))
                              node
+
+exprS :: CExpr -> CStat
+exprS e = CExpr (Just e) node
+
 gotoS :: Ident -> CStat
 gotoS i = CGoto i node
 
 exitS :: CStat
 exitS = CReturn (Just $ intConstE 0) node
 
-printS :: String -> CStat
-printS s = CExpr (Just $ printE s) node
-
 labelS :: Ident -> CStat
-labelS i = CLabel i (CCont node) [] node
+labelS i = CLabel i (CExpr Nothing node) [] node
 
 returnS :: CExpr -> CStat
 returnS e = CReturn (Just e) node

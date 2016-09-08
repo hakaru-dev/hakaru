@@ -63,8 +63,8 @@ module Language.Hakaru.CodeGen.HOAS.Expression
   , nullaryE
   , unaryE
   , callFuncE
-  , printE
   , binaryOp
+  , assignE
   ) where
 
 import Language.Hakaru.Syntax.AST
@@ -97,9 +97,6 @@ callFuncE nameE argsEs = CCall nameE argsEs node
 
 rand :: CExpr
 rand = nullaryE "rand"
-
-printE :: String -> CExpr
-printE s = unaryE "printf" (stringE s)
 
 log1p,log,expm1,exp,sqrt,malloc,free,postInc
   :: CExpr -> CExpr
@@ -144,6 +141,10 @@ binaryOp (Sum HSemiring_Prob)  a b = CBinary CAddOp (exp a) (exp b) node
 binaryOp (Prod HSemiring_Prob) a b = CBinary CAddOp a b node
 binaryOp (Sum _)               a b = CBinary CAddOp a b node
 binaryOp (Prod _)              a b = CBinary CMulOp a b node
+binaryOp And                   a b = CBinary CAndOp a b node
+binaryOp Or                    a b = CBinary COrOp  a b node
+binaryOp Xor                   a b = CBinary CXorOp a b node
+binaryOp x _ _ = error $ "TODO: binaryOp " ++ show x
 
 
 castE :: CDecl -> CExpr -> CExpr
@@ -166,3 +167,6 @@ addressE var = CUnary CAdrOp var node
 -- infix memberE
 (^!) :: CExpr -> Ident -> CExpr
 (^!) = memberE
+
+assignE :: CExpr -> CExpr -> CExpr
+assignE var expr = CAssign CAssignOp var expr node

@@ -313,19 +313,27 @@ KB := module ()
     end proc, kb);
   end proc;
 
+  # an (implicit) invariant: if we're here, it's because we're simplifying a
+  # weight; while we won't assume this is the case, we are certainly assuming 
+  # that what we have is an expression all of whose parts are known to Maple,
+  # is that it is valued over something that embeds into the reals.
   simplify_assuming := proc(ee, kb::t_kb, $)
-    local e, as;
-    e := foldl(eval, ee, op(kb_to_equations(kb)));
+    local e, as;                                                         # for debugging
+    e := foldl(eval, ee, op(kb_to_equations(kb)));                         `eval`;
     as := kb_to_assumptions(kb, e);
-    e := chill(e);
+    e := chill(e);                                                        `chill`;
+    # actually compute integrals which are all in the Weights.
+    # TODO: whoever pushed an Int into "all in the Weights" should perhaps not do it.
+    #       See discussion at https://github.com/hakaru-dev/hakaru/commit/7a6c674a0614e579957aff625c76bf2c17eb4e9b#commitcomment-18816647
+    e := subsindets(e, 'Int'(anything, name=range), value);               `value@Int`;
     as := chill(as);
     try
-      e := simplify(e) assuming op(as);
+      e := simplify(e) assuming op(as);                         `simplify @ assuming`;
     catch "when calling '%1'. Received: 'contradictory assumptions'":
       # We seem to be on an unreachable control path
       userinfo(1, 'procname', "Received contradictory assumptions.")
     end try;
-    e := warm(e);
+    e := warm(e);                                            `warm (then expand@exp)`;
     eval(e, exp = expand @ exp);
   end proc;
 

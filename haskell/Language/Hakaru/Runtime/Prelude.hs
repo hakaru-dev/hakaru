@@ -59,6 +59,9 @@ normal mu sd = makeMeasure $ MWCD.normal mu sd
 beta :: Double -> Double -> Measure Double
 beta a b = makeMeasure $ MWCD.beta a b
 
+gamma :: Double -> Double -> Measure Double
+gamma a b = makeMeasure $ MWCD.gamma a b
+
 categorical :: V.Vector Double -> Measure Integer
 categorical a = makeMeasure (\g -> fromIntegral <$> MWCD.categorical a g)
 

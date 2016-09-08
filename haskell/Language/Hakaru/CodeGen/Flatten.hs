@@ -4,7 +4,9 @@
              FlexibleContexts,
              GADTs,
              KindSignatures,
-             RankNTypes #-}
+             ScopedTypeVariables,
+             RankNTypes,
+             TypeOperators #-}
 
 ----------------------------------------------------------------
 --                                                    2016.06.23
@@ -23,7 +25,7 @@
 
 
 module Language.Hakaru.CodeGen.Flatten
-  (flattenABT)
+  ( flattenABT )
   where
 
 import Language.Hakaru.CodeGen.CodeGenMonad
@@ -35,14 +37,17 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.Sing
 
 import Language.C.Syntax.AST
 import Language.C.Data.Ident
 
 import           Control.Monad.State.Strict
+import           Control.Monad (replicateM)
 import           Data.Number.Natural
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
@@ -63,7 +68,6 @@ flattenABT :: ABT Term abt
            -> CodeGen CExpr
 flattenABT abt = caseVarSyn abt flattenVar flattenTerm
 
-
 flattenVar :: Variable (a :: Hakaru) -> CodeGen CExpr
 flattenVar v = varE <$> lookupIdent v
 
@@ -81,7 +85,7 @@ flattenTerm (Superpose_ wes) = flattenSuperpose wes
 ----------------------------------------------------------------
 
 
-flattenSCon :: (ABT Term abt)
+flattenSCon :: ( ABT Term abt )
             => SCon args a
             -> SArgs abt args
             -> CodeGen CExpr
@@ -97,28 +101,85 @@ flattenSCon Let_            =
 -- Lambdas produce functions and then return a function pointer
 flattenSCon Lam_            =
   \(body :* End) ->
-    caseBind body $ \v@(Variable _ _ typ) body' ->
-      do funcId <- genIdent' "fn"
-         vId    <- createIdent v
-         let vDec  = typeDeclaration typ vId
+    coalesceLambda body $ \vars body' ->
+    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+    in  do funcId <- genIdent' "fn"
+           argDecls <- sequence varMs
 
-         -- run body stateM
-         cg <- get
-         let m = do bodyE <- flattenABT body'
-                    case typeOf body' of
-                      (SFun _ _) -> putStat . returnS $ callFuncE (indirectE bodyE) [varE vId]
-                      _          -> putStat . returnS $ bodyE
-             (_, cg') = runState m $ cg { statements = [] }
-         put $ cg' { statements = statements cg }
+           cg <- get
+           let m       = putStat . returnS =<< flattenABT body'
+               (_,cg') = runState m $ cg { statements = []
+                                         , declarations = [] }
+           put $ cg' { statements   = statements cg
+                     , declarations = declarations cg }
 
-         extDeclare . extFunc $ functionDef typ funcId [vDec] (statements cg')
-         return . addressE . varE $ funcId
+           extDeclare . extFunc $ functionDef (typeOf body')
+                                              funcId
+                                              argDecls
+                                              (reverse $ declarations cg')
+                                              (reverse $ statements cg')
+           return . varE $ funcId
+  -- do at top level
+  where coalesceLambda
+          :: ( ABT Term abt )
+          => abt '[x] a
+          -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
+          -> r
+        coalesceLambda abt k =
+          caseBind abt $ \v abt' ->
+            caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
+              case term of
+                (Lam_ :$ body :* End) ->
+                  coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
+                _ -> k (Cons1 v Nil1) abt'
+
+        mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
+        mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
+        mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
+        mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
+        mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
+        mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
+                                                       return $ arrayDeclaration t i
+        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
+                                                          return $ datumDeclaration d i
+        mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
 
 
 flattenSCon (PrimOp_ op)    = flattenPrimOp op
 flattenSCon (ArrayOp_ op)   = flattenArrayOp op
 flattenSCon (MeasureOp_ op) = flattenMeasureOp op
 flattenSCon Dirac           = \(e :* End) -> flattenABT e
+flattenSCon Plate           = \(size :* b :* End) ->
+  caseBind b $ \v body ->
+    do let arrTyp = sUnMeasure . typeOf $ body
+       arrayIdent <- genIdent' "plate"
+       declare (SArray arrTyp) arrayIdent
+
+       arity <- flattenABT size
+
+       let arrVar  = varE arrayIdent
+           dataPtr = arrVar ^! (builtinIdent "data")
+           sizeVar = arrVar ^! (builtinIdent "size")
+           dataTyp = buildType arrTyp -- this should be a literal type (unless we can have an array of measures)
+       putStat $ assignExprS sizeVar arity
+
+       -- setup loop
+       putStat $ assignExprS dataPtr $ castE (mkPtrDecl dataTyp)
+                                             (malloc (arity ^* (sizeof . mkDecl $ dataTyp)))
+
+       iterIdent  <- createIdent v
+       declare SNat iterIdent
+
+       -- manage loop
+       let iter     = varE iterIdent
+           cond     = iter ^< arity
+           inc      = postInc iter
+           currInd  = indirectE (dataPtr ^+ iter)
+           loopBody = putStat . assignExprS currInd =<< flattenABT body
+       forCG (assignE iter (intConstE 0)) cond inc loopBody
+
+       return (varE arrayIdent)
+
 
 flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
   do loE <- flattenABT lo
@@ -126,37 +187,35 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
      caseBind body $ \v body' ->
        do iterI <- createIdent v
           declare SNat iterI
-          assign iterI loE
 
           accI <- genIdent' "acc"
           declare (sing_HSemiring sr) accI
           assign accI (intConstE 0)
-  
+
           let accVar  = varE accI
               iterVar = varE iterI
           -- logSumExp for probabilities
-          forCG iterVar (iterVar ^< hiE) (postInc iterVar) $
+          forCG (assignE iterVar loE) (iterVar ^< hiE) (postInc iterVar) $
             do bodyE <- flattenABT body'
                assign accI (accVar ^+ bodyE)
 
           return accVar
 
-     
+
 flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
   do loE <- flattenABT lo
      hiE <- flattenABT hi
      caseBind body $ \v body' ->
        do iterI <- createIdent v
           declare SNat iterI
-          assign iterI loE
 
           accI <- genIdent' "acc"
           declare (sing_HSemiring sr) accI
-          assign accI (intConstE 1)  
-  
+          assign accI (intConstE 1)
+
           let accVar  = varE accI
               iterVar = varE iterI
-          forCG iterVar (iterVar ^< hiE) (postInc iterVar) $
+          forCG (assignE iterVar loE) (iterVar ^< hiE) (postInc iterVar) $
             do bodyE <- flattenABT body'
                assign accI (accVar ^* bodyE)
 
@@ -172,6 +231,48 @@ flattenSCon MBind           =
             assign ident e1'
             flattenABT e2'
 
+-- at this point, only nonrecusive coersions are implemented
+flattenSCon (CoerceTo_ ctyp) =
+  \(e :* End) -> flattenABT e >>= coerceToType ctyp (typeOf e)
+  where coerceToType
+          :: Coercion a b
+          -> Sing (c :: Hakaru)
+          -> CExpr
+          -> CodeGen CExpr
+        coerceToType (CCons p rest) typ =
+          \e ->  primitiveCoerce p typ e >>= coerceToType rest typ
+        coerceToType CNil            _  = return . id
+
+        primitiveCoerce
+          :: PrimCoercion a b
+          -> Sing (c :: Hakaru)
+          -> CExpr
+          -> CodeGen CExpr
+        primitiveCoerce (Signed HRing_Int)            SNat  = nat2int
+        primitiveCoerce (Signed HRing_Real)           SProb = prob2real
+        primitiveCoerce (Continuous HContinuous_Prob) SNat  = nat2prob
+        primitiveCoerce (Continuous HContinuous_Real) SInt  = int2real
+        primitiveCoerce (Continuous HContinuous_Real) SNat  = int2real  
+        primitiveCoerce a b = error $ "flattenSCon CoerceTo_: cannot preform coersion "
+                                    ++ show a
+                                    ++ " to "
+                                    ++ show b
+
+
+        -- implementing ONLY functions found in Hakaru.Syntax.AST
+        nat2int,nat2prob,prob2real,int2real
+          :: CExpr -> CodeGen CExpr
+        nat2int   = return
+        nat2prob  = \n -> do ident <- genIdent' "p"
+                             declare SProb ident
+                             assign ident . log1p $ n ^- (intConstE 1)
+                             return (varE ident)
+        prob2real = \p -> do ident <- genIdent' "r"
+                             declare SReal ident
+                             assign ident $ (expm1 p) ^+ (intConstE 1)
+                             return (varE ident)
+        int2real  = return . castE doubleDecl
+
 flattenSCon x               = \_ -> error $ "TODO: flattenSCon: " ++ show x
 
 
@@ -183,6 +284,11 @@ flattenNAryOp :: ABT Term abt
 flattenNAryOp op args =
   do es <- T.mapM flattenABT args
      case op of
+       And -> boolNaryOp op "and" es
+       Or  -> boolNaryOp op "or"  es
+       Xor -> boolNaryOp op "xor" es
+       Iff -> boolNaryOp op "iff" es
+
        (Sum HSemiring_Prob)  ->
          do ident <- genIdent' "logSumExp"
             declare SProb ident
@@ -193,6 +299,18 @@ flattenNAryOp op args =
        _ -> return $ F.foldr (binaryOp op)
                              (S.index es 0)
                              (S.drop 1 es)
+  where boolNaryOp op' str es' =
+          do ident <- genIdent' str
+             declare sBool ident
+             let indexOf x = x ^! (builtinIdent "index")
+                 es''      = fmap indexOf es'
+                 v         = varE ident
+                 expr      = F.foldr (binaryOp op')
+                                     (S.index es'' 0)
+                                     (S.drop 1 es'')
+             putStat $ assignExprS (indexOf v) expr
+             return v
+
 
 -- logSumExp codegen involves producing a tree of comparisons, where
 -- the leaves are logSumExp expressions
@@ -232,6 +350,24 @@ logSumExp es = mkCompTree 0 1
                     ^+ (intConstE $ fromIntegral lastIndex))
 
 
+-- | logSumExpCG creates a functions for every n-ary logSumExp function
+-- this function shouldn't be used until CodeGen has a partial ordering on ExtDecls
+logSumExpCG :: S.Seq CExpr -> CodeGen CExpr
+logSumExpCG seqE =
+  let size   = S.length $ seqE
+      name   = "logSumExp" ++ (show size)
+      funcId = builtinIdent name
+  in  do argIds <- replicateM size genIdent
+         let decls = fmap (typeDeclaration SProb) argIds
+             vars  = fmap varE argIds
+         extDeclare . extFunc $ functionDef SProb
+                                            funcId
+                                            decls
+                                            []
+                                            [returnS $ logSumExp $ S.fromList vars ]
+         return $ callFuncE (varE funcId) (F.toList seqE)
+
+
 
 ----------------------------------------------------------------
 
@@ -258,16 +394,17 @@ flattenArray :: (ABT Term abt)
              -> (abt '[ 'HNat ] a)
              -> CodeGen CExpr
 flattenArray arity body =
-  caseBind body $ \v@(Variable _ _ typ) body' ->
-    do arrayIdent <- genIdent' "arr"
-       declare (SArray typ) arrayIdent
+  caseBind body $ \v body' ->
+    do let arrTyp = typeOf body'
+       arrayIdent <- genIdent' "arr"
+       declare (SArray arrTyp) arrayIdent
 
        arity'     <- flattenABT arity
 
        let arrVar  = varE arrayIdent
            dataPtr = arrVar ^! (builtinIdent "data")
            sizeVar = arrVar ^! (builtinIdent "size")
-           dataTyp = buildType typ -- this should be a literal type (unless we can have an array of measures)
+           dataTyp = buildType arrTyp -- this should be a literal type (unless we can have an array of measures)
        putStat $ assignExprS sizeVar arity'
 
        -- setup loop
@@ -276,15 +413,14 @@ flattenArray arity body =
 
        iterIdent  <- createIdent v
        declare SNat iterIdent
-       assign iterIdent (intConstE 0)
 
        -- manage loop
        let iter     = varE iterIdent
            cond     = iter ^< arity'
            inc      = postInc iter
            currInd  = indirectE (dataPtr ^+ iter)
-           loopBody = putStat =<< assignExprS currInd <$> flattenABT body'
-       forCG iter cond inc loopBody
+           loopBody = putStat . assignExprS currInd =<< flattenABT body'
+       forCG (assignE iter (intConstE 0)) cond inc loopBody
 
        return (varE arrayIdent)
 
@@ -322,7 +458,7 @@ flattenArrayOp (Reduce _) = \(fun :* base :* arr :* End) ->
      declare (typeOf base) accI
      declare SInt iterI
      assign accI baseE
-     forCG iterE cond inc $
+     forCG (assignE iterE (intConstE 0)) cond inc $
        assign accI $ callFuncE funE [accE]
 
      return accE
@@ -419,20 +555,19 @@ flattenCase
   => abt '[] a
   -> [Branch a abt b]
   -> CodeGen CExpr
-flattenCase c (Branch (PDatum _ (PInl PDone)) x:Branch (PDatum _ (PInr (PInl PDone))) y:[]) =
+flattenCase c (Branch (PDatum _ (PInl PDone)) trueB:Branch (PDatum _ (PInr (PInl PDone))) falseB:[]) =
   do c' <- flattenABT c
      result <- genIdent
-     declare (typeOf x) result
-     names <- getNames
-     let (names', xExts,xDecls,xStats) =
-           runCodeGenWithNames (assign result =<< flattenABT x) names
-         (names'',yExts,yDecls,yStats) =
-           runCodeGenWithNames (assign result =<< flattenABT y) names'
-     setNames names''
-     mapM_ extDeclare (xExts ++ yExts)
-     mapM_ declare' (xDecls ++ yDecls)
-     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 0)) xStats
-     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 1)) yStats
+     declare (typeOf trueB) result
+     cg <- get
+     let trueM    = assign result =<< flattenABT trueB
+         falseM   = assign result =<< flattenABT falseB
+         (_,cg')  = runState trueM $ cg { statements = [] }
+         (_,cg'') = runState falseM $ cg' { statements = [] }
+     put $ cg'' { statements = statements cg }
+
+     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 0)) (reverse $ statements cg')
+     putStat $ compoundGuardS ((c' ^! (builtinIdent "index")) ^== (intConstE 1)) (reverse $ statements cg'')
      return (varE result)
 flattenCase _ _ = error "TODO: flattenCase"
 
@@ -451,16 +586,62 @@ flattenPrimOp Pi = \End ->
      declare SProb ident
      assign ident $ log1p ((stringVarE "M_PI") ^- (intConstE 1))
      return (varE ident)
+
+flattenPrimOp RealPow =
+  \(a :* b :* End) ->
+  do ident <- genIdent' "pow"
+     declare SReal ident
+     aE <- flattenABT a -- first argument is a Prob
+     bE <- flattenABT b
+     let realPow = callFuncE (varE . builtinIdent $ "pow") [ expm1 aE ^+ (intConstE 1), bE]
+     assign ident $ log1p (realPow ^- (intConstE 1))
+     return $ varE ident
+
+flattenPrimOp (Recip t) =
+  \(a :* End) ->
+    do aE <- flattenABT a
+       recipIdent <- genIdent
+       let recipV = varE recipIdent
+       case t of
+         HFractional_Real ->
+           do declare SReal recipIdent
+              assign recipIdent ((intConstE 1) ^/ aE)
+              return recipV
+         HFractional_Prob ->
+           do declare SProb recipIdent
+              assign recipIdent (log1p (((intConstE 1) ^/ (expm1 (aE ^+ (intConstE 1)))) ^- (intConstE 1)))
+              return recipV
+
 flattenPrimOp (Equal _) = \(a :* b :* End) ->
   do a' <- flattenABT a
      b' <- flattenABT b
+     -- special case for booleans
+     let a'' = case typeOf a of
+                 (SData _ (SPlus SDone (SPlus SDone SVoid))) -> (a' ^! (builtinIdent "index"))
+                 _ -> a'
+         b'' = case typeOf a of
+                 (SData _ (SPlus SDone (SPlus SDone SVoid))) -> (b' ^! (builtinIdent "index"))
+                 _ -> b'
      boolIdent <- genIdent' "eq"
 
      declare sBool boolIdent
      putStat $ assignExprS ((varE boolIdent) ^! (builtinIdent "index"))
-                           (condE (a' ^== b') (intConstE 0) (intConstE 1))
+                           (condE (a'' ^== b'') (intConstE 0) (intConstE 1))
 
      return (varE boolIdent)
+
+
+flattenPrimOp (Less _) = \(a :* b :* End) ->
+  do a' <- flattenABT a
+     b' <- flattenABT b
+     boolIdent <- genIdent' "less"
+
+     declare sBool boolIdent
+     putStat $ assignExprS ((varE boolIdent) ^! (builtinIdent "index"))
+                           (condE (a' ^< b') (intConstE 0) (intConstE 1))
+
+     return (varE boolIdent)
+
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
 ----------------------------------------------------------------
@@ -501,7 +682,7 @@ flattenMeasureOp Normal  = \(a :* b :* End) ->
      assign cId $ sqrt ((unaryE "-" (intConstE 2)) ^* (log varR ^/ varR))
      let varC = varE cId
 
-     return (a' ^+ (varU ^* (varC ^* b')))
+     return (a' ^+ (varU ^* (varC ^* ((expm1 b') ^+ (intConstE 1)))))
 
 flattenMeasureOp Uniform = \(a :* b :* End) ->
   do a' <- flattenABT a
@@ -524,21 +705,48 @@ flattenSuperpose
 -- do we need to normalize?
 flattenSuperpose wes =
   let wes' = NE.toList wes in
-  do randId <- genIdent' "rand"
-     declare SReal randId
-     let r    = castE doubleDecl rand
-         rMax = castE doubleDecl (stringVarE "RAND_MAX")
-         rVar = varE randId
-     assign randId ((r ^/ rMax) ^* (intConstE 1))
+
+  if length wes' == 1
+  then flattenABT . snd . head $ wes'
+  else do weights <- mapM (flattenABT . fst) wes'
+
+          -- compute sum of weights
+          weightSumId <- genIdent' "wSum"
+          declare SProb weightSumId
+          assign weightSumId $ logSumExp $ S.fromList weights
+          let weightSum = varE weightSumId
+
+          -- draw number from uniform(0, weightSum)
+          randId <- genIdent' "rand"
+          declare SReal randId
+          let r    = castE doubleDecl rand
+              rMax = castE doubleDecl (stringVarE "RAND_MAX")
+              rVar = varE randId
+          assign randId ((r ^/ rMax) ^* (exp weightSum))
 
 
-     outId <- genIdent
-     declare SReal outId
+          outId <- genIdent
+          declare SReal outId
+          outLabel <- genIdent' "super"
 
-     wes'' <- T.forM  wes'  $ \(p,m) -> do p' <- flattenABT p
-                                           m' <- flattenABT m
-                                           return ((exp p') ^< rVar, assignS outId m')
+          iterId <- genIdent' "it"
+          declare SProb iterId
+          let iter = varE iterId
 
-     putStat (listOfIfsS wes'')
+          -- try the first element
+          assign iterId (head weights)
+          stat <- runCodeGenBlock (do m' <- flattenABT (snd . head $ wes')
+                                      assign outId m'
+                                      putStat $ gotoS outLabel)
+          putStat $ guardS (rVar ^< (exp iter)) stat
 
-     return (varE outId)
+
+          forM_ (zip (tail weights) (fmap snd (tail wes'))) $ \(e,m) ->
+            do assign iterId $ logSumExp $ S.fromList [iter, e]
+               stat <- runCodeGenBlock (do m' <- flattenABT m
+                                           assign outId m'
+                                           putStat $ gotoS outLabel)
+               putStat $ guardS (rVar ^< (exp iter)) stat
+
+          putStat $ labelS outLabel
+          return (varE outId)
