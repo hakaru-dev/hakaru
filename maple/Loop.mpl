@@ -152,7 +152,7 @@ Loop := module ()
     # Rewrite ... * piecewise(i<=kk-1, xs^2, 1)
     #      to ... * xs ^ (2*piecewise(i<=kk-1, 1))
     # because the latter is easier to integrate and recognize with respect to xs
-    pp := maptype(`*`,
+    pp := for_poly(pp, # TODO: move this rewrite into eval_factor (then remove for_poly?)?
       proc (p)
         local n, s, r;
         if p :: 'And(specfunc(piecewise), anyfunc(freeof(x), anything, 1))' then
@@ -168,8 +168,7 @@ Loop := module ()
         else
           p
         end if
-      end proc,
-      pp);
+      end proc);
     w0, pp
   end proc;
 

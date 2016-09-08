@@ -25,7 +25,7 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
          kb_subtract, simplify_assuming, hack_Beta,
          kb_to_assumptions, kb_to_equations,
-         kb_piecewise, list_of_mul, range_of_HInt;
+         kb_piecewise, list_of_mul, for_poly, range_of_HInt;
   global t_kb, `expand/product`, `simplify/int/simplify`,
          `product/indef/indef`, `convert/Beta`;
   uses Hakaru;
@@ -637,6 +637,14 @@ KB := module ()
          op([-1,1], should_negate),
          seq(op(1,fsn), fsn=rest)]
       end if
+    end if
+  end proc;
+
+  for_poly := proc(e, f, $)
+    if e :: '{`+`,`*`}' then map(for_poly, e, f)
+    elif e :: 'specfunc({product,Product,sum,Sum})' then
+      applyop(for_poly, 1, e, f)
+    else f(e)
     end if
   end proc;
 
