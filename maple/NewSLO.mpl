@@ -338,7 +338,7 @@ NewSLO := module ()
                          eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                   mm, op(loops));
       w := w * foldl(product, w1, op(loops));
-      w := simplify_assuming(peel(lift_piecewise(w)), kb1);
+      w := simplify_factor_assuming(peel(lift_piecewise(w)), kb1);
       (w, w0) := factorize(w, x, kb1);
       weight(simplify_assuming(w0, kb),
              bind(mm, x, weight(simplify_assuming(w, kb1), m)))
@@ -355,7 +355,7 @@ NewSLO := module ()
       kb1 := foldr(assert, kb, op(w0));
       m := weight(w, unintegrate(h, subintegral, kb1));
       if m :: Weight(anything, anything) then
-        m := weight(simplify_assuming(op(1,m), kb), op(2,m));
+        m := weight(simplify_factor_assuming(op(1,m), kb1), op(2,m));
       end if;
       piecewise_And(w0, m, Msum())
     elif e :: t_pw
@@ -420,7 +420,7 @@ NewSLO := module ()
       res := Recognized(Lebesgue(lo, hi), w);
       rng := hi - lo;
       if not (rng :: 'SymbolicInfinity') then
-        w := simplify_assuming(w * (hi - lo), kb);
+        w := simplify_factor_assuming(w * rng, kb);
         # w could be piecewise and simplify will hide the problem
         if not (w :: {'SymbolicInfinity', 'undefined'}) then
           res := Recognized(Uniform(lo, hi), w)
@@ -429,7 +429,7 @@ NewSLO := module ()
     end if;
     # Undo Constant[...] wrapping
     res := subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x));
-    map(simplify_assuming, res, kb)
+    res
   end proc;
 
   recognize_discrete := proc(w, k, lo, hi, kb, $)
@@ -449,8 +449,9 @@ NewSLO := module ()
         end if
       end if;
     elif lo = 0 and not(hi :: 'SymbolicInfinity') then
-      s, r := factorize(w, k, kb);
+      s, r := factorize(simplify_factor_assuming(w, kb), k, kb);
       if s <> 1 then
+        s := simplify_factor_assuming(s, kb);
         res := ary(hi+1, k, s);
         if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi+1), res[1]);
@@ -462,7 +463,8 @@ NewSLO := module ()
     if res = FAIL then
       res := Recognized(Counting(lo, hi+1), w);
     end if;
-    map(simplify_assuming, res, kb)
+    applyop(simplify_assuming, 1,
+            applyop(simplify_factor_assuming, 2, res, kb), kb)
   end proc;
 
   get_de := proc(dens, var, Dx, f, $)
@@ -582,7 +584,8 @@ NewSLO := module ()
         constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
         w := eval(w, mysolve(constraints, w));
         if not (has(w, 'w')) then
-          return Recognized(dist, w);
+          return Recognized(simplify_assuming(dist, kb),
+                            simplify_factor_assuming(w, kb));
         end if
       catch: # do nothing
       end try;
@@ -808,7 +811,7 @@ NewSLO := module ()
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
       subintegral := convert(reduce(subintegral, h, kb), 'list', `*`);
       (subintegral, ww) := selectremove(depends, subintegral, h);
-      reduce_pw(simplify_assuming(`*`(w, op(ww)), kb))
+      reduce_pw(simplify_factor_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
     elif e :: t_pw then
       e := kb_piecewise(e, kb, simplify_assuming,
@@ -861,22 +864,6 @@ NewSLO := module ()
     else # op(1,new_rng) = genLet
       if mk=Int then return 0 else make := eval; new_rng := op(3,new_rng) end if
     end if;
-    # Rewrite ... * idx([p,1-p],var)
-    #      to ... * p^idx([1,0],var) * (1-p)^idx([0,1],var)
-    # because the latter is easier to integrate and recognize with respect to p
-    e := maptype(`*`,
-                 proc (f)
-                   local n, i, j;
-                   if f :: idx(list, dependent(var)) then
-                     n := nops(op(1,f));
-                     mul(op([1,i],f) ^ idx([seq(`if`(j=i,1,0), j=1..n)],
-                                           op(2,f)),
-                         i=1..n)
-                   else
-                     f
-                   end if
-                 end proc,
-                 e);
     e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
                          Indicator(op(2,a))
                        end proc,
@@ -884,7 +871,7 @@ NewSLO := module ()
     elim := elim_intsum(make(e, var=new_rng), h, kb0);
     if elim = FAIL then
       e, w := selectremove(depends, list_of_mul(e), var);
-      reduce_pw(simplify_assuming(`*`(op(w)), kb0))
+      reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0))
         * make(`*`(op(e)), var=new_rng);
     else
       reduce(elim, h, kb0);

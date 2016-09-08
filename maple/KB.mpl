@@ -20,10 +20,10 @@ KB := module ()
   option package;
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
-        myexpand_product, chilled, chill, warm,
+        chilled, chill, warm,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
-         kb_subtract, simplify_assuming, hack_Beta,
+         kb_subtract, simplify_assuming, simplify_factor_assuming,
          kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, for_poly, range_of_HInt;
   global t_kb, `expand/product`, `simplify/int/simplify`,
@@ -316,91 +316,23 @@ KB := module ()
   simplify_assuming := proc(ee, kb::t_kb, $)
     local e, as;
     e := foldl(eval, ee, op(kb_to_equations(kb)));
-    e := hack_Beta(e);
-    e := subsindets(e, 'product(anything, name=range)', myexpand_product);
-    e := subsindets(e, 'specfunc({sum,Sum})', expand);
     as := kb_to_assumptions(kb, e);
     e := chill(e);
     as := chill(as);
-    e := subsindets(e,
-      'And(specfunc({product,Product,sum,Sum}),
-           anyfunc(anything, name=range))',
-      proc(p, $)
-        local o, body, x, rng, val, a, go;
-        o := subs(Sum=sum, Product=product, op(0,p));
-        body, rng := op(p);
-        x, rng := op(rng);
-        if rng :: 'range({integer,
-                          And(specfunc(piecewise),
-                              Or(anyfunc(anything,integer),
-                                 anyfunc(anything,integer,integer))),
-                          `+`({integer,
-                               And(specfunc(piecewise),
-                                   Or(anyfunc(anything,integer),
-                                      anyfunc(anything,integer,integer)))})})'
-        then
-          rng := lift_piecewise(rng,
-                   'And(range, Not(range(Not(specfunc(piecewise)))))');
-          if rng :: 'specfunc(piecewise)' then
-            val := map_piecewiselike((r -> o(go(x), x=r)), rng);
-          else
-            val := o(go(x), x=rng);
-          end if;
-          # Work around this bug:
-          # > product(Sum(f(j),j=0..n-1),j=0..0)
-          # Sum(f(0),0=0..n-1)
-          return eval(val, go = (i -> eval(body, x=i)));
-        elif body :: 'specfunc(piecewise)' and
-             body :: `if`(o=product,
-                          'anyfunc(`=`,anything,1)',
-                          '{anyfunc(`=`,anything,0), anyfunc(`=`,anything)}')
-             and ispoly(`-`(op(op(1,body))), 'linear', x, 'val', 'a') then
-          val := Normalizer(-val/a);
-          if is(And(val :: integer, lhs(rng) <= val,
-                                    val <= rhs(rng))) assuming op(as) then
-            return eval(op(2,body), x=val)
-          end if
-        end if;
-        p
-      end proc);
     try
-      e := evalindets(e, specop(algebraic,{`<`,`<=`,`=`,`<>`}),
-        proc(b, $)
-          try
-            if is(b) assuming op(as) then return true
-            elif false = coulditbe(b) assuming op(as) then return false
-            end if
-          catch:
-          end try;
-          b
-        end proc);
       e := simplify(e) assuming op(as);
     catch "when calling '%1'. Received: 'contradictory assumptions'":
       # We seem to be on an unreachable control path
       userinfo(1, 'procname', "Received contradictory assumptions.")
     end try;
-    e := subsindets(e,
-      'And(specfunc({Sum,Product}), anyfunc(anything, name=range))',
-      proc(p, $)
-        local go;
-        if `-`(op(op([2,2],p))) :: integer then
-          # Work around this bug:
-          # > product(Sum(f(j),j=0..n-1),j=0..0)
-          # Sum(f(0),0=0..n-1)
-          eval(subs(Sum=sum, Product=product, op(0,p))
-                   (go(op([2,1],p)), op(2,p)),
-               go = (i -> eval(op(1,p), op([2,1],p)=i)))
-        else
-          p
-        end if
-      end proc);
     e := warm(e);
     eval(e, exp = expand @ exp);
   end proc;
 
-  hack_Beta := module ()
+  simplify_factor_assuming := module ()
     export ModuleApply;
-    local graft_pw, GAMMAratio;
+    local graft_pw, GAMMAratio, wrap, hack_Beta,
+          bounds_are_simple, eval_piecewise, eval_factor;
 
     # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
     #      to piecewise(i<=j,1,0) + ...
@@ -451,92 +383,273 @@ KB := module ()
       end if
     end proc;
 
-    ModuleApply := proc(ee, $)
-      local e;
-      e := convert(ee, 'Beta');
+    wrap := proc(e, loops :: list([identical(product,Product,sum,Sum),
+                                   name=range]), $)
+      local res, loop;
+      res := e;
+      for loop in loops do
+        res := op(1,loop)(res, op(2,loop));
+      end do;
+      res
+    end proc;
+
+    hack_Beta := proc(e :: specfunc(Beta), kb :: t_kb,
+                      loops :: list([identical(product,Product,sum,Sum),
+                                     name=range]),
+                      $)
+      local x, bounds, res, s1, r1, s2, r2, sg, rg;
       # Temporary hack to show desired output for examples/{dice_predict,gmm_gibbs,naive_bayes_gibbs}.hk
-      e := subsindets(e, 'product(specfunc(`+`, Beta), name=range)', proc(prodbeta, $)
-        local i, rng, beta, s1, r1, s2, r2, sg, rg;
-        beta, rng := op(prodbeta);
-        i, rng := op(rng);
-        beta := subsindets(beta, 'specfunc(piecewise)', proc(pw, $)
+      if nops(loops) > 0 and e :: 'specfunc(`+`, Beta)' and has(e, piecewise) then
+        x, bounds := op(op([-1,2],loops));
+        res := subsindets(e, 'specfunc(piecewise)', proc(pw, $)
           # Remove a particular superfluous inequality
-          `if`(op(1,pw) :: 'And(specfunc(And), anyfunc(anything<=anything,name=anything))'
-               and Testzero(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) or
-               op(1,pw) :: 'And(specfunc(And), anyfunc(anything<>anything,name=anything))'
-               and Normalizer(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(rng)-i) :: negative,
-               subsop(1=op([1,2],pw), pw),
-               pw)
+          if op(1,pw) :: 'And(specfunc(And), anyfunc(relation, name=anything))' and has(op(1,pw),x) then
+            if op([1,1],pw) :: `<=`
+               and Testzero(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(bounds)-x) or
+               op([1,1],pw) :: `<>`
+               and Normalizer(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(bounds)-x) :: negative
+            then
+              return subsop(1=op([1,2],pw), pw)
+            end if
+          end if;
+          return pw
         end proc);
-        s1, r1 := op(map(`+`@op, [selectremove(has, convert(op(1,beta), 'list', `+`), piecewise)]));
-        s2, r2 := op(map(`+`@op, [selectremove(has, convert(op(2,beta), 'list', `+`), piecewise)]));
+        s1, r1 := selectremove(has, op(1,res), piecewise);
+        s2, r2 := selectremove(has, op(2,res), piecewise);
         sg := graft_pw(combine(s1+s2));
         rg := Loop:-graft(r1+r2);
-        if rg = eval(r2,i=i-1) and sg = eval(s2,i=i-1) then
+        if rg = eval(r2,x=x-1) and sg = eval(s2,x=x-1) then
           # Telescoping match!
-        elif rg = eval(r1,i=i-1) and sg = eval(s1,i=i-1) then
+        elif rg = eval(r1,x=x-1) and sg = eval(s1,x=x-1) then
           # Telescoping match, but swap Beta arguments
           s1, s2 := s2, s1;
           r1, r2 := r2, r1;
         else
           # No telescoping match -- bail out
-          return 'product'(beta, i=rng);
+          return FAIL;
         end if;
-        # At this point we know that beta = Beta(s1+r1, s2+r2)
-        #   and that s2 = eval(s2, i=rhs(rng)+1) + sum(s1, i=i+1..rhs(rng)+1)
-        #   and that r2 = eval(r2, i=rhs(rng)+1) + sum(r1, i=i+1..rhs(rng)+1)
-        # So the job of the remainder of this proc is to express
-        #   product(Beta(s1+r1, eval(s2+r2, i=rhs(rng)+1) + sum(s1+r1, i=i+1..rhs(rng)+1)), i=rng)
+        # At this point we know that e = Beta(s1+r1, s2+r2)
+        #   and that s2 = eval(s2, x=rhs(bounds)+1) + sum(s1, x=x+1..rhs(bounds)+1)
+        #   and that r2 = eval(r2, x=rhs(bounds)+1) + sum(r1, x=x+1..rhs(bounds)+1)
+        # So our remaining job is to express
+        #   product(Beta(s1+r1, eval(s2+r2, x=rhs(bounds)+1) + sum(s1+r1, x=x+1..rhs(bounds)+1)), x=bounds)
         # in terms of
-        #   product(Beta(   r1, eval(   r2, i=rhs(rng)+1) + sum(   r1, i=i+1..rhs(rng)+1)), i=rng)
-        'product'('Beta'(r1, eval(r2, i=rhs(rng)+1) + 'sum'(r1, i=i+1..rhs(rng)+1)), i=rng)
-          * Loop:-graft('product'(GAMMAratio(s1, r1), i=rng)
-                        * eval('GAMMAratio'(s1 (* + s2 *), r1 + r2), i=rhs(rng)+1))
-                          # Unsound HACK: assuming eval(s2, i=rhs(rng)+1) = 0
-                          #   (Discharging this assumption sometimes requires checking idx(w,k) < size(word_prior) for symbolic k)
-          / eval('GAMMAratio'(s2, r2), i=lhs(rng)-1)
-      end proc);
+        #   product(Beta(   r1, eval(   r2, x=rhs(bounds)+1) + sum(   r1, x=x+1..rhs(bounds)+1)), x=bounds)
+        res := wrap('Beta'(r1, eval(r2, x=rhs(bounds)+1) + 'sum'(r1, x=x+1..rhs(bounds)+1)), loops)
+             * Loop:-graft(wrap(GAMMAratio(s1, r1), loops)
+                           * wrap(eval('GAMMAratio'(s1 (* + s2 *), r1 + r2), x=rhs(bounds)+1),
+                                                    # Unsound HACK: assuming eval(s2, x=rhs(bounds)+1) = 0
+                                                    #   (Discharging this assumption sometimes requires checking idx(w,k) < size(word_prior) for symbolic k)
+                                  eval(subsop(-1=NULL, loops), x=rhs(bounds)+1)))
+             / wrap(eval('GAMMAratio'(s2, r2), x=lhs(bounds)-1),
+                    eval(subsop(-1=NULL, loops), x=lhs(bounds)-1));
+        return eval_factor(res, kb, `*`, []);
+      end if;
       # Temporary hack to show desired output for the "integrate BetaD out of BetaD-Bernoulli" test
-      e := subsindets(e, 'specfunc(And(`+`, Not(`+`(Not(idx({[1,0],[0,1]}, anything))))), Beta)', proc(beta, $)
-        local s1, r1, s2, r2;
-        s1, r1 := selectremove(type, op(1,beta), 'idx({[1,0],[0,1]}, anything)');
-        s2, r2 := selectremove(type, op(2,beta), 'idx({[1,0],[0,1]}, anything)');
+      if nops(loops) = 0 and e :: 'specfunc(And(`+`, Not(`+`(Not(idx({[1,0],[0,1]}, anything))))), Beta)' then
+        s1, r1 := selectremove(type, op(1,e), 'idx({[1,0],[0,1]}, anything)');
+        s2, r2 := selectremove(type, op(2,e), 'idx({[1,0],[0,1]}, anything)');
         if s1 :: 'idx([1,0], anything)' and s2 :: 'idx([0,1], anything)' and op(2,s1) = op(2,s2) then
-          Beta(r1, r2) * idx([r1, r2], op(2,s1)) / (r1 + r2)
+          return Beta(r1, r2) * idx([r1, r2], op(2,s1)) / (r1 + r2);
         elif s1 :: 'idx([0,1], anything)' and s2 :: 'idx([1,0], anything)' and op(2,s1) = op(2,s2) then
-          Beta(r1, r2) * idx([r2, r1], op(2,s1)) / (r1 + r2)
-        else
-          beta
+          return Beta(r1, r2) * idx([r2, r1], op(2,s1)) / (r1 + r2);
         end if
-      end proc);
-      e
+      end if;
+      return FAIL;
     end proc;
-  end module; # hack_Beta
 
-  myexpand_product := proc(prod :: anyfunc(anything, name=range), $)
-    local x, p, body, quantifier, l, i;
-    (body, quantifier) := op(prod);
-    x := op(1, quantifier);
-    p := proc(e, $)
-      local ee;
-      if e :: 'exp(anything)' then
-        ee := expand(op(1,e));
-        ee := convert(ee, 'list', `+`);
-        `*`(op(map(z -> exp(sum(z, quantifier)), ee)));
-      elif e :: ('freeof'(x) ^ 'anything') then
-        op(1,e) ^ expand(sum(op(2,e), quantifier))
-      elif e :: ('anything' ^ 'freeof'(x)) then
-        p(op(1,e)) ^ op(2,e)
-#  This is the right thing to do, but breaks things.  
-#      elif e :: 'idx'('freeof'(x),'anything') then
-#        l := op(1,e);
-#        product(idx(l,i)^sum(piecewise(op(2,e)=i, 1, 0), quantifier), i=0..size(l)-1);
-      else
-        product(e, quantifier)
-      end if
+    bounds_are_simple := proc(bounds :: range, $)
+      local bound, term, i;
+      if `-`(op(bounds)) :: integer then return true end if;
+      for bound in bounds do
+        for term in convert(bound, 'list', `+`) do
+          if term :: `*` then term := remove(type, term, integer) end if;
+          if term :: 'specfunc(piecewise)' then
+            for i from 2 by 2 to nops(term)-1 do
+              if not(op(i,term) :: integer) then return false end if
+            end do;
+            if not(op(-1,term) :: integer) then return false end if
+          elif not(term :: integer) then return false end if
+        end do
+      end do;
+      true
     end proc;
-    maptype(`*`, p, body)
-  end proc;
+
+    eval_piecewise := proc(e :: specfunc(piecewise),
+                           kb :: t_kb, mode :: identical(`*`,`+`),
+                           loops :: list([identical(product,Product,sum,Sum),
+                                          name=range]),
+                           $)
+      local default, kbs, pieces, i, cond, inds, res, x, b, a;
+      default := 0; # the catch-all "else" result
+      kbs[1] := kb;
+      for i from 1 by 2 to nops(e) do
+        if i = nops(e) then
+          default := op(i,e);
+          pieces[i] := default;
+        else
+          # Simplify piecewise conditions using KB
+          cond := op(i,e);
+          # cond := eval_factor(cond, kbs[i], `+`, []);
+          kbs[i+1] := assert(cond, kbs[i]);
+          cond := map(proc(cond::[identical(assert),anything], $)
+                        op(2,cond)
+                      end proc,
+                      kb_subtract(kbs[i+1], kbs[i]));
+          if nops(cond) = 0 then
+            default := op(i+1,e);
+            pieces[i] := default;
+            break;
+          else
+            cond := `if`(nops(cond)=1, op(1,cond), And(op(cond)));
+            # TODO: Extend KB interface to optimize for
+            #       entails(kb,cond) := nops(kb_subtract(assert(cond,kb),kb))=0
+            kbs[i+2] := assert(Not(cond), kbs[i]);
+            if nops(kb_subtract(kbs[i+2], kbs[i])) > 0 then
+              pieces[i] := cond;
+              pieces[i+1] := op(i+1,e);
+            end if
+          end if
+        end if
+      end do;
+      # Combine duplicate branches at end
+      inds := [indices(pieces, 'nolist', 'indexorder')];
+      for i in ListTools:-Reverse(select(type, inds, 'even')) do
+        if Testzero(pieces[i]-default) then
+          pieces[i  ] := evaln(pieces[i  ]);
+          pieces[i-1] := evaln(pieces[i-1]);
+        else
+          break;
+        end if
+      end do;
+      # Special processing for when the pieces are few
+      res := [entries(pieces, 'nolist', 'indexorder')];
+      if nops(res) <= 1 then
+        return eval_factor(default, kb, mode, loops);
+      end if;
+      if nops(res) <= 3 and op(1,res) :: `=` and Testzero(default-mode()) then
+        # Reduce product(piecewise(i=3,f(i),1),i=1..10) to f(3)
+        for i from 1 to nops(loops) do
+          x := op([i,2,1],loops);
+          if depends(op(1,res), x) then
+            if ispoly(`-`(op(op(1,res))), 'linear', x, 'b', 'a') then
+              b := Normalizer(-b/a);
+              if nops(kb_subtract(assert(And(b :: integer,
+                                             op([i,2,2,1],loops) <= b,
+                                             b <= op([i,2,2,2],loops)),
+                                         kb), kb)) = 0 then
+                return eval_factor(eval(op(2,res), x=b),
+                                   assert(x=b, kb),
+                                   mode,
+                                   eval(subsop(i=NULL, loops), x=b));
+              end if;
+            end if;
+            break;
+          end if;
+        end do;
+      end if;
+      # Recursively process pieces
+      inds := [indices(pieces, 'nolist', 'indexorder')];
+      for i in inds do
+        if i::even or i=op(-1,inds) then
+          pieces[i] := eval_factor(pieces[i], kbs[i], mode, []);
+        end if;
+      end do;
+      res := piecewise(entries(pieces, 'nolist', 'indexorder'));
+      for i in loops do res := op(1,i)(res, op(2,i)) end do;
+      return res;
+    end proc;
+
+    eval_factor := proc(e, kb :: t_kb, mode :: identical(`*`,`+`),
+                        loops :: list([identical(product,Product,sum,Sum),
+                                       name=range]),
+                        $)
+      local o, body, x, bounds, res, go, y, kb1, i, j, k, s, r;
+      if e :: mode then
+        return map(eval_factor, e, kb, mode, loops);
+      end if;
+      if e :: And(specfunc(`if`(mode=`*`, '{product,Product}', '{sum,Sum}')),
+                    'anyfunc(anything, name=range)') then
+        o := op(0,e);
+        body, bounds := op(e);
+        x, bounds := op(bounds);
+        bounds := map(eval_factor, bounds, kb, `+`, []);
+        if bounds_are_simple(bounds) then
+          # Expand {product,sum} to {mul,add}
+          if o=Product then o:=product elif o=Sum then o:=sum end if;
+          bounds := lift_piecewise(bounds,
+                      'And(range, Not(range(Not(specfunc(piecewise)))))');
+          res := `if`(bounds :: 'specfunc(piecewise)', map_piecewiselike, apply)
+                     ((b -> o(go(x), x=b)), bounds);
+          # Work around this bug:
+          # > product(Sum(f(j),j=0..n-1),j=0..0)
+          # Sum(f(0),0=0..n-1)
+          res := eval(res, go = (i -> eval(body, x=i)));
+          return eval_factor(res, kb, mode, loops);
+        end if;
+        y, kb1 := genType(x, HInt(closed_bounds(bounds)), kb);
+        return eval_factor(subs(x=y,body), kb1, mode, [[o,y=bounds],op(loops)]);
+      end if;
+      if e :: 'specfunc(piecewise)' then
+        return eval_piecewise(e, kb, mode, loops);
+      end if;
+      if e :: `*` then
+        s, r := selectremove(depends, e, map2(op,[2,1],loops));
+        if r <> 1 then
+          return eval_factor(s, kb, `+`, loops)
+               * maptype(`*`, eval_factor, r, kb, `+`, []);
+        end if;
+      end if;
+      if mode = `*` then
+        if e :: '`^`' then
+          i := map2(op,[2,1],loops);
+          if not depends(op(2,e), i) then
+            return eval_factor(op(1,e), kb, `*`, loops)
+                 ^ eval_factor(op(2,e), kb, `+`, []);
+          end if;
+        end if;
+        if e :: 'exp(anything)' or e :: '`^`' and not depends(op(1,e), i) then
+          return mul(subsop(-1=i,e),
+                     i in convert(eval_factor(expand(op(-1,e)), kb, `+`,
+                                              map2(subsop,1=sum,loops)),
+                                  'list', `+`));
+        end if;
+        # Rewrite ... * idx([p,1-p],i)
+        #      to ... * p^idx([1,0],i) * (1-p)^idx([0,1],i)
+        # because the latter is easier to integrate and recognize with respect to p
+        if e :: 'idx(list, anything)' and not depends(op(1,e), i) then
+          return mul(op([1,j],e)
+                     ^ eval_factor(idx([seq(`if`(k=j,1,0), k=1..nops(op(1,e)))],
+                                       op(2,e)),
+                                   kb, `+`, map2(subsop,1=sum,loops)),
+                     j=1..nops(op(1,e)));
+        end if;
+      end if;
+      if mode = `*` and e :: 'specfunc(Beta)' then
+        res := hack_Beta(e, kb, loops);
+        if res <> FAIL then return res end if;
+      end if;
+      if nops(loops) > 0 then
+        return op([-1,1],loops)(eval_factor(e, kb, mode, subsop(-1=NULL, loops)),
+                                op([-1,2],loops));
+      end if;
+      if e :: '{specfunc({GAMMA, Beta, exp, And, Or, Not}), relation, logical}' then
+        return map(eval_factor, e, kb, `+`, []);
+      end if;
+      if e :: `^` then
+        return eval_factor(op(1,e), kb, mode, [])
+             ^ eval_factor(op(2,e), kb, `+` , []);
+      end if;
+      if e :: `+` then
+        return map(eval_factor, e, kb, mode, []);
+      end if;
+      return e;
+    end proc;
+
+    ModuleApply := proc(e, kb::t_kb, $)
+      simplify_assuming(eval_factor(convert(e, 'Beta'), kb, `*`, []), kb);
+    end proc;
+  end module; # simplify_factor_assuming
 
   kb_to_assumptions := proc(kb, e:={}, $)
     local n;
