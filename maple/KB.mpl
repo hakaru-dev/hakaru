@@ -313,10 +313,6 @@ KB := module ()
     end proc, kb);
   end proc;
 
-  # an (implicit) invariant: if we're here, it's because we're simplifying a
-  # weight; while we won't assume this is the case, we are certainly assuming 
-  # that what we have is an expression all of whose parts are known to Maple,
-  # is that it is valued over something that embeds into the reals.
   simplify_assuming := proc(ee, kb::t_kb, $)
     local e, as;                                                         # for debugging
     e := foldl(eval, ee, op(kb_to_equations(kb)));                         `eval`;
