@@ -946,9 +946,10 @@ NewSLO := module ()
 
   do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
     local w, e, x, t, r;
-    e := simplify_assuming('f'(e,v,_rest),kb);
     w, e := get_indicators(ee);
     e := piecewise_And(w, e, 0);
+    e := f(e,v,_rest);
+    e := simplify_factor_assuming(e,kb);
     x := `if`(v::name, v, lhs(v));
     t := {'identical'(x),
           'identical'(x)

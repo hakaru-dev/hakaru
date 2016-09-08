@@ -94,7 +94,7 @@ Loop := module ()
   intssums := proc(makes::name, make::name,
                    ee::anything, xx::name, rr::range, ll::list(name=range),
                    kb::t_kb:=empty, $)
-    local t, x, e, r, l, kb1, w0, pp;
+    local t, x, e, r, l, kb1, w0, pp, i;
     t := `if`(make=int, HReal(open_bounds(rr)), HInt(closed_bounds(rr)));
     x, kb1 := genType(xx, mk_HArray(t, ll), kb);
     e := eval(ee, xx=x);
@@ -106,7 +106,9 @@ Loop := module ()
     if depends(w0, x) then
       'makes'(e, x, rr, ll)
     else
-      w0 * foldl(''product'', 'make'(pp,x=r), op(l))
+      pp := make(pp, x=r);
+      for i in l do pp := product(pp, i) end do;
+      w0 * pp
     end if
   end proc;
 
