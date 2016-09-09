@@ -22,7 +22,8 @@ KB := module ()
         assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
         chilled, chill, warm,
         ModuleLoad, ModuleUnload;
-  export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *) 
+  export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
+         negated_relation, negate_relation,
          kb_subtract, simplify_assuming, simplify_factor_assuming,
          kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, for_poly, range_of_HInt;
@@ -61,6 +62,13 @@ KB := module ()
     x, KB(Let(x, e), op(kb));
   end proc;
 
+  #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
+  #Carl 2016Sep09
+  negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
+  negate_relation:= proc(R::relation, $)::relation; 
+       negated_relation[op(0,R)](op(R))
+  end proc;
+  
   assert := proc(b, kb::t_kb, $)
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;

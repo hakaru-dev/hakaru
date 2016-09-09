@@ -64,6 +64,7 @@ Hakaru := module ()
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
+         flatten_piecewise,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
          htype_patterns;
@@ -373,6 +374,50 @@ Hakaru := module ()
       cons(true, pw, nil)
     end if
   end proc;
+
+  #Take a piecewise: If some of the branches also contain piecewises, attempt 
+  #to re-express the whole as a single piecewise. In short: fewer piecewises, more 
+  #branches, more complex conditions.--Carl 2016Sep09
+  flatten_piecewise:= proc(PW::specfunc(piecewise))
+  local pwL:= [op(PW)], branches, conds, innerPW, outerPW, C_O, C_I, B_I;
+     #The next statement is a heavier hammer than what's needed to deal with 
+     #simply three-part piecewises, but I'm preparing for the more-general case.
+     (conds,branches):= selectremove(type, pwL, 'boolean' &under (convert, 'boolean_operator'));
+     innerPW:= indets(branches, specfunc(piecewise));
+     if innerPW = {} then
+          userinfo(3, procname, "No inner pw.");
+          return PW
+     end if;
+     if nops~(innerPW) <> {3} then
+          userinfo(2, procname, "Case of inner pw of more than 3 ops not yet handled.");
+          return PW
+     end if;
+     if nops(PW) <> 3 then
+          userinfo(2, procname, "Case of outer pw of more than 3 ops not yet handled.");
+          return PW
+     end if;
+     outerPW:= applyop(lift_piecewise, {2,3}, PW);
+     if membertype(
+          And(
+               satisfies(e-> indets(e, specfunc(piecewise)) <> {}),
+               Not(specfunc(piecewise))
+          ),
+          {op(2..3, outerPW)}
+     )
+     then
+          userinfo(1, procname, "Unliftable pw.");
+          return PW
+     end if;
+     C_O:= op(1,outerPW);
+     C_I:= map(e-> `if`(e::specfunc(piecewise), op(1,e), true), [op(2..3, outerPW)]);
+     B_I:= map(e-> `if`(e::specfunc(piecewise), [op(2..3, e)], [e$2])[], [op(2..3, outerPW)]);
+     piecewise(
+          And(C_O, C_I[1]), B_I[1],
+          And(C_O, negate_relation(C_I[1])), B_I[2],
+          And(negate_relation(C_O), C_I[2]), B_I[3],
+          B_I[4]
+     )
+  end proc;  
 
   app := proc (func, argu, $)
     if func :: 'lam(name, anything, anything)' then
