@@ -70,6 +70,7 @@ end proc:
 Loop := module ()
   option package;
   local intssums, enter_piecewise, wrap,
+        t_peel, do_peel,
         Binder, Stmt, t_binder, t_stmt, t_exp,
         ModuleLoad;
   export
@@ -248,7 +249,7 @@ Loop := module ()
     if mode = `*` and w :: '{`+`, specfunc({sum, Sum})}' then
       # Maybe this w is one of those big sums involving products that are
       # always equal to 1, left behind by the density of Categorical
-      w1 := graft(split(peel(lift_piecewise(w))));
+      w1 := graft(split(peel(w)));
       w1 := combine(rebase_upper(w1));
       w1 := combine(rebase_lower(w1));
       return [wrap(heap, w1, mode, kb1, kb0), 1]
@@ -340,71 +341,55 @@ Loop := module ()
     piecewise_And(rest,e,mode())
   end proc;
 
-  # Rewrite product(piecewise(i+42=lo+42,th,el),i=lo..hi)
-  # to eval(th,i=lo)*product(el,i=lo+1..hi)
-  peel := proc(ee, $)
-    subsindets(ee, 'And(specfunc({sum,Sum,product,Product}),
-                        anyfunc(specfunc(piecewise), name=range))',
-    proc(e, $)
-      local body, x, r, line, test, make, here, rest, res;
-      body := op(1,e);
-      if not (1<nops(body) and op(1,body)::{`=`,`<`,`<=`}) then return e end if;
-      x, r := op(op(2,e));
-      line := op([1,1],body) - op([1,2],body);
-      if 1 = degree(line, x) then
-        if op(1,body) :: `=`  then
-          test := proc (y,z,$)
-            if Testzero(eval(line, x=y)) then true
-            else FAIL end if
-          end proc;
-        elif op(1,body) :: `<` then
-          test := proc (y,z,$)
-            local l;
-            l := [eval(line, x=y), eval(line, x=z)];
-            if   l :: [negative, nonnegative] then true
-            elif l :: [nonnegative, negative] then false
-            else FAIL end if
-          end proc;
-        elif op(1,body) :: `<=` then
-          test := proc (y,z,$)
-            local l;
-            l := [eval(line, x=y), eval(line, x=z)];
-            if   l :: [nonpositive, positive] then true
-            elif l :: [positive, nonpositive] then false
-            else FAIL end if
-          end proc;
-        end if;
-        if op(0,e) in {sum,Sum} then
-          make := `+`;
-        elif op(0,e) in {product,Product} then
-          make := `*`;
-        end if;
-        here := op(2,body);
-        if nops(body)=2 then
-          rest := 0;
-        elif nops(body)=3 then
-          rest := op(3,body);
-        elif {op([1,0],body) , op([3,0],body)} = {`<`, `<=`}
-          and op([1,1],body) = op([3,2],body)
-          and op([1,2],body) = op([3,1],body) then
-          rest := op(4,body);
+  # Rewrite product(...piecewise(i+42=lo+42,th,el)...,i=lo..hi)
+  # to eval(...th...,i=lo)*product(...el...,i=lo+1..hi)
+  t_peel := 'And(specfunc({sum,Sum,product,Product}),
+                 anyfunc(anything, name=range))';
+  peel := proc(e, $)
+    subsindets(e, t_peel, do_peel);
+  end proc;
+  do_peel := proc(e, $)
+    local make, body, x, r, cond, line, test, x0, r0, cond0, here, rest;
+    if not (e :: t_peel) then return e end if;
+    if   op(0,e) in '{sum    ,Sum    }' then make := `+`;
+    elif op(0,e) in '{product,Product}' then make := `*`; end if;
+    body, r := op(e);
+    x, r    := op(r);
+    for cond in indets(body, '{`=`(algebraic),`<`,`<=`}') do
+      line := `-`(op(cond));
+      if 1 <> degree(line, x) then next end if;
+      if cond :: `=` then
+        cond0 := true;
+        if Testzero(eval(line, x=lhs(r))) then
+          x0 := lhs(r); r0 := applyop(`+`, 1, r, 1);
+        elif Testzero(eval(line, x=rhs(r))) then
+          x0 := rhs(r); r0 := applyop(`-`, 2, r, 1);
+        else next end if;
+      else
+        test := proc(x0, x1, $)
+          local res;
+          res := evalb(not op(0,cond)(eval(line, x=x1), 0));
+          `if`(res in '{true,false}'
+                 and evalb(op(0,cond)(eval(line, x=x0), 0)) = res,
+               res,
+               FAIL)
+        end proc;
+        cond0 := test(lhs(r), lhs(r)+1);
+        if cond0 <> FAIL then
+          x0 := lhs(r); r0 := applyop(`+`, 1, r, 1);
         else
-          rest := subsop(1=NULL,2=NULL,body);
-        end if;
-        res := test(lhs(r), lhs(r)+1);
-        if res <> FAIL then
-          return make(eval(`if`(res, here, rest), x=lhs(r)),
-                      subsop(1 = `if`(res, rest, here), [2,2,1]=lhs(r)+1, e));
-        end if;
-        res := test(rhs(r), rhs(r)-1);
-        if res <> FAIL then
-          return make(eval(`if`(res, here, rest), x=rhs(r)),
-                      subsop(1 = `if`(res, rest, here), [2,2,2]=rhs(r)-1, e));
+          cond0 := test(rhs(r), rhs(r)-1);
+          if cond0 <> FAIL then
+            x0 := rhs(r); r0 := applyop(`-`, 2, r, 1);
+          else next end if;
         end if;
       end if;
-      e
-    end proc);
-  end proc:
+      here := subs(cond =           cond0 , body);
+      rest := subs(cond = evalb(not cond0), body);
+      return make(eval(here, x=x0), do_peel(eval(subsop(1=rest, [2,2]=r0, e))));
+    end do;
+    return e;
+  end proc;
 
   # Expand sum(a*(b-c),q) to sum(a*b,q)-sum(a*c,q)
   split := proc(ee, $)
