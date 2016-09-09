@@ -326,10 +326,6 @@ KB := module ()
     e := foldl(eval, ee, op(kb_to_equations(kb)));                         `eval`;
     as := kb_to_assumptions(kb, e);
     e := chill(e);                                                        `chill`;
-    # actually compute integrals which are all in the Weights.
-    # TODO: whoever pushed an Int into "all in the Weights" should perhaps not do it.
-    #       See discussion at https://github.com/hakaru-dev/hakaru/commit/7a6c674a0614e579957aff625c76bf2c17eb4e9b#commitcomment-18816647
-    e := subsindets(e, 'Int'(anything, name=range), value);               `value@Int`;
     as := chill(as);
     try
       e := simplify(e) assuming op(as);                         `simplify @ assuming`;
