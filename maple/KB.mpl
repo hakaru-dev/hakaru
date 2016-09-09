@@ -736,9 +736,11 @@ KB := module ()
     local rest, should_negate, can_negate, fsn;
     rest := convert(e, 'list', `*`);
     rest := map((f -> [f, signum(f),
-                       `if`(f::specfunc({Sum,sum}), applyop(`-`,1,f),
-                       `if`(f::specfunc(ln)       , applyop(`/`,1,f),
-                                                    -f))]),
+                       `if`(f::'{specfunc({Sum,sum}),anything^odd}',
+                            applyop(`-`,1,f),
+                       `if`(f::'specfunc(ln)',
+                            applyop(`/`,1,f),
+                            -f))]),
                 rest);
     should_negate, rest := selectremove(type, rest,
       '[anything, -1, Not(`*`)]');
@@ -747,7 +749,7 @@ KB := module ()
        seq(op(1,fsn), fsn=rest)]
     else
       can_negate, rest := selectremove(type, rest,
-        '[{`+`, specfunc({Sum,sum,ln})}, Not(1), Not(`*`)]');
+        '[{`+`, specfunc({Sum,sum,ln}), `^`}, Not(1), Not(`*`)]');
       if nops(can_negate) > 0 then
         [seq(op(3,fsn), fsn=should_negate),
          op([1,3], can_negate),
@@ -823,7 +825,11 @@ KB := module ()
       proc(expr, i, $)
         option overload;
         local a, b;
-        if has(expr,i) and sign(expr,i) :: negative then
+        if expr :: `*` then
+          `*`(op(map(`product/indef/indef`, list_of_mul(expr), i)))
+        elif expr :: 'anything^freeof(i)' then
+          `product/indef/indef`(op(1,expr),i)^op(2,expr)
+        elif has(expr,i) and sign(expr,i) :: negative then
           if ispoly(expr, linear, i, 'b', 'a') then
             (-a)^i / GAMMA(1-i-b/a)
           else
