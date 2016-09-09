@@ -21,7 +21,7 @@ $$ x \sim \text{Poisson}(\lambda) $$
 
 where $x$ is the actual arrival time, and $\lambda$ is the quantity we
 wish to predict. In other words, this likelihood says our data is a
-noisy measurement of ther average waiting time which follows a Poisson
+noisy measurement of the average waiting time which follows a Poisson
 distribution. We can also represent this likelihood function as a
 density function which for a given choice of $\lambda$ returns how
 likely it is for $x$ to be generated under that parameter.
