@@ -92,23 +92,18 @@ Loop := module ()
   sums := proc() intssums('sums', 'sum', _passed) end proc;
 
   intssums := proc(makes::name, make::name,
-                   ee::anything, xx::name, rr::range, ll::list(name=range),
+                   e::anything, x::name, rr::range, ll::list(name=range),
                    kb::t_kb:=empty, $)
-    local t, x, e, r, l, kb1, w0, pp, i;
+    local t, r, l, kb2, w0, pp, i;
     t := `if`(make=int, HReal(open_bounds(rr)), HInt(closed_bounds(rr)));
-    x, kb1 := genType(xx, mk_HArray(t, ll), kb);
-    e := eval(ee, xx=x);
-    if nops(ll) > 0 then
-      kb1 := assert(size(x)=op([-1,2,2],ll)-op([-1,2,1],ll)+1, kb1);
-    end if;
-    r, l, kb1 := genLoop(rr, ll, kb, 'Integrand'(x,e));
-    w0, pp := unproducts(e, x, l, kb1);
+    r, l, kb2 := genLoop(rr, ll, kb, 'Integrand'(x,e));
+    w0, pp := unproducts(e, x, l, kb2);
     if depends(w0, x) then
-      'makes'(e, x, rr, ll)
+      'makes(e, x, rr, ll)'
     else
-      pp := make(pp, x=r);
-      for i in l do pp := product(pp, i) end do;
-      w0 * pp
+      pp := 'make'(pp, x=r);
+      for i in l do pp := 'product'(pp, i) end do;
+      simplify_factor_assuming(w0 * pp, kb);
     end if
   end proc;
 

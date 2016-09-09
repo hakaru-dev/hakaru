@@ -26,7 +26,8 @@ NewSLO := module ()
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, termize, bind, weight,
         reduce_IntSum, reduce_IntsSums, get_indicators,
-        elim_intsum, do_elim_intsum, banish, banish_guard, banish_weight,
+        elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
+        banish, banish_guard, banish_weight,
         reduce_pw, nub_piecewise, piecewise_if,
         find_vars, kb_from_path, interpret, reconstruct, invert,
         get_var_pos, get_int_pos,
@@ -905,29 +906,30 @@ NewSLO := module ()
   end proc;
 
   elim_intsum := proc(e, h :: name, kb :: t_kb, $)
-    local t, var, m, elim;
+    local t, var, f, elim;
     t := 'applyintegrand'('identical'(h), 'anything');
     if e :: Int(anything, name=anything) and
        not depends(indets(op(1,e), t), op([2,1],e)) then
       var := op([2,1],e);
-      m := proc (kb,g,$) do_elim_intsum(kb, int, g, op(2,e)) end proc;
+      f := 'int_assuming';
     elif e :: Sum(anything, name=anything) and
        not depends(indets(op(1,e), t), op([2,1],e)) then
       var := op([2,1],e);
-      m := proc (kb,g,$) do_elim_intsum(kb, sum, g, op(2,e)) end proc;
+      f := 'sum_assuming';
     elif e :: Ints(anything, name, range, list(name=range)) and
          not depends(indets(op(1,e), t), op(2,e)) then
       var := op(2,e);
-      m := proc (kb,g,$) do_elim_intsum(kb, ints, g, op(2..4,e), kb) end proc;
+      f := 'ints';
     elif e :: Sums(anything, name, range, list(name=range)) and
          not depends(indets(op(1,e), t), op(2,e)) then
       var := op(2,e);
-      m := proc (kb,g,$) do_elim_intsum(kb, sums, g, op(2..4,e), kb) end proc;
+      f := 'sums';
     else
       return FAIL;
     end if;
     # try to eliminate unused var
-    elim := banish(op(1,e), h, kb, infinity, var, m);
+    elim := banish(op(1,e), h, kb, infinity, var,
+      proc (kb,g,$) do_elim_intsum(kb, f, g, op(2..-1,e)) end proc);
     if has(elim, {MeijerG, undefined, FAIL}) or e = elim or elim :: SymbolicInfinity then
       return FAIL;
     end if;
@@ -935,20 +937,33 @@ NewSLO := module ()
   end proc;
 
   do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
-    local w, e, x, t, r;
+    local w, e, x, g, t, r;
     w, e := get_indicators(ee);
     e := piecewise_And(w, e, 0);
-    e := f(e,v,_rest);
-    e := simplify_factor_assuming(e,kb);
+    e := f(e,v,_rest,kb);
     x := `if`(v::name, v, lhs(v));
-    t := {'identical'(x),
-          'identical'(x)
-            = `if`(f='sum', 'Not(range(Not({SymbolicInfinity, undefined})))',
-                            'anything')};
-    for r in indets(e, 'specfunc(f)') do
+    g := '{sum, sum_assuming, sums}';
+    if f in g then
+      t := {'identical'(x),
+            'identical'(x) = 'Not(range(Not({SymbolicInfinity, undefined})))'};
+    else
+      g := '{int, int_assuming, ints}';
+      t := {'identical'(x),
+            'identical'(x) = 'anything'};
+      if not f in g then g := {f} end if;
+    end if;
+    for r in indets(e, 'specfunc'(g)) do
       if 1<nops(r) and op(2,r)::t then return FAIL end if
     end do;
     e
+  end proc;
+
+  int_assuming := proc(e, v::name=anything, kb::t_kb, $)
+    simplify_factor_assuming('int'(e, v), kb);
+  end proc;
+
+  sum_assuming := proc(e, v::name=anything, kb::t_kb)
+    simplify_factor_assuming('sum'(e, v), kb);
   end proc;
 
   banish := proc(g, h :: name, kb :: t_kb, levels :: extended_numeric,
