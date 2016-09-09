@@ -1083,7 +1083,7 @@ NewSLO := module ()
         return Indicator(op(1,e)) * op(2,e)
       elif nops(e) = 3 and Testzero(op(2,e)) then
         return Indicator(Not(op(1,e))) * op(3,e)
-      elif nops(3) = 3 and Testzero(op(3,e)) then
+      elif nops(e) = 3 and Testzero(op(3,e)) then
         return Indicator(op(1,e))*op(2,e)
       elif nops(e) = 4 and Testzero(op(2,e)) then
         return Indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
