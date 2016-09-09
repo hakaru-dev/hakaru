@@ -70,7 +70,7 @@ end proc:
 Loop := module ()
   option package;
   local intssums, enter_piecewise, wrap,
-        t_peel, do_peel,
+        t_peel, do_peel, do_split, do_graft, do_rebase_lower, do_rebase_upper,
         Binder, Stmt, t_binder, t_stmt, t_exp,
         ModuleLoad;
   export
@@ -392,79 +392,83 @@ Loop := module ()
   end proc;
 
   # Expand sum(a*(b-c),q) to sum(a*b,q)-sum(a*c,q)
-  split := proc(ee, $)
-    subsindets(ee, 'And(specfunc({sum,Sum}),
-                        anyfunc(And(`*`,Not(`*`(Not(`+`)))),name=anything))',
-    proc(e, $)
-      local terms, x;
-      terms := convert(expand(op(1,e), op(indets(op(1,e), function))),
-                       'list', `+`);
-      x := op([2,1],e);
-      `+`(op(map(proc(term, $)
-        local s, r;
-        s, r := selectremove(depends, convert(term, 'list', `*`), x);
-        `*`(op(r), subsop(1=`*`(op(s)),e))
-      end proc, terms)))
-    end proc)
-  end proc:
+  split := proc(e, $)
+    subsindets(e, 'And(specfunc({sum,Sum}),
+                       anyfunc(And(`*`,Not(`*`(Not(`+`)))),name=anything))',
+                  do_split);
+  end proc;
+  do_split := proc(e, $)
+    local terms, x;
+    terms := convert(expand(op(1,e), op(indets(op(1,e), function))),
+                     'list', `+`);
+    x := op([2,1],e);
+    `+`(op(map(proc(term, $)
+      local s, r;
+      s, r := selectremove(depends, convert(term, 'list', `*`), x);
+      `*`(op(r), subsop(1=`*`(op(s)),e))
+    end proc, terms)))
+  end proc;
 
   # Simplify f(lo-1)*product(f(i),i=lo..hi) to product(f(i),i=lo-1..hi)
-  graft := proc(ee, $)
-    subsindets(ee, 'Or(And(`*`,Not(`*`(Not(specfunc({product,Product}))))),
-                       And(`+`,Not(`+`(Not(specfunc({sum    ,Sum    }))))))',
-    proc(e, $)
-      local produce, factors, i, j;
-      produce := `if`(e::`*`, '{product,Product}',
-                              '{sum    ,Sum    }');
-      factors := sort(convert(e,'list'),
-                      key = (factor -> -numboccur(factor,produce)));
-      for i from nops(factors) to 2 by -1 do
-        for j from i-1 to 1 by -1 do
-          if op(j,factors) :: 'And'('specfunc'(produce),
-                                    'anyfunc(anything,name=range)') then
-            if Testzero(op(i,factors) - eval(op([j,1],factors),
-                 op([j,2,1],factors)=op([j,2,2,1],factors)-1)) then
-              factors := subsop(i=NULL,applyop(`-`,[j,2,2,1],factors,1));
-              break
-            elif Testzero(op(i,factors) - eval(op([j,1],factors),
-                   op([j,2,1],factors)=op([j,2,2,2],factors)+1)) then
-              factors := subsop(i=NULL,applyop(`+`,[j,2,2,2],factors,1));
-              break
-            end if
+  graft := proc(e, $)
+    subsindets(e, 'Or(And(`*`,Not(`*`(Not(specfunc({product,Product}))))),
+                      And(`+`,Not(`+`(Not(specfunc({sum    ,Sum    }))))))',
+                  do_graft);
+  end proc;
+  do_graft := proc(e, $)
+    local produce, factors, i, j;
+    produce := `if`(e::`*`, '{product,Product}',
+                            '{sum    ,Sum    }');
+    factors := sort(convert(e,'list'),
+                    key = (factor -> -numboccur(factor,produce)));
+    for i from nops(factors) to 2 by -1 do
+      for j from i-1 to 1 by -1 do
+        if op(j,factors) :: 'And'('specfunc'(produce),
+                                  'anyfunc(anything,name=range)') then
+          if Testzero(op(i,factors) - eval(op([j,1],factors),
+               op([j,2,1],factors)=op([j,2,2,1],factors)-1)) then
+            factors := subsop(i=NULL,applyop(`-`,[j,2,2,1],factors,1));
+            break
+          elif Testzero(op(i,factors) - eval(op([j,1],factors),
+                 op([j,2,1],factors)=op([j,2,2,2],factors)+1)) then
+            factors := subsop(i=NULL,applyop(`+`,[j,2,2,2],factors,1));
+            break
           end if
-        end do
-      end do;
-      op(0,e)(op(factors))
-    end proc)
-  end proc:
+        end if
+      end do
+    end do;
+    op(0,e)(op(factors))
+  end proc;
 
   # Normalize sum(f(i),i=2..hi) to sum(f(i+2),i=0..hi-2)
-  rebase_lower := proc(ee, $)
-    subsindets(ee, 'And(specfunc({sum,Sum,product,Product}),
-                        anyfunc(anything,
-                          name=Not({0,SymbolicInfinity,undefined})..anything))',
-    proc(e, $)
-      subsop([2,2,1]=0,
-             applyop(`-`,
-                     [2,2,2],
-                     applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,1],e)),
-                     op([2,2,1],e)))
-    end proc)
-  end proc:
+  rebase_lower := proc(e, $)
+    subsindets(e, 'And(specfunc({sum,Sum,product,Product}),
+                       anyfunc(anything,
+                         name=Not({0,SymbolicInfinity,undefined})..anything))',
+                  do_rebase_lower);
+  end proc;
+  do_rebase_lower := proc(e, $)
+    subsop([2,2,1]=0,
+           applyop(`-`,
+                   [2,2,2],
+                   applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,1],e)),
+                   op([2,2,1],e)))
+  end proc;
 
   # Normalize sum(f(i),i=lo..2) to sum(f(i+2),i=lo-2..0)
-  rebase_upper := proc(ee, $)
-    subsindets(ee, 'And(specfunc({sum,Sum,product,Product}),
-                        anyfunc(anything,
-                          name=anything..Not({0,SymbolicInfinity,undefined})))',
-    proc(e, $)
-      subsop([2,2,2]=0,
-             applyop(`-`,
-                     [2,2,1],
-                     applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,2],e)),
-                     op([2,2,2],e)))
-    end proc)
-  end proc:
+  rebase_upper := proc(e, $)
+    subsindets(e, 'And(specfunc({sum,Sum,product,Product}),
+                       anyfunc(anything,
+                         name=anything..Not({0,SymbolicInfinity,undefined})))',
+                  do_rebase_upper);
+  end proc;
+  do_rebase_upper := proc(e, $)
+    subsop([2,2,2]=0,
+           applyop(`-`,
+                   [2,2,1],
+                   applyop(eval, 1, e, op([2,1],e)=op([2,1],e)+op([2,2,2],e)),
+                   op([2,2,2],e)))
+  end proc;
 
   ModuleLoad := proc($)
     # Override csgn to work a little bit harder on piecewise and sum
