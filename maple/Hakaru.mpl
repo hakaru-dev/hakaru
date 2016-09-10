@@ -379,10 +379,10 @@ Hakaru := module ()
   #to re-express the whole as a single piecewise. In short: fewer piecewises, more 
   #branches, more complex conditions.--Carl 2016Sep09
   flatten_piecewise:= proc(PW::specfunc(piecewise))
-  local pwL:= [op(PW)], branches, conds, innerPW, outerPW, C_O, C_I, B_I;
+  local pwL:= [op(PW)], branches, conds, innerPW, outerPW, C_O, C_I, B_I, r;
      #The next statement is a heavier hammer than what's needed to deal with 
      #simply three-part piecewises, but I'm preparing for the more-general case.
-     (conds,branches):= selectremove(type, pwL, 'boolean' &under (convert, 'boolean_operator'));
+     (conds,branches):= selectremove(type, pwL, relation);
      innerPW:= indets(branches, specfunc(piecewise));
      if innerPW = {} then
           userinfo(3, procname, "No inner pw.");
@@ -411,12 +411,14 @@ Hakaru := module ()
      C_O:= op(1,outerPW);
      C_I:= map(e-> `if`(e::specfunc(piecewise), op(1,e), true), [op(2..3, outerPW)]);
      B_I:= map(e-> `if`(e::specfunc(piecewise), [op(2..3, e)], [e$2])[], [op(2..3, outerPW)]);
-     piecewise(
+     r:= %piecewise(
           And(C_O, C_I[1]), B_I[1],
-          And(C_O, negate_relation(C_I[1])), B_I[2],
-          And(negate_relation(C_O), C_I[2]), B_I[3],
+          And(C_O, KB:-negate_relation(C_I[1])), B_I[2],
+          And(KB:-negate_relation(C_O), C_I[2]), B_I[3],
           B_I[4]
-     )
+     );
+     userinfo(3, procname, "Proposed output: ", r);
+     value(r)
   end proc;  
 
   app := proc (func, argu, $)

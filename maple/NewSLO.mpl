@@ -819,6 +819,7 @@ NewSLO := module ()
       reduce_pw(simplify_factor_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
     elif e :: t_pw then
+      e:= flatten_piecewise(e);
       e := kb_piecewise(e, kb, simplify_assuming,
                         ((rhs, kb) -> %reduce(rhs, h, kb)));
       e := eval(e, %reduce=reduce);
