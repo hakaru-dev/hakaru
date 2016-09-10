@@ -323,6 +323,9 @@ KB := module ()
 
   simplify_assuming := proc(ee, kb::t_kb, $)
     local e, as;                                                         # for debugging
+    if not (indets(ee,'specfunc(applyintegrand)') = {}) then
+      WARNING("simplify_assuming called on an expression containing 'applyintegrand' -- this is probably a mistake, and could result in incorrect results");
+    end if;
     e := foldl(eval, ee, op(kb_to_equations(kb)));                         `eval`;
     as := kb_to_assumptions(kb, e);
     e := chill(e);                                                        `chill`;
