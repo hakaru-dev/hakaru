@@ -378,22 +378,29 @@ Hakaru := module ()
   #Take a piecewise: If some of the branches also contain piecewises, attempt 
   #to re-express the whole as a single piecewise. In short: fewer piecewises, more 
   #branches, more complex conditions.--Carl 2016Sep09
-  flatten_piecewise:= proc(PW::specfunc(piecewise))
-  local pwL:= [op(PW)], branches, conds, innerPW, outerPW, C_O, C_I, B_I, r;
-     #The next statement is a heavier hammer than what's needed to deal with 
-     #simply three-part piecewises, but I'm preparing for the more-general case.
-     (conds,branches):= selectremove(type, pwL, relation);
-     innerPW:= indets(branches, specfunc(piecewise));
+  flatten_piecewise:= proc(PW::specfunc(piecewise), $)::specfunc(piecewise);
+  local 
+     pwL:= [op(PW)], 
+     nP:= nops(pwL),
+     conds:= pwL[[seq(1..nP-`if`(nP::odd, 2, 0), 2)]],
+     branches:= pwL[[seq(2..nP, 2), `if`(nP::odd, nP, NULL)]],
+     innerPW:= indets(branches, specfunc(piecewise)),
+     outerPW, C_O, C_I, B_I, r
+  ;
+     if indets(conds, specfunc(piecewise)) <> {} then
+          userinfo(2, procname, "Case of inner pw in a condition not yet handled.");
+          return PW
+     end if;
      if innerPW = {} then
           userinfo(3, procname, "No inner pw.");
           return PW
      end if;
      if nops~(innerPW) <> {3} then
-          userinfo(2, procname, "Case of inner pw of more than 3 ops not yet handled.");
+          userinfo(2, procname, "Case of inner pw of other than 3 ops not yet handled.");
           return PW
      end if;
      if nops(PW) <> 3 then
-          userinfo(2, procname, "Case of outer pw of more than 3 ops not yet handled.");
+          userinfo(2, procname, "Case of outer pw of other than 3 ops not yet handled.");
           return PW
      end if;
      outerPW:= applyop(lift_piecewise, {2,3}, PW);
@@ -411,14 +418,16 @@ Hakaru := module ()
      C_O:= op(1,outerPW);
      C_I:= map(e-> `if`(e::specfunc(piecewise), op(1,e), true), [op(2..3, outerPW)]);
      B_I:= map(e-> `if`(e::specfunc(piecewise), [op(2..3, e)], [e$2])[], [op(2..3, outerPW)]);
-     r:= %piecewise(
+     #For debugging purposes, I want to show the proposed output before it's passed to
+     #piecewise.
+     r:= [
           And(C_O, C_I[1]), B_I[1],
           And(C_O, KB:-negate_relation(C_I[1])), B_I[2],
           And(KB:-negate_relation(C_O), C_I[2]), B_I[3],
           B_I[4]
-     );
-     userinfo(3, procname, "Proposed output: ", r);
-     value(r)
+     ];
+     userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
+     piecewise(r[])
   end proc;  
 
   app := proc (func, argu, $)
