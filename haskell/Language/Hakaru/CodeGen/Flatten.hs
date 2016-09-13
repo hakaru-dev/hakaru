@@ -605,31 +605,31 @@ flattenPrimOp RealPow =
      assign ident $ log1p (realPow .-. (intE 1))
      return $ CVar ident
 
-flattenPrimOp (NatPow baseT) =
-  \(a :* b :* End) ->
-  let singBase = sing_HSemiring baseT in
-  do ident <- genIdent' "pow"
-     declare singBase ident
-     aE <- flattenABT a
-     bE <- flattenABT b
-     let powerOf x y = callFuncE (varE . builtinIdent $ "pow") [x,y]
-         value = case singBase of
-                        SProb -> log1p (powerOf (expm1 aE ^+ (intConstE 1)) bE
-                                         ^- (intConstE 1))
-                        _     -> powerOf (expm1 aE ^+ (intConstE 1)) bE
-     assign ident $ value
-     return $ varE ident
+-- flattenPrimOp (NatPow baseT) =
+--   \(a :* b :* End) ->
+--   let singBase = sing_HSemiring baseT in
+--   do ident <- genIdent' "pow"
+--      declare singBase ident
+--      aE <- flattenABT a
+--      bE <- flattenABT b
+--      let powerOf x y = callFuncE (varE . builtinIdent $ "pow") [x,y]
+--          value = case singBase of
+--                         SProb -> log1p (powerOf (expm1 aE ^+ (intConstE 1)) bE
+--                                          ^- (intConstE 1))
+--                         _     -> powerOf (expm1 aE ^+ (intConstE 1)) bE
+--      assign ident $ value
+--      return $ varE ident
 
-flattenPrimOp (NatRoot _) =
-  \(a :* b :* End) ->
-  do ident <- genIdent' "root"
-     declare SProb ident
-     aE <- flattenABT a
-     bE <- flattenABT b
-     let powerOf x y = callFuncE (varE . builtinIdent $ "pow") [x,y]
-         recipBE = (intConstE 1) ^/ bE
-     assign ident $ log1p (powerOf (expm1 aE ^+ (intConstE 1)) recipBE ^- (intConstE 1))
-     return $ varE ident
+-- flattenPrimOp (NatRoot _) =
+--   \(a :* b :* End) ->
+--   do ident <- genIdent' "root"
+--      declare SProb ident
+--      aE <- flattenABT a
+--      bE <- flattenABT b
+--      let powerOf x y = callFuncE (varE . builtinIdent $ "pow") [x,y]
+--          recipBE = (intConstE 1) ^/ bE
+--      assign ident $ log1p (powerOf (expm1 aE ^+ (intConstE 1)) recipBE ^- (intConstE 1))
+--      return $ varE ident
 
 
 flattenPrimOp (Recip t) =
