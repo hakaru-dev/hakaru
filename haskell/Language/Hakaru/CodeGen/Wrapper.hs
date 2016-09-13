@@ -35,22 +35,13 @@ import           Language.Hakaru.Syntax.TypeOf (typeOf)
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.CodeGen.CodeGenMonad
 import           Language.Hakaru.CodeGen.Flatten
-import           Language.Hakaru.CodeGen.HOAS.Expression
-import           Language.Hakaru.CodeGen.HOAS.Statement
-import           Language.Hakaru.CodeGen.HOAS.Declaration
+import           Language.Hakaru.CodeGen.Types
+import           Language.Hakaru.CodeGen.AST
 import           Language.Hakaru.Types.DataKind (Hakaru(..))
-
-
-import           Language.C.Data.Ident
-import qualified Language.C.Pretty as C
-import           Language.C.Syntax.AST
 
 import           Control.Monad.State.Strict
 import           Prelude            as P hiding (unlines)
-import           Data.Text          as D
-import           Text.PrettyPrint (render)
 
-import           Data.Monoid
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative
@@ -60,20 +51,14 @@ import           Control.Applicative
 -- | Create program is the top level C codegen. Depending on the type a program
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
-wrapProgram :: TypedAST (TrivialABT Term) -> Maybe String -> Text
-wrapProgram tast@(TypedAST typ _) mn = unlines [ header typ
-                                               , unlines . mainLast . fmap cToString
-                                                 $ extdecls ]
-  where mainLast []     = []
-        mainLast (x:xs) = if D.take 10 x == "int main()"
-                          then xs <> pure x
-                          else pure x <> mainLast xs
-        (extdecls,_,_) =
+wrapProgram :: TypedAST (TrivialABT Term) -> Maybe String -> CAST
+wrapProgram tast@(TypedAST typ _) mn = CAST $ fmap CPPExt (header typ) ++ extdecls
+  where (extdecls,_,_) =
           runCodeGen $
             case (tast,mn) of
               ( TypedAST (SFun _ _) abt, Just name ) ->
                 do reserveName name
-                   flattenTopLambda abt $ builtinIdent name
+                   flattenTopLambda abt $ Ident name
 
               ( TypedAST (SFun _ _) abt, Nothing   ) ->
                 genIdent' "fn" >>= flattenTopLambda abt
@@ -81,9 +66,9 @@ wrapProgram tast@(TypedAST typ _) mn = unlines [ header typ
               ( TypedAST typ'       abt, Just name ) ->
                 do reserveName name
                    defineFunction typ'
-                                  (builtinIdent name)
+                                  (Ident name)
                                   []
-                                  (putStat . returnS =<< flattenABT abt)
+                                  (putStat . CReturn . Just =<< flattenABT abt)
 
               ( TypedAST typ'       abt, Nothing   ) ->
                 mainFunction typ' abt
@@ -91,20 +76,10 @@ wrapProgram tast@(TypedAST typ _) mn = unlines [ header typ
 
 
 ----------------------------------------------------------------
-cToString :: C.Pretty a => a -> Text
-cToString = pack . render . C.pretty
 
-
--- This should be handled in the CodeGenMonad eventually
-header :: Sing (a :: Hakaru) -> Text
-header (SMeasure _) = unlines [ "#include <time.h>"
-                              , "#include <stdlib.h>"
-                              , "#include <stdio.h>"
-                              , "#include <math.h>" ]
-header _            = unlines [ "#include <stdio.h>"
-                              , "#include <stdlib.h>"
-                              , "#include <math.h>" ]
-
+header :: Sing (a :: Hakaru) -> [Preprocessor]
+header (SMeasure _) = fmap PPInclude ["time.h", "stdlib.h", "stdio.h", "math.h"]
+header _            = fmap PPInclude ["stdlib.h", "stdio.h", "math.h"]
 
 mainFunction
   :: ABT Term abt
@@ -112,12 +87,12 @@ mainFunction
   -> abt '[] (a :: Hakaru)
   -> CodeGen ()
 mainFunction typ@(SMeasure t) abt =
-  let ident = builtinIdent "measure"
-      funId = builtinIdent "main"
+  let ident = Ident "measure"
+      funId = Ident "main"
   in  do reserveName "measure"
          reserveName "sample"
-         let body      = do putStat . returnS =<< flattenABT abt
-             sample    = builtinIdent "sample"
+         let body      = do putStat . CReturn . Just =<< flattenABT abt
+             sample    = Ident "sample"
              samplePtr = typePtrDeclaration t sample
          defineFunction typ ident [samplePtr] body
 
@@ -129,19 +104,19 @@ mainFunction typ@(SMeasure t) abt =
 
          -- insert main function
          reserveName "main"
-         printf typ (varE ident)
-         putStat . returnS $ intConstE 0
+         printf typ (CVar ident)
+         putStat . CReturn . Just $ intE 0
 
          !cg <- get
-         extDeclare . extFunc $ functionDef SInt
-                                            funId
-                                            []
-                                            (P.reverse $ declarations cg)
-                                            (P.reverse $ statements cg)
+         extDeclare . CFunDefExt $ functionDef SInt
+                                               funId
+                                               []
+                                               (P.reverse $ declarations cg)
+                                               (P.reverse $ statements cg)
 
 mainFunction typ abt =
-  let ident = builtinIdent "result"
-      funId = builtinIdent "main"
+  let ident = Ident "result"
+      funId = Ident "main"
   in  do reserveName "result"
          reserveName "main"
 
@@ -149,56 +124,58 @@ mainFunction typ abt =
          expr <- flattenABT abt
          assign ident expr
 
-         printf typ (varE ident)
-         putStat . returnS $ intConstE 0
+         printf typ (CVar ident)
+         putStat . CReturn . Just $ intE 0
 
          cg <- get
-         extDeclare . extFunc $ functionDef SInt
-                                            funId
-                                            []
-                                            (P.reverse $ declarations cg)
-                                            (P.reverse $ statements cg)
+         extDeclare . CFunDefExt $ functionDef SInt
+                                              funId
+                                              []
+                                              (P.reverse $ declarations cg)
+                                              (P.reverse $ statements cg)
 
 printf :: Sing (a :: Hakaru) -> CExpr -> CodeGen ()
 
 printf (SMeasure t) arg =
-  let sample              = varE . builtinIdent $ "sample"
-      sampleLoc           = addressE sample
+  let sample              = CVar . Ident $ "sample"
+      sampleLoc           = address sample
       stat typ@(SArray _) = do mId <- genIdent' "meas"
                                declare typ mId
-                               runCodeGenBlock (do assign mId $ callFuncE arg []
-                                                   printf typ (varE mId))
-      stat typ = return . exprS $ callFuncE (varE . builtinIdent $ "printf")
-                                            [ printfText typ "\n"
-                                            , sample ]
+                               runCodeGenBlock (do assign mId $ CCall arg []
+                                                   printf typ (CVar mId))
+      stat typ = return . CExpr . Just $ CCall (CVar . Ident $ "printf")
+                                               [ printfText typ "\n"
+                                              , sample ]
   in do s <- stat t
-        putStat . whileS (intConstE 1) $ [ exprS $ callFuncE arg [sampleLoc]
-                                         , s ]
+        putStat $ CWhile (intE 1)
+                         (CCompound . fmap CBlockStat $ [CExpr . Just $ CCall arg [sampleLoc]
+                                                        , s])
+                         False
 
 printf (SArray t)   arg =
   do iterId <- genIdent' "it"
      declare SInt iterId
-     let iter   = varE iterId
+     let iter   = CVar iterId
          result = arg
-         dataPtr = result ^! (builtinIdent "data")
-         sizeVar = result ^! (builtinIdent "size")
-         cond     = iter ^< sizeVar
-         inc      = postInc iter
-         currInd  = indirectE (dataPtr ^+ iter)
-         loopBody = do putStat . exprS $ callFuncE (varE . builtinIdent $ "printf")
-                                                   [ printfText t " ", currInd ]
+         dataPtr = CMember result (Ident "data") True
+         sizeVar = CMember result (Ident "size") True
+         cond     = iter .<. sizeVar
+         inc      = CUnary CPostIncOp iter
+         currInd  = indirect (dataPtr .+. iter)
+         loopBody = do putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
+                                                      [ printfText t " ", currInd ]
 
 
      putString "[ "
-     forCG (assignE iter (intConstE 0)) cond inc loopBody
+     forCG (iter .=. (intE 0)) cond inc loopBody
      putString "]\n"
-  where putString s = putStat . exprS $ callFuncE (varE . builtinIdent $ "printf")
-                                                  [stringE s]
+  where putString s = putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
+                                                     [stringE s]
 
 printf typ          arg =
-  putStat . exprS $ callFuncE (varE . builtinIdent $ "printf")
-                              [ printfText typ "\n"
-                              , arg ]
+  putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
+                                 [ printfText typ "\n"
+                                 , arg ]
 
 
 printfText :: Sing (a :: Hakaru) -> (String -> CExpr)
@@ -224,17 +201,17 @@ flattenTopLambda abt name =
     in  do argDecls <- sequence varMs
 
            cg <- get
-           let m       = putStat . returnS =<< flattenABT abt'
+           let m       = putStat . CReturn . Just =<< flattenABT abt'
                (_,cg') = runState m $ cg { statements = []
                                          , declarations = [] }
            put $ cg' { statements   = statements cg
                      , declarations = declarations cg }
 
-           extDeclare . extFunc $ functionDef (typeOf abt')
-                                              name
-                                              argDecls
-                                              (P.reverse $ declarations cg')
-                                              (P.reverse $ statements cg')
+           extDeclare . CFunDefExt $ functionDef (typeOf abt')
+                                                 name
+                                                 argDecls
+                                                 (P.reverse $ declarations cg')
+                                                 (P.reverse $ statements cg')
   -- do at top level
   where coalesceLambda
           :: ABT Term abt

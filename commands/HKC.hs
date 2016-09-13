@@ -8,10 +8,12 @@ import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
+import Language.Hakaru.CodeGen.Pretty       
 
 import           Control.Monad.Reader
 import           Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
+import           Text.PrettyPrint (render)       
 import           Options.Applicative
 import           System.IO
 import           System.Process
@@ -67,13 +69,16 @@ compileHakaru prog = ask >>= \config -> lift $ do
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
-          output  = wrapProgram ast' (asFunc config)
+          cast    = wrapProgram ast' (asFunc config)
+          output  = pack . render . pretty $ cast
       when (debug config) $ do
         putErrorLn hrule
         putErrorLn $ pack $ show ast
         when (optimize config) $ do
           putErrorLn hrule
           putErrorLn $ pack $ show ast'
+        putErrorLn hrule
+        putErrorLn $ pack $ show cast  
         putErrorLn hrule
       case make config of
         Nothing -> writeToFile outPath output
@@ -103,5 +108,3 @@ makeFile cc mout prog =
      case exit of
        ExitSuccess -> return ()
        _           -> error $ cc ++ " returned exit code: " ++ show exit
-
-

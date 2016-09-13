@@ -31,14 +31,8 @@ module Language.Hakaru.CodeGen.HOAS.Statement
   , gotoS
   ) where
 
-import Language.C.Syntax.AST
-import Language.C.Data.Node
-import Language.C.Data.Ident
-
 import Language.Hakaru.CodeGen.HOAS.Expression
-
-node :: NodeInfo
-node = undefNode
+import Language.Hakaru.CodeGen.AST
 
 assignS :: Ident -> CExpr -> CStat
 assignS var expr = CExpr (Just (CAssign CAssignOp

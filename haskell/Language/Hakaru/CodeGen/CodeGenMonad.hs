@@ -65,12 +65,8 @@ import Control.Applicative ((<$>))
 import Language.Hakaru.Syntax.ABT hiding (var)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.CodeGen.HOAS.Declaration
-import Language.Hakaru.CodeGen.HOAS.Statement
-
-import Language.C.Data.Ident
-import Language.C.Data.Node
-import Language.C.Syntax.AST
+import Language.Hakaru.CodeGen.Types
+import Language.Hakaru.CodeGen.AST
 
 import Data.Number.Nat (fromNat)
 import qualified Data.IntMap.Strict as IM
@@ -88,7 +84,7 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames    :: [String]
              , reservedNames :: S.Set String
-             , extDecls      :: S.Set CExtDecl
+             , extDecls      :: [CExtDecl]
              , declarations  :: [CDecl]
              , statements    :: [CStat]    -- statements can include assignments as well as other side-effects
              , varEnv        :: Env      }
@@ -101,9 +97,9 @@ type CodeGen = State CG
 runCodeGen :: CodeGen a -> ([CExtDecl],[CDecl], [CStat])
 runCodeGen m =
   let (_, cg) = runState m emptyCG
-  in  ( S.toList $ extDecls     cg
-      , reverse  $ declarations cg
-      , reverse  $ statements   cg )
+  in  ( reverse $ extDecls     cg
+      , reverse $ declarations cg
+      , reverse $ statements   cg )
 
 
 runCodeGenBlock :: CodeGen a -> CodeGen CStat
@@ -113,8 +109,8 @@ runCodeGenBlock m =
                                    , declarations = [] }
      put $ cg' { statements   = statements cg
                , declarations = declarations cg }
-     return $ (CCompound [] ((fmap CBlockDecl (reverse $ declarations cg'))
-                            ++ (fmap CBlockStmt (reverse $statements cg'))) undefNode)
+     return $ (CCompound ((fmap CBlockDecl (reverse $ declarations cg'))
+                         ++ (fmap CBlockStat (reverse $statements cg'))))
 
 
 
@@ -128,7 +124,7 @@ genIdent =
   do cg <- get
      let (freshNs,name) = pullName (freshNames cg) (reservedNames cg)
      put $ cg { freshNames = freshNs }
-     return $ builtinIdent name
+     return $ Ident name
   where pullName :: [String] -> S.Set String -> ([String],String)
         pullName (n:names) reserved =
           let name = "_" ++ n in
@@ -143,7 +139,7 @@ genIdent' s =
   do cg <- get
      let (freshNs,name) = pullName (freshNames cg) (reservedNames cg)
      put $ cg { freshNames = freshNs }
-     return $ builtinIdent name
+     return $ Ident name
   where pullName :: [String] -> S.Set String -> ([String],String)
         pullName (n:names) reserved =
           let name = s ++ "_" ++ n in
@@ -158,7 +154,7 @@ genIdent' s =
 createIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 createIdent var@(Variable name _ _) =
   do !cg <- get
-     let ident = builtinIdent $ (T.unpack name) ++ "_" ++ (head $ freshNames cg)
+     let ident = Ident $ (T.unpack name) ++ "_" ++ (head $ freshNames cg)
          env'  = updateEnv var ident (varEnv cg)
      put $! cg { freshNames = tail $ freshNames cg
                , varEnv     = env' }
@@ -197,12 +193,16 @@ putStat s = do cg <- get
                put $ cg { statements = s:(statements cg) }
 
 assign :: Ident -> CExpr -> CodeGen ()
-assign v e = putStat (assignS v e)
+assign ident e = putStat . CExpr . Just $ (CVar ident .=. e)
 
 
 extDeclare :: CExtDecl -> CodeGen ()
 extDeclare d = do cg <- get
-                  put $ cg { extDecls = d `S.insert` extDecls cg }
+                  let extds = extDecls cg
+                      extds' = if elem d extds
+                               then extds
+                               else d:extds
+                  put $ cg { extDecls = extds' }
 
 defineFunction :: Sing (a :: Hakaru) -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
 defineFunction typ ident args mbody =
@@ -211,6 +211,7 @@ defineFunction typ ident args mbody =
      !cg' <- get
      let decls = reverse . declarations $ cg'
          stmts = reverse . statements   $ cg'
+         def :: Sing (a :: Hakaru) -> CFunDef
          def SInt         = functionDef SInt  ident args decls stmts
          def SNat         = functionDef SNat  ident args decls stmts
          def SProb        = functionDef SProb ident args decls stmts
@@ -221,17 +222,7 @@ defineFunction typ ident args mbody =
      -- reset local statements and declarations
      put $ cg' { statements   = statements cg
                , declarations = declarations cg }
-     extDeclare . extFunc $ def typ
-
-
---------------------------------------------------------------------------------
--- CODE
-
-data CCode :: * where
-  CPP         :: String -> CCode
-  Statement   :: CStat  -> CCode
-  Declaration :: CDecl  -> CCode
-
+     extDeclare . CFunDefExt $ def typ
 
 ---------
 -- ENV --
@@ -257,71 +248,19 @@ lookupVar (Variable _ nat _) (Env env) =
 whileCG :: CExpr -> CodeGen () -> CodeGen ()
 whileCG bE m =
   let (_,_,stmts) = runCodeGen m
-  in putStat $ whileS bE stmts
+  in putStat $ CWhile bE (CCompound $ fmap CBlockStat stmts) False
 
 doWhileCG :: CExpr -> CodeGen () -> CodeGen ()
 doWhileCG bE m =
   let (_,_,stmts) = runCodeGen m
-  in putStat $ doWhileS bE stmts
+  in putStat $ CWhile bE (CCompound $ fmap CBlockStat stmts) True
 
 forCG :: CExpr -> CExpr -> CExpr -> CodeGen () -> CodeGen ()
 forCG iter cond inc body =
   do cg <- get
      let (_,cg') = runState body $ cg { statements = [] }
      put $ cg' { statements = statements cg }
-     putStat $ forS iter cond inc (reverse $ statements cg')
-
-
-----------------------------------------------------------------
--- Deriving Eq instances for C ASTs
-
--- this is done in this module because the CodeGen monad is the
--- only thing that cares about the uniqueness of generated code
--- Orphaned instances beware
-
-deriving instance Eq (CExternalDeclaration NodeInfo)
-deriving instance Eq (CDeclaration NodeInfo)
-deriving instance Eq (CStringLiteral NodeInfo)
-deriving instance Eq (CExpression NodeInfo)
-deriving instance Eq (CFunctionDef NodeInfo)
-deriving instance Eq (CInitializer NodeInfo)
-deriving instance Eq (CDeclarator NodeInfo)
-deriving instance Eq (CDerivedDeclarator NodeInfo)
-deriving instance Eq (CPartDesignator NodeInfo)
-deriving instance Eq (CDeclarationSpecifier NodeInfo)
-deriving instance Eq (CTypeSpecifier NodeInfo)
-deriving instance Eq (CTypeQualifier NodeInfo)
-deriving instance Eq (CAttribute NodeInfo)
-deriving instance Eq (CStatement NodeInfo)
-deriving instance Eq (CArraySize NodeInfo)
-deriving instance Eq (CStructureUnion NodeInfo)
-deriving instance Eq (CConstant NodeInfo)
-deriving instance Eq (CEnumeration NodeInfo)
-deriving instance Eq (CCompoundBlockItem NodeInfo)
-deriving instance Eq (CBuiltinThing NodeInfo)
-deriving instance Eq (CAssemblyStatement NodeInfo)
-deriving instance Eq (CAssemblyOperand NodeInfo)
-
-deriving instance Ord (CExternalDeclaration NodeInfo)
-deriving instance Ord (CDeclaration NodeInfo)
-deriving instance Ord (CStringLiteral NodeInfo)
-deriving instance Ord (CExpression NodeInfo)
-deriving instance Ord (CFunctionDef NodeInfo)
-deriving instance Ord (CInitializer NodeInfo)
-deriving instance Ord (CDeclarator NodeInfo)
-deriving instance Ord (CDerivedDeclarator NodeInfo)
-deriving instance Ord (CPartDesignator NodeInfo)
-deriving instance Ord (CDeclarationSpecifier NodeInfo)
-deriving instance Ord (CTypeSpecifier NodeInfo)
-deriving instance Ord (CTypeQualifier NodeInfo)
-deriving instance Ord (CAttribute NodeInfo)
-deriving instance Ord (CStatement NodeInfo)
-deriving instance Ord (CArraySize NodeInfo)
-deriving instance Ord (CStructureUnion NodeInfo)
-deriving instance Ord (CConstant NodeInfo)
-deriving instance Ord (CEnumeration NodeInfo)
-deriving instance Ord (CCompoundBlockItem NodeInfo)
-deriving instance Ord (CBuiltinThing NodeInfo)
-deriving instance Ord (CAssemblyStatement NodeInfo)
-deriving instance Ord (CAssemblyOperand NodeInfo)
-deriving instance Ord CStructTag
+     putStat $ CFor (Just iter)
+                    (Just cond)
+                    (Just inc)
+                    (CCompound $ fmap CBlockStat (reverse $ statements cg'))
