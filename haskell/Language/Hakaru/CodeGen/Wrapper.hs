@@ -94,7 +94,8 @@ mainFunction typ@(SMeasure t) abt =
          let body      = do putStat . CReturn . Just =<< flattenABT abt
              sample    = Ident "sample"
              samplePtr = typePtrDeclaration t sample
-         defineFunction typ ident [samplePtr] body
+         defineFunction SProb ident [samplePtr] body
+         -- defined a measure function that returns a Double
 
          declare t sample
 
