@@ -115,6 +115,80 @@ data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
         -> SArgs abt ( '(vars, a) ': args)
 ````
 
+These are combined with SCons which describes the constructor, and
+the types it expects for its arguments.
+
+````haskell
+-- | The constructor of a @(':$')@ node in the 'Term'. Each of these
+-- constructors denotes a \"normal\/standard\/basic\" syntactic
+-- form (i.e., a generalized quantifier). In the literature, these
+-- syntactic forms are sometimes called \"operators\", but we avoid
+-- calling them that so as not to introduce confusion vs 'PrimOp'
+-- etc. Instead we use the term \"operator\" to refer to any primitive
+-- function or constant; that is, non-binding syntactic forms. Also
+-- in the literature, the 'SCon' type itself is usually called the
+-- \"signature\" of the term language. However, we avoid calling
+-- it that since our 'Term' has constructors other than just @(:$)@,
+-- so 'SCon' does not give a complete signature for our terms.
+--
+-- The main reason for breaking this type out and using it in
+-- conjunction with @(':$')@ and 'SArgs' is so that we can easily
+-- pattern match on /fully saturated/ nodes. For example, we want
+-- to be able to match @MeasureOp_ Uniform :$ lo :* hi :* End@
+-- without needing to deal with 'App_' nodes nor 'viewABT'.
+data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
+    Lam_ :: SCon '[ '( '[ a ], b ) ] (a ':-> b)
+    App_ :: SCon '[ LC (a ':-> b ), LC a ] b
+    Let_ :: SCon '[ LC a, '( '[ a ], b ) ] b
+
+    CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
+    UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
+
+    PrimOp_
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(PrimOp typs a) -> SCon args a
+    ArrayOp_
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(ArrayOp typs a) -> SCon args a
+    MeasureOp_
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(MeasureOp typs a) -> SCon args ('HMeasure a)
+
+    Dirac :: SCon '[ LC a ] ('HMeasure a)
+
+    MBind :: SCon
+        '[ LC ('HMeasure a)
+        ,  '( '[ a ], 'HMeasure b)
+        ] ('HMeasure b)
+
+    Plate :: SCon
+        '[ LC 'HNat
+        , '( '[ 'HNat ], 'HMeasure a)
+        ] ('HMeasure ('HArray a))
+
+    Chain :: SCon
+        '[ LC 'HNat, LC s
+        , '( '[ s ],  'HMeasure (HPair a s))
+        ] ('HMeasure (HPair ('HArray a) s))
+
+    Integrate
+        :: SCon '[ LC 'HReal, LC 'HReal, '( '[ 'HReal ], 'HProb) ] 'HProb
+
+    Summate
+        :: HDiscrete a
+        -> HSemiring b
+        -> SCon '[ LC a, LC a, '( '[ a ], b) ] b
+
+    Product
+        :: HDiscrete a
+        -> HSemiring b
+        -> SCon '[ LC a, LC a, '( '[ a ], b) ] b
+
+    Expect :: SCon '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
+
+    Observe :: SCon '[ LC ('HMeasure a), LC a ] ('HMeasure a)
+````
+
 ## PrimOp
 
 ## MeasureOp
