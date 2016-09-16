@@ -116,7 +116,9 @@ data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
 ````
 
 These are combined with SCons which describes the constructor, and
-the types it expects for its arguments.
+the types it expects for its arguments. For example suppose we had
+an AST for a function `f` and it's argument `x`, we could construct
+a Term for applying `f` to `x` by writing `App_:$ f :* x :* End`.
 
 ````haskell
 -- | The constructor of a @(':$')@ node in the 'Term'. Each of these
@@ -188,6 +190,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
 
     Observe :: SCon '[ LC ('HMeasure a), LC a ] ('HMeasure a)
 ````
+
 
 ## PrimOp
 
