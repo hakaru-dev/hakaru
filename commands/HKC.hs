@@ -9,7 +9,7 @@ import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 import Language.Hakaru.CodeGen.CodeGenMonad
-import Language.Hakaru.CodeGen.AST       
+import Language.Hakaru.CodeGen.AST
 import Language.Hakaru.CodeGen.Pretty
 
 import           Control.Monad.Reader
@@ -75,8 +75,8 @@ compileHakaru prog = ask >>= \config -> lift $ do
                       (Just f) -> f
                       Nothing  -> "-"
           codeGen = wrapProgram ast' (asFunc config)
-          output  = pack . render . pretty . CAST
-                  $ runCodeGenWith codeGen (emptyCG {openmp = openMP config})
+          cast    = CAST $ runCodeGenWith codeGen (emptyCG {openmp = openMP config})
+          output  = pack . render . pretty $ cast
       when (debug config) $ do
         putErrorLn hrule
         putErrorLn $ pack $ show ast
@@ -84,7 +84,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
           putErrorLn hrule
           putErrorLn $ pack $ show ast'
         putErrorLn hrule
-        -- putErrorLn $ pack $ show cast
+        putErrorLn $ pack $ show cast
         putErrorLn hrule
       case make config of
         Nothing -> writeToFile outPath output

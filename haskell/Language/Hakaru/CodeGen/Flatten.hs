@@ -432,6 +432,9 @@ flattenArray arity body =
            inc      = CUnary CPostIncOp iter
            currInd  = indirect (dataPtr .+. iter)
            loopBody = putStat . CExpr . Just . CAssign CAssignOp currInd =<< flattenABT body'
+       mpB <- isOpenMP
+       when mpB . putStat . CPPStat . PPPragma
+            $ ["omp","parallel","for"]
        forCG (iter .=. (intE 0)) cond inc loopBody
 
        return (CVar arrayIdent)

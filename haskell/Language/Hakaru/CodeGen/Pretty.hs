@@ -208,10 +208,10 @@ instance Pretty CExpr where
   prettyPrec p (CBinary op e1 e2) =
     parensPrec p (-1) . hsep $ [pretty e1, pretty op, pretty e2]
   prettyPrec _ (CCast d e) = parens (pretty d) <> pretty e
-  prettyPrec _ (CUnary op e) =
+  prettyPrec p (CUnary op e) =
     if elem op [CPostIncOp,CPostDecOp]
-    then pretty e <> pretty op
-    else pretty op <> pretty e
+    then parensPrec p 1 $ prettyPrec (-1) e <> pretty op
+    else parensPrec p 1 $ pretty op <> prettyPrec (-1) e
   prettyPrec _ (CSizeOfExpr e) = text "sizeof" <> (parens . pretty $ e)
   prettyPrec _ (CSizeOfType d) = text "sizeof" <> (parens . pretty $ d)
   prettyPrec _ (CIndex arrId ie) = pretty arrId <> (brackets . pretty $ ie)
