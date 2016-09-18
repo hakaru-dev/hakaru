@@ -35,6 +35,10 @@ mpretty :: Pretty a => Maybe a -> Doc
 mpretty Nothing  = empty
 mpretty (Just x) = pretty x
 
+-- will compare two precs and put parens if the prec is lower
+parensPrec :: Int -> Int -> Doc -> Doc
+parensPrec x y = if x <= y then parens else id
+
 --------------------------------------------------------------------------------
 -- Top Level
 
@@ -72,7 +76,7 @@ instance Pretty Preprocessor where
   pretty (PPElif s) = text "#elif" <+> text s
   pretty (PPEndif s) = text "#endif" <+> text s
   pretty (PPError s) = text "#error" <+> text s
-  pretty (PPPragma ts) = text "#pragma" <+> (hsep . fmap text $ ts)
+  pretty (PPPragma ts) = char '\n' <> text "#pragma" <+> (hsep . fmap text $ ts)
 
 
 --------------------------------------------------------------------------------
@@ -170,9 +174,9 @@ instance Pretty CStat where
     lbrace $+$ (nest 2 . vcat . fmap (\b -> space <> pretty b <> space) $ bs) $+$ rbrace
 
   pretty (CIf ce thns (Just s)) =
-    text "if" <+> (pretty ce)
+    text "if" <+> (parens . pretty $ ce)
   pretty (CIf ce thns Nothing) =
-    text "if" <+> (pretty ce) $+$ pretty thns
+    text "if" <+> (parens . pretty $ ce) $+$ pretty thns
 
   pretty (CWhile ce s b) =
     if b
@@ -198,23 +202,27 @@ instance Pretty CCompoundBlockItem where
 -- CExpressions
 
 instance Pretty CExpr where
-  pretty (CComma es) = hsep . punctuate comma . fmap pretty $ es
-  pretty (CAssign op le re) = pretty le <+> pretty op <+> pretty re
-  pretty (CCond ce thn els) = pretty ce <+> text "?" <+> pretty thn <+> colon <+> pretty els
-  pretty (CBinary op e1 e2) = parens . hsep $ [pretty e1, pretty op, pretty e2]
-  pretty (CCast d e) = parens (pretty d) <> pretty e
-  pretty (CUnary op e) = pretty op <> pretty e
-  pretty (CSizeOfExpr e) = text "sizeof" <> (parens . pretty $ e)
-  pretty (CSizeOfType d) = text "sizeof" <> (parens . pretty $ d)
-  pretty (CIndex arrId ie) = pretty arrId <> (brackets . pretty $ ie)
-  pretty (CCall fune es) =
+  prettyPrec _ (CComma es) = hsep . punctuate comma . fmap pretty $ es
+  prettyPrec _ (CAssign op le re) = pretty le <+> pretty op <+> pretty re
+  prettyPrec _ (CCond ce thn els) = pretty ce <+> text "?" <+> pretty thn <+> colon <+> pretty els
+  prettyPrec p (CBinary op e1 e2) =
+    parensPrec p (-1) . hsep $ [pretty e1, pretty op, pretty e2]
+  prettyPrec _ (CCast d e) = parens (pretty d) <> pretty e
+  prettyPrec _ (CUnary op e) =
+    if elem op [CPostIncOp,CPostDecOp]
+    then pretty e <> pretty op
+    else pretty op <> pretty e
+  prettyPrec _ (CSizeOfExpr e) = text "sizeof" <> (parens . pretty $ e)
+  prettyPrec _ (CSizeOfType d) = text "sizeof" <> (parens . pretty $ d)
+  prettyPrec _ (CIndex arrId ie) = pretty arrId <> (brackets . pretty $ ie)
+  prettyPrec _ (CCall fune es) =
     pretty fune <> (parens . hcat . punctuate comma . fmap pretty $ es)
-  pretty (CMember ve memId isPtr) =
+  prettyPrec _ (CMember ve memId isPtr) =
     let op = text $ if isPtr then "." else "->"
     in  pretty ve <> op <> pretty memId
-  pretty (CVar varId) = pretty varId
-  pretty (CConstant c) = pretty c
-  pretty (CCompoundLit d init) = parens (pretty d) <> pretty init
+  prettyPrec _ (CVar varId) = pretty varId
+  prettyPrec _ (CConstant c) = pretty c
+  prettyPrec _ (CCompoundLit d init) = parens (pretty d) <> pretty init
 
 
 instance Pretty CAssignOp where
