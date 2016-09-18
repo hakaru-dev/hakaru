@@ -195,9 +195,11 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
           let accVar  = CVar accI
               iterVar = CVar iterI
           -- logSumExp for probabilities
+          mpB <- isOpenMP
+          when mpB . putStat . CPPStat . PPPragma $ ["omp","parallel","for","reduction(+:acc)"]
           forCG (iterVar .=. loE) (iterVar .<. hiE) (CUnary CPostIncOp iterVar) $
             do bodyE <- flattenABT body'
-               assign accI (accVar .+. bodyE)
+               putStat . CExpr . Just $ (accVar .+=. bodyE)
 
           return accVar
 
@@ -215,9 +217,11 @@ flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
 
           let accVar  = CVar accI
               iterVar = CVar iterI
+          mpB <- isOpenMP  
+          when mpB . putStat . CPPStat . PPPragma $ ["omp","parallel","for","reduction(*:acc)"]  
           forCG (iterVar .=. loE) (iterVar .<. hiE) (CUnary CPostIncOp iterVar) $
             do bodyE <- flattenABT body'
-               assign accI (accVar .*. bodyE)
+               putStat . CExpr . Just $ (accVar .*=. bodyE)
 
           return accVar
 

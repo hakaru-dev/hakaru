@@ -8,12 +8,14 @@ import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
-import Language.Hakaru.CodeGen.Pretty       
+import Language.Hakaru.CodeGen.CodeGenMonad
+import Language.Hakaru.CodeGen.AST       
+import Language.Hakaru.CodeGen.Pretty
 
 import           Control.Monad.Reader
 import           Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
-import           Text.PrettyPrint (render)       
+import           Text.PrettyPrint (render)
 import           Options.Applicative
 import           System.IO
 import           System.Process
@@ -28,6 +30,7 @@ data Options =
          , asFunc   :: Maybe String
          , fileIn   :: String
          , fileOut  :: Maybe String
+         , openMP   :: Bool
          } deriving Show
 
 
@@ -53,6 +56,8 @@ options = Options
                             <> help "Compiles to a sampling C function with the name ARG" ))
   <*> strArgument (metavar "INPUT" <> help "Program to be compiled")
   <*> (optional $ strOption (short 'o' <> metavar "OUTPUT" <> help "output FILE"))
+  <*> switch ( long "openmp"
+             <> help "Generates programs with OpenMP supported C")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -69,8 +74,9 @@ compileHakaru prog = ask >>= \config -> lift $ do
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
-          cast    = wrapProgram ast' (asFunc config)
-          output  = pack . render . pretty $ cast
+          codeGen = wrapProgram ast' (asFunc config)
+          output  = pack . render . pretty . CAST
+                  $ runCodeGenWith codeGen (emptyCG {openmp = openMP config})
       when (debug config) $ do
         putErrorLn hrule
         putErrorLn $ pack $ show ast
@@ -78,7 +84,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
           putErrorLn hrule
           putErrorLn $ pack $ show ast'
         putErrorLn hrule
-        putErrorLn $ pack $ show cast  
+        -- putErrorLn $ pack $ show cast
         putErrorLn hrule
       case make config of
         Nothing -> writeToFile outPath output

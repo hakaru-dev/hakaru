@@ -30,6 +30,8 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
   , CG(..)
   , runCodeGen
+  , runCodeGenBlock
+  , runCodeGenWith
   , emptyCG
 
   -- codegen effects
@@ -39,7 +41,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , putStat
   , extDeclare
   , defineFunction
-  , runCodeGenBlock
+  , isOpenMP
 
   , reserveName
   , genIdent
@@ -82,15 +84,17 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
 
 
 -- CG after "codegen", holds the state of a codegen computation
-data CG = CG { freshNames    :: [String]
-             , reservedNames :: S.Set String
-             , extDecls      :: [CExtDecl]
-             , declarations  :: [CDecl]
-             , statements    :: [CStat]    -- statements can include assignments as well as other side-effects
-             , varEnv        :: Env      }
+data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generations
+             , reservedNames :: S.Set String -- ^ reserve names during code generations
+             , extDecls      :: [CExtDecl]   -- ^ total external declarations
+             , declarations  :: [CDecl]      -- ^ declarations in local block
+             , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
+             , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
+             , openmp        :: Bool         -- ^ openMP supported block
+             }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty mempty [] [] emptyEnv
+emptyCG = CG suffixes mempty mempty [] [] emptyEnv False
 
 type CodeGen = State CG
 
@@ -111,6 +115,13 @@ runCodeGenBlock m =
                , declarations = declarations cg }
      return $ (CCompound ((fmap CBlockDecl (reverse $ declarations cg'))
                          ++ (fmap CBlockStat (reverse $statements cg'))))
+
+runCodeGenWith :: CodeGen a -> CG -> [CExtDecl]
+runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls cg'
+  
+
+isOpenMP :: CodeGen Bool
+isOpenMP = openmp <$> get         
 
 
 

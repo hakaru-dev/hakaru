@@ -51,27 +51,28 @@ import           Control.Applicative
 -- | Create program is the top level C codegen. Depending on the type a program
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
-wrapProgram :: TypedAST (TrivialABT Term) -> Maybe String -> CAST
-wrapProgram tast@(TypedAST typ _) mn = CAST $ fmap CPPExt (header typ) ++ extdecls
-  where (extdecls,_,_) =
-          runCodeGen $
-            case (tast,mn) of
-              ( TypedAST (SFun _ _) abt, Just name ) ->
-                do reserveName name
-                   flattenTopLambda abt $ Ident name
+wrapProgram :: TypedAST (TrivialABT Term) -> Maybe String -> CodeGen ()
+wrapProgram tast@(TypedAST typ _) mn =
+  do sequence_ . fmap (extDeclare . CPPExt) . header $ typ
+     baseCG
+     return ()
+  where baseCG = case (tast,mn) of
+               ( TypedAST (SFun _ _) abt, Just name ) ->
+                 do reserveName name
+                    flattenTopLambda abt $ Ident name
 
-              ( TypedAST (SFun _ _) abt, Nothing   ) ->
-                genIdent' "fn" >>= flattenTopLambda abt
+               ( TypedAST (SFun _ _) abt, Nothing   ) ->
+                 genIdent' "fn" >>= flattenTopLambda abt
 
-              ( TypedAST typ'       abt, Just name ) ->
-                do reserveName name
-                   defineFunction typ'
-                                  (Ident name)
-                                  []
-                                  (putStat . CReturn . Just =<< flattenABT abt)
+               ( TypedAST typ'       abt, Just name ) ->
+                 do reserveName name
+                    defineFunction typ'
+                                   (Ident name)
+                                   []
+                                   (putStat . CReturn . Just =<< flattenABT abt)
 
-              ( TypedAST typ'       abt, Nothing   ) ->
-                mainFunction typ' abt
+               ( TypedAST typ'       abt, Nothing   ) ->
+                 mainFunction typ' abt
 
 
 

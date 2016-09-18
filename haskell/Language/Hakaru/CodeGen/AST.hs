@@ -28,6 +28,7 @@ module Language.Hakaru.CodeGen.AST
 
   -- infix and smart constructors
   , (.>.), (.<.), (.==.), (.||.), (.&&.), (.*.), (./.), (.-.), (.+.), (.=.)
+  , (.+=.),(.*=.)
   , indirect, address, intE, floatE, stringE, mkUnary
   , exp, expm1, log, log1p, sqrt, rand
   ) where
@@ -275,7 +276,7 @@ data CConst
 --------------------------------------------------------------------------------
 -- Infix and Smart Constructors
 
-(.<.),(.>.),(.==.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.)
+(.<.),(.>.),(.==.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.)
   :: CExpr -> CExpr -> CExpr
 a .<. b  = CBinary CLeOp a b
 a .>. b  = CBinary CGrOp a b
@@ -287,6 +288,8 @@ a ./. b  = CBinary CDivOp a b
 a .-. b  = CBinary CSubOp a b
 a .+. b  = CBinary CAddOp a b
 a .=. b  = CAssign CAssignOp a b
+a .+=. b  = CAssign CAddAssOp a b
+a .*=. b  = CAssign CMulAssOp a b
 
 indirect, address :: CExpr -> CExpr
 indirect = CUnary CIndOp
