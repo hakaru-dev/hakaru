@@ -78,9 +78,9 @@ Library
                        Language.Hakaru.CodeGen.Wrapper,
                        Language.Hakaru.CodeGen.Flatten,
                        Language.Hakaru.CodeGen.CodeGenMonad,
-                       Language.Hakaru.CodeGen.HOAS.Expression,
-                       Language.Hakaru.CodeGen.HOAS.Declaration,
-                       Language.Hakaru.CodeGen.HOAS.Statement,
+                       Language.Hakaru.CodeGen.Types,
+                       Language.Hakaru.CodeGen.AST,
+                       Language.Hakaru.CodeGen.Pretty,
                        Data.Number.Nat,
                        Data.Number.Natural
 
@@ -107,8 +107,7 @@ Library
                        process            >= 1.1  && < 2.0,
                        HUnit              >= 1.2  && < 2.0,
                        mtl                >= 2.1,
-                       filepath           >= 1.1.0.2,
-                       language-c         >= 0.4
+                       filepath           >= 1.1.0.2
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite

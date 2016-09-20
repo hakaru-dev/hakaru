@@ -8,10 +8,14 @@ import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
+import Language.Hakaru.CodeGen.CodeGenMonad
+import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.Pretty
 
 import           Control.Monad.Reader
 import           Data.Text hiding (any,map,filter)
 import qualified Data.Text.IO as IO
+import           Text.PrettyPrint (render)
 import           Options.Applicative
 import           System.IO
 import           System.Process
@@ -26,6 +30,7 @@ data Options =
          , asFunc   :: Maybe String
          , fileIn   :: String
          , fileOut  :: Maybe String
+         , openMP   :: Bool
          } deriving Show
 
 
@@ -51,6 +56,8 @@ options = Options
                             <> help "Compiles to a sampling C function with the name ARG" ))
   <*> strArgument (metavar "INPUT" <> help "Program to be compiled")
   <*> (optional $ strOption (short 'o' <> metavar "OUTPUT" <> help "output FILE"))
+  <*> switch ( long "openmp"
+             <> help "Generates programs with OpenMP supported C")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -67,13 +74,17 @@ compileHakaru prog = ask >>= \config -> lift $ do
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
-          output  = wrapProgram ast' (asFunc config)
+          codeGen = wrapProgram ast' (asFunc config)
+          cast    = CAST $ runCodeGenWith codeGen (emptyCG {openmp = openMP config})
+          output  = pack . render . pretty $ cast
       when (debug config) $ do
         putErrorLn hrule
         putErrorLn $ pack $ show ast
         when (optimize config) $ do
           putErrorLn hrule
           putErrorLn $ pack $ show ast'
+        putErrorLn hrule
+        putErrorLn $ pack $ show cast
         putErrorLn hrule
       case make config of
         Nothing -> writeToFile outPath output
@@ -103,5 +114,3 @@ makeFile cc mout prog =
      case exit of
        ExitSuccess -> return ()
        _           -> error $ cc ++ " returned exit code: " ++ show exit
-
-
