@@ -28,6 +28,7 @@
 
 module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
+  , Sample(..)
   , CG(..)
   , runCodeGen
   , runCodeGenBlock
@@ -41,6 +42,8 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , putStat
   , extDeclare
   , defineFunction
+  , getSample
+  , putSample
   , isOpenMP
 
   , reserveName
@@ -82,6 +85,7 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
         names = [[x] | x <- base] `mplus` (do n <- names
                                               [n++[x] | x <- base])
 
+data Sample = Sample Ident CExpr
 
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generations
@@ -90,11 +94,12 @@ data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generatio
              , declarations  :: [CDecl]      -- ^ declarations in local block
              , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
              , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
+             , sample        :: Maybe Sample -- ^ location of the sample, only if in a measure
              , openmp        :: Bool         -- ^ openMP supported block
              }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty mempty [] [] emptyEnv False
+emptyCG = CG suffixes mempty mempty [] [] emptyEnv Nothing False
 
 type CodeGen = State CG
 
@@ -112,18 +117,31 @@ runCodeGenBlock m =
      let (_,cg') = runState m $ cg { statements = []
                                    , declarations = [] }
      put $ cg' { statements   = statements cg
-               , declarations = declarations cg }
-     return $ (CCompound ((fmap CBlockDecl (reverse $ declarations cg'))
-                         ++ (fmap CBlockStat (reverse $statements cg'))))
+               , declarations = declarations cg' ++ declarations cg
+               }
+     return . CCompound . fmap CBlockStat . reverse . statements $ cg'
 
 runCodeGenWith :: CodeGen a -> CG -> [CExtDecl]
 runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls cg'
-  
+
+--------------------------------------------------------------------------------
+-- The sample side effect is only used in Measures
+
+getSample :: CodeGen Sample
+getSample =
+  do msi <- sample <$> get
+     case msi of
+       Nothing    -> error "getSample: sample never set"
+       Just x -> return x
+
+putSample :: Sample -> CodeGen ()
+putSample s = get >>= \cg -> put (cg {sample = Just s})
+
+
+--------------------------------------------------------------------------------
 
 isOpenMP :: CodeGen Bool
-isOpenMP = openmp <$> get         
-
-
+isOpenMP = openmp <$> get
 
 reserveName :: String -> CodeGen ()
 reserveName s =

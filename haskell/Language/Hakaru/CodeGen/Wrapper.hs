@@ -57,12 +57,22 @@ wrapProgram tast@(TypedAST typ _) mn =
      baseCG
      return ()
   where baseCG = case (tast,mn) of
-               ( TypedAST (SFun _ _) abt, Just name ) ->
+               ( TypedAST (SFun _ retT) abt, Just name ) ->
                  do reserveName name
-                    flattenTopLambda abt $ Ident name
+                    case retT of
+                      SMeasure _ -> do reserveName "sample"
+                                       putSample (Sample (Ident "sample") undefined)
+                                       flattenTopLambda abt $ Ident name
+                      _          -> flattenTopLambda abt $ Ident name
 
-               ( TypedAST (SFun _ _) abt, Nothing   ) ->
-                 genIdent' "fn" >>= flattenTopLambda abt
+               ( TypedAST (SFun _ retT) abt, Nothing   ) ->
+                 genIdent' "fn" >>= \name ->
+                   case retT of
+                     SMeasure _ -> do reserveName "sample"
+                                      putSample (Sample (Ident "sample") undefined)
+                                      flattenTopLambda abt name
+                     _          -> flattenTopLambda abt name
+
 
                ( TypedAST typ'       abt, Just name ) ->
                  do reserveName name
@@ -91,22 +101,28 @@ mainFunction typ@(SMeasure t) abt =
   let ident = Ident "measure"
       funId = Ident "main"
   in  do reserveName "measure"
-         reserveName "sample"
-         let body      = do putStat . CReturn . Just =<< flattenABT abt
-             sample    = Ident "sample"
-             samplePtr = typePtrDeclaration t sample
-         defineFunction SProb ident [samplePtr] body
+         sampleId <- genIdent' "s"
+         let samplePtr = typePtrDeclaration t sampleId
+         putSample $ Sample sampleId (undefined :: CExpr)
+
          -- defined a measure function that returns a Double
+         defineFunction SProb ident [samplePtr]
+           $ do wE <- flattenABT abt
+                (Sample i sE) <- getSample
+                putStat . CExpr . Just $ (indirect . CVar $ i) .=. sE
+                putStat . CReturn . Just $ wE
 
-         declare t sample
-
-         -- need to set seed
+         -- need to set seed?
          -- srand(time(NULL));
 
-
-         -- insert main function
+         -- main function
          reserveName "main"
+
+         -- get a place to return a sample
+         reserveName "sample"
+         declare t (Ident "sample")
          printf typ (CVar ident)
+
          putStat . CReturn . Just $ intE 0
 
          !cg <- get
@@ -139,20 +155,31 @@ mainFunction typ abt =
 printf :: Sing (a :: Hakaru) -> CExpr -> CodeGen ()
 
 printf (SMeasure t) arg =
-  let sample              = CVar . Ident $ "sample"
-      sampleLoc           = address sample
-      stat typ@(SArray _) = do mId <- genIdent' "meas"
-                               declare typ mId
-                               runCodeGenBlock (do assign mId $ CCall arg []
-                                                   printf typ (CVar mId))
-      stat typ = return . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                               [ printfText typ "\n"
-                                              , sample ]
-  in do s <- stat t
-        putStat $ CWhile (intE 1)
-                         (CCompound . fmap CBlockStat $ [CExpr . Just $ CCall arg [sampleLoc]
-                                                        , s])
-                         False
+  let sampleE              = CVar . Ident $ "sample"
+      sampleELoc           = address sampleE
+
+  in  case t of
+        (SArray _) -> do mId <- genIdent' "plate"
+                         declare t mId
+                         s <- runCodeGenBlock $ printf t (CVar mId)
+                         mpB <- isOpenMP
+                         when mpB . putStat . CPPStat . PPPragma
+                           $ ["omp","parallel","for"]
+                         putStat $ CFor Nothing Nothing Nothing
+                                     $ CCompound . fmap CBlockStat
+                                        $ [ CExpr . Just $ CCall arg [sampleELoc]
+                                          , s ]
+
+        _ -> do -- Need to have space for #NUMTHREADS samples
+                -- mpB <- isOpenMP
+                -- when mpB . putStat . CPPStat . PPPragma
+                --   $ ["omp","parallel","for"]
+                putStat $ CFor Nothing Nothing Nothing
+                            $ CCompound . fmap CBlockStat
+                                $ [ CExpr . Just $ CCall arg [sampleELoc]
+                                  , CExpr . Just $ CCall (CVar . Ident $ "printf")
+                                                         [ printfText t "\n"
+                                                         , sampleE ]]
 
 printf (SArray t)   arg =
   do iterId <- genIdent' "it"
@@ -200,20 +227,31 @@ flattenTopLambda
 flattenTopLambda abt name =
     coalesceLambda abt $ \vars abt' ->
     let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+        typ   = typeOf abt'
     in  do argDecls <- sequence varMs
-
            cg <- get
-           let m       = putStat . CReturn . Just =<< flattenABT abt'
-               (_,cg') = runState m $ cg { statements = []
-                                         , declarations = [] }
-           put $ cg' { statements   = statements cg
-                     , declarations = declarations cg }
 
-           extDeclare . CFunDefExt $ functionDef (typeOf abt')
-                                                 name
-                                                 argDecls
-                                                 (P.reverse $ declarations cg')
-                                                 (P.reverse $ statements cg')
+           case typ of
+             SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
+                                  (_,cg') = runState m $ cg { statements = []
+                                                            , declarations = [] }
+                              put $ cg' { statements   = statements cg
+                                        , declarations = declarations cg }
+                              extDeclare . CFunDefExt
+                                $ functionDef typ name
+                                                  argDecls
+                                                  (P.reverse $ declarations cg')
+                                                  (P.reverse $ statements cg')
+             _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
+                         (_,cg') = runState m $ cg { statements = []
+                                                   , declarations = [] }
+                     put $ cg' { statements   = statements cg
+                               , declarations = declarations cg }
+                     extDeclare . CFunDefExt
+                       $ functionDef typ name
+                                         argDecls
+                                         (P.reverse $ declarations cg')
+                                         (P.reverse $ statements cg')
   -- do at top level
   where coalesceLambda
           :: ABT Term abt

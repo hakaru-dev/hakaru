@@ -147,10 +147,12 @@ flattenSCon (PrimOp_ op)    = flattenPrimOp op
 flattenSCon (ArrayOp_ op)   = flattenArrayOp op
 flattenSCon (MeasureOp_ op) = flattenMeasureOp op
 flattenSCon Dirac           = \(e :* End) ->
-  let sample = Ident "sample"
-  in  do e' <- flattenABT e
-         putStat . CExpr . Just $ (indirect . CVar $ sample) .=. e'
-         return (intE 0)
+  do e' <- flattenABT e
+     (Sample sampleId _) <- getSample
+     putSample (Sample sampleId e')
+     return (intE 0)
+
+
 flattenSCon Plate           = \(size :* b :* End) ->
   caseBind b $ \v body ->
     do let arrTyp = sUnMeasure . typeOf $ body
@@ -178,10 +180,14 @@ flattenSCon Plate           = \(size :* b :* End) ->
            cond     = iter .<. arity
            inc      = CUnary CPostIncOp iter
            currInd  = indirect (dataPtr .+. iter)
-           loopBody = putStat . CExpr . Just . CAssign CAssignOp currInd =<< flattenABT body
+           loopBody = do _ <- flattenABT body
+                         (Sample _ e) <- getSample
+                         putStat . CExpr . Just $ currInd .=. e
        forCG (iter .=. (intE 0)) cond inc loopBody
 
-       return (CVar arrayIdent)
+       (Sample i _) <- getSample
+       putSample (Sample i (indirect arrVar))
+       return (intE 0)
 
 
 flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
@@ -730,11 +736,10 @@ flattenMeasureOp Normal  = \(a :* b :* End) ->
      declare SReal cId
      assign cId $ sqrt ((mkUnary "-" (intE 2)) .*. (log varR ./. varR))
      let varC = CVar cId
-
-     let sample = Ident "sample"
          value  = a' .+. (varU .*. (varC .*. ((expm1 b') .+. (intE 1))))
 
-     putStat . CExpr . Just $ (indirect . CVar $ sample) .=. value
+     (Sample sampleId _) <- getSample
+     putSample (Sample sampleId value)
      return (intE 0)
 
 flattenMeasureOp Uniform = \(a :* b :* End) ->
@@ -742,9 +747,9 @@ flattenMeasureOp Uniform = \(a :* b :* End) ->
      b' <- flattenABT b
      let r      = CCast doubleDecl rand
          rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
-         sample = Ident "sample"
          value  = (a' .+. ((r ./. rMax) .*. (b' .-. a')))
-     putStat . CExpr . Just $ (indirect . CVar $ sample) .=. value
+     (Sample sampleId _) <- getSample
+     putSample (Sample sampleId value)
      return (intE 0)
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
 
@@ -789,18 +794,22 @@ flattenSuperpose wes =
 
           -- try the first element
           assign iterId (head weights)
-          stat <- runCodeGenBlock (do m' <- flattenABT (snd . head $ wes')
-                                      assign outId m'
+          stat <- runCodeGenBlock (do _ <- flattenABT (snd . head $ wes')
+                                      (Sample _ e) <- getSample -- toss weight
+                                      assign outId e
                                       putStat $ CGoto outLabel)
           putStat $ CIf (rVar .<. (exp iter)) stat Nothing
 
 
           forM_ (zip (tail weights) (fmap snd (tail wes'))) $ \(e,m) ->
             do assign iterId $ logSumExp $ S.fromList [iter, e]
-               stat <- runCodeGenBlock (do m' <- flattenABT m
-                                           assign outId m'
+               stat <- runCodeGenBlock (do _ <- flattenABT m -- toss weight
+                                           (Sample _ e) <- getSample
+                                           assign outId e
                                            putStat $ CGoto outLabel)
                putStat $ CIf (rVar .<. (exp iter)) stat Nothing
 
           putStat $ CLabel outLabel (CExpr Nothing)
+          (Sample s _) <- getSample
+          putSample (Sample s (CVar outId))
           return weightSum

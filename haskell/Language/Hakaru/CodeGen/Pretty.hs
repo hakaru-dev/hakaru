@@ -39,6 +39,9 @@ mpretty (Just x) = pretty x
 parensPrec :: Int -> Int -> Doc -> Doc
 parensPrec x y = if x <= y then parens else id
 
+newline :: Doc
+newline = char '\n'
+
 --------------------------------------------------------------------------------
 -- Top Level
 
@@ -46,11 +49,11 @@ instance Pretty Ident where
   pretty (Ident i) = text i
 
 instance Pretty CAST where
-  pretty (CAST extdecls) = (vcat . fmap pretty $ extdecls) $$ char '\n'
+  pretty (CAST extdecls) = (vcat . fmap pretty $ extdecls) $$ newline
 
 instance Pretty CExtDecl where
-  pretty (CDeclExt d) = pretty d <> semi
-  pretty (CFunDefExt f) = pretty f
+  pretty (CDeclExt d) =  newline <> pretty d <> semi
+  pretty (CFunDefExt f) = newline <> pretty f
   pretty (CCommentExt s) = text "/*" <+> text s <+> text "*/"
   pretty (CPPExt p) = pretty p
 
@@ -76,7 +79,7 @@ instance Pretty Preprocessor where
   pretty (PPElif s) = text "#elif" <+> text s
   pretty (PPEndif s) = text "#endif" <+> text s
   pretty (PPError s) = text "#error" <+> text s
-  pretty (PPPragma ts) = char '\n' <> text "#pragma" <+> (hsep . fmap text $ ts)
+  pretty (PPPragma ts) = newline <> text "#pragma" <+> (hsep . fmap text $ ts)
 
 
 --------------------------------------------------------------------------------
@@ -174,9 +177,9 @@ instance Pretty CStat where
     lbrace $+$ (nest 2 . vcat . fmap (\b -> space <> pretty b <> space) $ bs) $+$ rbrace
 
   pretty (CIf ce thns (Just s)) =
-    text "if" <+> (parens . pretty $ ce)
+    text "if" <+> (prettyPrec (-5) ce)
   pretty (CIf ce thns Nothing) =
-    text "if" <+> (parens . pretty $ ce) $+$ pretty thns
+    text "if" <+> (prettyPrec (-5) ce) $+$ pretty thns
 
   pretty (CWhile ce s b) =
     if b
@@ -187,6 +190,7 @@ instance Pretty CStat where
     text "for"
     <+> (parens . hsep . punctuate semi . fmap mpretty $ [me,mce,mie])
     $$  pretty s
+
   pretty CCont = text "continue" <> semi
   pretty CBreak = text "break" <> semi
   pretty (CReturn me) = text "return" <+> mpretty me  <> semi
@@ -203,15 +207,17 @@ instance Pretty CCompoundBlockItem where
 
 instance Pretty CExpr where
   prettyPrec _ (CComma es) = hsep . punctuate comma . fmap pretty $ es
-  prettyPrec _ (CAssign op le re) = pretty le <+> pretty op <+> pretty re
+  prettyPrec p (CAssign op le re) = pretty le <+> pretty op <+> pretty re
   prettyPrec _ (CCond ce thn els) = pretty ce <+> text "?" <+> pretty thn <+> colon <+> pretty els
   prettyPrec p (CBinary op e1 e2) =
-    parensPrec p (-1) . hsep $ [pretty e1, pretty op, pretty e2]
-  prettyPrec _ (CCast d e) = parens (pretty d) <> pretty e
+    parensPrec p 0 . hsep $ [pretty e1, pretty op, pretty e2]
+  prettyPrec p (CCast d e) =
+    parensPrec p (2) $ parens (pretty d) <> pretty e
   prettyPrec p (CUnary op e) =
     if elem op [CPostIncOp,CPostDecOp]
-    then parensPrec p 1 $ prettyPrec (-1) e <> pretty op
-    else parensPrec p 1 $ pretty op <> prettyPrec (-1) e
+    then parensPrec p (-1) $ prettyPrec (-1) e <> pretty op
+    else parensPrec p (-1) $ pretty op <> prettyPrec (-1) e
+
   prettyPrec _ (CSizeOfExpr e) = text "sizeof" <> (parens . pretty $ e)
   prettyPrec _ (CSizeOfType d) = text "sizeof" <> (parens . pretty $ d)
   prettyPrec _ (CIndex arrId ie) = pretty arrId <> (brackets . pretty $ ie)
