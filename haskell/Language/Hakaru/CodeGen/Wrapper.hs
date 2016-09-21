@@ -100,8 +100,12 @@ mainFunction
 mainFunction typ@(SMeasure t) abt =
   let ident = Ident "measure"
       funId = Ident "main"
+      isArray = isSArray t 
   in  do reserveName "measure"
          sampleId <- genIdent' "s"
+
+         when isArray . extDeclare . mkArrayStruct $ t
+
          let samplePtr = typePtrDeclaration t sampleId
          putSample $ Sample sampleId (undefined :: CExpr)
 
@@ -109,7 +113,8 @@ mainFunction typ@(SMeasure t) abt =
          defineFunction SProb ident [samplePtr]
            $ do wE <- flattenABT abt
                 (Sample i sE) <- getSample
-                putStat . CExpr . Just $ (indirect . CVar $ i) .=. sE
+                unless isArray
+                  $ putStat . CExpr . Just $ (indirect . CVar $ i) .=. sE
                 putStat . CReturn . Just $ wE
 
          -- need to set seed?
@@ -121,8 +126,22 @@ mainFunction typ@(SMeasure t) abt =
          -- get a place to return a sample
          reserveName "sample"
          declare t (Ident "sample")
-         printf typ (CVar ident)
 
+         -- if it is a plate then allocate space here
+         when isArray $
+           do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
+              aE <- flattenABT arityABT
+              let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
+                  size    = CMember (CVar . Ident $ "sample") (Ident "size") True  
+                  innerType = getArrayType t
+                  mallocCall = CCast (mkPtrDecl innerType)
+                                     (mkUnary "malloc"
+                                       (aE .*. (CSizeOfType . mkDecl $ innerType)))
+              putStat . CExpr . Just $ size .=. aE
+              putStat . CExpr . Just $ dataPtr .=. mallocCall
+
+
+         printf typ (CVar ident)
          putStat . CReturn . Just $ intE 0
 
          !cg <- get
@@ -131,6 +150,18 @@ mainFunction typ@(SMeasure t) abt =
                                                []
                                                (P.reverse $ declarations cg)
                                                (P.reverse $ statements cg)
+  where isSArray (SArray _) = True
+        isSArray _          = False
+        mkArrayStruct :: Sing (a :: Hakaru) -> CExtDecl
+        mkArrayStruct (SArray t) = arrayStruct t
+        mkArrayStruct _          = error "Not Array"
+        getArrayType :: Sing (b :: Hakaru) -> CTypeSpec
+        getArrayType (SArray t) = buildType t
+        getArrayType _          = error "Not Array"  
+        getPlateArity :: ABT Term abt => Term abt a -> abt '[] 'HNat
+        getPlateArity (Plate :$ arity :* _ :* End) = arity
+        getPlateArity _ = error "mainFunction not a plate"
+        
 
 mainFunction typ abt =
   let ident = Ident "result"
@@ -159,16 +190,12 @@ printf (SMeasure t) arg =
       sampleELoc           = address sampleE
 
   in  case t of
-        (SArray _) -> do mId <- genIdent' "plate"
-                         declare t mId
-                         s <- runCodeGenBlock $ printf t (CVar mId)
+        (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ CCall arg [sampleELoc]
+                                                   printf t sampleE
                          mpB <- isOpenMP
                          when mpB . putStat . CPPStat . PPPragma
                            $ ["omp","parallel","for"]
-                         putStat $ CFor Nothing Nothing Nothing
-                                     $ CCompound . fmap CBlockStat
-                                        $ [ CExpr . Just $ CCall arg [sampleELoc]
-                                          , s ]
+                         putStat $ CFor Nothing Nothing Nothing s
 
         _ -> do -- Need to have space for #NUMTHREADS samples
                 -- mpB <- isOpenMP

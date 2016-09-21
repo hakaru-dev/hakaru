@@ -25,7 +25,9 @@
 
 
 module Language.Hakaru.CodeGen.Flatten
-  ( flattenABT )
+  ( flattenABT
+  , flattenVar
+  , flattenTerm )
   where
 
 import Language.Hakaru.CodeGen.CodeGenMonad
@@ -155,38 +157,21 @@ flattenSCon Dirac           = \(e :* End) ->
 
 flattenSCon Plate           = \(size :* b :* End) ->
   caseBind b $ \v body ->
-    do let arrTyp = sUnMeasure . typeOf $ body
-       arrayIdent <- genIdent' "plate"
-       declare (SArray arrTyp) arrayIdent
-
-       arity <- flattenABT size
-
-       let arrVar  = CVar arrayIdent
-           dataPtr = CMember arrVar (Ident "data") True
-           sizeVar = CMember arrVar (Ident "size") True
-           dataTyp = buildType arrTyp -- this should be a literal type (unless we can have an array of measures)
-       putStat . CExpr . Just $ sizeVar .=. arity
-
-       -- setup loop
-       putStat . CExpr . Just $ dataPtr .=. (CCast (mkPtrDecl dataTyp)
-                                                   (mkUnary "malloc"
-                                                            (arity .*. (CSizeOfType . mkDecl $ dataTyp))))
-
+    do arity <- flattenABT size
        iterIdent  <- createIdent v
        declare SNat iterIdent
+
+       (Sample i _) <- getSample
 
        -- manage loop
        let iter     = CVar iterIdent
            cond     = iter .<. arity
            inc      = CUnary CPostIncOp iter
-           currInd  = indirect (dataPtr .+. iter)
+           currInd  = indirect ((CMember (CVar i) (Ident "data") False) .+. iter)
            loopBody = do _ <- flattenABT body
                          (Sample _ e) <- getSample
                          putStat . CExpr . Just $ currInd .=. e
        forCG (iter .=. (intE 0)) cond inc loopBody
-
-       (Sample i _) <- getSample
-       putSample (Sample i (indirect arrVar))
        return (intE 0)
 
 

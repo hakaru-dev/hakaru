@@ -35,6 +35,10 @@ mpretty :: Pretty a => Maybe a -> Doc
 mpretty Nothing  = empty
 mpretty (Just x) = pretty x
 
+mPrettyPrec :: Pretty a => Int -> Maybe a -> Doc
+mPrettyPrec _ Nothing  = empty
+mPrettyPrec p (Just x) = prettyPrec p x
+
 -- will compare two precs and put parens if the prec is lower
 parensPrec :: Int -> Int -> Doc -> Doc
 parensPrec x y = if x <= y then parens else id
@@ -188,7 +192,7 @@ instance Pretty CStat where
 
   pretty (CFor me mce mie s) =
     text "for"
-    <+> (parens . hsep . punctuate semi . fmap mpretty $ [me,mce,mie])
+    <+> (parens . hsep . punctuate semi . fmap (mPrettyPrec 10) $ [me,mce,mie])
     $$  pretty s
 
   pretty CCont = text "continue" <> semi

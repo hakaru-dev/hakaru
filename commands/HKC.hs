@@ -79,25 +79,30 @@ compileHakaru prog = ask >>= \config -> lift $ do
           output  = pack . render . pretty $ cast
       when (debug config) $ do
         putErrorLn hrule
+        putErrorLn $ "Type:\n"
+        putErrorLn . pack . show $ typ
+        putErrorLn hrule
+        putErrorLn $ "Hakaru AST:\n"
         putErrorLn $ pack $ show ast
         when (optimize config) $ do
           putErrorLn hrule
           putErrorLn $ pack $ show ast'
         putErrorLn hrule
+        putErrorLn $ "C AST:\n"
         putErrorLn $ pack $ show cast
         putErrorLn hrule
       case make config of
         Nothing -> writeToFile outPath output
-        Just cc -> makeFile cc (fileOut config) $ unpack output
+        Just cc -> makeFile cc (fileOut config) (unpack output) config
 
-  where hrule = "\n----------------------------------------------------------------\n"
+  where hrule = "\n----------------------------------------------------------------"
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr
 
 
-makeFile :: String -> Maybe String -> String -> IO ()
-makeFile cc mout prog =
+makeFile :: String -> Maybe String -> String -> Options -> IO ()
+makeFile cc mout prog opts =
   do let p = proc cc $ ["-pedantic"
                        ,"-std=c99"
                        ,"-lm"
@@ -106,6 +111,7 @@ makeFile cc mout prog =
                        ++ (case mout of
                             Nothing -> []
                             Just o  -> ["-o " ++ o])
+                       ++ (if openMP opts then ["-fopenmp"] else [])
      (Just inH, _, _, pH) <- createProcess p { std_in    = CreatePipe
                                              , std_out   = CreatePipe }
      hPutStrLn inH prog
