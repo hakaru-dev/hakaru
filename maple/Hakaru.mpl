@@ -87,8 +87,10 @@ Hakaru := module ()
          PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent,
      # Verification of alpha-equivalence among measures
          measure,
+     # Punctuation for matching free variables with measures for disintegration
+         `&M`,
      # Structure types for Hakaru types and Hakaru "case" expressions
-         t_type, t_case,
+         t_Hakaru, t_type, t_case,
      # Structure types for piecewise-like expressions:
      # piecewise, case, and idx into literal array
          t_piecewiselike,
@@ -554,6 +556,16 @@ Hakaru := module ()
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
     VerifyTools[AddVerification](measure = eval(verify_measure));
+
+    #This type is the basic syntax checker for that part of the Maple/Hakaru
+    #language accessible by the external user.--Carl 2016Sep20
+    TypeTools:-AddType(t_Hakaru,
+         proc(e::anything)
+         local L;
+              try L:= toLO(e) catch: return false end try;
+              L::LO(anything) and not hastype(L, specfunc(NewSLO:-integrate))
+         end proc
+    );        
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
                  {AlmostEveryReal, HReal, HInt}),
@@ -579,6 +591,7 @@ Hakaru := module ()
   end proc;
 
   ModuleUnload := proc($)
+    TypeTools:-RemoveType(t_Hakaru);
     TypeTools[RemoveType](t_piecewiselike);
     TypeTools[RemoveType](t_case);
     TypeTools[RemoveType](t_type);
