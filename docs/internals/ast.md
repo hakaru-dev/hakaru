@@ -191,6 +191,9 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     Observe :: SCon '[ LC ('HMeasure a), LC a ] ('HMeasure a)
 ````
 
+You'll notice in `SCon` there are definitions for PrimOp, MeasureOp, and ArrayOp
+these are done more organizational purposes and have constructions for the
+different categories of primitives.
 
 ## PrimOp
 
