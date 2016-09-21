@@ -561,9 +561,10 @@ Hakaru := module ()
     #language accessible by the external user.--Carl 2016Sep20
     TypeTools:-AddType(t_Hakaru,
          proc(e::anything)
+         option remember;
          local L;
               try L:= toLO(e) catch: return false end try;
-              L::LO(anything) and not hastype(L, specfunc(NewSLO:-integrate))
+              L::specfunc(LO) and not hastype(L, specfunc(NewSLO:-integrate))
          end proc
     );        
     TypeTools[AddType](t_type,
