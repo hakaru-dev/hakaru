@@ -1306,9 +1306,12 @@ NewSLO := module ()
   end proc;
 
   ### main procedure for disintegration ################################
-  disint:= proc(
-       m, #same form as used by toLO: anything
-       a::name, #differentiated wrt 
+  disint:= proc( 
+       #Name-measure pairs. Integrate wrt the measures. Differentiate wrt the names.
+       A::{
+            name, name &M t_Hakaru,
+            Pair({name, name &M t_Hakaru}, {name, name &M t_Hakaru})
+       }, 
        {ctx::list:= []}, #context: parameter assumptions, "knowledge"
        $
   )
