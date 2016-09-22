@@ -34,6 +34,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , runCodeGenBlock
   , runCodeGenWith
   , emptyCG
+  , suffixes
 
   -- codegen effects
   , declare

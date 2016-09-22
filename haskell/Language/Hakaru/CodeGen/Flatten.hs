@@ -294,7 +294,7 @@ flattenNAryOp op args =
        (Sum HSemiring_Prob)  ->
          do ident <- genIdent' "logSumExp"
             declare SProb ident
-            assign ident $ logSumExp es
+            assign ident =<< logSumExpCG es
             return (CVar ident)
 
        -- otherwise
@@ -359,7 +359,10 @@ logSumExpCG seqE =
   let size   = S.length $ seqE
       name   = "logSumExp" ++ (show size)
       funcId = Ident name
-  in  do argIds <- replicateM size genIdent
+  in  do -- reset the names so that the function is the same for each arity
+         cg <- get
+         put (cg { freshNames = suffixes })
+         argIds <- replicateM size genIdent
          let decls = fmap (typeDeclaration SProb) argIds
              vars  = fmap CVar argIds
          extDeclare . CFunDefExt $ functionDef SProb
@@ -367,6 +370,8 @@ logSumExpCG seqE =
                                                decls
                                                []
                                                [CReturn . Just $ logSumExp $ S.fromList vars ]
+         cg' <- get
+         put (cg' { freshNames = freshNames cg })
          return $ CCall (CVar funcId) (F.toList seqE)
 
 
@@ -757,7 +762,7 @@ flattenSuperpose wes =
           -- compute sum of weights
           weightSumId <- genIdent' "wSum"
           declare SProb weightSumId
-          assign weightSumId $ logSumExp $ S.fromList weights
+          assign weightSumId =<< (logSumExpCG $ S.fromList weights)
           let weightSum = CVar weightSumId
 
           -- draw number from uniform(0, weightSum)
@@ -787,7 +792,7 @@ flattenSuperpose wes =
 
 
           forM_ (zip (tail weights) (fmap snd (tail wes'))) $ \(e,m) ->
-            do assign iterId $ logSumExp $ S.fromList [iter, e]
+            do assign iterId =<< (logSumExpCG $ S.fromList [iter, e])
                stat <- runCodeGenBlock (do _ <- flattenABT m -- toss weight
                                            (Sample _ e) <- getSample
                                            assign outId e
