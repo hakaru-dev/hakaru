@@ -563,7 +563,7 @@ Hakaru := module ()
          proc(e::anything)
          option remember;
          local L;
-              try L:= toLO(e) catch: return false end try;
+              try L:= NewSLO:-toLO(e) catch: return false end try;
               L::specfunc(LO) and not hastype(L, specfunc(NewSLO:-integrate))
          end proc
     );        

@@ -33,6 +33,7 @@ NewSLO := module ()
         get_var_pos, get_int_pos,
         avoid_capture, change_var, old_disint, disint2,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
+        disint_push_one_var,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
@@ -1305,8 +1306,16 @@ NewSLO := module ()
        subs(J= newJ, e)
   end proc;
 
-  ### main procedure for disintegration ################################
-  disint:= proc( 
+  ### procedures for disintegration ################################ 
+
+  #Pair each free var with a default measure if necessary.
+  disint_push_one_var:= proc(A::{name, name &M t_Hakaru}, S::Stack, $)
+       S:-push(`if`(A::name, [A, Lebesgue()], [op(A)]));
+       () #Return NULL
+  end proc;
+  
+  disint:= proc(
+       m::t_Hakaru, 
        #Name-measure pairs. Integrate wrt the measures. Differentiate wrt the names.
        A::{
             name, name &M t_Hakaru,
@@ -1316,11 +1325,45 @@ NewSLO := module ()
        $
   )
   local
-       pair:= gensym('p'),
-       mc:= Bind(m, pair, piecewise(fst(pair) <= a, Ret(snd(pair)), Msum())),
-       kb:= foldr(assert, empty, ctx[])
+       pair,
+       mc,
+       kb:= foldr(assert, empty, ctx[]),
+       a, M,
+       S:= SimpleStack(),
+       DV:= Vector(),  #differentiation vars
+       k
   ;
-       fromLO(applyop(diff, 2, improve(toLO(mc), _ctx= kb), a), _ctx= kb)
+       #Build stack (or queue?) of [name,measure] pairs from A
+       if A::specfunc(Pair) then seq(disint_push_one_var(k,S), k in A)
+       else disint_push_one_var(A,S)
+       end if;
+
+       #Build measure to disintegrate by popping and layering
+       #(in continuation passing style (is it called that?)).
+       mc:= (); 
+       for k while S:-depth() > 1 do
+            (a,M):= S:-pop()[];
+            pair:= gensym('p');
+            #Here's where I'm really lost:
+            mc:= Bind(mc, pair, piecewise(fst(pair) <= a, Ret(snd(pair)), Msum(mc)));
+            #         ^^                                                       ^^
+            #I know that the above can't possibly be correct because, for one thing,
+            #the placement of the recursive elements must be wrong. For another
+            #thing, there's no usage of M.
+            DV(k):= a
+       end do;
+       #Layer in the original measure argument:
+       (a,M):= S:-pop()[];                 
+       pair:= gensym('p');
+       mc:= Bind(m, pair, piecewise(fst(pair) <= a, Ret(snd(pair)), Msum(mc)));
+       DV(k):= a;
+       #Note the recursive layering in line above:-----------------------^^ 
+       #Is that right?
+       #Where does M come into play?
+       fromLO(
+            applyop(diff, 2, improve(toLO(mc), _ctx= kb), convert(DV, list)),
+            _ctx= kb
+       )
   end proc;
   ###################### end of Carl's code ######################
   
