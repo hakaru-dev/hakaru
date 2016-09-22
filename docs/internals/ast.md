@@ -195,8 +195,27 @@ You'll notice in `SCon` there are definitions for PrimOp, MeasureOp, and ArrayOp
 these are done more organizational purposes and have constructions for the
 different categories of primitives.
 
-## PrimOp
-
 ## MeasureOp
 
+````haskell
+-- | Primitive operators to produce, consume, or transform
+-- distributions\/measures. This corresponds to the old @Mochastic@
+-- class, except that 'MBind' and 'Superpose_' are handled elsewhere
+-- since they are not simple operators. (Also 'Dirac' is handled
+-- elsewhere since it naturally fits with 'MBind', even though it
+-- is a siple operator.)
+data MeasureOp :: [Hakaru] -> Hakaru -> * where
+    Lebesgue    :: MeasureOp '[]                 'HReal
+    Counting    :: MeasureOp '[]                 'HInt
+    Categorical :: MeasureOp '[ 'HArray 'HProb ] 'HNat
+    Uniform     :: MeasureOp '[ 'HReal, 'HReal ] 'HReal
+    Normal      :: MeasureOp '[ 'HReal, 'HProb ] 'HReal
+    Poisson     :: MeasureOp '[ 'HProb         ] 'HNat
+    Gamma       :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
+    Beta        :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
+````
+
 ## ArrayOp
+
+## PrimOp
+
