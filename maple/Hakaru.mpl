@@ -90,10 +90,10 @@ Hakaru := module ()
      # Punctuation for matching free variables with measures for disintegration
          `&M`,
      # Structure types for Hakaru types and Hakaru "case" expressions
-         t_Hakaru, t_type, t_case,
+         known_continuous, known_discrete, t_Hakaru, t_type, t_case,
      # Structure types for piecewise-like expressions:
      # piecewise, case, and idx into literal array
-         t_piecewiselike,
+         t_pw, t_piecewiselike,
      # Type constructors for Hakaru
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
          Bound, DatumStruct;
@@ -559,15 +559,40 @@ Hakaru := module ()
     local g; #Iterator over thismodule's globals
     VerifyTools[AddVerification](measure = eval(verify_measure));
 
-    #This type is the basic syntax checker for that part of the Maple/Hakaru
-    #language accessible by the external user.--Carl 2016Sep20
+    TypeTools:-AddType(known_continuous,
+         '{
+              Lebesgue(anything, anything), Uniform(anything, anything),
+              Gaussian(anything, anything), Cauchy(anything, anything),
+              StudentT(anything, anything, anything), ChiSquared(anything),
+              BetaD(anything, anything), GammaD(anything, anything),
+              InverseGammaD(anything, anything)
+         }'
+    );
+    TypeTools:-AddType(known_discrete,
+         '{
+              Counting(anything, anything),
+              Categorical(anything),
+              Binomial(anything,anything),
+              NegativeBinomial(anything,anything),
+              PoissonD(anything)
+          }'
+    );
+    #This type t_Hakaru is the basic syntax checker for that part of the
+    #Maple/Hakaru language accessible by the external user.--Carl 2016Sep20
     TypeTools:-AddType(t_Hakaru,
-         proc(e::anything)
-         option remember;
-         local L;
-              try L:= NewSLO:-toLO(e) catch: return false end try;
-              L::specfunc(LO) and not hastype(L, specfunc(NewSLO:-integrate))
-         end proc
+         #Alternation/conjunction of types via {} or And follows the McCarthy
+         #short-cut rule: Proceeding left to right, once satisfaction of the type
+         #can be determined, the remaining elements aren't evaluated. Therefore,
+         #recursive types are possible by placing the base cases at the beginning. 
+         {'known_continuous', 'known_discrete',
+           t_pw, #Needs to be more specific!
+           t_case,
+          'Ret(algebraic)', #Needs to be more specific than algebraic?
+          'Bind(t_Hakaru, name, t_Hakaru)', 
+          'specfunc(Msum)', #Needs a subtype.
+          'Weight(anything, t_Hakaru)', #`anything` should be more specific.
+          'Plate(anything, name, t_Hakaru)' #`anything` should be more specific.
+         } 
     );        
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
@@ -579,6 +604,7 @@ Hakaru := module ()
         HFunction(t_type, t_type)}');
     TypeTools[AddType](t_case,
       'case(anything, specfunc(Branch(anything, anything), Branches))');
+    TypeTools:-AddType(t_pw, specfunc(piecewise));
     TypeTools[AddType](t_piecewiselike,
       '{specfunc(piecewise), t_case, idx(list, anything)}');
 
@@ -594,7 +620,10 @@ Hakaru := module ()
   end proc;
 
   ModuleUnload := proc($)
+    TypeTools:-RemoveType(known_continuous);
+    TypeTools:-RemoveType(known_discrete);
     TypeTools:-RemoveType(t_Hakaru);
+    TypeTools:-RemoveType(t_pw);
     TypeTools[RemoveType](t_piecewiselike);
     TypeTools[RemoveType](t_case);
     TypeTools[RemoveType](t_type);

@@ -20,8 +20,11 @@ end proc:
 
 NewSLO := module ()
   option package;
-  local t_pw, t_sum, t_product,
-        integrate_known, known_continuous, known_discrete,
+  local 
+        (* t_pw, *) #Moved to Hakaru.mpl
+        t_sum, t_product,
+        integrate_known, 
+        (* known_continuous, known_discrete, *) #Moved to Hakaru.mpl
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, termize, bind, weight,
@@ -151,7 +154,7 @@ NewSLO := module ()
     return true;
   end proc;
 
-  t_pw      := 'specfunc(piecewise)';
+  (* t_pw      := 'specfunc(piecewise)'; *) #Moved to Hakaru.mpl
   t_sum     := 'specfunc({sum    ,Sum    })';
   t_product := 'specfunc({product,Product})';
 
@@ -265,6 +268,7 @@ NewSLO := module ()
     end if;
   end proc;
 
+  (*****  #Moved to Hakaru.mpl
   known_continuous := '{
     Lebesgue(anything, anything), Uniform(anything, anything),
     Gaussian(anything, anything), Cauchy(anything, anything),
@@ -277,6 +281,7 @@ NewSLO := module ()
     Categorical(anything),
     Binomial(anything,anything),
     NegativeBinomial(anything,anything), PoissonD(anything)}';
+  *****) #end cut code
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
@@ -1310,7 +1315,7 @@ NewSLO := module ()
 
   #Pair each free var with a default measure if necessary.
   disint_push_one_var:= proc(A::{name, name &M t_Hakaru}, S::Stack, $)
-       S:-push(`if`(A::name, [A, Lebesgue()], [op(A)]));
+       S:-push(`if`(A::name, [A, Lebesgue((-1,1)*~infinity)], [op(A)]));
        () #Return NULL
   end proc;
   
