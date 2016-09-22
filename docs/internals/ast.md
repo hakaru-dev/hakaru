@@ -217,5 +217,13 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
 
 ## ArrayOp
 
+````haskell
+-- | Primitive operators for consuming or transforming arrays.
+data ArrayOp :: [Hakaru] -> Hakaru -> * where
+    Index  :: !(Sing a) -> ArrayOp '[ 'HArray a, 'HNat ] a
+    Size   :: !(Sing a) -> ArrayOp '[ 'HArray a ] 'HNat
+    Reduce :: !(Sing a) -> ArrayOp '[ a ':-> a ':-> a, a, 'HArray a ] a
+````
+
 ## PrimOp
 
