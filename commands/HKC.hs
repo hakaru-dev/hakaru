@@ -24,13 +24,11 @@ import           System.Exit
 data Options =
  Options { debug    :: Bool
          , optimize :: Bool
-         -- , accelerate :: Either CUDA OpenCL
-         -- , jobs       :: Maybe Int
          , make     :: Maybe String
          , asFunc   :: Maybe String
          , fileIn   :: String
          , fileOut  :: Maybe String
-         , openMP   :: Bool
+         , par      :: Bool
          } deriving Show
 
 
@@ -56,8 +54,8 @@ options = Options
                             <> help "Compiles to a sampling C function with the name ARG" ))
   <*> strArgument (metavar "INPUT" <> help "Program to be compiled")
   <*> (optional $ strOption (short 'o' <> metavar "OUTPUT" <> help "output FILE"))
-  <*> switch ( long "openmp"
-             <> help "Generates programs with OpenMP supported C")
+  <*> switch ( short 'j'
+             <> help "Generates parallel programs using OpenMP directives")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -75,7 +73,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
                       (Just f) -> f
                       Nothing  -> "-"
           codeGen = wrapProgram ast' (asFunc config)
-          cast    = CAST $ runCodeGenWith codeGen (emptyCG {openmp = openMP config})
+          cast    = CAST $ runCodeGenWith codeGen (emptyCG {parallel = par config})
           output  = pack . render . pretty $ cast
       when (debug config) $ do
         putErrorLn hrule
@@ -111,7 +109,7 @@ makeFile cc mout prog opts =
                        ++ (case mout of
                             Nothing -> []
                             Just o  -> ["-o " ++ o])
-                       ++ (if openMP opts then ["-fopenmp"] else [])
+                       ++ (if par opts then ["-fopenmp"] else [])
      (Just inH, _, _, pH) <- createProcess p { std_in    = CreatePipe
                                              , std_out   = CreatePipe }
      hPutStrLn inH prog

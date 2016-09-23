@@ -32,7 +32,6 @@ module Language.Hakaru.CodeGen.Flatten
 
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.AST
-import Language.Hakaru.CodeGen.Pretty
 import Language.Hakaru.CodeGen.Types
 
 import Language.Hakaru.Syntax.AST
@@ -58,8 +57,6 @@ import qualified Data.Traversable   as T
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor
 #endif
-
-import Text.PrettyPrint (render)
 
 import Prelude hiding (log,exp,sqrt)
 
@@ -189,11 +186,11 @@ flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
           let accVar  = CVar accI
               iterVar = CVar iterI
           -- logSumExp for probabilities
-          mpB <- isOpenMP
-          when mpB . putStat . CPPStat . PPPragma
-               $ ["omp","parallel","for"
-                 ,"reduction(+:" ++ (render . pretty $ accI) ++ ")"]
-          forCG (iterVar .=. loE) (iterVar .<. hiE) (CUnary CPostIncOp iterVar) $
+          reductionCG CAddOp
+                      accI
+                      (iterVar .=. loE)
+                      (iterVar .<. hiE)
+                      (CUnary CPostIncOp iterVar) $
             do bodyE <- flattenABT body'
                putStat . CExpr . Just $ (accVar .+=. bodyE)
 
@@ -213,13 +210,18 @@ flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
 
           let accVar  = CVar accI
               iterVar = CVar iterI
-          mpB <- isOpenMP
-          when mpB . putStat . CPPStat . PPPragma
-               $ ["omp","parallel","for"
-                 ,"reduction(*:" ++ (render . pretty $ accI) ++ ")"]
-          forCG (iterVar .=. loE) (iterVar .<. hiE) (CUnary CPostIncOp iterVar) $
+          reductionCG (case sing_HSemiring sr of
+                         SProb -> CAddOp
+                         _     -> CMulOp)
+                      accI
+                      (iterVar .=. loE)
+                      (iterVar .<. hiE)
+                      (CUnary CPostIncOp iterVar) $
             do bodyE <- flattenABT body'
-               putStat . CExpr . Just $ (accVar .*=. bodyE)
+               putStat . CExpr . Just . (case sing_HSemiring sr of
+                                           SProb -> CAssign CAddAssOp accVar
+                                           _     -> CAssign CMulAssOp accVar)
+                 $ bodyE
 
           return accVar
 
@@ -428,9 +430,9 @@ flattenArray arity body =
            inc      = CUnary CPostIncOp iter
            currInd  = indirect (dataPtr .+. iter)
            loopBody = putStat . CExpr . Just . CAssign CAssignOp currInd =<< flattenABT body'
-       mpB <- isOpenMP
-       when mpB . putStat . CPPStat . PPPragma
-            $ ["omp","parallel","for"]
+       -- mpB <- isOpenMP
+       -- when mpB . putStat . CPPStat . PPPragma
+       --      $ ["omp","parallel","for"]
        forCG (iter .=. (intE 0)) cond inc loopBody
 
        return (CVar arrayIdent)

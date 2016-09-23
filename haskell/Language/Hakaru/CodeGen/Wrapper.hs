@@ -192,9 +192,9 @@ printf (SMeasure t) arg =
   in  case t of
         (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ CCall arg [sampleELoc]
                                                    printf t sampleE
-                         mpB <- isOpenMP
-                         when mpB . putStat . CPPStat . PPPragma
-                           $ ["omp","parallel","for"]
+                         -- mpB <- isOpenMP
+                         -- when mpB . putStat . CPPStat . PPPragma
+                         --   $ ["omp","parallel","for"]
                          putStat $ CFor Nothing Nothing Nothing s
 
         _ -> do -- Need to have space for #NUMTHREADS samples
@@ -223,6 +223,7 @@ printf (SArray t)   arg =
 
 
      putString "[ "
+     mkSequential -- cant print arrays in parallel
      forCG (iter .=. (intE 0)) cond inc loopBody
      putString "]\n"
   where putString s = putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")

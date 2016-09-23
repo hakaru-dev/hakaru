@@ -45,7 +45,9 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , defineFunction
   , getSample
   , putSample
-  , isOpenMP
+  , isParallel
+  , mkParallel
+  , mkSequential
 
   , reserveName
   , genIdent
@@ -59,6 +61,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , whileCG
   , doWhileCG
   , forCG
+  , reductionCG
   ) where
 
 import Control.Monad.State.Strict
@@ -73,11 +76,14 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.Types
 import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.Pretty       
 
 import Data.Number.Nat (fromNat)
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Text          as T
 import qualified Data.Set           as S
+
+import Text.PrettyPrint (render)       
 
 suffixes :: [String]
 suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
@@ -96,7 +102,7 @@ data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generatio
              , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
              , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
              , sample        :: Maybe Sample -- ^ location of the sample, only if in a measure
-             , openmp        :: Bool         -- ^ openMP supported block
+             , parallel      :: Bool         -- ^ openMP supported block
              }
 
 emptyCG :: CG
@@ -141,8 +147,20 @@ putSample s = get >>= \cg -> put (cg {sample = Just s})
 
 --------------------------------------------------------------------------------
 
-isOpenMP :: CodeGen Bool
-isOpenMP = openmp <$> get
+isParallel :: CodeGen Bool
+isParallel = parallel <$> get
+
+mkParallel :: CodeGen ()
+mkParallel =
+  do cg <- get
+     put (cg { parallel = True } )
+           
+mkSequential :: CodeGen ()
+mkSequential =
+  do cg <- get
+     put (cg { parallel = False } )
+
+--------------------------------------------------------------------------------           
 
 reserveName :: String -> CodeGen ()
 reserveName s =
@@ -285,11 +303,52 @@ doWhileCG bE m =
   let (_,_,stmts) = runCodeGen m
   in putStat $ CWhile bE (CCompound $ fmap CBlockStat stmts) True
 
-forCG :: CExpr -> CExpr -> CExpr -> CodeGen () -> CodeGen ()
+-- forCG and reductionCG both create C for loops, their difference lies in the
+-- parallel code they generate
+
+forCG
+  :: CExpr
+  -> CExpr
+  -> CExpr
+  -> CodeGen ()
+  -> CodeGen ()
 forCG iter cond inc body =
   do cg <- get
      let (_,cg') = runState body $ cg { statements = [] }
      put $ cg' { statements = statements cg }
+     par <- isParallel
+     when par . putStat . CPPStat . PPPragma
+       $ ["omp","parallel","for"]
+     putStat $ CFor (Just iter)
+                    (Just cond)
+                    (Just inc)
+                    (CCompound $ fmap CBlockStat (reverse $ statements cg'))
+
+reductionCG
+  :: CBinaryOp
+  -> Ident
+  -> CExpr
+  -> CExpr
+  -> CExpr
+  -> CodeGen ()
+  -> CodeGen ()
+reductionCG op acc iter cond inc body =
+  do cg <- get
+     let (_,cg') = runState body $ cg { statements = [] }
+     put $ cg' { statements = statements cg }
+     par <- isParallel
+     when par . putStat . CPPStat . PPPragma
+       $ ["omp","parallel","for"
+         -- , concat ["private("
+         --          -- , fmap (render . getDeclIdent)
+         --          ,")"]
+         , concat ["reduction("
+                  ,render . pretty $ op
+                  ,":"
+                  ,render . pretty $ acc
+                  ,")"]
+         ]
+
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
