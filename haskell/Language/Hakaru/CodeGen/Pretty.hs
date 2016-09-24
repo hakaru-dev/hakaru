@@ -83,7 +83,7 @@ instance Pretty Preprocessor where
   pretty (PPElif s) = text "#elif" <+> text s
   pretty (PPEndif s) = text "#endif" <+> text s
   pretty (PPError s) = text "#error" <+> text s
-  pretty (PPPragma ts) = newline <> text "#pragma" <+> (hsep . fmap text $ ts)
+  pretty (PPPragma ts) = space $$ text "#pragma" <+> (hsep . fmap text $ ts)
 
 
 --------------------------------------------------------------------------------
@@ -148,7 +148,7 @@ instance Pretty CSUSpec where
     pretty tag
     <+> mpretty mi
     <+> lbrace
-    $$ (sep . fmap (\d -> pretty d <> semi)  $ ds)
+    $+$ (nest 2 . sep . fmap (\d -> pretty d <> semi)  $ ds)
     $$ rbrace
 
 instance Pretty CSUTag where
@@ -178,7 +178,7 @@ instance Pretty CStat where
   pretty (CDefault s) = text "default" <> colon $$ nest 2 (pretty s)
   pretty (CExpr me) = mpretty me <> semi
   pretty (CCompound bs) =
-    lbrace $+$ (nest 2 . vcat . fmap (\b -> space <> pretty b <> space) $ bs) $+$ rbrace
+    lbrace $+$ (nest 2 . vcat . fmap pretty $ bs) $+$ rbrace
 
   pretty (CIf ce thns (Just s)) =
     text "if" <+> (prettyPrec (-5) ce)

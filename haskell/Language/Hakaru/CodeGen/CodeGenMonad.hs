@@ -314,15 +314,18 @@ forCG
   -> CodeGen ()
 forCG iter cond inc body =
   do cg <- get
-     let (_,cg') = runState body $ cg { statements = [] }
-     put $ cg' { statements = statements cg }
+     let (_,cg') = runState body $ cg { statements = []
+                                      , declarations = [] }
+     put $ cg' { statements = statements cg
+               , declarations = declarations cg }
      par <- isParallel
      when par . putStat . CPPStat . PPPragma
        $ ["omp","parallel","for"]
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
-                    (CCompound $ fmap CBlockStat (reverse $ statements cg'))
+                    (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
+                               ++ (fmap CBlockStat (reverse $ statements cg'))))
 
 reductionCG
   :: CBinaryOp
@@ -334,22 +337,20 @@ reductionCG
   -> CodeGen ()
 reductionCG op acc iter cond inc body =
   do cg <- get
-     let (_,cg') = runState body $ cg { statements = [] }
-     put $ cg' { statements = statements cg }
+     let (_,cg') = runState body $ cg { statements = []
+                                      , declarations = [] }
+     put $ cg' { statements = statements cg
+               , declarations = declarations cg }
      par <- isParallel
      when par . putStat . CPPStat . PPPragma
        $ ["omp","parallel","for"
-         -- , concat ["private("
-         --          -- , fmap (render . getDeclIdent)
-         --          ,")"]
          , concat ["reduction("
                   ,render . pretty $ op
                   ,":"
                   ,render . pretty $ acc
-                  ,")"]
-         ]
-
+                  ,")"]]
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
-                    (CCompound $ fmap CBlockStat (reverse $ statements cg'))
+                    (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
+                               ++ (fmap CBlockStat (reverse $ statements cg'))))
