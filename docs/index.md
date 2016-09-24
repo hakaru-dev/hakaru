@@ -92,6 +92,8 @@ our system provides.
 
 Metropolis Hastings
 
+[Compiling to C](/transforms/hkc)
+
 ## Internals
 
 The internals section of the manual provides some insight into how
