@@ -1,17 +1,61 @@
 # HKC Compilation
 
-`hkc` is a command line tool to compiler Hakaru programs to C.
+`hkc` is a command line tool to compiler Hakaru programs to C. HKC was
+created with portability and speed in mind. More recently, OpenMP support is
+being added to gain more performance on multi-core machines. Basic command line
+usage of HKC is much like other compilers:
+
+```
+hkc foo.hk -o foo.c
+```
+
+It is possible to go straight to an executable with the `--make ARG` flag, where
+the argument is the C compiler you would like to use.
+
+
+
+
+## Type Conversions
+
+The types available in Hakaru programs are the following: `nat`, `int`, `real`,
+`prob`, `array(<type>)`, `measure(<type>)`, and datum like `true` and `false`.
+
+`nat` and `int` have a trivial mapping to the C `int` type. `real` becomes a C
+`double`. The `prob` type in Hakaru is stored in the log-domain for protection
+from so in C this corresponds to a `double`, but we first take the log of it
+before storing it, we have to take the exp of it to bring it back to the real
+numbers.
+
+Arrays become structs that contain the size and a pointer to data stored within.
+The structs are generated at compile time, but there are only four which are
+named after the type they contain. Here they all are:
+
+````
+struct arrayNat {
+  int size; int * data;
+};
+
+struct arrayInt {
+  int size; int * data;
+};
+
+struct arrayReal {
+  int size; double * data;
+};
+
+struct arrayProb {
+  int size; double * data;
+};
+````
+
 
 
 ## Measures
 
-Measures compile to programs that sample from a distributions.
+Measures compile to C functions that take a location for a sample, return the
+weight of the measure and store a sample in the location is was given. A simple
+example is `uniform(0,1)` a measure over type `real`.
 
-````
-uniform(0,1)
-````
-
-Will produce the sampler:
 
 ````
 #include <time.h>
@@ -37,8 +81,13 @@ int main()
  }
 ````
 
-The `-F` flag will produce a function that draws a single sample from a
-distribution.
+Recall that weights have type `prob` and are stored in the log-domain. This
+example has a weight of 1.
+
+Calling `hkc` on a measure will create a function like the one above and also a
+main function that infinitly takes samples. Using `hkc -F ARG` will produce
+just the function with the name of its argument.
+
 
 
 
@@ -85,43 +134,58 @@ double fn_a(struct arrayReal x_b)
 ````
 
 Using the `-F` flag will allow the user to add their own name to a function,
-otherwise the name is chosen automatically as "fn_<unique identifier>".
+otherwise the name is chosen automatically as `fn_<unique identifier>`.
 
 
-## Building C Types
-
-In order to connect `hkc` generated code to external C code, we will need to
-know how a Hakaru type will look in C.
-
-<!-- nat should be an unsigned int in the future -->
-`int` and `nat` both become a C `int`. `real` is turned into a C `double`.
-`prob` types are also turned into C `double` types, but these are in the log
-domain. Therefore, we must take the log of our data before handing to `hkc` code
-and take the exp of it when using the result.
-
-Hakara arrays, like `array(int)` will be represented as structs with two
-elements: an `int` called "size" representing the length of the array and a
-pointer to the data called "data" contained in the struct. `hkc` will
-automatically generate these struct declarations if they are needed in the
-program. Their names do not change.
-
-````
-struct arrayNat {
-  int size; int * data;
-  };
-
-struct arrayInt {
-  int size; double * data;
-  };
-
-struct arrayProb {
-  int size; double * data;
-  };
-
-struct arrayReal {
-  int size; double * data;
-  };
-````
 
 
-## Extra Options
+
+## Computations
+
+When compiling a computation, HKC just creates a main function to compute the
+value and print it. For example:
+
+```
+summate i from 1 to 100000000:
+  nat2real(i) / nat2real(i)
+```
+
+becomes:
+
+```C
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+
+int main()
+ {
+    double result;
+    int i_a;
+    double acc_b;
+    double _c;
+    acc_b = 0;
+    for (i_a = 1; i_a < 100000000; i_a++)
+    {
+       _c = (1 / ((double)i_a));
+       acc_b += (_c * ((double)i_a));
+    }
+    result = acc_b;
+    printf("%.17f\n",result);
+    return 0;
+ }
+```
+
+
+
+
+## Parallel Programs
+
+Calling HKC with the `-j` flag will generate the code with parallel regions to
+compute the value. The parallel code uses OpenMP directives. To check if you're
+compiler supports OpenMP, check [here](http://openmp.org/wp/openmp-compilers/).
+
+For example, GCC requires the `-fopenmp` flag for OpenMP support:
+```
+hkc -j foo.hk -o foo.c
+gcc -lm -fopenmp foo.c -o foo.bin
+```
