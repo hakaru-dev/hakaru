@@ -92,6 +92,8 @@ our system provides.
 
 Metropolis Hastings
 
+Compiling to Haskell
+
 [Compiling to C](/transforms/hkc)
 
 ## Internals
