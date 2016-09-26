@@ -325,7 +325,7 @@ missingLub
     -> TypeCheckMonad r
 missingLub typ1 typ2 s = failwith =<<
     makeErrMsg
-     "Missing common type: "
+     "Missing common type:\n\n"
      s
      (mconcat ["No lub of types ", showT typ1, " and ", showT typ2])
 
@@ -542,8 +542,8 @@ inferType = inferType_
            TypedASTs typ es' <-
                case mode of
                StrictMode -> inferOneCheckOthers_ es
-               LaxMode    -> inferLubType es
-               UnsafeMode -> inferLubType es -- error "TODO: inferType{NaryOp_} in UnsafeMode"
+               LaxMode    -> inferLubType sourceSpan es
+               UnsafeMode -> inferLubType sourceSpan es
            op' <- make_NaryOp typ op
            return . TypedAST typ $ syn (NaryOp_ op' $ S.fromList es')
 
@@ -602,8 +602,8 @@ inferType = inferType_
            mode <- getMode
            case mode of
                StrictMode -> inferCaseStrict typ1 e1' branches
-               LaxMode    -> inferCaseLax typ1 e1' branches
-               UnsafeMode -> inferCaseLax typ1 e1' branches
+               LaxMode    -> inferCaseLax sourceSpan typ1 e1' branches
+               UnsafeMode -> inferCaseLax sourceSpan typ1 e1' branches
 
        U.Dirac_ e1 -> do
            TypedAST typ1 e1' <- inferType_ e1
@@ -708,9 +708,9 @@ inferType = inferType_
            mode <- getMode
            TypedASTs typ es' <-
                case mode of
-               StrictMode -> inferOneCheckOthers_ (L.toList $ fmap snd pes)
-               LaxMode    -> inferLubType         (L.toList $ fmap snd pes)
-               UnsafeMode -> inferLubType         (L.toList $ fmap snd pes)
+               StrictMode -> inferOneCheckOthers_    (L.toList $ fmap snd pes)
+               LaxMode    -> inferLubType sourceSpan (L.toList $ fmap snd pes)
+               UnsafeMode -> inferLubType sourceSpan (L.toList $ fmap snd pes)
            case typ of
                SMeasure _ -> do
                    ps' <- T.traverse (checkType SProb) (fmap fst pes)
@@ -787,7 +787,7 @@ inferType = inferType_
                      TypedASTs typ [e1', e2'] <-
                          case mode of
                            StrictMode -> inferOneCheckOthers_ es
-                           _          -> inferLubType es
+                           _          -> inferLubType Nothing es
                      primop <- Equal <$> getHEq typ
                      return . TypedAST sBool $
                             syn (PrimOp_ primop :$ e1' :* e2' :* End)
@@ -799,7 +799,7 @@ inferType = inferType_
                      TypedASTs typ [e1', e2'] <-
                          case mode of
                            StrictMode -> inferOneCheckOthers_ es
-                           _          -> inferLubType es
+                           _          -> inferLubType Nothing es
                      primop <- Less <$> getHOrd typ
                      return . TypedAST sBool $
                             syn (PrimOp_ primop :$ e1' :* e2' :* End)
@@ -1075,9 +1075,10 @@ tryWith mode m = TCM $ \ctx input _ -> Right $
 inferLubType
     :: forall abt
     .  (ABT Term abt)
-    => [U.AST]
+    => Maybe U.SourceSpan
+    -> [U.AST]
     -> TypeCheckMonad (TypedASTs abt)
-inferLubType = start
+inferLubType s = start
     where
     start :: [U.AST] -> TypeCheckMonad (TypedASTs abt)
     start []     = ambiguousEmptyNary Nothing
@@ -1091,7 +1092,7 @@ inferLubType = start
     step (TypedASTs typ1 es) u = do
         TypedAST typ2 e2 <- inferType u
         case findLub typ1 typ2 of
-            Nothing              -> missingLub typ1 typ2 Nothing
+            Nothing              -> missingLub typ1 typ2 s
             Just (Lub typ c1 c2) ->
                 let es' = map (unLC_ . coerceTo c1 . LC_) es
                     e2' = unLC_ . coerceTo c2 $ LC_ e2
@@ -1146,11 +1147,12 @@ instance (ABT Term abt) => Coerce (Branch a abt) where
 inferCaseLax
     :: forall abt a
     .  (ABT Term abt)
-    => Sing a
+    => Maybe U.SourceSpan
+    -> Sing a
     -> abt '[] a
     -> [U.Branch]
     -> TypeCheckMonad (TypedAST abt)
-inferCaseLax typA e1 = start
+inferCaseLax s typA e1 = start
     where
     start :: [U.Branch] -> TypeCheckMonad (TypedAST abt)
     start []     = ambiguousEmptyNary Nothing
@@ -1168,7 +1170,7 @@ inferCaseLax typA e1 = start
         SP pat' vars <- checkPattern typA pat
         inferBinders vars e $ \typE e' ->
             case findLub typB typE of
-            Nothing                     -> missingLub typB typE Nothing
+            Nothing                     -> missingLub typB typE s
             Just (Lub typLub coeB coeE) ->
                 return $ SomeBranch typLub
                     ( Branch pat' (coerceTo_nonLC coeE e')
