@@ -36,7 +36,6 @@ NewSLO := module ()
         get_var_pos, get_int_pos,
         avoid_capture, change_var, old_disint, disint2,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
-        disint_push_one_var,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
@@ -1311,65 +1310,77 @@ NewSLO := module ()
        subs(J= newJ, e)
   end proc;
 
-  ### procedures for disintegration ################################ 
-
-  #Pair each free var with a default measure if necessary.
-  disint_push_one_var:= proc(A::{name, name &M t_Hakaru}, S::Stack, $)
-       S:-push(`if`(A::name, [A, Lebesgue((-1,1)*~infinity)], [op(A)]));
-       () #Return NULL
-  end proc;
+  disint:= module()
+  local 
+       #types for disint
+       t_disint_var, #Curiosity: giving this a type `type` causes a kernel crash
+                     #during update-archive.
+       t_disint_var_pair, #type
+       ModuleLoad::procedure:= proc($) #Needed to declare types.
+            TypeTools:-AddType(t_disint_var, {name, 'name &M t_Hakaru'});
+            TypeTools:-AddType(
+                 t_disint_var_pair,
+                 'Pair'(                                 #Caution: recursive type; make
+                      {t_disint_var, t_disint_var_pair}, #sure base cases are on 
+                      {t_disint_var, t_disint_var_pair}  #left (a la McCarthy rule).
+                 )
+            )
+       end proc, #NewSLO:-disint:-ModuleLoad
+       #end types for disint
   
-  disint:= proc(
-       m::t_Hakaru, 
-       #Name-measure pairs. Integrate wrt the measures. Differentiate wrt the names.
-       A::{
-            name, name &M t_Hakaru,
-            Pair({name, name &M t_Hakaru}, {name, name &M t_Hakaru})
-       }, 
-       {ctx::list:= []}, #context: parameter assumptions, "knowledge"
-       $
-  )
-  local
-       pair,
-       mc,
-       kb:= foldr(assert, empty, ctx[]),
-       a, M,
-       S:= SimpleStack(),
-       DV:= Vector(),  #differentiation vars
-       k
-  ;
-       #Build stack (or queue?) of [name,measure] pairs from A
-       if A::specfunc(Pair) then seq(disint_push_one_var(k,S), k in A)
-       else disint_push_one_var(A,S)
-       end if;
+       DV::table:= table(),  #differentiation vars
+       p::symbol:= gensym('p'), #"pair"
+       cond:= fst(p), #layers of fst(...) and snd(...) built by traversing tree      
 
-       #Build measure to disintegrate by popping and layering
-       #(in continuation passing style (is it called that?)).
-       mc:= (); 
-       for k while S:-depth() > 1 do
-            (a,M):= S:-pop()[];
-            pair:= gensym('p');
-            #Here's where I'm really lost:
-            mc:= Bind(mc, pair, piecewise(fst(pair) <= a, Ret(snd(pair)), Msum(mc)));
-            #         ^^                                                       ^^
-            #I know that the above can't possibly be correct because, for one thing,
-            #the placement of the recursive elements must be wrong. For another
-            #thing, there's no usage of M.
-            DV(k):= a
-       end do;
-       #Layer in the original measure argument:
-       (a,M):= S:-pop()[];                 
-       pair:= gensym('p');
-       mc:= Bind(m, pair, piecewise(fst(pair) <= a, Ret(snd(pair)), Msum(mc)));
-       DV(k):= a;
-       #Note the recursive layering in line above:-----------------------^^ 
-       #Is that right?
-       #Where does M come into play?
-       fromLO(
-            applyop(diff, 2, improve(toLO(mc), _ctx= kb), convert(DV, list)),
-            _ctx= kb
-       )
-  end proc;
+       traverse_var_tree::procedure:= proc(
+            T::{t_disint_var, t_disint_var_pair}, $
+       )::identical(NULL);
+       local v::name, M::t_Hakaru;
+            if T::t_disint_var then
+                 if T::name then #use default measure
+                      v:= T;
+                      M:= Lebesgue((-1,1)*~infinity) #default measure
+                 else
+                      (v,M):= op(T)
+                 end if; 
+                 DV[v]:= cond;
+                 cond:= op(cond) #Peel off outer layer: fst or snd.
+                 #For the time being, nothing is done with measure M.
+            else #T::Pair(..., ...)
+                 cond:= fst(cond);
+                 thisproc(op(1,T));
+                 cond:= snd(cond);
+                 thisproc(op(2,T))
+            end if;
+            NULL #return NULL                        
+       end proc, #disint:-traverse_var_tree
+      
+       ModuleApply::procedure:= proc(
+            m::t_Hakaru, 
+            #Name-measure pairs. Integrate wrt the measures. Differentiate wrt the names.
+            A::{t_disint_var, t_disint_var_pair},
+            {ctx::list:= []}, #context: parameter assumptions, "knowledge"
+            $
+       )::t_Hakaru;
+       local
+            mc::t_Hakaru,  #final integral to be passed to improve @ toLO
+            kb:= foldr(assert, empty, ctx[])
+       ;
+            traverse_var_tree(A);
+            mc:= Bind(
+                 m, p,
+                 #The piecewise condition is a conjunction of inequalities, each
+                 #inequality formed from a (var,cond) pair from DV. 
+                 piecewise(And((`>=`@op)~(op(2,eval(DV)))[]), Ret(snd(p)), Msum())
+            );      
+            fromLO(
+                 applyop(diff, 2, improve(toLO(mc), _ctx= kb), [indices(DV, 'nolist')]),
+                 _ctx= kb
+            )
+       end proc #disint:-ModuleApply
+  ;
+       ModuleLoad()
+  end module; #disint
   ###################### end of Carl's code ######################
   
   ###
@@ -1795,7 +1806,7 @@ NewSLO := module ()
 
   ModuleLoad := proc($)
     local prev;
-    Hakaru; # Make sure the KB module is loaded, for the type t_type
+    Hakaru; # Make sure the Hakaru module is loaded for the types t_type and t_Hakaru.
     KB;     # Make sure the KB module is loaded, for the type t_kb
     prev := kernelopts(opaquemodules=false);
     try
@@ -1803,10 +1814,16 @@ NewSLO := module ()
         union '{# Do not lift piecewise over a binder
                 Integrand,LO,lam,Branch,Bind,ary,Plate,
                 forall,Ints,Sums,ints,sums,`..`}';
+    catch:
+         userinfo(
+              1, NewSLO, 
+              "Redefinition of PiecewiseTools:-InertFunctions failed.",
+              StringTools:-FormatMessage(lastexception[2..-1])
+         )
     finally
       kernelopts(opaquemodules=prev);
-    end try;
-  end proc;
+    end try
+  end proc; #ModuleLoad
 
   ModuleLoad();
 
