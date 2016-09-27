@@ -1332,6 +1332,8 @@ NewSLO := module ()
        p::symbol:= gensym('p'), #"pair"
        cond:= fst(p), #layers of fst(...) and snd(...) built by traversing tree      
 
+       # works by side-effect: accumulates "paths" to variables in T
+       # via the module variable DV.
        traverse_var_tree::procedure:= proc(
             T::{t_disint_var, t_disint_var_pair}, $
        )::identical(NULL);
@@ -1366,7 +1368,7 @@ NewSLO := module ()
             mc::t_Hakaru,  #final integral to be passed to improve @ toLO
             kb:= foldr(assert, empty, ctx[])
        ;
-            traverse_var_tree(A);
+            traverse_var_tree(A); # collect information about A in DV
             mc:= Bind(
                  m, p,
                  #The piecewise condition is a conjunction of inequalities, each
