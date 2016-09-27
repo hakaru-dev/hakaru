@@ -53,6 +53,7 @@ NewSLO := module ()
   RoundTrip := proc(e, t::t_type)
     local result;
     interface(screenwidth=infinity, prettyprint=0);
+    kernelopts(assertlevel=0);
     writeto("/dev/fd/2");
     result := eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL);
     writeto(terminal);
