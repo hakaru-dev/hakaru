@@ -1317,7 +1317,7 @@ NewSLO := module ()
        t_disint_var, #Curiosity: giving this a type `type` causes a kernel crash
                      #during update-archive.
        t_disint_var_pair, #type
-       ModuleLoad::procedure:= proc($) #Needed to declare types.
+       ModuleLoad:= proc($) #Needed to declare types.
             TypeTools:-AddType(t_disint_var, {name, 'name &M t_Hakaru'});
             TypeTools:-AddType(
                  t_disint_var_pair,
@@ -1329,13 +1329,13 @@ NewSLO := module ()
        end proc, #NewSLO:-disint:-ModuleLoad
        #end types for disint
   
-       DV::table:= table(),  #differentiation vars
-       p::symbol:= gensym('p'), #"pair"
-       cond:= fst(p), #layers of fst(...) and snd(...) built by traversing tree      
+       DV::table,  #differentiation vars
+       p::symbol,  #"pair"
+       cond, #layers of fst(...) and snd(...) built by traversing tree   
 
        # works by side-effect: accumulates "paths" to variables in T
        # via the module variable DV.
-       traverse_var_tree::procedure:= proc(
+       traverse_var_tree:= proc(
             T::{t_disint_var, t_disint_var_pair}, $
        )::identical(NULL);
        local v::name, M::t_Hakaru;
@@ -1358,7 +1358,7 @@ NewSLO := module ()
             NULL #return NULL                        
        end proc, #disint:-traverse_var_tree
       
-       ModuleApply::procedure:= proc(
+       ModuleApply:= proc(
             m::t_Hakaru, 
             #Name-measure pairs. Integrate wrt the measures. Differentiate wrt the names.
             A::{t_disint_var, t_disint_var_pair},
@@ -1369,7 +1369,13 @@ NewSLO := module ()
             mc::t_Hakaru,  #final integral to be passed to improve @ toLO
             kb:= foldr(assert, empty, ctx[])
        ;
+            #Init module variables.
+            DV:= table();
+            p:= gensym('p');
+            cond:= fst(p);
+
             traverse_var_tree(A); # collect information about A in DV
+            userinfo(3, Disint, "DV:", sprintf("%a", eval(DV)));
             mc:= Bind(
                  m, p,
                  #The piecewise condition is a conjunction of inequalities, each
