@@ -21,9 +21,9 @@ The types available in Hakaru programs are the following: `nat`, `int`, `real`,
 `prob`, `array(<type>)`, `measure(<type>)`, and datum like `true` and `false`.
 
 `nat` and `int` have a trivial mapping to the C `int` type. `real` becomes a C
-`double`. The `prob` type in Hakaru is stored in the log-domain for protection
-from so in C this corresponds to a `double`, but we first take the log of it
-before storing it, we have to take the exp of it to bring it back to the real
+`double`. The `prob` type in Hakaru is stored in the log-domain to avoid
+underflow. In C this corresponds to a `double`, but we first take the log of it
+before storing it, so we have to take the exp of it to bring it back to the real
 numbers.
 
 Arrays become structs that contain the size and a pointer to data stored within.
@@ -85,7 +85,7 @@ Recall that weights have type `prob` and are stored in the log-domain. This
 example has a weight of 1.
 
 Calling `hkc` on a measure will create a function like the one above and also a
-main function that infinitly takes samples. Using `hkc -F ARG` will produce
+main function that infinitely takes samples. Using `hkc -F ARG` will produce
 just the function with the name of its argument.
 
 
@@ -111,25 +111,25 @@ Becomes:
 #include <math.h>
 
 struct arrayReal {
- int size; double * data;
-  };
+   int size; double * data;
+ };
 
 double fn_a(struct arrayReal x_b)
  {
-     int i_c;
-     double acc_d;
-     double p_e;
-     double _f;
-     double r_g;
-     acc_d = 0;
-     for (i_c = 0; i_c < x_b.size; i_c++)
-     {
-        p_e = log1p(1 + x_b.size - 1);
-        _f = log1p(1 / expm1(p_e + 1) - 1);
-        r_g = expm1(_f) + 1;
-        acc_d += r_g * *(x_b.data + i_c);
-     }
-     return acc_d;
+   unsigned int i_c;
+   double acc_d;
+   double p_e;
+   double _f;
+   double r_g;
+   acc_d = 0;
+   for (i_c = 0; i_c < x_b.size; i_c++)
+   {
+     acc_d += *(x_b.data + i_c);
+   }
+   p_e = log1p(((1 + x_b.size) - 1));
+   _f = -p_e;
+   r_g = (expm1(_f) + 1);
+   return (r_g * acc_d);
  }
 ````
 
