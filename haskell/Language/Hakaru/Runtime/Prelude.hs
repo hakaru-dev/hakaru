@@ -9,16 +9,16 @@
 module Language.Hakaru.Runtime.Prelude where
 
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Functor                  ((<$>))
-import           Control.Applicative           (Applicative(..))
+import           Data.Functor                    ((<$>))
+import           Control.Applicative             (Applicative(..))
 #endif
+import           Data.Foldable                   as F
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
 import qualified Data.Vector                     as V
 import           Control.Monad
 import           Prelude                         hiding (product)
-import qualified Prelude                         as P
 
 lam :: (a -> b) -> a -> b
 lam = id
@@ -174,7 +174,7 @@ product
     -> Integer
     -> (Integer -> a)
     -> a
-product a b f = P.product $ map f [a .. b-1]
+product a b f = F.foldl' (\x y -> x * f y) 1 [a .. b-1]
 
 summate
     :: Num a
@@ -182,7 +182,7 @@ summate
     -> Integer
     -> (Integer -> a)
     -> a
-summate a b f = sum $ map f [a .. b-1]
+summate a b f = F.foldl' (\x y -> x + f y) 0 [a .. b-1]
 
 run :: Show a
     => MWC.GenIO
