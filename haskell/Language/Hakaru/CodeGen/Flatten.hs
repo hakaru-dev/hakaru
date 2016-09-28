@@ -659,7 +659,7 @@ flattenPrimOp (Recip t) =
               return recipV
          HFractional_Prob ->
            do declare SProb recipIdent
-              assign recipIdent (log1p (((intE 1) ./. (expm1 (aE .+. (intE 1)))) .-. (intE 1)))
+              assign recipIdent (CUnary CMinOp aE)
               return recipV
 
 flattenPrimOp (Equal _) = \(a :* b :* End) ->
