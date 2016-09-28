@@ -16,11 +16,12 @@ with(NewSLO):
 
 # this uses a *global* name 't'.
 assume(t::real);
-TestDisint := proc(m, n, {ctx::list:= []}, {TLim::{positve, identical(-1)}:= 80})
+TestDisint := proc(M, n, {ctx::list:= []}, {TLim::{positive, identical(-1)}:= 80})
   #global t;
+  local m:= `if`(M::list, M, [M, :-t])[];
   timelimit(
        TLim,
-       CodeTools[Test]({disint(m, :-t, :-ctx= ctx)}, n, set(measure(simplify)), _rest)
+       CodeTools[Test]({disint(m, :-ctx= ctx)}, n, set(measure(simplify)), _rest)
   )
 end proc:
 
@@ -82,7 +83,7 @@ norm1b :=
 
 norm1r := {}:
 
-easyRoad:=
+easyRoad:= [
   Bind(Uniform(3, 8), noiseT,
   Bind(Uniform(1, 4), noiseE,
   Bind(Gaussian(0, noiseT), x1,
@@ -90,8 +91,9 @@ easyRoad:=
   Bind(Gaussian(x1, noiseT), x2,
   Bind(Gaussian(x2, noiseE), m2,
   Ret(Pair(Pair(m1,m2), Pair(noiseT,noiseE)))
-  ))))))
-:
+  )))))),
+  Pair(s,t)
+]:
 easyRoadr:=  
   Bind(Uniform(3, 8), noiseT,
   Bind(Uniform(1, 4), noiseE,
@@ -133,7 +135,8 @@ TestDisint(norm1b, norm1r,
 );
 TestDisint(
      easyRoad, easyRoadr,
-     label= "(easyRoad) Combo of Normals with distinct Uniform noises"
+     label= "(easyRoad) Combo of Normals with distinct Uniform noises",
+     TLim= 999
 );
 TestDisint(
      helloWorld, helloWorldr, ctx= [n::integer, n > 0],
