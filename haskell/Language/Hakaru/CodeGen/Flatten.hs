@@ -413,7 +413,10 @@ flattenArray arity body =
        let arrVar  = CVar arrayIdent
            dataPtr = CMember arrVar (Ident "data") True
            sizeVar = CMember arrVar (Ident "size") True
-           dataTyp = buildType arrTyp -- this should be a literal type (unless we can have an array of measures)
+           dataTyp = case buildType arrTyp of
+                       [] -> error "flatten: this shouldn't happen"
+                       t  -> t
+           -- this should be a literal type (unless we can have an array of measures)
        putStat . CExpr . Just $ sizeVar .=. arity'
 
        -- setup loop

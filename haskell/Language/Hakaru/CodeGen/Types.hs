@@ -41,9 +41,11 @@ module Language.Hakaru.CodeGen.Types
   , buildUnion
 
   , intDecl
+  , natDecl
   , doubleDecl
   , doublePtr
   , intPtr
+  , natPtr
   , boolTyp
   , binaryOp
   ) where
@@ -66,13 +68,13 @@ buildDeclaration ctyp ident =
 
 typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typeDeclaration typ ident =
-  CDecl [CTypeSpec $ buildType typ]
+  CDecl (fmap CTypeSpec $ buildType typ)
         [( CDeclr Nothing [ CDDeclrIdent ident ]
          , Nothing)]
 
 typePtrDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typePtrDeclaration typ ident =
-  CDecl [CTypeSpec $ buildType typ]
+  CDecl (fmap CTypeSpec $ buildType typ)
         [( CDeclr (Just $ CPtrDeclr [])
                   [ CDDeclrIdent ident ]
          , Nothing)]
@@ -185,7 +187,7 @@ functionDef
   -> [CStat]
   -> CFunDef
 functionDef typ ident argDecls internalDecls stmts =
-  CFunDef [CTypeSpec . buildType $ typ]
+  CFunDef (fmap CTypeSpec $ buildType typ)
           (CDeclr Nothing [ CDDeclrIdent ident ])
           argDecls
           (CCompound ((fmap CBlockDecl internalDecls) ++ (fmap CBlockStat stmts)))
@@ -194,23 +196,23 @@ functionDef typ ident argDecls internalDecls stmts =
 -- | buildType function do the work of describing how the Hakaru
 -- type will be stored in memory. Arrays needed their own
 -- declaration function for their arity
-buildType :: Sing (a :: Hakaru) -> CTypeSpec
-buildType SInt         = CInt
-buildType SNat         = CInt
-buildType SProb        = CDouble
-buildType SReal        = CDouble
-buildType (SMeasure x) = buildType x
-buildType (SArray t)   = callStruct $ arrayName t
-buildType (SFun _ x)   = buildType x -- build type the function returns
-buildType (SData _ t)  = callStruct $ datumName t
+buildType :: Sing (a :: Hakaru) -> [CTypeSpec]
+buildType SInt         = [CInt]
+buildType SNat         = [CUnsigned, CInt]
+buildType SProb        = [CDouble]
+buildType SReal        = [CDouble]
+buildType (SMeasure x) = buildType $ x
+buildType (SArray t)   = [callStruct $ arrayName t]
+buildType (SFun _ x)   = buildType $ x -- build type the function returns
+buildType (SData _ t)  = [callStruct $ datumName t]
 
 
 -- these mk...Decl functions are used in coersions
-mkDecl :: CTypeSpec -> CDecl
-mkDecl t = CDecl [CTypeSpec t] []
+mkDecl :: [CTypeSpec] -> CDecl
+mkDecl t = CDecl (fmap CTypeSpec t) []
 
-mkPtrDecl :: CTypeSpec -> CDecl
-mkPtrDecl t = CDecl [CTypeSpec t]
+mkPtrDecl :: [CTypeSpec] -> CDecl
+mkPtrDecl t = CDecl (fmap CTypeSpec t)
                     [( CDeclr (Just $ CPtrDeclr []) []
                      , Nothing )]
 
@@ -228,13 +230,17 @@ buildUnion decls =
  CSUType (CSUSpec CUnionTag Nothing decls)
 
 
-intDecl,doubleDecl :: CDecl
-intDecl    = mkDecl CInt
-doubleDecl = mkDecl CDouble
+intDecl, natDecl, doubleDecl :: CDecl
+intDecl    = mkDecl [CInt]
+natDecl    = CDecl [CTypeSpec CUnsigned
+                   ,CTypeSpec CInt]
+                   [( CDeclr (Just $ CPtrDeclr []) [], Nothing )]
+doubleDecl = mkDecl [CDouble]
 
-intPtr,doublePtr :: CDecl
-intPtr    = mkPtrDecl CInt
-doublePtr = mkPtrDecl CDouble
+intPtr, natPtr, doublePtr :: CDecl
+intPtr    = mkPtrDecl [CInt]
+natPtr    = CDecl [CTypeSpec CUnsigned, CTypeSpec CInt] []
+doublePtr = mkPtrDecl [CDouble]
 
 boolTyp :: CDecl
 boolTyp =

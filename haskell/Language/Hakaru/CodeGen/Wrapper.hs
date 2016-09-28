@@ -100,7 +100,7 @@ mainFunction
 mainFunction typ@(SMeasure t) abt =
   let ident = Ident "measure"
       funId = Ident "main"
-      isArray = isSArray t 
+      isArray = isSArray t
   in  do reserveName "measure"
          sampleId <- genIdent' "s"
 
@@ -132,7 +132,7 @@ mainFunction typ@(SMeasure t) abt =
            do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
               aE <- flattenABT arityABT
               let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
-                  size    = CMember (CVar . Ident $ "sample") (Ident "size") True  
+                  size    = CMember (CVar . Ident $ "sample") (Ident "size") True
                   innerType = getArrayType t
                   mallocCall = CCast (mkPtrDecl innerType)
                                      (mkUnary "malloc"
@@ -155,13 +155,15 @@ mainFunction typ@(SMeasure t) abt =
         mkArrayStruct :: Sing (a :: Hakaru) -> CExtDecl
         mkArrayStruct (SArray t) = arrayStruct t
         mkArrayStruct _          = error "Not Array"
-        getArrayType :: Sing (b :: Hakaru) -> CTypeSpec
-        getArrayType (SArray t) = buildType t
-        getArrayType _          = error "Not Array"  
+        getArrayType :: Sing (b :: Hakaru) -> [CTypeSpec]
+        getArrayType (SArray t) = case buildType t of
+                                    [] -> error "wrapper: this shouldn't happen"
+                                    t  -> t
+        getArrayType _          = error "Not Array"
         getPlateArity :: ABT Term abt => Term abt a -> abt '[] 'HNat
         getPlateArity (Plate :$ arity :* _ :* End) = arity
         getPlateArity _ = error "mainFunction not a plate"
-        
+
 
 mainFunction typ abt =
   let ident = Ident "result"
