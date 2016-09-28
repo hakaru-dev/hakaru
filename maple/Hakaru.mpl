@@ -254,7 +254,7 @@ Hakaru := module ()
     elif andmap(type, [m,n], 'specfunc(piecewise)') and nops(m) = nops(n) then
       k := nops(m);
       verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, v), i=1..k)))
-    elif m :: specfunc('case') and 
+    elif m :: specfunc('case') and
         verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
       # This code unfortunately only handles alpha-equivalence for 'case' along
       # the control path -- not if 'case' occurs in the argument to 'Ret', say.
@@ -377,15 +377,15 @@ Hakaru := module ()
     end if
   end proc;
 
-  #Take a piecewise: If some of the branches also contain piecewises, attempt 
-  #to re-express the whole as a single piecewise. In short: fewer piecewises, more 
+  #Take a piecewise: If some of the branches also contain piecewises, attempt
+  #to re-express the whole as a single piecewise. In short: fewer piecewises, more
   #branches, more complex conditions.--Carl 2016Sep09
   flatten_piecewise:= proc(PW::specfunc(piecewise), $)::specfunc(piecewise);
-  local 
-     pwL:= [op(PW)], 
+  local
+     pwL:= [op(PW)],
      nP:= nops(pwL),
-     conds:= pwL[[seq(1..nP-`if`(nP::odd, 2, 0), 2)]],
-     branches:= pwL[[seq(2..nP, 2), `if`(nP::odd, nP, NULL)]],
+     conds:= pwL[[seq(1..nP-1, 2)]],
+     branches:= pwL[[seq(2..nP-1, 2), nP]],
      innerPW:= indets(branches, specfunc(piecewise)),
      outerPW, C_O, C_I, B_I, r
   ;
@@ -432,7 +432,7 @@ Hakaru := module ()
      ];
      userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
      piecewise(r[])
-  end proc;  
+  end proc;
 
   app := proc (func, argu, $)
     if func :: 'lam(name, anything, anything)' then
@@ -583,18 +583,18 @@ Hakaru := module ()
          #Alternation/conjunction of types via {} or And follows the McCarthy
          #short-cut rule: Proceeding left to right, once satisfaction of the type
          #can be determined, the remaining elements aren't evaluated. Therefore,
-         #recursive types are possible by placing the base cases at the beginning. 
+         #recursive types are possible by placing the base cases at the beginning.
          {'known_continuous', 'known_discrete',
            t_pw, #Needs to be more specific!
            t_case,
-          'Ret(algebraic)', #Needs to be more specific than algebraic?
-          'Bind(t_Hakaru, name, t_Hakaru)', 
-          'specfunc(Msum)', #Needs a subtype.
-          'Weight(anything, t_Hakaru)', #`anything` should be more specific.
-          'Plate(anything, name, t_Hakaru)' #`anything` should be more specific.
-         } 
-    );        
-    TypeTools[AddType](t_type,
+          'Ret(anything)',
+          'Bind(t_Hakaru, name, t_Hakaru)',
+          'specfunc(t_Hakaru, Msum)',
+          'Weight(algebraic, t_Hakaru)',
+          'Plate(algebraic, name, t_Hakaru)'
+         }
+    );
+    TypeTools:-AddType(t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
                  {AlmostEveryReal, HReal, HInt}),
         specfunc(DatumStruct(anything, list({Konst(t_type), Ident(t_type)})),
@@ -602,10 +602,10 @@ Hakaru := module ()
         HMeasure(t_type),
         HArray(t_type),
         HFunction(t_type, t_type)}');
-    TypeTools[AddType](t_case,
+    TypeTools:-AddType(t_case,
       'case(anything, specfunc(Branch(anything, anything), Branches))');
-    TypeTools:-AddType(t_pw, specfunc(piecewise));
-    TypeTools[AddType](t_piecewiselike,
+    TypeTools:-AddType(t_pw, 'specfunc(piecewise)');
+    TypeTools:-AddType(t_piecewiselike,
       '{specfunc(piecewise), t_case, idx(list, anything)}');
 
     #Protect the keywords of the Hakaru language.
@@ -613,7 +613,7 @@ Hakaru := module ()
     for g in op([2,6], thismodule) do
          if g <> eval(g) then
               unassign(g);
-              WARNING("Previous value of Hakaru keyword '%1' erased.", g)              
+              WARNING("Previous value of Hakaru keyword '%1' erased.", g)
          end if;
          protect(g)
     end do
@@ -624,9 +624,9 @@ Hakaru := module ()
     TypeTools:-RemoveType(known_discrete);
     TypeTools:-RemoveType(t_Hakaru);
     TypeTools:-RemoveType(t_pw);
-    TypeTools[RemoveType](t_piecewiselike);
-    TypeTools[RemoveType](t_case);
-    TypeTools[RemoveType](t_type);
+    TypeTools:-RemoveType(t_piecewiselike);
+    TypeTools:-RemoveType(t_case);
+    TypeTools:-RemoveType(t_type);
     VerifyTools[RemoveVerification](measure);
     unprotect(op([2,6], thismodule)); #See comment in ModuleLoad.
     #Skip restoring the globals to any prior value they had.

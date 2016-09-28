@@ -20,11 +20,9 @@ end proc:
 
 NewSLO := module ()
   option package;
-  local 
-        (* t_pw, *) #Moved to Hakaru.mpl
+  local
         t_sum, t_product,
-        integrate_known, 
-        (* known_continuous, known_discrete, *) #Moved to Hakaru.mpl
+        integrate_known,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, termize, bind, weight,
@@ -154,7 +152,6 @@ NewSLO := module ()
     return true;
   end proc;
 
-  (* t_pw      := 'specfunc(piecewise)'; *) #Moved to Hakaru.mpl
   t_sum     := 'specfunc({sum    ,Sum    })';
   t_product := 'specfunc({product,Product})';
 
@@ -267,21 +264,6 @@ NewSLO := module ()
             x, bds, loops)
     end if;
   end proc;
-
-  (*****  #Moved to Hakaru.mpl
-  known_continuous := '{
-    Lebesgue(anything, anything), Uniform(anything, anything),
-    Gaussian(anything, anything), Cauchy(anything, anything),
-    StudentT(anything, anything, anything), ChiSquared(anything),
-    BetaD(anything, anything), GammaD(anything, anything),
-    InverseGammaD(anything, anything)
-  }';
-
-  known_discrete := '{Counting(anything, anything),
-    Categorical(anything),
-    Binomial(anything,anything),
-    NegativeBinomial(anything,anything), PoissonD(anything)}';
-  *****) #end cut code
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
@@ -1825,7 +1807,7 @@ NewSLO := module ()
                 forall,Ints,Sums,ints,sums,`..`}';
     catch:
          userinfo(
-              1, NewSLO, 
+              1, NewSLO,
               "Redefinition of PiecewiseTools:-InertFunctions failed.",
               StringTools:-FormatMessage(lastexception[2..-1])
          )
