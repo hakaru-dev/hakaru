@@ -16,12 +16,16 @@ with(NewSLO):
 
 # this uses a *global* name 't'.
 assume(t::real);
-TestDisint := proc(M, n, {ctx::list:= []}, {TLim::{positive, identical(-1)}:= 80})
+TestDisint:= proc(
+  M::{t_Hakaru, list({algebraic, name=list})}, #args to disint, or just 1st arg
+  n::set({t_Hakaru, identical(NULL)}), #desired return
+  {TLim::{positive, identical(-1)}:= 80} #timelimit
+)
   #global t;
   local m:= `if`(M::list, M, [M, :-t])[];
   timelimit(
        TLim,
-       CodeTools[Test]({disint(m, :-ctx= ctx)}, n, set(measure(simplify)), _rest)
+       CodeTools[Test]({disint(m)}, n, set(measure(simplify)), _rest)
   )
 end proc:
 
@@ -81,8 +85,9 @@ norm1a :=
 norm1b :=
   Bind(Gaussian(3,2), x,piecewise(x<0, Ret(Pair(-x, _Unit)), Ret(Pair(x, _Unit)))):
 
-norm1r := {}:
+norm1r := {}: #Desired output unknown.
 
+assume(s::real);
 easyRoad:= [
   Bind(Uniform(3, 8), noiseT,
   Bind(Uniform(1, 4), noiseE,
@@ -94,26 +99,56 @@ easyRoad:= [
   )))))),
   Pair(s,t)
 ]:
-easyRoadr:=  
+easyRoadr:= {
+  Weight(                #Weight 1
+    Pi/8, 
+    Bind(                #Bind 1
+      Uniform(3, 8), noiseT,
+      Weight(            #Weight 2
+        1/noiseT^2,
+        Bind(            #Bind 2
+          Uniform(1, 4), noiseE, 
+          Weight(        #Weight 3
+            Int(         #Int 1
+              Int(       #Int 2
+                exp(
+                  -(x2^2/2 - x1*x2 + x1^2)/noiseT^2 - 
+                  ((t-x2)^2 + (s-x1)^2)/noiseE^2
+                )*2/Pi/noiseE,
+                x2= -infinity..infinity
+              ),         #-Int 2
+              x1= -infinity..infinity
+            ),           #-Int 1
+            Ret(Pair(noiseT, noiseE))
+          )              #-Weight 3
+        )                #-Bind 2
+      )                  #-Weight 2
+    )                    #-Bind 1
+  )                      #-Weight 1
+}:
+#Hopefully, that's equivalent to...
+easyRoadrA:= {  
   Bind(Uniform(3, 8), noiseT,
   Bind(Uniform(1, 4), noiseE,
   Bind(Gaussian(0, noiseT), x1,
-  Bind(Weight(density[Gaussian](x1, noiseE)(t1), Ret(_Unit)), _,
+  Bind(Weight(density[Gaussian](x1, noiseE)(s), Ret(_Unit)), _,
   Bind(Gaussian(x1, noiseT), x2,
-  Weight(density[Gaussian](x2, noiseE)(t2), Ret(Pair(noiseT, noiseE)))
+  Weight(density[Gaussian](x2, noiseE)(t), Ret(Pair(noiseT, noiseE)))
   )))))
-: 
-helloWorld:=
+}: 
+helloWorld:= [
   Bind(Gaussian(0,1), mu,
   Bind(Plate(n, k, Gaussian(mu, 1)), nu,
   Ret(Pair(nu, mu))
-  ))
-:
-helloWorldr:= 
+  )),
+  :-t,
+  :-ctx= [n::integer, n > 0]
+]:
+helloWorldr:= { 
   Bind(Gaussian(0,1), mu,
   Plate(n, i, Weight(density[Gaussian](mu, 1)(idx(t,i)), Ret(mu)))
   )
-:  
+}:  
 
 TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
 TestDisint(d2, d2r, label = "(d2) Disintegrate linear function II");
@@ -136,9 +171,9 @@ TestDisint(norm1b, norm1r,
 TestDisint(
      easyRoad, easyRoadr,
      label= "(easyRoad) Combo of Normals with distinct Uniform noises",
-     TLim= 999
+     TLim= 600 #takes 6 - 8 minutes to `improve` on an Intel i7
 );
 TestDisint(
-     helloWorld, helloWorldr, ctx= [n::integer, n > 0],
+     helloWorld, helloWorldr,
      label= "(helloWorld) Plate of Normals"
 );
