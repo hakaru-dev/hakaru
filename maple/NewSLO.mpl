@@ -764,8 +764,10 @@ NewSLO := module ()
 # Step 2 of 3: computer algebra
 
   improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
-  local r:= LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx)), `&context`;
+  local r, `&context`;
        userinfo(3, improve, "input: ", print(lo &context _ctx));
+       userinfo(3, improve, NoName, fflush(terminal));     
+       r:= LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx));
        userinfo(3, improve, "output: ", print(r));
        r
   end proc;
@@ -1357,7 +1359,7 @@ NewSLO := module ()
             cond:= fst(p);
 
             traverse_var_tree(A); # collect information about A in DV
-            userinfo(3, Disint, "DV:", sprintf("%a", eval(DV)));
+            userinfo(3, Disint, "DV:", eval(DV));
             mc:= Bind(
                  m, p,
                  #The piecewise condition is a conjunction of inequalities, each
