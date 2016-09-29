@@ -63,11 +63,10 @@ instance Pretty CExtDecl where
 
 instance Pretty CFunDef where
   pretty (CFunDef dspecs dr ds s) =
-    vcat [ (hsep . fmap pretty $ dspecs)
-           <+> pretty dr
-           <>  (parens . hsep . punctuate comma . fmap pretty $ ds)
-         , pretty s
-         ]
+    ((hsep . fmap pretty $ dspecs)
+     <+> pretty dr
+     <>  (parens . hsep . punctuate comma . fmap pretty $ ds))
+    $+$ pretty s
 
 --------------------------------------------------------------------------------
 -- Preprocessor
@@ -145,11 +144,9 @@ instance Pretty CSUSpec where
   pretty (CSUSpec tag mi []) =
     pretty tag <+> mpretty mi
   pretty (CSUSpec tag mi ds) =
-    pretty tag
-    <+> mpretty mi
-    <+> lbrace
-    $+$ (nest 2 . sep . fmap (\d -> pretty d <> semi)  $ ds)
-    $$ rbrace
+    (pretty tag <+> mpretty mi <+> lbrace)
+    $+$ (nest (-1) $ (nest 2 . sep . fmap (\d -> pretty d <> semi)  $ ds)
+                     $+$ rbrace)
 
 instance Pretty CSUTag where
   pretty CStructTag = text "struct"
@@ -178,22 +175,25 @@ instance Pretty CStat where
   pretty (CDefault s) = text "default" <> colon $$ nest 2 (pretty s)
   pretty (CExpr me) = mpretty me <> semi
   pretty (CCompound bs) =
-    lbrace $+$ (nest 2 . vcat . fmap pretty $ bs) $+$ rbrace
+    nest (-1) (lbrace $+$ (nest 2 . vcat . fmap pretty $ bs) $+$ rbrace)
 
-  pretty (CIf ce thns (Just s)) =
+  pretty (CIf ce thns (Just elss)) = nest 1 $
     text "if" <+> (prettyPrec (-5) ce)
+              $+$ (nest 1 $ pretty thns)
+              $+$ text "else"
+              $+$ (nest 1 $ pretty elss)
   pretty (CIf ce thns Nothing) =
-    text "if" <+> (prettyPrec (-5) ce) $+$ pretty thns
+    text "if" <+> (prettyPrec (-5) ce) $+$ (nest 1 $ pretty thns)
 
   pretty (CWhile ce s b) =
     if b
     then text "do" <+> pretty s <+> text "while" <+> (parens $ pretty ce) <> semi
-    else text "while" <+> (parens $ pretty ce) $$ pretty s
+    else text "while" <+> (parens $ pretty ce) $$ (nest 1 $ pretty s)
 
   pretty (CFor me mce mie s) =
     text "for"
     <+> (parens . hsep . punctuate semi . fmap (mPrettyPrec 10) $ [me,mce,mie])
-    $$  pretty s
+    $$  (nest 1 $ pretty s)
 
   pretty CCont = text "continue" <> semi
   pretty CBreak = text "break" <> semi
