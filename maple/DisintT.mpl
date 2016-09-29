@@ -19,10 +19,12 @@ assume(t::real);
 TestDisint:= proc(
   M::{t_Hakaru, list({algebraic, name=list})}, #args to disint, or just 1st arg
   n::set({t_Hakaru, identical(NULL)}), #desired return
+  {ctx::list:= []}, #context: assumptions, "knowledge"
   {TLim::{positive, identical(-1)}:= 80} #timelimit
 )
   #global t;
-  local m:= `if`(M::list, M, [M, :-t])[];
+  local m;
+  m:= `if`(M::list, M, [M, :-t])[], :-ctx= ctx;
   timelimit(
        TLim,
        CodeTools[Test]({disint(m)}, n, set(measure(simplify)), _rest)
@@ -99,6 +101,10 @@ easyRoad:= [
   )))))),
   Pair(s,t)
 ]:
+#The first expression below comes from the actual output of disint, hand-
+#simplified 1) to bring factors into the innnermost integral, 2) to combine
+#products of exps, and 3) to express the polynomial arg of exp in a logical way
+#by sub-factoring 
 easyRoadr:= {
   Weight(                #Weight 1
     Pi/8, 
@@ -124,10 +130,9 @@ easyRoadr:= {
         )                #-Bind 2
       )                  #-Weight 2
     )                    #-Bind 1
-  )                      #-Weight 1
-}:
-#Hopefully, that's equivalent to...
-easyRoadrA:= {  
+  ),                     #-Weight 1
+
+  #Hopefully, that's equivalent to...  
   Bind(Uniform(3, 8), noiseT,
   Bind(Uniform(1, 4), noiseE,
   Bind(Gaussian(0, noiseT), x1,
@@ -142,7 +147,7 @@ helloWorld:= [
   Ret(Pair(nu, mu))
   )),
   :-t,
-  :-ctx= [n::integer, n > 0]
+  ctx= [n::integer, n > 0]
 ]:
 helloWorldr:= { 
   Bind(Gaussian(0,1), mu,
@@ -175,5 +180,6 @@ TestDisint(
 );
 TestDisint(
      helloWorld, helloWorldr,
-     label= "(helloWorld) Plate of Normals"
+     label= "(helloWorld) Plate of Normals",
+     ctx= [n::integer, n > 0]
 );
