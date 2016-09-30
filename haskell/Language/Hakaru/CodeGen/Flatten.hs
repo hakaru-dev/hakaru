@@ -620,31 +620,36 @@ flattenPrimOp RealPow =
      assign ident $ log1p (realPow .-. (intE 1))
      return $ CVar ident
 
--- flattenPrimOp (NatPow baseT) =
---   \(a :* b :* End) ->
---   let singBase = sing_HSemiring baseT in
---   do ident <- genIdent' "pow"
---      declare singBase ident
---      aE <- flattenABT a
---      bE <- flattenABT b
---      let powerOf x y = callFuncE (varE . builtinIdent $ "pow") [x,y]
---          value = case singBase of
---                         SProb -> log1p (powerOf (expm1 aE ^+ (intConstE 1)) bE
---                                          ^- (intConstE 1))
---                         _     -> powerOf (expm1 aE ^+ (intConstE 1)) bE
---      assign ident $ value
---      return $ varE ident
+flattenPrimOp (NatPow baseT) =
+  \(base :* exponent :* End) ->
+  let singBase = sing_HSemiring baseT in
+  do ident <- genIdent' "pow"
+     declare singBase ident
+     baseE <- flattenABT base
+     exponentE <- flattenABT exponent
+     let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
+         value = case singBase of
+                   SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) exponentE)
+                                  .-. (intE 1)
+                   _     -> powerOf baseE exponentE
+     assign ident $ value
+     return (CVar ident)
 
--- flattenPrimOp (NatRoot _) =
---   \(a :* b :* End) ->
---   do ident <- genIdent' "root"
---      declare SProb ident
---      aE <- flattenABT a
---      bE <- flattenABT b
---      let powerOf x y = callFuncE (varE . builtinIdent $ "pow") [x,y]
---          recipBE = (intConstE 1) ^/ bE
---      assign ident $ log1p (powerOf (expm1 aE ^+ (intConstE 1)) recipBE ^- (intConstE 1))
---      return $ varE ident
+flattenPrimOp (NatRoot baseT) =
+  \(base :* root :* End) ->
+  let singBase = sing_HRadical baseT in
+  do ident <- genIdent' "root"
+     declare singBase ident
+     baseE <- flattenABT base
+     rootE <- flattenABT root
+     let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
+         recipE = (floatE 1) ./. rootE
+         value = case singBase of
+                   SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) recipE)
+                                  .-. (intE 1)
+                   _     -> powerOf baseE recipE
+     assign ident $ value
+     return (CVar ident)
 
 
 flattenPrimOp (Recip t) =
@@ -661,6 +666,13 @@ flattenPrimOp (Recip t) =
            do declare SProb recipIdent
               assign recipIdent (CUnary CMinOp aE)
               return recipV
+
+flattenPrimOp Exp =
+  \(a :* End) ->
+    do aE <- flattenABT a
+       expId <- genIdent
+       assign expId . log1p $ aE .-. (intE 1)
+       return (CVar expId)
 
 flattenPrimOp (Equal _) = \(a :* b :* End) ->
   do a' <- flattenABT a
@@ -691,6 +703,14 @@ flattenPrimOp (Less _) = \(a :* b :* End) ->
                             .=. (CCond (a' .<. b') (intE 0) (intE 1))
 
      return (CVar boolIdent)
+
+flattenPrimOp (Negate HRing_Real) =
+ \(a :* End) ->
+   do aE <- flattenABT a
+      negId <- genIdent
+      assign negId . CUnary CNegOp $ aE
+      return (CVar negId)
+
 
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
