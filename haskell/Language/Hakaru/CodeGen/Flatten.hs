@@ -158,6 +158,11 @@ flattenSCon Plate           = \(size :* b :* End) ->
        iterIdent  <- createIdent v
        declare SNat iterIdent
 
+       weightId <- genIdent' "w"
+       declare SProb weightId
+       assign weightId (intE 0) -- initialize to log 1
+       let weight = CVar weightId
+
        (Sample i _) <- getSample
 
        -- manage loop
@@ -165,11 +170,13 @@ flattenSCon Plate           = \(size :* b :* End) ->
            cond     = iter .<. arity
            inc      = CUnary CPostIncOp iter
            currInd  = indirect ((CMember (CVar i) (Ident "data") False) .+. iter)
-           loopBody = do _ <- flattenABT body
+           loopBody = do w <- flattenABT body
                          (Sample _ e) <- getSample
                          putStat . CExpr . Just $ currInd .=. e
-       forCG (iter .=. (intE 0)) cond inc loopBody
-       return (intE 0)
+                         putStat . CExpr . Just $ weight .+=. w
+
+       reductionCG CAddOp weightId (iter .=. (intE 0)) cond inc loopBody
+       return weight
 
 
 flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
