@@ -605,7 +605,7 @@ flattenPrimOp :: ( ABT Term abt
               -> SArgs abt args
               -> CodeGen CExpr
 flattenPrimOp Pi = \End ->
-  do ident <- genIdent
+  do ident <- genIdent' "pi"
      declare SProb ident
      assign ident $ log1p ((CVar . Ident $ "M_PI") .-. (intE 1))
      return (CVar ident)
@@ -655,7 +655,7 @@ flattenPrimOp (NatRoot baseT) =
 flattenPrimOp (Recip t) =
   \(a :* End) ->
     do aE <- flattenABT a
-       recipIdent <- genIdent
+       recipIdent <- genIdent' "recip"
        let recipV = CVar recipIdent
        case t of
          HFractional_Real ->
@@ -670,7 +670,8 @@ flattenPrimOp (Recip t) =
 flattenPrimOp Exp =
   \(a :* End) ->
     do aE <- flattenABT a
-       expId <- genIdent
+       expId <- genIdent' "exp"
+       declare (typeOf a) expId
        assign expId . log1p $ aE .-. (intE 1)
        return (CVar expId)
 
@@ -707,8 +708,9 @@ flattenPrimOp (Less _) = \(a :* b :* End) ->
 flattenPrimOp (Negate HRing_Real) =
  \(a :* End) ->
    do aE <- flattenABT a
-      negId <- genIdent
-      assign negId . CUnary CNegOp $ aE
+      negId <- genIdent' "neg"
+      declare SReal negId
+      assign negId . CUnary CMinOp $ aE
       return (CVar negId)
 
 
