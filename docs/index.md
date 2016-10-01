@@ -90,7 +90,7 @@ our system provides.
 
 [Simplify](/transforms/simplify)
 
-Metropolis Hastings
+[Metropolis Hastings](/transforms/mh)
 
 Compiling to Haskell
 
