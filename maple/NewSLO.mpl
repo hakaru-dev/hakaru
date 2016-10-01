@@ -1295,7 +1295,8 @@ NewSLO := module ()
        subs(J= newJ, e)
   end proc;
 
-  #Disintegration
+  #Disintegration *
+  #---------------*
   #Abbreviations:
   #     wrt = "with respect to".
   #     wrt var = "a variable wrt which disintegration is performed". There may be
@@ -1304,22 +1305,36 @@ NewSLO := module ()
   #     wrt-var type: Each wrt var may be continuous (Lebesgue), discrete (Counting),
   #          point evaluation (Dirac), and there may be other types added later.   
   disint:= module()
-  local 
+  local
+       #Dispatch table for wrt-var types. For each, there is a "cond constructor"
+       #and a "disintegrator". The cond constructor builds the associated relation
+       #in the master piecewise; the disintegrator does the differentiation or 
+       #whatever operator is analogous to differentiation for that type after the
+       #measure has been `improve`d.
+       #
+       #APIs:
+       #     Indices: Can be anything, but convention so far is a function.
+       #     cond_constructor: (algebraic,name)-> boolean (most likely, a relation)
+       #     disintegrator: same as *basic* diff: (algebraic,name)-> algebraic
+       Wrt_var_types::static:= table([
+            'Lebesgue'((-1,1)*~infinity)= 
+                 Record(cond_constructor= `<=`, disintegrator= diff),
+            'Counting'(0, infinity)=  #Are args correct?
+                 Record(cond_constructor= `<=`, disintegrator= LREtools:-delta),
+            'dirac'()= #Are name and args correct? Should be Ret?
+                       #Correct disintegrator needs to be filled in.
+                 Record(cond_constructor= `=`, disintegrator= (_-> _))
+       ]),
+   
        #types for disint wrt vars (2nd arg to disint)
+       t_wrt_var_type,
        t_disint_var, #Curiosity: giving this a type `type` causes a kernel crash
                      #during update-archive.
-       t_disint_var_pair, #type
-       t_wrt_var_type, 
-       ModuleLoad:= proc($) #Needed to declare types.
+       t_disint_var_pair, #type 
+       ModuleLoad::static:= proc($) #Needed to declare types.
             TypeTools:-AddType(
                  t_wrt_var_type,
-                 identical(
-                       #API (so far): Every entry should be a function with a
-                       #unique op(0, ...) that's a symbol.
-                       'Lebesgue'((-1,1)*~infinity),
-                       'Counting'(0, infinity), #Correct args?
-                       'dirac'()  #Exact spec needs to be filled in.
-                 )
+                 satisfies(t-> assigned(Wrt_var_types[t]))                    
             );
             TypeTools:-AddType(t_disint_var, {name, name &M t_wrt_var_type});
             TypeTools:-AddType(     #Caution: recursive type: Make sure base cases
@@ -1331,50 +1346,34 @@ NewSLO := module ()
   
        DV::table,  #wrt vars, with their types and conditions
        p::symbol,  #"pair"--abstract representation
-       path, #layers of fst(...) and snd(...) built by traversing tree
-
-       #To every wrt-var type there corresponds a condition constructor---a
-       #procedure that'll construct the corresponding condition for the master
-       #piecewise. This table is their dispatcher.   
-       Cond_constructors:= table([
-            #API: symbol = ((algebraic,name)-> boolean)
-            Lebesgue= `<=`,
-            Counting= `<=`,
-            dirac= `=`
-       ]),
-        
-       #To every wrt-var type there corresponds a disintegrator---
-       #something like diff or delta---which is applied to the expression after
-       #`improve`. This table is their dispatcher.
-       disintegrators:= table([
-            #API: just like *basic* diff: symbol = ((algebraic,name)-> algebraic) 
-            Lebesgue= diff,
-            Counting= LREtools:-delta,
-            dirac= (_-> _) #Exact spec needs to be filled in.
-       ]),    
+       #layers of fst(...) and snd(...) built by traversing tree
+       #(Weird Maple syntax note: Module prefixes seem to be required for
+       #assertion type checking. Failure to include them causes kernel crash.)
+       path::{specfunc({Hakaru:-fst, Hakaru:-snd}), symbol},
 
        #Parses the 2nd arg---the wrt vars.
        # works by side-effect: accumulates "paths" to variables in T
        # via the module variable DV.
-       traverse_var_tree:= proc(
+       traverse_var_tree::static:= proc(
             T::{t_disint_var, t_disint_var_pair}, $
        )::identical(NULL);
-       local v::name, M;
+       local 
+            v::name, #the wrt var 
+            M::NewSLO:-disint:-t_wrt_var_type, 
+            pp #iterator over [fst, snd]---the parts of a Pair
+       ;
             if T::t_disint_var then
                  #Add a default wrt-var type if none appears.
-                 (v,M):= op(`if`(T::name, [T, Lebesgue((-1,1)*~infinity)], T));
-                 DV[v]:= Record('wrt_var_type'= op(0,M), 'path'= path);
+                 (v,M):= op(`if`(T::name, T &M 'Lebesgue'((-1,1)*~infinity), T));
+                 DV[v]:= Record('wrt_var_type'= M, 'path'= path);
                  path:= op(path) #Peel off outer layer: fst or snd.
-            else #T::Pair(..., ...)
-                 path:= fst(path);
-                 thisproc(op(1,T));
-                 path:= snd(path);
-                 thisproc(op(2,T))
+            else #T::Pair(..., ...)---deconstruct recursively.
+                 for pp in [fst, snd] do path:= pp(path); thisproc(pp(T)) end do
             end if;
             NULL                        
        end proc, #disint:-traverse_var_tree
       
-       ModuleApply:= proc(
+       ModuleApply::static:= proc(
             m::t_Hakaru, 
             #var &M wrt-var type, or Pairs thereof
             A::{t_disint_var, t_disint_var_pair},
@@ -1385,7 +1384,8 @@ NewSLO := module ()
             mc,  #final integral to be passed to improve @ toLO; then result
                  #of each disintegration step
             kb:= foldr(assert, empty, ctx[]),
-            v #iterator over indices of DV
+            V, #wrt vars
+            v::name #iterator over V
        ;
             #Init module variables.
             DV:= table();
@@ -1394,19 +1394,18 @@ NewSLO := module ()
 
             traverse_var_tree(A); # collect information about A in DV
             userinfo(3, Disint, "DV:", eval(DV));
+            V:= indices(DV, 'nolist');
             mc:= Bind(
                  m, p,
                  #The piecewise condition is a conjunction of conditions, each
                  #condition formed from a (var,path) pair from DV. 
                  piecewise(
-                      And(
-                           seq(
-                                Cond_constructors[DV[v]:-wrt_var_type](
-                                     DV[v]:-path, v
-                                ),
-                                v= indices(DV, 'nolist')
-                           )
-                      ),
+                      And(seq(
+                           Wrt_var_types[DV[v]:-wrt_var_type]:-cond_constructor(
+                                DV[v]:-path, v
+                           ),
+                           v= V
+                      )),
                       Ret(snd(p)),
                       Msum()
                  )
@@ -1416,7 +1415,10 @@ NewSLO := module ()
             #Theoretically, I think not, it's just like differentiation. As far
             #as Maple's ability to do the computation, maybe it matters.
             for v in indices(DV, 'nolist') do
-                 mc:= applyop(disintegrators[DV[v]:-wrt_var_type], 2, mc, v)
+                 mc:= applyop(
+                      Wrt_var_types[DV[v]:-wrt_var_type]:-disintegrator, 
+                      2, mc, v
+                 )
             end do;      
             fromLO(mc, _ctx= kb)
        end proc #disint:-ModuleApply
