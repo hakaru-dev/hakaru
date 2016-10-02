@@ -147,14 +147,23 @@ flattenSCon (ArrayOp_ op)   = flattenArrayOp op
 flattenSCon (MeasureOp_ op) = flattenMeasureOp op
 flattenSCon Dirac           = \(e :* End) ->
   do e' <- flattenABT e
-     (Sample sampleId _) <- getSample
-     putSample (Sample sampleId e')
-     return (intE 0)
+     mdataId <- genIdent' "m"
+     declare (SMeasure . typeOf $ e) mdataId
+     let mdata = CVar mdataId
+     putStat . CExpr . Just $ mdataWeight mdata .=. (floatE 0)
+     putStat . CExpr . Just $ mdataSample mdata .=. e'
+     return mdata
 
 
 flattenSCon Plate           = \(size :* b :* End) ->
   caseBind b $ \v body ->
-    do arity <- flattenABT size
+    do mdataId <- genIdent' "plate"
+       let t = SArray . sUnMeasure . typeOf $ body
+       declare (SMeasure t) mdataId
+       extDeclare . mdataStruct $ t
+       let mdataVar = CVar mdataId
+
+       arity <- flattenABT size
        iterIdent  <- createIdent v
        declare SNat iterIdent
 
@@ -163,20 +172,19 @@ flattenSCon Plate           = \(size :* b :* End) ->
        assign weightId (intE 0) -- initialize to log 1
        let weight = CVar weightId
 
-       (Sample i _) <- getSample
-
        -- manage loop
        let iter     = CVar iterIdent
            cond     = iter .<. arity
            inc      = CUnary CPostIncOp iter
-           currInd  = indirect ((CMember (CVar i) (Ident "data") False) .+. iter)
-           loopBody = do w <- flattenABT body
-                         (Sample _ e) <- getSample
-                         putStat . CExpr . Just $ currInd .=. e
-                         putStat . CExpr . Just $ weight .+=. w
+           currInd  = indirect $ CMember (mdataSample mdataVar) (Ident "data") True .+. iter
+           loopBody = do mdataCell <- flattenABT body
+                         putStat . CExpr . Just $ currInd .=. (mdataSample mdataCell)
+                         putStat . CExpr . Just $ weight .+=. (mdataWeight mdataCell)
 
        reductionCG CAddOp weightId (iter .=. (intE 0)) cond inc loopBody
-       return weight
+
+       putStat . CExpr . Just $ mdataWeight mdataVar .=. weight
+       return mdataVar
 
 
 flattenSCon (Summate _ sr) = \(lo :* hi :* body :* End) ->
@@ -234,13 +242,14 @@ flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
 
 
 flattenSCon MBind           =
-  \(e1 :* e2 :* End) ->
-    do e1' <- flattenABT e1
-       caseBind e2 $ \v@(Variable _ _ typ) e2'->
-         do ident <- createIdent v
-            declare typ ident
-            assign ident e1'
-            flattenABT e2'
+  \(ma :* k :* End) ->
+    do mdataA <- flattenABT ma
+       caseBind k $ \v@(Variable _ _ typ) mb ->
+         do mdataAId <- createIdent v
+            declare (typeOf ma) mdataAId
+            assign mdataAId mdataA
+
+            flattenABT mb
 
 -- at this point, only nonrecusive coersions are implemented
 flattenSCon (CoerceTo_ ctyp) =
@@ -440,9 +449,6 @@ flattenArray arity body =
            inc      = CUnary CPostIncOp iter
            currInd  = indirect (dataPtr .+. iter)
            loopBody = putStat . CExpr . Just . CAssign CAssignOp currInd =<< flattenABT body'
-       -- mpB <- isOpenMP
-       -- when mpB . putStat . CPPStat . PPPragma
-       --      $ ["omp","parallel","for"]
        forCG (iter .=. (intE 0)) cond inc loopBody
 
        return (CVar arrayIdent)
@@ -762,9 +768,10 @@ flattenMeasureOp Normal  = \(a :* b :* End) ->
      let varC = CVar cId
          value  = a' .+. (varU .*. (varC .*. ((expm1 b') .+. (intE 1))))
 
-     (Sample sampleId _) <- getSample
-     putSample (Sample sampleId value)
-     return (intE 0)
+
+     mdataId <- genIdent' "m"
+     declare (SMeasure SReal) mdataId
+     return (CVar mdataId)
 
 flattenMeasureOp Uniform = \(a :* b :* End) ->
   do a' <- flattenABT a
@@ -772,9 +779,9 @@ flattenMeasureOp Uniform = \(a :* b :* End) ->
      let r      = CCast doubleDecl rand
          rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
          value  = (a' .+. ((r ./. rMax) .*. (b' .-. a')))
-     (Sample sampleId _) <- getSample
-     putSample (Sample sampleId value)
-     return (intE 0)
+     mdataId <- genIdent' "m"
+     declare (SMeasure SReal) mdataId
+     return (CVar mdataId)
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
 
 ----------------------------------------------------------------
@@ -818,8 +825,7 @@ flattenSuperpose wes =
 
           -- try the first element
           assign iterId (head weights)
-          stat <- runCodeGenBlock (do _ <- flattenABT (snd . head $ wes')
-                                      (Sample _ e) <- getSample -- toss weight
+          stat <- runCodeGenBlock (do e <- flattenABT (snd . head $ wes')
                                       assign outId e
                                       putStat $ CGoto outLabel)
           putStat $ CIf (rVar .<. (exp iter)) stat Nothing
@@ -827,13 +833,13 @@ flattenSuperpose wes =
 
           forM_ (zip (tail weights) (fmap snd (tail wes'))) $ \(e,m) ->
             do assign iterId =<< (logSumExpCG $ S.fromList [iter, e])
-               stat <- runCodeGenBlock (do _ <- flattenABT m -- toss weight
-                                           (Sample _ e) <- getSample
+               stat <- runCodeGenBlock (do e <- flattenABT m -- toss weight
                                            assign outId e
                                            putStat $ CGoto outLabel)
                putStat $ CIf (rVar .<. (exp iter)) stat Nothing
 
           putStat $ CLabel outLabel (CExpr Nothing)
-          (Sample s _) <- getSample
-          putSample (Sample s (CVar outId))
-          return weightSum
+          mdataId <- genIdent' "m"
+          declare (SMeasure SReal) mdataId
+          return (CVar mdataId)
+          -- return weightSum

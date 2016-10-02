@@ -61,7 +61,7 @@ wrapProgram tast@(TypedAST typ _) mn =
                  do reserveName name
                     case retT of
                       SMeasure _ -> do reserveName "sample"
-                                       putSample (Sample (Ident "sample") undefined)
+                                       -- putSample (Sample (Ident "sample") undefined)
                                        flattenTopLambda abt $ Ident name
                       _          -> flattenTopLambda abt $ Ident name
 
@@ -69,7 +69,7 @@ wrapProgram tast@(TypedAST typ _) mn =
                  genIdent' "fn" >>= \name ->
                    case retT of
                      SMeasure _ -> do reserveName "sample"
-                                      putSample (Sample (Ident "sample") undefined)
+                                      -- putSample (Sample (Ident "sample") undefined)
                                       flattenTopLambda abt name
                      _          -> flattenTopLambda abt name
 
@@ -101,21 +101,13 @@ mainFunction typ@(SMeasure t) abt =
   let ident = Ident "measure"
       funId = Ident "main"
       isArray = isSArray t
+      isPlate = isSArray t
   in  do reserveName "measure"
-         sampleId <- genIdent' "s"
 
-         when isArray . extDeclare . mkArrayStruct $ t
-
-         let samplePtr = typePtrDeclaration t sampleId
-         putSample $ Sample sampleId (undefined :: CExpr)
-
-         -- defined a measure function that returns a Double
-         defineFunction SProb ident [samplePtr]
-           $ do wE <- flattenABT abt
-                (Sample i sE) <- getSample
-                unless isArray
-                  $ putStat . CExpr . Just $ (indirect . CVar $ i) .=. sE
-                putStat . CReturn . Just $ wE
+         -- defined a measure function that returns mdata
+         defineFunction typ ident []
+           $ do mE <- flattenABT abt
+                putStat . CReturn . Just $ mE
 
          -- need to set seed?
          -- srand(time(NULL));
@@ -123,22 +115,18 @@ mainFunction typ@(SMeasure t) abt =
          -- main function
          reserveName "main"
 
-         -- get a place to return a sample
-         reserveName "sample"
-         declare t (Ident "sample")
-
          -- if it is a plate then allocate space here
-         when isArray $
-           do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
-              aE <- flattenABT arityABT
-              let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
-                  size    = CMember (CVar . Ident $ "sample") (Ident "size") True
-                  innerType = getArrayType t
-                  mallocCall = CCast (mkPtrDecl innerType)
-                                     (mkUnary "malloc"
-                                       (aE .*. (CSizeOfType . mkDecl $ innerType)))
-              putStat . CExpr . Just $ size .=. aE
-              putStat . CExpr . Just $ dataPtr .=. mallocCall
+         -- when isArray $
+         --   do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
+         --      aE <- flattenABT arityABT
+         --      let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
+         --          size    = CMember (CVar . Ident $ "sample") (Ident "size") True
+         --          innerType = getArrayType t
+         --          mallocCall = CCast (mkPtrDecl innerType)
+         --                             (mkUnary "malloc"
+         --                               (aE .*. (CSizeOfType . mkDecl $ innerType)))
+         --      putStat . CExpr . Just $ size .=. aE
+         --      putStat . CExpr . Just $ dataPtr .=. mallocCall
 
 
          printf typ (CVar ident)
@@ -187,28 +175,20 @@ mainFunction typ abt =
 
 printf :: Sing (a :: Hakaru) -> CExpr -> CodeGen ()
 
-printf (SMeasure t) arg =
-  let sampleE              = CVar . Ident $ "sample"
-      sampleELoc           = address sampleE
-
-  in  case t of
-        (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ CCall arg [sampleELoc]
-                                                   printf t sampleE
-                         -- mpB <- isOpenMP
-                         -- when mpB . putStat . CPPStat . PPPragma
-                         --   $ ["omp","parallel","for"]
-                         putStat $ CFor Nothing Nothing Nothing s
-
-        _ -> do -- Need to have space for #NUMTHREADS samples
-                -- mpB <- isOpenMP
-                -- when mpB . putStat . CPPStat . PPPragma
-                --   $ ["omp","parallel","for"]
-                putStat $ CFor Nothing Nothing Nothing
-                            $ CCompound . fmap CBlockStat
-                                $ [ CExpr . Just $ CCall arg [sampleELoc]
-                                  , CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                         [ printfText t "\n"
-                                                         , sampleE ]]
+printf typ@(SMeasure t) arg =
+  case t of
+    -- (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ CCall arg [sampleELoc]
+    --                                            printf t sampleE
+    --                  putStat $ CFor Nothing Nothing Nothing s
+    _ -> do mId <- genIdent' "m"
+            declare typ mId
+            let mVar = CVar mId
+                getSampleE   = CExpr . Just $ mVar .=. (CCall arg [])
+                printSampleE = CExpr . Just $ CCall (CVar . Ident $ "printf") [ printfText t "\n"
+                                                                              , mdataSample mVar ]
+            putStat (CWhile (intE 1)
+                            (CCompound . fmap CBlockStat $ [ getSampleE, printSampleE ])
+                            False)
 
 printf (SArray t)   arg =
   do iterId <- genIdent' "it"

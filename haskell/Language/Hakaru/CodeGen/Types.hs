@@ -26,6 +26,12 @@ module Language.Hakaru.CodeGen.Types
   , arrayDeclaration
   , arrayName
   , arrayStruct
+  , mdataDeclaration
+  , mdataName
+  , mdataStruct
+  , mdataStruct'
+  , mdataWeight
+  , mdataSample
   , datumDeclaration
   , datumName
   , datumStruct
@@ -80,7 +86,7 @@ typePtrDeclaration typ ident =
          , Nothing)]
 
 --------------------------------------------------------------------------------
---
+-- Representing Hakaru Arrays
 
 arrayName :: Sing (a :: Hakaru) -> String
 arrayName SInt  = "arrayInt"
@@ -104,6 +110,42 @@ arrayDeclaration
   -> Ident
   -> CDecl
 arrayDeclaration typ = buildDeclaration (callStruct (arrayName typ))
+
+--------------------------------------------------------------------------------
+-- Measure Data
+
+mdataName :: Sing (a :: Hakaru) -> String
+mdataName SInt  = "mdataInt"
+mdataName SNat  = "mdataNat"
+mdataName SReal = "mdataReal"
+mdataName SProb = "mdataProb"
+mdataName (SArray SInt)  = "mdataArrayInt"
+mdataName (SArray SNat)  = "mdataArrayNat"
+mdataName (SArray SReal) = "mdataArrayReal"
+mdataName (SArray SProb) = "mdataArrayProb"
+mdataName t    = error $ "mdataName: cannot make mdata from type: " ++ show t
+
+mdataStruct :: Sing (a :: Hakaru) -> CExtDecl
+mdataStruct t = CDeclExt (CDecl [CTypeSpec $ mdataStruct' t] [])
+
+mdataStruct' :: Sing (a :: Hakaru) -> CTypeSpec
+mdataStruct' t = mdStruct
+  where weight = buildDeclaration CDouble (Ident "weight")
+        sample = typeDeclaration t (Ident "sample")
+        mdStruct = buildStruct (Just . Ident . mdataName $ t) [weight,sample]
+
+
+mdataDeclaration
+  :: Sing (a :: Hakaru)
+  -> Ident
+  -> CDecl
+mdataDeclaration typ = buildDeclaration (callStruct (mdataName typ))
+
+mdataWeight :: CExpr -> CExpr
+mdataWeight d = CMember d (Ident "weight") True
+
+mdataSample :: CExpr -> CExpr
+mdataSample d = CMember d (Ident "sample") True
 
 --------------------------------------------------------------------------------
 -- | datumProd and datumSum use a store of names, which needs to match up with
@@ -201,7 +243,7 @@ buildType SInt         = [CInt]
 buildType SNat         = [CUnsigned, CInt]
 buildType SProb        = [CDouble]
 buildType SReal        = [CDouble]
-buildType (SMeasure x) = buildType $ x
+buildType (SMeasure x) = [callStruct . mdataName $ x]
 buildType (SArray t)   = [callStruct $ arrayName t]
 buildType (SFun _ x)   = buildType $ x -- build type the function returns
 buildType (SData _ t)  = [callStruct $ datumName t]
