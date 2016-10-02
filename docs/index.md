@@ -92,7 +92,7 @@ our system provides.
 
 [Metropolis Hastings](/transforms/mh)
 
-Compiling to Haskell
+[Compiling to Haskell](/transforms/compile)
 
 [Compiling to C](/transforms/hkc)
 
