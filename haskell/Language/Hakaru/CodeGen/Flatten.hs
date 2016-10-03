@@ -176,6 +176,7 @@ flattenSCon Plate           = \(size :* b :* End) ->
                          putStat . CExpr . Just $ weight .+=. w
 
        reductionCG CAddOp weightId (iter .=. (intE 0)) cond inc loopBody
+       putSample (Sample i (CVar i))
        return weight
 
 
@@ -234,13 +235,15 @@ flattenSCon (Product _ sr) = \(lo :* hi :* body :* End) ->
 
 
 flattenSCon MBind           =
-  \(e1 :* e2 :* End) ->
-    do e1' <- flattenABT e1
-       caseBind e2 $ \v@(Variable _ _ typ) e2'->
+  \(m1 :* fm2 :* End) ->
+    do w1 <- flattenABT m1
+       caseBind fm2 $ \v@(Variable _ _ typ) m2->
          do ident <- createIdent v
-            declare typ ident
-            assign ident e1'
-            flattenABT e2'
+            declare SProb ident
+            (Sample _ e) <- getSample
+            assign ident e
+            w2 <-flattenABT m2
+            return (w1 .+. w2)
 
 -- at this point, only nonrecusive coersions are implemented
 flattenSCon (CoerceTo_ ctyp) =

@@ -76,14 +76,14 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.Types
 import Language.Hakaru.CodeGen.AST
-import Language.Hakaru.CodeGen.Pretty       
+import Language.Hakaru.CodeGen.Pretty
 
 import Data.Number.Nat (fromNat)
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Text          as T
 import qualified Data.Set           as S
 
-import Text.PrettyPrint (render)       
+import Text.PrettyPrint (render)
 
 suffixes :: [String]
 suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
@@ -134,6 +134,8 @@ runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls 
 --------------------------------------------------------------------------------
 -- The sample side effect is only used in Measures
 
+
+-- When using this effect, the caller needs to allocate the memory
 getSample :: CodeGen Sample
 getSample =
   do msi <- sample <$> get
@@ -154,13 +156,13 @@ mkParallel :: CodeGen ()
 mkParallel =
   do cg <- get
      put (cg { parallel = True } )
-           
+
 mkSequential :: CodeGen ()
 mkSequential =
   do cg <- get
      put (cg { parallel = False } )
 
---------------------------------------------------------------------------------           
+--------------------------------------------------------------------------------
 
 reserveName :: String -> CodeGen ()
 reserveName s =
