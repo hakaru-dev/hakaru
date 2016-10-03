@@ -1322,9 +1322,28 @@ NewSLO := module ()
             'Counting'(0, infinity)=  #Are args correct?
                  Record(cond_constructor= `<=`, disintegrator= LREtools:-delta),
             'dirac'()= #Are name and args correct? Should be Ret?
-                       #Correct disintegrator needs to be filled in.
-                 Record(cond_constructor= `=`, disintegrator= (_-> _))
-       ]),
+                 Record(cond_constructor= `=`, disintegrator= dirac_disintegrator)
+       ]), #Wrt_var_types
+
+       dirac_disintegrator::static:= proc(e::algebraic, a::name, $)::algebraic;
+       #There has to be a better way to find the evaluation value than by 
+       #searching through the Indicators, but that's the only way that I know
+       #for now. 
+       local J:= indets(e, Indicator(identical(a)=anything));
+            if nops(J)=0 then error "No evaluation value found for %1", a
+            elif nops(J) > 1 then 
+                 error 
+                      "Multiple evaluation values found for %1: %2",
+                       a, map2(op, [1,2], J)
+            end if;
+            userinfo(3, Disint, "Dirac evaluation @", op([1,1], J));
+            eval(
+                 eval(e, op([1,1], J)),
+                 #Remove any Indicator made superfluous by the above eval:
+                 Indicator= (r-> `if`(r::`=` and evalb(r), 1, 'Indicator'(r)))
+            )
+       end proc, #dirac_disintegrator
+       #end of wrt-var-type-specific code
    
        #types for disint wrt vars (2nd arg to disint)
        t_wrt_var_type,
@@ -1339,16 +1358,17 @@ NewSLO := module ()
             TypeTools:-AddType(t_disint_var, {name, name &M t_wrt_var_type});
             TypeTools:-AddType(     #Caution: recursive type: Make sure base cases
                  t_disint_var_pair, #are on left (a la McCarthy rule).
-                 'Pair'({t_disint_var, t_disint_var_pair} $2) 
+                 'Pair'({t_disint_var, t_disint_var_pair} $ 2) 
             )
-       end proc, #NewSLO:-disint:-ModuleLoad
-       #end types for disint
+       end proc, #disint:-ModuleLoad
+       #end of types for disint
   
        DV::table,  #wrt vars, with their types and conditions
        p::symbol,  #"pair"--abstract representation
-       #layers of fst(...) and snd(...) built by traversing tree
+       #`path` is layers of fst(...) and snd(...) built by traversing tree
        #(Weird Maple syntax note: Module prefixes seem to be required for
-       #assertion type checking. Failure to include them causes kernel crash.)
+       #assertion type checking. Failure to include them causes kernel crash
+       #during execution.)
        path::{specfunc({Hakaru:-fst, Hakaru:-snd}), symbol},
 
        #Parses the 2nd arg---the wrt vars.
@@ -1360,7 +1380,7 @@ NewSLO := module ()
        local 
             v::name, #the wrt var 
             M::NewSLO:-disint:-t_wrt_var_type, 
-            pp #iterator over [fst, snd]---the parts of a Pair
+            pp #iterator over [fst, snd]---the deconstructors of Pair
        ;
             if T::t_disint_var then
                  #Add a default wrt-var type if none appears.
@@ -1409,12 +1429,12 @@ NewSLO := module ()
                       Ret(snd(p)),
                       Msum()
                  )
-            );
+            ); 
             mc:= improve(toLO(mc), _ctx= kb);
             #Does the order of application of the disintegrators matter? 
             #Theoretically, I think not, it's just like differentiation. As far
             #as Maple's ability to do the computation, maybe it matters.
-            for v in indices(DV, 'nolist') do
+            for v in V do
                  mc:= applyop(
                       Wrt_var_types[DV[v]:-wrt_var_type]:-disintegrator, 
                       2, mc, v
@@ -1422,7 +1442,7 @@ NewSLO := module ()
             end do;      
             fromLO(mc, _ctx= kb)
        end proc #disint:-ModuleApply
-  ;
+  ; #disint module locals
        ModuleLoad()
   end module; #disint
   ###################### end of Carl's code ######################
