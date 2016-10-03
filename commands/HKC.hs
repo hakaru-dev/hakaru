@@ -40,21 +40,24 @@ main = do
 
 options :: Parser Options
 options = Options
-  <$> switch ( long "debug"
+  <$> switch (  long "debug"
              <> short 'D'
              <> help "Prints Hakaru src, Hakaru AST, C AST, C src" )
-  <*> switch ( long "optimize"
+  <*> switch (  long "optimize"
              <> short 'O'
              <> help "Performs constant folding on Hakaru AST" )
-  <*> (optional $ strOption ( long "make"
+  <*> (optional $ strOption (  long "make"
                             <> short 'm'
                             <> help "Compiles generated C code with the compiler ARG"))
-  <*> (optional $ strOption ( long "as-function"
+  <*> (optional $ strOption (  long "as-function"
                             <> short 'F'
                             <> help "Compiles to a sampling C function with the name ARG" ))
-  <*> strArgument (metavar "INPUT" <> help "Program to be compiled")
-  <*> (optional $ strOption (short 'o' <> metavar "OUTPUT" <> help "output FILE"))
-  <*> switch ( short 'j'
+  <*> strArgument (  metavar "INPUT"
+                  <> help "Program to be compiled")
+  <*> (optional $ strOption (  short 'o'
+                            <> metavar "OUTPUT"
+                            <> help "output FILE"))
+  <*> switch (  short 'j'
              <> help "Generates parallel programs using OpenMP directives")
 
 parseOpts :: IO Options
