@@ -116,17 +116,17 @@ mainFunction typ@(SMeasure t) abt =
          reserveName "main"
 
          -- if it is a plate then allocate space here
-         -- when isArray $
-         --   do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
-         --      aE <- flattenABT arityABT
-         --      let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
-         --          size    = CMember (CVar . Ident $ "sample") (Ident "size") True
-         --          innerType = getArrayType t
-         --          mallocCall = CCast (mkPtrDecl innerType)
-         --                             (mkUnary "malloc"
-         --                               (aE .*. (CSizeOfType . mkDecl $ innerType)))
-         --      putStat . CExpr . Just $ size .=. aE
-         --      putStat . CExpr . Just $ dataPtr .=. mallocCall
+         when isArray $
+           do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
+              aE <- flattenABT arityABT
+              let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
+                  size    = CMember (CVar . Ident $ "sample") (Ident "size") True
+                  innerType = getArrayType t
+                  mallocCall = CCast (mkPtrDecl innerType)
+                                     (mkUnary "malloc"
+                                       (aE .*. (CSizeOfType . mkDecl $ innerType)))
+              putStat . CExpr . Just $ size .=. aE
+              putStat . CExpr . Just $ dataPtr .=. mallocCall
 
 
          printf typ (CVar ident)

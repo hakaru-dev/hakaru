@@ -154,10 +154,11 @@ flattenSCon Dirac           = \(e :* End) ->
      putStat . CExpr . Just $ mdataSample mdata .=. e'
      return mdata
 
-
+-- for now plats make use of a global sample  
 flattenSCon Plate           = \(size :* b :* End) ->
   caseBind b $ \v body ->
-    do mdataId <- genIdent' "plate"
+    do let mdataId = Ident "global_plate"
+        -- mdataId <- genIdent' "plate"
        let t = SArray . sUnMeasure . typeOf $ body
        declare (SMeasure t) mdataId
        extDeclare . mdataStruct $ t
