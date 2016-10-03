@@ -26,13 +26,18 @@ import           Text.PrettyPrint
 import           System.Environment
 import           System.FilePath
 
+data Options = Options
+  { program  :: String
+  , asFunc   :: Maybe String
+  }
+
 main :: IO ()
 main = do
   args   <- getArgs
   case args of
       [prog1, prog2] -> compileRandomWalk prog1 prog2
-      [prog] -> compileHakaru prog
-      _      -> IO.putStrLn "Usage: compile <file>"
+      [prog]         -> compileHakaru     prog
+      _              -> IO.putStrLn "Usage: compile <file>"
 
 prettyProg :: (ABT T.Term abt)
            => String
