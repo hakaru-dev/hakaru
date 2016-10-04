@@ -22,13 +22,14 @@ import           System.Process
 import           System.Exit
 
 data Options =
- Options { debug    :: Bool
-         , optimize :: Bool
-         , make     :: Maybe String
-         , asFunc   :: Maybe String
-         , fileIn   :: String
-         , fileOut  :: Maybe String
-         , par      :: Bool
+ Options { debug       :: Bool
+         , optimize    :: Bool
+         , make        :: Maybe String
+         , asFunc      :: Maybe String
+         , fileIn      :: String
+         , fileOut     :: Maybe String
+         , par         :: Bool
+         , showWeights :: Bool
          } deriving Show
 
 
@@ -59,6 +60,9 @@ options = Options
                             <> help "output FILE"))
   <*> switch (  short 'j'
              <> help "Generates parallel programs using OpenMP directives")
+  <*> switch (  long "show-weights"
+             <> short 'w'
+             <> help "Shows the weights along with the samples in samplers")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -75,7 +79,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
-          codeGen = wrapProgram ast' (asFunc config)
+          codeGen = wrapProgram ast' (asFunc config) (showWeights config)
           cast    = CAST $ runCodeGenWith codeGen (emptyCG {parallel = par config})
           output  = pack . render . pretty $ cast
       when (debug config) $ do

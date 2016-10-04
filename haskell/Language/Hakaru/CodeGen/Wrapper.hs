@@ -40,7 +40,7 @@ import           Language.Hakaru.CodeGen.AST
 import           Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Control.Monad.State.Strict
-import           Prelude            as P hiding (unlines)
+import           Prelude            as P hiding (unlines,exp)
 
 
 #if __GLASGOW_HASKELL__ < 710
@@ -51,8 +51,12 @@ import           Control.Applicative
 -- | Create program is the top level C codegen. Depending on the type a program
 --   will have a different construction. HNat will just return while a measure
 --   returns a sampling program.
-wrapProgram :: TypedAST (TrivialABT Term) -> Maybe String -> CodeGen ()
-wrapProgram tast@(TypedAST typ _) mn =
+wrapProgram
+  :: TypedAST (TrivialABT Term) -- ^ Some Hakaru ABT
+  -> Maybe String               -- ^ Maybe an output name
+  -> Bool                       -- ^ show weights?
+  -> CodeGen ()
+wrapProgram tast@(TypedAST typ _) mn showWeights =
   do sequence_ . fmap (extDeclare . CPPExt) . header $ typ
      baseCG
      return ()
@@ -82,7 +86,7 @@ wrapProgram tast@(TypedAST typ _) mn =
                                    (putStat . CReturn . Just =<< flattenABT abt)
 
                ( TypedAST typ'       abt, Nothing   ) ->
-                 mainFunction typ' abt
+                 mainFunction showWeights typ' abt
 
 
 
@@ -94,10 +98,12 @@ header _            = fmap PPInclude ["stdlib.h", "stdio.h", "math.h"]
 
 mainFunction
   :: ABT Term abt
-  => Sing (a :: Hakaru)
-  -> abt '[] (a :: Hakaru)
+  => Bool                  -- ^ show weights?
+  -> Sing (a :: Hakaru)    -- ^ type of program
+  -> abt '[] (a :: Hakaru) -- ^ Hakaru ABT
   -> CodeGen ()
-mainFunction typ@(SMeasure t) abt =
+-- when measure, compile to a sampler
+mainFunction showWeights typ@(SMeasure t) abt =
   let ident = Ident "measure"
       funId = Ident "main"
       isArray = isSArray t
@@ -126,6 +132,8 @@ mainFunction typ@(SMeasure t) abt =
          -- get a place to return a sample
          reserveName "sample"
          declare t (Ident "sample")
+         reserveName "weight"
+         declare SProb (Ident "weight")
 
          -- if it is a plate then allocate space here
          when isArray $
@@ -141,7 +149,7 @@ mainFunction typ@(SMeasure t) abt =
               putStat . CExpr . Just $ dataPtr .=. mallocCall
 
 
-         printf typ (CVar ident)
+         printf showWeights typ (CVar ident)
          putStat . CReturn . Just $ intE 0
 
          !cg <- get
@@ -164,8 +172,8 @@ mainFunction typ@(SMeasure t) abt =
         getPlateArity (Plate :$ arity :* _ :* End) = arity
         getPlateArity _ = error "mainFunction not a plate"
 
-
-mainFunction typ abt =
+-- just a computation
+mainFunction _ typ abt =
   let ident = Ident "result"
       funId = Ident "main"
   in  do reserveName "result"
@@ -175,7 +183,8 @@ mainFunction typ abt =
          expr <- flattenABT abt
          assign ident expr
 
-         printf typ (CVar ident)
+         printf (undefined :: Bool) typ (CVar ident)
+           -- can be undefined because weights are only computed for measures
          putStat . CReturn . Just $ intE 0
 
          cg <- get
@@ -185,32 +194,33 @@ mainFunction typ abt =
                                               (P.reverse $ declarations cg)
                                               (P.reverse $ statements cg)
 
-printf :: Sing (a :: Hakaru) -> CExpr -> CodeGen ()
-
-printf (SMeasure t) arg =
-  let sampleE              = CVar . Ident $ "sample"
-      sampleELoc           = address sampleE
-
+printf
+  :: Bool               -- ^ show weights?
+  -> Sing (a :: Hakaru) -- ^ Hakaru type to be printed
+  -> CExpr              -- ^ CExpr representing value
+  -> CodeGen ()
+printf showWeights (SMeasure t) sampleFunc =
+  let sampleE    = CVar . Ident $ "sample"
+      sampleELoc = address sampleE
+      weightLoc  = CVar . Ident $ "weight"
   in  case t of
-        (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ CCall arg [sampleELoc]
-                                                   printf t sampleE
-                         -- mpB <- isOpenMP
-                         -- when mpB . putStat . CPPStat . PPPragma
-                         --   $ ["omp","parallel","for"]
+        (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ if showWeights
+                                                                            then weightLoc .=. CCall sampleFunc [sampleELoc]
+                                                                            else CCall sampleFunc [sampleELoc]
+                                                   printf False t sampleE
                          putStat $ CFor Nothing Nothing Nothing s
 
-        _ -> do -- Need to have space for #NUMTHREADS samples
-                -- mpB <- isOpenMP
-                -- when mpB . putStat . CPPStat . PPPragma
-                --   $ ["omp","parallel","for"]
-                putStat $ CFor Nothing Nothing Nothing
+        _ -> do putStat $ CFor Nothing Nothing Nothing
                             $ CCompound . fmap CBlockStat
-                                $ [ CExpr . Just $ CCall arg [sampleELoc]
+                                $ [ CExpr . Just $ if showWeights
+                                                   then weightLoc .=. CCall sampleFunc [sampleELoc]
+                                                   else CCall sampleFunc [sampleELoc]
                                   , CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                         [ printfText t "\n"
-                                                         , sampleE ]]
+                                                         (if showWeights
+                                                          then [ printfText t " with weight: %.15f\n", sampleE, exp weightLoc ]
+                                                          else [ printfText t "\n", sampleE ])]
 
-printf (SArray t)   arg =
+printf _ (SArray t) arg =
   do iterId <- genIdent' "it"
      declare SInt iterId
      let iter   = CVar iterId
@@ -231,7 +241,7 @@ printf (SArray t)   arg =
   where putString s = putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
                                                      [stringE s]
 
-printf typ          arg =
+printf _ typ arg =
   putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
                                  [ printfText typ "\n"
                                  , arg ]
