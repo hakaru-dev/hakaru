@@ -31,6 +31,20 @@ TestDisint:= proc(
   )
 end proc:
 
+#This first block of tests is to test the basic functionality of disint, and,
+#to some extent the system as a whole. These tests may be meaningless to you,
+#the statistician and end user of this Hakaru product.--Carl 2016Oct04
+
+#This one gives the Weight(-1, ...) error
+assume(n_, integer);
+TestDisint(
+     [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_ &M Counting((-1,1)*~infinity)],
+     {},  #Expected about unknown
+     ctx= [n::integer, n >= 0],
+     label= "(d0_1) `Counting` test; `Weight` bug (currently failing)"
+);
+# End of the possibly statistically meaningless tests.
+     
 d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
 d1r := {Weight(1/5,Ret(-15/t))}:
 
@@ -89,7 +103,7 @@ norm1b :=
 
 norm1r := {}: #Desired output unknown.
 
-assume(s::real);
+assume(s::real, noiseT >= 3, noiseT <= 8, noiseE >= 1, noiseE <= 8);
 easyRoad:= [
   Bind(Uniform(3, 8), noiseT,
   Bind(Uniform(1, 4), noiseE,
@@ -115,8 +129,8 @@ easyRoadr:= {
         Bind(            #Bind 2
           Uniform(1, 4), noiseE, 
           Weight(        #Weight 3
-            Int(         #Int 1
-              Int(       #Int 2
+            int(         #Int 1
+              int(       #Int 2
                 exp(
                   -(x2^2/2 - x1*x2 + x1^2)/noiseT^2 - 
                   ((t-x2)^2 + (s-x1)^2)/noiseE^2
