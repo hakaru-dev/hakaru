@@ -749,7 +749,7 @@ NewSLO := module ()
     end if;
   end proc;
 
-  weight := proc(p, m, $)
+  weight := proc(p::{Not(complexcons), nonnegative &under evalf}, m, $)
     if p = 1 then
       m
     elif p = 0 then
