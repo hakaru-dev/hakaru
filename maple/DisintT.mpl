@@ -41,9 +41,29 @@ end proc:
 assume(n_, integer);
 TestDisint(
      [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_ &M Counting((-1,1)*~infinity)],
-     {},  #Expected about unknown
+     {},  #I don't know what to expect.
      ctx= [n::integer, n >= 0],
      label= "(d0_1) `Counting` test; `Weight` bug (currently failing)"
+);
+
+TestDisint(
+     [Ret(Pair(sqrt(Pi), x)), t &M Ret(7)],
+     {Msum()}, 
+     label= "(d0_2) `Dirac` test 1"
+);
+
+TestDisint(
+     [Ret(Pair(sqrt(Pi), x^2)), t &M Ret(sqrt(Pi))],
+     {Ret(x^2)},
+     label= "(d0_3) `Dirac` test 2"
+);
+
+TestDisint(
+     [Bind(Lebesgue((-1,1)*~infinity), x, Ret(Pair(sqrt(Pi), x^2))),
+      t &M Ret(sqrt(Pi))
+     ],
+     {Bind(Lebesgue((-1,1)*~infinity), x1, Ret(x1^2))},
+     label= "(d0_4) `Dirac` test with `Bind`"
 );
 # End of the possibly statistically meaningless tests.
      
