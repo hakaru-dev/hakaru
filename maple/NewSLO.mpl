@@ -749,7 +749,16 @@ NewSLO := module ()
     end if;
   end proc;
 
-  weight := proc(p::{Not(complexcons), nonnegative &under evalf}, m, $)
+  weight := proc(p, m, $)
+    #Trying to make the below into an ASSERT statement results in a kernel
+    #crash, even though the condition is caught, the message printed, and
+    #the error generated.
+    if kernelopts(assertlevel) > 0 then
+         if not p::
+              (complexcons &implies ((numeric &implies nonnegative) &under evalf))
+         then error "Negative weight %1 not allowed", p
+         end if
+    end if;
     if p = 1 then
       m
     elif p = 0 then
@@ -1348,6 +1357,7 @@ NewSLO := module ()
                       )
                  ),
                  disintegrator_arg_extractor= (A-> op(1,A)= op([2,1], A))
+                 #E.g., (x &M Ret(3)) --> (x= 3).
             )
        ]), 
    
@@ -1364,7 +1374,7 @@ NewSLO := module ()
             TypeTools:-AddType(t_disint_var, {name, name &M t_wrt_var_type});
             TypeTools:-AddType(     #Caution: recursive type: Make sure base cases
                  t_disint_var_pair, #are on left (a la McCarthy rule).
-                 'Pair'({t_disint_var, t_disint_var_pair} $ 2) 
+                 'Pair'(Or(t_disint_var, t_disint_var_pair) $ 2) 
             )
        end proc, 
        #end of types for disint

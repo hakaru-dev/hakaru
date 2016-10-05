@@ -94,6 +94,8 @@ Hakaru := module ()
      # Structure types for piecewise-like expressions:
      # piecewise, case, and idx into literal array
          t_pw, t_piecewiselike,
+     #other types
+         `&implies`,
      # Type constructors for Hakaru
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
          Bound, DatumStruct;
@@ -559,6 +561,10 @@ Hakaru := module ()
     local g; #Iterator over thismodule's globals
     VerifyTools[AddVerification](measure = eval(verify_measure));
 
+    TypeTools:-AddType(
+         `&implies`,
+         proc(e, t1, t2, $) type(e, Or(Not(t1), t2)) end proc
+    );
     TypeTools:-AddType(known_continuous,
          '{
               Lebesgue(anything, anything), Uniform(anything, anything),
@@ -584,7 +590,10 @@ Hakaru := module ()
          #short-cut rule: Proceeding left to right, once satisfaction of the type
          #can be determined, the remaining elements aren't evaluated. Therefore,
          #recursive types are possible by placing the base cases at the beginning.
-         {'known_continuous', 'known_discrete',
+         #But use Or instead of {} because you can't control the order of 
+         #expressions with {}.
+         Or(
+           'known_continuous', 'known_discrete',
            t_pw, #Needs to be more specific!
            t_case,
           'Ret(anything)',
@@ -592,7 +601,7 @@ Hakaru := module ()
           'specfunc(t_Hakaru, Msum)',
           'Weight(algebraic, t_Hakaru)',
           'Plate(algebraic, name, t_Hakaru)'
-         }
+         )
     );
     TypeTools:-AddType(t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
@@ -620,6 +629,7 @@ Hakaru := module ()
   end proc;
 
   ModuleUnload := proc($)
+    TypeTools:-RemoveType(`&implies`);
     TypeTools:-RemoveType(known_continuous);
     TypeTools:-RemoveType(known_discrete);
     TypeTools:-RemoveType(t_Hakaru);

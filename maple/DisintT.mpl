@@ -32,9 +32,11 @@ TestDisint:= proc(
 end proc:
 
 #This first block of tests is to test the basic functionality of disint, and,
-#to some extent the system as a whole. These tests may be meaningless to you,
-#the statistician and end user of this Hakaru product.--Carl 2016Oct04
+#to some extent, the system as a whole. These tests may be meaningless to you,
+#the statistician and end user of this Hakaru product; they aren't meant to
+#have any statistical meaning.--Carl 2016Oct04
 
+#This one is a basic test of the Counting wrt-var type.
 #This one gives the Weight(-1, ...) error
 assume(n_, integer);
 TestDisint(
@@ -118,7 +120,7 @@ easyRoad:= [
 #The first expression below comes from the actual output of disint, hand-
 #simplified 1) to bring factors into the innnermost integral, 2) to combine
 #products of exps, and 3) to express the polynomial arg of exp in a logical way
-#by sub-factoring 
+#by sub-factoring. 
 easyRoadr:= {
   Weight(                #Weight 1
     Pi/8, 
