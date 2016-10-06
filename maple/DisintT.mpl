@@ -41,10 +41,37 @@ end proc:
 assume(n_, integer);
 TestDisint(
      [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_ &M Counting((-1,1)*~infinity)],
-     {},  #Expected about unknown
+     {},  #I don't know what to expect.
      ctx= [n::integer, n >= 0],
      label= "(d0_1) `Counting` test; `Weight` bug (currently failing)"
 );
+
+TestDisint(
+     [Ret(Pair(sqrt(Pi), x)), t &M Ret(7)],
+     {Msum()}, 
+     label= "(d0_2) `Dirac` test 1"
+);
+
+TestDisint(
+     [Ret(Pair(sqrt(Pi), x^2)), t &M Ret(sqrt(Pi))],
+     {Ret(x^2)},
+     label= "(d0_3) `Dirac` test 2"
+);
+
+TestDisint(
+     [Bind(Lebesgue((-1,1)*~infinity), x, Ret(Pair(sqrt(Pi), x^2))),
+      t &M Ret(sqrt(Pi))
+     ],
+     {Bind(Lebesgue((-1,1)*~infinity), x1, Ret(x1^2))},
+     label= "(d0_4) `Dirac` test with `Bind`"
+);
+
+#In this one the function in the inequality, x+x^3, is injective but nonlinear.
+TestDisint(
+     Bind(Gaussian(0,1), x, Ret(Pair(x+x^3, f(x)))),
+     {}, #I don't know what to expect.
+     label= "(d0_5) Injective nonlinear inequality"
+);     
 # End of the possibly statistically meaningless tests.
      
 d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
@@ -54,6 +81,8 @@ d1r := {Weight(1/5,Ret(-15/t))}:
 d2 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair((-1/7)*x-1,3))):
 d2r := {Weight(7, Ret(3))}:
 
+#The next two tests are simplified versions of the Borel-Kolmogorov paradox.
+#https://en.wikipedia.org/wiki/Borel-Kolmogorov_paradox
 d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
 d3r := {
   Bind(Uniform(0, 1), x丅, 
