@@ -755,7 +755,7 @@ NewSLO := module ()
     #the error generated.
     if kernelopts(assertlevel) > 0 then
          if not p::
-              (complexcons &implies ((numeric &implies nonnegative) &under evalf))
+              (complexcons &implies ((numeric &implies {0,1}) &under csgn))
          then error "Negative weight %1 not allowed", p
          end if
     end if;
