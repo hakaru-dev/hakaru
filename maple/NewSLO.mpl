@@ -749,6 +749,8 @@ NewSLO := module ()
     end if;
   end proc;
 
+  
+
   weight := proc(p, m, $)
     #Trying to make the below into an ASSERT statement results in a kernel
     #crash, even though the condition is caught, the message printed, and
@@ -756,7 +758,21 @@ NewSLO := module ()
     if kernelopts(assertlevel) > 0 then
          if not p::
               (complexcons &implies ((numeric &implies {0,1}) &under csgn))
-         then error "Negative weight %1 not allowed", p
+         then 
+              userinfo(
+                   1, SLO,
+                   proc()
+                   uses LL= ListTools:-LengthSplit;
+                   local
+                        S:= Matrix([LL(debugopts(callstack)[2..], 3)]),
+                        rts:= interface(rtablesize= infinity)
+                   ;
+                        print(S);
+                        interface(rtablesize= rts);
+                        NULL
+                   end proc()
+              );
+              error "Negative weight %1 not allowed", p
          end if
     end if;
     if p = 1 then
