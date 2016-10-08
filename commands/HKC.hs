@@ -13,7 +13,7 @@ import Language.Hakaru.CodeGen.AST
 import Language.Hakaru.CodeGen.Pretty
 
 import           Control.Monad.Reader
-import           Data.Text hiding (any,map,filter)
+import           Data.Text hiding (any,map,filter,foldr)
 import qualified Data.Text.IO as IO
 import           Text.PrettyPrint (render)
 import           Options.Applicative
@@ -22,14 +22,15 @@ import           System.Process
 import           System.Exit
 
 data Options =
- Options { debug       :: Bool
-         , optimize    :: Bool
-         , make        :: Maybe String
-         , asFunc      :: Maybe String
-         , fileIn      :: String
-         , fileOut     :: Maybe String
-         , par         :: Bool
-         , showWeights :: Bool
+ Options { debug            :: Bool
+         , optimize         :: Bool
+         , make             :: Maybe String
+         , asFunc           :: Maybe String
+         , fileIn           :: String
+         , fileOut          :: Maybe String
+         , par              :: Bool
+         , showWeightsOpt   :: Bool
+         , showProbInLogOpt :: Bool
          } deriving Show
 
 
@@ -63,6 +64,8 @@ options = Options
   <*> switch (  long "show-weights"
              <> short 'w'
              <> help "Shows the weights along with the samples in samplers")
+  <*> switch (  long "show-prob-log"
+             <> help "Shows prob types as 'exp(<log-domain-value>)' instead of '<value>'")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -73,13 +76,14 @@ compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
     Left err -> IO.putStrLn err
     Right (TypedAST typ ast) -> do
-      let ast'    = TypedAST typ $ if optimize config
-                                   then constantPropagation . expandTransformations $  ast
-                                   else expandTransformations ast
+      let ast'    = TypedAST typ $ foldr id ast abtPasses
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
-          codeGen = wrapProgram ast' (asFunc config) (showWeights config)
+          codeGen = wrapProgram ast'
+                                (asFunc config)
+                                (PrintConfig { showWeights   = showWeightsOpt config
+                                             , showProbInLog = showProbInLogOpt config })
           cast    = CAST $ runCodeGenWith codeGen (emptyCG {parallel = par config})
           output  = pack . render . pretty $ cast
       when (debug config) $ do
@@ -100,7 +104,9 @@ compileHakaru prog = ask >>= \config -> lift $ do
         Nothing -> writeToFile outPath output
         Just cc -> makeFile cc (fileOut config) (unpack output) config
 
-  where hrule = "\n----------------------------------------------------------------"
+  where hrule  = "\n----------------------------------------------------------------"
+        abtPasses = [ expandTransformations
+                    , constantPropagation ]
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr

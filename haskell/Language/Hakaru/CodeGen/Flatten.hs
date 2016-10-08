@@ -778,6 +778,48 @@ flattenMeasureOp Uniform = \(a :* b :* End) ->
      (Sample sampleId _) <- getSample
      putSample (Sample sampleId value)
      return (intE 0)
+
+flattenMeasureOp Categorical = \(a :* End) ->
+  do a' <- flattenABT a
+     iterId <- genIdent' "it"
+     wSumId <- genIdent' "w"
+     outId  <- genIdent' "out"
+
+     let sizeE = CMember a' (Ident "size") True
+         currE = indirect ((CMember a' (Ident "data") True) .+. iterE)
+         iterE = CVar iterId
+         wSumE = CVar wSumId
+         cond  = iterE .<. sizeE
+         inc   = CUnary CPostIncOp iterE
+
+     declare SProb wSumId
+     declare SInt iterId
+     assign wSumId (intE 0)
+
+     isPar <- isParallel
+     mkSequential
+     forCG (iterE .=. (intE 0)) cond inc $
+       assign wSumId =<< (logSumExpCG $ S.fromList [wSumE,currE])
+     when isPar mkParallel
+
+     -- try the first element
+     forCG (iterE .=. (intE 0)) cond inc $
+       assign wSumId =<< (logSumExpCG $ S.fromList [wSumE,currE])
+     when isPar mkParallel
+
+     -- forCG (iterE .=. (intE 0)) (iterE)
+     --    do assign iterId =<< (logSumExpCG $ S.fromList [iter, e])
+     --       stat <- runCodeGenBlock (do _ <- flattenABT m -- toss weight
+     --                                   (Sample _ e) <- getSample
+     --                                   assign outId e
+     --                                   putStat $ CGoto outLabel)
+     --       putStat $ CIf (rVar .<. (exp iter)) stat Nothing
+
+     -- putStat $ CLabel outLabel (CExpr Nothing)
+     (Sample i _) <- getSample
+     putSample (Sample i (intE 0))
+     return (intE 0)
+
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
 
 ----------------------------------------------------------------

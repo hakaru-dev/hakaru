@@ -25,7 +25,9 @@
 
 
 module Language.Hakaru.CodeGen.Wrapper
-  ( wrapProgram ) where
+  ( wrapProgram
+  , PrintConfig(..)
+  ) where
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
@@ -54,9 +56,9 @@ import           Control.Applicative
 wrapProgram
   :: TypedAST (TrivialABT Term) -- ^ Some Hakaru ABT
   -> Maybe String               -- ^ Maybe an output name
-  -> Bool                       -- ^ show weights?
+  -> PrintConfig                -- ^ show weights?
   -> CodeGen ()
-wrapProgram tast@(TypedAST typ _) mn showWeights =
+wrapProgram tast@(TypedAST typ _) mn pc =
   do sequence_ . fmap (extDeclare . CPPExt) . header $ typ
      baseCG
      return ()
@@ -86,7 +88,7 @@ wrapProgram tast@(TypedAST typ _) mn showWeights =
                                    (putStat . CReturn . Just =<< flattenABT abt)
 
                ( TypedAST typ'       abt, Nothing   ) ->
-                 mainFunction showWeights typ' abt
+                 mainFunction pc typ' abt
 
 
 
@@ -98,12 +100,12 @@ header _            = fmap PPInclude ["stdlib.h", "stdio.h", "math.h"]
 
 mainFunction
   :: ABT Term abt
-  => Bool                  -- ^ show weights?
+  => PrintConfig
   -> Sing (a :: Hakaru)    -- ^ type of program
   -> abt '[] (a :: Hakaru) -- ^ Hakaru ABT
   -> CodeGen ()
 -- when measure, compile to a sampler
-mainFunction showWeights typ@(SMeasure t) abt =
+mainFunction pc typ@(SMeasure t) abt =
   let ident = Ident "measure"
       funId = Ident "main"
       isArray = isSArray t
@@ -149,7 +151,7 @@ mainFunction showWeights typ@(SMeasure t) abt =
               putStat . CExpr . Just $ dataPtr .=. mallocCall
 
 
-         printf showWeights typ (CVar ident)
+         printf pc typ (CVar ident)
          putStat . CReturn . Just $ intE 0
 
          !cg <- get
@@ -173,7 +175,7 @@ mainFunction showWeights typ@(SMeasure t) abt =
         getPlateArity _ = error "mainFunction not a plate"
 
 -- just a computation
-mainFunction _ typ abt =
+mainFunction pc typ abt =
   let ident = Ident "result"
       funId = Ident "main"
   in  do reserveName "result"
@@ -183,7 +185,7 @@ mainFunction _ typ abt =
          expr <- flattenABT abt
          assign ident expr
 
-         printf (undefined :: Bool) typ (CVar ident)
+         printf pc typ (CVar ident)
            -- can be undefined because weights are only computed for measures
          putStat . CReturn . Just $ intE 0
 
@@ -194,33 +196,43 @@ mainFunction _ typ abt =
                                               (P.reverse $ declarations cg)
                                               (P.reverse $ statements cg)
 
+--------------------------------------------------------------------------------
+-- PRINTING VALUES
+
+data PrintConfig
+  = PrintConfig { showWeights   :: Bool
+                , showProbInLog :: Bool
+                } deriving Show
+
+
 printf
-  :: Bool               -- ^ show weights?
+  :: PrintConfig
   -> Sing (a :: Hakaru) -- ^ Hakaru type to be printed
   -> CExpr              -- ^ CExpr representing value
   -> CodeGen ()
-printf showWeights (SMeasure t) sampleFunc =
+printf pc (SMeasure t) sampleFunc =
   let sampleE    = CVar . Ident $ "sample"
       sampleELoc = address sampleE
       weightLoc  = CVar . Ident $ "weight"
   in  case t of
-        (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ if showWeights
-                                                                            then weightLoc .=. CCall sampleFunc [sampleELoc]
-                                                                            else CCall sampleFunc [sampleELoc]
-                                                   printf False t sampleE
+        (SArray _) -> do s <- runCodeGenBlock $ do
+                                putStat . CExpr . Just $ if showWeights pc
+                                                         then weightLoc .=. CCall sampleFunc [sampleELoc]
+                                                         else CCall sampleFunc [sampleELoc]
+                                printf pc t sampleE
                          putStat $ CFor Nothing Nothing Nothing s
 
         _ -> do putStat $ CFor Nothing Nothing Nothing
                             $ CCompound . fmap CBlockStat
-                                $ [ CExpr . Just $ if showWeights
+                                $ [ CExpr . Just $ if showWeights pc
                                                    then weightLoc .=. CCall sampleFunc [sampleELoc]
                                                    else CCall sampleFunc [sampleELoc]
                                   , CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                         (if showWeights
-                                                          then [ printfText t " with weight: %.15f\n", sampleE, exp weightLoc ]
-                                                          else [ printfText t "\n", sampleE ])]
+                                                         (if showWeights pc
+                                                          then [ printfText pc t " with weight: %.15f\n", sampleE, exp weightLoc ]
+                                                          else [ printfText pc t "\n", sampleE ])]
 
-printf _ (SArray t) arg =
+printf pc (SArray t) arg =
   do iterId <- genIdent' "it"
      declare SInt iterId
      let iter   = CVar iterId
@@ -231,7 +243,7 @@ printf _ (SArray t) arg =
          inc      = CUnary CPostIncOp iter
          currInd  = indirect (dataPtr .+. iter)
          loopBody = do putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                      [ printfText t " ", currInd ]
+                                                      [ printfText pc t " ", currInd ]
 
 
      putString "[ "
@@ -241,23 +253,35 @@ printf _ (SArray t) arg =
   where putString s = putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
                                                      [stringE s]
 
-printf _ typ arg =
+printf pc SProb arg =
   putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                 [ printfText typ "\n"
+                                 [ printfText pc SProb "\n"
+                                 , if showProbInLog pc
+                                   then arg
+                                   else exp arg ]
+
+printf pc typ arg =
+  putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
+                                 [ printfText pc typ "\n"
                                  , arg ]
 
 
-printfText :: Sing (a :: Hakaru) -> (String -> CExpr)
-printfText SInt         = \s -> stringE $ "%d" ++ s
-printfText SNat         = \s -> stringE $ "%d" ++ s
-printfText SProb        = \s -> stringE $ "exp(%.17f)" ++ s
-printfText SReal        = \s -> stringE $ "%.17f" ++ s
-printfText (SMeasure t) = printfText t
-printfText (SArray t)   = printfText t
-printfText (SFun _ _)   = \s -> stringE s
-printfText (SData _ _)  = \s -> stringE $ "TODO: printft datum" ++ s
+
+printfText :: PrintConfig -> Sing (a :: Hakaru) -> (String -> CExpr)
+printfText _ SInt         = \s -> stringE $ "%d" ++ s
+printfText _ SNat         = \s -> stringE $ "%d" ++ s
+printfText c SProb        = \s -> if showProbInLog c
+                                  then stringE $ "exp(%.15f)" ++ s
+                                  else stringE $ "%.15f" ++ s
+printfText _ SReal        = \s -> stringE $ "%.17f" ++ s
+printfText c (SMeasure t) = printfText c t
+printfText c (SArray t)   = printfText c t
+printfText c (SFun _ _)   = \s -> stringE s
+printfText c (SData _ _)  = \s -> stringE $ "TODO: printft datum" ++ s
 
 
+--------------------------------------------------------------------------------
+--
 
 flattenTopLambda
   :: ABT Term abt
