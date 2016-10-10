@@ -620,6 +620,15 @@ flattenPrimOp Pi = \End ->
      assign ident $ log1p ((CVar . Ident $ "M_PI") .-. (intE 1))
      return (CVar ident)
 
+flattenPrimOp Not = \(a :* End) ->
+  do ident <- genIdent' "not"
+     aE <- flattenABT a
+     let datumIndex = CMember aE (Ident "index") True
+     putStat $ CExpr . Just $ datumIndex .=. (CCond (datumIndex .==. (intE 1))
+                                                    (intE 0)
+                                                    (intE 1))
+     return aE
+
 flattenPrimOp RealPow =
   \(a :* b :* End) ->
   do ident <- genIdent' "pow"
