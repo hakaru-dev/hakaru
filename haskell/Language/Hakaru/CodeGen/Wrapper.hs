@@ -50,9 +50,10 @@ import           Control.Applicative
 #endif
 
 
--- | Create program is the top level C codegen. Depending on the type a program
---   will have a different construction. HNat will just return while a measure
---   returns a sampling program.
+-- | wrapProgram is the top level C codegen. Depending on the type a program
+--   will have a different construction. It will produce an effect in the
+--   CodeGenMonad that will produce a standalone C file containing the CPP
+--   includes, struct declarations, functions, and sometimes a main.
 wrapProgram
   :: TypedAST (TrivialABT Term) -- ^ Some Hakaru ABT
   -> Maybe String               -- ^ Maybe an output name
@@ -65,38 +66,40 @@ wrapProgram tast@(TypedAST typ _) mn pc =
   where baseCG = case (tast,mn) of
                ( TypedAST (SFun _ retT) abt, Just name ) ->
                  do reserveName name
-                    case retT of
-                      SMeasure _ -> do reserveName "sample"
-                                       putSample (Sample (Ident "sample") undefined)
-                                       flattenTopLambda abt $ Ident name
-                      _          -> flattenTopLambda abt $ Ident name
+                    flattenTopLambda abt $ Ident name
 
                ( TypedAST (SFun _ retT) abt, Nothing   ) ->
                  genIdent' "fn" >>= \name ->
-                   case retT of
-                     SMeasure _ -> do reserveName "sample"
-                                      putSample (Sample (Ident "sample") undefined)
-                                      flattenTopLambda abt name
-                     _          -> flattenTopLambda abt name
+                   flattenTopLambda abt name
 
 
-               ( TypedAST typ'       abt, Just name ) ->
-                 do reserveName name
-                    defineFunction typ'
-                                   (Ident name)
-                                   []
-                                   (putStat . CReturn . Just =<< flattenABT abt)
+  --              ( TypedAST typ'       abt, Just name ) ->
+  --                do reserveName name
+  --                   defineFunction typ'
+  --                                  (Ident name)
+  --                                  []
+  --                                  (putStat . CReturn . Just =<< flattenABT abt)
 
                ( TypedAST typ'       abt, Nothing   ) ->
                  mainFunction pc typ' abt
 
 
 
-----------------------------------------------------------------
-
 header :: Sing (a :: Hakaru) -> [Preprocessor]
 header (SMeasure _) = fmap PPInclude ["time.h", "stdlib.h", "stdio.h", "math.h"]
 header _            = fmap PPInclude ["stdlib.h", "stdio.h", "math.h"]
+
+
+
+--------------------------------------------------------------------------------
+--                             A Main Function                                --
+--------------------------------------------------------------------------------
+{-
+
+Create standalone C program for a Hakaru ABT. This program will also print the
+computed value to stdin.
+
+-}
 
 mainFunction
   :: ABT Term abt
@@ -104,51 +107,43 @@ mainFunction
   -> Sing (a :: Hakaru)    -- ^ type of program
   -> abt '[] (a :: Hakaru) -- ^ Hakaru ABT
   -> CodeGen ()
+
 -- when measure, compile to a sampler
 mainFunction pc typ@(SMeasure t) abt =
-  let ident = Ident "measure"
-      funId = Ident "main"
-      isArray = isSArray t
+  let ident   = Ident "measure"
+      funId   = Ident "main"
+      mdataId = Ident "mdata"
+  --     isArray = isSArray t
+  --     isPlate = isSArray t
   in  do reserveName "measure"
-         sampleId <- genIdent' "s"
-
-         when isArray . extDeclare . mkArrayStruct $ t
-
-         let samplePtr = typePtrDeclaration t sampleId
-         putSample $ Sample sampleId (undefined :: CExpr)
-
-         -- defined a measure function that returns a Double
-         defineFunction SProb ident [samplePtr]
-           $ do wE <- flattenABT abt
-                (Sample i sE) <- getSample
-                unless isArray
-                  $ putStat . CExpr . Just $ (indirect . CVar $ i) .=. sE
-                putStat . CReturn . Just $ wE
-
-         -- need to set seed?
-         -- srand(time(NULL));
-
-         -- main function
+         reserveName "mdata"
          reserveName "main"
 
-         -- get a place to return a sample
-         reserveName "sample"
-         declare t (Ident "sample")
-         reserveName "weight"
-         declare SProb (Ident "weight")
+         extDeclare . mdataStruct $ t
 
-         -- if it is a plate then allocate space here
-         when isArray $
-           do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
-              aE <- flattenABT arityABT
-              let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
-                  size    = CMember (CVar . Ident $ "sample") (Ident "size") True
-                  innerType = getArrayType t
-                  mallocCall = CCast (mkPtrDecl innerType)
-                                     (mkUnary "malloc"
-                                       (aE .*. (CSizeOfType . mkDecl $ innerType)))
-              putStat . CExpr . Just $ size .=. aE
-              putStat . CExpr . Just $ dataPtr .=. mallocCall
+         -- defined a measure function that returns mdata
+         funCG CVoid ident [mdataPtrDeclaration t mdataId] $
+           do flattenABT abt (CVar mdataId)
+              putStat (CReturn Nothing)
+
+
+  --        -- need to set seed?
+  --        -- srand(time(NULL));
+
+         -- main function
+
+  --        -- if it is a plate then allocate space here
+  --        when isArray $
+  --          do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
+  --             aE <- flattenABT arityABT
+  --             let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
+  --                 size    = CMember (CVar . Ident $ "sample") (Ident "size") True
+  --                 innerType = getArrayType t
+  --                 mallocCall = CCast (mkPtrDecl innerType)
+  --                                    (mkUnary "malloc"
+  --                                      (aE .*. (CSizeOfType . mkDecl $ innerType)))
+  --             putStat . CExpr . Just $ size .=. aE
+  --             putStat . CExpr . Just $ dataPtr .=. mallocCall
 
 
          printf pc typ (CVar ident)
@@ -176,17 +171,16 @@ mainFunction pc typ@(SMeasure t) abt =
 
 -- just a computation
 mainFunction pc typ abt =
-  let ident = Ident "result"
+  let resId = Ident "result"
+      resE  = CVar resId
       funId = Ident "main"
   in  do reserveName "result"
          reserveName "main"
 
-         declare typ ident
-         expr <- flattenABT abt
-         assign ident expr
+         declare typ resId
+         flattenABT abt resE
 
-         printf pc typ (CVar ident)
-           -- can be undefined because weights are only computed for measures
+         printf pc typ resE
          putStat . CReturn . Just $ intE 0
 
          cg <- get
@@ -196,8 +190,17 @@ mainFunction pc typ abt =
                                               (P.reverse $ declarations cg)
                                               (P.reverse $ statements cg)
 
+
+
 --------------------------------------------------------------------------------
--- PRINTING VALUES
+--                               Printing Values                              --
+--------------------------------------------------------------------------------
+{-
+
+In HKC the printconfig is parsed from the command line. The default being that
+we don't show weights and probabilities are printed as normal real values.
+
+-}
 
 data PrintConfig
   = PrintConfig { showWeights   :: Bool
@@ -210,27 +213,22 @@ printf
   -> Sing (a :: Hakaru) -- ^ Hakaru type to be printed
   -> CExpr              -- ^ CExpr representing value
   -> CodeGen ()
-printf pc (SMeasure t) sampleFunc =
-  let sampleE    = CVar . Ident $ "sample"
-      sampleELoc = address sampleE
-      weightLoc  = CVar . Ident $ "weight"
-  in  case t of
-        (SArray _) -> do s <- runCodeGenBlock $ do
-                                putStat . CExpr . Just $ if showWeights pc
-                                                         then weightLoc .=. CCall sampleFunc [sampleELoc]
-                                                         else CCall sampleFunc [sampleELoc]
-                                printf pc t sampleE
-                         putStat $ CFor Nothing Nothing Nothing s
 
-        _ -> do putStat $ CFor Nothing Nothing Nothing
-                            $ CCompound . fmap CBlockStat
-                                $ [ CExpr . Just $ if showWeights pc
-                                                   then weightLoc .=. CCall sampleFunc [sampleELoc]
-                                                   else CCall sampleFunc [sampleELoc]
-                                  , CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                         (if showWeights pc
-                                                          then [ printfText pc t " with weight: %.15f\n", sampleE, exp weightLoc ]
-                                                          else [ printfText pc t "\n", sampleE ])]
+printf pc mt@(SMeasure t) sampleFunc =
+  case t of
+    -- (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ CCall arg [sampleELoc]
+    --                                            printf t sampleE
+    --                  putStat $ CFor Nothing Nothing Nothing s
+    _ -> do mId <- genIdent' "m"
+            declare mt mId
+            let mVar = CVar mId
+                getSampleS   = CExpr . Just $ CCall sampleFunc [address mVar]
+                printSampleE = CExpr . Just $ CCall (CVar . Ident $ "printf") [ printfText pc t "\n"
+                                                                              , mdataSample mVar ]
+                wrapSampleFunc = CCompound $ [CBlockStat getSampleS
+                                             ,CBlockStat $ CIf (mdataReject mVar) printSampleE Nothing]
+            putStat $ CWhile (intE 1) wrapSampleFunc False
+
 
 printf pc (SArray t) arg =
   do iterId <- genIdent' "it"
@@ -281,41 +279,51 @@ printfText c (SData _ _)  = \s -> stringE $ "TODO: printft datum" ++ s
 
 
 --------------------------------------------------------------------------------
---
+--                           Wrapping   Lambdas                               --
+--------------------------------------------------------------------------------
+{-
+
+Lambdas become function in C. The Hakaru ABT only allows one arguement for each
+lambda. So at the top level of a Hakaru program that is a function there may be
+several nested lambdas. In C however, we can and should coalesce these into one
+function with several arguements. This is what flattenTopLambda is for.
+
+-}
+
 
 flattenTopLambda
   :: ABT Term abt
   => abt '[] a
   -> Ident
   -> CodeGen ()
-flattenTopLambda abt name =
-    coalesceLambda abt $ \vars abt' ->
-    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
-        typ   = typeOf abt'
-    in  do argDecls <- sequence varMs
-           cg <- get
+flattenTopLambda abt name = undefined
+    -- coalesceLambda abt $ \vars abt' ->
+    -- let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+    --     typ   = typeOf abt'
+    -- in  do argDecls <- sequence varMs
+    --        cg <- get
 
-           case typ of
-             SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-                                  (_,cg') = runState m $ cg { statements = []
-                                                            , declarations = [] }
-                              put $ cg' { statements   = statements cg
-                                        , declarations = declarations cg }
-                              extDeclare . CFunDefExt
-                                $ functionDef typ name
-                                                  argDecls
-                                                  (P.reverse $ declarations cg')
-                                                  (P.reverse $ statements cg')
-             _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-                         (_,cg') = runState m $ cg { statements = []
-                                                   , declarations = [] }
-                     put $ cg' { statements   = statements cg
-                               , declarations = declarations cg }
-                     extDeclare . CFunDefExt
-                       $ functionDef typ name
-                                         argDecls
-                                         (P.reverse $ declarations cg')
-                                         (P.reverse $ statements cg')
+    --        case typ of
+    --          SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
+    --                               (_,cg') = runState m $ cg { statements = []
+    --                                                         , declarations = [] }
+    --                           put $ cg' { statements   = statements cg
+    --                                     , declarations = declarations cg }
+    --                           extDeclare . CFunDefExt
+    --                             $ functionDef typ name
+    --                                               argDecls
+    --                                               (P.reverse $ declarations cg')
+    --                                               (P.reverse $ statements cg')
+    --          _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
+    --                      (_,cg') = runState m $ cg { statements = []
+    --                                                , declarations = [] }
+    --                  put $ cg' { statements   = statements cg
+    --                            , declarations = declarations cg }
+    --                  extDeclare . CFunDefExt
+    --                    $ functionDef typ name
+    --                                      argDecls
+    --                                      (P.reverse $ declarations cg')
+    --                                      (P.reverse $ statements cg')
   -- do at top level
   where coalesceLambda
           :: ABT Term abt
