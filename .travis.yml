@@ -102,6 +102,10 @@ before_install:
   then
     travis_retry brew update
     brew install xz
+    brew upgrade ghc
+    brew unlink cabal-install
+    brew install cabal-install --constraint=unix>=2.7.1.0
+    brew link --overwrite cabal-install
     travis_retry curl --insecure -L https://www.stackage.org/stack/osx-x86_64 | tar xz --strip-components=1 --include '*/stack' -C ~/.local/bin
   else
     travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
