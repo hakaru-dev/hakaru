@@ -18,10 +18,10 @@ import           System.Environment
 
 main :: IO ()
 main = do
-  args <- getArgs
-  case args of
-      [prog] -> IO.readFile prog >>= runDisintegrate
-      []     -> IO.getContents   >>= runDisintegrate
+  args  <- getArgs
+  progs <- mapM readFromFile args
+  case progs of
+      [prog] -> runDisintegrate prog
       _      -> IO.putStrLn "Usage: disintegrate <file>"
 
 runDisintegrate :: Text -> IO ()
