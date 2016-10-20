@@ -22,7 +22,7 @@ main = do
   case args of
       [prog] -> IO.readFile prog >>= runDisintegrate
       []     -> IO.getContents   >>= runDisintegrate
-      _      -> IO.putStrLn "Usage: simplify <file>"
+      _      -> IO.putStrLn "Usage: disintegrate <file>"
 
 runDisintegrate :: Text -> IO ()
 runDisintegrate prog =
