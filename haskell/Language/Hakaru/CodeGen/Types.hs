@@ -147,7 +147,6 @@ mdataStruct' t = mdStruct
         reject = buildDeclaration CChar (Ident "reject")
         mdStruct = buildStruct (Just . Ident . mdataName $ t) [reject,weight,sample]
 
-
 mdataDeclaration
   :: Sing (a :: Hakaru)
   -> Ident

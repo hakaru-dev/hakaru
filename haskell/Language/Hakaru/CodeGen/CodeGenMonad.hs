@@ -127,6 +127,8 @@ runCodeGenBlock m =
 runCodeGenWith :: CodeGen a -> CG -> [CExtDecl]
 runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls cg'
 
+--------------------------------------------------------------------------------
+
 isParallel :: CodeGen Bool
 isParallel = parallel <$> get
 

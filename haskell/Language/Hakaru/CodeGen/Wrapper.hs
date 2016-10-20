@@ -126,7 +126,6 @@ mainFunction pc typ@(SMeasure t) abt =
            do flattenABT abt (CVar mdataId)
               putStat (CReturn Nothing)
 
-
   --        -- need to set seed?
   --        -- srand(time(NULL));
 
@@ -189,7 +188,6 @@ mainFunction pc typ abt =
                                               []
                                               (P.reverse $ declarations cg)
                                               (P.reverse $ statements cg)
-
 
 
 --------------------------------------------------------------------------------
