@@ -20,10 +20,12 @@ pages:
   - 'Datatypes and match': 'lang/datatypes.md'
   - 'Arrays':              'lang/arrays.md'
 - Transformations:
-  - 'Expect':         'transforms/expect.md'
-  - 'Disintegrate':   'transforms/disintegrate.md'
-  - 'Simplify':       'transforms/simplify.md'
-  - 'Compiling to C': 'transforms/hkc.md' 
+  - 'Expect':               'transforms/expect.md'
+  - 'Disintegrate':         'transforms/disintegrate.md'
+  - 'Simplify':             'transforms/simplify.md'
+  - 'Metropolis Hastings':  'transforms/mh.md'
+  - 'Compiling to Haskell': 'transforms/compile.md' 
+  - 'Compiling to C':       'transforms/hkc.md' 
 - Internals:
   - 'AST and Hakaru Datakind':   'internals/ast.md'
   - 'ABT':                       'internals/abt.md'
