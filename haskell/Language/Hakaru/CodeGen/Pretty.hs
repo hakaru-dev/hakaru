@@ -178,12 +178,12 @@ instance Pretty CStat where
     nest (-1) (lbrace $+$ (nest 2 . vcat . fmap pretty $ bs) $+$ rbrace)
 
   pretty (CIf ce thns (Just elss)) = nest 1 $
-    text "if" <+> (prettyPrec (-5) ce)
+    text "if" <+> (parens . prettyPrec (-5) $ ce)
               $+$ (nest 1 $ pretty thns)
               $+$ text "else"
               $+$ (nest 1 $ pretty elss)
   pretty (CIf ce thns Nothing) =
-    text "if" <+> (prettyPrec (-5) ce) $+$ (nest 1 $ pretty thns)
+    text "if" <+> (parens . prettyPrec (-5) $ ce) $+$ (nest 1 $ pretty thns)
 
   pretty (CWhile ce s b) =
     if b
@@ -220,7 +220,7 @@ instance Pretty CExpr where
   prettyPrec p (CUnary op e) =
     if elem op [CPostIncOp,CPostDecOp]
     then parensPrec p (-1) $ prettyPrec (-1) e <> pretty op
-    else parensPrec p (-1) $ pretty op <> prettyPrec (-1) e
+    else parens $ pretty op <> prettyPrec (-1) e
 
   prettyPrec _ (CSizeOfExpr e) = text "sizeof" <> (parens . pretty $ e)
   prettyPrec _ (CSizeOfType d) = text "sizeof" <> (parens . pretty $ d)

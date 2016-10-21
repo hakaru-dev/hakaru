@@ -28,7 +28,6 @@
 
 module Language.Hakaru.CodeGen.CodeGenMonad
   ( CodeGen
-  , Sample(..)
   , CG(..)
   , runCodeGen
   , runCodeGenBlock
@@ -41,10 +40,10 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , declare'
   , assign
   , putStat
+  , putExprStat
   , extDeclare
   , defineFunction
-  , getSample
-  , putSample
+  , funCG
   , isParallel
   , mkParallel
   , mkSequential
@@ -92,8 +91,6 @@ suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
         names = [[x] | x <- base] `mplus` (do n <- names
                                               [n++[x] | x <- base])
 
-data Sample = Sample Ident CExpr
-
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generations
              , reservedNames :: S.Set String -- ^ reserve names during code generations
@@ -101,12 +98,11 @@ data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generatio
              , declarations  :: [CDecl]      -- ^ declarations in local block
              , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
              , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
-             , sample        :: Maybe Sample -- ^ location of the sample, only if in a measure
              , parallel      :: Bool         -- ^ openMP supported block
              }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty mempty [] [] emptyEnv Nothing False
+emptyCG = CG suffixes mempty mempty [] [] emptyEnv False
 
 type CodeGen = State CG
 
@@ -130,22 +126,6 @@ runCodeGenBlock m =
 
 runCodeGenWith :: CodeGen a -> CG -> [CExtDecl]
 runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls cg'
-
---------------------------------------------------------------------------------
--- The sample side effect is only used in Measures
-
-
--- When using this effect, the caller needs to allocate the memory
-getSample :: CodeGen Sample
-getSample =
-  do msi <- sample <$> get
-     case msi of
-       Nothing    -> error "getSample: sample never set"
-       Just x -> return x
-
-putSample :: Sample -> CodeGen ()
-putSample s = get >>= \cg -> put (cg {sample = Just s})
-
 
 --------------------------------------------------------------------------------
 
@@ -226,7 +206,11 @@ declare SInt          = declare' . typeDeclaration SInt
 declare SNat          = declare' . typeDeclaration SNat
 declare SProb         = declare' . typeDeclaration SProb
 declare SReal         = declare' . typeDeclaration SReal
-declare (SMeasure x)  = declare x
+declare (SMeasure (SArray t))  = \i -> do extDeclare $ arrayStruct t
+                                          extDeclare $ mdataStruct t
+                                          declare'   $ mdataDeclaration (SArray t) i
+declare (SMeasure t)  = \i -> do extDeclare $ mdataStruct t
+                                 declare'   $ mdataDeclaration t i
 declare (SArray t)    = \i -> do extDeclare $ arrayStruct t
                                  declare'   $ arrayDeclaration t i
 declare d@(SData _ _) = \i -> do extDeclare $ datumStruct d
@@ -241,6 +225,9 @@ declare' d = do cg <- get
 putStat :: CStat -> CodeGen ()
 putStat s = do cg <- get
                put $ cg { statements = s:(statements cg) }
+
+putExprStat :: CExpr -> CodeGen ()
+putExprStat = putStat . CExpr . Just
 
 assign :: Ident -> CExpr -> CodeGen ()
 assign ident e = putStat . CExpr . Just $ (CVar ident .=. e)
@@ -266,13 +253,32 @@ defineFunction typ ident args mbody =
          def SNat         = functionDef SNat  ident args decls stmts
          def SProb        = functionDef SProb ident args decls stmts
          def SReal        = functionDef SReal ident args decls stmts
-         def (SMeasure t) = functionDef t ident args decls stmts
+         def (SMeasure t) = functionDef (SMeasure t) ident args decls stmts
          def t            = error $ "TODO: defined function of type: " ++ show t
 
      -- reset local statements and declarations
      put $ cg' { statements   = statements cg
                , declarations = declarations cg }
      extDeclare . CFunDefExt $ def typ
+
+funCG :: CTypeSpec -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
+funCG ts ident args mbody =
+  do cg <- get
+     mbody
+     !cg' <- get
+     let decls = reverse . declarations $ cg'
+         stmts = reverse . statements   $ cg'
+     -- reset local statements and declarations
+     put $ cg' { statements   = statements cg
+               , declarations = declarations cg }
+     extDeclare . CFunDefExt $
+       CFunDef [CTypeSpec ts]
+               (CDeclr Nothing [ CDDeclrIdent ident ])
+               args
+               (CCompound ((fmap CBlockDecl decls) ++ (fmap CBlockStat stmts)))
+
+
+
 
 ---------
 -- ENV --
