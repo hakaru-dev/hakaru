@@ -247,7 +247,7 @@ flattenSCon (Product _ sr) =
            accI <- genIdent' "acc"
            let semiT = sing_HSemiring sr
            declare semiT accI
-           assign accI (intE 1)
+           assign accI (log (intE 0))
 
            let accVar  = CVar accI
                iterVar = CVar iterI
@@ -936,91 +936,89 @@ flattenMeasureOp Uniform =
          putExprStat $ mdataPtrReject loc .=. (intE 1)
 
 
-flattenMeasureOp Normal  = undefined
-  -- \(a :* b :* End) ->
-  --   \loc ->
-  --     do rId <- genIdent' "rand"
-  --        declare SReal rId
-  --        let randomE = (CCast doubleDecl rand)
-  --                  ./. (CCast doubleDecl (CVar . Ident $ "RAND_MAX"))
-  --            rE = CVar rId
-  --        assign rId randomE
+flattenMeasureOp Normal  =
+  \(a :* b :* End) ->
+    \loc ->
+      do let randomE = (CCast doubleDecl rand)
+                   ./. (CCast doubleDecl (CVar . Ident $ "RAND_MAX"))
 
-  --        aId <- genIdent
-  --        declare SReal aId
-  --        let aE = CVar aId
-  --        flattenABT a aE
+         -- mean
+         aId <- genIdent
+         declare SReal aId
+         let aE = CVar aId
+         flattenABT a aE
 
-  --        bId <- genIdent
-  --        declare SProb bId
-  --        let bE = CVar bId
-  --        flattenABT b bE
+         -- variance
+         bId <- genIdent
+         declare SProb bId
+         let bE = CVar bId
+         flattenABT b bE
 
-  --        tId <- genIdent
-  --        declare SReal tId
-  --        let tE = CVar tId
+         -- temp vars
+         uId <- genIdent
+         vId <- genIdent
+         qId <- genIdent
+         rId <- genIdent
 
-  -- do a' <- flattenABT a
-  --    b' <- flattenABT b
+         declare SReal uId
+         declare SReal vId
+         declare SReal qId
+         declare SReal rId
 
-  --    uId <- genIdent
-  --    declare SReal uId
-  --    let varU = CVar uId
+         let vE = CVar vId
+             uE = CVar uId
+             qE = CVar qId
+             rE = CVar rId
 
-  --    vId <- genIdent
-  --    declare SReal vId
-  --    let varV = CVar vId
+         doWhileCG ((qE .==. (intE 0)) .||. (qE .>. (intE 1)))
+           $ do assign uId $ randomE .*. (floatE 2) .-. (floatE 1)
+                assign vId $ randomE .*. (floatE 2) .-. (floatE 1)
+                assign qId $ (uE .*. uE) .+. (vE .*. vE)
 
-  --    rId <- genIdent
-  --    let varR = CVar rId
-  --    declare SReal rId
+         assign rId $ sqrt ((mkUnary "-" (intE 2)) .*. (log qE ./. qE))
+         let value  = aE .+. (uE .*. (rE .*. ((expm1 bE) .+. (intE 1))))
 
-
-  --    doWhileCG ((varR .==. (intE 0)) .||. (varR .>. (intE 1)))
-  --      $ do assign uId $ randomE .*. (floatE 2) .-. (floatE 1)
-  --           assign vId $ randomE .*. (floatE 2) .-. (floatE 1)
-  --           assign rId $ (varU .*. varU) .+. (varV .*. varV)
-
-  --    cId <- genIdent
-  --    declare SReal cId
-  --    assign cId $ sqrt ((mkUnary "-" (intE 2)) .*. (log varR ./. varR))
-  --    let varC = CVar cId
-  --        value  = a' .+. (varU .*. (varC .*. ((expm1 b') .+. (intE 1))))
+         putExprStat $ mdataPtrWeight loc .=. (floatE 0)
+         putExprStat $ mdataPtrSample loc .=. value
+         putExprStat $ mdataPtrReject loc .=. (intE 1)
 
 
-  --    mdataId <- genIdent' "m"
-  --    declare (SMeasure SReal) mdataId
-  --    return (CVar mdataId)
+flattenMeasureOp Categorical = \(arr :* End) ->
+  \loc ->
+    do arrId <- genIdent
+       declare (typeOf arr) arrId
+       flattenABT arr (CVar arrId)
+    --    a' <- flattenABT a
+    --    iterId <- genIdent' "it"
+    --    wSumId <- genIdent' "w"
+    --    outId  <- genIdent' "out"
 
-flattenMeasureOp Categorical = \(a :* End) -> undefined
-  -- do a' <- flattenABT a
-  --    iterId <- genIdent' "it"
-  --    wSumId <- genIdent' "w"
-  --    outId  <- genIdent' "out"
+    --    let sizeE = CMember a' (Ident "size") True
+    --        currE = indirect ((CMember a' (Ident "data") True) .+. iterE)
+    --        iterE = CVar iterId
+    --        wSumE = CVar wSumId
+    --        cond  = iterE .<. sizeE
+    --        inc   = CUnary CPostIncOp iterE
 
-  --    let sizeE = CMember a' (Ident "size") True
-  --        currE = indirect ((CMember a' (Ident "data") True) .+. iterE)
-  --        iterE = CVar iterId
-  --        wSumE = CVar wSumId
-  --        cond  = iterE .<. sizeE
-  --        inc   = CUnary CPostIncOp iterE
+    --    declare SProb wSumId
+    --    declare SInt iterId
+    --    assign wSumId (intE 0)
 
-  --    declare SProb wSumId
-  --    declare SInt iterId
-  --    assign wSumId (intE 0)
+    --    isPar <- isParallel
+    --    mkSequential
+    --    forCG (iterE .=. (intE 0)) cond inc $
+    --      assign wSumId =<< (logSumExpCG $ S.fromList [wSumE,currE])
+    --    when isPar mkParallel
 
-  --    isPar <- isParallel
-  --    mkSequential
-  --    forCG (iterE .=. (intE 0)) cond inc $
-  --      assign wSumId =<< (logSumExpCG $ S.fromList [wSumE,currE])
-  --    when isPar mkParallel
+    --    -- try the first element
+    --    forCG (iterE .=. (intE 0)) cond inc $
+    --      assign wSumId =<< (logSumExpCG $ S.fromList [wSumE,currE])
+    --    when isPar mkParallel
 
-  --    -- try the first element
-  --    forCG (iterE .=. (intE 0)) cond inc $
-  --      assign wSumId =<< (logSumExpCG $ S.fromList [wSumE,currE])
-  --    when isPar mkParallel
+       putExprStat $ mdataPtrWeight loc .=. (floatE 0)
+       putExprStat $ mdataPtrSample loc .=. (intE 1)
+       putExprStat $ mdataPtrReject loc .=. (intE 1)
 
-  --    return (intE 0)
 
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
 
@@ -1034,56 +1032,64 @@ flattenSuperpose
     -> (CExpr -> CodeGen ())
 
 -- do we need to normalize?
-flattenSuperpose wes =
-  let wes' = NE.toList wes in
+flattenSuperpose pairs =
+  let pairs' = NE.toList pairs in
 
-  if length wes' == 1
-  then undefined -- flattenABT . snd . head . wes'
-  else \loc -> undefined
-         -- do weights <- mapM (flattenABT . fst) wes'
-         --    -- compute sum of weights
-         --    weightSumId <- genIdent' "wSum"
-         --    declare SProb weightSumId
-         --    assign weightSumId =<< (logSumExpCG $ S.fromList weights)
-         --    let weightSum = CVar weightSumId
+  if length pairs' == 1
+  then \loc -> let (w,m) = head pairs' in
+         do mId <- genIdent
+            wId <- genIdent
+            declare (typeOf m) mId
+            declare SProb wId
+            let mE = address . CVar $ mId
+                wE = CVar wId
+            flattenABT w wE
+            flattenABT m mE
+            putExprStat $ mdataPtrWeight loc .=. ((mdataPtrWeight mE) .+. wE)
+            putExprStat $ mdataPtrSample loc .=. (mdataPtrSample mE)
+            putExprStat $ mdataPtrReject loc .=. (mdataPtrReject mE)
 
-         --    -- draw number from uniform(0, weightSum)
-         --    randId <- genIdent' "rand"
-         --    declare SReal randId
-         --    let r    = CCast doubleDecl rand
-         --        rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
-         --        rVar = CVar randId
-         --    assign randId ((r ./. rMax) .*. (exp weightSum))
+  else \loc ->
+         do wEs <- forM pairs' $ \(w,_) ->
+                     do wId <- genIdent' "w"
+                        declare SProb wId
+                        let wE = CVar wId
+                        flattenABT w wE
+                        return wE
 
+            wSumId <- genIdent' "ws"
+            declare SProb wSumId
+            let wSumE = CVar wSumId
+            logSumExpCG (S.fromList wEs) wSumE
 
-         --    outId <- genIdent
-         --    declare SReal outId
-         --    outLabel <- genIdent' "super"
+            -- draw number from uniform(0, weightSum)
+            rId <- genIdent' "r"
+            declare SReal rId
+            let r    = CCast doubleDecl rand
+                rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+                rE = CVar rId
+            assign rId ((r ./. rMax) .*. (exp wSumE))
 
-         --    iterId <- genIdent' "it"
-         --    declare SProb iterId
-         --    let iter = CVar iterId
+            -- an iterator for picking a measure
+            itId <- genIdent' "it"
+            declare SProb itId
+            let itE = CVar itId
+            assign itId (log (intE 0))
 
-         --    -- try the first element
-         --    assign iterId (head weights)
-         --    stat <- runCodeGenBlock (do e <- flattenABT (snd . head $ wes')
-         --                                assign outId e
-         --                                putStat $ CGoto outLabel)
-         --    putStat $ CIf (rVar .<. (exp iter)) stat Nothing
+            -- an output measure to assign to
+            outId <- genIdent' "out"
+            declare (typeOf . snd . head $ pairs') outId
+            let outE = address $ CVar outId
 
+            outLabel <- genIdent' "exit"
 
-         --    forM_ (zip (tail weights) (fmap snd (tail wes'))) $ \(e,m) ->
-         --      do assign iterId =<< (logSumExpCG $ S.fromList [iter, e])
-         --         stat <- runCodeGenBlock (do e <- flattenABT m (CVar outId)-- toss weight
-         --                                     assign outId e
-         --                                     putStat $ CGoto outLabel)
-         --         putStat $ CIf (rVar .<. (exp iter)) stat Nothing
+            forM_ (zip wEs pairs')
+              $ \(wE,(_,m)) ->
+                  do logSumExpCG (S.fromList [itE,wE]) itE
+                     stat <- runCodeGenBlock (flattenABT m outE >> putStat (CGoto outLabel))
+                     putStat $ CIf (rE .<. (exp itE)) stat Nothing
 
-         --    putStat $ CLabel outLabel (CExpr Nothing)
-         --    mdataId <- genIdent' "m"
-         --    declare (SMeasure SReal) mdataId
-
-         --    -- assign found value to mdata and return success
-         --    putStat . CExpr . Just $ mdataPtrWeight loc .=. (floatE 0)
-         --    putStat . CExpr . Just $ mdataPtrSample loc .=. e'
-         --    return (intE 0)
+            putStat $ CLabel outLabel (CExpr Nothing)
+            putExprStat $ mdataPtrWeight loc .=. ((mdataPtrWeight outE) .+. wSumE)
+            putExprStat $ mdataPtrSample loc .=. (mdataPtrSample outE)
+            putExprStat $ mdataPtrReject loc .=. (mdataPtrReject outE)
