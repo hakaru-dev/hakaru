@@ -219,12 +219,19 @@ printf pc mt@(SMeasure t) sampleFunc =
     --                  putStat $ CFor Nothing Nothing Nothing s
     _ -> do mId <- genIdent' "m"
             declare mt mId
-            let mVar = CVar mId
-                getSampleS   = CExpr . Just $ CCall sampleFunc [address mVar]
-                printSampleE = CExpr . Just $ CCall (CVar . Ident $ "printf") [ printfText pc t "\n"
-                                                                              , mdataSample mVar ]
+            let mE = CVar mId
+                getSampleS   = CExpr . Just $ CCall sampleFunc [address mE]
+                printSampleE = CExpr . Just
+                             $ CCall (CVar . Ident $ "printf")
+                                     $ [ stringE $ printfText pc mt "\n"]
+                                     ++ (if showWeights pc
+                                         then [ if showProbInLog pc
+                                                then mdataWeight mE
+                                                else exp $ mdataWeight mE ]
+                                         else [])
+                                     ++ [ mdataSample mE ]
                 wrapSampleFunc = CCompound $ [CBlockStat getSampleS
-                                             ,CBlockStat $ CIf (mdataReject mVar) printSampleE Nothing]
+                                             ,CBlockStat $ CIf (mdataReject mE) printSampleE Nothing]
             putStat $ CWhile (intE 1) wrapSampleFunc False
 
 
@@ -238,42 +245,47 @@ printf pc (SArray t) arg =
          cond     = iter .<. sizeVar
          inc      = CUnary CPostIncOp iter
          currInd  = indirect (dataPtr .+. iter)
-         loopBody = do putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                      [ printfText pc t " ", currInd ]
+         loopBody = putExprStat $ CCall (CVar . Ident $ "printf")
+                                        [ stringE $ printfText pc t " "
+                                        , currInd ]
 
 
      putString "[ "
      mkSequential -- cant print arrays in parallel
      forCG (iter .=. (intE 0)) cond inc loopBody
      putString "]\n"
-  where putString s = putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                     [stringE s]
+  where putString s = putExprStat $ CCall (CVar . Ident $ "printf")
+                                          [stringE s]
 
 printf pc SProb arg =
-  putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                 [ printfText pc SProb "\n"
-                                 , if showProbInLog pc
-                                   then arg
-                                   else exp arg ]
+  putExprStat $ CCall (CVar . Ident $ "printf")
+                      [ stringE $ printfText pc SProb "\n"
+                      , if showProbInLog pc
+                        then arg
+                        else exp arg ]
 
 printf pc typ arg =
-  putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                 [ printfText pc typ "\n"
-                                 , arg ]
+  putExprStat $ CCall (CVar . Ident $ "printf")
+                      [ stringE $ printfText pc typ "\n"
+                      , arg ]
 
 
 
-printfText :: PrintConfig -> Sing (a :: Hakaru) -> (String -> CExpr)
-printfText _ SInt         = \s -> stringE $ "%d" ++ s
-printfText _ SNat         = \s -> stringE $ "%d" ++ s
+printfText :: PrintConfig -> Sing (a :: Hakaru) -> (String -> String)
+printfText _ SInt         = \s -> "%d" ++ s
+printfText _ SNat         = \s -> "%d" ++ s
 printfText c SProb        = \s -> if showProbInLog c
-                                  then stringE $ "exp(%.15f)" ++ s
-                                  else stringE $ "%.15f" ++ s
-printfText _ SReal        = \s -> stringE $ "%.17f" ++ s
-printfText c (SMeasure t) = printfText c t
+                                  then "exp(%.15f)" ++ s
+                                  else "%.15f" ++ s
+printfText _ SReal        = \s -> "%.17f" ++ s
+printfText c (SMeasure t) = if showWeights c
+                            then \s -> if showProbInLog c
+                                       then "exp(%.15f) " ++ printfText c t s
+                                       else "%.15f " ++ printfText c t s
+                            else printfText c t
 printfText c (SArray t)   = printfText c t
-printfText c (SFun _ _)   = \s -> stringE s
-printfText c (SData _ _)  = \s -> stringE $ "TODO: printft datum" ++ s
+printfText c (SFun _ _)   = id
+printfText c (SData _ _)  = \s -> "TODO: printft datum" ++ s
 
 
 --------------------------------------------------------------------------------
