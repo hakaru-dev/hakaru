@@ -24,9 +24,15 @@ module Language.Hakaru.CodeGen.Types
   -- tools for building C types
   , typeDeclaration
   , typePtrDeclaration
+
+  -- arrays
   , arrayDeclaration
   , arrayName
   , arrayStruct
+  , arraySize
+  , arrayData
+
+  -- mdata
   , mdataDeclaration
   , mdataPtrDeclaration
   , mdataName
@@ -38,11 +44,11 @@ module Language.Hakaru.CodeGen.Types
   , mdataPtrReject
   , mdataPtrWeight
   , mdataPtrSample
+
   , datumDeclaration
   , datumName
   , datumStruct
   , functionDef
-
   , datumSum
   , datumProd
 
@@ -122,6 +128,13 @@ arrayDeclaration
   -> Ident
   -> CDecl
 arrayDeclaration typ = buildDeclaration (callStruct (arrayName typ))
+
+
+arraySize :: CExpr -> CExpr
+arraySize e = CMember e (Ident "size") True
+
+arrayData :: CExpr -> CExpr
+arrayData e = CMember e (Ident "data") True
 
 --------------------------------------------------------------------------------
 -- Measure Data
