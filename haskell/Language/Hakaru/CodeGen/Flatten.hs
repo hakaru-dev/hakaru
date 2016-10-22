@@ -544,22 +544,24 @@ flattenArray
 flattenArray arity body =
   \loc ->
     caseBind body $ \v@(Variable _ _ typ) body' ->
-      let arityE = CMember loc (Ident "size") True
-          dataE  = CMember loc (Ident "data") True in
+      let arityE = arraySize loc
+          dataE  = arrayData loc in
       do flattenABT arity arityE
-         putExprStat $ dataE .=. (CCast (mkPtrDecl . buildType $ typ)
-                                        (mkUnary "malloc"
-                                                 (arityE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+         putExprStat $   dataE
+                     .=. (CCast (mkPtrDecl . buildType $ typ)
+                                (mkUnary "malloc"
+                                  (arityE .*. (CSizeOfType . mkDecl . buildType $ typ))))
 
-         iterIdent  <- createIdent v
-         declare SNat iterIdent
-         -- manage loop
-         let iter     = CVar iterIdent
-             cond     = iter .<. arityE
-             inc      = CUnary CPostIncOp iter
-             currInd  = indirect (dataE .+. iter)
-             loopBody = flattenABT body' currInd
-         forCG (iter .=. (intE 0)) cond inc loopBody
+         itId  <- createIdent v
+         declare SNat itId
+         let itE     = CVar itId
+             currInd = indirect (dataE .+. itE)
+
+         forCG (itE .=. (intE 0))
+               (itE .<. arityE)
+               (CUnary CPostIncOp itE)
+               (flattenABT body' currInd)
+
 
 --------------
 -- ArrayOps --
@@ -656,7 +658,7 @@ assignDatum
 assignDatum code ident =
   let index     = getIndex code
       indexExpr = CMember ident (Ident "index") True
-  in  do putStat . CExpr . Just $ indexExpr .=. (intE index)
+  in  do putExprStat (indexExpr .=. (intE index))
          sequence_ $ assignSum code ident
   where getIndex :: DatumCode xss b c -> Integer
         getIndex (Inl _)    = 0
@@ -698,19 +700,18 @@ assignProd'
   -> CExpr
   -> State [String] [CodeGen ()]
 assignProd' Done _ _ = return []
-assignProd' (Et (Konst d) rest) topIdent sumIdent = undefined
-  -- do (name:names) <- get
-  --    put names
-  --    let varName  = CMember (CMember (CMember (CVar topIdent)
-  --                                             (Ident "sum")
-  --                                             True)
-  --                                    sumIdent
-  --                                    True)
-  --                           (Ident name)
-  --                           True
-  --        assignCG = putStat . CExpr . Just =<< CAssign CAssignOp varName <$> flattenABT d
-  --    rest' <- assignProd' rest topIdent sumIdent
-  --    return $ [assignCG] ++ rest'
+assignProd' (Et (Konst d) rest) topIdent (CVar sumIdent) =
+  do (name:names) <- get
+     put names
+     let varName  = CMember (CMember (CMember topIdent
+                                              (Ident "sum")
+                                              True)
+                                     sumIdent
+                                     True)
+                            (Ident name)
+                            True
+     rest' <- assignProd' rest topIdent (CVar sumIdent)
+     return $ [flattenABT d varName] ++ rest'
 assignProd' _ _ _  = error $ "TODO: assignProd Ident"
 
 
@@ -855,6 +856,8 @@ flattenPrimOp (Equal _) =
              bT = typeOf b
          declare aT aId
          declare bT bId
+         flattenABT a aE
+         flattenABT b bE
 
          -- special case for booleans
          let aE' = case aT of
@@ -987,37 +990,50 @@ flattenMeasureOp Categorical = \(arr :* End) ->
   \loc ->
     do arrId <- genIdent
        declare (typeOf arr) arrId
-       flattenABT arr (CVar arrId)
-    --    a' <- flattenABT a
-    --    iterId <- genIdent' "it"
-    --    wSumId <- genIdent' "w"
-    --    outId  <- genIdent' "out"
+       let arrE = CVar arrId
+       flattenABT arr arrE
 
-    --    let sizeE = CMember a' (Ident "size") True
-    --        currE = indirect ((CMember a' (Ident "data") True) .+. iterE)
-    --        iterE = CVar iterId
-    --        wSumE = CVar wSumId
-    --        cond  = iterE .<. sizeE
-    --        inc   = CUnary CPostIncOp iterE
+       itId <- genIdent' "it"
+       declare SInt itId
+       let itE = CVar itId
 
-    --    declare SProb wSumId
-    --    declare SInt iterId
-    --    assign wSumId (intE 0)
+       wSumId <- genIdent' "ws"
+       declare SProb wSumId
+       let wSumE = CVar wSumId
+       assign wSumId (log (intE 0))
 
-    --    isPar <- isParallel
-    --    mkSequential
-    --    forCG (iterE .=. (intE 0)) cond inc $
-    --      assign wSumId =<< (logSumExpCG $ S.fromList [wSumE,currE])
-    --    when isPar mkParallel
+       let currE = indirect (arrayData arrE .+. itE)
+           cond  = itE .<. (arraySize arrE)
+           inc   = CUnary CPostIncOp itE
 
-    --    -- try the first element
-    --    forCG (iterE .=. (intE 0)) cond inc $
-    --      assign wSumId =<< (logSumExpCG $ S.fromList [wSumE,currE])
-    --    when isPar mkParallel
+       isPar <- isParallel
+       mkSequential
 
-       putExprStat $ mdataPtrWeight loc .=. (floatE 0)
-       putExprStat $ mdataPtrSample loc .=. (intE 1)
-       putExprStat $ mdataPtrReject loc .=. (intE 1)
+       -- first calculate the max weight
+       forCG (itE .=. (intE 0)) cond inc $
+         logSumExpCG (S.fromList [wSumE,currE]) wSumE
+
+       -- draw number from uniform(0, weightSum)
+       rId <- genIdent' "r"
+       declare SReal rId
+       let r    = CCast doubleDecl rand
+           rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+           rE = CVar rId
+       assign rId ((r ./. rMax) .*. (exp wSumE))
+
+       assign wSumId (log (intE 0))
+       assign itId (intE 0)
+       whileCG (intE 1)
+         $ do stat <- runCodeGenBlock $
+                        do putExprStat $ mdataPtrWeight loc .=. (intE 0)
+                           putExprStat $ mdataPtrSample loc .=. itE
+                           putExprStat $ mdataPtrReject loc .=. (intE 1)
+                           putStat CBreak
+              putStat $ CIf (rE .<. (exp wSumE)) stat Nothing
+              logSumExpCG (S.fromList [wSumE,currE]) wSumE
+              putExprStat $ CUnary CPostIncOp itE
+
+       when isPar mkParallel
 
 
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
