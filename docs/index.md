@@ -84,17 +84,25 @@ Hakaru implements its inference algorithms predominately as
 program transformations. The following are the major ones
 our system provides.
 
-[Expect](/transforms/expect)
+### [Expect](/transforms/expect)
 
-[Disintegrate](/transforms/disintegrate)
+Computing expectation of a measure
 
-[Simplify](/transforms/simplify)
+### [Disintegrate](/transforms/disintegrate)
 
-[Metropolis Hastings](/transforms/mh)
+### [Simplify](/transforms/simplify)
 
-[Compiling to Haskell](/transforms/compile)
+Any Hakaru expression can be simplified, using
+the Maple computer-algebra system.
 
-[Compiling to C](/transforms/hkc)
+### [Metropolis Hastings](/transforms/mh)
+
+Automatically transform a measure into a transition kernel usable
+in a Metropolis Hastings algorithm.
+
+### [Compiling to Haskell](/transforms/compile)
+
+### [Compiling to C](/transforms/hkc)
 
 ## Internals
 
