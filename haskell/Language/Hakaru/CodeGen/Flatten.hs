@@ -361,38 +361,39 @@ flattenSCon MBind           =
 
 -- for now plats make use of a global sample
 flattenSCon Plate           =
-  \(size :* b :* End) -> undefined
-  -- \loc ->
-  --   caseBind b $ \v body ->
-  --     do let mdataId = Ident "global_plate"
-  --         -- mdataId <- genIdent' "plate"
-  --        let t = SArray . sUnMeasure . typeOf $ body
-  --        declare (SMeasure t) mdataId
-  --        extDeclare . mdataStruct $ t
-  --        let mdataVar = CVar mdataId
+  \(size :* b :* End) ->
+    \loc ->
+      caseBind b $ \v body ->
+        do sizeId <- genIdent' "s"
+           declare SNat sizeId
+           let sizeE = CVar sizeId
+           flattenABT size sizeE
 
-  --        arity <- flattenABT size
-  --        iterIdent  <- createIdent v
-  --        declare SNat iterIdent
+           weightId <- genIdent' "w"
+           declare SProb weightId
+           let weightE = CVar weightId
+           assign weightId (floatE 0)
 
-  --        weightId <- genIdent' "w"
-  --        declare SProb weightId
-  --        assign weightId (intE 0) -- initialize to log 1
-  --        let weight = CVar weightId
+           itId <- createIdent v
+           declare SNat itId
+           let itE = CVar itId
+               currInd  = indirect $ (CMember (mdataSample loc) (Ident "data") True) .+. itE
 
-  --        -- manage loop
-  --        let iter     = CVar iterIdent
-  --            cond     = iter .<. arity
-  --            inc      = CUnary CPostIncOp iter
-  --            currInd  = indirect $ CMember (mdataSample mdataVar) (Ident "data") True .+. iter
-  --            loopBody = do mdataCell <- flattenABT body
-  --                          putStat . CExpr . Just $ currInd .=. (mdataSample mdataCell)
-  --                          putStat . CExpr . Just $ weight .+=. (mdataWeight mdataCell)
+           sampId <- genIdent' "samp"
+           declare (typeOf $ body) sampId
+           let sampE = CVar sampId
 
-  --        reductionCG CAddOp weightId (iter .=. (intE 0)) cond inc loopBody
+           reductionCG CAddOp
+                       weightId
+                       (itE .=. (intE 0))
+                       (itE .<. sizeE)
+                       (CUnary CPostIncOp itE)
+                       (do flattenABT body (address sampE)
+                           putExprStat (currInd .=. (mdataSample sampE))
+                           putExprStat (weightE .+=. (mdataWeight sampE)))
 
-  --        putStat . CExpr . Just $ mdataWeight mdataVar .=. weight
-  --        return mdataVar
+           putExprStat $ mdataPtrWeight loc .=. weightE
+           putExprStat $ mdataPtrReject loc .=. (intE 1)
 
 
 -----------------------------------
