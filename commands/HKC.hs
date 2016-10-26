@@ -74,7 +74,7 @@ parseOpts = execParser $ info (helper <*> options)
 compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
   case parseAndInfer prog of
-    Left err -> IO.putStrLn err
+    Left err -> IO.hPutStrLn stderr err
     Right (TypedAST typ ast) -> do
       let ast'    = TypedAST typ $ foldr id ast abtPasses
           outPath = case fileOut config of

@@ -23,6 +23,7 @@ import           Language.Hakaru.Command (parseAndInfer)
 
 import           Data.Text
 import qualified Data.Text.IO as IO
+import           System.IO (stderr)
 import           Text.PrettyPrint
 
 import           System.Environment
@@ -39,7 +40,9 @@ main = do
   case args of
       [prog1, prog2] -> compileRandomWalk prog1 prog2
       [prog]         -> compileHakaru     prog
-      _              -> IO.putStrLn "Usage: compile <file>"
+      _              -> IO.hPutStrLn stderr
+                          "Usage: compile <file>\n\
+                          \     | compile <transition_kernel> <initial_measure>"
 
 prettyProg :: (ABT T.Term abt)
            => String
@@ -56,7 +59,7 @@ compileHakaru file = do
     prog <- IO.readFile file
     let target = replaceFileName file (takeBaseName file) ++ ".hs"
     case parseAndInfer prog of
-      Left err                 -> IO.putStrLn err
+      Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
         IO.writeFile target . Data.Text.unlines $
           header ++
@@ -80,9 +83,9 @@ compileRandomWalk f1 f2 = do
                    [ pack $ prettyProg "prog1" (expandTransformations ast1) ] ++
                    [ pack $ prettyProg "prog2" (expandTransformations ast2) ] ++
                    footerWalk
-            _ -> putStrLn "compile: programs have wrong type"
-      (Left err, _) -> print err
-      (_, Left err) -> print err
+            _ -> IO.hPutStrLn stderr "compile: programs have wrong type"
+      (Left err, _) -> IO.hPutStrLn stderr err
+      (_, Left err) -> IO.hPutStrLn stderr err
 
 header :: [Text]
 header =

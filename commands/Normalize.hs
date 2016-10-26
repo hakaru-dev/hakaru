@@ -13,7 +13,7 @@ import           Language.Hakaru.Command
 
 import           Data.Text
 import qualified Data.Text.IO as IO
-import           Control.Monad.Identity
+import           System.IO (stderr)
 
 import           System.Environment
 
@@ -23,15 +23,15 @@ main = do
   case args of
       [prog] -> IO.readFile prog >>= runNormalize
       []     -> IO.getContents   >>= runNormalize
-      _      -> IO.putStrLn "Usage: normalize <file>"
+      _      -> IO.hPutStrLn stderr "Usage: normalize <file>"
 
 runNormalize :: Text -> IO ()
-runNormalize prog =
-    case parseAndInfer prog of
-    Left  err                -> IO.putStrLn err
-    Right (TypedAST typ ast) -> do
-      case typ of
-        SMeasure _          -> print . pretty . constantPropagation . normalize $ ast
-        SFun _ (SMeasure _) -> print . pretty . runIdentity $
-                                 underLam (return . constantPropagation . normalize) ast
-        _                   -> error "Can only normalize measures"
+runNormalize prog = either (IO.hPutStrLn stderr) print $ do
+  TypedAST typ ast <- parseAndInfer prog
+  res <- normalizeUnderLams typ ast
+  return (pretty res)
+
+normalizeUnderLams :: Sing a -> Term a -> Either Text (Term a)
+normalizeUnderLams (SMeasure _) ast = Right . constantPropagation . normalize $ ast
+normalizeUnderLams (SFun _ typ) ast = underLam (normalizeUnderLams typ) ast
+normalizeUnderLams _            _   = Left "Can only normalize measures"
