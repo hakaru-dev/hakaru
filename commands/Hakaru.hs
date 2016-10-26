@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings,
+             PatternGuards,
              DataKinds,
              GADTs,
              TypeOperators
@@ -66,11 +67,9 @@ randomWalk g p1 p2 =
       (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) ->
           -- TODO: Use better error messages for type mismatch
           case (typ1, typ2) of
-            (SFun a (SMeasure b), SMeasure c) ->
-                case (jmEq1 a b, jmEq1 b c) of
-                  (Just Refl, Just Refl) ->
-                      iterateM_ (chain $ run ast1) (run ast2)
-                  _ -> putStrLn "hakaru: programs have wrong type"
+            (SFun a (SMeasure b), SMeasure c)
+              | (Just Refl, Just Refl) <- (jmEq1 a b, jmEq1 b c)
+              -> iterateM_ (chain $ run ast1) (run ast2)
             _ -> putStrLn "hakaru: programs have wrong type"
       (Left err, _) -> print err
       (_, Left err) -> print err

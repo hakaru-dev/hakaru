@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings,
+             PatternGuards,
              DataKinds,
              KindSignatures,
              GADTs,
@@ -13,6 +14,7 @@ import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 
+import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.DataKind
 
@@ -68,19 +70,19 @@ compileRandomWalk f1 f2 = do
     p2 <- IO.readFile f2
     let output = replaceFileName f1 (takeBaseName f1) ++ ".hs"
     case (parseAndInfer p1, parseAndInfer p2) of
-      (Right (TypedAST _ ast1), Right (TypedAST _ ast2)) -> do
-        -- TODO: Check that programs have the right types before
-        --       compiling them.
-        IO.writeFile output . Data.Text.unlines $
-          header ++
-          [ pack $ prettyProg "prog1" (et ast1) ] ++
-          [ pack $ prettyProg "prog2" (et ast2) ] ++
-          footerWalk
+      (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) ->
+          -- TODO: Use better error messages for type mismatch
+          case (typ1, typ2) of
+            (SFun a (SMeasure b), SMeasure c)
+              | (Just Refl, Just Refl) <- (jmEq1 a b, jmEq1 b c)
+              -> IO.writeFile output . Data.Text.unlines $
+                   header ++
+                   [ pack $ prettyProg "prog1" (expandTransformations ast1) ] ++
+                   [ pack $ prettyProg "prog2" (expandTransformations ast2) ] ++
+                   footerWalk
+            _ -> putStrLn "compile: programs have wrong type"
       (Left err, _) -> print err
       (_, Left err) -> print err
-
-  where et = expandTransformations
-
 
 header :: [Text]
 header =
