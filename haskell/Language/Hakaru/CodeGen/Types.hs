@@ -31,6 +31,8 @@ module Language.Hakaru.CodeGen.Types
   , arrayStruct
   , arraySize
   , arrayData
+  , arrayPtrSize
+  , arrayPtrData
 
   -- mdata
   , mdataDeclaration
@@ -135,6 +137,12 @@ arraySize e = CMember e (Ident "size") True
 
 arrayData :: CExpr -> CExpr
 arrayData e = CMember e (Ident "data") True
+
+arrayPtrSize :: CExpr -> CExpr
+arrayPtrSize e = CMember e (Ident "size") False
+
+arrayPtrData :: CExpr -> CExpr
+arrayPtrData e = CMember e (Ident "data") False
 
 --------------------------------------------------------------------------------
 -- Measure Data

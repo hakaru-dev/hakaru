@@ -363,11 +363,17 @@ flattenSCon MBind           =
 flattenSCon Plate           =
   \(size :* b :* End) ->
     \loc ->
-      caseBind b $ \v body ->
+      caseBind b $ \v@(Variable _ _ typ) body ->
         do sizeId <- genIdent' "s"
            declare SNat sizeId
            let sizeE = CVar sizeId
            flattenABT size sizeE
+           putExprStat $   (arrayPtrData . mdataPtrSample $ loc)
+                       .=. (CCast (mkPtrDecl . buildType $ typ)
+                                  (mkUnary "malloc"
+                                  (sizeE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+
+
 
            weightId <- genIdent' "w"
            declare SProb weightId
@@ -772,24 +778,30 @@ flattenPrimOp Pi =
       putExprStat (loc .=. piE)
 
 flattenPrimOp Not =
-  \(a :* End) -> undefined
-  -- do ident <- genIdent' "not"
-  --    aE <- flattenABT a
-  --    let datumIndex = CMember aE (Ident "index") True
-  --    putStat $ CExpr . Just $ datumIndex .=. (CCond (datumIndex .==. (intE 1))
-  --                                                   (intE 0)
-  --                                                   (intE 1))
-  --    return aE
+  \(a :* End) ->
+    \loc ->
+      do tmpId <- genIdent' "not"
+         declare sBool tmpId
+         let tmpE = CVar tmpId
+         flattenABT a tmpE
+         let datumIndex = CMember tmpE (Ident "index") True
+         putExprStat $ datumIndex .=. (CCond (datumIndex .==. (intE 1))
+                                             (intE 0)
+                                             (intE 1))
 
 flattenPrimOp RealPow =
-  \(a :* b :* End) -> undefined
-  -- do ident <- genIdent' "pow"
-  --    declare SReal ident
-  --    aE <- flattenABT a -- first argument is a Prob
-  --    bE <- flattenABT b
-  --    let realPow = CCall (CVar . Ident $ "pow") [ expm1 aE .+. (intE 1), bE]
-  --    assign ident $ log1p (realPow .-. (intE 1))
-  --    return $ CVar ident
+  \(a :* b :* End) ->
+    \loc ->
+      do aId <- genIdent
+         bId <- genIdent
+         declare SProb aId
+         declare SReal bId
+         let aE = CVar aId
+             bE = CVar bId
+         flattenABT a aE -- first argument is a Prob
+         flattenABT b bE
+         let realPow = CCall (CVar . Ident $ "pow") [ expm1 aE .+. (intE 1), bE]
+         putExprStat $ loc .=. (log1p (realPow .-. (intE 1)))
 
 flattenPrimOp (NatPow baseT) =
   \(base :* exponent :* End) -> undefined
@@ -884,12 +896,13 @@ flattenPrimOp (Less _) = \(a :* b :* End) -> undefined
   --    return (CVar boolIdent)
 
 flattenPrimOp (Negate HRing_Real) =
- \(a :* End) -> undefined
-   -- \loc ->
-   --   do negId <- genIdent' "neg"
-   --      declare SReal negId
-   --      assign negId . CUnary CMinOp $ aE
-   --      return (CVar negId)
+ \(a :* End) ->
+   \loc ->
+     do negId <- genIdent' "neg"
+        declare SReal negId
+        let negE = CVar negId
+        flattenABT a negE
+        putExprStat $ loc .=. (CUnary CMinOp $ negE)
 
 
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
