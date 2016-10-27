@@ -116,7 +116,7 @@ which we know will never exist.
         <h4 class="panel-title">TODO</h4>
 	</div>
 	<div class="panel-body">
-        Explain simplify and mh
+        Explain mh
 	</div>
 </div>
 
