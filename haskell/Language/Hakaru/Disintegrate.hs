@@ -1812,10 +1812,19 @@ constrainOutcomeMeasureOp v0 = go
         pushGuard (P.nat_ 0 P.<= v0' P.&& P.prob_ 0 P.< e1)
         pushWeight (P.densityPoisson e1 v0')
 
-    go Gamma = \(e1 :* e2 :* End) ->
-        error "TODO: constrainOutcomeMeasureOp{Gamma}"
-    go Beta = \(e1 :* e2 :* End) ->
-        error "TODO: constrainOutcomeMeasureOp{Beta}"
+    go Gamma = \(e1 :* e2 :* End) -> do
+        v0' <- emitLet' v0
+        pushGuard (P.prob_ 0 P.< v0' P.&&
+                   P.prob_ 0 P.< e1  P.&&
+                   P.prob_ 0 P.< e2)
+        pushWeight (P.densityGamma e1 e2 v0')
+    go Beta = \(e1 :* e2 :* End) -> do
+        v0' <- emitLet' v0
+        pushGuard (P.prob_ 0 P.<= v0' P.&&
+                   P.prob_ 1 P.>= v0' P.&&
+                   P.prob_ 0 P.< e1   P.&&
+                   P.prob_ 0 P.< e2)
+        pushWeight (P.densityBeta e1 e2 v0')
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

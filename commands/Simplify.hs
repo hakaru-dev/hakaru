@@ -15,6 +15,7 @@ import           Control.Applicative   (Applicative(..), (<$>))
 
 import           Data.Text
 import qualified Data.Text.IO as IO
+import           System.IO (stderr)
 
 import qualified Options.Applicative as O
 
@@ -49,6 +50,6 @@ main = do
 runSimplify :: Text -> Bool -> IO ()
 runSimplify prog debug_ =
     case parseAndInfer prog of
-    Left  err              -> IO.putStrLn err
+    Left  err              -> IO.hPutStrLn stderr err
     Right (TypedAST _ ast) -> simplifyDebug debug_ (et ast) >>= print . pretty
 

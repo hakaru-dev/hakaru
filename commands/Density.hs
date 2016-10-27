@@ -1,10 +1,9 @@
-{-# LANGUAGE OverloadedStrings, PatternGuards, DataKinds, GADTs #-}
+{-# LANGUAGE OverloadedStrings, DataKinds, GADTs #-}
 
 module Main where
 
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Syntax.TypeCheck
-import           Language.Hakaru.Syntax.IClasses
 
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Disintegrate
@@ -22,19 +21,18 @@ main = do
   args  <- getArgs
   progs <- mapM readFromFile args
   case progs of
-      [prog] -> runDisintegrate prog
-      _      -> IO.hPutStrLn stderr "Usage: disintegrate <file>"
+      [prog] -> runDensity prog
+      _      -> IO.hPutStrLn stderr "Usage: density <file>"
 
-runDisintegrate :: Text -> IO ()
-runDisintegrate prog =
+runDensity :: Text -> IO ()
+runDensity prog =
     case parseAndInfer prog of
     Left  err                -> IO.hPutStrLn stderr err
     Right (TypedAST typ ast) ->
         case typ of
-          SMeasure (SData (STyCon sym `STyApp` _ `STyApp` _) _)
-            | Just Refl <- jmEq1 sym sSymbol_Pair
-            -> case determine (disintegrate ast) of
-               Just ast' -> print . pretty $ constantPropagation ast'
-               Nothing   -> IO.hPutStrLn stderr "No disintegration found"
-          _ -> IO.hPutStrLn stderr "Can only disintegrate a measure over pairs"
+            SMeasure _ ->
+                case determine (density ast) of
+                  Just ast' -> print . pretty $ constantPropagation ast'
+                  Nothing   -> IO.hPutStrLn stderr "No density found"
+            _               -> IO.hPutStrLn stderr "Density is only available for measure terms"
 
