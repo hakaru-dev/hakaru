@@ -1,0 +1,4 @@
+N = 100
+θ <~ normal(0,1)
+x <~ plate i of N: normal(θ, 1)
+return (x,θ)
