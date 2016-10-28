@@ -138,24 +138,23 @@ flattenSCon Let_ =
 flattenSCon Lam_ =
   \(body :* End) -> undefined
     -- \loc ->
-    --   coalesceLambda body $ \vars body' ->
-    --   let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
-    --   in  do funcId <- genIdent' "fn"
-    --          argDecls <- sequence varMs
+    --   do coalesceLambda body $ \vars body' ->
+    --      let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+    --      in  do funcId <- genIdent' "fn"
+    --             argDecls <- sequence varMs
 
-    --          cg <- get
-    --          let m       = putStat . CReturn . Just =<< flattenABT body'
-    --              (_,cg') = runState m $ cg { statements = []
-    --                                      , declarations = [] }
-    --          put $ cg' { statements   = statements cg
-    --                    , declarations = declarations cg }
+    --             cg <- get
+    --             let m       = putStat . CReturn . Just =<< flattenABT body'
+    --                 (_,cg') = runState m $ cg { statements = []
+    --                                           , declarations = [] }
+    --             put $ cg' { statements   = statements cg
+    --                       , declarations = declarations cg }
 
-    --          extDeclare . CFunDefExt $ functionDef (typeOf body')
-    --                                                funcId
-    --                                                argDecls
-    --                                                (reverse $ declarations cg')
-    --                                                (reverse $ statements cg')
-    --          return $ loc .=. CVar $ funcId
+    --             extDeclare . CFunDefExt $ functionDef (typeOf body')
+    --                                                   funcId
+    --                                                   argDecls
+    --                                                   (reverse $ declarations cg')
+    --                                                   (reverse $ statements cg')
   -- do at top level
   where coalesceLambda
           :: ( ABT Term abt )
@@ -790,73 +789,73 @@ flattenPrimOp Not =
                                              (intE 1))
 
 flattenPrimOp RealPow =
-  \(a :* b :* End) ->
+  \(base :* exponent :* End) ->
     \loc ->
-      do aId <- genIdent
-         bId <- genIdent
-         declare SProb aId
-         declare SReal bId
-         let aE = CVar aId
-             bE = CVar bId
-         flattenABT a aE -- first argument is a Prob
-         flattenABT b bE
-         let realPow = CCall (CVar . Ident $ "pow") [ expm1 aE .+. (intE 1), bE]
+      do baseId <- genIdent
+         exponentId <- genIdent
+         declare SProb baseId
+         declare SReal exponentId
+         let baseE     = CVar baseId
+             exponentE = CVar exponentId
+         flattenABT base baseE -- first argument is a Prob
+         flattenABT exponent exponentE
+         let realPow = CCall (CVar . Ident $ "pow")
+                             [ expm1 baseE .+. (intE 1), exponentE]
          putExprStat $ loc .=. (log1p (realPow .-. (intE 1)))
 
-flattenPrimOp (NatPow baseT) =
-  \(base :* exponent :* End) -> undefined
-  -- let singBase = sing_HSemiring baseT in
-  -- do ident <- genIdent' "pow"
-  --    declare singBase ident
-  --    baseE <- flattenABT base
-  --    exponentE <- flattenABT exponent
-  --    let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
-  --        value = case singBase of
-  --                  SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) exponentE)
-  --                                 .-. (intE 1)
-  --                  _     -> powerOf baseE exponentE
-  --    assign ident $ value
-  --    return (CVar ident)
+flattenPrimOp (NatPow baseTyp) =
+  \(base :* exponent :* End) ->
+    \loc ->
+      let sBase = sing_HSemiring baseTyp in
+      do baseId <- genIdent
+         exponentId <- genIdent
+         declare sBase baseId
+         declare SReal exponentId
+         let baseE     = CVar baseId
+             exponentE = CVar exponentId
+         flattenABT base baseE
+         flattenABT exponent exponentE
+         let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
+             value = case sBase of
+                       SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) exponentE)
+                                  .-. (intE 1)
+                       _     -> powerOf baseE exponentE
+         putExprStat $ loc .=. value
 
-flattenPrimOp (NatRoot baseT) =
-  \(base :* root :* End) -> undefined
-  -- let singBase = sing_HRadical baseT in
-  -- do ident <- genIdent' "root"
-  --    declare singBase ident
-  --    baseE <- flattenABT base
-  --    rootE <- flattenABT root
-  --    let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
-  --        recipE = (floatE 1) ./. rootE
-  --        value = case singBase of
-  --                  SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) recipE)
-  --                                 .-. (intE 1)
-  --                  _     -> powerOf baseE recipE
-  --    assign ident $ value
-  --    return (CVar ident)
-
+flattenPrimOp (NatRoot baseTyp) =
+  \(base :* root :* End) ->
+    \loc ->
+      let sBase = sing_HRadical baseTyp in
+      do baseId <- genIdent
+         rootId <- genIdent
+         declare sBase baseId
+         declare SReal rootId
+         let baseE = CVar baseId
+             rootE = CVar rootId
+         flattenABT base baseE
+         flattenABT root rootE
+         let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
+             recipE = (floatE 1) ./. rootE  
+             value = case sBase of
+                       SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) recipE)
+                                      .-. (intE 1)
+                       _     -> powerOf baseE recipE
+         putExprStat $ loc .=. value
 
 flattenPrimOp (Recip t) =
-  \(a :* End) -> undefined
-    -- do aE <- flattenABT a
-    --    recipIdent <- genIdent' "recip"
-    --    let recipV = CVar recipIdent
-    --    case t of
-    --      HFractional_Real ->
-    --        do declare SReal recipIdent
-    --           assign recipIdent ((intE 1) ./. aE)
-    --           return recipV
-    --      HFractional_Prob ->
-    --        do declare SProb recipIdent
-    --           assign recipIdent (CUnary CMinOp aE)
-    --           return recipV
+  \(a :* End) ->
+    \loc ->
+      do aId <- genIdent
+         declare (typeOf a) aId
+         let aE = CVar aId
+         flattenABT a aE
+         case t of
+           HFractional_Real -> putExprStat $ loc .=. ((intE 1) ./. aE)
+           HFractional_Prob -> putExprStat $ loc .=. (CUnary CMinOp aE)
 
-flattenPrimOp Exp =
-  \(a :* End) -> undefined
-    -- do aE <- flattenABT a
-    --    expId <- genIdent' "exp"
-    --    declare (typeOf a) expId
-    --    assign expId . log1p $ aE .-. (intE 1)
-    --    return (CVar expId)
+-- | exp : real -> prob, because of this we can just turn it into a prob without taking
+--   its log, which would give us an exp in the log-domain
+flattenPrimOp Exp = \(a :* End) -> flattenABT a
 
 flattenPrimOp (Equal _) =
   \(a :* b :* End) ->
@@ -884,16 +883,19 @@ flattenPrimOp (Equal _) =
                      .=. (CCond (aE' .==. bE') (intE 0) (intE 1))
 
 
-flattenPrimOp (Less _) = \(a :* b :* End) -> undefined
-  -- do a' <- flattenABT a
-  --    b' <- flattenABT b
-  --    boolIdent <- genIdent' "less"
-
-  --    declare sBool boolIdent
-  --    putStat . CExpr . Just $   (CMember (CVar boolIdent) (Ident "index") True)
-  --                           .=. (CCond (a' .<. b') (intE 0) (intE 1))
-
-  --    return (CVar boolIdent)
+flattenPrimOp (Less _) =
+  \(a :* b :* End) ->
+    \loc ->
+      do aId <- genIdent
+         bId <- genIdent
+         let aE = CVar aId
+             bE = CVar bId
+         declare (typeOf a) aId
+         declare (typeOf b) bId
+         flattenABT a aE
+         flattenABT b bE
+         putExprStat $ (CMember loc (Ident "index") True)
+                     .=. (CCond (aE .<. bE) (intE 0) (intE 1))
 
 flattenPrimOp (Negate HRing_Real) =
  \(a :* End) ->
