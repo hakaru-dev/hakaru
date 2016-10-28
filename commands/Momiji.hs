@@ -19,7 +19,7 @@ main = do
   case args of
       [prog] -> IO.readFile prog >>= runPretty
       []     -> IO.getContents   >>= runPretty
-      _      -> IO.hPutStrLn stderr "Usage: pretty <file>"
+      _      -> IO.hPutStrLn stderr "Usage: momiji <file>"
 
 runPretty :: Text -> IO ()
 runPretty prog =
