@@ -219,8 +219,8 @@ Executable pretty
                        hakaru           >= 0.3
 
 ----------------------------------------------------------------
-Executable maple
-    Main-is:           Maple.hs
+Executable momiji
+    Main-is:           Momiji.hs
     Hs-Source-Dirs:    commands
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
