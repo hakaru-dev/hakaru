@@ -1,19 +1,11 @@
 ## Latent Dirichlet Allocation
-def add(a prob, b prob):
-    a + b
-
-def sum(a array(prob)):
-    reduce(add, 0, a)
-
-def normalize(x array(prob)):
-    total = sum(x)
-    array i of size(x):
-       x[i] / total
-
-def dirichlet(a array(prob)):
-    x <~ plate i of size(a):
-           gamma(a[i], 1)
-    return normalize(x)
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from i+1 to size(as): as[j],
+                 as[i])
+    return array i of size(as):
+             x = product j from 0 to i: xs[j]
+             x * if i+1==size(as): 1 else: real2prob(1-xs[i])
 
 K = 2 # number of topics
 M = 3 # number of docs
