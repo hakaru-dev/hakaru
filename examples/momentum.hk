@@ -1,0 +1,11 @@
+# Hadi Mohasel Afshar, Scott Sanner, and Christfried Webers. AAAI 2016.
+# Closed-form Gibbs sampling for graphical models with algebraic constraints.
+# http://users.cecs.anu.edu.au/~ssanner/Papers/aaai16_sgibbs.pdf
+
+m1 <~ uniform(0.1,2.1)
+m2 <~ uniform(0.1,2.1)
+v1 <~ uniform(-2,2)
+v2 <~ uniform(-2,v1)
+p1 = m1 * v1
+p2 = m2 * v2
+return (p1+p2, (m1,m2))
