@@ -1,0 +1,72 @@
+def determinant(a pair(pair(real,pair(real,real)),
+                  pair(pair(real,pair(real,real)),
+                       pair(real,pair(real,real))))):
+    match a:
+    ((a11,(a12,a13)),
+    ((a21,(a22,a23)),
+     (a31,(a32,a33)))):
+    (a11*a22*a33 + a12*a23*a31 + a13*a21*a32) -
+    (a13*a22*a31 + a12*a21*a33 + a11*a23*a32)
+
+def inverse(a pair(pair(real,pair(real,real)),
+              pair(pair(real,pair(real,real)),
+                   pair(real,pair(real,real))))):
+    match a:
+    ((a11,(a12,a13)),
+    ((a21,(a22,a23)),
+     (a31,(a32,a33)))):
+    f = fn b11 real:
+        fn b12 real:
+        fn b21 real:
+        fn b22 real:
+        (b11 * b22 - b12 * b21) / determinant(a)
+    ((f(a22,a23,a32,a33), (f(a13,a12,a33,a32), f(a12,a13,a22,a23))),
+    ((f(a23,a21,a33,a31), (f(a11,a13,a31,a33), f(a13,a11,a23,a21))),
+     (f(a21,a22,a31,a32), (f(a12,a11,a32,a31), f(a11,a12,a21,a22)))))
+
+def vvSub(a pair(real,pair(real,real)),
+          b pair(real,pair(real,real))):
+    match a:
+    (a1,(a2,a3)):
+      match b:
+      (b1,(b2,b3)):
+        (a1-b1,(a2-b2,a3-b3))
+
+def vvMult(a pair(real,pair(real,real)),
+           b pair(real,pair(real,real))):
+    match a:
+    (a1,(a2,a3)):
+      match b:
+      (b1,(b2,b3)):
+        a1*b1 + a2*b2 + a3*b3
+
+def mvMult(a pair(pair(real,pair(real,real)),
+             pair(pair(real,pair(real,real)),
+                  pair(real,pair(real,real)))),
+           b      pair(real,pair(real,real))):
+    match a:
+    (a1,(a2,a3)):
+    (vvMult(a1,b), (vvMult(a2,b), vvMult(a3,b)))
+
+def normal3(mean     pair(real,pair(real,real)),
+            cov pair(pair(real,pair(real,real)),
+                pair(pair(real,pair(real,real)),
+                     pair(real,pair(real,real))))):
+    x1 <~ lebesgue
+    x2 <~ lebesgue
+    x3 <~ lebesgue
+    x = (x1,(x2,x3))
+    y = vvSub(x,mean)
+    weight(exp(-vvMult(y,mvMult(inverse(cov),y))/2)
+           /sqrt((2*pi)^3*real2prob(determinant(cov))),
+           return x)
+
+foo = (-10.4, (3.26, -0.0499))
+    . pair(real,pair(real,real))
+bar = ((13.43, (-2.36, -0.0122)),
+      ((-2.36, (0.452, 0.000112)),
+       (-0.0122, (0.000112, 0.000125))))
+    . pair(pair(real,pair(real,real)),
+      pair(pair(real,pair(real,real)),
+           pair(real,pair(real,real))))
+normal3(foo,bar)
