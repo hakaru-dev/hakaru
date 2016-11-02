@@ -46,7 +46,6 @@ import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Evaluation.ConstantPropagation
 
 import Data.Typeable (Typeable)
-import Debug.Trace
 
 import Data.Text (pack)
 import System.MapleSSH (maple)
