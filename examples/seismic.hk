@@ -228,4 +228,25 @@ def trueDetection(station # Sections 3 and 1.6
             return (just((time, (azimuth, (slowness, exp(logAmplitude)))))
                     . maybe(pair(real,pair(real,pair(real,prob)))))
 
-event
+def wantDensity(station
+                  pair(real,
+                  pair(real,
+                  pair(real,
+                  pair(real,
+                  pair(real,
+                  pair(prob,
+                  pair(prob,
+                  pair(prob,
+                  pair(real,
+                  pair(real,
+                  pair(real,
+                  pair(prob,
+                  pair(prob,
+                  pair(real,
+                       prob
+                  ))))))))))))))):
+    e <~ event
+    d <~ trueDetection(station, e)
+    return (e,d)
+
+wantDensity
