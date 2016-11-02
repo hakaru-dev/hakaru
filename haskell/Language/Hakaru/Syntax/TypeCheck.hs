@@ -287,7 +287,7 @@ makeErrMsg header sourceSpan footer = do
                            , footer
                            ]
     _                    ->
-          return $ mconcat [ header, footer]
+          return $ mconcat [ header, "\n", footer ]
 
 -- | Fail with a type-mismatch error.
 typeMismatch
