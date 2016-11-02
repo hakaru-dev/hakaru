@@ -632,7 +632,7 @@ prettyApps = \ e1 e2 ->
     collectApps e es = 
         caseVarSyn e (\x -> (ppVariable x, es)) $ \t ->
             case t of
-            App_ :$ e1 :* e2 :* End -> collectApps e1 (es . (pretty e2 :))
+            App_ :$ e1 :* e2 :* End -> collectApps e1 ((pretty e2 :) . es)
             _                       -> (pretty e, es)
 
 
