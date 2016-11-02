@@ -94,6 +94,8 @@ primTable =
     [-- Datatype constructors
      ("left",        primLeft)
     ,("right",       primRight)
+    ,("just",        primJust)
+    ,("nothing",     primNothing)
     ,("true",        TNeu $ true_)
     ,("false",       TNeu $ false_)
      -- Coercions
@@ -138,6 +140,18 @@ primTable =
     ,("natroot",     primPrimOp2 U.NatRoot)
     ,("sqrt",        TLam $ \x -> TNeu . syn $ U.PrimOp_ U.NatRoot [x, two])
     ,("erf",         primPrimOp1 U.Erf)
+    ,("sin",         primPrimOp1 U.Sin)
+    ,("cos",         primPrimOp1 U.Cos)
+    ,("tan",         primPrimOp1 U.Tan)
+    ,("asin",        primPrimOp1 U.Asin)
+    ,("acos",        primPrimOp1 U.Acos)
+    ,("atan",        primPrimOp1 U.Atan)
+    ,("sinh",        primPrimOp1 U.Sinh)
+    ,("cosh",        primPrimOp1 U.Cosh)
+    ,("tanh",        primPrimOp1 U.Tanh)
+    ,("asinh",       primPrimOp1 U.Asinh)
+    ,("acosh",       primPrimOp1 U.Acosh)
+    ,("atanh",       primPrimOp1 U.Atanh)
     -- ArrayOps
     ,("size",        TLam $ \x -> TNeu . syn $ U.ArrayOp_ U.Size [x])
     ,("reduce",      t3 $ \x y z -> syn $ U.ArrayOp_ U.Reduce [x, y, z])
@@ -202,6 +216,14 @@ primLeft =
 primRight =
     TLam $ TNeu . syn . U.Datum_ .
         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
+
+primJust, primNothing :: Symbol U.AST
+primJust =
+    TLam $ TNeu . syn . U.Datum_ .
+        U.Datum "just" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
+primNothing =
+    TNeu . syn . U.Datum_ .
+        U.Datum "nothing" . U.Inl $ U.Done
 
 primWeight, primFactor, primBern :: Symbol U.AST
 primWeight = t2 $ \w m -> syn $ U.Superpose_ (singleton (w, m))
