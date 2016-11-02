@@ -241,7 +241,7 @@ ppNaryOpProd
 ppNaryOpProd p e =
     caseVarSyn e (const $ prefixToTerm "*" e) $ \t ->
         case t of
-        Literal_ (LProb i) -> 
+        Literal_ (LProb i) | numerator i == 1 -> 
           prefixToTerm "/" (syn . Literal_ . LProb . fromIntegral . denominator $ i)
         Literal_ (LReal i) | numerator i == 1 -> 
           prefixToTerm "/" (syn . Literal_ . LReal . fromIntegral . denominator $ i)

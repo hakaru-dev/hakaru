@@ -43,7 +43,10 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
+import Language.Hakaru.Evaluation.ConstantPropagation
+
 import Data.Typeable (Typeable)
+import Debug.Trace
 
 import Data.Text (pack)
 import System.MapleSSH (maple)
@@ -86,7 +89,7 @@ simplifyDebug debug e = do
           ret <- maple ("FromInert(" ++ fromMaple ++ ")")
           hPutStrLn stderr ("Returning from Maple:\n" ++ ret)
         either (throw  . MapleException toMaple_)
-               return $ do
+               (return . constantPropagation) $ do
           past <- leftShow $ parseMaple (pack fromMaple)
           let m = checkType typ
                    (SR.resolveAST' (getNames e) (maple2AST past))
