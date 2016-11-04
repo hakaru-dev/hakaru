@@ -457,7 +457,7 @@ ppPrimOp p (Equal   _) = \(e1 :* e2 :* End) -> ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) = \(e1 :* e2 :* End) -> ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) = \(e1 :* e2 :* End) -> ppBinop "^"  8 RightAssoc p e1 e2
 ppPrimOp p (Negate  _) = \(e1 :* End)       -> ppApply1  p "negate"  e1
-ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1  p "abs_"    e1
+ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1  p "abs"     e1
 ppPrimOp p (Signum  _) = \(e1 :* End)       -> ppApply1  p "signum"  e1
 ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1  p "recip"   e1
 ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) -> ppNatRoot p e1 e2
