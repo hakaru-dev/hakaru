@@ -171,6 +171,12 @@ real_ = fromRational
 prob_ :: NonNegativeRational -> Double
 prob_ = fromRational . fromNonNegativeRational
 
+infinity :: Double
+infinity = 1/0
+
+abs_ :: Num a => a -> a
+abs_ = abs
+
 thRootOf :: Int -> Double -> Double
 thRootOf a b = b ** (recip $ fromIntegral a)
 
