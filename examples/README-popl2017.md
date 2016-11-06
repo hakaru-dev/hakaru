@@ -27,7 +27,7 @@ Symbolic Disintegration" refers to:
   geometry (Arora, Russell, and Sudderth 2013)
     * seismic.hk
 * The collision model used by Afshar, Sanner, and Webers (2016) to motivate
-  observing combinations (such as sum) of random variables
+  observing combinations (such as sums) of random variables
     * momentum.hk
 * A linear dynamic model in one dimension, with noisy observations of
   two time steps
