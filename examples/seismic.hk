@@ -1,3 +1,53 @@
+def invgamma(k prob, t prob):
+    x <~ gamma(k, 1/t)
+    return (1/x)
+
+def exponential(t prob):
+    gamma(1, t)
+
+def laplace(loc real, scale prob):
+    v <~ exponential(1)
+    normal(loc, scale * sqrt(2 * v))
+
+def degrees(r real): r * 180 / pi
+def radians(d real): d * pi / 180
+
+def gz'(l1 pair(real,real), l2 pair(real,real)): # Section A.1
+    match l1:
+    (lon1,lat1):
+      match l2:
+      (lon2,lat2):
+        rat1 = radians(lat1)
+        rat2 = radians(lat2)
+        dlon = radians(lon2 - lon1)
+        y = sin(dlon)
+        x = cos(rat1) * tan(rat2) - sin(rat1) * cos(dlon)
+        degrees(atan(y/x) + if x<0: (if y<0: -pi else: pi) else: 0)
+
+def mod'(a real, b real):
+    n <~ counting
+    a' = a + b * n
+    if not(a' < 0) && a' < b:
+      return a'
+    else:
+      reject . measure(real)
+
+def dist(l1 pair(real,real), l2 pair(real,real)): # Section A.3
+    match l1:
+    (lon1,lat1):
+      match l2:
+      (lon2,lat2):
+        rat1 = radians(lat1)
+        rat2 = radians(lat2)
+        dlon = radians(lon2 - lon1)
+        y = sqrt(real2prob( (cos(rat2) * sin(dlon)) ^ 2
+                          + (cos(rat1) * sin(rat2)
+                             - sin(rat1) * cos(rat2) * cos(dlon)) ^ 2 ))
+        x = sin(rat1) * sin(rat2) + cos(rat1) * cos(rat2) * cos(dlon)
+        degrees(atan(y/x) + if x<0: pi else: 0)
+
+def logistic(x real): 1/(1 + exp(-x)) # Section B.6
+
 def determinant(a pair(pair(real,pair(real,real)),
                   pair(pair(real,pair(real,real)),
                        pair(real,pair(real,real))))):
@@ -61,12 +111,142 @@ def normal3(mean     pair(real,pair(real,real)),
            /sqrt((2*pi)^3*real2prob(determinant(cov))),
            return x)
 
-foo = (-10.4, (3.26, -0.0499))
-    . pair(real,pair(real,real))
-bar = ((13.43, (-2.36, -0.0122)),
-      ((-2.36, (0.452, 0.000112)),
-       (-0.0122, (0.000112, 0.000125))))
-    . pair(pair(real,pair(real,real)),
-      pair(pair(real,pair(real,real)),
-           pair(real,pair(real,real))))
-normal3(foo,bar)
+constT = 3600 . real # Section 2
+
+muMagnitude    = 3 . prob # Section 2
+thetaMagnitude = 4 . prob # Section 2
+gammaMagnitude = 6 . prob # Section 2
+
+def station(longitude real, latitude real): # Section 2
+    mean_d = (-10.4, (3.26, -0.0499))
+           . pair(real,pair(real,real))
+    cov_d = ((13.43, (-2.36, -0.0122)),
+            ((-2.36, (0.452, 0.000112)),
+             (-0.0122, (0.000112, 0.000125))))
+          . pair(pair(real,pair(real,real)),
+            pair(pair(real,pair(real,real)),
+                 pair(real,pair(real,real))))
+    mu_d <~ normal3(mean_d, cov_d)
+    match mu_d:
+     (mu_d0, (mu_d1, mu_d2)):
+      theta_t <~ invgamma(120,118)
+      theta_z <~ invgamma(5.2,44)
+      theta_s <~ invgamma(6.7,7.5)
+      mean_a = (-7.3, (2.03, -0.00196))
+             . pair(real,pair(real,real))
+      cov_a = ((1.23, (-0.227, -0.000175)),
+              ((-0.227, (0.0461, 0.0000245)),
+               (-0.000175, (0.0000245, 0.000000302))))
+            . pair(pair(real,pair(real,real)),
+              pair(pair(real,pair(real,real)),
+                   pair(real,pair(real,real))))
+      mu_a <~ normal3(mean_a, cov_a)
+      match mu_a:
+       (mu_a0, (mu_a1, mu_a2)):
+        sigma_a2 <~ invgamma(21.1,12.6)
+        lambda_f <~ gamma(2.1,0.0013)
+        mu_f <~ normal(-0.68,0.68)
+        theta_f <~ invgamma(23.5,12.45)
+        return (longitude, (latitude,
+               (mu_d0, (mu_d1, (mu_d2,
+               (theta_t, (theta_z, (theta_s,
+               (mu_a0, (mu_a1, (mu_a2, (sqrt(sigma_a2),
+               (lambda_f, (mu_f, theta_f))))))))))))))
+
+def event(): # Section 1.1, except the Poisson
+    time <~ uniform(0, constT)
+    longitude <~ uniform(-180, 180)
+    sinLatitude <~ uniform(-1, 1)
+    m <~ exponential(thetaMagnitude)
+    return (longitude, (degrees(asin(sinLatitude)),
+           (m, # not clamped between muMagnitude and gammaMagnitude,
+               # so as to make the measure have a density
+           time)))
+
+def iT(delta real): -0.023 * delta ^ 2 + 10.7 * delta + 5
+
+def iS(delta real): -0.046 * delta + 10.7 # Section 1.4
+
+def trueDetection(station # Sections 3 and 1.6
+                    pair(real, # longitude, in degrees between -180 and 180
+                    pair(real, # latitude, in degrees between -90 and 90
+                    pair(real, # $\mu _{d0}^k$
+                    pair(real, # $\mu _{d1}^k$
+                    pair(real, # $\mu _{d2}^k$
+                    pair(prob, # $\theta _t^k$
+                    pair(prob, # $\theta _z^k$
+                    pair(prob, # $\theta _s^k$
+                    pair(real, # $\mu _{a0}^k$
+                    pair(real, # $\mu _{a1}^k$
+                    pair(real, # $\mu _{a2}^k$
+                    pair(prob, # $\sigma _a^k$
+                    pair(prob, # $\lambda_f^k$
+                    pair(real, # $\mu    _f^k$
+                         prob  # $\theta _f^k$
+                    )))))))))))))),
+                  event # Sections 1.1 and 4.1
+                    pair(real, # longitude, in degrees between -180 and 180
+                    pair(real, # latitude, in degrees between -90 and 90
+                    pair(prob, # magnitude
+                         real  # time, in seconds
+                    )))):
+    match station:
+     (longitude, (latitude,
+     (mu_d0, (mu_d1, (mu_d2,
+     (theta_t, (theta_z, (theta_s,
+     (mu_a0, (mu_a1, (mu_a2, (sigma_a,
+     (lambda_f, (mu_f, theta_f)))))))))))))):
+      sl = (longitude, latitude)
+      match event:
+       (eventLongitude, (eventLatitude,
+       (eventMagnitude, eventTime))):
+        el = (eventLongitude, eventLatitude)
+        distance = dist(sl,el)
+        b <~ bern(logistic( mu_d0
+                          + mu_d1 * eventMagnitude
+                          + mu_d2 * distance ))
+        if not(b):
+          return (nothing . maybe(pair(real,pair(real,pair(real,prob)))))
+        else:
+          time <~ laplace(eventTime + iT(distance), # Section 2 says $\mu_t^k=0$
+                          theta_t)
+          if constT < time:
+            return (nothing . maybe(pair(real,pair(real,pair(real,prob)))))
+          else:
+            dazimuth <~ laplace(0, # Section 2 says $\mu_z^k=0$
+                                theta_z)
+            azimuth <~ mod'(gz'(sl,el) + dazimuth, 360)
+            slowness <~ laplace(iS(distance), # Section 2 says $\mu_s^k=0$
+                                theta_s)
+            logAmplitude <~ normal( mu_a0
+                                  + mu_a1 * eventMagnitude
+                                  + mu_a2 * distance
+                                  # For the previous line,
+                                  # the LaTeX description says "iT distance"
+                                  # but the Python code suggests "iT" is a typo.
+                                  , sigma_a )
+            return (just((time, (azimuth, (slowness, exp(logAmplitude)))))
+                    . maybe(pair(real,pair(real,pair(real,prob)))))
+
+def wantDensity(station
+                  pair(real,
+                  pair(real,
+                  pair(real,
+                  pair(real,
+                  pair(real,
+                  pair(prob,
+                  pair(prob,
+                  pair(prob,
+                  pair(real,
+                  pair(real,
+                  pair(real,
+                  pair(prob,
+                  pair(prob,
+                  pair(real,
+                       prob
+                  ))))))))))))))):
+    e <~ event
+    d <~ trueDetection(station, e)
+    return (e,d)
+
+wantDensity

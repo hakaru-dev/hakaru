@@ -8,6 +8,7 @@
            , FlexibleContexts
            , FlexibleInstances
            , OverloadedStrings
+           , PatternGuards
            , Rank2Types
            #-}
 
@@ -286,7 +287,7 @@ makeErrMsg header sourceSpan footer = do
                            , footer
                            ]
     _                    ->
-          return $ mconcat [ header, footer]
+          return $ mconcat [ header, "\n", footer ]
 
 -- | Fail with a type-mismatch error.
 typeMismatch
@@ -883,6 +884,26 @@ inferType = inferType_
                   return . TypedAST SReal $
                          syn (PrimOp_ (Erf HContinuous_Real)
                               :$ e' :* End)
+        _   -> argumentNumberError
+
+  inferPrimOp x es
+      | Just y <- lookup x
+                 [(U.Sin  , Sin  ),
+                  (U.Cos  , Cos  ),
+                  (U.Tan  , Tan  ),
+                  (U.Asin , Asin ),
+                  (U.Acos , Acos ),
+                  (U.Atan , Atan ),
+                  (U.Sinh , Sinh ),
+                  (U.Cosh , Cosh ),
+                  (U.Tanh , Tanh ),
+                  (U.Asinh, Asinh),
+                  (U.Acosh, Acosh),
+                  (U.Atanh, Atanh)] =
+      case es of
+        [e] -> do e' <- checkType_ SReal e
+                  return . TypedAST SReal $
+                         syn (PrimOp_ y :$ e' :* End)
         _   -> argumentNumberError
 
   inferPrimOp x _ = error ("TODO: inferPrimOp: " ++ show x)

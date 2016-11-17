@@ -1,6 +1,9 @@
 {-# LANGUAGE CPP
            , GADTs
            , DataKinds
+           , TypeFamilies
+           , FlexibleContexts
+           , UndecidableInstances
            , LambdaCase
            , OverloadedStrings
            #-}
@@ -17,8 +20,22 @@ import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
 import qualified Data.Vector                     as V
+import qualified Data.Vector.Unboxed             as U
+import qualified Data.Vector.Generic             as G
 import           Control.Monad
 import           Prelude                         hiding (product)
+
+type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
+type instance MinBoxVec V.Vector v        = V.Vector
+type instance MinBoxVec v        V.Vector = V.Vector
+type instance MinBoxVec U.Vector U.Vector = U.Vector
+
+type family MayBoxVec a :: * -> *
+type instance MayBoxVec Int          = U.Vector
+type instance MayBoxVec Double       = U.Vector
+type instance MayBoxVec (U.Vector a) = V.Vector
+type instance MayBoxVec (V.Vector a) = V.Vector
+type instance MayBoxVec (a,b)        = MinBoxVec (MayBoxVec a) (MayBoxVec b)
 
 lam :: (a -> b) -> a -> b
 lam = id
@@ -62,11 +79,12 @@ beta a b = makeMeasure $ MWCD.beta a b
 gamma :: Double -> Double -> Measure Double
 gamma a b = makeMeasure $ MWCD.gamma a b
 
-categorical :: V.Vector Double -> Measure Integer
+categorical :: MayBoxVec Double Double -> Measure Int
 categorical a = makeMeasure (\g -> fromIntegral <$> MWCD.categorical a g)
 
-plate :: Integer -> (Integer -> Measure a) -> Measure (V.Vector a)
-plate n f = V.generateM (fromIntegral n) $ \x ->
+plate :: (G.Vector (MayBoxVec a) a) =>
+         Int -> (Int -> Measure a) -> Measure (MayBoxVec a a)
+plate n f = G.generateM (fromIntegral n) $ \x ->
              f (fromIntegral x)
 
 pair :: a -> b -> (a, b)
@@ -114,31 +132,31 @@ pose _ a = a
 superpose :: [(Double, Measure a)]
           -> Measure a
 superpose pms = do
-  i <- makeMeasure $ MWCD.categorical (V.fromList $ map fst pms)
+  i <- makeMeasure $ MWCD.categorical (U.fromList $ map fst pms)
   snd (pms !! i)
 
 reject :: Measure a
 reject = Measure $ \_ -> return Nothing
 
-nat_ :: Integer -> Integer
+nat_ :: Int -> Int
 nat_ = id
 
-int_ :: Integer -> Integer
+int_ :: Int -> Int
 int_ = id
 
-unsafeNat :: Integer -> Integer
+unsafeNat :: Int -> Int
 unsafeNat = id
 
-nat2prob :: Integer -> Double
+nat2prob :: Int -> Double
 nat2prob = fromIntegral
 
-fromInt  :: Integer -> Double
+fromInt  :: Int -> Double
 fromInt  = fromIntegral
 
-nat2int  :: Integer -> Integer
+nat2int  :: Int -> Int
 nat2int  = id
 
-nat2real :: Integer -> Double
+nat2real :: Int -> Double
 nat2real = fromIntegral
 
 fromProb :: Double -> Double
@@ -153,34 +171,41 @@ real_ = fromRational
 prob_ :: NonNegativeRational -> Double
 prob_ = fromRational . fromNonNegativeRational
 
-thRootOf :: Integer -> Double -> Double
+infinity :: Double
+infinity = 1/0
+
+abs_ :: Num a => a -> a
+abs_ = abs
+
+thRootOf :: Int -> Double -> Double
 thRootOf a b = b ** (recip $ fromIntegral a)
 
 array
-    :: Integer
-    -> (Integer -> a)
-    -> V.Vector a
-array n f = V.generate (fromIntegral n) (f . fromIntegral)
+    :: (G.Vector (MayBoxVec a) a)
+    => Int
+    -> (Int -> a)
+    -> MayBoxVec a a
+array n f = G.generate (fromIntegral n) (f . fromIntegral)
 
-(!) :: V.Vector a -> Integer -> a
-a ! b = a V.! (fromIntegral b)
+(!) :: (G.Vector (MayBoxVec a) a) => MayBoxVec a a -> Int -> a
+a ! b = a G.! (fromIntegral b)
 
-size :: V.Vector a -> Integer
-size v = fromIntegral (V.length v)
+size :: (G.Vector (MayBoxVec a) a) => MayBoxVec a a -> Int
+size v = fromIntegral (G.length v)
 
 product
     :: Num a
-    => Integer
-    -> Integer
-    -> (Integer -> a)
+    => Int
+    -> Int
+    -> (Int -> a)
     -> a
 product a b f = F.foldl' (\x y -> x * f y) 1 [a .. b-1]
 
 summate
     :: Num a
-    => Integer
-    -> Integer
-    -> (Integer -> a)
+    => Int
+    -> Int
+    -> (Int -> a)
     -> a
 summate a b f = F.foldl' (\x y -> x + f y) 0 [a .. b-1]
 

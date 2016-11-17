@@ -94,6 +94,8 @@ primTable =
     [-- Datatype constructors
      ("left",        primLeft)
     ,("right",       primRight)
+    ,("just",        primJust)
+    ,("nothing",     primNothing)
     ,("true",        TNeu $ true_)
     ,("false",       TNeu $ false_)
      -- Coercions
@@ -138,6 +140,18 @@ primTable =
     ,("natroot",     primPrimOp2 U.NatRoot)
     ,("sqrt",        TLam $ \x -> TNeu . syn $ U.PrimOp_ U.NatRoot [x, two])
     ,("erf",         primPrimOp1 U.Erf)
+    ,("sin",         primPrimOp1 U.Sin)
+    ,("cos",         primPrimOp1 U.Cos)
+    ,("tan",         primPrimOp1 U.Tan)
+    ,("asin",        primPrimOp1 U.Asin)
+    ,("acos",        primPrimOp1 U.Acos)
+    ,("atan",        primPrimOp1 U.Atan)
+    ,("sinh",        primPrimOp1 U.Sinh)
+    ,("cosh",        primPrimOp1 U.Cosh)
+    ,("tanh",        primPrimOp1 U.Tanh)
+    ,("asinh",       primPrimOp1 U.Asinh)
+    ,("acosh",       primPrimOp1 U.Acosh)
+    ,("atanh",       primPrimOp1 U.Atanh)
     -- ArrayOps
     ,("size",        TLam $ \x -> TNeu . syn $ U.ArrayOp_ U.Size [x])
     ,("reduce",      t3 $ \x y z -> syn $ U.ArrayOp_ U.Reduce [x, y, z])
@@ -202,6 +216,14 @@ primLeft =
 primRight =
     TLam $ TNeu . syn . U.Datum_ .
         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
+
+primJust, primNothing :: Symbol U.AST
+primJust =
+    TLam $ TNeu . syn . U.Datum_ .
+        U.Datum "just" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
+primNothing =
+    TNeu . syn . U.Datum_ .
+        U.Datum "nothing" . U.Inl $ U.Done
 
 primWeight, primFactor, primBern :: Symbol U.AST
 primWeight = t2 $ \w m -> syn $ U.Superpose_ (singleton (w, m))
@@ -385,15 +407,11 @@ normAST ast =
     case ast of
     U.Var a           -> U.Var a
     U.Lam name typ f  -> U.Lam name typ (normAST f)
-    U.App (U.Var t) x ->
-        case t of
-        TLam f -> U.Var $ f (makeAST $ normAST x)
-        TNeu _ -> U.App (U.Var t) (normAST x)
-
     U.App f x ->
+        let x' = normAST x in
         case normAST f of
-        v@(U.Var _) -> normAST (U.App v x)
-        f'          -> U.App f' x
+        U.Var (TLam f)      -> U.Var $ f (makeAST x')
+        f'                  -> U.App f' x'
 
     U.Let name e1 e2          -> U.Let name (normAST e1) (normAST e2)
     U.If e1 e2 e3             -> U.If (normAST e1) (normAST e2) (normAST e3)
