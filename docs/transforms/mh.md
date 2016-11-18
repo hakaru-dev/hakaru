@@ -75,3 +75,23 @@ fn x4 real:
                     (-1)))),
         return x4)
 ````
+		
+This can then be run using `hakaru`. Hakaru when run with two
+arguments will assume that the first file is a transition kernel,
+and the second file represents a measure to initialize from.
+		
+
+````bash
+mh target.hk proposal.hk | simplify - | hakaru - target.hk | head
+
+-0.6133542972818671
+-0.6111567543723275
+-0.5963756142974966
+-0.5661156231637984
+-0.6280335079595971
+-0.616432866701967
+-0.6053631512209712
+-0.5964839795872353
+-0.6020821843203473
+-0.6535246137595148
+````

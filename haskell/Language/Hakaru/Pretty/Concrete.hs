@@ -2,6 +2,7 @@
            , KindSignatures
            , DataKinds
            , ScopedTypeVariables
+           , PatternGuards
            , Rank2Types
            , TypeOperators
            , FlexibleContexts
@@ -241,7 +242,7 @@ ppNaryOpProd
 ppNaryOpProd p e =
     caseVarSyn e (const $ prefixToTerm "*" e) $ \t ->
         case t of
-        Literal_ (LProb i) -> 
+        Literal_ (LProb i) | numerator i == 1 -> 
           prefixToTerm "/" (syn . Literal_ . LProb . fromIntegral . denominator $ i)
         Literal_ (LReal i) | numerator i == 1 -> 
           prefixToTerm "/" (syn . Literal_ . LReal . fromIntegral . denominator $ i)
@@ -395,22 +396,20 @@ prettyType p (SArray   a) = PP.text "array" <> PP.parens (prettyType p a)
 prettyType p (SFun   a b) = prettyType p a <+> PP.text "->" <+> prettyType p b  
 prettyType p typ          =
     case typ of
-    SData (STyCon sym `STyApp` a `STyApp` b) _ ->
-        case jmEq1 sym sSymbol_Pair of
-        Just Refl -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
-        Nothing   ->
-            case jmEq1 sym sSymbol_Either of
-            Just Refl -> toDoc $ ppFun p "either" [prettyType p a, prettyType p b]
-            Nothing   -> PP.text (showsPrec 11 typ "")
-    SData (STyCon sym) _ ->
-        case jmEq1 sym sSymbol_Bool of
-        Just Refl -> PP.text "bool"
-        Nothing   ->
-            case jmEq1 sym sSymbol_Unit of
-            Just Refl -> PP.text "unit"
-            Nothing   -> PP.text (showsPrec 11 typ "")
+    SData (STyCon sym `STyApp` a `STyApp` b) _
+      | Just Refl <- jmEq1 sym sSymbol_Pair
+      -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
+      | Just Refl <- jmEq1 sym sSymbol_Either
+      -> toDoc $ ppFun p "either" [prettyType p a, prettyType p b]
+    SData (STyCon sym `STyApp` a) _
+      | Just Refl <- jmEq1 sym sSymbol_Maybe
+      -> toDoc $ ppFun p "maybe" [prettyType p a]
+    SData (STyCon sym) _
+      | Just Refl <- jmEq1 sym sSymbol_Bool
+      -> PP.text "bool"
+      | Just Refl <- jmEq1 sym sSymbol_Unit
+      -> PP.text "unit"
     _ -> PP.text (showsPrec 11 typ "")
-    -- TODO: make this prettier. Add hints to the singletons?typ
 
 
 -- | Pretty-print a 'PrimOp' @(:$)@ node in the AST.
@@ -458,7 +457,7 @@ ppPrimOp p (Equal   _) = \(e1 :* e2 :* End) -> ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) = \(e1 :* e2 :* End) -> ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) = \(e1 :* e2 :* End) -> ppBinop "^"  8 RightAssoc p e1 e2
 ppPrimOp p (Negate  _) = \(e1 :* End)       -> ppApply1  p "negate"  e1
-ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1  p "abs_"    e1
+ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1  p "abs"     e1
 ppPrimOp p (Signum  _) = \(e1 :* End)       -> ppApply1  p "signum"  e1
 ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1  p "recip"   e1
 ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) -> ppNatRoot p e1 e2
@@ -632,7 +631,7 @@ prettyApps = \ e1 e2 ->
     collectApps e es = 
         caseVarSyn e (\x -> (ppVariable x, es)) $ \t ->
             case t of
-            App_ :$ e1 :* e2 :* End -> collectApps e1 (es . (pretty e2 :))
+            App_ :$ e1 :* e2 :* End -> collectApps e1 ((pretty e2 :) . es)
             _                       -> (pretty e, es)
 
 
