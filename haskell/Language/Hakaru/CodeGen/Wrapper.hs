@@ -306,34 +306,39 @@ flattenTopLambda
   => abt '[] a
   -> Ident
   -> CodeGen ()
-flattenTopLambda abt name = undefined
-    -- coalesceLambda abt $ \vars abt' ->
-    -- let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
-    --     typ   = typeOf abt'
-    -- in  do argDecls <- sequence varMs
-    --        cg <- get
+flattenTopLambda abt name =
+    coalesceLambda abt $ \vars abt' ->
+    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+        typ   = typeOf abt'
+    in  do argDecls <- sequence varMs
+           cg <- get
 
-    --        case typ of
-    --          SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-    --                               (_,cg') = runState m $ cg { statements = []
-    --                                                         , declarations = [] }
-    --                           put $ cg' { statements   = statements cg
-    --                                     , declarations = declarations cg }
-    --                           extDeclare . CFunDefExt
-    --                             $ functionDef typ name
-    --                                               argDecls
-    --                                               (P.reverse $ declarations cg')
-    --                                               (P.reverse $ statements cg')
-    --          _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-    --                      (_,cg') = runState m $ cg { statements = []
-    --                                                , declarations = [] }
-    --                  put $ cg' { statements   = statements cg
-    --                            , declarations = declarations cg }
-    --                  extDeclare . CFunDefExt
-    --                    $ functionDef typ name
-    --                                      argDecls
-    --                                      (P.reverse $ declarations cg')
-    --                                      (P.reverse $ statements cg')
+           case typ of
+             -- SMeasure _ -> error "flattenTopLambda: for Measures"
+             -- SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
+             --                      (_,cg') = runState m $ cg { statements = []
+             --                                                , declarations = [] }
+             --                  put $ cg' { statements   = statements cg
+             --                            , declarations = declarations cg }
+             --                  extDeclare . CFunDefExt
+             --                    $ functionDef typ name
+             --                                      argDecls
+             --                                      (P.reverse $ declarations cg')
+             --                                      (P.reverse $ statements cg')
+             _ -> do let m       = do outId <- genIdent' "out"
+                                      declare (typeOf abt') outId
+                                      let outE = CVar outId
+                                      flattenABT abt' outE
+                                      putStat . CReturn . Just $ outE
+                         (_,cg') = runState m $ cg { statements = []
+                                                   , declarations = [] }
+                     put $ cg' { statements   = statements cg
+                               , declarations = declarations cg }
+                     extDeclare . CFunDefExt
+                       $ functionDef typ name
+                                         argDecls
+                                         (P.reverse $ declarations cg')
+                                         (P.reverse $ statements cg')
   -- do at top level
   where coalesceLambda
           :: ABT Term abt

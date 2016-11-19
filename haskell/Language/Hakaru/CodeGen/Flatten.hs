@@ -39,6 +39,7 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum hiding (Ident)
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.Prelude (beta'')
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Coercion
@@ -835,7 +836,7 @@ flattenPrimOp (NatRoot baseTyp) =
          flattenABT base baseE
          flattenABT root rootE
          let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
-             recipE = (floatE 1) ./. rootE  
+             recipE = (floatE 1) ./. rootE
              value = case sBase of
                        SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) recipE)
                                       .-. (intE 1)
@@ -1000,6 +1001,14 @@ flattenMeasureOp Normal  =
          putExprStat $ mdataPtrWeight loc .=. (floatE 0)
          putExprStat $ mdataPtrSample loc .=. value
          putExprStat $ mdataPtrReject loc .=. (intE 1)
+
+flattenMeasureOp Gamma =
+  \(a :* b :* End) ->
+    \loc ->
+      do undefined
+
+flattenMeasureOp Beta =
+  \(a :* b :* End) -> flattenABT (beta'' a b)
 
 
 flattenMeasureOp Categorical = \(arr :* End) ->
