@@ -39,7 +39,7 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum hiding (Ident)
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Prelude (beta'')
+import Language.Hakaru.Syntax.Prelude (beta'',normal,uniform,prob_,real_)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Coercion
@@ -928,9 +928,9 @@ that location and returns 0 if it fails and 1 if it succeeds in that task.
 
 
 flattenMeasureOp
-  :: ( ABT Term abt
+  :: forall abt typs args a. ( ABT Term abt
      , typs ~ UnLCs args
-     , args ~ LCs typs)
+     , args ~ LCs typs )
   => MeasureOp typs a
   -> SArgs abt args
   -> (CExpr -> CodeGen ())
@@ -1005,7 +1005,33 @@ flattenMeasureOp Normal  =
 flattenMeasureOp Gamma =
   \(a :* b :* End) ->
     \loc ->
-      do undefined
+      do tempIds <- replicateM 5 genIdent
+         mapM_ (declare SReal) tempIds
+         let (dE:cE:xE:vE:uE:[]) = map CVar tempIds
+
+         argIds@(aId:bId:[]) <- replicateM 2 genIdent
+         declare SProb aId
+         declare SProb bId
+         let (aE:bE:[]) = map CVar argIds
+         flattenABT a aE
+         flattenABT b bE
+
+         putExprStat $ dE .=. ((expm1 aE .+. (intE 1)) .-. ((floatE 1) ./. (floatE 3)))
+         putExprStat $ cE .=. ((floatE 1) ./. (sqrt ((floatE 9) .*. dE)))
+
+         let cond1 = uE .>=. (floatE 1) .-. (floatE 0.331) .*. (xE .*. xE) .*. (xE .*. xE)
+             cond2 = log uE .>=. (floatE 0.5) .*. (xE .*. xE) .+. dE .*. ((floatE 1) .-. vE .+. (log vE))
+         doWhileCG (cond1 .&&. cond2) $ do
+           doWhileCG (vE .<=. (floatE 0)) $ do
+             flattenABT ((normal (real_ 0) (prob_ 1)) :: abt '[] ('HMeasure 'HReal)) xE
+             putExprStat $ vE .=. ((floatE 1) .+. (cE .*. xE))
+           putExprStat $ vE .=. (vE .*. vE .*. vE)
+           flattenABT ((uniform (real_ 0) (real_ 1)) :: abt '[] ('HMeasure 'HReal)) uE
+
+         putExprStat $ mdataPtrWeight loc .=. (floatE 0)
+         putExprStat $ mdataPtrSample loc .=. ((log dE) .+. (log vE) .+. bE)
+         putExprStat $ mdataPtrReject loc .=. (intE 1)
+
 
 flattenMeasureOp Beta =
   \(a :* b :* End) -> flattenABT (beta'' a b)
