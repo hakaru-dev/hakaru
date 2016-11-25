@@ -17,5 +17,6 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
     ...
 ````
 
-The advantage of having this typeclass is that we think about variable substitution
-independently of the AST for our language.
+The advantage of having this typeclass is that we think about variable binding
+independently of the AST for our language. For example, we can define variable
+substitution once and for all.
