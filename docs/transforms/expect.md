@@ -21,7 +21,8 @@ integrate x from 1 to 3:
  recip(real2prob(3 - 1)) * real2prob(2*x + 1)
 ````
 
-This can be optimized by `simplify` into `5`.
+This can be optimized by piping by it into the `simplify` program. It
+will in turn return `5`.
 
 ## Normalize
 
