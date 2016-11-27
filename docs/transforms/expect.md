@@ -14,7 +14,8 @@ expect x uniform(1,3):
 ````
 
 This program computes the expectation of `uniform(1,3)` using the
-function `2*x + 1`. This program expands to the following:
+function `2*x + 1`. This program expands to the following equivalent
+program:
 
 ````
 integrate x from 1 to 3: 
