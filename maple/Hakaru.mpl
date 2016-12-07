@@ -103,21 +103,6 @@ Hakaru := module ()
   p_true  := 'PDatum(true,PInl(PDone))';
   p_false := 'PDatum(false,PInr(PInl(PDone)))';
 
-  #Partition is Hakaru's replacement for Maple's endogenous and unwieldy
-  #`piecewise`. Here, we just type-check its argument.
-  Partition:= proc(
-     Pairs::set(
-        record(
-           cond::boolean &under (convert, boolean_operator),
-           #Is that inclusive enough?
-           val::t_Hakaru
-           #Is that inclusive enough?
-        )
-     )
-  )
-     'procname'(_passed)
-  end proc;
-  
   case := proc(e, bs :: specfunc(Branch(anything, anything), Branches), $)
     local ret, b, substs, eSubst, pSubst, p, binds, uncertain;
     if e :: 't_piecewiselike' then
