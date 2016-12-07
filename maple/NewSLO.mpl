@@ -206,7 +206,7 @@ NewSLO := module ()
       n := nops(m);
       piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h, loops), op(i,m)),
                     i=1..n))
-    elif #Partition 
+    elif #Partition(...) 
       #For now at least, we simply code this as parallel to the elif m::t_pw 
       #paragraph above: thisproc is mapped over the branches and the 
       #conditions are unchanged.
@@ -288,7 +288,7 @@ NewSLO := module ()
 
   unintegrate := proc(h :: name, e, kb :: t_kb, $)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
-          i, kb1, kb2, loops, subst, hh, pp, t, bnds;
+          i, kb1, kb2, loops, subst, hh, pp, t, bnds, br;
     if e :: 'And'('specfunc({Int,int})',
                   'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],e));
@@ -366,6 +366,18 @@ NewSLO := module ()
                        i=1..nops(e)-1, 2)) then
       kb_piecewise(e, kb, ((lhs, kb) -> lhs),
                           ((rhs, kb) -> unintegrate(h, rhs, kb)))
+    elif #Partition(...)
+      #For now at least, we simply code this as parallel to the elif e::t_pw 
+      #paragraph above.
+        e :: specfunc(Partition) and 
+        not depends([seq(br:-cond, br= op(e))], h)
+      then
+        kb_Partition(
+          e, 
+          kb, 
+          (lhs, kb)-> lhs,
+          (rhs, kb)-> unintegrate(h, rhs, kb)
+        )  
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),

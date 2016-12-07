@@ -25,8 +25,8 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
          negated_relation, negate_relation,
          kb_subtract, simplify_assuming, simplify_factor_assuming,
-         kb_to_assumptions, kb_to_equations,
-         kb_piecewise, list_of_mul, for_poly, range_of_HInt;
+         kb_to_assumptions, kb_to_equations, 
+         kb_piecewise, kb_Partition, list_of_mul, for_poly, range_of_HInt;
   global t_kb, `expand/product`, `simplify/int/simplify`,
          `product/indef/indef`, `convert/Beta`;
   uses Hakaru;
@@ -723,7 +723,7 @@ KB := module ()
   end proc;
 
   kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen, $)
-    local kb1, update, n, i;
+    local n, i, kb1, update;
     kb1 := kb;
     update := proc(c, $)
       local kb0;
@@ -736,6 +736,29 @@ KB := module ()
                    `if`(i=n,    doThen(op(i,e), kb1),
                                 doIf  (op(i,e), kb1))),
                   i=1..n))
+  end proc;
+
+  #For now at least, this procedure is parallel to kb_piecewise.
+  kb_Partition:= proc(
+    e::specfunc(Partition), 
+    kb::t_kb, 
+    doIf::appliable,
+    doThen::appliable,
+    $
+  )
+  local br;
+    #Unlike `piecewise`, the conditions in a Partition are necessarily
+    #disjoint, so the `update` used in kb_piecewise isn't needed. We may
+    #simply `assert` the condition (i.e., roll it into the kb) without
+    #needing to `assert` the negation of all previous conditions. (Is that 
+    #correct? or should it `assert` the negation of all _other_ conditions?)
+    Partition({
+      seq(
+        (kb0-> Record('cond'= doIf(br:-cond, kb0), 'val'= doThen(br:-val, kb0)))
+        (assert(br:-cond, kb)),
+        br= op(e)
+      )   
+    })  
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
