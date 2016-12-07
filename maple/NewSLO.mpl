@@ -185,7 +185,7 @@ NewSLO := module ()
   end proc;
 
   integrate := proc(m, h, loops :: list(name = range) := [], $)
-    local x, n, i, res, l;
+    local x, n, i, res, l, br;
 
     if m :: known_continuous then
       integrate_known(Int, Ints, 'xx', m, h, loops)
@@ -206,6 +206,19 @@ NewSLO := module ()
       n := nops(m);
       piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h, loops), op(i,m)),
                     i=1..n))
+    elif #Partition 
+      #For now at least, we simply code this as parallel to the elif m::t_pw 
+      #paragraph above: thisproc is mapped over the branches and the 
+      #conditions are unchanged.
+        m :: specfunc(Partition) and
+        not depends([seq(br:-cond, br= op(m))], lhs~(loops))
+      then
+        Partition({
+          seq(
+            Record('cond'= br:-cond, 'val'= thisproc(br:-val, args[2..])),
+            br= op(m)
+          )
+        })        
     elif m :: t_case and not depends(op(1,m), map(lhs, loops)) then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='integrate'(op(2,b), x, loops),b), x=h)
@@ -748,8 +761,6 @@ NewSLO := module ()
       'Bind(_passed)'
     end if;
   end proc;
-
-  
 
   weight := proc(p, m, $)
     #Trying to make the below into an ASSERT statement results in a kernel
