@@ -8,27 +8,30 @@ Partition:= module()
 #This module is essentially an object, but we decided, for now at least, to not
 #use Maple's "option object".
 local
-   #The ModuleApply simply type-checks its arguments and returns the
-   #Partition structure. This serves as the object's constructor.
-   ModuleApply::static:= proc(
+   #The object's (internal) constructor
+   Partition::static:= proc(
       Pairs::set(
          record(
-            #Type `anything` below should be some boolean type, but we'll need
-            #to write our own as neither Maple's 'boolean' nor
+            #The type `anything` below should be some boolean type, but we'll 
+            #need to write our own as neither Maple's 'boolean' nor
             #'boolean &under (convert, boolean_operator)' is inclusive enough. 
             cond::anything,
-            #Is that inclusive enough?
             val::t_Hakaru
             #Is that inclusive enough?
          )
       )
    )::specfunc('Partition');
-     #There's no effective way to use unevaluated 'procname' or 'thismodule'
-     #in a ModuleApply. 
-     'Partition'(_passed)
+     'procname'(_passed)
   end proc
 ;
 export
+   #This is the exported lazy-syntax constructor.
+   ModuleApply::static:= proc(Pairs::seq([anything, t_Hakaru]))
+      ::specfunc('Partition');
+   local pair;
+      Partition({seq(Record('cond'= pair[1], 'val'= pair[2]), pair= [Pairs])})
+   end proc, 
+
    #This is just `map` for Partitions.
    Pmap::static:= proc(
       f::appliable
@@ -49,7 +52,7 @@ export
       if not args[pos+1]::specfunc('Partition') then
          error "Expected a Partition; received %1", args[pos+1]
       end if;         
-      ModuleApply(
+      Partition(
          {seq(
             Record(
                'cond'= pair:-cond,
