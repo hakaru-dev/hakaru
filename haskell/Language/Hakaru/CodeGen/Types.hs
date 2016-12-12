@@ -40,10 +40,8 @@ module Language.Hakaru.CodeGen.Types
   , mdataName
   , mdataStruct
   , mdataStruct'
-  , mdataReject
   , mdataWeight
   , mdataSample
-  , mdataPtrReject
   , mdataPtrWeight
   , mdataPtrSample
 
@@ -165,8 +163,7 @@ mdataStruct' :: Sing (a :: Hakaru) -> CTypeSpec
 mdataStruct' t = mdStruct
   where weight = buildDeclaration CDouble (Ident "weight")
         sample = typeDeclaration t (Ident "sample")
-        reject = buildDeclaration CChar (Ident "reject")
-        mdStruct = buildStruct (Just . Ident . mdataName $ t) [reject,weight,sample]
+        mdStruct = buildStruct (Just . Ident . mdataName $ t) [weight,sample]
 
 mdataDeclaration
   :: Sing (a :: Hakaru)
@@ -180,17 +177,11 @@ mdataPtrDeclaration
   -> CDecl
 mdataPtrDeclaration typ = buildPtrDeclaration (callStruct (mdataName typ))
 
-mdataReject :: CExpr -> CExpr
-mdataReject d = CMember d (Ident "reject") True
-
 mdataWeight :: CExpr -> CExpr
 mdataWeight d = CMember d (Ident "weight") True
 
 mdataSample :: CExpr -> CExpr
 mdataSample d = CMember d (Ident "sample") True
-
-mdataPtrReject :: CExpr -> CExpr
-mdataPtrReject d = CMember d (Ident "reject") False
 
 mdataPtrWeight :: CExpr -> CExpr
 mdataPtrWeight d = CMember d (Ident "weight") False

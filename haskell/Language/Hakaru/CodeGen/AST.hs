@@ -29,6 +29,7 @@ module Language.Hakaru.CodeGen.AST
   -- infix and smart constructors
   , (.>.),(.<.),(.==.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.)
   , (.>=.),(.<=.)
+  , seqCStat
   , indirect, address, intE, floatE, stringE, mkUnary
   , exp, expm1, log, log1p, sqrt, rand
   ) where
@@ -310,6 +311,9 @@ data CConst
   These are helpful when building up ASTs in Haskell code. They correspond to
   the concrete syntax of C. This is an incomplete set...
 -}
+
+seqCStat :: [CStat] -> CStat
+seqCStat = CCompound . fmap CBlockStat
 
 (.<.),(.>.),(.==.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.),(.<=.),(.>=.)
   :: CExpr -> CExpr -> CExpr

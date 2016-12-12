@@ -231,7 +231,7 @@ printf pc mt@(SMeasure t) sampleFunc =
                                          else [])
                                      ++ [ mdataSample mE ]
                 wrapSampleFunc = CCompound $ [CBlockStat getSampleS
-                                             ,CBlockStat $ CIf (mdataReject mE) printSampleE Nothing]
+                                             ,CBlockStat $ CIf (mdataWeight mE .==. (floatE 0)) printSampleE Nothing]
             putStat $ CWhile (intE 1) wrapSampleFunc False
 
 

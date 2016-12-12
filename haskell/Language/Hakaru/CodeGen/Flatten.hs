@@ -109,7 +109,7 @@ flattenTerm (x :$ ys)        = flattenSCon x ys
 ---------------------
 -- Mochastic Terms --
 ---------------------
-flattenTerm (Reject_ _)      = \loc -> putExprStat (mdataPtrReject loc .=. (intE 0)) -- fail to draw a sample
+flattenTerm (Reject_ _)      = \loc -> putExprStat (mdataPtrWeight loc .=. (intE 0)) -- fail to draw a sample
 flattenTerm (Superpose_ wes) = flattenSuperpose wes
 
 
@@ -341,7 +341,6 @@ flattenSCon Dirac           =
           flattenABT e sE
           putExprStat $ mdataPtrWeight loc .=. (floatE 0)
           putExprStat $ mdataPtrSample loc .=. sE
-          putExprStat $ mdataPtrReject loc .=. (intE 1)
 
 flattenSCon MBind           =
   \(ma :* b :* End) ->
@@ -399,7 +398,6 @@ flattenSCon Plate           =
                            putExprStat (weightE .+=. (mdataWeight sampE)))
 
            putExprStat $ mdataPtrWeight loc .=. weightE
-           putExprStat $ mdataPtrReject loc .=. (intE 1)
 
 
 -----------------------------------
@@ -924,11 +922,74 @@ Remember in the C runtime. Measures are housed in a measure function, which
 takes an `struct mdata` location. The MeasureOp attempts to store a value at
 that location and returns 0 if it fails and 1 if it succeeds in that task.
 
+The functions uniformCG, normalCG, and gammaCG are primitives that will generate
+functions and call them (similar to logSumExpCG). The reduce code size and make
+samplers a little more readable.
+
+TODO: add inline pragmas to uniformCG, normalCG, and gammaCG
 -}
+
+uniformCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
+uniformCG aE bE =
+  let r          = CCast doubleDecl rand
+      rMax       = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+      value l h  = (l .+. ((r ./. rMax) .*. (h .-. l)))
+      assW m     = CExpr . Just $ mdataPtrWeight m .=. (floatE 0)
+      assS l h m = CExpr . Just $ mdataPtrSample m .=. (value l h)
+      funcId     = Ident "uniform"
+      func lId hId mId = CFunDef [CTypeSpec CVoid]
+                                 (CDeclr Nothing [CDDeclrIdent funcId])
+                                 [typeDeclaration SReal lId
+                                 ,typeDeclaration SReal hId
+                                 ,typePtrDeclaration (SMeasure SReal) mId]
+                                 (seqCStat [assW (CVar mId)
+                                           ,assS (CVar lId) (CVar hId) (CVar mId)])
+  in \loc -> do
+       reserveName "uniform"
+       (aId:bId:mId:[]) <- replicateM 3 genIdent
+       extDeclare . CFunDefExt $ func aId bId mId
+       putExprStat $ CCall (CVar funcId) [aE,bE,loc]
+
+
+{-
+  This is very cryptic, but I assure you it is only building an AST for the
+  Marsaglia Polar Method
+-}  
+normalCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
+normalCG aE bE =
+  let r      = CCast doubleDecl rand
+      rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+      funcId = Ident "normal"
+      draw xE = CExpr . Just $ xE .=. (((r ./. rMax) .*. (floatE 2)) .-. (floatE 1))
+      condition qE = qE .>. (floatE 1)
+      body qE uE vE = seqCStat [draw uE
+                               ,draw vE
+                               ,CExpr . Just $ qE .=. ((uE .*. uE) .+. (vE .*. vE))]
+      polar qE uE vE = CWhile (condition qE) (body qE uE vE) True
+      setR rE qE = CExpr . Just $ rE .=. (sqrt (((CUnary CMinOp (floatE 2)) .*. log qE) ./. qE))
+      finalValue aE bE rE uE = aE .+. (uE .*. rE .*. bE)
+      decls u v q r = fmap (CBlockDecl . typeDeclaration SReal) [u,v,q,r]
+      alls aE bE qE uE vE rE mE = fmap CBlockStat [polar qE uE vE,setR rE qE, assW mE, assS aE bE rE uE mE]
+      assW m = CExpr . Just $ mdataPtrWeight m .=. (floatE 0)
+      assS aE bE rE uE mE = CExpr . Just $ mdataPtrSample mE .=. (finalValue aE bE rE uE)
+      func aId bId uId vId qId rId mId =
+        CFunDef [CTypeSpec CVoid]
+                (CDeclr Nothing [CDDeclrIdent funcId])
+                [typeDeclaration SReal aId
+                ,typeDeclaration SProb bId
+                ,typePtrDeclaration (SMeasure SReal) mId]
+                (CCompound $ decls uId vId qId rId
+                          ++ alls (CVar aId) (CVar bId) (CVar qId) (CVar uId) (CVar vId) (CVar rId) (CVar mId))
+  in \loc -> do
+       reserveName "normal"
+       (aId:bId:uId:vId:qId:rId:mId:[]) <- replicateM 7 genIdent
+       extDeclare . CFunDefExt $ func aId bId uId vId qId rId mId
+       putExprStat $ CCall (CVar funcId) [aE,bE,loc]
 
 
 flattenMeasureOp
-  :: forall abt typs args a. ( ABT Term abt
+  :: forall abt typs args a .
+     ( ABT Term abt
      , typs ~ UnLCs args
      , args ~ LCs typs )
   => MeasureOp typs a
@@ -939,68 +1000,28 @@ flattenMeasureOp
 flattenMeasureOp Uniform =
   \(a :* b :* End) ->
     \loc ->
-      do aId <- genIdent
-         bId <- genIdent
+      do (aId:bId:[]) <- replicateM 2 genIdent
          let aE = CVar aId
              bE = CVar bId
          declare SReal aId
          declare SReal bId
          flattenABT a aE
          flattenABT b bE
-         let r      = CCast doubleDecl rand
-             rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
-             value  = (aE .+. ((r ./. rMax) .*. (bE .-. aE)))
-
-         putExprStat $ mdataPtrWeight loc .=. (floatE 0)
-         putExprStat $ mdataPtrSample loc .=. value
-         putExprStat $ mdataPtrReject loc .=. (intE 1)
+         uniformCG aE bE loc
 
 
 flattenMeasureOp Normal  =
   \(a :* b :* End) ->
     \loc ->
-      do let randomE = (CCast doubleDecl rand)
-                   ./. (CCast doubleDecl (CVar . Ident $ "RAND_MAX"))
-
-         -- mean
-         aId <- genIdent
-         declare SReal aId
+      do (aId:bId:[]) <- replicateM 2 genIdent
          let aE = CVar aId
+             bE = CVar bId
+         declare SReal aId
+         declare SReal bId
          flattenABT a aE
-
-         -- variance
-         bId <- genIdent
-         declare SProb bId
-         let bE = CVar bId
          flattenABT b bE
+         normalCG aE (exp bE) loc
 
-         -- temp vars
-         uId <- genIdent
-         vId <- genIdent
-         qId <- genIdent
-         rId <- genIdent
-
-         declare SReal uId
-         declare SReal vId
-         declare SReal qId
-         declare SReal rId
-
-         let vE = CVar vId
-             uE = CVar uId
-             qE = CVar qId
-             rE = CVar rId
-
-         doWhileCG ((qE .==. (intE 0)) .||. (qE .>. (intE 1)))
-           $ do assign uId $ randomE .*. (floatE 2) .-. (floatE 1)
-                assign vId $ randomE .*. (floatE 2) .-. (floatE 1)
-                assign qId $ (uE .*. uE) .+. (vE .*. vE)
-
-         assign rId $ sqrt ((mkUnary "-" (intE 2)) .*. (log qE ./. qE))
-         let value  = aE .+. (uE .*. (rE .*. ((expm1 bE) .+. (intE 1))))
-
-         putExprStat $ mdataPtrWeight loc .=. (floatE 0)
-         putExprStat $ mdataPtrSample loc .=. value
-         putExprStat $ mdataPtrReject loc .=. (intE 1)
 
 flattenMeasureOp Gamma =
   \(a :* b :* End) ->
@@ -1030,7 +1051,6 @@ flattenMeasureOp Gamma =
 
          putExprStat $ mdataPtrWeight loc .=. (floatE 0)
          putExprStat $ mdataPtrSample loc .=. ((log dE) .+. (log vE) .+. bE)
-         putExprStat $ mdataPtrReject loc .=. (intE 1)
 
 
 flattenMeasureOp Beta =
@@ -1078,7 +1098,6 @@ flattenMeasureOp Categorical = \(arr :* End) ->
          $ do stat <- runCodeGenBlock $
                         do putExprStat $ mdataPtrWeight loc .=. (intE 0)
                            putExprStat $ mdataPtrSample loc .=. itE
-                           putExprStat $ mdataPtrReject loc .=. (intE 1)
                            putStat CBreak
               putStat $ CIf (rE .<. (exp wSumE)) stat Nothing
               logSumExpCG (S.fromList [wSumE,currE]) wSumE
@@ -1114,7 +1133,6 @@ flattenSuperpose pairs =
             flattenABT m mE
             putExprStat $ mdataPtrWeight loc .=. ((mdataPtrWeight mE) .+. wE)
             putExprStat $ mdataPtrSample loc .=. (mdataPtrSample mE)
-            putExprStat $ mdataPtrReject loc .=. (mdataPtrReject mE)
 
   else \loc ->
          do wEs <- forM pairs' $ \(w,_) ->
@@ -1159,4 +1177,3 @@ flattenSuperpose pairs =
             putStat $ CLabel outLabel (CExpr Nothing)
             putExprStat $ mdataPtrWeight loc .=. ((mdataPtrWeight outE) .+. wSumE)
             putExprStat $ mdataPtrSample loc .=. (mdataPtrSample outE)
-            putExprStat $ mdataPtrReject loc .=. (mdataPtrReject outE)
