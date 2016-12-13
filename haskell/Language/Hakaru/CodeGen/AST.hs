@@ -326,8 +326,8 @@ a .*. b  = CBinary CMulOp a b
 a ./. b  = CBinary CDivOp a b
 a .-. b  = CBinary CSubOp a b
 a .+. b  = CBinary CAddOp a b
-a .<=. b = CBinary CGeqOp a b
-a .>=. b = CBinary CLeqOp a b
+a .<=. b = CBinary CLeqOp a b
+a .>=. b = CBinary CGeqOp a b
 a .=. b  = CAssign CAssignOp a b
 a .+=. b = CAssign CAddAssOp a b
 a .*=. b = CAssign CMulAssOp a b

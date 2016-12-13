@@ -113,8 +113,6 @@ mainFunction pc typ@(SMeasure t) abt =
   let ident   = Ident "measure"
       funId   = Ident "main"
       mdataId = Ident "mdata"
-  --     isArray = isSArray t
-  --     isPlate = isSArray t
   in  do reserveName "measure"
          reserveName "mdata"
          reserveName "main"
@@ -128,22 +126,6 @@ mainFunction pc typ@(SMeasure t) abt =
 
   --        -- need to set seed?
   --        -- srand(time(NULL));
-
-         -- main function
-
-  --        -- if it is a plate then allocate space here
-  --        when isArray $
-  --          do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
-  --             aE <- flattenABT arityABT
-  --             let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
-  --                 size    = CMember (CVar . Ident $ "sample") (Ident "size") True
-  --                 innerType = getArrayType t
-  --                 mallocCall = CCast (mkPtrDecl innerType)
-  --                                    (mkUnary "malloc"
-  --                                      (aE .*. (CSizeOfType . mkDecl $ innerType)))
-  --             putStat . CExpr . Just $ size .=. aE
-  --             putStat . CExpr . Just $ dataPtr .=. mallocCall
-
 
          printf pc typ (CVar ident)
          putStat . CReturn . Just $ intE 0
@@ -214,9 +196,6 @@ printf
 
 printf pc mt@(SMeasure t) sampleFunc =
   case t of
-    -- (SArray _) -> do s <- runCodeGenBlock $ do putStat . CExpr . Just $ CCall arg [sampleELoc]
-    --                                            printf t sampleE
-    --                  putStat $ CFor Nothing Nothing Nothing s
     _ -> do mId <- genIdent' "m"
             declare mt mId
             let mE = CVar mId
@@ -229,7 +208,11 @@ printf pc mt@(SMeasure t) sampleFunc =
                                                 then mdataWeight mE
                                                 else exp $ mdataWeight mE ]
                                          else [])
-                                     ++ [ mdataSample mE ]
+                                     ++ [ case t of
+                                            SProb -> if showProbInLog pc
+                                                     then mdataSample mE
+                                                     else exp $ mdataSample mE
+                                            _ -> mdataSample mE ]
                 wrapSampleFunc = CCompound $ [CBlockStat getSampleS
                                              ,CBlockStat $ CIf (mdataWeight mE .==. (floatE 0)) printSampleE Nothing]
             putStat $ CWhile (intE 1) wrapSampleFunc False

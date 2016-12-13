@@ -357,6 +357,7 @@ flattenSCon MBind           =
            declare typ vId
            assign vId (mdataSample mE)
            flattenABT mb loc
+           putExprStat $ mdataPtrWeight loc .+=. (mdataWeight mE)
 
 -- for now plats make use of a global sample
 flattenSCon Plate           =
@@ -929,62 +930,119 @@ samplers a little more readable.
 TODO: add inline pragmas to uniformCG, normalCG, and gammaCG
 -}
 
+uniformFun :: CFunDef
+uniformFun = CFunDef [CTypeSpec CVoid]
+                     (CDeclr Nothing [CDDeclrIdent funcId])
+                     [typeDeclaration SReal loId
+                     ,typeDeclaration SReal hiId
+                     ,typePtrDeclaration (SMeasure SReal) mId]
+                     (seqCStat [assW,assS,CReturn Nothing])
+  where r          = CCast doubleDecl rand
+        rMax       = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+        (mId,mE)   = let ident = Ident "mdata" in (ident,CVar ident)
+        (loId,loE) = let ident = Ident "lo" in (ident,CVar ident)
+        (hiId,hiE) = let ident = Ident "hi" in (ident,CVar ident)
+        value      = (loE .+. ((r ./. rMax) .*. (hiE .-. loE)))
+        assW       = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
+        assS       = CExpr . Just $ mdataPtrSample mE .=. value
+        funcId     = Ident "uniform"
+
+
 uniformCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 uniformCG aE bE =
-  let r          = CCast doubleDecl rand
-      rMax       = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
-      value l h  = (l .+. ((r ./. rMax) .*. (h .-. l)))
-      assW m     = CExpr . Just $ mdataPtrWeight m .=. (floatE 0)
-      assS l h m = CExpr . Just $ mdataPtrSample m .=. (value l h)
-      funcId     = Ident "uniform"
-      func lId hId mId = CFunDef [CTypeSpec CVoid]
-                                 (CDeclr Nothing [CDDeclrIdent funcId])
-                                 [typeDeclaration SReal lId
-                                 ,typeDeclaration SReal hId
-                                 ,typePtrDeclaration (SMeasure SReal) mId]
-                                 (seqCStat [assW (CVar mId)
-                                           ,assS (CVar lId) (CVar hId) (CVar mId)])
-  in \loc -> do
-       reserveName "uniform"
-       (aId:bId:mId:[]) <- replicateM 3 genIdent
-       extDeclare . CFunDefExt $ func aId bId mId
-       putExprStat $ CCall (CVar funcId) [aE,bE,loc]
+  \loc -> do
+    reserveName "uniform"
+    extDeclare . CFunDefExt $ uniformFun
+    putExprStat $ CCall (CVar . Ident $ "uniform") [aE,bE,loc]
 
 
 {-
   This is very cryptic, but I assure you it is only building an AST for the
   Marsaglia Polar Method
--}  
+-}
+
+normalFun :: CFunDef
+normalFun = CFunDef [CTypeSpec CVoid]
+                    (CDeclr Nothing [CDDeclrIdent (Ident "normal")])
+                    [typeDeclaration SReal aId
+                    ,typeDeclaration SProb bId
+                    ,typePtrDeclaration (SMeasure SReal) mId]
+                    (CCompound $ decls ++ stmts)
+
+  where r      = CCast doubleDecl rand
+        rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+        (aId,aE) = let ident = Ident "a" in (ident,CVar ident)
+        (bId,bE) = let ident = Ident "b" in (ident,CVar ident)
+        (qId,qE) = let ident = Ident "q" in (ident,CVar ident)
+        (uId,uE) = let ident = Ident "u" in (ident,CVar ident)
+        (vId,vE) = let ident = Ident "v" in (ident,CVar ident)
+        (rId,rE) = let ident = Ident "r" in (ident,CVar ident)
+        (mId,mE) = let ident = Ident "mdata" in (ident,CVar ident)
+        draw xE = CExpr . Just $ xE .=. (((r ./. rMax) .*. (floatE 2)) .-. (floatE 1))
+        body = seqCStat [draw uE
+                        ,draw vE
+                        ,CExpr . Just $ qE .=. ((uE .*. uE) .+. (vE .*. vE))]
+        polar = CWhile (qE .>. (floatE 1)) body True
+        setR  = CExpr . Just $ rE .=. (sqrt (((CUnary CMinOp (floatE 2)) .*. log qE) ./. qE))
+        finalValue = aE .+. (uE .*. rE .*. bE)
+        decls = fmap (CBlockDecl . typeDeclaration SReal) [uId,vId,qId,rId]
+        stmts = fmap CBlockStat [polar,setR, assW, assS,CReturn Nothing]
+        assW = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
+        assS = CExpr . Just $ mdataPtrSample mE .=. finalValue
+
+
 normalCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 normalCG aE bE =
-  let r      = CCast doubleDecl rand
-      rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
-      funcId = Ident "normal"
-      draw xE = CExpr . Just $ xE .=. (((r ./. rMax) .*. (floatE 2)) .-. (floatE 1))
-      condition qE = qE .>. (floatE 1)
-      body qE uE vE = seqCStat [draw uE
-                               ,draw vE
-                               ,CExpr . Just $ qE .=. ((uE .*. uE) .+. (vE .*. vE))]
-      polar qE uE vE = CWhile (condition qE) (body qE uE vE) True
-      setR rE qE = CExpr . Just $ rE .=. (sqrt (((CUnary CMinOp (floatE 2)) .*. log qE) ./. qE))
-      finalValue aE bE rE uE = aE .+. (uE .*. rE .*. bE)
-      decls u v q r = fmap (CBlockDecl . typeDeclaration SReal) [u,v,q,r]
-      alls aE bE qE uE vE rE mE = fmap CBlockStat [polar qE uE vE,setR rE qE, assW mE, assS aE bE rE uE mE]
-      assW m = CExpr . Just $ mdataPtrWeight m .=. (floatE 0)
-      assS aE bE rE uE mE = CExpr . Just $ mdataPtrSample mE .=. (finalValue aE bE rE uE)
-      func aId bId uId vId qId rId mId =
-        CFunDef [CTypeSpec CVoid]
-                (CDeclr Nothing [CDDeclrIdent funcId])
-                [typeDeclaration SReal aId
-                ,typeDeclaration SProb bId
-                ,typePtrDeclaration (SMeasure SReal) mId]
-                (CCompound $ decls uId vId qId rId
-                          ++ alls (CVar aId) (CVar bId) (CVar qId) (CVar uId) (CVar vId) (CVar rId) (CVar mId))
-  in \loc -> do
-       reserveName "normal"
-       (aId:bId:uId:vId:qId:rId:mId:[]) <- replicateM 7 genIdent
-       extDeclare . CFunDefExt $ func aId bId uId vId qId rId mId
-       putExprStat $ CCall (CVar funcId) [aE,bE,loc]
+  \loc -> do
+    reserveName "normal"
+    extDeclare . CFunDefExt $ normalFun
+    putExprStat $ CCall (CVar . Ident $ "normal") [aE,bE,loc]
+
+{-
+  This method is from Marsaglia and Tsang "a simple method for generating gamma variables"
+-}
+gammaFun :: CFunDef
+gammaFun = CFunDef [CTypeSpec CVoid]
+                   (CDeclr Nothing [CDDeclrIdent (Ident "gamma")])
+                   [typeDeclaration SProb aId
+                   ,typeDeclaration SProb bId
+                   ,typePtrDeclaration (SMeasure SProb) mId]
+                   (CCompound $ decls ++ stmts)
+  where (aId,aE) = let ident = Ident "a" in (ident,CVar ident)
+        (bId,bE) = let ident = Ident "b" in (ident,CVar ident)
+        (cId,cE) = let ident = Ident "c" in (ident,CVar ident)
+        (dId,dE) = let ident = Ident "d" in (ident,CVar ident)
+        (xId,xE) = let ident = Ident "x" in (ident,CVar ident)
+        (vId,vE) = let ident = Ident "v" in (ident,CVar ident)
+        (uId,uE) = let ident = Ident "u" in (ident,CVar ident)
+        (mId,mE) = let ident = Ident "mdata" in (ident,CVar ident)
+        decls = fmap CBlockDecl $ (fmap (typeDeclaration SReal) [dId,cId,vId])
+                               ++ (fmap (typeDeclaration (SMeasure SReal)) [uId,xId])
+        stmts = fmap CBlockStat $ [assD,assC,outerWhile]
+        xS = mdataSample xE
+        uS = mdataSample uE
+        assD = CExpr . Just $ dE .=. (aE .-. ((floatE 1) ./. (floatE 3)))
+        assC = CExpr . Just $ cE .=. ((floatE 1) ./. (sqrt ((floatE 9) .*. dE)))
+        outerWhile = CWhile (intE 1) (seqCStat [innerWhile,assV,assU,exit]) False
+        innerWhile = CWhile (vE .<=. (floatE 0)) (seqCStat [assX,assVIn]) True
+        assX = CExpr . Just $ CCall (CVar . Ident $ "normal") [(floatE 0),(floatE 1),address xE]
+        assVIn = CExpr . Just $ vE .=. ((floatE 1) .+. (cE .*. xS))
+        assV = CExpr . Just $ vE .=. (vE .*. vE .*. vE)
+        assU = CExpr . Just $ CCall (CVar . Ident $ "uniform") [(floatE 0),(floatE 1),address uE]
+        exitC1 = uS .<. ((floatE 1) .-. ((floatE 0.331 .*. (xS .*. xS) .*. (xS .*. xS))))
+        exitC2 = (log uS) .<. (((floatE 0.5) .*. (xS .*. xS)) .+. (dE .*. ((floatE 1.0) .-. vE .+. (log vE))))
+        assW = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
+        assS = CExpr . Just $ mdataPtrSample mE .=. (log (dE .*. vE .*. bE))
+        exit = CIf (exitC1 .||. exitC2) (seqCStat [assW,assS,CReturn Nothing]) Nothing
+
+
+gammaCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
+gammaCG aE bE =
+  \loc -> do
+     extDeclare $ mdataStruct SReal
+     mapM_ reserveName ["uniform","normal","gamma"]
+     mapM_ (extDeclare . CFunDefExt) [uniformFun,normalFun,gammaFun]
+     putExprStat $ CCall (CVar . Ident $ "gamma") [aE,bE,loc]
 
 
 flattenMeasureOp
@@ -1026,31 +1084,14 @@ flattenMeasureOp Normal  =
 flattenMeasureOp Gamma =
   \(a :* b :* End) ->
     \loc ->
-      do tempIds <- replicateM 5 genIdent
-         mapM_ (declare SReal) tempIds
-         let (dE:cE:xE:vE:uE:[]) = map CVar tempIds
-
-         argIds@(aId:bId:[]) <- replicateM 2 genIdent
-         declare SProb aId
-         declare SProb bId
-         let (aE:bE:[]) = map CVar argIds
+      do (aId:bId:[]) <- replicateM 2 genIdent
+         let aE = CVar aId
+             bE = CVar bId
+         declare SReal aId
+         declare SReal bId
          flattenABT a aE
          flattenABT b bE
-
-         putExprStat $ dE .=. ((expm1 aE .+. (intE 1)) .-. ((floatE 1) ./. (floatE 3)))
-         putExprStat $ cE .=. ((floatE 1) ./. (sqrt ((floatE 9) .*. dE)))
-
-         let cond1 = uE .>=. (floatE 1) .-. (floatE 0.331) .*. (xE .*. xE) .*. (xE .*. xE)
-             cond2 = log uE .>=. (floatE 0.5) .*. (xE .*. xE) .+. dE .*. ((floatE 1) .-. vE .+. (log vE))
-         doWhileCG (cond1 .&&. cond2) $ do
-           doWhileCG (vE .<=. (floatE 0)) $ do
-             flattenABT ((normal (real_ 0) (prob_ 1)) :: abt '[] ('HMeasure 'HReal)) xE
-             putExprStat $ vE .=. ((floatE 1) .+. (cE .*. xE))
-           putExprStat $ vE .=. (vE .*. vE .*. vE)
-           flattenABT ((uniform (real_ 0) (real_ 1)) :: abt '[] ('HMeasure 'HReal)) uE
-
-         putExprStat $ mdataPtrWeight loc .=. (floatE 0)
-         putExprStat $ mdataPtrSample loc .=. ((log dE) .+. (log vE) .+. bE)
+         gammaCG (exp aE) (exp bE) loc
 
 
 flattenMeasureOp Beta =

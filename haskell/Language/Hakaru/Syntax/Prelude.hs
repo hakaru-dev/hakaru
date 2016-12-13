@@ -1475,7 +1475,7 @@ beta' a b =
 
 beta'' a b =
     gamma a (prob_ 1) >>= \x ->
-    gamma b (prob_ 2) >>= \y ->
+    gamma b (prob_ 1) >>= \y ->
     dirac (x / (x+y))
 
 plateWithVar
