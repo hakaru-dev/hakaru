@@ -942,13 +942,16 @@ uniformFun = CFunDef [CTypeSpec CVoid]
                      [typeDeclaration SReal loId
                      ,typeDeclaration SReal hiId
                      ,typePtrDeclaration (SMeasure SReal) mId]
-                     (seqCStat [assW,assS,CReturn Nothing])
+                     (seqCStat $ comment ++[assW,assS,CReturn Nothing])
   where r          = CCast doubleDecl rand
         rMax       = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
         (mId,mE)   = let ident = Ident "mdata" in (ident,CVar ident)
         (loId,loE) = let ident = Ident "lo" in (ident,CVar ident)
         (hiId,hiE) = let ident = Ident "hi" in (ident,CVar ident)
         value      = (loE .+. ((r ./. rMax) .*. (hiE .-. loE)))
+        comment = fmap CComment
+          ["uniform :: real -> real -> *(mdata real) -> ()"
+          ,"------------------------------------------------"]
         assW       = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
         assS       = CExpr . Just $ mdataPtrSample mE .=. value
         funcId     = Ident "uniform"
@@ -973,7 +976,7 @@ normalFun = CFunDef [CTypeSpec CVoid]
                     [typeDeclaration SReal aId
                     ,typeDeclaration SProb bId
                     ,typePtrDeclaration (SMeasure SReal) mId]
-                    (CCompound $ decls ++ stmts)
+                    (CCompound $ comment ++ decls ++ stmts)
 
   where r      = CCast doubleDecl rand
         rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
@@ -991,6 +994,10 @@ normalFun = CFunDef [CTypeSpec CVoid]
         polar = CWhile (qE .>. (floatE 1)) body True
         setR  = CExpr . Just $ rE .=. (sqrt (((CUnary CMinOp (floatE 2)) .*. log qE) ./. qE))
         finalValue = aE .+. (uE .*. rE .*. bE)
+        comment = fmap (CBlockStat . CComment)
+          ["normal :: real -> prob -> *(mdata real) -> ()"
+          ,"Marsaglia Polar Method"
+          ,"-----------------------------------------------"]
         decls = fmap (CBlockDecl . typeDeclaration SReal) [uId,vId,qId,rId]
         stmts = fmap CBlockStat [polar,setR, assW, assS,CReturn Nothing]
         assW = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
@@ -1013,7 +1020,7 @@ gammaFun = CFunDef [CTypeSpec CVoid]
                    [typeDeclaration SProb aId
                    ,typeDeclaration SProb bId
                    ,typePtrDeclaration (SMeasure SProb) mId]
-                   (CCompound $ decls ++ stmts)
+                   (CCompound $ comment ++ decls ++ stmts)
   where (aId,aE) = let ident = Ident "a" in (ident,CVar ident)
         (bId,bE) = let ident = Ident "b" in (ident,CVar ident)
         (cId,cE) = let ident = Ident "c" in (ident,CVar ident)
@@ -1022,6 +1029,10 @@ gammaFun = CFunDef [CTypeSpec CVoid]
         (vId,vE) = let ident = Ident "v" in (ident,CVar ident)
         (uId,uE) = let ident = Ident "u" in (ident,CVar ident)
         (mId,mE) = let ident = Ident "mdata" in (ident,CVar ident)
+        comment = fmap (CBlockStat . CComment)
+          ["gamma :: prob -> prob -> *(mdata prob) -> ()"
+          ,"Marsaglia and Tsang 'a simple method for generating gamma variables'"
+          ,"--------------------------------------------------------------------"]
         decls = fmap CBlockDecl $ (fmap (typeDeclaration SReal) [dId,cId,vId])
                                ++ (fmap (typeDeclaration (SMeasure SReal)) [uId,xId])
         stmts = fmap CBlockStat $ [assD,assC,outerWhile]
