@@ -1,0 +1,80 @@
+# hello2.hk
+fn x array(real):
+ summate i from 0 to size(x): x[i]
+ *
+ prob2real(recip(nat2prob(size(x) + 1)))
+
+
+# gmm_gibbs.hk
+fn as array(prob):
+ fn z array(nat):
+  fn t array(real):
+   fn docUpdate nat:
+    array zNew of size(as):
+     exp((summate _b from 0 to size(as):
+           (summate i from 0 to size(t):
+             if _b == if i == docUpdate: zNew
+                      else: z[i]:
+              t[i]
+             else: 0) ^ 2
+           *
+           prob2real(recip(nat2prob(1 + summate i from 0 to size(t):
+                                         if _b == if i == docUpdate: zNew
+                                                  else: z[i]:
+                                          1
+                                         else: 0))))
+         / 2)
+     /
+     sqrt(nat2prob(product _a from 0 to size(as):
+                    (2 + 2 * summate _b from 0 to size(t):
+                              if _a == if _b == docUpdate: zNew
+                                       else: z[_b]:
+                               1
+                              else: 0)))
+     *
+     (nat2prob(summate _b from 0 to size(t):
+                if _b == docUpdate: 0 else: if zNew == z[_b]: 1 else: 0)
+      + as[zNew])
+     /
+     (nat2prob(summate _b from 0 to size(t):
+                if _b == docUpdate: 0 else: if z[_b] < 0: 0 else: 1)
+      + summate _b from 0 to size(as): as[_b])
+
+# naive_bayes_gibbs.hk
+fn topic_prior array(prob):
+ fn word_prior array(prob):
+  fn z array(nat):
+   fn w array(nat):
+    fn doc array(nat):
+     fn docUpdate nat:
+      array zNew of size(topic_prior):
+       product k from 0 to size(topic_prior):
+        product i from 0 to size(word_prior):
+         product j from 0 to summate j from 0 to size(w):
+                              if doc[j] == docUpdate:
+                               if k == zNew && i == w[j]: 1 else: 0
+                              else: 0:
+          (nat2prob(summate j from 0 to size(w):
+                     if doc[j] == docUpdate: 0
+                     else: if k == z[doc[j]] && i == w[j]: 1 else: 0)
+           + nat2prob(j)
+           + word_prior[i])
+       *
+       (nat2prob(summate j from 0 to size(z):
+                  if j == docUpdate: 0 else: if zNew == z[j]: 1 else: 0)
+        + topic_prior[zNew])
+       /
+       (nat2prob(summate j from 0 to size(z):
+                  if j == docUpdate: 0 else: if z[j] < 0: 0 else: 1)
+        + summate j from 0 to size(topic_prior): topic_prior[j])
+       /
+       product k from 0 to size(topic_prior):
+        product j from 0 to summate j from 0 to size(w):
+                             if doc[j] == docUpdate:
+                              if 0 <= w[j] && k == zNew: 1 else: 0
+                             else: 0:
+         (nat2prob(summate j from 0 to size(w):
+                    if doc[j] == docUpdate: 0
+                    else: if 0 <= w[j] && k == z[doc[j]]: 1 else: 0)
+          + nat2prob(j)
+          + summate j from 0 to size(word_prior): word_prior[j])
