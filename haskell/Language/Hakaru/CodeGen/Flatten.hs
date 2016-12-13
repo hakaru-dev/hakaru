@@ -206,7 +206,8 @@ flattenSCon (Summate _ sr) =
            let semiT = sing_HSemiring sr
            declare semiT accI
            assign accI (case semiT of
-                          SProb -> intE 1
+                          SProb -> negInfinityE
+                          SReal -> floatE 0
                           _     -> intE 0)
 
            let accVar  = CVar accI
@@ -223,7 +224,9 @@ flattenSCon (Summate _ sr) =
                 declare (typeOf body') tmpId
                 let tmpE = CVar tmpId
                 flattenABT body' tmpE
-                putStat . CExpr . Just $ (accVar .+=. tmpE)
+                case semiT of
+                  SProb -> logSumExpCG (S.fromList [accVar,tmpE]) accVar
+                  _     -> putStat . CExpr . Just $ (accVar .+=. tmpE)
 
            putExprStat (loc .=. accVar)
 
@@ -247,7 +250,10 @@ flattenSCon (Product _ sr) =
            accI <- genIdent' "acc"
            let semiT = sing_HSemiring sr
            declare semiT accI
-           assign accI (log (intE 0))
+           assign accI (case semiT of
+                          SProb -> floatE 0
+                          SReal -> floatE 1
+                          _     -> intE 1)
 
            let accVar  = CVar accI
                iterVar = CVar iterI

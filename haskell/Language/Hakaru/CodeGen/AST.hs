@@ -31,7 +31,7 @@ module Language.Hakaru.CodeGen.AST
   , (.>=.),(.<=.)
   , seqCStat
   , indirect, address, intE, floatE, stringE, mkUnary
-  , exp, expm1, log, log1p, sqrt, rand
+  , exp, expm1, log, log1p, sqrt, rand, infinityE, negInfinityE
   ) where
 
 import Prelude hiding (exp,log,sqrt)
@@ -368,6 +368,10 @@ expm1 = mkUnary "expm1"
 log   = mkUnary "log"
 log1p = mkUnary "log1p"
 sqrt  = mkUnary "sqrt"
+
+infinityE,negInfinityE :: CExpr
+infinityE    = (intE 1) ./. (intE 0)
+negInfinityE = log (intE 0)
 
 --------------
 -- stdlib.h --
