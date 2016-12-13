@@ -995,7 +995,7 @@ normalFun = CFunDef [CTypeSpec CVoid]
         setR  = CExpr . Just $ rE .=. (sqrt (((CUnary CMinOp (floatE 2)) .*. log qE) ./. qE))
         finalValue = aE .+. (uE .*. rE .*. bE)
         comment = fmap (CBlockStat . CComment)
-          ["normal :: real -> prob -> *(mdata real) -> ()"
+          ["normal :: real -> real -> *(mdata real) -> ()"
           ,"Marsaglia Polar Method"
           ,"-----------------------------------------------"]
         decls = fmap (CBlockDecl . typeDeclaration SReal) [uId,vId,qId,rId]
@@ -1030,7 +1030,7 @@ gammaFun = CFunDef [CTypeSpec CVoid]
         (uId,uE) = let ident = Ident "u" in (ident,CVar ident)
         (mId,mE) = let ident = Ident "mdata" in (ident,CVar ident)
         comment = fmap (CBlockStat . CComment)
-          ["gamma :: prob -> prob -> *(mdata prob) -> ()"
+          ["gamma :: real -> prob -> *(mdata prob) -> ()"
           ,"Marsaglia and Tsang 'a simple method for generating gamma variables'"
           ,"--------------------------------------------------------------------"]
         decls = fmap CBlockDecl $ (fmap (typeDeclaration SReal) [dId,cId,vId])
@@ -1049,7 +1049,7 @@ gammaFun = CFunDef [CTypeSpec CVoid]
         exitC1 = uS .<. ((floatE 1) .-. ((floatE 0.331 .*. (xS .*. xS) .*. (xS .*. xS))))
         exitC2 = (log uS) .<. (((floatE 0.5) .*. (xS .*. xS)) .+. (dE .*. ((floatE 1.0) .-. vE .+. (log vE))))
         assW = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
-        assS = CExpr . Just $ mdataPtrSample mE .=. (log (dE .*. vE .*. bE))
+        assS = CExpr . Just $ mdataPtrSample mE .=. (log (dE .*. vE)) .+. bE
         exit = CIf (exitC1 .||. exitC2) (seqCStat [assW,assS,CReturn Nothing]) Nothing
 
 
@@ -1108,7 +1108,7 @@ flattenMeasureOp Gamma =
          declare SReal bId
          flattenABT a aE
          flattenABT b bE
-         gammaCG (exp aE) (exp bE) loc
+         gammaCG (exp aE) bE loc
 
 
 flattenMeasureOp Beta =
