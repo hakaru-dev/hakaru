@@ -595,7 +595,7 @@ Hakaru := module ()
          Or(
            'known_continuous', 'known_discrete',
            t_pw, #Needs to be more specific!
-           specfunc(Partition), #Appropriate to put this here?
+           specfunc(PARTITION), #Appropriate to put this here?
            t_case,
           'Ret(anything)',
           'Bind(t_Hakaru, name, t_Hakaru)',

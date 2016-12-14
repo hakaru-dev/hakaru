@@ -29,9 +29,9 @@ local
    ModuleLoad:= proc()
       :-`print/PARTITION`:= proc(SetOfRecords)
       local branch;
-         #This %piecewise doesn't work like I hoped; needs work. For now, at least
-         #it prints something meaningful. 
-         %piecewise(
+         #Don't know why `print/` is needed below. I hoped simply %piecewise(...) would
+         #work.
+         `print/%piecewise`(
             seq([eval(branch):-cond, eval(branch):-val][], branch= SetOfRecords)
             #I don't know why the eval's are needed above; they aren't in non-print
             #procedures.
