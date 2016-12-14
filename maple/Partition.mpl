@@ -1,15 +1,16 @@
 #This module implements `Partition`---Hakaru's replacement for Maple's 
 #endogenous and unwieldy `piecewise`.
 
-#The outer data structure for a Partition is a function, just like it is for 
-#piecewise.
+#The outer data structure for a Partition is a function, PARTITION(...), (just like it
+#is for piecewise.
 
 Partition:= module()
 #This module is essentially an object, but we decided, for now at least, to not
 #use Maple's "option object".
 local
-   #The object's (internal) constructor
-   Partition::static:= proc(
+   #The object's (internal) constructor. This just checks the argument types and
+   #returns unevaluated.
+   PARTITION::static:= proc(
       Pairs::set(
          record(
             #The type `anything` below should be some boolean type, but we'll 
@@ -19,24 +20,40 @@ local
             val::t_Hakaru
             #Is that inclusive enough?
          )
-      )
-   )::specfunc('Partition');
+      ),
+      $ #no optional arguments, for now at least
+   )::specfunc(procname);
      'procname'(_passed)
-  end proc
+   end proc,
+
+   ModuleLoad:= proc()
+      :-`print/PARTITION`:= proc(SetOfRecords)
+      local branch;
+         #This %piecewise doesn't work like I hoped; needs work. For now, at least
+         #it prints something meaningful. 
+         %piecewise(
+            seq([eval(branch):-cond, eval(branch):-val][], branch= SetOfRecords)
+            #I don't know why the eval's are needed above; they aren't in non-print
+            #procedures.
+         )
+      end proc
+   end proc
 ;
 export
    #This is the exported lazy-syntax constructor.
    ModuleApply::static:= proc(Pairs::seq([anything, t_Hakaru]))
-      ::specfunc('Partition');
-   local pair;
-      Partition({seq(Record('cond'= pair[1], 'val'= pair[2]), pair= [Pairs])})
+      ::specfunc(PARTITION);
+   local pair, s;
+      s:= {seq(Record('cond'= pair[1], 'val'= pair[2]), pair= [Pairs])};
+      userinfo(3, PARTITION, s); 
+      PARTITION(s)
    end proc, 
 
    #This is just `map` for Partitions.
    Pmap::static:= proc(
-      f::appliable
+      f::anything #`appliable` not inclusive enough. 
       #Allow additional args, just like `map`
-   )::specfunc('Partition');
+   )::specfunc(PARTITION);
    local pair,pos;
       if procname::indexed then
          pos:= op(procname);
@@ -49,18 +66,19 @@ export
       if nargs <= pos then
          error "Expected at least %1 arguments; received %2", pos+1, nargs
       end if;
-      if not args[pos+1]::specfunc('Partition') then
+      if not args[pos+1]::specfunc(PARTITION) then
          error "Expected a Partition; received %1", args[pos+1]
       end if;         
-      Partition(
+      PARTITION(
          {seq(
             Record(
                'cond'= pair:-cond,
                'val'= f(args[2..pos], pair:-val, args[pos+2..])
             ),
-            pair= args[pos+1]
+            pair= op(args[pos+1])
          )}
       )
    end proc
 ;
+   ModuleLoad()
 end module: 
