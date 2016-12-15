@@ -38,8 +38,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum hiding (Ident)
-import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Prelude (beta'',normal,uniform,prob_,real_)
+import qualified Language.Hakaru.Syntax.Prelude as HKP
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Coercion
@@ -62,6 +61,10 @@ import           Data.Functor
 import Prelude hiding (log,exp,sqrt)
 
 
+opComment :: String -> CStat
+opComment opStr = CComment $ concat [space," ",opStr," ",space]
+  where size  = (50 - (length opStr)) `div` 2 - 8
+        space = replicate size '-'
 
 --------------------------------------------------------------------------------
 --                                 Top Level                                  --
@@ -136,50 +139,50 @@ flattenSCon Let_ =
            flattenABT body' loc
 
 -- Lambdas produce functions and then return a function pointer
-flattenSCon Lam_ =
-  \(body :* End) -> undefined
-    -- \loc ->
-    --   do coalesceLambda body $ \vars body' ->
-    --      let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
-    --      in  do funcId <- genIdent' "fn"
-    --             argDecls <- sequence varMs
+flattenSCon Lam_ = undefined
+  -- \(body :* End) ->
+  --   \loc ->
+  --     do coalesceLambda body $ \vars body' ->
+  --        let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+  --        in  do funcId <- genIdent' "fn"
+  --               argDecls <- sequence varMs
 
-    --             cg <- get
-    --             let m       = putStat . CReturn . Just =<< flattenABT body'
-    --                 (_,cg') = runState m $ cg { statements = []
-    --                                           , declarations = [] }
-    --             put $ cg' { statements   = statements cg
-    --                       , declarations = declarations cg }
+  --               cg <- get
+  --               let m       = putStat . CReturn . Just =<< flattenABT body'
+  --                   (_,cg') = runState m $ cg { statements = []
+  --                                             , declarations = [] }
+  --               put $ cg' { statements   = statements cg
+  --                         , declarations = declarations cg }
 
-    --             extDeclare . CFunDefExt $ functionDef (typeOf body')
-    --                                                   funcId
-    --                                                   argDecls
-    --                                                   (reverse $ declarations cg')
-    --                                                   (reverse $ statements cg')
-  -- do at top level
-  where coalesceLambda
-          :: ( ABT Term abt )
-          => abt '[x] a
-          -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
-          -> r
-        coalesceLambda abt k =
-          caseBind abt $ \v abt' ->
-            caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
-              case term of
-                (Lam_ :$ body :* End) ->
-                  coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
-                _ -> k (Cons1 v Nil1) abt'
+  --               extDeclare . CFunDefExt $ functionDef (typeOf body')
+  --                                                     funcId
+  --                                                     argDecls
+  --                                                     (reverse $ declarations cg')
+  --                                                     (reverse $ statements cg')
+  -- -- do at top level
+  -- where coalesceLambda
+  --         :: ( ABT Term abt )
+  --         => abt '[x] a
+  --         -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
+  --         -> r
+  --       coalesceLambda abt k =
+  --         caseBind abt $ \v abt' ->
+  --           caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
+  --             case term of
+  --               (Lam_ :$ body :* End) ->
+  --                 coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
+  --               _ -> k (Cons1 v Nil1) abt'
 
-        mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
-        mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
-        mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
-        mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
-        mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
-        mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
-                                                       return $ arrayDeclaration t i
-        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
-                                                          return $ datumDeclaration d i
-        mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
+  --       mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
+  --       mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
+  --       mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
+  --       mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
+  --       mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
+  --       mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
+  --                                                      return $ arrayDeclaration t i
+  --       mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
+  --                                                         return $ datumDeclaration d i
+  --       mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
 
 
 flattenSCon (PrimOp_ op) = flattenPrimOp op
@@ -214,6 +217,7 @@ flattenSCon (Summate _ sr) =
                iterVar = CVar iterI
 
 
+           putStat $ opComment "Summate"
            -- logSumExp for probabilities
            reductionCG CAddOp
                        accI
@@ -258,7 +262,7 @@ flattenSCon (Product _ sr) =
            let accVar  = CVar accI
                iterVar = CVar iterI
 
-
+           putStat $ opComment "Product"
            reductionCG (case semiT of
                           SProb -> CAddOp
                           _     -> CMulOp)
@@ -434,10 +438,10 @@ flattenNAryOp op args =
                   _ <- flattenABT a aE
                   return aE
        case op of
-         And -> boolNaryOp op "and" es loc
-         Or  -> boolNaryOp op "or"  es loc
-         Xor -> boolNaryOp op "xor" es loc
-         Iff -> boolNaryOp op "iff" es loc
+         And -> boolNaryOp op es loc
+         Or  -> boolNaryOp op es loc
+         Xor -> boolNaryOp op es loc
+         Iff -> boolNaryOp op es loc
 
          (Sum HSemiring_Prob) -> logSumExpCG es loc
 
@@ -445,7 +449,7 @@ flattenNAryOp op args =
               in  putExprStat (loc .=. opE)
 
 
-  where boolNaryOp op' str es' loc' =
+  where boolNaryOp op' es' loc' =
           let indexOf x = CMember x (Ident "index") True
               es''      = fmap indexOf es'
               expr      = F.foldr (binaryOp op')
@@ -569,6 +573,7 @@ flattenArray arity body =
          let itE     = CVar itId
              currInd = indirect (dataE .+. itE)
 
+         putStat $ opComment "Create Array"
          forCG (itE .=. (intE 0))
                (itE .<. arityE)
                (CUnary CPostIncOp itE)
@@ -612,8 +617,8 @@ flattenArrayOp (Size _)   =
          flattenABT arr arrE
          putExprStat (loc .=. (CMember arrE (Ident "size") True))
 
-flattenArrayOp (Reduce _) =
-  \(fun :* base :* arr :* End) -> undefined
+flattenArrayOp (Reduce _) = error "TODO: flattenArrayOp"
+  -- \(fun :* base :* arr :* End) ->
   -- do funE  <- flattenABT fun
   --    baseE <- flattenABT base
   --    arrE  <- flattenABT arr
@@ -733,7 +738,7 @@ assignProd' _ _ _  = error $ "TODO: assignProd Ident"
 
 -- currently we can only match on boolean values
 flattenCase
-  :: forall abt a b k
+  :: forall abt a b
   .  (ABT Term abt)
   => abt '[] a
   -> [Branch a abt b]
@@ -784,7 +789,9 @@ flattenPrimOp Pi =
 
 flattenPrimOp Not =
   \(a :* End) ->
-    \loc ->
+    \_ ->
+      -- this is currently incorrect, need to use memcpy to preserve value of
+      -- 'a'
       do tmpId <- genIdent' "not"
          declare sBool tmpId
          let tmpE = CVar tmpId
@@ -795,37 +802,37 @@ flattenPrimOp Not =
                                              (intE 1))
 
 flattenPrimOp RealPow =
-  \(base :* exponent :* End) ->
+  \(base :* power :* End) ->
     \loc ->
       do baseId <- genIdent
-         exponentId <- genIdent
+         powerId <- genIdent
          declare SProb baseId
-         declare SReal exponentId
+         declare SReal powerId
          let baseE     = CVar baseId
-             exponentE = CVar exponentId
+             powerE = CVar powerId
          flattenABT base baseE -- first argument is a Prob
-         flattenABT exponent exponentE
+         flattenABT power powerE
          let realPow = CCall (CVar . Ident $ "pow")
-                             [ expm1 baseE .+. (intE 1), exponentE]
+                             [ expm1 baseE .+. (intE 1), powerE]
          putExprStat $ loc .=. (log1p (realPow .-. (intE 1)))
 
 flattenPrimOp (NatPow baseTyp) =
-  \(base :* exponent :* End) ->
+  \(base :* power :* End) ->
     \loc ->
       let sBase = sing_HSemiring baseTyp in
       do baseId <- genIdent
-         exponentId <- genIdent
+         powerId <- genIdent
          declare sBase baseId
-         declare SReal exponentId
+         declare SReal powerId
          let baseE     = CVar baseId
-             exponentE = CVar exponentId
+             powerE = CVar powerId
          flattenABT base baseE
-         flattenABT exponent exponentE
+         flattenABT power powerE
          let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
              value = case sBase of
-                       SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) exponentE)
+                       SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) powerE)
                                   .-. (intE 1)
-                       _     -> powerOf baseE exponentE
+                       _     -> powerOf baseE powerE
          putExprStat $ loc .=. value
 
 flattenPrimOp (NatRoot baseTyp) =
@@ -1112,7 +1119,7 @@ flattenMeasureOp Gamma =
 
 
 flattenMeasureOp Beta =
-  \(a :* b :* End) -> flattenABT (beta'' a b)
+  \(a :* b :* End) -> flattenABT (HKP.beta'' a b)
 
 
 flattenMeasureOp Categorical = \(arr :* End) ->
