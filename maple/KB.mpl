@@ -744,8 +744,7 @@ KB := module ()
     #Unlike `piecewise`, the conditions in a Partition are necessarily
     #disjoint, so the `update` used in kb_piecewise isn't needed. We may
     #simply `assert` the condition (i.e., roll it into the kb) without
-    #needing to `assert` the negation of all previous conditions. (Is that 
-    #correct? or should it `assert` the negation of all _other_ conditions?)
+    #needing to `assert` the negation of all previous conditions.
     Partition(
       seq(
          (kb0-> doIf(br[1], kb0), doThen(br[2], kb0))(assert(br[1], kb)),
