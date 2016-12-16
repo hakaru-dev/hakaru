@@ -96,7 +96,7 @@ export
       f::anything #`appliable` not inclusive enough. 
       #Allow additional args, just like `map`
    )::Partition;
-   local pair,pos;
+   local pair,pos,res;
       res := map_check(procname, args);
       if res::string then error res else pos := res; end if;
       PARTITION(
@@ -108,6 +108,25 @@ export
             pair= op(args[pos+1])
          )}
       )
+   end proc,
+
+   # a more complex mapping combinator which works on all 3 parts
+   # not fully general, but made to work with KB
+   # also, does not handle extra arguments (on purpose!)
+   Amap::static:= proc(
+      funcs::[anything, anything, anything], #`appliable` not inclusive enough. 
+      part::Partition,
+      kb
+   )::Partition;
+   local pair,pos,f,g,h,doIt;
+      (f,g,h) := op(funcs);
+      #sigh, we don't have a decent 'let', need to use a local proc
+      doIt := proc(pair)
+        local kb0 := h(pair:-cond, kb); 
+        Record('cond' = f(pair:-cond, kb0), 
+               'val' = g(pair:-val, kb0));
+      end proc;
+      PARTITION(map(doIt,op(1,part)));
    end proc
 
 ;

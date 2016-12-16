@@ -745,12 +745,14 @@ KB := module ()
     #disjoint, so the `update` used in kb_piecewise isn't needed. We may
     #simply `assert` the condition (i.e., roll it into the kb) without
     #needing to `assert` the negation of all previous conditions.
-    Partition(
-      seq(
-         (kb0-> doIf(br[1], kb0), doThen(br[2], kb0))(assert(br[1], kb)),
-         br= Partition:-Pairs(e)
-      )  
-    )  
+    
+    #Partition(
+    #  seq(
+    #     (kb0-> doIf(br[1], kb0), doThen(br[2], kb0))(assert(br[1], kb)),
+    #     br= Partition:-Pairs(e)
+    #  )  
+    #)  
+    Amap([doIf,doThen,assert],e,kb);
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
