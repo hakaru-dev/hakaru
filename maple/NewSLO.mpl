@@ -210,7 +210,7 @@ NewSLO := module ()
       #For now at least, we simply code this as parallel to the elif m::t_pw 
       #paragraph above: thisproc is mapped over the branches and the 
       #conditions are unchanged.
-        and not depends(Partition:-ConditionsDepend(m), lhs~(loops)) then
+        and not Partition:-ConditionsDepend(m, lhs~(loops)) then
         Partition:-Pmap(thisproc, m)
     elif m :: t_case and not depends(op(1,m), map(lhs, loops)) then
       subsop(2=map(proc(b :: Branch(anything, anything))
@@ -362,13 +362,8 @@ NewSLO := module ()
     elif e :: Partition 
       #For now at least, we simply code this as parallel to the elif e::t_pw 
       #paragraph above.
-        and not depends(Partition:-Conditions(e), h) then
-        kb_Partition(
-          e, 
-          kb, 
-          ((lhs, kb)-> lhs),
-          ((rhs, kb)-> unintegrate(h, rhs, kb))
-        )  
+      and not Partition:-ConditionsDepend(e, h) then
+      kb_Partition(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)))  
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),

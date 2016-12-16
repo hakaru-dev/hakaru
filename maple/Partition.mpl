@@ -38,7 +38,7 @@ local
       NULL
    end proc,
 
-   ModuleUnload:= proc()
+   ModuleUnload::static:= proc()
       TypeTools:-RemoveType(Partition);
       NULL
    end proc,
@@ -49,18 +49,18 @@ local
       if p::indexed then
          pos:= op(p);
          if not [pos]::[posint] then
-            err := sprintf("Expected positive integer index; received %1", [pos]);
+            err := sprintf("Expected positive integer index; received %a", [pos]);
             return err;
          end if
       else
          pos:= 1
       end if;
       if nargs-1 <= pos then
-         err := sprintf("Expected at least %1 arguments; received %2", pos+1, nargs-1);
+         err := sprintf("Expected at least %d arguments; received %d", pos+1, nargs-1);
          return err;
       end if;
       if not args[pos+2]::Partition then
-         err := sprintf("Expected a Partition; received %1", args[pos+2]);
+         err := sprintf("Expected a Partition; received %a", args[pos+2]);
          return err;
       end if;
       return pos;
@@ -82,13 +82,13 @@ export
    #Deconstructor that returns just the conditions as a set
    Conditions::static:= proc(P::Partition)::set;
    local p;
-      {seq(p:-cond, p= op(P))}
+      {seq(p:-cond, p= op(1,P))}
    end proc,
 
    #Deconstructor that returns a set of [cond, val] pairs
    Pairs:= proc(P::Partition)::set([anything, t_Hakaru]);
    local p;
-      {seq([p:-cond, p:-val], p= op(P))}
+      {seq([p:-cond, p:-val], p= op(1,P))}
    end proc,
 
    #This is just `map` for Partitions.
@@ -105,7 +105,7 @@ export
                'cond'= pair:-cond,
                'val'= f(args[2..pos], pair:-val, args[pos+2..])
             ),
-            pair= op(args[pos+1])
+            pair= op(1, args[pos+1])
          )}
       )
    end proc,
@@ -127,8 +127,14 @@ export
                'val' = g(pair:-val, kb0));
       end proc;
       PARTITION(map(doIt,op(1,part)));
-   end proc
+   end proc,
 
+   #Check whether the conditions of a Partition depend on any of a set of names.
+   ConditionsDepend:= proc(P::Partition, V::{name, list(name), set(name)}, $)
+   local p;
+      for p in op(1,P) do if depends(p:-cond, V) then return true end if end do;
+      false
+   end proc
 ;
    ModuleLoad()
 end module: 
