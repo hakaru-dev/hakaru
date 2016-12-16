@@ -739,26 +739,19 @@ KB := module ()
   end proc;
 
   #For now at least, this procedure is parallel to kb_piecewise.
-  kb_Partition:= proc(
-    e::specfunc(Partition), 
-    kb::t_kb, 
-    doIf::appliable,
-    doThen::appliable,
-    $
-  )
+  kb_Partition:= proc(e::Partition, kb::t_kb, doIf, doThen, $)::Partition;
   local br;
     #Unlike `piecewise`, the conditions in a Partition are necessarily
     #disjoint, so the `update` used in kb_piecewise isn't needed. We may
     #simply `assert` the condition (i.e., roll it into the kb) without
     #needing to `assert` the negation of all previous conditions. (Is that 
     #correct? or should it `assert` the negation of all _other_ conditions?)
-    Partition({
+    Partition(
       seq(
-        (kb0-> Record('cond'= doIf(br:-cond, kb0), 'val'= doThen(br:-val, kb0)))
-        (assert(br:-cond, kb)),
-        br= op(e)
-      )   
-    })  
+         (kb0-> doIf(br[1], kb0), doThen(br[2], kb0))(assert(br[1], kb)),
+         br= Partition:-Pairs(e)
+      )  
+    )  
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive

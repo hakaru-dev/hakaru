@@ -22,38 +22,57 @@ local
          )
       ),
       $ #no optional arguments, for now at least
-   )::specfunc(procname);
+   )::Partition;
      'procname'(_passed)
    end proc,
 
-   ModuleLoad:= proc()
+   ModuleLoad::static:= proc()
       :-`print/PARTITION`:= proc(SetOfRecords)
       local branch;
-         #Don't know why `print/` is needed below. I hoped simply %piecewise(...) would
-         #work.
          `print/%piecewise`(
             seq([eval(branch):-cond, eval(branch):-val][], branch= SetOfRecords)
-            #I don't know why the eval's are needed above; they aren't in non-print
-            #procedures.
          )
-      end proc
-   end proc
+      end proc;
+
+      TypeTools:-AddType(Partition, specfunc(PARTITION));
+      NULL
+   end proc,
+
+   ModuleUnload:= proc()
+      TypeTools:-RemoveType(Partition);
+      NULL
+   end proc 
 ;
 export
-   #This is the exported lazy-syntax constructor.
-   ModuleApply::static:= proc(Pairs::seq([anything, t_Hakaru]))
-      ::specfunc(PARTITION);
-   local pair, s;
-      s:= {seq(Record('cond'= pair[1], 'val'= pair[2]), pair= [Pairs])};
+   #This is the exported lazy-syntax constructor. The syntax is like piecewise except
+   #that there can be no 'otherwise'.
+   ModuleApply::static:= proc(Terms::seq(anything))::Partition;
+   local pair, s, Pairs, k;
+      if nargs::odd then
+         error "Expected an even number of arguments"
+      end if;   
+      s:= {seq(Record('cond'= Terms[k], 'val'= Terms[k+1]), k= 1..nargs-1, 2)};
       userinfo(3, PARTITION, s); 
       PARTITION(s)
    end proc, 
+
+   #Deconstructor that returns just the conditions as a set
+   Conditions::static:= proc(P::Partition)::set;
+   local p;
+      {seq(p:-cond, p= op(P))}
+   end proc,
+
+   #Deconstructor that returns a set of [cond, val] pairs
+   Pairs:= proc(P::Partition)::set([anything, t_Hakaru]);
+   local p;
+      {seq([p:-cond, p:-val], p= op(P))}
+   end proc,
 
    #This is just `map` for Partitions.
    Pmap::static:= proc(
       f::anything #`appliable` not inclusive enough. 
       #Allow additional args, just like `map`
-   )::specfunc(PARTITION);
+   )::Partition;
    local pair,pos;
       if procname::indexed then
          pos:= op(procname);
@@ -66,7 +85,7 @@ export
       if nargs <= pos then
          error "Expected at least %1 arguments; received %2", pos+1, nargs
       end if;
-      if not args[pos+1]::specfunc(PARTITION) then
+      if not args[pos+1]::Partition then
          error "Expected a Partition; received %1", args[pos+1]
       end if;         
       PARTITION(

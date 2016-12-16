@@ -206,19 +206,12 @@ NewSLO := module ()
       n := nops(m);
       piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h, loops), op(i,m)),
                     i=1..n))
-    elif #Partition(...) 
+    elif m :: Partition 
       #For now at least, we simply code this as parallel to the elif m::t_pw 
       #paragraph above: thisproc is mapped over the branches and the 
       #conditions are unchanged.
-        m :: specfunc(Partition) and
-        not depends([seq(br:-cond, br= op(m))], lhs~(loops))
-      then
-        Partition({
-          seq(
-            Record('cond'= br:-cond, 'val'= thisproc(br:-val, args[2..])),
-            br= op(m)
-          )
-        })        
+        and not depends(Partition:-ConditionsDepend(m), lhs~(loops)) then
+        Partition:-Pmap(thisproc, m)
     elif m :: t_case and not depends(op(1,m), map(lhs, loops)) then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='integrate'(op(2,b), x, loops),b), x=h)
@@ -366,17 +359,15 @@ NewSLO := module ()
                        i=1..nops(e)-1, 2)) then
       kb_piecewise(e, kb, ((lhs, kb) -> lhs),
                           ((rhs, kb) -> unintegrate(h, rhs, kb)))
-    elif #Partition(...)
+    elif e :: Partition 
       #For now at least, we simply code this as parallel to the elif e::t_pw 
       #paragraph above.
-        e :: specfunc(Partition) and 
-        not depends([seq(br:-cond, br= op(e))], h)
-      then
+        and not depends(Partition:-Conditions(e), h) then
         kb_Partition(
           e, 
           kb, 
-          (lhs, kb)-> lhs,
-          (rhs, kb)-> unintegrate(h, rhs, kb)
+          ((lhs, kb)-> lhs),
+          ((rhs, kb)-> unintegrate(h, rhs, kb))
         )  
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
