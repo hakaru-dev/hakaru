@@ -11,6 +11,8 @@ specification of probabilistic models, and inference algorithms.
 
 Warning: this code is alpha and experimental.
 
+Contact us at ppaml@indiana.edu
+
 Documentation
 -------------
 Learn more at [hakaru-dev.github.io](http://hakaru-dev.github.io).

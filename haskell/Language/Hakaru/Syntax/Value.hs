@@ -102,5 +102,5 @@ enumFromUntilValue
     -> Value a
     -> Value a
     -> [Value a]
-enumFromUntilValue _ (VNat lo) (VNat hi) = map VNat (enumFromTo lo (pred hi))
-enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (enumFromTo lo (pred hi))
+enumFromUntilValue _ (VNat lo) (VNat hi) = map VNat (init (enumFromTo lo hi))
+enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (init (enumFromTo lo hi))
