@@ -41,7 +41,30 @@ local
    ModuleUnload:= proc()
       TypeTools:-RemoveType(Partition);
       NULL
-   end proc 
+   end proc,
+
+   # abstract out all argument checking for map-like functions
+   map_check := proc(p)
+      local pos, err;
+      if p::indexed then
+         pos:= op(p);
+         if not [pos]::[posint] then
+            err := sprintf("Expected positive integer index; received %1", [pos]);
+            return err;
+         end if
+      else
+         pos:= 1
+      end if;
+      if nargs-1 <= pos then
+         err := sprintf("Expected at least %1 arguments; received %2", pos+1, nargs-1);
+         return err;
+      end if;
+      if not args[pos+2]::Partition then
+         err := sprintf("Expected a Partition; received %1", args[pos+2]);
+         return err;
+      end if;
+      return pos;
+   end proc
 ;
 export
    #This is the exported lazy-syntax constructor. The syntax is like piecewise except
@@ -74,20 +97,8 @@ export
       #Allow additional args, just like `map`
    )::Partition;
    local pair,pos;
-      if procname::indexed then
-         pos:= op(procname);
-         if not [pos]::[posint] then
-            error "Expected positive integer index; received %1", [pos]
-         end if
-      else
-         pos:= 1
-      end if;
-      if nargs <= pos then
-         error "Expected at least %1 arguments; received %2", pos+1, nargs
-      end if;
-      if not args[pos+1]::Partition then
-         error "Expected a Partition; received %1", args[pos+1]
-      end if;         
+      res := map_check(procname, args);
+      if res::string then error res else pos := res; end if;
       PARTITION(
          {seq(
             Record(
@@ -98,6 +109,7 @@ export
          )}
       )
    end proc
+
 ;
    ModuleLoad()
 end module: 
