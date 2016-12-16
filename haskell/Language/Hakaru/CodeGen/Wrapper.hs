@@ -64,21 +64,21 @@ wrapProgram tast@(TypedAST typ _) mn pc =
      baseCG
      return ()
   where baseCG = case (tast,mn) of
-               ( TypedAST (SFun _ retT) abt, Just name ) ->
+               ( TypedAST (SFun _ _) abt, Just name ) ->
                  do reserveName name
                     flattenTopLambda abt $ Ident name
 
-               ( TypedAST (SFun _ retT) abt, Nothing   ) ->
+               ( TypedAST (SFun _ _) abt, Nothing   ) ->
                  genIdent' "fn" >>= \name ->
                    flattenTopLambda abt name
 
 
-  --              ( TypedAST typ'       abt, Just name ) ->
-  --                do reserveName name
-  --                   defineFunction typ'
-  --                                  (Ident name)
-  --                                  []
-  --                                  (putStat . CReturn . Just =<< flattenABT abt)
+               ( TypedAST _ _,                  Just _ ) -> undefined
+                 -- do reserveName name
+                 --    defineFunction typ'
+                 --                   (Ident name)
+                 --                   []
+                 --                   (putStat . CReturn . Just =<< flattenABT abt)
 
                ( TypedAST typ'       abt, Nothing   ) ->
                  mainFunction pc typ' abt
@@ -136,19 +136,19 @@ mainFunction pc typ@(SMeasure t) abt =
                                                []
                                                (P.reverse $ declarations cg)
                                                (P.reverse $ statements cg)
-  where isSArray (SArray _) = True
-        isSArray _          = False
-        mkArrayStruct :: Sing (a :: Hakaru) -> CExtDecl
-        mkArrayStruct (SArray t) = arrayStruct t
-        mkArrayStruct _          = error "Not Array"
-        getArrayType :: Sing (b :: Hakaru) -> [CTypeSpec]
-        getArrayType (SArray t) = case buildType t of
-                                    [] -> error "wrapper: this shouldn't happen"
-                                    t  -> t
-        getArrayType _          = error "Not Array"
-        getPlateArity :: ABT Term abt => Term abt a -> abt '[] 'HNat
-        getPlateArity (Plate :$ arity :* _ :* End) = arity
-        getPlateArity _ = error "mainFunction not a plate"
+  -- where isSArray (SArray _) = True
+  --       isSArray _          = False
+  --       mkArrayStruct :: Sing (a :: Hakaru) -> CExtDecl
+  --       mkArrayStruct (SArray t) = arrayStruct t
+  --       mkArrayStruct _          = error "Not Array"
+  --       getArrayType :: Sing (b :: Hakaru) -> [CTypeSpec]
+  --       getArrayType (SArray t) = case buildType t of
+  --                                   [] -> error "wrapper: this shouldn't happen"
+  --                                   t  -> t
+  --       getArrayType _          = error "Not Array"
+  --       getPlateArity :: ABT Term abt => Term abt a -> abt '[] 'HNat
+  --       getPlateArity (Plate :$ arity :* _ :* End) = arity
+  --       getPlateArity _ = error "mainFunction not a plate"
 
 -- just a computation
 mainFunction pc typ abt =
@@ -267,8 +267,8 @@ printfText c (SMeasure t) = if showWeights c
                                        else "%.15f " ++ printfText c t s
                             else printfText c t
 printfText c (SArray t)   = printfText c t
-printfText c (SFun _ _)   = id
-printfText c (SData _ _)  = \s -> "TODO: printft datum" ++ s
+printfText _ (SFun _ _)   = id
+printfText _ (SData _ _)  = \s -> "TODO: printft datum" ++ s
 
 
 --------------------------------------------------------------------------------
@@ -295,7 +295,6 @@ flattenTopLambda abt name =
         typ   = typeOf abt'
     in  do argDecls <- sequence varMs
            cg <- get
-
            case typ of
              -- SMeasure _ -> error "flattenTopLambda: for Measures"
              -- SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
