@@ -31,7 +31,7 @@ module Language.Hakaru.CodeGen.AST
   , (.>=.),(.<=.)
   , seqCStat
   , indirect, address, intE, floatE, stringE, mkUnary
-  , exp, expm1, log, log1p, sqrt, rand, infinityE, negInfinityE
+  , exp, expm1, log, log1p, sqrt, rand, infinityE, negInfinityE, printfE
   ) where
 
 import Prelude hiding (exp,log,sqrt)
@@ -384,5 +384,5 @@ rand = CCall (CVar . Ident $ "rand") []
 -- stdlio.h --
 --------------
 
-printf :: [CExpr] -> CExpr
-printf = CCall (CVar . Ident $ "printf")
+printfE :: [CExpr] -> CExpr
+printfE = CCall (CVar . Ident $ "printf")
