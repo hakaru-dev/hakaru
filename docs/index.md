@@ -90,6 +90,9 @@ Computing expectation of a measure
 
 ### [Disintegrate](/transforms/disintegrate)
 
+A transformation which takes a joint distribution and
+produces a program representing the conditional distribution.
+
 ### [Simplify](/transforms/simplify)
 
 Any Hakaru expression can be simplified, using
