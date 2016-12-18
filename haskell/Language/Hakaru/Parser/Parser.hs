@@ -510,6 +510,11 @@ parseHakaru =
     runParser (skipMany (comments <|> emptyLine) *>
                expr <* eof) () "<input>" . indentConfig
 
+parseHakaruWithImports :: Text -> Either ParseError (ASTWithImport' Text)
+parseHakaruWithImports =
+    runParser (skipMany (comments <|> emptyLine) *>
+               exprWithImport <* eof) () "<input>" . indentConfig
+
 withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
     s  <- getPosition
@@ -529,3 +534,6 @@ data_expr =
 import_expr :: Parser (Import Text)
 import_expr =
     reserved "import" *> (Import <$> identifier)
+
+exprWithImport :: Parser (ASTWithImport' Text)
+exprWithImport = ASTWithImport' <$> (many import_expr) <*> expr
