@@ -543,8 +543,10 @@ KB := module ()
       if nops(res) <= 1 then
         return eval_factor(default, kb, mode, loops);
       end if;
-      if nops(res) <= 3 and op(1,res) :: `=` and Testzero(default - mode()) then
-        # Reduce product(piecewise(i=3,f(i),1),i=1..10) to f(3)
+      if nops(res) <= 3 and op(1,res) :: `=` then
+        # Transform product(piecewise(i=3,f(i),g(i)),i=1..10)
+        #        to f(3)-g(3)+product(g(i),i=1..10)
+        # provided that g(3) is not zero
         for i from 1 to nops(loops) do
           x := op([i,2,1],loops);
           if depends(op(1,res), x) then
@@ -552,12 +554,21 @@ KB := module ()
               b := Normalizer(-b/a);
               if nops(kb_subtract(assert(And(b :: integer,
                                              op([i,2,2,1],loops) <= b,
-                                             b <= op([i,2,2,2],loops)),
+                                             b <= op([i,2,2,2],loops),
+                                             `if`(mode=`*`, eval(default, x=b) <> 0,
+                                                            NULL)),
                                          kb), kb)) = 0 then
-                return eval_factor(eval(op(2,res), x=b),
-                                   assert(x=b, kb), # TODO: why not just use kb?
-                                   mode,
-                                   eval(subsop(i=NULL, loops), x=b));
+                return mode(
+                  eval_factor(eval(op(2,res), x=b),
+                              assert(x=b, kb), # TODO: why not just use kb?
+                              mode,
+                              eval(subsop(i=NULL, loops), x=b)),
+                  table([`+`=`-`, `*`=`/`])[mode](
+                   eval_factor(eval(default, x=b),
+                               assert(x=b, kb), # TODO: why not just use kb?
+                               mode,
+                               eval(subsop(i=NULL, loops), x=b))),
+                  eval_factor(default, kb, mode, loops));
               end if;
             end if;
             break;
@@ -595,6 +606,9 @@ KB := module ()
         # Transform product(a*b,...) to product(a,...)*product(b,...)
         # (where e=a*b and loops=[[product,...]])
         return map(eval_factor, e, kb, mode, loops);
+      end if;
+      if e = mode() then
+        return e;
       end if;
       if e :: And(specfunc(`if`(mode=`*`, '{product,Product}', '{sum,Sum}')),
                     'anyfunc(anything, name=range)') then
