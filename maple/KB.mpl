@@ -486,6 +486,8 @@ KB := module ()
       true
     end proc;
 
+    # eval_piecewise has the same calling convention as eval_factor.
+    # It simplifies piecewise expressions.
     eval_piecewise := proc(e :: specfunc(piecewise),
                            kb :: t_kb, mode :: identical(`*`,`+`),
                            loops :: list([identical(product,Product,sum,Sum),
@@ -519,6 +521,9 @@ KB := module ()
             if nops(kb_subtract(kbs[i+2], kbs[i])) > 0 then
               pieces[i] := cond;
               pieces[i+1] := op(i+1,e);
+            else
+              # This condition is false in context, so delete this piece
+              # by not putting anything inside "pieces"
             end if
           end if
         end if
@@ -538,7 +543,7 @@ KB := module ()
       if nops(res) <= 1 then
         return eval_factor(default, kb, mode, loops);
       end if;
-      if nops(res) <= 3 and op(1,res) :: `=` and Testzero(default-mode()) then
+      if nops(res) <= 3 and op(1,res) :: `=` and Testzero(default - mode()) then
         # Reduce product(piecewise(i=3,f(i),1),i=1..10) to f(3)
         for i from 1 to nops(loops) do
           x := op([i,2,1],loops);
@@ -550,7 +555,7 @@ KB := module ()
                                              b <= op([i,2,2,2],loops)),
                                          kb), kb)) = 0 then
                 return eval_factor(eval(op(2,res), x=b),
-                                   assert(x=b, kb),
+                                   assert(x=b, kb), # TODO: why not just use kb?
                                    mode,
                                    eval(subsop(i=NULL, loops), x=b));
               end if;
@@ -571,12 +576,22 @@ KB := module ()
       return res;
     end proc;
 
+    # eval_factor is a simplifier.  It maintains the following invariants:
+    #   eval_factor(e, kb, mode, []) = e
+    #   eval_factor(e, kb, `*` , [...,[product,i=lo..hi]])
+    #     = product(eval_factor(e, kb, `*`, [...]), i=lo..hi)
+    #   eval_factor(e, kb, `+` , [...,[sum    ,i=lo..hi]])
+    #     = sum    (eval_factor(e, kb, `+`, [...]), i=lo..hi)
+    # It recursively traverses e while "remembering" the loops traversed,
+    # as ``context'' information, to help with transformations.
     eval_factor := proc(e, kb :: t_kb, mode :: identical(`*`,`+`),
                         loops :: list([identical(product,Product,sum,Sum),
                                        name=range]),
                         $)
       local o, body, x, bounds, res, go, y, kb1, i, j, k, s, r;
       if e :: mode then
+        # Transform product(a*b,...) to product(a,...)*product(b,...)
+        # (where e=a*b and loops=[[product,...]])
         return map(eval_factor, e, kb, mode, loops);
       end if;
       if e :: And(specfunc(`if`(mode=`*`, '{product,Product}', '{sum,Sum}')),
@@ -605,7 +620,9 @@ KB := module ()
         return eval_piecewise(e, kb, mode, loops);
       end if;
       if e :: `*` then
+        # If we're here, then mode=`+` (else "e :: mode" above would be true)
         s, r := selectremove(depends, e, map2(op,[2,1],loops));
+        # Transform sum(a*b(i),i=...) to a*sum(b(i),i=...)
         if r <> 1 then
           return eval_factor(s, kb, `+`, loops)
                * maptype(`*`, eval_factor, r, kb, `+`, []);
@@ -613,6 +630,7 @@ KB := module ()
       end if;
       if mode = `*` then
         if e :: '`^`' then
+          # Transform product(a(i)^b,i=...) to product(a(i),i=...)^b
           i := map2(op,[2,1],loops);
           if not depends(op(2,e), i) then
             return eval_factor(op(1,e), kb, `*`, loops)
@@ -620,6 +638,10 @@ KB := module ()
           end if;
         end if;
         if e :: 'exp(anything)' or e :: '`^`' and not depends(op(1,e), i) then
+          # Transform product(a^((b(i)+c(i))^2),i=...)
+          #        to a^   sum(b(i)^2   ,i=...)
+          #         * a^(2*sum(b(i)*c(i),i=...))
+          #         * a^   sum(c(i)^2   ,i=...)
           return mul(subsop(-1=i,e),
                      i in convert(eval_factor(expand(op(-1,e)), kb, `+`,
                                               map2(subsop,1=sum,loops)),
@@ -641,9 +663,11 @@ KB := module ()
         if res <> FAIL then return res end if;
       end if;
       if nops(loops) > 0 then
-        return op([-1,1],loops)(eval_factor(e, kb, mode, subsop(-1=NULL, loops)),
+        # Emit outermost loop as last resort
+        return op([-1,1],loops)(eval_factor(e, kb, mode, loops[1..-2]),
                                 op([-1,2],loops));
       end if;
+      # In the remainder of this function, assume loops=[] and recur in
       if e :: '{specfunc({GAMMA, Beta, exp, And, Or, Not}), relation, logical}' then
         return map(eval_factor, e, kb, `+`, []);
       end if;
