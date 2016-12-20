@@ -584,11 +584,13 @@ KB := module ()
     #     = sum    (eval_factor(e, kb, `+`, [...]), i=lo..hi)
     # It recursively traverses e while "remembering" the loops traversed,
     # as ``context'' information, to help with transformations.
-    eval_factor := proc(e, kb :: t_kb, mode :: identical(`*`,`+`),
-                        loops :: list([identical(product,Product,sum,Sum),
-                                       name=range]),
-                        $)
+    eval_factor := proc(e, kb :: t_kb, mode :: identical(`*`,`+`), loops, $)
       local o, body, x, bounds, res, go, y, kb1, i, j, k, s, r;
+      if not (loops :: 'list'([`if`(mode=`*`, 'identical(product,Product)',
+                                              'identical(sum    ,Sum    )'),
+                               'name=range'])) then
+        error "invalid input: mode=%1, loops=%2", mode, loops;
+      end if;
       if e :: mode then
         # Transform product(a*b,...) to product(a,...)*product(b,...)
         # (where e=a*b and loops=[[product,...]])
