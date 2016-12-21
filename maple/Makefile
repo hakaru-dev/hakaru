@@ -1,6 +1,6 @@
-all: ppaml.mla NewSLOTests.out PlateT.out DisintT.out call-graph.pdf
+all: ppaml.mla NewSLOTests.out PlateT.out # call-graph.pdf
 
-ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Loop.mpl NewSLO.mpl
+ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Loop.mpl NewSLO.mpl Summary.mpl
 	maple -q $<
 
 %.out: %.mpl ppaml.mla

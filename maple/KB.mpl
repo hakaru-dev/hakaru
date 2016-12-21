@@ -25,7 +25,7 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
          negated_relation, negate_relation,
          kb_subtract, simplify_assuming, simplify_factor_assuming,
-         kb_to_assumptions, kb_to_equations,
+         getType, kb_to_variables, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, for_poly, range_of_HInt;
   global t_kb, `expand/product`, `simplify/int/simplify`,
          `product/indef/indef`, `convert/Beta`;
@@ -690,6 +690,24 @@ KB := module ()
       simplify_assuming(eval_factor(convert(e, 'Beta'), kb, `*`, []), kb);
     end proc;
   end module; # simplify_factor_assuming
+
+  getType := proc(kb :: t_kb, x :: name, $)
+    local res, over, bound;
+    res := op([1,2], select(type, kb, 'Introduce(identical(x), anything)'));
+    over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
+                   `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
+    for bound in select(type, kb, 'Bound(identical(x),
+                                         identical(`<`,`<=`,`>`,`>=`),
+                                         anything)') do
+      res := remove(type, res, 'Bound'(over[op(2,bound)], 'anything'));
+      res := op(0,res)(subsop(1=NULL,bound), op(res));
+    end do;
+    res
+  end proc;
+
+  kb_to_variables := proc(kb :: t_kb, $)
+    [op(map2(op, 1, select(type, kb, t_intro)))];
+  end proc;
 
   kb_to_assumptions := proc(kb, e:={}, $)
     local n;

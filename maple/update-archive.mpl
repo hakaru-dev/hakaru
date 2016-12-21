@@ -8,6 +8,7 @@ read("./Hakaru.mpl"):
 read("./KB.mpl"):
 read("./Loop.mpl"):
 read("./NewSLO.mpl"):
+read("./Summary.mpl"):
 LibraryTools:-Save(`gensym`, lib):
 LibraryTools:-Save('BindingTools', lib):
 LibraryTools:-Save(`depends/lam`, lib):
@@ -44,3 +45,4 @@ LibraryTools:-Save(`depends/LO`, lib):
 LibraryTools:-Save(`eval/Integrand`, lib):
 LibraryTools:-Save(`eval/LO`, lib):
 LibraryTools:-Save('NewSLO', lib):
+LibraryTools:-Save('Summary', lib):
