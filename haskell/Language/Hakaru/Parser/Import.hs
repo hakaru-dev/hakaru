@@ -5,6 +5,8 @@ module Language.Hakaru.Parser.Import where
 import           Language.Hakaru.Parser.AST
 import           Language.Hakaru.Parser.Parser
 
+import           Control.Monad.Trans.Except
+import           Control.Monad.IO.Class
 import qualified Data.Text                     as T
 import qualified Data.Text.IO                  as IO
 import           Text.Parsec                   hiding (Empty)
@@ -19,14 +21,10 @@ replaceBody e1 e2 =
 
 expandImports
     :: ASTWithImport' T.Text
-    -> IO (Either ParseError (AST' T.Text))
+    -> ExceptT ParseError IO (AST' T.Text)
 expandImports (ASTWithImport' (Import i:is) ast) = do
-    file <- IO.readFile . T.unpack $ T.append i ".hk"
-    case parseHakaruWithImports file of
-      Left err    -> return (Left err)
-      Right astIm -> expandImports astIm >>= \astE ->
-        case astE of
-          Left err   -> return (Left err)
-          Right ast' ->
-              expandImports (ASTWithImport' is (replaceBody ast' ast))
-expandImports (ASTWithImport' [] ast) = return (Right ast)
+    file  <- liftIO . IO.readFile . T.unpack $ T.append i ".hk"
+    astIm <- ExceptT . return $ parseHakaruWithImports file
+    ast'  <- expandImports astIm
+    expandImports (ASTWithImport' is (replaceBody ast' ast))
+expandImports (ASTWithImport' [] ast) = return ast

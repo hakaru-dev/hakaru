@@ -8,6 +8,7 @@ import           Language.Hakaru.Parser.Parser hiding (style)
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Syntax.TypeCheck
 
+import           Control.Monad.Trans.Except
 import qualified Data.Text    as Text
 import qualified Data.Text.IO as IO
 import           Data.Vector
@@ -29,7 +30,7 @@ parseAndInfer' x =
     case parseHakaruWithImports x of
     Left  err  -> return . Left $ Text.pack . show $ err
     Right past -> do
-      past' <- expandImports past
+      past' <- runExceptT (expandImports past)
       case past' of
         Left err     -> return . Left $ Text.pack . show $ err
         Right past'' -> do
