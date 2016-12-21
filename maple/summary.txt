@@ -1,21 +1,22 @@
 The language of mapreductions:
 
-  A mapreduction mr denotes a monoid along with a map from indices to
-  monoid elements.
+  A mapreduction mr denotes a monoid along with a map from indices (i) to
+  monoid elements (such as e being t[i]).  There is an implicit index 'i',
+  allowed to appear in e and cond.
 
-  mr ::= Par(mr,mr) | Index(n,o,e,mr) | If(cond,mr,mr) | Unit() | Add(e)
+  mr ::= Fanout(mr,mr) | Index(n,o,e,mr) | Split(cond,mr,mr) | Unit() | Add(e)
 
   Unit() denotes the trivial monoid along with the constant map.
   Add(e) denotes the monoid of numbers under addition,
     along with the map i->e.
-  Par(mr1,mr2) and If(cond,mr1,mr2) both denote the product monoid of
-    the monoid denoted by mr1 and by mr2.  But if the maps denoted by
-    mr1 and mr2 are map1 and map2 then Par(mr1,mr2) denotes the map
-    i->[map1(i),map2(i)] whereas If(cond,mr1,mr2) denotes the map
+  Fanout(mr1,mr2) and Split(cond,mr1,mr2) both denote the product monoid of
+    the monoids denoted by mr1 and by mr2.  But if the maps denoted by
+    mr1 and mr2 are map1 and map2 then Fanout(mr1,mr2) denotes the map
+    i->[map1(i),map2(i)] whereas Split(cond,mr1,mr2) denotes the map
     i->piecewise(cond,[map1(i),identity],[identity,map2(i)]).
-  Index(n,o,e,mr) denotes the product monoid of the monoids denoted by
-    seq(mr, o=0..n-1), along with a map that returns a tuple that is
-    almost all identities.
+  Index(n,o,e,mr(o)) denotes the product monoid of the monoids denoted by
+    mr(0)..mr(n-1), along with a map that returns a tuple that is
+    all identity except at o = e.
 
 Run-time helpers:
 
@@ -24,19 +25,19 @@ Run-time helpers:
     for iv=rng do Accum(i, iv, mr, summary) end do;
     return summary
 
-  Init(Par(mr1, mr2))      = [Init(mr1), Init(mr2)]
-  Init(Index(n, o, e, mr)) = [seq(Init(mr), o=0..n-1)]
-  Init(If(cond, mr1, mr2)) = [Init(mr1), Init(mr2)]
-  Init(Unit())             = []
-  Init(Add(e))             = 0
+  Init(Fanout(mr1, mr2))      = [Init(mr1), Init(mr2)]
+  Init(Index(n, o, e, mr))    = [seq(Init(mr), o=0..n-1)]
+  Init(Split(cond, mr1, mr2)) = [Init(mr1), Init(mr2)]
+  Init(Unit())                = []
+  Init(Add(e))                = 0
 
-  Accum(i, iv, Par(mr1, mr2), summary) =
+  Accum(i, iv, Fanout(mr1, mr2), summary) =
     Accum(i, iv, mr1, summary[1]);
     Accum(i, iv, mr2, summary[2]);
   Accum(i, iv, Index(n, o, e, mr), summary) =
     ov := eval(e, i=iv);
     if o::nonnegint and o<n then Accum(i, iv, mr, summary[ov+1]) end if;
-  Accum(i, iv, If(cond, mr1, mr2), summary) =
+  Accum(i, iv, Split(cond, mr1, mr2), summary) =
     if eval(cond, i=iv) then Accum(i, iv, mr1, summary[1])
                         else Accum(i, iv, mr2, summary[2]) end if;
   Accum(i, iv, Unit(), summary) = ;
@@ -51,7 +52,7 @@ Specification:
 Implementation:
 
   summarize(C[piecewise(cond,a,b)], kb, i) =
-    [Par(mr1, mr2),
+    [Fanout(mr1, mr2),
      [summary1, summary2] -> piecewise(cond, f1(summary1), f2(summary2))]
     where [mr1, f1] = summarize(C[a], kb, i)
           [mr2, f2] = summarize(C[b], kb, i)
@@ -62,7 +63,7 @@ Implementation:
     where [mr, f] = summarize(a, kb, i)
     if kb entails o::nonnegint and o<n
   summarize(C[piecewise(cond,a,b)], kb, i) =
-    [If(cond, mr1, mr2), summary -> f1(summary[1]) + f2(summary[2])]
+    [Split(cond, mr1, mr2), summary -> f1(summary[1]) + f2(summary[2])]
     where [mr1, f1] = summarize(C[a], kb, i)
           [mr2, f2] = summarize(C[b], kb, i)
   summarize(0, kb, i) = [Unit(), summary -> 0]
@@ -71,11 +72,11 @@ Implementation:
 Example:
 
   summarize(piecewise(_b=piecewise(i=docUpdate,zNew,z[i]),t[i],0), kb, i)
-  = [If(i=docUpdate, Par(Add(t[i]), Unit()),
-                     Index(size(as), _b, z[i], Add(t[i]))),
+  = [Split(i=docUpdate, Fanout(Add(t[i]), Unit()),
+                        Index(size(as), _b, z[i], Add(t[i]))),
      summary -> piecewise(_b=zNew, summary[1], 0) + summary[_b]]
       summarize(piecewise(_b=zNew,t[i],0), kb, i)
-      = [Par(Add(t[i]), Unit()), summary -> piecewise(_b=zNew, summary[1], 0)]
+      = [Fanout(Add(t[i]), Unit()), summary -> piecewise(_b=zNew, summary[1], 0)]
       summarize(piecewise(_b=z[i],t[i],0), kb, i)
       = [Index(size(as), _b, z[i], Add(t[i])), summary -> summary[_b]]
           summarize(t[i], kb, i)
