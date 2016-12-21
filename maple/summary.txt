@@ -1,51 +1,70 @@
+The language of mapreductions:
+
+  A mapreduction mr denotes a monoid along with a map from indices to
+  monoid elements.
+
+  mr ::= Par(mr,mr) | Index(n,o,e,mr) | If(cond,mr,mr) | Unit() | Add(e)
+
+  Unit() denotes the trivial monoid along with the constant map.
+  Add(e) denotes the monoid of numbers under addition,
+    along with the map i->e.
+  Par(mr1,mr2) and If(cond,mr1,mr2) both denote the product monoid of
+    the monoid denoted by mr1 and by mr2.  But if the maps denoted by
+    mr1 and mr2 are map1 and map2 then Par(mr1,mr2) denotes the map
+    i->[map1(i),map2(i)] whereas If(cond,mr1,mr2) denotes the map
+    i->piecewise(cond,[map1(i),identity],[identity,map2(i)]).
+  Index(n,o,e,mr) denotes the product monoid of the monoids denoted by
+    seq(mr, o=0..n-1), along with a map that returns a tuple that is
+    almost all identities.
+
 Run-time helpers:
 
-  Loop(summarization, i=rng) =
-    summary := Init(summarization);
-    for iv=rng do Accum(i, iv, summarization, summary) end do;
+  Loop(mr, i=rng) =
+    summary := Init(mr);
+    for iv=rng do Accum(i, iv, mr, summary) end do;
     return summary
 
-  Init(Par(s1, s2))       = [Init(s1), Init(s2)]
-  Init(Index(n, o, e, s)) = [seq(Init(s), o=0..n-1)]
-  Init(If(cond, s1, s2))  = [Init(s1), Init(s2)]
-  Init(Unit())            = []
-  Init(Add(e))            = 0
+  Init(Par(mr1, mr2))      = [Init(mr1), Init(mr2)]
+  Init(Index(n, o, e, mr)) = [seq(Init(mr), o=0..n-1)]
+  Init(If(cond, mr1, mr2)) = [Init(mr1), Init(mr2)]
+  Init(Unit())             = []
+  Init(Add(e))             = 0
 
-  Accum(i, iv, Par(s1, s2), summary) =
-    Accum(i, iv, s1, summary[1]);
-    Accum(i, iv, s2, summary[2]);
-  Accum(i, iv, Index(n, o, e, s), summary) =
+  Accum(i, iv, Par(mr1, mr2), summary) =
+    Accum(i, iv, mr1, summary[1]);
+    Accum(i, iv, mr2, summary[2]);
+  Accum(i, iv, Index(n, o, e, mr), summary) =
     ov := eval(e, i=iv);
-    if o::nonnegint and o<n then Accum(i, iv, s, summary[ov+1]) end if;
-  Accum(i, iv, If(cond, s1, s2), summary) =
-    if eval(cond, i=iv) then Accum(i, iv, s1, summary[1])
-                        else Accum(i, iv, s2, summary[2]) end if;
-  Accum(i, iv, Unit(),           summary) = ;
-  Accum(i, iv, Add(e),           summary) = summary += eval(e, i=iv);
+    if o::nonnegint and o<n then Accum(i, iv, mr, summary[ov+1]) end if;
+  Accum(i, iv, If(cond, mr1, mr2), summary) =
+    if eval(cond, i=iv) then Accum(i, iv, mr1, summary[1])
+                        else Accum(i, iv, mr2, summary[2]) end if;
+  Accum(i, iv, Unit(), summary) = ;
+  Accum(i, iv, Add(e), summary) = summary += eval(e, i=iv);
 
 Specification:
 
-  If [s, f] = summarize(e, kb, i)
-  then f(Loop(s, i=rng)) = sum(e, i=rng)
-  and we try to make s depend on as little as possible
+  If [mr, f] = summarize(e, kb, i)
+  then f(Loop(mr, i=rng)) = sum(e, i=rng)
+  and we try to make mr depend on as little as possible
 
 Implementation:
 
   summarize(C[piecewise(cond,a,b)], kb, i) =
-    [Par(s1, s2),
+    [Par(mr1, mr2),
      [summary1, summary2] -> piecewise(cond, f1(summary1), f2(summary2))]
-    where [s1, f1] = summarize(C[a], kb, i)
-          [s2, f2] = summarize(C[b], kb, i)
+    where [mr1, f1] = summarize(C[a], kb, i)
+          [mr2, f2] = summarize(C[b], kb, i)
     if not depends(cond, i)
   summarize(piecewise(o=e,a,0), kb, i) =
-    [Index(n, o, e, s),
+    [Index(n, o, e, mr),
      summary -> piecewise(o::nonnegint and o<n, f(summary[o+1]), 0)]
-    where [s, f] = summarize(a, kb, i)
+    where [mr, f] = summarize(a, kb, i)
     if kb entails o::nonnegint and o<n
   summarize(C[piecewise(cond,a,b)], kb, i) =
-    [If(cond, s1, s2), summary -> f1(summary[1]) + f2(summary[2])]
-    where [s1, f1] = summarize(C[a], kb, i)
-          [s2, f2] = summarize(C[b], kb, i)
+    [If(cond, mr1, mr2), summary -> f1(summary[1]) + f2(summary[2])]
+    where [mr1, f1] = summarize(C[a], kb, i)
+          [mr2, f2] = summarize(C[b], kb, i)
   summarize(0, kb, i) = [Unit(), summary -> 0]
   summarize(e, kb, i) = [Add(e), summary -> summary]
 
