@@ -596,6 +596,9 @@ KB := module ()
         # (where e=a*b and loops=[[product,...]])
         return map(eval_factor, e, kb, mode, loops);
       end if;
+      if e = mode () then
+        return e;
+      end if;
       if e :: And(specfunc(`if`(mode=`*`, '{product,Product}', '{sum,Sum}')),
                     'anyfunc(anything, name=range)') then
         o := op(0,e);
