@@ -4,9 +4,9 @@ The language of mapreductions:
   monoid elements (such as e being t[i]).  There is an implicit index 'i',
   allowed to appear in e and cond.
 
-  mr ::= Fanout(mr,mr) | Index(n,o,e,mr) | Split(cond,mr,mr) | Unit() | Add(e)
+  mr ::= Fanout(mr,mr) | Index(n,o,e,mr) | Split(cond,mr,mr) | Nop() | Add(e)
 
-  Unit() denotes the trivial monoid along with the constant map.
+  Nop() denotes the trivial monoid along with the constant map.
   Add(e) denotes the monoid of numbers under addition,
     along with the map i->e.
   Fanout(mr1,mr2) and Split(cond,mr1,mr2) both denote the product monoid of
@@ -28,7 +28,7 @@ Run-time helpers:
   Init(Fanout(mr1, mr2))      = [Init(mr1), Init(mr2)]
   Init(Index(n, o, e, mr))    = [seq(Init(mr), o=0..n-1)]
   Init(Split(cond, mr1, mr2)) = [Init(mr1), Init(mr2)]
-  Init(Unit())                = []
+  Init(Nop())                 = []
   Init(Add(e))                = 0
 
   Accum(i, iv, Fanout(mr1, mr2), summary) =
@@ -40,7 +40,7 @@ Run-time helpers:
   Accum(i, iv, Split(cond, mr1, mr2), summary) =
     if eval(cond, i=iv) then Accum(i, iv, mr1, summary[1])
                         else Accum(i, iv, mr2, summary[2]) end if;
-  Accum(i, iv, Unit(), summary) = ;
+  Accum(i, iv, Nop(), summary) = ;
   Accum(i, iv, Add(e), summary) = summary += eval(e, i=iv);
 
 Specification:
@@ -73,7 +73,7 @@ Implementation:
     where [mr1, f1] = summarize(C[a], kb, i)
           [mr2, f2] = summarize(C[b], kb, i)
 
-  summarize(0, kb, i) = [Unit(), summary -> 0]
+  summarize(0, kb, i) = [Nop(), summary -> 0]
 
   summarize(e, kb, i) = [Add(e), summary -> summary]
 
@@ -81,13 +81,13 @@ Example:
 
   # First "summate i" in offshore under gmm_gibbs.hk
   summarize(piecewise(_b=piecewise(i=docUpdate,zNew,z[i]),t[i],0), kb, i)
-  = [Split(i=docUpdate, Fanout(Add(t[i]), Unit()),
+  = [Split(i=docUpdate, Fanout(Add(t[i]), Nop()),
                         Index(size(as), _b, z[i], Add(t[i]))),
-     summary -> piecewise(_b=zNew, summary[1], 0) + summary[_b+1]]
+     summary -> piecewise(_b=zNew, summary[1][1], 0) + summary[2][_b+1]]
 
       Recursive call to summarize assuming i=docUpdate is true:
       summarize(piecewise(_b=zNew,t[i],0), kb, i)
-      = [Fanout(Add(t[i]), Unit()), summary -> piecewise(_b=zNew, summary[1], 0)]
+      = [Fanout(Add(t[i]), Nop()), summary -> piecewise(_b=zNew, summary[1], 0)]
 
       Recursive call to summarize assuming i=docUpdate is false:
       summarize(piecewise(_b=z[i],t[i],0), kb, i)
@@ -99,7 +99,7 @@ Example:
   # First "summate j" in offshore under naive_bayes_gibbs.hk
   summarize(piecewise(doc[j]=docUpdate,piecewise(k=zNew,piecewise(i=w[j],1,0),0),0), kb, j)
   = [Fanout(Index(size(word_prior), i, w[j], Index(size(z), docUpdate, doc[j], Add(1))),
-            Index(size(z), docUpdate, doc[j], Unit())),
+            Index(size(z), docUpdate, doc[j], Nop())),
      summary -> piecewise(k=zNew, summary[1][w[j]+1][docUpdate+1]], 0)]
 
       Recursive call to summarize assuming k=zNew is true:
@@ -114,5 +114,5 @@ Example:
 
       Recursive call to summarize assuming k=zNew is false:
       summarize(piecewise(doc[j]=docUpdate,0,0), kb, j)
-      = [Index(size(z), docUpdate, doc[j], Unit()),
+      = [Index(size(z), docUpdate, doc[j], Nop()),
          summary -> 0]
