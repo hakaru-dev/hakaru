@@ -53,31 +53,66 @@ Implementation:
 
   summarize(C[piecewise(cond,a,b)], kb, i) =
     [Fanout(mr1, mr2),
-     [summary1, summary2] -> piecewise(cond, f1(summary1), f2(summary2))]
+     summary -> piecewise(cond, f1(summary[1]), f2(summary[2]))]
     where [mr1, f1] = summarize(C[a], kb, i)
           [mr2, f2] = summarize(C[b], kb, i)
     if not depends(cond, i)
+
+  Choose between the two rules below by outermosting the variables in
+    indets(e,name) minus {i}  versus  indets(cond,name) minus {i}
+
   summarize(piecewise(o=e,a,0), kb, i) =
     [Index(n, o, e, mr),
      summary -> piecewise(o::nonnegint and o<n, f(summary[o+1]), 0)]
     where [mr, f] = summarize(a, kb, i)
-    if kb entails o::nonnegint and o<n
+    if not depends(o, i) and kb entails o::nonnegint and o<n
+
   summarize(C[piecewise(cond,a,b)], kb, i) =
-    [Split(cond, mr1, mr2), summary -> f1(summary[1]) + f2(summary[2])]
+    [Split(cond, mr1, mr2),
+     summary -> f1(summary[1]) + f2(summary[2])]
     where [mr1, f1] = summarize(C[a], kb, i)
           [mr2, f2] = summarize(C[b], kb, i)
+
   summarize(0, kb, i) = [Unit(), summary -> 0]
+
   summarize(e, kb, i) = [Add(e), summary -> summary]
 
 Example:
 
+  # First "summate i" in offshore under gmm_gibbs.hk
   summarize(piecewise(_b=piecewise(i=docUpdate,zNew,z[i]),t[i],0), kb, i)
   = [Split(i=docUpdate, Fanout(Add(t[i]), Unit()),
                         Index(size(as), _b, z[i], Add(t[i]))),
-     summary -> piecewise(_b=zNew, summary[1], 0) + summary[_b]]
+     summary -> piecewise(_b=zNew, summary[1], 0) + summary[_b+1]]
+
+      Recursive call to summarize assuming i=docUpdate is true:
       summarize(piecewise(_b=zNew,t[i],0), kb, i)
       = [Fanout(Add(t[i]), Unit()), summary -> piecewise(_b=zNew, summary[1], 0)]
+
+      Recursive call to summarize assuming i=docUpdate is false:
       summarize(piecewise(_b=z[i],t[i],0), kb, i)
-      = [Index(size(as), _b, z[i], Add(t[i])), summary -> summary[_b]]
+      = [Index(size(as), _b, z[i], Add(t[i])), summary -> summary[_b+1]]
+
           summarize(t[i], kb, i)
           = [Add(t[i]), summary -> summary]
+
+  # First "summate j" in offshore under naive_bayes_gibbs.hk
+  summarize(piecewise(doc[j]=docUpdate,piecewise(k=zNew,piecewise(i=w[j],1,0),0),0), kb, j)
+  = [Fanout(Index(size(word_prior), i, w[j], Index(size(z), docUpdate, doc[j], Add(1))),
+            Index(size(z), docUpdate, doc[j], Unit())),
+     summary -> piecewise(k=zNew, summary[1][w[j]+1][docUpdate+1]], 0)]
+
+      Recursive call to summarize assuming k=zNew is true:
+      summarize(piecewise(doc[j]=docUpdate,piecewise(i=w[j],1,0),0), kb, j)
+      = [Index(size(word_prior), i, w[j], Index(size(z), docUpdate, doc[j], Add(1))),
+         summary -> summary[w[j]+1][docUpdate+1]]
+
+          Recursive call to summarize assuming i=w[j]:
+          summarize(piecewise(doc[j]=docUpdate,1,0), kb, j)
+          = [Index(size(z), docUpdate, doc[j], Add(1)),
+             summary -> summary[docUpdate+1]]
+
+      Recursive call to summarize assuming k=zNew is false:
+      summarize(piecewise(doc[j]=docUpdate,0,0), kb, j)
+      = [Index(size(z), docUpdate, doc[j], Unit()),
+         summary -> 0]
