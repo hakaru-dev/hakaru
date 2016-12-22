@@ -191,6 +191,8 @@ Loop := module ()
       s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
       if indets(eval(w, s), idx(identical(var), anything))
                 = {idx(var, eval(ind, s))} then
+        # use kb as a local context, and 'solve' for the innermost bound var
+        #   used in ind.
         kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
         res := subs(idx(var,ind) = idx(var,lhs(loop)), w);
         res := wrap(heap, res, mode, kb, kb0);
@@ -200,11 +202,13 @@ Loop := module ()
         end if
       end if
     end if;
+    # distribute the unproduct over each part
     if w :: mode then
       res := map(unproduct, `if`(mode=`*`, list_of_mul(w), [op(w)]),
                  var, loop, heap, mode, kb1, kb0);
       return [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
     end if;
+    # for piecewise, just map right in (using KB for context tracking)
     if w :: 'specfunc(piecewise)' then
       kb := kb1;
       for i from 1 to nops(w) do
@@ -276,6 +280,14 @@ Loop := module ()
     e, kb
   end proc;
 
+  # heap is a list of t_binder and t_stmt
+  # one invariant to maintain:
+  #  wrap(heap, mode(a,b)) = wrap(heap,a) * wrap(heap,b)
+
+  # Also, a t_binder is a Product/product/Sum/sum.
+  # And, a t_stmt is a 1-hole context of a (multiplicative) AST,
+  #   used for [a ^ hole, hole ^ b, exp(hole), c * hole].
+  
   wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),
                kb1::t_kb, kb0::t_kb, $)
     local e, kb, mode, i, entry, rest, var, new_rng, make,
