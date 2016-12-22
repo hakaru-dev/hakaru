@@ -17,7 +17,7 @@ import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
-import           Language.Hakaru.Command (parseAndInfer, readFromFile, Term)
+import           Language.Hakaru.Command (parseAndInfer, parseAndInfer', readFromFile, Term)
 
 import           Control.Monad
 
@@ -56,6 +56,19 @@ render = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 runHakaru :: MWC.GenIO -> Text -> IO ()
 runHakaru g prog =
     case parseAndInfer prog of
+      Left err                 -> IO.hPutStrLn stderr err
+      Right (TypedAST typ ast) -> do
+        case typ of
+          SMeasure _ -> forever (illustrate typ g $ run ast)
+          _          -> illustrate typ g $ run ast
+    where
+    run :: Term a -> Value a
+    run = runEvaluate . expandTransformations
+
+runHakaru' :: MWC.GenIO -> Text -> IO ()
+runHakaru' g prog = do
+    prog' <- parseAndInfer' prog
+    case prog' of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
         case typ of
