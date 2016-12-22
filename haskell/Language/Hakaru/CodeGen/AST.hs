@@ -30,11 +30,8 @@ module Language.Hakaru.CodeGen.AST
   , (.>.),(.<.),(.==.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.)
   , (.>=.),(.<=.)
   , seqCStat
-  , indirect, address, intE, floatE, stringE, mkUnary
-  , exp, expm1, log, log1p, sqrt, rand, infinityE, negInfinityE, printfE
+  , indirect, address, intE, floatE, stringE, mkCallE, mkUnaryE
   ) where
-
-import Prelude hiding (exp,log,sqrt)
 
 
 --------------------------------------------------------------------------------
@@ -345,44 +342,8 @@ floatE = CConstant . CFloatConst
 stringE :: String -> CExpr
 stringE = CConstant . CStringConst
 
-mkUnary :: String -> CExpr -> CExpr
-mkUnary s = CCall (CVar . Ident $ s) . (:[])
+mkCallE :: String -> [CExpr] -> CExpr
+mkCallE s = CCall (CVar . Ident $ s)
 
---------------------------------------------------------------------------------
---                                 Lib C                                      --
---------------------------------------------------------------------------------
-{-
-  Here we have calls to a very small subset of functionality provided by libc.
-  In the future, we should have a standard way to add in bindings to C
-  libraries. Easily generating code for existing C libraries is one of the key
-  design goals of pedantic-c
--}
-
-------------
--- math.h --
-------------
-
-exp,expm1,log,log1p,sqrt :: CExpr -> CExpr
-exp   = mkUnary "exp"
-expm1 = mkUnary "expm1"
-log   = mkUnary "log"
-log1p = mkUnary "log1p"
-sqrt  = mkUnary "sqrt"
-
-infinityE,negInfinityE :: CExpr
-infinityE    = (intE 1) ./. (intE 0)
-negInfinityE = log (intE 0)
-
---------------
--- stdlib.h --
---------------
-
-rand :: CExpr
-rand = CCall (CVar . Ident $ "rand") []
-
---------------
--- stdlio.h --
---------------
-
-printfE :: [CExpr] -> CExpr
-printfE = CCall (CVar . Ident $ "printf")
+mkUnaryE :: String -> CExpr -> CExpr
+mkUnaryE s a = mkCallE s [a]

@@ -32,6 +32,7 @@ module Language.Hakaru.CodeGen.Flatten
 
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.Libs
 import Language.Hakaru.CodeGen.Types
 
 import Language.Hakaru.Syntax.AST
@@ -57,8 +58,6 @@ import qualified Data.Traversable   as T
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor
 #endif
-
-import Prelude hiding (log,exp,sqrt)
 
 
 opComment :: String -> CStat
@@ -327,11 +326,11 @@ flattenSCon (CoerceTo_ ctyp) =
         nat2int   = return
         nat2prob  = \n -> do ident <- genIdent' "p"
                              declare SProb ident
-                             assign ident . log1p $ n .-. (intE 1)
+                             assign ident . log1pE $ n .-. (intE 1)
                              return (CVar ident)
         prob2real = \p -> do ident <- genIdent' "r"
                              declare SReal ident
-                             assign ident $ (expm1 p) .+. (intE 1)
+                             assign ident $ (expm1E p) .+. (intE 1)
                              return (CVar ident)
         int2real  = return . CCast doubleDecl
 
@@ -378,12 +377,13 @@ flattenSCon Plate           =
            declare SNat sizeId
            let sizeE = CVar sizeId
            flattenABT size sizeE
-           putExprStat $   (arrayPtrData . mdataPtrSample $ loc)
-                       .=. (CCast (mkPtrDecl . buildType $ typ)
-                                  (mkUnary "malloc"
-                                  (sizeE .*. (CSizeOfType . mkDecl . buildType $ typ))))
 
-
+           isManagedMem <- managedMem <$> get
+           if isManagedMem
+              then putExprStat $   (arrayPtrData . mdataPtrSample $ loc)
+                               .=. (CCast (mkPtrDecl . buildType $ typ)
+                                          (gc_mallocE (sizeE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+              else error "plate requires used of the garbage collector, '-g' flag"
 
            weightId <- genIdent' "w"
            declare SProb weightId
@@ -393,7 +393,7 @@ flattenSCon Plate           =
            itId <- createIdent v
            declare SNat itId
            let itE = CVar itId
-               currInd  = indirect $ (CMember (mdataSample loc) (Ident "data") True) .+. itE
+               currInd  = indirect $ (CMember (mdataPtrSample loc) (Ident "data") True) .+. itE
 
            sampId <- genIdent' "samp"
            declare (typeOf $ body) sampId
@@ -487,17 +487,17 @@ logSumExp es = mkCompTree 0 1
                                (mkCompTree j (succ j))
 
         diffExp :: Int -> Int -> CExpr
-        diffExp a b = expm1 ((S.index es a) .-. (S.index es b))
+        diffExp a b = expm1E ((S.index es a) .-. (S.index es b))
 
         -- given the max index, produce a logSumExp expression
         logSumExp' :: Int -> CExpr
         logSumExp' 0 = S.index es 0
-          .+. (log1p $ foldr (\x acc -> diffExp x 0 .+. acc)
+          .+. (log1pE $ foldr (\x acc -> diffExp x 0 .+. acc)
                             (diffExp 1 0)
                             [2..S.length es - 1]
                     .+. (intE $ fromIntegral lastIndex))
         logSumExp' i = S.index es i
-          .+. (log1p $ foldr (\x acc -> if i == x
+          .+. (log1pE $ foldr (\x acc -> if i == x
                                        then acc
                                        else diffExp x i .+. acc)
                             (diffExp 0 i)
@@ -544,7 +544,7 @@ flattenLit lit =
       (LProb x) -> let rat = fromNonNegativeRational x
                        x'  = (fromIntegral $ numerator rat)
                            / (fromIntegral $ denominator rat)
-                       xE  = log1p (floatE x' .-. intE 1)
+                       xE  = log1pE (floatE x' .-. intE 1)
                    in putExprStat (loc .=. xE)
 
 --------------------------------------------------------------------------------
@@ -563,10 +563,12 @@ flattenArray arity body =
       let arityE = arraySize loc
           dataE  = arrayData loc in
       do flattenABT arity arityE
+
+         isManagedMem <- managedMem <$> get
+         let malloc' = if isManagedMem then gc_mallocE else mallocE
          putExprStat $   dataE
                      .=. (CCast (mkPtrDecl . buildType $ typ)
-                                (mkUnary "malloc"
-                                  (arityE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+                                (malloc' (arityE .*. (CSizeOfType . mkDecl . buildType $ typ))))
 
          itId  <- createIdent v
          declare SNat itId
@@ -784,7 +786,7 @@ flattenPrimOp
 
 flattenPrimOp Pi =
   \End ->
-    \loc -> let piE = log1p ((CVar . Ident $ "M_PI") .-. (intE 1)) in
+    \loc -> let piE = log1pE ((CVar . Ident $ "M_PI") .-. (intE 1)) in
       putExprStat (loc .=. piE)
 
 flattenPrimOp Not =
@@ -813,8 +815,8 @@ flattenPrimOp RealPow =
          flattenABT base baseE -- first argument is a Prob
          flattenABT power powerE
          let realPow = CCall (CVar . Ident $ "pow")
-                             [ expm1 baseE .+. (intE 1), powerE]
-         putExprStat $ loc .=. (log1p (realPow .-. (intE 1)))
+                             [ expm1E baseE .+. (intE 1), powerE]
+         putExprStat $ loc .=. (log1pE (realPow .-. (intE 1)))
 
 flattenPrimOp (NatPow baseTyp) =
   \(base :* power :* End) ->
@@ -830,7 +832,7 @@ flattenPrimOp (NatPow baseTyp) =
          flattenABT power powerE
          let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
              value = case sBase of
-                       SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) powerE)
+                       SProb -> log1pE $ (powerOf (expm1E baseE .+. (intE 1)) powerE)
                                   .-. (intE 1)
                        _     -> powerOf baseE powerE
          putExprStat $ loc .=. value
@@ -850,7 +852,7 @@ flattenPrimOp (NatRoot baseTyp) =
          let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
              recipE = (floatE 1) ./. rootE
              value = case sBase of
-                       SProb -> log1p $ (powerOf (expm1 baseE .+. (intE 1)) recipE)
+                       SProb -> log1pE $ (powerOf (expm1E baseE .+. (intE 1)) recipE)
                                       .-. (intE 1)
                        _     -> powerOf baseE recipE
          putExprStat $ loc .=. value
@@ -950,7 +952,7 @@ uniformFun = CFunDef [CTypeSpec CVoid]
                      ,typeDeclaration SReal hiId
                      ,typePtrDeclaration (SMeasure SReal) mId]
                      (seqCStat $ comment ++[assW,assS,CReturn Nothing])
-  where r          = CCast doubleDecl rand
+  where r          = CCast doubleDecl randE
         rMax       = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
         (mId,mE)   = let ident = Ident "mdata" in (ident,CVar ident)
         (loId,loE) = let ident = Ident "lo" in (ident,CVar ident)
@@ -985,7 +987,7 @@ normalFun = CFunDef [CTypeSpec CVoid]
                     ,typePtrDeclaration (SMeasure SReal) mId]
                     (CCompound $ comment ++ decls ++ stmts)
 
-  where r      = CCast doubleDecl rand
+  where r      = CCast doubleDecl randE
         rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
         (aId,aE) = let ident = Ident "a" in (ident,CVar ident)
         (bId,bE) = let ident = Ident "b" in (ident,CVar ident)
@@ -999,7 +1001,7 @@ normalFun = CFunDef [CTypeSpec CVoid]
                         ,draw vE
                         ,CExpr . Just $ qE .=. ((uE .*. uE) .+. (vE .*. vE))]
         polar = CWhile (qE .>. (floatE 1)) body True
-        setR  = CExpr . Just $ rE .=. (sqrt (((CUnary CMinOp (floatE 2)) .*. log qE) ./. qE))
+        setR  = CExpr . Just $ rE .=. (sqrtE (((CUnary CMinOp (floatE 2)) .*. logE qE) ./. qE))
         finalValue = aE .+. (uE .*. rE .*. bE)
         comment = fmap (CBlockStat . CComment)
           ["normal :: real -> real -> *(mdata real) -> ()"
@@ -1046,7 +1048,7 @@ gammaFun = CFunDef [CTypeSpec CVoid]
         xS = mdataSample xE
         uS = mdataSample uE
         assD = CExpr . Just $ dE .=. (aE .-. ((floatE 1) ./. (floatE 3)))
-        assC = CExpr . Just $ cE .=. ((floatE 1) ./. (sqrt ((floatE 9) .*. dE)))
+        assC = CExpr . Just $ cE .=. ((floatE 1) ./. (sqrtE ((floatE 9) .*. dE)))
         outerWhile = CWhile (intE 1) (seqCStat [innerWhile,assV,assU,exit]) False
         innerWhile = CWhile (vE .<=. (floatE 0)) (seqCStat [assX,assVIn]) True
         assX = CExpr . Just $ CCall (CVar . Ident $ "normal") [(floatE 0),(floatE 1),address xE]
@@ -1054,9 +1056,9 @@ gammaFun = CFunDef [CTypeSpec CVoid]
         assV = CExpr . Just $ vE .=. (vE .*. vE .*. vE)
         assU = CExpr . Just $ CCall (CVar . Ident $ "uniform") [(floatE 0),(floatE 1),address uE]
         exitC1 = uS .<. ((floatE 1) .-. ((floatE 0.331 .*. (xS .*. xS) .*. (xS .*. xS))))
-        exitC2 = (log uS) .<. (((floatE 0.5) .*. (xS .*. xS)) .+. (dE .*. ((floatE 1.0) .-. vE .+. (log vE))))
+        exitC2 = (logE uS) .<. (((floatE 0.5) .*. (xS .*. xS)) .+. (dE .*. ((floatE 1.0) .-. vE .+. (logE vE))))
         assW = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
-        assS = CExpr . Just $ mdataPtrSample mE .=. (log (dE .*. vE)) .+. bE
+        assS = CExpr . Just $ mdataPtrSample mE .=. (logE (dE .*. vE)) .+. bE
         exit = CIf (exitC1 .||. exitC2) (seqCStat [assW,assS,CReturn Nothing]) Nothing
 
 
@@ -1102,7 +1104,7 @@ flattenMeasureOp Normal  =
          declare SReal bId
          flattenABT a aE
          flattenABT b bE
-         normalCG aE (exp bE) loc
+         normalCG aE (expE bE) loc
 
 
 flattenMeasureOp Gamma =
@@ -1115,7 +1117,7 @@ flattenMeasureOp Gamma =
          declare SReal bId
          flattenABT a aE
          flattenABT b bE
-         gammaCG (exp aE) bE loc
+         gammaCG (expE aE) bE loc
 
 
 flattenMeasureOp Beta =
@@ -1136,7 +1138,7 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        wSumId <- genIdent' "ws"
        declare SProb wSumId
        let wSumE = CVar wSumId
-       assign wSumId (log (intE 0))
+       assign wSumId (logE (intE 0))
 
        let currE = indirect (arrayData arrE .+. itE)
            cond  = itE .<. (arraySize arrE)
@@ -1152,19 +1154,19 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        -- draw number from uniform(0, weightSum)
        rId <- genIdent' "r"
        declare SReal rId
-       let r    = CCast doubleDecl rand
+       let r    = CCast doubleDecl randE
            rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
            rE = CVar rId
-       assign rId ((r ./. rMax) .*. (exp wSumE))
+       assign rId ((r ./. rMax) .*. (expE wSumE))
 
-       assign wSumId (log (intE 0))
+       assign wSumId (logE (intE 0))
        assign itId (intE 0)
        whileCG (intE 1)
          $ do stat <- runCodeGenBlock $
                         do putExprStat $ mdataPtrWeight loc .=. (intE 0)
                            putExprStat $ mdataPtrSample loc .=. itE
                            putStat CBreak
-              putStat $ CIf (rE .<. (exp wSumE)) stat Nothing
+              putStat $ CIf (rE .<. (expE wSumE)) stat Nothing
               logSumExpCG (S.fromList [wSumE,currE]) wSumE
               putExprStat $ CUnary CPostIncOp itE
 
@@ -1215,16 +1217,16 @@ flattenSuperpose pairs =
             -- draw number from uniform(0, weightSum)
             rId <- genIdent' "r"
             declare SReal rId
-            let r    = CCast doubleDecl rand
+            let r    = CCast doubleDecl randE
                 rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
                 rE = CVar rId
-            assign rId ((r ./. rMax) .*. (exp wSumE))
+            assign rId ((r ./. rMax) .*. (expE wSumE))
 
             -- an iterator for picking a measure
             itId <- genIdent' "it"
             declare SProb itId
             let itE = CVar itId
-            assign itId (log (intE 0))
+            assign itId (logE (intE 0))
 
             -- an output measure to assign to
             outId <- genIdent' "out"
@@ -1237,7 +1239,7 @@ flattenSuperpose pairs =
               $ \(wE,(_,m)) ->
                   do logSumExpCG (S.fromList [itE,wE]) itE
                      stat <- runCodeGenBlock (flattenABT m outE >> putStat (CGoto outLabel))
-                     putStat $ CIf (rE .<. (exp itE)) stat Nothing
+                     putStat $ CIf (rE .<. (expE itE)) stat Nothing
 
             putStat $ CLabel outLabel (CExpr Nothing)
             putExprStat $ mdataPtrWeight loc .=. ((mdataPtrWeight outE) .+. wSumE)

@@ -83,6 +83,7 @@ Library
                        Language.Hakaru.CodeGen.Types,
                        Language.Hakaru.CodeGen.AST,
                        Language.Hakaru.CodeGen.Pretty,
+                       Language.Hakaru.CodeGen.Libs,
                        Data.Number.Nat,
                        Data.Number.Natural
 

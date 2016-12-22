@@ -75,8 +75,8 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.Libs
 
-import Prelude hiding (exp,log,sqrt)
 
 buildDeclaration :: CTypeSpec -> Ident -> CDecl
 buildDeclaration ctyp ident =
@@ -338,7 +338,7 @@ boolTyp =
 
 
 binaryOp :: NaryOp a -> CExpr -> CExpr -> CExpr
-binaryOp (Sum HSemiring_Prob)  a b = CBinary CAddOp (exp a) (exp b)
+binaryOp (Sum HSemiring_Prob)  a b = CBinary CAddOp (expE a) (expE b)
 binaryOp (Prod HSemiring_Prob) a b = CBinary CAddOp a b
 binaryOp (Sum _)               a b = CBinary CAddOp a b
 binaryOp (Prod _)              a b = CBinary CMulOp a b

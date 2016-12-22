@@ -32,6 +32,7 @@ data Options =
          , par              :: Bool
          , showWeightsOpt   :: Bool
          , showProbInLogOpt :: Bool
+         , garbageCollector :: Bool
          } deriving Show
 
 
@@ -67,6 +68,9 @@ options = Options
              <> help "Shows the weights along with the samples in samplers")
   <*> switch (  long "show-prob-log"
              <> help "Shows prob types as 'exp(<log-domain-value>)' instead of '<value>'")
+  <*> switch (  long "garbage-collector"
+             <> short 'g'
+             <> help "Use Boehm Garbage Collector")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -85,7 +89,8 @@ compileHakaru prog = ask >>= \config -> lift $ do
                                 (asFunc config)
                                 (PrintConfig { showWeights   = showWeightsOpt config
                                              , showProbInLog = showProbInLogOpt config })
-          cast    = CAST $ runCodeGenWith codeGen (emptyCG {parallel = par config})
+          codeGenConfig = emptyCG {sharedMem = par config, managedMem = garbageCollector config}
+          cast    = CAST $ runCodeGenWith codeGen codeGenConfig
           output  = pack . render . pretty $ cast
       when (debug config) $ do
         putErrorLn $ hrule "Hakaru Type"

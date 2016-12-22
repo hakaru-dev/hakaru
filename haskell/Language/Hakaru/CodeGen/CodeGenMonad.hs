@@ -98,11 +98,13 @@ data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generatio
              , declarations  :: [CDecl]      -- ^ declarations in local block
              , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
              , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
-             , parallel      :: Bool         -- ^ openMP supported block
+             , managedMem    :: Bool         -- ^ garbage collected block
+             , sharedMem     :: Bool         -- ^ shared memory supported block
+             , distributed   :: Bool         -- ^ distributed supported block
              }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty mempty [] [] emptyEnv False
+emptyCG = CG suffixes mempty mempty [] [] emptyEnv False False False
 
 type CodeGen = State CG
 
@@ -130,17 +132,17 @@ runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls 
 --------------------------------------------------------------------------------
 
 isParallel :: CodeGen Bool
-isParallel = parallel <$> get
+isParallel = sharedMem <$> get
 
 mkParallel :: CodeGen ()
 mkParallel =
   do cg <- get
-     put (cg { parallel = True } )
+     put (cg { sharedMem = True } )
 
 mkSequential :: CodeGen ()
 mkSequential =
   do cg <- get
-     put (cg { parallel = False } )
+     put (cg { sharedMem = False } )
 
 --------------------------------------------------------------------------------
 

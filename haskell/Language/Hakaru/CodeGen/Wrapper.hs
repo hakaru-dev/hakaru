@@ -39,6 +39,7 @@ import           Language.Hakaru.CodeGen.CodeGenMonad
 import           Language.Hakaru.CodeGen.Flatten
 import           Language.Hakaru.CodeGen.Types
 import           Language.Hakaru.CodeGen.AST
+import           Language.Hakaru.CodeGen.Libs
 import           Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Control.Monad.State.Strict
@@ -61,6 +62,8 @@ wrapProgram
   -> CodeGen ()
 wrapProgram tast@(TypedAST typ _) mn pc =
   do sequence_ . fmap (extDeclare . CPPExt) . header $ typ
+     isManagedMem <- managedMem <$> get
+     when isManagedMem $ extDeclare . CPPExt . PPInclude $ "gc.h"
      baseCG
      return ()
   where baseCG = case (tast,mn) of
@@ -124,8 +127,10 @@ mainFunction pc typ@(SMeasure t) abt =
            do flattenABT abt (CVar mdataId)
               putStat (CReturn Nothing)
 
-  --        -- need to set seed?
-  --        -- srand(time(NULL));
+         -- need to set seed?
+         -- srand(time(NULL));
+         isManagedMem <- managedMem <$> get
+         when isManagedMem (putExprStat gc_initE)
 
          printf pc typ (CVar ident)
          putStat . CReturn . Just $ intE 0
@@ -136,19 +141,6 @@ mainFunction pc typ@(SMeasure t) abt =
                                                []
                                                (P.reverse $ declarations cg)
                                                (P.reverse $ statements cg)
-  -- where isSArray (SArray _) = True
-  --       isSArray _          = False
-  --       mkArrayStruct :: Sing (a :: Hakaru) -> CExtDecl
-  --       mkArrayStruct (SArray t) = arrayStruct t
-  --       mkArrayStruct _          = error "Not Array"
-  --       getArrayType :: Sing (b :: Hakaru) -> [CTypeSpec]
-  --       getArrayType (SArray t) = case buildType t of
-  --                                   [] -> error "wrapper: this shouldn't happen"
-  --                                   t  -> t
-  --       getArrayType _          = error "Not Array"
-  --       getPlateArity :: ABT Term abt => Term abt a -> abt '[] 'HNat
-  --       getPlateArity (Plate :$ arity :* _ :* End) = arity
-  --       getPlateArity _ = error "mainFunction not a plate"
 
 -- just a computation
 mainFunction pc typ abt =
@@ -157,8 +149,11 @@ mainFunction pc typ abt =
       funId = Ident "main"
   in  do reserveName "result"
          reserveName "main"
-
          declare typ resId
+
+         isManagedMem <- managedMem <$> get
+         when isManagedMem (putExprStat gc_initE)
+
          flattenABT abt resE
 
          printf pc typ resE
@@ -201,20 +196,20 @@ printf pc mt@(SMeasure t) sampleFunc =
             let mE = CVar mId
                 getSampleS   = CExpr . Just $ CCall sampleFunc [address mE]
                 printSampleE = CExpr . Just
-                             $ CCall (CVar . Ident $ "printf")
-                                     $ [ stringE $ printfText pc mt "\n"]
-                                     ++ (if showWeights pc
-                                         then [ if showProbInLog pc
-                                                then mdataWeight mE
-                                                else exp $ mdataWeight mE ]
-                                         else [])
-                                     ++ [ case t of
-                                            SProb -> if showProbInLog pc
-                                                     then mdataSample mE
-                                                     else exp $ mdataSample mE
-                                            _ -> mdataSample mE ]
+                             $ printfE
+                             $ [ stringE $ printfText pc mt "\n"]
+                             ++ (if showWeights pc
+                                 then [ if showProbInLog pc
+                                        then mdataWeight mE
+                                        else expE $ mdataWeight mE ]
+                                 else [])
+                             ++ [ case t of
+                                    SProb -> if showProbInLog pc
+                                             then mdataSample mE
+                                             else expE $ mdataSample mE
+                                    _ -> mdataSample mE ]
                 wrapSampleFunc = CCompound $ [CBlockStat getSampleS
-                                             ,CBlockStat $ CIf ((exp $ mdataWeight mE) .>. (floatE 0)) printSampleE Nothing]
+                                             ,CBlockStat $ CIf ((expE $ mdataWeight mE) .>. (floatE 0)) printSampleE Nothing]
             putStat $ CWhile (intE 1) wrapSampleFunc False
 
 
@@ -241,16 +236,16 @@ printf pc (SArray t) arg =
                                           [stringE s]
 
 printf pc SProb arg =
-  putExprStat $ CCall (CVar . Ident $ "printf")
+  putExprStat $ printfE
                       [ stringE $ printfText pc SProb "\n"
                       , if showProbInLog pc
                         then arg
-                        else exp arg ]
+                        else expE arg ]
 
 printf pc typ arg =
-  putExprStat $ CCall (CVar . Ident $ "printf")
-                      [ stringE $ printfText pc typ "\n"
-                      , arg ]
+  putExprStat $ printfE
+              [ stringE $ printfText pc typ "\n"
+              , arg ]
 
 
 
