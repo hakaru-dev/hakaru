@@ -17,7 +17,8 @@ import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
-import           Language.Hakaru.Command (parseAndInfer, parseAndInfer', readFromFile, Term)
+import           Language.Hakaru.Command ( parseAndInfer, parseAndInfer'
+                                         , readFromFile, Term)
 
 import           Control.Monad
 
