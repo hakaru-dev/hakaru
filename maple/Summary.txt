@@ -20,7 +20,7 @@ The language of mapreductions:
 
 Run-time helpers:
 
-  Loop(mr, i=rng) =
+  Bucket(mr, i=rng) =
     summary := Init(mr);
     for iv=rng do Accum(i, iv, mr, summary) end do;
     return summary
@@ -46,7 +46,7 @@ Run-time helpers:
 Specification:
 
   If [mr, f] = summarize(e, kb, i)
-  then f(Loop(mr, i=rng)) = sum(e, i=rng)
+  then f(Bucket(mr, i=rng)) = sum(e, i=rng)
   and we try to make mr depend on as little as possible
 
 Implementation:
