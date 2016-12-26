@@ -20,9 +20,27 @@ end proc:
 
 Summary := module ()
   option package;
-  export summarize;
+  export bucket, summarize;
   global Bucket, Fanout, Index, Split, Nop, Add;
   uses Hakaru, KB;
+
+  bucket := proc(mr, r::(name=range), cond::list:=[], $)
+    if mr :: 'Fanout(anything,anything)' then
+      Pair(op(map(procname, _passed)))
+    elif mr :: 'Split(anything,anything,anything)' then
+      Pair(bucket(op(2,mr), r, [    op(1,mr) ,op(cond)]),
+           bucket(op(3,mr), r, [Not(op(1,mr)),op(cond)]))
+    elif mr :: 'Index(anything,name,anything,anything)' then
+      ary(op(1,mr), op(2,mr),
+          bucket(op(4,mr), r, [op(2,mr)=op(3,mr),op(cond)]));
+    elif mr :: 'Nop()' then
+      _Unit
+    elif mr :: 'Add(anything)' then
+      sum(piecewise_And(cond, op(1,mr), 0), r)
+    else
+      'procname(_passed)'
+    end if;
+  end proc;
 
   summarize := proc(ee,
                     kb :: t_kb,
