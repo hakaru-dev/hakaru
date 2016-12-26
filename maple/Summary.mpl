@@ -1,8 +1,27 @@
+`depends/Bucket` := proc(mr, r::(name=range), x, $)
+  depends(rhs(r), x) or depends(mr, x minus {lhs(r)})
+end proc:
+
+`depends/Index` := proc(n, o::name, e, mr, x, $)
+  depends({n,e}, x) or depends(mr, x minus {o})
+end proc:
+
+`eval/Bucket` := proc(e::anyfunc(anything,name=range), eqs, $)
+  local bvar, body;
+  bvar, body := BindingTools:-generic_evalat(op([2,1],e), op(1,e), eqs);
+  eval(op(0,e), eqs)(body, bvar = eval(op([2,2],e), eqs))
+end proc:
+
+`eval/Index` := proc(e::anyfunc(anything,name,anything,anything), eqs, $)
+  local o, mr;
+  o, mr := BindingTools:-generic_evalat(op(2,e), op(4,e), eqs);
+  eval(op(0,e), eqs)(eval(op(1,e), eqs), o, eval(op(3,e), eqs), mr)
+end proc:
+
 Summary := module ()
   option package;
   export summarize;
-  global Fanout, Index, Split, Nop, Add;
-  # TODO: teach Maple about the binding structure of Index
+  global Bucket, Fanout, Index, Split, Nop, Add;
   uses Hakaru, KB;
 
   summarize := proc(ee,
