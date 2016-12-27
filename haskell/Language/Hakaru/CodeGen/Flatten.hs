@@ -183,6 +183,7 @@ flattenSCon Lam_ = undefined
   --                                                         return $ datumDeclaration d i
   --       mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
 
+flattenSCon App_  = error "TODO: flattenSCon App_"
 
 flattenSCon (PrimOp_ op) = flattenPrimOp op
 
@@ -660,7 +661,7 @@ flattenDatum
   -> (CExpr -> CodeGen ())
 flattenDatum (Datum _ typ code) =
   \loc ->
-    do extDeclare $ datumStruct typ
+    do mapM_ extDeclare $ datumStruct typ
        assignDatum code loc
 
 datumNames :: [String]
@@ -1065,7 +1066,7 @@ gammaFun = CFunDef [CTypeSpec CVoid]
 gammaCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 gammaCG aE bE =
   \loc -> do
-     extDeclare $ mdataStruct SReal
+     mapM_ extDeclare $ mdataStruct SReal
      mapM_ reserveName ["uniform","normal","gamma"]
      mapM_ (extDeclare . CFunDefExt) [uniformFun,normalFun,gammaFun]
      putExprStat $ CCall (CVar . Ident $ "gamma") [aE,bE,loc]
