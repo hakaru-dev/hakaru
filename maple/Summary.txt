@@ -1,3 +1,138 @@
+------------------------------
+The summarization optimization
+------------------------------
+
+Recall that our simplifier generates sampler code such as
+
+    fn as array(prob):
+     fn z array(nat):
+      fn t array(real):
+       fn docUpdate nat:
+        array zNew of size(as):
+         ... (summate _b from 0 to size(as):
+               ... (summate i from 0 to size(t):
+                     if _b == (if i == docUpdate: zNew else: z[i]):
+                      t[i]
+                     else: 0) ...) ...
+
+(that's from gmm_gibbs.hk) and
+
+    fn topic_prior array(prob):
+     fn word_prior array(prob):
+      fn z array(nat):
+       fn w array(nat):
+        fn doc array(nat):
+         fn docUpdate nat:
+          ... (array zNew of size(topic_prior):
+                product k from 0 to size(topic_prior):
+                 product i from 0 to size(word_prior):
+                  ... (summate j from 0 to size(w):
+                        if doc[j] == docUpdate:
+                         if k == zNew && i == w[j]: 1 else: 0
+                        else: 0) ...) ...
+
+(that's from naive_bayes_gibbs.hk).  In this Hakaru code, "fn" makes
+a function (whose argument type is explicit), and "array", "summate",
+and "product" are looping constructs.  In particular, the innermost
+loops ("summate i" and "summate j") run many times due to the outer
+loops.  Furthermore, most iterations of the innermost loops produce 0
+and so don't contribute to the result.  We can dramatically speed up
+this computation by precomputing a "summary" outside the loops then
+replacing the innermost loop by an expression that reuses the summary
+rather than looping.
+
+To understand our current approach to this optimization, let's look at
+a simpler example.  Suppose the innermost loop is merely
+
+    summate i from 0 to size(t):
+     if _b == z[i]: t[i] else: 0
+
+where the free variable _b denotes a natural number known to be bounded
+by size(as).  This loop denotes a real number that depends on _b and the
+arrays z and t.  It turns out that we can rewrite it to the equivalent
+expression
+
+    let summary = Bucket i from 0 to size(t):
+                   Index _b = z[i] of size(as):
+                    Add t[i]
+    in summary[_b]
+
+where the capitalized keywords are newly introduced to support this
+optimization.  The variable "summary" is bound to an array whose size
+is size(as) and whose element at each index _b is the sum of those z[i]
+whose corresponding t[i] matches _b.  A good way to compute the summary
+on sequential hardware is to initialize the summary to an all-zero
+mutable array then
+
+    for i from 0 to size(t):
+     summary[z[i]] += t[i]
+
+A good way to compute the summary on parallel hardware is to divide the
+data among the cores and summarize each portion in parallel then sum
+the summaries elementwise.  The Bucket construct just introduced can
+carry out either of these implementation strategies, by accordingly
+interpreting the sub-language of map-reduce loops that Index and Add are
+part of.  (Hence realizing this optimization from end to end in Hakaru
+calls for adding the capitalized constructs to the Hakaru grammar and
+extending the code generator(s) to handle them.)
+
+Out of context, the let-expression above seems like a waste because
+it computes a summary then uses only one element of it.  But the
+right-hand-side of the summary-binding does not contain _b free, only
+t and z and as, because the occurrences of i and _b are not uses but
+bindings.  So, as an instance of loop-invariant code motion, we can move
+the let-binding out of the loop over _b, and reuse the same summary
+across all iterations over _b.  This way, we cut time complexity by a
+factor of size(as) (the number of iterations over _b).
+
+To pave the way for loop-invariant code motion, the summary should
+depend on as few inner-scoped variables as possible.  This goal is
+illustrated by the very first example above (from gmm_gibbs.hk).
+Following the footsteps of the let-expression above, the "summate i"
+expression is equivalent to
+
+    let summary = Bucket i from 0 to size(t):
+                   Index _b = (if i == docUpdate: zNew else: z[i]) of size(as):
+                    Add t[i]
+    in summary[_b]
+
+but this summary depends on zNew (and on docUpdate).  Our prototype
+implementation of summarization finds a better rewrite:
+
+    let summary = Bucket i from 0 to size(t):
+                   Split i == docUpdate:
+                    Fanout(Add t[i], Nop)
+                   else:
+                    Index _b = z[i] of size(as):
+                     Add t[i]
+    in (if _b == zNew: fst(fst(summary)) else: 0) + snd(summary)[_b]
+
+The type of this summary is not array(real) but pair(pair(real,unit),
+array(real)).  The array(real) summarizes those i that are not equal
+to docUpdate, whereas the pair(real,unit) turns out to be equal to
+(t[docUpdate],()).  The check "_b == zNew" is postponed until the body
+of the let, so the summary does not depend on zNew and can be moved out
+of the "array zNew" loop, reducing time complexity by another factor of
+size(as).
+
+Another way to understand this optimization is that we use loop exchange
+to move the innermost loop out, then sum sparse arrays inside.
+
+At least for the examples above, it turns out to be not very difficult
+to automate rewriting a summate loop into a let-expression of the form
+
+    let summary = Bucket i...
+    in ...summary...
+
+whose body does not loop over i.  The automatic rewriting traverses the
+body of the original loop, using a set of rewriting rules -- one for
+each of Index, Add, Split, Fanout, and Nop -- that are easy to pretend
+for expository purposes to have been derived by equational reasoning
+from the monoidal denotational semantics of the newly introduced
+constructs.  The trick is as usual to design the map-reduce sub-language
+right.  The design notes below provide some details, couched somewhat in
+Maple syntax.
+
 The language of mapreductions:
 
   A mapreduction mr denotes a monoid along with a map from indices (i) to
@@ -20,7 +155,7 @@ The language of mapreductions:
 
 Run-time helpers:
 
-  Loop(mr, i=rng) =
+  Bucket(mr, i=rng) =
     summary := Init(mr);
     for iv=rng do Accum(i, iv, mr, summary) end do;
     return summary
@@ -46,7 +181,7 @@ Run-time helpers:
 Specification:
 
   If [mr, f] = summarize(e, kb, i)
-  then f(Loop(mr, i=rng)) = sum(e, i=rng)
+  then f(Bucket(mr, i=rng)) = sum(e, i=rng)
   and we try to make mr depend on as little as possible
 
 Implementation:

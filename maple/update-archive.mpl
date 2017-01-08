@@ -45,4 +45,8 @@ LibraryTools:-Save(`depends/LO`, lib):
 LibraryTools:-Save(`eval/Integrand`, lib):
 LibraryTools:-Save(`eval/LO`, lib):
 LibraryTools:-Save('NewSLO', lib):
+LibraryTools:-Save(`depends/Bucket`, lib):
+LibraryTools:-Save(`depends/Index`, lib):
+LibraryTools:-Save(`eval/Bucket`, lib):
+LibraryTools:-Save(`eval/Index`, lib):
 LibraryTools:-Save('Summary', lib):
