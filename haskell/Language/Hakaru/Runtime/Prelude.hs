@@ -121,7 +121,8 @@ newtype Branch a b =
 ptrue, pfalse :: a -> Branch Bool a
 ptrue  b = Branch { extract = extractBool True  b }
 pfalse b = Branch { extract = extractBool False b }
-{-# INLINE ptrue, pfalse #-}
+{-# INLINE ptrue  #-}
+{-# INLINE pfalse #-}
 
 extractBool :: Bool -> a -> Bool -> Maybe a
 extractBool b a p | p == b     = Just a  
