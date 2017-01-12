@@ -113,12 +113,20 @@ ppair :: Pattern -> Pattern -> (x -> y -> b) -> Branch (x,y) b
 ppair PVar  PVar c = Branch { extract = (\(x,y) -> Just (c x y)) }
 ppair _     _    _ = error "ppair: TODO"
 
+uncase_ :: Maybe a -> a
+uncase_ (Just a) = a
+uncase_ Nothing  = error "case_: unable to match any branches"
+{-# INLINE uncase_ #-}
+
 case_ :: a -> [Branch a b] -> b
-case_ e_ bs_ = go e_ bs_
-  where go _ []     = error "case_: unable to match any branches"
-        go e (b:bs) = case extract b e of
-                        Just b' -> b'
-                        Nothing -> go e bs
+case_ e [c1]     = uncase_ (extract c1 e)
+case_ e [c1, c2] = uncase_ (extract c1 e `mplus` extract c2 e)
+case_ e bs_      = go bs_
+  where go []     = error "case_: unable to match any branches"
+        go (b:bs) = case extract b e of
+                      Just b' -> b'
+                      Nothing -> go bs
+{-# INLINE case_ #-}
 
 branch :: (c -> Branch a b) -> c -> Branch a b
 branch pat body = pat body
