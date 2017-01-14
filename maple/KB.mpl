@@ -19,11 +19,11 @@
 KB := module ()
   option package;
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
-        assert_deny, log_metric, boolean_if, coalesce_bounds, htype_to_property,
+        log_metric, boolean_if, coalesce_bounds, htype_to_property,
         chilled, chill, warm,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
-         negated_relation, negate_relation,
+         negated_relation, negate_relation, assert_deny,
          kb_subtract, simplify_assuming, simplify_factor_assuming,
          getType, kb_to_variables, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, for_poly, range_of_HInt;
@@ -74,43 +74,61 @@ KB := module ()
   end proc;
 
   assert_deny := module ()
-   export ModuleApply;
-   ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
+   export ModuleApply, `&assuming_safe` ;
+   local t_if_and_or_of, t_not, t_not_eq_and_not_not, from_false ;
 
+   # The 'type' of `if(,,)` where the first parameter is the given type
+   t_if_and_or_of := proc(pol,$)
+       `if`(pol, '{specfunc(anything, And), `and`}', '{specfunc(anything, Or ), `or` }')
+   end proc;
+
+   # The 'type' of `not(..)` statements
+   t_not := '{specfunc(anything, Not), `not`}';
+
+   # TODO: this needs a name reflecting its semantics, not its structure
+   t_not_eq_and_not_not := 'Not({name, size(name)}) = And(name, Not(constant), Not(undefined))';
+
+   # Catches and reports a contradiction which could arise as result of
+   # some forms of simplification and evaluation
+   `&assuming_safe` := proc (e :: uneval)
+     try
+        e assuming args[2 .. -1];
+     catch "when calling '%1'. Received: 'contradictory assumptions'":
+        # We seem to be on an unreachable control path
+        userinfo(1, 'procname', "Received contradictory assumptions.");
+        false;
+     end try;
+   end proc;
+
+   # Perhaps this exists somewhere
+   from_false := proc(e,def,$) if not e::identical(false) then def else e end if; end proc;
+
+   ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, ch, c, kb1, y;
+    local as, b, log_b, k, x, rel, e, ch, c, kb1, y, ret;
+
     if bb = pol then
       # Ignore literal true and Not(false).
       kb
 
-
-    elif bb :: `if`(pol, '{specfunc(anything, And), `and`}',
-                         '{specfunc(anything, Or ), `or` }') then
+    elif bb :: t_if_and_or_of(pol) then
       foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
 
-
-    elif bb :: '{specfunc(anything, Not), `not`}' then
+    elif bb :: t_not then
       foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
 
-
     else
+      # Setup the assumptions
       as := chill(kb_to_assumptions(kb, bb));
+
+      # Simplify `bb' in context `as' placing result in `b'
       b := chill(bb);
-
-
-      try
-        b := simplify(b) assuming op(as);
-      catch "when calling '%1'. Received: 'contradictory assumptions'":
-        # We seem to be on an unreachable control path
-        userinfo(1, 'procname', "Received contradictory assumptions.")
-      end try;
-
-
+      b := from_false( assuming_safe(simplify(b), op(as)) , b );
       b := warm(b);
+
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
                   kb);
-
 
       if nops(k) > 0 then
         x, k := op(op(1,k));
@@ -125,7 +143,6 @@ KB := module ()
             break;
           end if;
         end do;
-
 
         if b :: And(relation, Or(anyop(identical(x), freeof(x)),
                                  anyop(freeof(x), identical(x)))) then
@@ -199,10 +216,9 @@ KB := module ()
                 op(select(type, k , Bound(              c, anything)) )];
           if nops(c) > 0 then c := chill(op(1,c)) end if;
 
-
-          # Compare the new bound rel        (x,e          )
-          # against the old bound op([1,1],c)(x,op([1,2],c))
           try
+            # Compare the new bound rel        (x,e          )
+            # against the old bound op([1,1],c)(x,op([1,2],c))
             if e = `if`(rel :: t_lo, -infinity, infinity)
               or nops(c)>0 and (is(rel(y,ch)) assuming
                                   op(1,c)(y,op(2,c)),
@@ -255,11 +271,9 @@ KB := module ()
       end if;
 
 
-      if b :: 'Not({name, size(name)})
-               = And(name, Not(constant), Not(undefined))' then
+      if b :: t_not_eq_and_not_not then
         b := (rhs(b)=lhs(b))
       end if;
-
 
       # Add constraint to KB.
       ch := chill(b);
