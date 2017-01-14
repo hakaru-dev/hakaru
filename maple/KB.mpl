@@ -75,7 +75,8 @@ KB := module ()
 
   assert_deny := module ()
    export ModuleApply, `&assuming_safe` ;
-   local t_if_and_or_of, t_not, t_not_eq_and_not_not, from_FAIL ;
+   local t_if_and_or_of, t_not, t_not_eq_and_not_not, from_FAIL, negate_kb1,
+         mystery, t_bound_on;
 
    # The 'type' of `if(,,)` where the first parameter is the given type
    t_if_and_or_of := proc(pol,$)
@@ -87,6 +88,9 @@ KB := module ()
 
    # TODO: this needs a name reflecting its semantics, not its structure
    t_not_eq_and_not_not := 'Not({name, size(name)}) = And(name, Not(constant), Not(undefined))';
+
+   # The 'type' representing bounds on `x', where `x' is a name
+   t_bound_on := proc(x,$) And(relation, Or(anyop(identical(x), freeof(x)), anyop(freeof(x), identical(x)))) end proc;
 
    # Catches and reports a contradiction which could arise as result of
    # some forms of simplification and evaluation
@@ -109,11 +113,12 @@ KB := module ()
      else Not(b) end if
    end proc;
 
-   # A 'table' giving the negation of strict relations
-   neg_rels_str = {`<=`=`<`, `>=`=`>`};
-
-   # A 'table' giving the negations of relations
-   neg_rels = {`<`=`>=`, `<=`=`>`, `>`=`<=`, `>=`=`<`, `=`=`<>`, `<>`=`=`};
+   # Mystery function
+   mystery := proc(k,kb,x,c,$)
+       [op(map2(subsop, 1=NULL,
+                       select(type, kb, Bound(identical(x), c, anything)))),
+                    op(select(type, k , Bound(              c, anything)) )]
+   end proc;
 
    # Perhaps this exists somewhere
    from_FAIL := proc(e,def,$) if not e::identical(FAIL) then def else e end if; end proc;
@@ -162,8 +167,7 @@ KB := module ()
 
         # If `b' is of a particular form (a bound on `x'), simplification
         # is in order
-        if b :: And(relation, Or(anyop(identical(x), freeof(x)),
-                                 anyop(freeof(x), identical(x)))) then
+        if b :: t_bound_on(`x`) then
           # b is a bound on x, so compare it against the current bound on x.
           # First, express `if`(pol,b,Not(b)) as rel(x,e)
           rel := op(0,b);
@@ -179,12 +183,14 @@ KB := module ()
 
           # Change relations to their negations if `pol = false'
           if not pol then
-            rel := subs(neg_rels, rel);
+            # A 'table' giving the negations of relations
+            rel := subs({`<`=`>=`, `<=`=`>`, `>`=`<=`, `>=`=`<`, `=`=`<>`, `<>`=`=`}, rel);
           end if;
 
           # Discards a few points (?)
           if k :: 'specfunc(AlmostEveryReal)' then
-            rel := subs(neg_rels_str, rel);
+            # A 'table' giving the negation of strict relations
+            rel := subs({`<=`=`<`, `>=`=`>`}, rel);
           end if;
 
           if rel = `=` then
@@ -193,9 +199,7 @@ KB := module ()
             kb1 := KB(Bound(x,`=`,e), op(kb));
             # We also need to assert that e is in bounds for x.
             for c in t_lo, t_hi do
-              c := [op(map2(subsop, 1=NULL,
-                       select(type, kb, Bound(identical(x), c, anything)))),
-                    op(select(type, k , Bound(              c, anything)) )];
+              c := mystery(k,kb,x,c);
               if nops(c)>0 then
                 kb1 := assert_deny(op([1,1],c)(e,op([1,2],c)), true, kb1)
               end if
@@ -226,9 +230,7 @@ KB := module ()
 
           # Look up the current bound on x, if any.
           c := `if`(rel :: t_lo, t_lo, t_hi);
-          c := [op(map2(subsop, 1=NULL,
-                   select(type, kb, Bound(identical(x), c, anything)))),
-                op(select(type, k , Bound(              c, anything)) )];
+          c := mystery(k,kb,x,c);
 
           # chill but also unwraps `c' (?)
           if nops(c) > 0 then c := chill(op(1,c)) end if;
@@ -267,11 +269,14 @@ KB := module ()
               if c <> b then return assert_deny(c, pol, kb) end if
             end if
           end if
+
         end if
       end if;
 
       # Normalize `=` and `<>` constraints a bit.
-      if not pol then b := negate_kb1(b); end if;
+      if not pol then
+        b := negate_kb1(b);
+      end if;
 
       # ??
       if b :: t_not_eq_and_not_not then b := (rhs(b)=lhs(b)) end if;
