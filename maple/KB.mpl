@@ -216,25 +216,20 @@ KB := module ()
                 op(select(type, k , Bound(              c, anything)) )];
           if nops(c) > 0 then c := chill(op(1,c)) end if;
 
-          try
             # Compare the new bound rel        (x,e          )
             # against the old bound op([1,1],c)(x,op([1,2],c))
-            if e = `if`(rel :: t_lo, -infinity, infinity)
-              or nops(c)>0 and (is(rel(y,ch)) assuming
-                                  op(1,c)(y,op(2,c)),
-                                  y::htype_to_property(k), op(as)) then
+          if e = `if`(rel :: t_lo, -infinity, infinity)
+              or nops(c)>0 and (is(rel(y,ch)) &assuming_safe
+                                  (op(1,c)(y,op(2,c)),
+                                   y::htype_to_property(k), op(as)) ) then
               # The old bound renders the new bound superfluous.
               return kb
-            elif nops(c)=0 or (is(op(1,c)(y,op(2,c))) assuming
-                                 rel(y,ch),
-                                 y::htype_to_property(k), op(as)) then
+          elif nops(c)=0 or (is(op(1,c)(y,op(2,c))) &assuming_safe
+                                 (rel(y,ch),
+                                  y::htype_to_property(k), op(as)) ) then
               # The new bound supersedes the old bound.
               return KB(Bound(x,rel,e), op(kb))
-            end if
-          catch "when calling '%1'. Received: 'contradictory assumptions'":
-            # We seem to be on an unreachable control path
-            userinfo(1, 'procname', "Received contradictory assumptions.")
-          end try;
+          end if
 
 
         else
