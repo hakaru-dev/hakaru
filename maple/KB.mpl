@@ -75,7 +75,7 @@ KB := module ()
 
   assert_deny := module ()
    export ModuleApply, `&assuming_safe` ;
-   local t_if_and_or_of, t_not, t_not_eq_and_not_not, from_false ;
+   local t_if_and_or_of, t_not, t_not_eq_and_not_not, from_FAIL ;
 
    # The 'type' of `if(,,)` where the first parameter is the given type
    t_if_and_or_of := proc(pol,$)
@@ -96,12 +96,12 @@ KB := module ()
      catch "when calling '%1'. Received: 'contradictory assumptions'":
         # We seem to be on an unreachable control path
         userinfo(1, 'procname', "Received contradictory assumptions.");
-        false;
+        FAIL;
      end try;
    end proc;
 
    # Perhaps this exists somewhere
-   from_false := proc(e,def,$) if not e::identical(false) then def else e end if; end proc;
+   from_FAIL := proc(e,def,$) if not e::identical(FAIL) then def else e end if; end proc;
 
    ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
@@ -123,7 +123,7 @@ KB := module ()
 
       # Simplify `bb' in context `as' placing result in `b'
       b := chill(bb);
-      b := from_false( simplify(b) &assuming_safe op(as) , b );
+      b := from_FAIL( simplify(b) &assuming_safe op(as) , b );
       b := warm(b);
 
       # Look through kb for the innermost scope where b makes sense.
@@ -240,10 +240,10 @@ KB := module ()
              # > convert(piecewise(i<=size[idx[a,i]]-2,true,false),piecewise,i);
              # Error, (in unknown) too many levels of recursion
           then
+            # c := convert(c, 'piecewise', x) &assuming_safe op(as);
             try
               c := convert(c, 'piecewise', x) assuming op(as);
             catch: c := FAIL end try;
-
 
             if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
               c := foldr_piecewise(boolean_if, false, warm(c));
