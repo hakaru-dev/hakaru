@@ -100,6 +100,21 @@ KB := module ()
      end try;
    end proc;
 
+   # Negate b, where b is an 'atomic' relation of a KB (?)
+   negate_kb1 := proc(b,$)
+     if   b :: `=`  then `<>`(op(b))
+     elif b :: `<>` then `=` (op(b))
+     elif b :: `<`  then `>=`(op(b))
+     elif b :: `<=` then `>` (op(b))
+     else Not(b) end if
+   end proc;
+
+   # A 'table' giving the negation of strict relations
+   neg_rels_str = {`<=`=`<`, `>=`=`>`};
+
+   # A 'table' giving the negations of relations
+   neg_rels = {`<`=`>=`, `<=`=`>`, `>`=`<=`, `>=`=`<`, `=`=`<>`, `<>`=`=`};
+
    # Perhaps this exists somewhere
    from_FAIL := proc(e,def,$) if not e::identical(FAIL) then def else e end if; end proc;
 
@@ -130,6 +145,7 @@ KB := module ()
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
                   kb);
 
+      # If that scope is not precisely the trivial KB, then ..
       if nops(k) > 0 then
         x, k := op(op(1,k));
         # Found the innermost scope where b makes sense.
@@ -144,32 +160,32 @@ KB := module ()
           end if;
         end do;
 
+        # If `b' is of a particular form (a bound on `x'), simplification
+        # is in order
         if b :: And(relation, Or(anyop(identical(x), freeof(x)),
                                  anyop(freeof(x), identical(x)))) then
           # b is a bound on x, so compare it against the current bound on x.
           # First, express `if`(pol,b,Not(b)) as rel(x,e)
           rel := op(0,b);
 
-
+          # Account for the symmetric cases of `x' being on the left or right
+          # hand side; the predicate is modified(?) in case of a 'flip'
           if x = lhs(b) then
             e := rhs(b);
-          else#x=rhs(b)
-            e := lhs(b);
+          else #x=rhs(b)
+            e   := lhs(b);
             rel := subs({`<`=`>`, `<=`=`>=`}, rel);
           end if;
 
-
+          # Change relations to their negations if `pol = false'
           if not pol then
-            rel := subs({`<`=`>=`, `<=`=`>`,
-                         `>`=`<=`, `>=`=`<`,
-                         `=`=`<>`, `<>`=`=`}, rel);
+            rel := subs(neg_rels, rel);
           end if;
 
-
+          # Discards a few points (?)
           if k :: 'specfunc(AlmostEveryReal)' then
-            rel := subs({`<=`=`<`, `>=`=`>`}, rel);
+            rel := subs(neg_rels_str, rel);
           end if;
-
 
           if rel = `=` then
             # To assert that x=e, it's not enough to supersede the Introduce
@@ -187,7 +203,6 @@ KB := module ()
             return kb1
           end if;
 
-
           ch := chill(e);
           if rel = `<>` then
             # Refine <> to > or < if possible.
@@ -195,6 +210,7 @@ KB := module ()
             elif is(x>=ch) assuming op(as) then rel := `>`
             else return KB(Constrain(x<>e), op(kb)) end if
           end if;
+
           # Strengthen strict inequality on integer variable.
           if op(0,k) = HInt then
             if rel = `>` then
@@ -208,16 +224,17 @@ KB := module ()
             end if
           end if;
 
-
           # Look up the current bound on x, if any.
           c := `if`(rel :: t_lo, t_lo, t_hi);
           c := [op(map2(subsop, 1=NULL,
                    select(type, kb, Bound(identical(x), c, anything)))),
                 op(select(type, k , Bound(              c, anything)) )];
+
+          # chill but also unwraps `c' (?)
           if nops(c) > 0 then c := chill(op(1,c)) end if;
 
-            # Compare the new bound rel        (x,e          )
-            # against the old bound op([1,1],c)(x,op([1,2],c))
+          # Compare the new bound rel        (x,e          )
+          # against the old bound op([1,1],c)(x,op([1,2],c))
           if e = `if`(rel :: t_lo, -infinity, infinity)
               or nops(c)>0 and (is(rel(y,ch)) &assuming_safe
                                   (op(1,c)(y,op(2,c)),
@@ -251,30 +268,19 @@ KB := module ()
             end if
           end if
         end if
-
       end if;
-
 
       # Normalize `=` and `<>` constraints a bit.
-      if not pol then
-        # Negate b
-        if   b :: `=`  then b := `<>`(op(b))
-        elif b :: `<>` then b := `=` (op(b))
-        elif b :: `<`  then b := `>=`(op(b))
-        elif b :: `<=` then b := `>` (op(b))
-        else b := Not(b) end if
-      end if;
+      if not pol then b := negate_kb1(b); end if;
 
-      if b :: t_not_eq_and_not_not then
-        b := (rhs(b)=lhs(b))
-      end if;
+      # ??
+      if b :: t_not_eq_and_not_not then b := (rhs(b)=lhs(b)) end if;
+
+      # ??
+      ch := chill(b);
+      if is(ch) &assuming_safe op(as) then return kb end if;
 
       # Add constraint to KB.
-      ch := chill(b);
-      if is(ch) &assuming_safe op(as) then
-        return kb
-      end if;
-
       KB(Constrain(b), op(kb))
     end if
 
