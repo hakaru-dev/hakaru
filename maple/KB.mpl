@@ -123,7 +123,7 @@ KB := module ()
 
       # Simplify `bb' in context `as' placing result in `b'
       b := chill(bb);
-      b := from_false( assuming_safe(simplify(b), op(as)) , b );
+      b := from_false( simplify(b) &assuming_safe op(as) , b );
       b := warm(b);
 
       # Look through kb for the innermost scope where b makes sense.
@@ -270,22 +270,15 @@ KB := module ()
         else b := Not(b) end if
       end if;
 
-
       if b :: t_not_eq_and_not_not then
         b := (rhs(b)=lhs(b))
       end if;
 
       # Add constraint to KB.
       ch := chill(b);
-      try
-        if is(ch) assuming op(as) then
-          return kb
-        end if;
-      catch "when calling '%1'. Received: 'contradictory assumptions'":
-        # We seem to be on an unreachable control path
-        userinfo(1, 'procname', "Received contradictory assumptions.")
-      end try;
-
+      if is(ch) &assuming_safe op(as) then
+        return kb
+      end if;
 
       KB(Constrain(b), op(kb))
     end if
