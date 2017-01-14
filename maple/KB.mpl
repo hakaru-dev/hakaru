@@ -19,6 +19,7 @@
 KB := module ()
   option package;
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
+        negate_kb1 , `&assuming_safe`, from_FAIL,
         log_metric, boolean_if, coalesce_bounds, htype_to_property,
         chilled, chill, warm,
         ModuleLoad, ModuleUnload;
@@ -26,14 +27,26 @@ KB := module ()
          negated_relation, negate_relation, assert_deny,
          kb_subtract, simplify_assuming, simplify_factor_assuming,
          getType, kb_to_variables, kb_to_assumptions, kb_to_equations,
-         kb_piecewise, list_of_mul, for_poly, range_of_HInt;
+         kb_piecewise, list_of_mul, for_poly, range_of_HInt,
+         t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
   global t_kb, `expand/product`, `simplify/int/simplify`,
          `product/indef/indef`, `convert/Beta`;
   uses Hakaru;
 
+  # Some types
+  # A particular form of Introduce.. (?)
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
+
+  # Low and high bounds (?)
   t_lo    := 'identical(`>`,`>=`)';
   t_hi    := 'identical(`<`,`<=`)';
+
+  # The 'constructor' forms of KB
+  t_kb_Introduce := 'Introduce(name, anything)';
+  t_kb_Let       := 'Let(name, anything)';
+  t_kb_Bound     := 'Bound(name, anything, anything)';
+  t_kb_Constrain := 'Constrain(anything)';
+
 
   empty := KB();
 
@@ -69,13 +82,40 @@ KB := module ()
        negated_relation[op(0,R)](op(R))
   end proc;
 
+
+  # Negate b, where b is an 'atomic' relation of a KB (?)
+  # TODO: this should make use of `negated_relation'
+  negate_kb1 := proc(b,$)
+     if   b :: `=`  then `<>`(op(b))
+     elif b :: `<>` then `=` (op(b))
+     elif b :: `<`  then `>=`(op(b))
+     elif b :: `<=` then `>` (op(b))
+     else Not(b) end if
+  end proc;
+
+  # Perhaps this exists somewhere
+  from_FAIL := proc(e,def,$) if not e::identical(FAIL) then def else e end if; end proc;
+
+
+  # Catches and reports a contradiction which could arise as result of
+  # some forms of simplification and evaluation
+  `&assuming_safe` := proc (e :: uneval)
+     try
+        e assuming args[2 .. -1];
+     catch "when calling '%1'. Received: 'contradictory assumptions'":
+        # We seem to be on an unreachable control path
+        userinfo(1, 'procname', "Received contradictory assumptions.");
+        FAIL;
+     end try;
+  end proc;
+
   assert := proc(b, kb::t_kb, $)
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 
   assert_deny := module ()
-   export ModuleApply, `&assuming_safe` ;
-   local t_if_and_or_of, t_not, t_not_eq_and_not_not, from_FAIL, negate_kb1,
+   export ModuleApply ;
+   local t_if_and_or_of, t_not, t_not_eq_and_not_not,
          mystery, t_bound_on;
 
    # The 'type' of `if(,,)` where the first parameter is the given type
@@ -92,36 +132,16 @@ KB := module ()
    # The 'type' representing bounds on `x', where `x' is a name
    t_bound_on := proc(x,$) And(relation, Or(anyop(identical(x), freeof(x)), anyop(freeof(x), identical(x)))) end proc;
 
-   # Catches and reports a contradiction which could arise as result of
-   # some forms of simplification and evaluation
-   `&assuming_safe` := proc (e :: uneval)
-     try
-        e assuming args[2 .. -1];
-     catch "when calling '%1'. Received: 'contradictory assumptions'":
-        # We seem to be on an unreachable control path
-        userinfo(1, 'procname', "Received contradictory assumptions.");
-        FAIL;
-     end try;
-   end proc;
-
-   # Negate b, where b is an 'atomic' relation of a KB (?)
-   negate_kb1 := proc(b,$)
-     if   b :: `=`  then `<>`(op(b))
-     elif b :: `<>` then `=` (op(b))
-     elif b :: `<`  then `>=`(op(b))
-     elif b :: `<=` then `>` (op(b))
-     else Not(b) end if
-   end proc;
-
    # Mystery function
    mystery := proc(k,kb,x,c,$)
-       [op(map2(subsop, 1=NULL,
-                       select(type, kb, Bound(identical(x), c, anything)))),
-                    op(select(type, k , Bound(              c, anything)) )]
+       [ op(map2(subsop
+                , 1=NULL
+                , select(type, kb, Bound(identical(x), c, anything))
+                )
+           )
+       , op(select(type, k , Bound(              c, anything)) )
+       ]
    end proc;
-
-   # Perhaps this exists somewhere
-   from_FAIL := proc(e,def,$) if not e::identical(FAIL) then def else e end if; end proc;
 
    ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
@@ -157,6 +177,12 @@ KB := module ()
         # Reduce (in)equality between exp(A) and exp(B) to between A and B.
         do
           try log_b := map(simplify@ln, b) assuming op(as); catch: break; end try;
+
+          # This doesn't work (as a replacement for above) but I would expect it
+          # to. (?)
+          # log_b := map(simplify@ln, b) &assuming_safe op(as);
+          # if log_b :: identical(FAIL) then break; end if;
+
           if log_metric(log_b, x) < log_metric(b, x)
              and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
             b := log_b;
@@ -243,6 +269,10 @@ KB := module ()
                                    y::htype_to_property(k), op(as)) ) then
               # The old bound renders the new bound superfluous.
               return kb
+
+          # "assuming" used to be in a try which would
+          # cause the return to never be reached if it threw, but now it
+          # produces FAIL instead - and `_x or FAIL = FAIL'
           elif nops(c)=0 or (is(op(1,c)(y,op(2,c))) &assuming_safe
                                  (rel(y,ch),
                                   y::htype_to_property(k), op(as)) ) then
@@ -281,7 +311,8 @@ KB := module ()
       # ??
       if b :: t_not_eq_and_not_not then b := (rhs(b)=lhs(b)) end if;
 
-      # ??
+      # If `b' reduces to `true' in the KB environment then there is no need to
+      # add it
       ch := chill(b);
       if is(ch) &assuming_safe op(as) then return kb end if;
 
@@ -322,7 +353,7 @@ KB := module ()
     end if;
     map(proc(k, $)
       local x, t;
-      if k :: 'Introduce(name, anything)' then
+      if k :: t_kb_Introduce then
         x, t := op(k);
         if t :: 'specfunc(AlmostEveryReal)' then
           t := [op(t), Bound(`>`, -infinity), Bound(`<`, infinity)];
@@ -332,11 +363,11 @@ KB := module ()
         else
           [genType, x, t]
         end if
-      elif k :: 'Let(name, anything)' then
+      elif k :: t_kb_Let then
         [genLet, op(k)]
-      elif k :: 'Bound(name, anything, anything)' then
+      elif k :: t_kb_Bound then
         [assert, op(2,k)(op(1,k),op(3,k))]
-      elif k :: 'Constrain(anything)' then
+      elif k :: t_kb_Constrain then
         [assert, op(1,k)]
       end if
     end proc, [op(coalesce_bounds(KB(op(1..cut, kb))))])
@@ -371,7 +402,7 @@ KB := module ()
         else
           Let(x, eq[x]);
         end if
-      elif k :: 'Bound(name, anything, anything)'
+      elif k :: t_kb_Bound
            and rest[op(1,k)] :: 'list' then
         NULL;
       else
@@ -389,12 +420,16 @@ KB := module ()
     as := kb_to_assumptions(kb, e);
     e := chill(e);                                                        `chill`;
     as := chill(as);
-    try
-      e := simplify(e) assuming op(as);                         `simplify @ assuming`;
-    catch "when calling '%1'. Received: 'contradictory assumptions'":
-      # We seem to be on an unreachable control path
-      userinfo(1, 'procname', "Received contradictory assumptions.")
-    end try;
+
+    e0 := e;
+    e := simplify(e) &assuming_safe op(as);
+    if e :: identical(FAIL) then e := e0 end if;
+
+    # This causes an additional test to fail compared to the above .. either
+    # from_FAIL is wrong or simplify is somehow (for some reason?!)  mutating
+    # `e' (?)
+    # e := from_FAIL( simplify(e) &assuming_safe op(as), e );
+
     e := warm(e);                                            `warm (then expand@exp)`;
     eval(e, exp = expand @ exp);
   end proc;
@@ -779,11 +814,11 @@ KB := module ()
         x := op(1,k);
         (x :: htype_to_property(op(2,k))),
         op(map((b -> op(1,b)(x, op(2,b))), op(2,k)))
-      elif k :: 'Let(anything, anything)' then
+      elif k :: t_kb_Let then
         `=`(op(k))
-      elif k :: 'Bound(anything, anything, anything)' then
+      elif k :: t_kb_Bound then
         op(2,k)(op(1,k), op(3,k))
-      elif k :: 'Constrain(anything)' then
+      elif k :: t_kb_Constrain then
         op(1,k)
       else
         NULL # Maple doesn't understand our other types
@@ -817,7 +852,7 @@ KB := module ()
   kb_to_equations := proc(kb, $)
     local lets, constraints;
 
-    lets := map2(subsop, 0=`=`, [op(select(type, kb, 'Let(name, anything)'))]);
+    lets := map2(subsop, 0=`=`, [op(select(type, kb, t_kb_Let))]);
     constraints := map(op, select(type, kb, 'Constrain(anything = anything)'));
     [op(lets), op(constraints)]
   end proc;
