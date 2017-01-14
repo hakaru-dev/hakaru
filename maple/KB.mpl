@@ -65,38 +65,53 @@ KB := module ()
   #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
   #Carl 2016Sep09
   negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
-  negate_relation:= proc(R::relation, $)::relation; 
+  negate_relation:= proc(R::relation, $)::relation;
        negated_relation[op(0,R)](op(R))
   end proc;
-  
+
   assert := proc(b, kb::t_kb, $)
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 
-  assert_deny := proc(bb, pol::identical(true,false), kb::t_kb, $)
+  assert_deny := module ()
+   export ModuleApply;
+   ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
+
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
     local as, b, log_b, k, x, rel, e, ch, c, kb1, y;
     if bb = pol then
       # Ignore literal true and Not(false).
       kb
+
+
     elif bb :: `if`(pol, '{specfunc(anything, And), `and`}',
                          '{specfunc(anything, Or ), `or` }') then
       foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
+
+
     elif bb :: '{specfunc(anything, Not), `not`}' then
       foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
+
+
     else
       as := chill(kb_to_assumptions(kb, bb));
       b := chill(bb);
+
+
       try
         b := simplify(b) assuming op(as);
       catch "when calling '%1'. Received: 'contradictory assumptions'":
         # We seem to be on an unreachable control path
         userinfo(1, 'procname', "Received contradictory assumptions.")
       end try;
+
+
       b := warm(b);
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
                   kb);
+
+
       if nops(k) > 0 then
         x, k := op(op(1,k));
         # Found the innermost scope where b makes sense.
@@ -110,25 +125,35 @@ KB := module ()
             break;
           end if;
         end do;
+
+
         if b :: And(relation, Or(anyop(identical(x), freeof(x)),
                                  anyop(freeof(x), identical(x)))) then
           # b is a bound on x, so compare it against the current bound on x.
           # First, express `if`(pol,b,Not(b)) as rel(x,e)
           rel := op(0,b);
+
+
           if x = lhs(b) then
             e := rhs(b);
           else#x=rhs(b)
             e := lhs(b);
             rel := subs({`<`=`>`, `<=`=`>=`}, rel);
           end if;
+
+
           if not pol then
             rel := subs({`<`=`>=`, `<=`=`>`,
                          `>`=`<=`, `>=`=`<`,
                          `=`=`<>`, `<>`=`=`}, rel);
           end if;
+
+
           if k :: 'specfunc(AlmostEveryReal)' then
             rel := subs({`<=`=`<`, `>=`=`>`}, rel);
           end if;
+
+
           if rel = `=` then
             # To assert that x=e, it's not enough to supersede the Introduce
             # binding for x with a Let binding.
@@ -144,6 +169,8 @@ KB := module ()
             end do;
             return kb1
           end if;
+
+
           ch := chill(e);
           if rel = `<>` then
             # Refine <> to > or < if possible.
@@ -163,12 +190,16 @@ KB := module ()
               e   := warm(ch)
             end if
           end if;
+
+
           # Look up the current bound on x, if any.
           c := `if`(rel :: t_lo, t_lo, t_hi);
           c := [op(map2(subsop, 1=NULL,
                    select(type, kb, Bound(identical(x), c, anything)))),
                 op(select(type, k , Bound(              c, anything)) )];
           if nops(c) > 0 then c := chill(op(1,c)) end if;
+
+
           # Compare the new bound rel        (x,e          )
           # against the old bound op([1,1],c)(x,op([1,2],c))
           try
@@ -188,6 +219,8 @@ KB := module ()
             # We seem to be on an unreachable control path
             userinfo(1, 'procname', "Received contradictory assumptions.")
           end try;
+
+
         else
           # Try to make b about x using convert/piecewise.
           c := 'piecewise'(chill(b), true, false);
@@ -199,13 +232,18 @@ KB := module ()
             try
               c := convert(c, 'piecewise', x) assuming op(as);
             catch: c := FAIL end try;
+
+
             if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
               c := foldr_piecewise(boolean_if, false, warm(c));
               if c <> b then return assert_deny(c, pol, kb) end if
             end if
           end if
         end if
+
       end if;
+
+
       # Normalize `=` and `<>` constraints a bit.
       if not pol then
         # Negate b
@@ -215,10 +253,14 @@ KB := module ()
         elif b :: `<=` then b := `>` (op(b))
         else b := Not(b) end if
       end if;
+
+
       if b :: 'Not({name, size(name)})
                = And(name, Not(constant), Not(undefined))' then
         b := (rhs(b)=lhs(b))
       end if;
+
+
       # Add constraint to KB.
       ch := chill(b);
       try
@@ -229,9 +271,13 @@ KB := module ()
         # We seem to be on an unreachable control path
         userinfo(1, 'procname', "Received contradictory assumptions.")
       end try;
+
+
       KB(Constrain(b), op(kb))
     end if
-  end proc:
+
+   end proc: # ModuleApply
+  end module; # assert_deny
 
   log_metric := proc(e, x, $)
     local m, L;
