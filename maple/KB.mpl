@@ -319,7 +319,7 @@ KB := module ()
           kb0 := bound_simp(b,x,k,kb,pol,as,e);
         else
           kb0 := not_bound_simp(b,x,kb,pol,as);
-        end if
+        end if;
 
         # If it succeeds, return that result
         if not kb0 :: identical(FAIL) then return kb0 end if;
