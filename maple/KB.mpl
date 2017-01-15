@@ -248,9 +248,7 @@ KB := module ()
         # > convert(piecewise(i<=size[idx[a,i]]-2,true,false),piecewise,i);
         # Error, (in unknown) too many levels of recursion
      then
-       # This doesn't work (?) causing very strange errors in DisintT
-       # `assuming_safe' seems to work in other places.. something deeply
-       # magical about `convert'?
+       # assuming_safe doesn't work here
        # c := convert(c, 'piecewise', x) &assuming_safe op(as);
 
             try
@@ -300,8 +298,7 @@ KB := module ()
         do
           try log_b := map(simplify@ln, b) assuming op(as); catch: break; end try;
 
-          # This doesn't work (as a replacement for above) but I would expect it
-          # to. (?)
+          # assuming_safe doesn't work here
           # log_b := map(simplify@ln, b) &assuming_safe op(as);
           # if log_b :: identical(FAIL) then break; end if;
 
