@@ -115,7 +115,7 @@ KB := module ()
 
   assert_deny := module ()
    export ModuleApply ;
-   local t_if_and_or_of, t_not, t_not_eq_and_not_not,
+   local t_if_and_or_of, t_not, t_not_eq_and_not_not, bound_simp,
          mystery, t_bound_on;
 
    # The 'type' of `if(,,)` where the first parameter is the given type
@@ -141,6 +141,98 @@ KB := module ()
            )
        , op(select(type, k , Bound(              c, anything)) )
        ]
+   end proc;
+
+   # Performs simplification(?) in case something of the form `t_bound_on` is found
+   bound_simp := proc(b,x,k,c,kb,pol,e0,$)
+      local e, rel, kb1,ch;
+      e = e0;
+      # b is a bound on x, so compare it against the current bound on x.
+      # First, express `if`(pol,b,Not(b)) as rel(x,e)
+      rel := op(0,b);
+
+      # Account for the symmetric cases of `x' being on the left or right
+      # hand side; the predicate is modified(?) in case of a 'flip'
+      if x = lhs(b) then
+        e := rhs(b);
+      else #x=rhs(b)
+        e   := lhs(b);
+        rel := subs({`<`=`>`, `<=`=`>=`}, rel);
+      end if;
+
+      # Change relations to their negations if `pol = false'
+      if not pol then
+        # A 'table' giving the negations of relations
+        rel := subs({`<`=`>=`, `<=`=`>`, `>`=`<=`, `>=`=`<`, `=`=`<>`, `<>`=`=`}, rel);
+      end if;
+
+      # Discards a few points (?)
+      if k :: 'specfunc(AlmostEveryReal)' then
+        # A 'table' giving the negation of strict relations
+        rel := subs({`<=`=`<`, `>=`=`>`}, rel);
+      end if;
+
+      if rel = `=` then
+        # To assert that x=e, it's not enough to supersede the Introduce
+        # binding for x with a Let binding.
+        kb1 := KB(Bound(x,`=`,e), op(kb));
+        # We also need to assert that e is in bounds for x.
+        for c in t_lo, t_hi do
+          c := mystery(k,kb,x,c);
+          if nops(c)>0 then
+            kb1 := assert_deny(op([1,1],c)(e,op([1,2],c)), true, kb1)
+          end if
+        end do;
+        return kb1
+      end if;
+
+      ch := chill(e);
+      if rel = `<>` then
+        # Refine <> to > or < if possible.
+        if   is(x<=ch) assuming op(as) then rel := `<`
+        elif is(x>=ch) assuming op(as) then rel := `>`
+        else return KB(Constrain(x<>e), op(kb)) end if
+      end if;
+
+      # Strengthen strict inequality on integer variable.
+      if op(0,k) = HInt then
+        if rel = `>` then
+          rel := `>=`;
+          ch  := floor(ch)+1 assuming op(as);
+          e   := warm(ch)
+        elif rel = `<` then
+          rel := `<=`;
+          ch  := ceil(ch)-1 assuming op(as);
+          e   := warm(ch)
+        end if
+      end if;
+
+      # Look up the current bound on x, if any.
+      c := `if`(rel :: t_lo, t_lo, t_hi);
+      c := mystery(k,kb,x,c);
+
+      # chill but also unwraps `c' (?)
+      if nops(c) > 0 then c := chill(op(1,c)) end if;
+
+      # Compare the new bound rel        (x,e          )
+      # against the old bound op([1,1],c)(x,op([1,2],c))
+      if e = `if`(rel :: t_lo, -infinity, infinity)
+          or nops(c)>0 and (is(rel(y,ch)) &assuming_safe
+                              (op(1,c)(y,op(2,c)),
+                               y::htype_to_property(k), op(as)) ) then
+          # The old bound renders the new bound superfluous.
+          return kb
+
+      # "assuming" used to be in a try which would
+      # cause the return to never be reached if it threw, but now it
+      # produces FAIL instead - and `_x or FAIL = FAIL'
+      elif nops(c)=0 or (is(op(1,c)(y,op(2,c))) &assuming_safe
+                             (rel(y,ch),
+                              y::htype_to_property(k), op(as)) ) then
+          # The new bound supersedes the old bound.
+          return KB(Bound(x,rel,e), op(kb))
+      end if
+
    end proc;
 
    ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
@@ -412,7 +504,7 @@ KB := module ()
   end proc;
 
   simplify_assuming := proc(ee, kb::t_kb, $)
-    local e, as;                                                         # for debugging
+    local e, as, e0;                                                         # for debugging
     if not (indets(ee,'specfunc(applyintegrand)') = {}) then
       WARNING("simplify_assuming called on an expression containing 'applyintegrand' -- this is probably a mistake, and could result in incorrect results");
     end if;
