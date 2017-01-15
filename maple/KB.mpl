@@ -115,7 +115,7 @@ KB := module ()
 
   assert_deny := module ()
    export ModuleApply ;
-   local t_if_and_or_of, t_not, t_not_eq_and_not_not, bound_simp,
+   local t_if_and_or_of, t_not, t_not_eq_and_not_not, bound_simp, not_bound_simp,
          mystery, t_bound_on;
 
    # The 'type' of `if(,,)` where the first parameter is the given type
@@ -238,6 +238,33 @@ KB := module ()
       FAIL; # No simplification could be done
    end proc;
 
+   # Simplification when the `:: t_bound_on' predicate is false
+   not_bound_simp := proc(b,x,kb,pol,as,$)
+     local c;
+     # Try to make b about x using convert/piecewise.
+     c := 'piecewise'(chill(b), true, false);
+     if not depends(indets(c, indexed), x)
+        # Avoid bug in convert/piecewise:
+        # > convert(piecewise(i<=size[idx[a,i]]-2,true,false),piecewise,i);
+        # Error, (in unknown) too many levels of recursion
+     then
+       # This doesn't work (?) causing very strange errors in DisintT
+       # `assuming_safe' seems to work in other places.. something deeply
+       # magical about `convert'?
+       # c := convert(c, 'piecewise', x) &assuming_safe op(as);
+
+            try
+              c := convert(c, 'piecewise', x) assuming op(as);
+            catch: c := FAIL end try;
+
+            if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
+              c := foldr_piecewise(boolean_if, false, warm(c));
+              if c <> b then return assert_deny(c, pol, kb) end if
+            end if;
+          end if;
+     FAIL; # No simplification could be done
+   end proc;
+
    ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
     local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
@@ -289,35 +316,13 @@ KB := module ()
         # If `b' is of a particular form (a bound on `x'), simplification
         # is in order
         if b :: t_bound_on(`x`) then
-
-          # If it succeeds, return that result
           kb0 := bound_simp(b,x,k,kb,pol,as,e);
-          if not kb0 :: identical(FAIL) then return kb0 end if;
-
         else
-          # Try to make b about x using convert/piecewise.
-          c := 'piecewise'(chill(b), true, false);
-          if not depends(indets(c, indexed), x)
-             # Avoid bug in convert/piecewise:
-             # > convert(piecewise(i<=size[idx[a,i]]-2,true,false),piecewise,i);
-             # Error, (in unknown) too many levels of recursion
-          then
-            # This doesn't work (?) causing very strange errors in DisintT
-            # `assuming_safe' seems to work in other places.. something deeply
-            # magical about `convert'?
-            # c := convert(c, 'piecewise', x) &assuming_safe op(as);
-
-            try
-              c := convert(c, 'piecewise', x) assuming op(as);
-            catch: c := FAIL end try;
-
-            if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
-              c := foldr_piecewise(boolean_if, false, warm(c));
-              if c <> b then return assert_deny(c, pol, kb) end if
-            end if
-          end if
-
+          kb0 := not_bound_simp(b,x,kb,pol,as);
         end if
+
+        # If it succeeds, return that result
+        if not kb0 :: identical(FAIL) then return kb0 end if;
       end if;
 
       # Normalize `=` and `<>` constraints a bit.
