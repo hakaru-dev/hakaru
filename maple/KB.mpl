@@ -251,15 +251,15 @@ KB := module ()
        # assuming_safe doesn't work here
        # c := convert(c, 'piecewise', x) &assuming_safe op(as);
 
-            try
-              c := convert(c, 'piecewise', x) assuming op(as);
-            catch: c := FAIL end try;
+       try
+         c := convert(c, 'piecewise', x) assuming op(as);
+       catch: c := FAIL end try;
 
-            if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
-              c := foldr_piecewise(boolean_if, false, warm(c));
-              if c <> b then return assert_deny(c, pol, kb) end if
-            end if;
-          end if;
+       if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
+         c := foldr_piecewise(boolean_if, false, warm(c));
+         if c <> b then return assert_deny(c, pol, kb) end if
+       end if;
+     end if;
      FAIL; # No simplification could be done
    end proc;
 

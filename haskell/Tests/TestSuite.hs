@@ -34,7 +34,12 @@ allTests env = test
   ]
 
 main :: IO ()
-main  = do
+main = mainWith (fmap Just . runTestTT)
+
+mainWith :: (Test -> IO (Maybe Counts)) -> IO ()
+mainWith run = do
     env <- lookupEnv "LOCAL_MAPLE"
-    Counts _ _ e f <- runTestTT (allTests env)
-    if (e>0) || (f>0) then exitFailure else return ()
+    run (allTests env) >>=
+      maybe (return ()) (\(Counts _ _ e f) -> if (e>0) || (f>0) then exitFailure else return ())
+
+-- maini = mainWith 
