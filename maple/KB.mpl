@@ -302,10 +302,14 @@ KB := module ()
              # > convert(piecewise(i<=size[idx[a,i]]-2,true,false),piecewise,i);
              # Error, (in unknown) too many levels of recursion
           then
-            c := convert(c, 'piecewise', x) &assuming_safe op(as);
-            # try
-            #   c := convert(c, 'piecewise', x) assuming op(as);
-            # catch: c := FAIL end try;
+            # This doesn't work (?) causing very strange errors in DisintT
+            # `assuming_safe' seems to work in other places.. something deeply
+            # magical about `convert'?
+            # c := convert(c, 'piecewise', x) &assuming_safe op(as);
+
+            try
+              c := convert(c, 'piecewise', x) assuming op(as);
+            catch: c := FAIL end try;
 
             if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
               c := foldr_piecewise(boolean_if, false, warm(c));
