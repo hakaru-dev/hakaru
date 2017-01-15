@@ -48,7 +48,7 @@ TestDisint(
 
 TestDisint(
      [Ret(Pair(sqrt(Pi), x)), t &M Ret(7)],
-     {Msum()}, 
+     {Msum()},
      label= "(d0_2) `Dirac` test 1"
 );
 
@@ -71,9 +71,9 @@ TestDisint(
      Bind(Gaussian(0,1), x, Ret(Pair(x+x^3, f(x)))),
      {}, #I don't know what to expect.
      label= "(d0_5) Injective nonlinear inequality"
-);     
+);
 # End of the possibly statistically meaningless tests.
-     
+
 d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
 d1r := {Weight(1/5,Ret(-15/t))}:
 
@@ -85,9 +85,9 @@ d2r := {Weight(7, Ret(3))}:
 #https://en.wikipedia.org/wiki/Borel-Kolmogorov_paradox
 d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
 d3r := {
-  Bind(Uniform(0, 1), x丅, 
+  Bind(Uniform(0, 1), x丅,
     piecewise(And(x丅 < t+1, t < x丅), Ret(f(x丅, x丅-t)), Msum())),
-  Bind(Uniform(0, 1), y七, 
+  Bind(Uniform(0, 1), y七,
     piecewise(And(-t < y七, y七 < 1-t), Ret(f(y七+t, y七)), Msum()))
 }:
 
@@ -95,7 +95,7 @@ d4 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x/y,x)))):
 d4r := {
   Weight(1/abs(t)^2,
     Bind(Uniform(0,1),`x丫丵`,
-         piecewise(`x丫丵` < t,Weight(`x丫丵`,Ret(`x丫丵`)),Msum()))), 
+         piecewise(`x丫丵` < t,Weight(`x丫丵`,Ret(`x丫丵`)),Msum()))),
   piecewise(0 < t,
     Bind(Uniform(0,1),`y丩丱`,
          piecewise(t < 1/`y丩丱`,
@@ -112,8 +112,8 @@ d6r := {Weight(1/2*2^(1/2)/Pi^(1/2)*exp(-1/2*t^2),Gaussian(t,1))}:
 
 # note (y+y), which gives trouble for a syntactic approach
 normalFB1 :=
-  Bind(Gaussian(0,1), x, 
-  Bind(Gaussian(x,1), y, 
+  Bind(Gaussian(0,1), x,
+  Bind(Gaussian(x,1), y,
   Ret(Pair((y+y)+x, _Unit)))):
 
 normalFB1r := {Weight(1/26*exp(-1/26*t^2)/Pi^(1/2)*13^(1/2)*2^(1/2),Ret(_Unit))}:
@@ -149,21 +149,21 @@ easyRoad:= [
 #The first expression below comes from the actual output of disint, hand-
 #simplified 1) to bring factors into the innnermost integral, 2) to combine
 #products of exps, and 3) to express the polynomial arg of exp in a logical way
-#by sub-factoring. 
+#by sub-factoring.
 easyRoadr:= {
   Weight(                #Weight 1
-    Pi/8, 
+    Pi/8,
     Bind(                #Bind 1
       Uniform(3, 8), noiseT,
       Weight(            #Weight 2
         1/noiseT^2,
         Bind(            #Bind 2
-          Uniform(1, 4), noiseE, 
+          Uniform(1, 4), noiseE,
           Weight(        #Weight 3
             int(         #Int 1
               int(       #Int 2
                 exp(
-                  -(x2^2/2 - x1*x2 + x1^2)/noiseT^2 - 
+                  -(x2^2/2 - x1*x2 + x1^2)/noiseT^2 -
                   ((t-x2)^2 + (s-x1)^2)/noiseE^2
                 )*2/Pi/noiseE,
                 x2= -infinity..infinity
@@ -177,7 +177,7 @@ easyRoadr:= {
     )                    #-Bind 1
   ),                     #-Weight 1
 
-  #Hopefully, that's equivalent to...  
+  #Hopefully, that's equivalent to...
   Bind(Uniform(3, 8), noiseT,
   Bind(Uniform(1, 4), noiseE,
   Bind(Gaussian(0, noiseT), x1,
@@ -185,7 +185,7 @@ easyRoadr:= {
   Bind(Gaussian(x1, noiseT), x2,
   Weight(density[Gaussian](x2, noiseE)(t), Ret(Pair(noiseT, noiseE)))
   )))))
-}: 
+}:
 helloWorld:= [
   Bind(Gaussian(0,1), mu,
   Bind(Plate(n, k, Gaussian(mu, 1)), nu,
@@ -194,11 +194,11 @@ helloWorld:= [
   :-t,
   ctx= [n::integer, n > 0]
 ]:
-helloWorldr:= { 
+helloWorldr:= {
   Bind(Gaussian(0,1), mu,
   Plate(n, i, Weight(density[Gaussian](mu, 1)(idx(t,i)), Ret(mu)))
   )
-}:  
+}:
 
 TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
 TestDisint(d2, d2r, label = "(d2) Disintegrate linear function II");
@@ -221,7 +221,7 @@ TestDisint(norm1b, norm1r,
 TestDisint(
      easyRoad, easyRoadr,
      label= "(easyRoad) Combo of Normals with distinct Uniform noises",
-     TLim= 600 #takes 6 - 8 minutes to `improve` on an Intel i7
+     TLim= 20 #takes 6 - 8 minutes to `improve` on an Intel i7
 );
 TestDisint(
      helloWorld, helloWorldr,
