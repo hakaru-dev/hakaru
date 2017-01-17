@@ -1,4 +1,4 @@
--- module Tests.TestSuite(main) where
+module Tests.TestSuiteTasty where
 
 import System.Exit (exitFailure)
 import System.Environment (lookupEnv)

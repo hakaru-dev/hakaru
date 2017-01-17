@@ -148,7 +148,7 @@ Test-Suite system-testsuite-tasty
     Main-is:           Tests/TestSuiteTasty.hs
     Hs-Source-Dirs:    haskell
     Default-Language:  Haskell2010
-    GHC-Options:       -Wall -fwarn-tabs
+    GHC-Options:       -Wall -fwarn-tabs -main-is Tests.TestSuiteTasty.main
 
     Build-Depends:     base               >= 4.6  && < 5.0,
                        Cabal              >= 1.16,
