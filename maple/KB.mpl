@@ -241,26 +241,14 @@ KB := module ()
    # Simplification when the `:: t_bound_on' predicate is false
    not_bound_simp := proc(b,x,kb,pol,as,$)
      local c;
-     # Try to make b about x using convert/piecewise.
-     c := 'piecewise'(chill(b), true, false);
-     if not depends(indets(c, indexed), x)
-        # Avoid bug in convert/piecewise:
-        # > convert(piecewise(i<=size[idx[a,i]]-2,true,false),piecewise,i);
-        # Error, (in unknown) too many levels of recursion
-     then
-       # assuming_safe doesn't work here
-       # c := convert(c, 'piecewise', x) &assuming_safe op(as);
 
-       try
-         c := convert(c, 'piecewise', x) assuming op(as);
-       catch: c := FAIL end try;
-
-       if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
-         c := foldr_piecewise(boolean_if, false, warm(c));
-         if c <> b then return assert_deny(c, pol, kb) end if
-       end if;
+     c := solve({b},[x], 'useassumptions'=true) assuming op(as);
+     # success!
+     if c::list and nops(c)=1 and nops(c[1])=1 then 
+       assert_deny(c[1][1], pol, kb);
+     else
+       FAIL; # No simplification could be done
      end if;
-     FAIL; # No simplification could be done
    end proc;
 
    ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
