@@ -50,8 +50,10 @@ normalize abt = caseVarSyn abt normalizeVar normalizeTerm
 normalizeVar :: (ABT Term abt) => (Variable a) -> Context abt a b -> abt '[] b
 normalizeVar v k = k (var v)
 
-normalizeTerm (NaryOp_ op args) k = normalizeNAryOp op args k
-normalizeTerm _ _                 = undefined
+normalizeTerm :: (ABT Term abt)  => Term abt a -> Context abt a b -> abt '[] b
+normalizeTerm (NaryOp_ op args) = normalizeNAryOp op args
+normalizeTerm (x :$ args)       = normalizeSCon x args
+normalizeTerm term              = ($ syn term)
 
 normalizeNAryOp = undefined
 
