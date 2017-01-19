@@ -35,7 +35,7 @@ import           Debug.Trace
 
 example1 = binder "a" sing $ \ a -> (triv $ real_ 1 + a)
 
-example2 = let_ (real_ 1) $ \ a -> (triv $ real_ 1 + a)
+example2 = let_ (real_ 1) $ \ a -> (triv (real_ 1 + a))
 
 -- | The context in which A-normalization occurs. Represented as a continuation,
 -- the context expects an expression of a particular type (usually a variable)
@@ -60,6 +60,26 @@ normalize' abt = caseVarSyn abt normalizeVar normalizeTerm
 normalizeVar :: (ABT Term abt) => (Variable a) -> Context abt a b -> abt '[] b
 normalizeVar v k = k (var v)
 
+{-
+ -normalizeArgs
+ -  :: (ABT Term abt)
+ -  => S.Seq (abt '[] a)
+ -  -> (S.Seq (abt '[] a) -> abt '[] a)
+ -  -> abt '[] a
+ -normalizeArgs
+ -}
+
+isValue
+  :: (ABT Term abt)
+  => abt '[] a
+  -> Bool
+isValue abt = caseVarSyn abt (const True) isValueTerm
+  where
+    isValueTerm Literal_{}  = True
+    isValueTerm Datum_{}     = True
+    isValueTerm (Lam_ :$ _) = True
+    isValueTerm _           = False
+
 normalizeTerm
   :: (ABT Term abt)
   => Term abt a
@@ -69,13 +89,23 @@ normalizeTerm (NaryOp_ op args) = normalizeNaryOp op args
 normalizeTerm (x :$ args)       = normalizeSCon x args
 normalizeTerm term              = ($ syn term)
 
+normalizeName
+  :: (ABT Term abt)
+  => abt '[] a
+  -> Context abt a b
+  -> abt '[] b
+normalizeName abt ctxt = normalize' abt giveName
+  where
+    giveName abt' | isValue abt' = ctxt abt'
+                  | otherwise    = let_ abt' ctxt
+
 normalizeNaryOp
   :: (ABT Term abt)
   => NaryOp a
   -> S.Seq (abt '[] a)
   -> Context abt a b
   -> abt '[] b
-normalizeNaryOp op = go
+normalizeNaryOp op args ctxt_ = go args (ctxt_ . syn . NaryOp_ op)
   where go args ctxt = undefined
 
 normalizeSCon
@@ -84,6 +114,7 @@ normalizeSCon
   -> SArgs abt args
   -> Context abt a b
   -> abt '[] b
+
 normalizeSCon Let_ =
   \(rhs :* body :* End) ctxt -> caseBind body $
     \v@Variable{} body' ->
@@ -96,3 +127,6 @@ normalizeSCon Lam_ =
     \v@Variable{} body' ->
       let body'' = bind v (normalize body')
       in ctxt $ syn (Lam_ :$ body'' :* End)
+
+normalizeSCon Summate{} = undefined
+
