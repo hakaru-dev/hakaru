@@ -26,7 +26,7 @@ module Language.Hakaru.Syntax.ANF where
 -- 4. CSE (in order to clean up work duplicated by hoisting)
 --------------------------------------------------------------------------------
 
-import           Prelude                          hiding ((+))
+import           Prelude                          hiding ((+), product)
 
 import           Data.Sequence                    (ViewL (..), (<|))
 import qualified Data.Sequence                    as S
@@ -50,7 +50,8 @@ import           Debug.Trace
 
 example1 = binder "a" sing $ \ a -> (triv $ real_ 1 + a)
 
-example2 = let_ (real_ 1) $ \ a -> (triv (real_ 1 + a))
+example2 = let_ (nat_ 1) $ \ a -> triv ((summate a a (\i -> i)) +
+                                        (product a a (\i -> i)))
 
 -- | The context in which A-normalization occurs. Represented as a continuation,
 -- the context expects an expression of a particular type (usually a variable)
@@ -102,6 +103,7 @@ normalizeTerm
   -> abt '[] b
 normalizeTerm (NaryOp_ op args) = normalizeNaryOp op args
 normalizeTerm (x :$ args)       = normalizeSCon x args
+normalizeTerm (Case_ c bs)      = undefined
 normalizeTerm term              = ($ syn term)
 
 normalizeName
@@ -119,10 +121,18 @@ normalizeNames
   => S.Seq (abt '[] a)
   -> (S.Seq (abt '[] a) -> abt '[] b)
   -> abt '[] b
-normalizeNames abts ctxt =
-  case S.viewl abts of
-    EmptyL  -> ctxt S.empty
-    x :< xs -> normalizeName x $ \t -> normalizeNames xs (ctxt . (t <|))
+normalizeNames abts = foldr f ($ S.empty) abts
+  where
+    f x acc ctxt = normalizeName x $ \t -> acc (ctxt . (t <|))
+-- normalizeSArgs
+--   :: (ABT Term abt)
+--   => SArgs abt args
+--   -> (SArgs abt args -> abt '[] b)
+--   -> abt '[] b
+-- normalizeSArgs args ctxt =
+--   case args of
+--     End     -> ctxt End
+--     x :* xs -> normalizeName x $ \t -> normalizeSArgs xs (ctxt . (t :*))
 
 normalizeNaryOp
   :: (ABT Term abt)
@@ -132,6 +142,18 @@ normalizeNaryOp
   -> abt '[] b
 normalizeNaryOp op args ctxt_ = normalizeNames args (ctxt_ . syn . NaryOp_ op)
 
+{-flattenArrayOp-}
+  {-:: (ABT Term abt)-}
+  {-=> ArrayOp typs a-}
+  {--> SArgs abt args-}
+  {--> Context abt a b-}
+  {--> abt '[] b-}
+{-flattenArrayOp op@(Index _) =-}
+  {-\(arr :* ind :* End) ctxt ->-}
+    {-normalizeName arr $ \ arr' ->-}
+    {-normalizeName ind $ \ ind' ->-}
+    {-ctxt $ arr ! ind-}
+
 normalizeSCon
   :: (ABT Term abt)
   => SCon args a
@@ -139,18 +161,18 @@ normalizeSCon
   -> Context abt a b
   -> abt '[] b
 
+normalizeSCon Lam_ =
+  \(body :* End) ctxt -> caseBind body $
+    \v body' ->
+      let body'' = bind v (normalize body')
+      in ctxt $ syn (Lam_ :$ body'' :* End)
+
 normalizeSCon Let_ =
   \(rhs :* body :* End) ctxt -> caseBind body $
     \v body' ->
       normalize' rhs $ \rhs' ->
         let body'' = normalize' body' ctxt
         in syn (Let_ :$ rhs' :* bind v body'' :* End)
-
-normalizeSCon Lam_ =
-  \(body :* End) ctxt -> caseBind body $
-    \v body' ->
-      let body'' = bind v (normalize body')
-      in ctxt $ syn (Lam_ :$ body'' :* End)
 
 -- TODO: Remove code duplication between sum and product cases
 normalizeSCon s@Summate{} =
@@ -168,3 +190,7 @@ normalizeSCon p@Product{} =
     caseBind body $ \v body' ->
       let body'' = bind v (normalize body')
       in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
+
+normalizeSCon (ArrayOp_ op)  = undefined -- flattenArrayOp op
+
+normalizeSCon op@(PrimOp_ _) = undefined
