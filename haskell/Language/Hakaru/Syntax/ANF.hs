@@ -131,14 +131,14 @@ normalizeSCon
 
 normalizeSCon Let_ =
   \(rhs :* body :* End) ctxt -> caseBind body $
-    \v@Variable{} body' ->
+    \v body' ->
       normalize' rhs $ \rhs' ->
         let body'' = normalize' body' ctxt
         in syn (Let_ :$ rhs' :* bind v body'' :* End)
 
 normalizeSCon Lam_ =
   \(body :* End) ctxt -> caseBind body $
-    \v@Variable{} body' ->
+    \v body' ->
       let body'' = bind v (normalize body')
       in ctxt $ syn (Lam_ :$ body'' :* End)
 
