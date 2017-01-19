@@ -28,7 +28,8 @@ module Language.Hakaru.Syntax.ANF where
 
 import           Prelude                          hiding ((+))
 
-import qualified Data.Sequence      as S
+import           Data.Sequence                    (ViewL (..), (<|))
+import qualified Data.Sequence                    as S
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
@@ -90,7 +91,7 @@ isValue
 isValue abt = caseVarSyn abt (const True) isValueTerm
   where
     isValueTerm Literal_{}  = True
-    isValueTerm Datum_{}     = True
+    isValueTerm Datum_{}    = True
     isValueTerm (Lam_ :$ _) = True
     isValueTerm _           = False
 
@@ -118,11 +119,10 @@ normalizeNames
   => S.Seq (abt '[] a)
   -> (S.Seq (abt '[] a) -> abt '[] b)
   -> abt '[] b
-normalizeNames abts = go abts
-  where go args ctxt =
-          case S.viewl args of
-            S.EmptyL  -> ctxt S.empty
-            x S.:< xs -> normalizeName x $ \t -> go xs (ctxt . (t S.<|))
+normalizeNames abts ctxt =
+  case S.viewl abts of
+    EmptyL  -> ctxt S.empty
+    x :< xs -> normalizeName x $ \t -> normalizeNames xs (ctxt . (t <|))
 
 normalizeNaryOp
   :: (ABT Term abt)
