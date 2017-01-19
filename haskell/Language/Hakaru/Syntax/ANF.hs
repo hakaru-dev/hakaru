@@ -14,6 +14,8 @@ module Language.Hakaru.Syntax.ANF where
 
 import           Prelude                          hiding ((+))
 
+import qualified Data.Sequence      as S
+
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.Datum
@@ -40,22 +42,41 @@ example2 = let_ (real_ 1) $ \ a -> (triv $ real_ 1 + a)
 -- and produces a new expression as a result.
 type Context abt a b = abt '[] a -> abt '[] b
 
+-- | Entry point for the normalization process. Initializes normalize' with the
+-- empty context.
 normalize
+  :: (ABT Term abt)
+  => abt '[] a
+  -> abt '[] a
+normalize = flip normalize' id
+
+normalize'
   :: (ABT Term abt)
   => abt '[] a
   -> Context abt a b
   -> abt '[] b
-normalize abt = caseVarSyn abt normalizeVar normalizeTerm
+normalize' abt = caseVarSyn abt normalizeVar normalizeTerm
 
 normalizeVar :: (ABT Term abt) => (Variable a) -> Context abt a b -> abt '[] b
 normalizeVar v k = k (var v)
 
-normalizeTerm :: (ABT Term abt)  => Term abt a -> Context abt a b -> abt '[] b
-normalizeTerm (NaryOp_ op args) = normalizeNAryOp op args
+normalizeTerm
+  :: (ABT Term abt)
+  => Term abt a
+  -> Context abt a b
+  -> abt '[] b
+normalizeTerm (NaryOp_ op args) = normalizeNaryOp op args
 normalizeTerm (x :$ args)       = normalizeSCon x args
 normalizeTerm term              = ($ syn term)
 
-normalizeNAryOp = undefined
+normalizeNaryOp
+  :: (ABT Term abt)
+  => NaryOp a
+  -> S.Seq (abt '[] a)
+  -> Context abt a b
+  -> abt '[] b
+normalizeNaryOp op = go
+  where go args ctxt = undefined
 
 normalizeSCon
   :: (ABT Term abt)
@@ -66,7 +87,12 @@ normalizeSCon
 normalizeSCon Let_ =
   \(rhs :* body :* End) ctxt -> caseBind body $
     \v@Variable{} body' ->
-      normalize rhs $ \rhs' ->
-        let body'' = normalize body' ctxt
+      normalize' rhs $ \rhs' ->
+        let body'' = normalize' body' ctxt
         in syn (Let_ :$ rhs' :* bind v body'' :* End)
 
+normalizeSCon Lam_ =
+  \(body :* End) ctxt -> caseBind body $
+    \v@Variable{} body' ->
+      let body'' = bind v (normalize body')
+      in ctxt $ syn (Lam_ :$ body'' :* End)
