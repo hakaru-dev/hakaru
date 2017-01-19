@@ -113,14 +113,24 @@ normalizeName abt ctxt = normalize' abt giveName
     giveName abt' | isValue abt' = ctxt abt'
                   | otherwise    = let_ abt' ctxt
 
+normalizeNames
+  :: (ABT Term abt)
+  => S.Seq (abt '[] a)
+  -> (S.Seq (abt '[] a) -> abt '[] b)
+  -> abt '[] b
+normalizeNames abts = go abts
+  where go args ctxt =
+          case S.viewl args of
+            S.EmptyL  -> ctxt S.empty
+            x S.:< xs -> normalizeName x $ \t -> go xs (ctxt . (t S.<|))
+
 normalizeNaryOp
   :: (ABT Term abt)
   => NaryOp a
   -> S.Seq (abt '[] a)
   -> Context abt a b
   -> abt '[] b
-normalizeNaryOp op args ctxt_ = go args (ctxt_ . syn . NaryOp_ op)
-  where go args ctxt = undefined
+normalizeNaryOp op args ctxt_ = normalizeNames args (ctxt_ . syn . NaryOp_ op)
 
 normalizeSCon
   :: (ABT Term abt)
@@ -142,5 +152,19 @@ normalizeSCon Lam_ =
       let body'' = bind v (normalize body')
       in ctxt $ syn (Lam_ :$ body'' :* End)
 
-normalizeSCon Summate{} = undefined
+-- TODO: Remove code duplication between sum and product cases
+normalizeSCon s@Summate{} =
+  \(lo :* hi :* body :* End) ctxt ->
+    normalizeName lo $ \lo' ->
+    normalizeName hi $ \hi' ->
+    caseBind body $ \v body' ->
+      let body'' = bind v (normalize body')
+      in ctxt $ syn (s :$ lo' :* hi' :* body'' :* End)
 
+normalizeSCon p@Product{} =
+  \(lo :* hi :* body :* End) ctxt ->
+    normalizeName lo $ \lo' ->
+    normalizeName hi $ \hi' ->
+    caseBind body $ \v body' ->
+      let body'' = bind v (normalize body')
+      in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
