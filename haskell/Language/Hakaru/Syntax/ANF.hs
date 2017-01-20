@@ -6,6 +6,7 @@
 {-# LANGUAGE KindSignatures            #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE PolyKinds                 #-}
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TypeOperators             #-}
@@ -120,8 +121,33 @@ normalizeTerm
   -> abt '[] b
 normalizeTerm (NaryOp_ op args) = normalizeNaryOp op args
 normalizeTerm (x :$ args)       = normalizeSCon x args
-normalizeTerm (Case_ c bs)      = undefined
+normalizeTerm (Case_ c bs)      = normalizeCase c bs
 normalizeTerm term              = const ($ syn term)
+
+normalizeCase
+  :: forall a b c abt . (ABT Term abt)
+  => abt '[] a
+  -> [Branch a abt b]
+  -> Env
+  -> Context abt b c
+  -> abt '[] c
+normalizeCase cond bs env ctxt =
+  normalizeName cond env $ \ cond' ->
+    let norm :: abt '[] a -> abt '[] a
+        norm b = normalize' b env id
+
+        normalizeBranch :: Branch a abt b -> Branch a abt b
+        normalizeBranch (Branch pat body) =
+          case pat of
+            PWild -> Branch PWild (normalize' body env id)
+            PVar  -> caseBind body $ \v body' ->
+                       Branch PVar $ binder "" (varType v) $ \v' ->
+                         let var  = getVar v'
+                             env' = updateEnv v var env
+                         in normalize' body' env' id
+
+        bs' = map normalizeBranch bs
+    in ctxt $ syn (Case_ cond bs')
 
 normalizeName
   :: (ABT Term abt)
