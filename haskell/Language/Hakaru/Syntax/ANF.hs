@@ -168,8 +168,8 @@ normalizeSCon
 normalizeSCon Lam_ =
   \(body :* End) env ctxt -> caseBind body $
     \v body' ->
-      let body'' = bind v (normalize' body' env id)
-      in ctxt $ syn (Lam_ :$ body'' :* End)
+      let f var = normalize' body' (updateEnv v (getVar var) env) id
+      in ctxt $ syn (Lam_ :$ binder "" (varType v) f :* End)
 
 normalizeSCon Let_ =
   \(rhs :* body :* End) env ctxt -> caseBind body $
