@@ -52,25 +52,38 @@ KB := module ()
      # Functions which build up KBs from KBs and other pieces
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
-      empty, genLebesgue, genType, genLet,
+      empty, genLebesgue, genType, genLet, assert, assert_deny,
 
+     # Negation of 'Constrain' atoms, that is, equality and
+     # inequality constraints
+     negated_relation, negate_relation,
 
-      assert, (* `&assuming` *)
-         negated_relation, negate_relation, assert_deny,
-         kb_subtract, simplify_assuming, simplify_factor_assuming,
-         getType,
+     # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
+     kb_subtract,
+
+     # Simplify a Hakaru term assuming the knowledge of the kb
+     simplify_assuming,
+
+     # Like above, but also applies `hack_Beta` and `eval_factor`
+     # which helps some things simplify.
+     simplify_factor_assuming,
+
+     # Gets the most refined (see refine_given) type of a given name under the
+     # assumptions of the KB
+     getType,
 
      # Various 'views' of the KB, in that they take a KB and produce something
      # which is somehow 'representative' of the KB
      kb_to_variables, kb_to_assumptions, kb_to_equations, kb_piecewise,
 
-     # (?)
+     # Various utilities ...
      list_of_mul, for_poly, range_of_HInt,
 
      # Types corresponding to the constructor forms of the 'atoms' of KBs
      t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
   global
-     # The type of KBs
+     # The type of KBs. It is 'assumed' that things 'with this type'
+     # are actually KBs in the proper form
      t_kb,
 
      # Some silly things that KB must do to appease
@@ -182,7 +195,7 @@ KB := module ()
   assert_deny := module ()
    export ModuleApply ;
    local t_if_and_or_of, t_not, t_not_eq_and_not_not, bound_simp, not_bound_simp,
-         mystery, t_bound_on;
+         refine_given, t_bound_on;
 
    # The 'type' of `if(,,)` where the first parameter is the given type
    t_if_and_or_of := proc(pol,$)
@@ -192,14 +205,32 @@ KB := module ()
    # The 'type' of `not(..)` statements
    t_not := '{specfunc(anything, Not), `not`}';
 
-   # TODO: this needs a name reflecting its semantics, not its structure
-   t_not_eq_and_not_not := 'Not({name, size(name)}) = And(name, Not(constant), Not(undefined))';
+   # The type representing equalities
+   # between something which is neither a name nor 'size' applied to a name
+   # and another thing which is a name which is neither constant nor undefined
+   t_constraint_flipped := 'Not({name, size(name)}) = And(name, Not(constant), Not(undefined))';
 
    # The 'type' representing bounds on `x', where `x' is a name
    t_bound_on := proc(x,$) And(relation, Or(anyop(identical(x), freeof(x)), anyop(freeof(x), identical(x)))) end proc;
 
-   # Mystery function
-   mystery := proc(k,kb,x,c,$)
+   # Given (TODO: add these types to the function(?))
+   #   k  :: HakaruType
+   #   kb :: t_kb
+   #   x  :: name
+   #   c  :: type
+   # a bound name "x" of type "k", produces a 'refinement' of the
+   # type "k", which is a type more specific than "k" at which
+   # the name "x" is well-typed given the knowledge in the KB,
+   # i.e. the conjunction of "x :: $result" with "kb" gives
+   # "x :: k" inside the KB
+   #
+   # Note that if the list is non-empty, the refined knowledge
+   #   is given by the first element of the list, and if it
+   #   is empty, no refinement is possible.
+   #
+   # Original enlightenment:
+   #   hakaru-dev/hakaru/commit/02b9335669e00921a57c3d2a65a1f5f9f6162aa4
+   refine_given := proc(k,kb,x,c,$)
        [ op(map2(subsop
                 , 1=NULL
                 , select(type, kb, Bound(identical(x), c, anything))
@@ -246,7 +277,7 @@ KB := module ()
         kb1 := KB(Bound(x,`=`,e), op(kb));
         # We also need to assert that e is in bounds for x.
         for c in t_lo, t_hi do
-          c := mystery(k,kb,x,c);
+          c := refine_given(k,kb,x,c);
           if nops(c)>0 then
             kb1 := assert_deny(op([1,1],c)(e,op([1,2],c)), true, kb1)
           end if
@@ -277,7 +308,7 @@ KB := module ()
 
       # Look up the current bound on x, if any.
       c := `if`(rel :: t_lo, t_lo, t_hi);
-      c := mystery(k,kb,x,c);
+      c := refine_given(k,kb,x,c);
 
       # chill but also unwraps `c' (?)
       if nops(c) > 0 then c := chill(op(1,c)) end if;
@@ -317,6 +348,10 @@ KB := module ()
      end if;
    end proc;
 
+   # Given a constraint "bb" on a KB "kb", this
+   #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
+   #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
+   # Great deal of magic happens behind the scenes
    ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
     local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
@@ -381,8 +416,9 @@ KB := module ()
         b := negate_kb1(b);
       end if;
 
-      # ??
-      if b :: t_not_eq_and_not_not then b := (rhs(b)=lhs(b)) end if;
+      # If the name in the simple equality (if it is such) is not
+      # on the lhs, then flip the equality
+      if b :: t_constraint_flipped then b := (rhs(b)=lhs(b)) end if;
 
       # If `b' reduces to `true' in the KB environment then there is no need to
       # add it
@@ -396,16 +432,24 @@ KB := module ()
    end proc: # ModuleApply
   end module; # assert_deny
 
+  # In order to hopefully produce a simplification,
+  #   assert_deny will on some occasions repeatedly apply
+  #   `simplify@ln` in the hopes of producing an 'improved'
+  #   constraint. This metric gives the stopping condition
+  # - when the simplification ceases to improve the constraint
+  # - which is when the metric is made no less by the `simplify@ln`.
+  # Since this is a `length`, this is strictly decreasing,
+  #  so such a loop will 'provably' always terminate
   log_metric := proc(e, x, $)
     local m, L;
     m := select(depends, indets(e, 'exp(anything)'), x);
     length(subsindets(map2(op, 1, m), name, _->L));
   end proc:
 
+  # boolean_if should be equivalent to `if`, but it assumes
+  # all its arguments are boolean conditions, so it basically
+  # simplifies "cond and th or not cond and el"
   boolean_if := proc(cond, th, el, $)
-    # boolean_if should be equivalent to `if`, but it assumes
-    # all its arguments are boolean conditions, so it basically
-    # simplifies "cond and th or not cond and el"
     use
       a = ((x,y)-> `if`(x=true,y, `if`(x=false,x,
                    `if`(y=true,x, `if`(y=false,y, And(x,y)))))),
@@ -418,6 +462,13 @@ KB := module ()
     end use
   end proc;
 
+  # Given that kb is an extension of kb0
+  # (in that all the knowledge in kb0 is contained in kb)
+  # then produces kb 'without' kb0.
+  # Essentially this just applies coalesce_bounds
+  # and then folds over the kb, at each step producing
+  # a 'valid' KB by applying the smart constructor
+  # (?) What is the role of of coalesce_bounds? why is it necessary?
   kb_subtract := proc(kb::t_kb, kb0::t_kb, $)
     local cut;
     cut := nops(kb) - nops(kb0);
@@ -446,26 +497,47 @@ KB := module ()
     end proc, [op(coalesce_bounds(KB(op(1..cut, kb))))])
   end proc;
 
+  # This essentially extracts all of the `Bound`s from a
+  # KB and then re-inserts them 'directly' by applying their
+  # knowledge to the rest of the KB. This may (?) produce
+  # an invalid KB
   coalesce_bounds := proc(kb::t_kb, $)
     local lo, hi, eq, rest, k, x, t, b, s, r;
+
+    # For every introduction in kb, remove bounds from
+    # the introduction and store them seperately
+    #  rest   maps variables to the stripped type
+    #  lo,hi  map variables to low,high bounds
     for k in select(type, kb, t_intro) do
-      x, t := op(k);
+      x, t := op(k); # "x = t" is the intro
+
+      # t := minus the lower,upper bounds in t
       b, t := selectremove(type, t, Bound(t_lo, anything));
       if nops(b) > 0 then lo[x] := op(1,b) end if;
       b, t := selectremove(type, t, Bound(t_hi, anything));
       if nops(b) > 0 then hi[x] := op(1,b) end if;
       rest[x] := [op(t)];
     end do;
+
+    # Extract equality bounds, stored in eq (again a map from names)
     for k in select(type, kb, Bound(name, identical(`=`), anything)) do
       eq[op(1,k)] := op(3,k);
     end do;
+
+    # Select `Bound`s in `Constrain`s, i.e. bounds on bound variables
     for k in select(type, kb, Bound(name, t_lo, anything)) do
       lo[op(1,k)] := subsop(1=NULL,k);
     end do;
     for k in select(type, kb, Bound(name, t_hi, anything)) do
       hi[op(1,k)] := subsop(1=NULL,k);
     end do;
+
+    # 'coalesce' the bounds back into each clause of the KB
     map(proc(k, $)
+      # when the clause is an introduction
+      #  and there are equations on "x" which all evaluate to "a = a"
+      #  remove that introduction and substitute
+      #  bounds information about "x" back into things about "x"
       if k :: t_intro then
         x := op(1,k);
         if eq[x] = evaln(eq[x]) then
@@ -473,17 +545,24 @@ KB := module ()
                                op(rest[x])),
                  k);
         else
+      #  otherwise, just replace the intro with a Let
           Let(x, eq[x]);
         end if
+
+      # When the clause is a bound, erase it
       elif k :: t_kb_Bound
            and rest[op(1,k)] :: 'list' then
         NULL;
+
+      # otherwise, do nothing
       else
         k;
       end if;
     end proc, kb);
   end proc;
 
+  # Simplfies a given Hakaru term under knowledge of the
+  # given KB. Does some magic to appease the Maple simplifier.
   simplify_assuming := proc(ee, kb::t_kb, $)
     local e, as, e0;                                                         # for debugging
     if not (indets(ee,'specfunc(applyintegrand)') = {}) then
@@ -507,6 +586,7 @@ KB := module ()
     eval(e, exp = expand @ exp);
   end proc;
 
+  # Like simplify_assuming, but does a lot of hack-y things
   simplify_factor_assuming := module ()
     export ModuleApply;
     local graft_pw, GAMMAratio, wrap, hack_Beta,
@@ -984,6 +1064,8 @@ KB := module ()
     end if
   end proc;
 
+  # Given an expression containing products and sums, i.e. polynomials
+  # and a function , applies this expression to each factor and summand
   for_poly := proc(e, f, $)
     if e :: '{`+`,`*`}' then map(for_poly, e, f)
     elif e :: 'specfunc({product,Product,sum,Sum})' then
@@ -992,6 +1074,8 @@ KB := module ()
     end if
   end proc;
 
+  # Computes the range of (possible values of) a Hakaru Int,
+  # given a Hakaru type for that Int
   range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)
        op(1, [op(map((b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
                      select(type, t, Bound(t_lo,anything)))),
