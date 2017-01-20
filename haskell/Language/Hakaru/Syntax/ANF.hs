@@ -80,6 +80,21 @@ lookupVar x (Env env) = do
 -- and produces a new expression as a result.
 type Context abt a b = abt '[] a -> abt '[] b
 
+-- | Extract a variable from an abt. This function is partial
+getVar :: (ABT Term abt) => abt xs a -> Variable a
+getVar abt = case viewABT abt of
+               Var v -> v
+               _     -> error "getVar: not given a variable"
+
+-- | Useful function for generating fresh variables from an existing variable by
+-- wrapping @binder@.
+freshVar
+  :: (ABT Term abt)
+  => Variable a
+  -> (Variable a -> abt xs b)
+  -> abt (a ': xs) b
+freshVar var f = binder (varHint var) (varType var) (f . getVar)
+
 -- | Entry point for the normalization process. Initializes normalize' with the
 -- empty context.
 normalize
@@ -141,9 +156,8 @@ normalizeCase cond bs env ctxt =
           case pat of
             PWild -> Branch PWild (normalize' body env id)
             PVar  -> caseBind body $ \v body' ->
-                       Branch PVar $ binder "" (varType v) $ \v' ->
-                         let var  = getVar v'
-                             env' = updateEnv v var env
+                       Branch PVar $ freshVar v $ \var ->
+                         let env' = updateEnv v var env
                          in normalize' body' env' id
 
         bs' = map normalizeBranch bs
@@ -179,10 +193,6 @@ normalizeNaryOp
   -> abt '[] b
 normalizeNaryOp op args env ctxt_ = normalizeNames args env (ctxt_ . syn . NaryOp_ op)
 
-getVar :: (ABT Term abt) => abt '[] a -> Variable a
-getVar abt = caseVarSyn abt (\ v@Variable{} -> v)
-                            (const $ error "getVar: not given a variable")
-
 normalizeSCon
   :: (ABT Term abt)
   => SCon args a
@@ -194,8 +204,8 @@ normalizeSCon
 normalizeSCon Lam_ =
   \(body :* End) env ctxt -> caseBind body $
     \v body' ->
-      let f var = normalize' body' (updateEnv v (getVar var) env) id
-      in ctxt $ syn (Lam_ :$ binder "" (varType v) f :* End)
+      let f var = normalize' body' (updateEnv v var env) id
+      in ctxt $ syn (Lam_ :$ freshVar v f :* End)
 
 normalizeSCon Let_ =
   \(rhs :* body :* End) env ctxt -> caseBind body $
@@ -212,7 +222,8 @@ normalizeSCon s@Summate{} =
     normalizeName lo env $ \lo' ->
     normalizeName hi env $ \hi' ->
     caseBind body $ \v body' ->
-      let body'' = bind v (normalize body')
+      let f var  = normalize' body' (updateEnv v var env) id
+          body'' = freshVar v f
       in ctxt $ syn (s :$ lo' :* hi' :* body'' :* End)
 
 normalizeSCon p@Product{} =
@@ -220,7 +231,8 @@ normalizeSCon p@Product{} =
     normalizeName lo env $ \lo' ->
     normalizeName hi env $ \hi' ->
     caseBind body $ \v body' ->
-      let body'' = bind v (normalize body')
+      let f var  = normalize' body' (updateEnv v var env) id
+          body'' = freshVar v f
       in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
 
 normalizeSCon (ArrayOp_ op)  = undefined -- flattenArrayOp op
