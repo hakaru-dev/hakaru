@@ -15,22 +15,69 @@
 # to be possible, the source KB must be a superset of a projection of the
 # destination KB.  (Here by projection I mean in the relational database
 # sense.)
+# TODO: decide if this should be kept
 
+# KB, short for knowledge base, is an 'abstract' representation
+# of constraints on bound variables. Abstractly, it is a (boolean) conjunction
+# of clauses, each of which is of one of the following forms:
+#  - Introduce(n::Name,t::HakaruType)
+#      introduces a new variable "n : t" which scopes over
+#      the 'rest' of the KB (to the right (?))
+#  - Let(n::Name,e::Hakaru)
+#      introduces a new variable "n" which scopes over the rest
+#      of the KB whose value is precisely "e"
+#  - Constrain(c::Constraint) where
+#      where Constraint is essentially a boolean-valued expression
+#      on Hakaru terms, containing equalities, inequalities,
+#      and boolean algebra on such
 KB := module ()
   option package;
-  local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
-        negate_kb1 , `&assuming_safe`, from_FAIL,
-        log_metric, boolean_if, coalesce_bounds, htype_to_property,
-        chilled, chill, warm,
-        ModuleLoad, ModuleUnload;
-  export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
+  local
+     # The 'constructors' of a KB, which should not be used externally to the module
+     KB, Introduce, Let, Constrain,
+
+     # Some sort of hideous hack to get built-in maple
+     # functions (assuming,eval,is...) to work with
+     # Hakaru types
+     chilled, chill, warm,
+
+     ModuleLoad, ModuleUnload,
+
+     # Various utilities
+     t_intro, t_lo, t_hi, log_metric,
+     boolean_if, coalesce_bounds, htype_to_property,
+     negate_kb1 , `&assuming_safe`, from_FAIL
+     ;
+  export
+     # Functions which build up KBs from KBs and other pieces
+     #  typically ensuring that internal invariants are upheld
+     # (i.e. 'smart' constructors)
+      empty, genLebesgue, genType, genLet,
+
+
+      assert, (* `&assuming` *)
          negated_relation, negate_relation, assert_deny,
          kb_subtract, simplify_assuming, simplify_factor_assuming,
-         getType, kb_to_variables, kb_to_assumptions, kb_to_equations,
-         kb_piecewise, list_of_mul, for_poly, range_of_HInt,
-         t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
-  global t_kb, `expand/product`, `simplify/int/simplify`,
-         `product/indef/indef`, `convert/Beta`;
+         getType,
+
+     # Various 'views' of the KB, in that they take a KB and produce something
+     # which is somehow 'representative' of the KB
+     kb_to_variables, kb_to_assumptions, kb_to_equations, kb_piecewise,
+
+     # (?)
+     list_of_mul, for_poly, range_of_HInt,
+
+     # Types corresponding to the constructor forms of the 'atoms' of KBs
+     t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
+  global
+     # The type of KBs
+     t_kb,
+
+     # Some silly things that KB must do to appease
+     # Maple when using Maple functions to work with
+     # Hakaru 'terms'.
+     `expand/product`, `simplify/int/simplify`,
+     `product/indef/indef`, `convert/Beta`;
   uses Hakaru;
 
   # Some types
@@ -47,15 +94,23 @@ KB := module ()
   t_kb_Bound     := 'Bound(name, anything, anything)';
   t_kb_Constrain := 'Constrain(anything)';
 
-
+  # The empty KB means "true".
   empty := KB();
 
+  # A smart constructor for introducing Lebesgue integration variables (?)
+  #   genLebesgue(var,lo,hi,kb) =
+  #     "KB(Introduce(x::AlmostEveryReal(x>lo,x<hi))
+  #        ,kb)"
   genLebesgue := proc(xx::name, lo, hi, kb::t_kb)
     # The value of a variable created using genLebesgue is respected only up to
     # negligible changes
     genType(xx, AlmostEveryReal(Bound(`>`,lo), Bound(`<`,hi)), kb, _rest)
   end proc;
 
+  # A smart constructor for type introductions. ensures name binding
+  # is done correctly.
+  #   genType(var,type,kb) =
+  #     "KB(Introduce(x::type),kb)"
   genType := proc(xx::name, tt::t_type, kb::t_kb)
     # A variable created using genType is a parameter, in the sense that its
     # value is completely respected
@@ -68,6 +123,10 @@ KB := module ()
     x, KB(Introduce(x, t), op(kb));
   end proc;
 
+  # A smart constructor for 'let' introductions. ensures name binding
+  # is done correctly.
+  #   genLet(var,expr,kb) =
+  #     "KB(Let(var=expr),kb)"
   genLet := proc(xx::name, e, kb::t_kb)
     # A let-binding, assigning a known value to a new variable
     local x, t;
@@ -109,10 +168,17 @@ KB := module ()
      end try;
   end proc;
 
+  # Like assert_deny, except does not accept a boolean
+  # parameter to indicate negation, and evaluates
+  # (using Maple's eval, anything can happen!) the
+  # new conjunct under the derived knowledge of the KB
   assert := proc(b, kb::t_kb, $)
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 
+  # Implements the assert_deny function, which inserts either
+  # a constraint or its negation into a KB, essentially, a
+  # 'smart constructor'.
   assert_deny := module ()
    export ModuleApply ;
    local t_if_and_or_of, t_not, t_not_eq_and_not_not, bound_simp, not_bound_simp,
@@ -244,7 +310,7 @@ KB := module ()
 
      c := solve({b},[x], 'useassumptions'=true) assuming op(as);
      # success!
-     if c::list and nops(c)=1 and nops(c[1])=1 then 
+     if c::list and nops(c)=1 and nops(c[1])=1 then
        assert_deny(c[1][1], pol, kb);
      else
        FAIL; # No simplification could be done
