@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE EmptyCase                 #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -26,8 +25,11 @@ module Language.Hakaru.Syntax.ANF where
 -- 4. CSE (in order to clean up work duplicated by hoisting)
 --------------------------------------------------------------------------------
 
-import           Prelude                          hiding ((+), product)
+import           Prelude                          hiding (product, (+))
 
+import           Data.Number.Nat
+import           Data.IntMap                      (IntMap)
+import qualified Data.IntMap                      as IM
 import           Data.Sequence                    (ViewL (..), (<|))
 import qualified Data.Sequence                    as S
 
@@ -46,12 +48,31 @@ import           Language.Hakaru.Types.Sing
 
 import           Language.Hakaru.Syntax.Prelude
 
-import           Debug.Trace
-
 example1 = binder "a" sing $ \ a -> (triv $ real_ 1 + a)
 
-example2 = let_ (nat_ 1) $ \ a -> triv ((summate a a (\i -> i)) +
-                                        (product a a (\i -> i)))
+example2 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
+                                        (product a (a + (nat_ 10)) (\i -> i)))
+
+data EAssoc =
+    forall (a :: Hakaru) . EAssoc {-# UNPACK #-} !(Variable a) {-# UNPACK #-} !(Variable a)
+
+newtype Env = Env (IM.IntMap EAssoc)
+
+emptyEnv :: Env
+emptyEnv = Env IM.empty
+
+updateEnv :: forall (a :: Hakaru) . Variable a -> Variable a -> Env -> Env
+updateEnv vin vout = updateEnv' (EAssoc vin vout)
+
+updateEnv' :: EAssoc -> Env -> Env
+updateEnv' v@(EAssoc x _) (Env xs) =
+    Env $ IM.insert (fromNat $ varID x) v xs
+
+lookupVar :: forall (a :: Hakaru) . Variable a -> Env -> Maybe (Variable a)
+lookupVar x (Env env) = do
+    EAssoc v1 v2 <- IM.lookup (fromNat $ varID x) env
+    Refl         <- varEq x v1
+    return $ v2
 
 -- | The context in which A-normalization occurs. Represented as a continuation,
 -- the context expects an expression of a particular type (usually a variable)
@@ -64,26 +85,21 @@ normalize
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-normalize = flip normalize' id
+normalize abt = normalize' abt emptyEnv id
 
 normalize'
   :: (ABT Term abt)
   => abt '[] a
+  -> Env
   -> Context abt a b
   -> abt '[] b
-normalize' abt = caseVarSyn abt normalizeVar normalizeTerm
+normalize' abt env ctxt = (caseVarSyn abt normalizeVar normalizeTerm) env ctxt
 
-normalizeVar :: (ABT Term abt) => (Variable a) -> Context abt a b -> abt '[] b
-normalizeVar v k = k (var v)
-
-{-
- -normalizeArgs
- -  :: (ABT Term abt)
- -  => S.Seq (abt '[] a)
- -  -> (S.Seq (abt '[] a) -> abt '[] a)
- -  -> abt '[] a
- -normalizeArgs
- -}
+normalizeVar :: (ABT Term abt) => (Variable a) -> Env -> Context abt a b -> abt '[] b
+normalizeVar v env ctxt =
+  case lookupVar v env of
+    Just v' -> ctxt (var v')
+    Nothing -> ctxt (var v)
 
 isValue
   :: (ABT Term abt)
@@ -99,19 +115,21 @@ isValue abt = caseVarSyn abt (const True) isValueTerm
 normalizeTerm
   :: (ABT Term abt)
   => Term abt a
+  -> Env
   -> Context abt a b
   -> abt '[] b
 normalizeTerm (NaryOp_ op args) = normalizeNaryOp op args
 normalizeTerm (x :$ args)       = normalizeSCon x args
 normalizeTerm (Case_ c bs)      = undefined
-normalizeTerm term              = ($ syn term)
+normalizeTerm term              = const ($ syn term)
 
 normalizeName
   :: (ABT Term abt)
   => abt '[] a
+  -> Env
   -> Context abt a b
   -> abt '[] b
-normalizeName abt ctxt = normalize' abt giveName
+normalizeName abt env ctxt = normalize' abt env giveName
   where
     giveName abt' | isValue abt' = ctxt abt'
                   | otherwise    = let_ abt' ctxt
@@ -119,74 +137,62 @@ normalizeName abt ctxt = normalize' abt giveName
 normalizeNames
   :: (ABT Term abt)
   => S.Seq (abt '[] a)
+  -> Env
   -> (S.Seq (abt '[] a) -> abt '[] b)
   -> abt '[] b
-normalizeNames abts = foldr f ($ S.empty) abts
+normalizeNames abts env = foldr f ($ S.empty) abts
   where
-    f x acc ctxt = normalizeName x $ \t -> acc (ctxt . (t <|))
--- normalizeSArgs
---   :: (ABT Term abt)
---   => SArgs abt args
---   -> (SArgs abt args -> abt '[] b)
---   -> abt '[] b
--- normalizeSArgs args ctxt =
---   case args of
---     End     -> ctxt End
---     x :* xs -> normalizeName x $ \t -> normalizeSArgs xs (ctxt . (t :*))
+    f x acc ctxt = normalizeName x env $ \t -> acc (ctxt . (t <|))
 
 normalizeNaryOp
   :: (ABT Term abt)
   => NaryOp a
   -> S.Seq (abt '[] a)
+  -> Env
   -> Context abt a b
   -> abt '[] b
-normalizeNaryOp op args ctxt_ = normalizeNames args (ctxt_ . syn . NaryOp_ op)
+normalizeNaryOp op args env ctxt_ = normalizeNames args env (ctxt_ . syn . NaryOp_ op)
 
-{-flattenArrayOp-}
-  {-:: (ABT Term abt)-}
-  {-=> ArrayOp typs a-}
-  {--> SArgs abt args-}
-  {--> Context abt a b-}
-  {--> abt '[] b-}
-{-flattenArrayOp op@(Index _) =-}
-  {-\(arr :* ind :* End) ctxt ->-}
-    {-normalizeName arr $ \ arr' ->-}
-    {-normalizeName ind $ \ ind' ->-}
-    {-ctxt $ arr ! ind-}
+getVar :: (ABT Term abt) => abt '[] a -> Variable a
+getVar abt = caseVarSyn abt (\ v@Variable{} -> v)
+                            (const $ error "getVar: not given a variable")
 
 normalizeSCon
   :: (ABT Term abt)
   => SCon args a
   -> SArgs abt args
+  -> Env
   -> Context abt a b
   -> abt '[] b
 
 normalizeSCon Lam_ =
-  \(body :* End) ctxt -> caseBind body $
+  \(body :* End) env ctxt -> caseBind body $
     \v body' ->
-      let body'' = bind v (normalize body')
+      let body'' = bind v (normalize' body' env id)
       in ctxt $ syn (Lam_ :$ body'' :* End)
 
 normalizeSCon Let_ =
-  \(rhs :* body :* End) ctxt -> caseBind body $
+  \(rhs :* body :* End) env ctxt -> caseBind body $
     \v body' ->
-      normalize' rhs $ \rhs' ->
-        let body'' = normalize' body' ctxt
-        in syn (Let_ :$ rhs' :* bind v body'' :* End)
+      normalize' rhs env $ \rhs' ->
+        let_ rhs' $ \v' ->
+          let var  = getVar v'
+              env' = updateEnv v var env
+          in normalize' body' env' ctxt
 
 -- TODO: Remove code duplication between sum and product cases
 normalizeSCon s@Summate{} =
-  \(lo :* hi :* body :* End) ctxt ->
-    normalizeName lo $ \lo' ->
-    normalizeName hi $ \hi' ->
+  \(lo :* hi :* body :* End) env ctxt ->
+    normalizeName lo env $ \lo' ->
+    normalizeName hi env $ \hi' ->
     caseBind body $ \v body' ->
       let body'' = bind v (normalize body')
       in ctxt $ syn (s :$ lo' :* hi' :* body'' :* End)
 
 normalizeSCon p@Product{} =
-  \(lo :* hi :* body :* End) ctxt ->
-    normalizeName lo $ \lo' ->
-    normalizeName hi $ \hi' ->
+  \(lo :* hi :* body :* End) env ctxt ->
+    normalizeName lo env $ \lo' ->
+    normalizeName hi env $ \hi' ->
     caseBind body $ \v body' ->
       let body'' = bind v (normalize body')
       in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
