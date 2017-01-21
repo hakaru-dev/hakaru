@@ -129,9 +129,13 @@ normalizeVar v env ctxt =
 
 isValue
   :: (ABT Term abt)
-  => abt '[] a
+  => abt xs a
   -> Bool
-isValue abt = caseVarSyn abt (const True) isValueTerm
+isValue abt =
+  case viewABT abt of
+    Var{}  -> True
+    Bind{} -> False
+    Syn s  -> isValueTerm s
   where
     isValueTerm Literal_{}  = True
     isValueTerm Datum_{}    = True
