@@ -26,10 +26,9 @@ module Language.Hakaru.Syntax.ANF where
 -- 4. CSE (in order to clean up work duplicated by hoisting)
 --------------------------------------------------------------------------------
 
-import           Prelude                          hiding (product, (+))
+import           Prelude                          hiding (product, (+), (==))
 
 import           Data.Number.Nat
-import           Data.IntMap                      (IntMap)
 import qualified Data.IntMap                      as IM
 import           Data.Sequence                    (ViewL (..), (<|))
 import qualified Data.Sequence                    as S
@@ -39,8 +38,6 @@ import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.Datum
 import           Language.Hakaru.Syntax.DatumCase
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.TypeOf
-import           Language.Hakaru.Syntax.Value
 import           Language.Hakaru.Syntax.Variable
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind
@@ -49,7 +46,13 @@ import           Language.Hakaru.Types.Sing
 
 import           Language.Hakaru.Syntax.Prelude
 
-example1 = binder "a" sing $ \ a -> (triv $ real_ 1 + a)
+{-example1 = triv (real_ 1 + (real_ 2 + real_ 3) + (real_ 4 + (real_ 5 + (real_ 6 + real_ 7))))-}
+example1 :: TrivialABT Term '[] HReal
+example1 = if_ (real_ 1 == real_ 2)
+               (real_ 2 + real_ 3)
+               (real_ 3 + real_ 4)
+
+example1' = normalize example1
 
 example2 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
                                         (product a (a + (nat_ 10)) (\i -> i)))
@@ -198,6 +201,19 @@ normalizeNames abts env = foldr f ($ S.empty) abts
   where
     f x acc ctxt = normalizeName x env $ \t -> acc (ctxt . (t <|))
 
+{-normalizeSArgs-}
+  {-:: forall (a :: Hakaru) abt args . (ABT Term abt)-}
+  {-=> SArgs abt args-}
+  {--> Env-}
+  {--> (SArgs abt args -> abt '[] a)-}
+  {--> abt '[] a-}
+{-normalizeSArgs args env ctxt =-}
+  {-case args of-}
+    {-End     -> ctxt End-}
+    {-x :* xs -> normalizeName x   $ \t ->-}
+               {-normalizeSArgs xs $ \ts ->-}
+               {-ctxt (t :* ts)-}
+
 normalizeNaryOp
   :: (ABT Term abt)
   => NaryOp a
@@ -251,4 +267,4 @@ normalizeSCon p@Product{} =
 
 normalizeSCon (ArrayOp_ op)  = undefined -- flattenArrayOp op
 
-normalizeSCon op@(PrimOp_ _) = undefined
+normalizeSCon op@(PrimOp_ _) = error "normalizeSCon: PrimOp unimplemented"
