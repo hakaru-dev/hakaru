@@ -146,6 +146,16 @@ normalizeTerm (x :$ args)       = normalizeSCon x args
 normalizeTerm (Case_ c bs)      = normalizeCase c bs
 normalizeTerm term              = const ($ syn term)
 
+remapVar
+  :: (ABT Term abt)
+  => Variable a
+  -> Env
+  -> (Env -> abt xs b)
+  -> abt (a ': xs) b
+remapVar var env f = freshVar var $ \var' ->
+  let env' = updateEnv var var' env
+  in f env'
+
 normalizeCase
   :: forall a b c abt . (ABT Term abt)
   => abt '[] a
@@ -161,9 +171,8 @@ normalizeCase cond bs env ctxt =
           case pat of
             PWild -> Branch PWild (normalize' body env id)
             PVar  -> caseBind body $ \v body' ->
-                       Branch PVar $ freshVar v $ \var ->
-                         let env' = updateEnv v var env
-                         in normalize' body' env' id
+                       Branch PVar $ remapVar v env $ \ env' ->
+                         normalize' body' env' id
 
         bs' = map normalizeBranch bs
     in ctxt $ syn (Case_ cond bs')
