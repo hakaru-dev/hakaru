@@ -54,6 +54,13 @@ example1 = binder "a" sing $ \ a -> (triv $ real_ 1 + a)
 example2 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
                                         (product a (a + (nat_ 10)) (\i -> i)))
 
+-- The renaming environment which maps variables in the original term to their
+-- counterparts in the new term. This is needed since the mechanism which
+-- ensures hygiene for the AST only factors in binders, but not free variables
+-- in the expression being constructed. When we construct a new binding form, a
+-- new variable is introduced and the variable in the old expression must be
+-- mapped to the new one.
+
 data EAssoc =
     forall (a :: Hakaru) . EAssoc {-# UNPACK #-} !(Variable a) {-# UNPACK #-} !(Variable a)
 
