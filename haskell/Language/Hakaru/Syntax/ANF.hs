@@ -47,12 +47,10 @@ import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Syntax.Prelude
 
 {-example1 = triv (real_ 1 + (real_ 2 + real_ 3) + (real_ 4 + (real_ 5 + (real_ 6 + real_ 7))))-}
-example1 :: TrivialABT Term '[] HReal
+example1 :: TrivialABT Term '[] 'HReal
 example1 = if_ (real_ 1 == real_ 2)
                (real_ 2 + real_ 3)
                (real_ 3 + real_ 4)
-
-example1' = normalize example1
 
 example2 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
                                         (product a (a + (nat_ 10)) (\i -> i)))
