@@ -182,7 +182,7 @@ normalizeCase cond bs env ctxt =
                          normalize' body' env' id
 
         bs' = map normalizeBranch bs
-    in ctxt $ syn (Case_ cond bs')
+    in ctxt $ syn (Case_ cond' bs')
 
 normalizeName
   :: (ABT Term abt)
@@ -269,6 +269,6 @@ normalizeSCon p@Product{} =
           body'' = freshVar v f
       in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
 
-normalizeSCon (ArrayOp_ op)  = undefined -- flattenArrayOp op
+normalizeSCon (ArrayOp_ op)  = error "normalizeSCon: ArrayOp unimplemented" -- flattenArrayOp op
 
 normalizeSCon op@(PrimOp_ _) = error "normalizeSCon: PrimOp unimplemented"
