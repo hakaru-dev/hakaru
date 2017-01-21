@@ -196,7 +196,7 @@ normalizeNaryOp
   -> Env
   -> Context abt a b
   -> abt '[] b
-normalizeNaryOp op args env ctxt_ = normalizeNames args env (ctxt_ . syn . NaryOp_ op)
+normalizeNaryOp op args env ctxt = normalizeNames args env (ctxt . syn . NaryOp_ op)
 
 normalizeSCon
   :: (ABT Term abt)
