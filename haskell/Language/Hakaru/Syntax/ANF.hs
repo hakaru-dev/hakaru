@@ -180,6 +180,7 @@ normalizeCase cond bs env ctxt =
             PVar  -> caseBind body $ \v body' ->
                        Branch PVar $ remapVar v env $ \ env' ->
                          normalize' body' env' id
+            _     -> error "normalizeBranch: pattern variables not implemented"
 
         bs' = map normalizeBranch bs
     in ctxt $ syn (Case_ cond' bs')
@@ -269,6 +270,5 @@ normalizeSCon p@Product{} =
           body'' = freshVar v f
       in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
 
-normalizeSCon (ArrayOp_ op)  = error "normalizeSCon: ArrayOp unimplemented" -- flattenArrayOp op
-
-normalizeSCon op@(PrimOp_ _) = error "normalizeSCon: PrimOp unimplemented"
+normalizeSCon (ArrayOp_ _) = error "normalizeSCon: ArrayOp unimplemented" -- flattenArrayOp op
+normalizeSCon (PrimOp_ _)  = error "normalizeSCon: PrimOp unimplemented"
