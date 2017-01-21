@@ -155,9 +155,7 @@ normalizeCase
   -> abt '[] c
 normalizeCase cond bs env ctxt =
   normalizeName cond env $ \ cond' ->
-    let norm :: abt '[] a -> abt '[] a
-        norm b = normalize' b env id
-
+    let -- TODO: How do we deal with pattern variables?
         normalizeBranch :: Branch a abt b -> Branch a abt b
         normalizeBranch (Branch pat body) =
           case pat of
