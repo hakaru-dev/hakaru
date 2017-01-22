@@ -194,7 +194,7 @@ KB := module ()
   # 'smart constructor'.
   assert_deny := module ()
    export ModuleApply ;
-   local t_if_and_or_of, t_not, t_not_eq_and_not_not, bound_simp, not_bound_simp,
+   local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
          refine_given, t_bound_on;
 
    # The 'type' of `if(,,)` where the first parameter is the given type

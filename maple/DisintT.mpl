@@ -7,6 +7,7 @@ end if;
 
 with(Hakaru):
 with(NewSLO):
+with(TestWrapper):
 
 #####################################################################
 #
@@ -16,20 +17,23 @@ with(NewSLO):
 
 # this uses a *global* name 't'.
 assume(t::real);
-TestDisint:= proc(
+
+TestDisint := MakeTest(
+ proc(
   M::{t_Hakaru, list({algebraic, name=list})}, #args to disint, or just 1st arg
   n::set({t_Hakaru, identical(NULL)}), #desired return
   {ctx::list:= []}, #context: assumptions, "knowledge"
   {TLim::{positive, identical(-1)}:= 80} #timelimit
 )
-  #global t;
   local m;
   m:= `if`(M::list, M, [M, :-t])[], :-ctx= ctx;
+
   timelimit(
        TLim,
        CodeTools[Test]({disint(m)}, n, set(measure(simplify)), _rest)
-  )
-end proc:
+  );
+end proc
+ , testGroup = "Disint" ):
 
 #This first block of tests is to test the basic functionality of disint, and,
 #to some extent, the system as a whole. These tests may be meaningless to you,

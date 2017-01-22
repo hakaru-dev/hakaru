@@ -50,3 +50,6 @@ LibraryTools:-Save(`depends/Index`, lib):
 LibraryTools:-Save(`eval/Bucket`, lib):
 LibraryTools:-Save(`eval/Index`, lib):
 LibraryTools:-Save('Summary', lib):
+
+read("./TestWrapper.mpl"):
+LibraryTools:-Save('TestWrapper', lib):
