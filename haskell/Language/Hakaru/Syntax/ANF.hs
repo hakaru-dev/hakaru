@@ -6,8 +6,8 @@
 {-# LANGUAGE KindSignatures            #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE PolyKinds                 #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TypeOperators             #-}
 module Language.Hakaru.Syntax.ANF where
@@ -26,11 +26,11 @@ module Language.Hakaru.Syntax.ANF where
 -- 4. CSE (in order to clean up work duplicated by hoisting)
 --------------------------------------------------------------------------------
 
-import           Prelude                          hiding (product, (+), (==))
+import           Prelude                          hiding (product, (*), (+), (-), (==))
 
-import           Data.Number.Nat
 import qualified Data.IntMap                      as IM
-import           Data.Sequence                    (ViewL (..), (<|))
+import           Data.Number.Nat
+import           Data.Sequence                    ((<|))
 import qualified Data.Sequence                    as S
 
 import           Language.Hakaru.Syntax.ABT
@@ -46,14 +46,17 @@ import           Language.Hakaru.Types.Sing
 
 import           Language.Hakaru.Syntax.Prelude
 
-{-example1 = triv (real_ 1 + (real_ 2 + real_ 3) + (real_ 4 + (real_ 5 + (real_ 6 + real_ 7))))-}
 example1 :: TrivialABT Term '[] 'HReal
 example1 = if_ (real_ 1 == real_ 2)
                (real_ 2 + real_ 3)
                (real_ 3 + real_ 4)
 
+example2 :: TrivialABT Term '[] 'HNat
 example2 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
                                         (product a (a + (nat_ 10)) (\i -> i)))
+
+example3 :: TrivialABT Term '[] 'HReal
+example3 = triv (real_ 1 * (real_ 2 + real_ 3) * (real_ 4 + (real_ 5 + (real_ 6 * real_ 7))))
 
 -- The renaming environment which maps variables in the original term to their
 -- counterparts in the new term. This is needed since the mechanism which
