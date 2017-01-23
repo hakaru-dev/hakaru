@@ -120,7 +120,7 @@ normalize'
   -> Env
   -> Context abt a b
   -> abt '[] b
-normalize' abt env ctxt = (caseVarSyn abt normalizeVar normalizeTerm) env ctxt
+normalize' abt = caseVarSyn abt normalizeVar normalizeTerm
 
 normalizeVar :: (ABT Term abt) => (Variable a) -> Env -> Context abt a b -> abt '[] b
 normalizeVar v env ctxt =
@@ -181,6 +181,10 @@ normalizeCase cond bs env ctxt =
             PVar  -> caseBind body $ \v body' ->
                        Branch PVar $ remapVar v env $ \ env' ->
                          normalize' body' env' id
+
+            -- Minimum needed to match True and False
+            PDatum t (PInl PDone)        -> Branch pat (normalize' body env id)
+            PDatum t (PInr (PInl PDone)) -> Branch pat (normalize' body env id)
             _     -> error "normalizeBranch: pattern variables not implemented"
 
         bs' = map normalizeBranch bs
@@ -272,4 +276,86 @@ normalizeSCon p@Product{} =
       in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
 
 normalizeSCon (ArrayOp_ _) = error "normalizeSCon: ArrayOp unimplemented" -- flattenArrayOp op
-normalizeSCon (PrimOp_ _)  = error "normalizeSCon: PrimOp unimplemented"
+normalizeSCon (PrimOp_ op) = normalizePrimOp op
+
+normalizePrimOp
+  :: (ABT Term abt, args ~ LCs typs, typs ~ UnLCs args)
+  => PrimOp typs a
+  -> SArgs abt args
+  -> Env
+  -> Context abt a b
+  -> abt '[] b
+normalizePrimOp op xs env ctxt =
+  case (op, xs) of
+    -- Logical operatons
+    (Not  ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (Impl , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Diff , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Nand , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Nor  , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+
+    -- Trig stuff
+    (Pi  ,      End)      -> ctxt $ primOp0_ Pi
+    (Sin , x :* End)      -> normalizePrimOp1 op x env ctxt
+    (Cos , x :* End)      -> normalizePrimOp1 op x env ctxt
+    (Tan , x :* End)      -> normalizePrimOp1 op x env ctxt
+
+    -- Comparisons
+    (Equal _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Less _  , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+
+    -- HSemiring operations
+    (NatPow _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+
+    -- HRing operations
+    (Negate _  ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (Abs _     ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (Signum _  ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (Recip _   ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (NatRoot _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+
+normalizePrimOp1
+  :: (ABT Term abt)
+  => PrimOp '[ a ] r
+  -> abt '[] a
+  -> Env
+  -> Context abt r r'
+  -> abt '[] r'
+normalizePrimOp1 op x env ctxt = normalizeName x env (ctxt . primOp1_ op)
+
+normalizePrimOp2
+  :: (ABT Term abt)
+  => PrimOp '[ a, b ] r
+  -> abt '[] a -> abt '[] b
+  -> Env
+  -> Context abt r r'
+  -> abt '[] r'
+normalizePrimOp2 op x y env ctxt =
+  normalizeName x env $ \x' ->
+  normalizeName y env $ \y' ->
+  ctxt (primOp2_ op x' y')
+
+normalizePrimOp3
+  :: (ABT Term abt)
+  => PrimOp '[ a, b, c ] r
+  -> abt '[] a -> abt '[] b -> abt '[] c
+  -> Env
+  -> Context abt r r'
+  -> abt '[] r'
+normalizePrimOp3 op x y z env ctxt =
+  normalizeName x env $ \x' ->
+  normalizeName y env $ \y' ->
+  normalizeName z env $ \z' ->
+  ctxt (primOp3_ op x' y' z')
+
+-- TODO: Would be nice to get this simple version working
+{-normalizePrimOp-}
+  {-:: (ABT Term abt, args ~ LCs typs, typs ~ UnLCs args, '[] ~ AllArgs args)-}
+  {-=> PrimOp typs a-}
+  {--> SArgs abt args-}
+  {--> Env-}
+  {--> Context abt a b-}
+  {--> abt '[] b-}
+{-normalizePrimOp op (x :* End)           = normalizePrimOp1 op x-}
+{-normalizePrimOp op (x :* y :* End)      = normalizePrimOp2 op x y-}
+{-normalizePrimOp op (x :* y :* z :* End) = normalizePrimOp3 op x y z-}
