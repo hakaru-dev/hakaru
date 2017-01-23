@@ -1,0 +1,4 @@
+x = just(3). maybe(nat)
+match x:
+  just(y):   y + 8
+  nothing(): 5
