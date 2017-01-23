@@ -27,13 +27,18 @@ import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.HClasses
 import           Language.Hakaru.Types.Sing
+import           Language.Hakaru.Sample (runEvaluate)
 import           Test.HUnit
 import           Tests.TestTools
 
 allTests :: Test
-allTests = test [ "example1" ~: testExample1
-                , "example2" ~: testExample2
-                , "example3" ~: testExample3
+allTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
+                , "example2" ~: testNormalizer "example2" example2 example2'
+                , "example3" ~: testNormalizer "example3" example3 example3'
+
+                , "runExample1" ~: testPreservesResult "example1" example1
+                , "runExample2" ~: testPreservesResult "example2" example2
+                , "runExample3" ~: testPreservesResult "example3" example3
                 ]
 
 example1 :: TrivialABT Term '[] 'HReal
@@ -71,6 +76,12 @@ example3' = let_ (real_ 2 + real_ 3) $ \ x2 ->
 testNormalizer :: (ABT Term abt) => String -> abt '[] a -> abt '[] a -> Assertion
 testNormalizer name a b = assertBool name (alphaEq (normalize a) b)
 
-testExample1 = testNormalizer "example1" example1 example1'
-testExample2 = testNormalizer "example2" example2 example2'
-testExample3 = testNormalizer "example3" example3 example3'
+testPreservesResult
+  :: forall (a :: Hakaru) abt . (ABT Term abt)
+  => String
+  -> abt '[] a
+  -> Assertion
+testPreservesResult name ast = assertEqual name result1 result2
+  where result1 = runEvaluate ast
+        result2 = runEvaluate (normalize ast)
+
