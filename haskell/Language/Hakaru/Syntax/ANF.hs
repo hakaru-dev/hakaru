@@ -26,7 +26,7 @@ module Language.Hakaru.Syntax.ANF where
 -- 4. CSE (in order to clean up work duplicated by hoisting)
 --------------------------------------------------------------------------------
 
-import           Prelude                          hiding (product, (*), (+), (-), (==))
+import           Prelude                          hiding (product, (*), (+), (-), (==), (>>=), (<))
 
 import qualified Data.IntMap                      as IM
 import           Data.Number.Nat
@@ -52,6 +52,14 @@ import           Language.Hakaru.Syntax.Prelude
 -- in the expression being constructed. When we construct a new binding form, a
 -- new variable is introduced and the variable in the old expression must be
 -- mapped to the new one.
+
+norm2 :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+norm2 =
+    normal (real_ 3) (prob_ 2) >>= \x ->
+    normal (real_ 5) (prob_ 4) >>= \y ->
+    dirac $ if_ (x < y)
+        (pair y x)
+        (pair x x)
 
 data EAssoc =
     forall (a :: Hakaru) . EAssoc {-# UNPACK #-} !(Variable a) {-# UNPACK #-} !(Variable a)
@@ -250,24 +258,38 @@ normalizeSCon s@Summate{} =
     normalizeName lo env $ \lo' ->
     normalizeName hi env $ \hi' ->
     caseBind body $ \v body' ->
-      let f var  = normalize' body' (updateEnv v var env) id
-          body'' = freshVar v f
-      in ctxt $ syn (s :$ lo' :* hi' :* body'' :* End)
+    let f var  = normalize' body' (updateEnv v var env) id
+        body'' = freshVar v f
+    in ctxt $ syn (s :$ lo' :* hi' :* body'' :* End)
 
 normalizeSCon p@Product{} =
   \(lo :* hi :* body :* End) env ctxt ->
     normalizeName lo env $ \lo' ->
     normalizeName hi env $ \hi' ->
     caseBind body $ \v body' ->
-      let f var  = normalize' body' (updateEnv v var env) id
-          body'' = freshVar v f
-      in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
+    let f var  = normalize' body' (updateEnv v var env) id
+        body'' = freshVar v f
+    in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
+
+normalizeSCon MBind =
+  \(ma :* b :* End) env ctxt ->
+    normalize' ma env $ \ma' ->
+    caseBind b $ \v b' ->
+    let f var = normalize' b' (updateEnv v var env) id
+        b''   = freshVar v f
+    in ctxt $ syn (MBind :$ ma' :* b'' :* End)
+
+normalizeSCon Dirac =
+  \(e :* end) env ctxt -> normalize' e env (ctxt . dirac)
+
+normalizeSCon (MeasureOp_ op) = normalizeMeasureOp op
 
 normalizeSCon (ArrayOp_ _) = error "normalizeSCon: ArrayOp unimplemented" -- flattenArrayOp op
 normalizeSCon (PrimOp_ op) = normalizePrimOp op
+normalizeSCon op           = error $ "not implemented: normalizeSCon{" ++ show op ++ "}"
 
 normalizePrimOp
-  :: (ABT Term abt, args ~ LCs typs, typs ~ UnLCs args)
+  :: (ABT Term abt, args ~ LCs typs)
   => PrimOp typs a
   -> SArgs abt args
   -> Env
@@ -347,3 +369,33 @@ normalizePrimOp3 op x y z env ctxt =
 {-normalizePrimOp op (x :* End)           = normalizePrimOp1 op x-}
 {-normalizePrimOp op (x :* y :* End)      = normalizePrimOp2 op x y-}
 {-normalizePrimOp op (x :* y :* z :* End) = normalizePrimOp3 op x y z-}
+
+normalizeMeasureOp2
+  :: (ABT Term abt)
+  => MeasureOp '[ a, b ] r
+  -> abt '[] a -> abt '[] b
+  -> Env
+  -> Context abt ('HMeasure r) r'
+  -> abt '[] r'
+normalizeMeasureOp2 op x y env ctxt =
+  normalizeName x env $ \x' ->
+  normalizeName y env $ \y' ->
+  ctxt (measure2_ op x' y')
+
+normalizeMeasureOp
+  :: (ABT Term abt, args ~ LCs typs)
+  => MeasureOp typs a
+  -> SArgs abt args
+  -> Env
+  -> Context abt ('HMeasure a) b
+  -> abt '[] b
+normalizeMeasureOp op xs env ctxt =
+  case (op, xs) of
+    (Lebesgue    ,           End) -> ctxt $ measure0_ op
+    (Counting    ,           End) -> ctxt $ measure0_ op
+    (Categorical ,      x :* End) -> normalizeName x env (ctxt . measure1_ op)
+    (Poisson     ,      x :* End) -> normalizeName x env (ctxt . measure1_ op)
+    (Uniform     , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
+    (Normal      , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
+    (Gamma       , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
+    (Beta        , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
