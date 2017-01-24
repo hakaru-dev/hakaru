@@ -102,12 +102,12 @@ Summary := module ()
         end do;
       end if;
       # Split rule
-      consider(r, ((e1, e2) -> proc($)
+      consider(r, ((e1, e2, r) -> proc($)
         local mr1, f1, mr2, f2;
         mr1, f1 := summarize(e1, kb, i, 'fst(summary)');
         mr2, f2 := summarize(e2, kb, i, 'snd(summary)');
         Split(r, mr1, mr2), f1 + f2;
-      end proc)(e1, e2));
+      end proc)(e1, e2, r));
     end do;
     if thunk :: procedure then
       return thunk();
