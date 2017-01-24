@@ -70,7 +70,10 @@ allTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 -- Test some programs which produce measures, these are
                 -- statistical tests
                 , "norm1a"      ~: testPreservesMeasure "norm1a" norm1a
-                , "norm2"       ~: testPreservesMeasure "norm2" norm2
+                , "norm1b"      ~: testPreservesMeasure "norm1b" norm1b
+                , "norm1c"      ~: testPreservesMeasure "norm1c" norm1c
+                , "norm1'"      ~: testPreservesMeasure "norm1c" norm1c
+                , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad
                 ]
 
 example1 :: TrivialABT Term '[] 'HReal

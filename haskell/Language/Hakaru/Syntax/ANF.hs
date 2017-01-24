@@ -283,7 +283,13 @@ normalizeSCon MBind =
     in ctxt $ syn (MBind :$ ma' :* b'' :* End)
 
 normalizeSCon Dirac =
-  \(e :* end) env ctxt -> ctxt $ dirac (normalize' e env id)
+  \(e :* end) env ctxt -> normalize' e env (ctxt . dirac)
+
+normalizeSCon (UnsafeFrom_ c) =
+  \(t :* end) env ctxt -> normalize' t env (ctxt . unsafeFrom_ c)
+
+normalizeSCon (CoerceTo_ c) =
+  \(t :* end) env ctxt -> normalize' t env (ctxt . coerceTo_ c)
 
 normalizeSCon (MeasureOp_ op) = normalizeMeasureOp op
 
