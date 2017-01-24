@@ -13,23 +13,48 @@
 
 module Tests.ASTTransforms (allTests) where
 
-import           Prelude                          hiding (product, (*), (+), (-), (==))
-import           Language.Hakaru.Syntax.ANF       (normalize)
+import           Control.Monad
+import qualified Data.Number.LogFloat             as LF
+import qualified Data.Vector                      as V
+import           GHC.Word                         (Word32)
+import           Language.Hakaru.Sample           (runEvaluate)
 import           Language.Hakaru.Syntax.ABT
+import           Language.Hakaru.Syntax.ANF       (normalize)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq    (alphaEq)
 import           Language.Hakaru.Syntax.Datum
 import           Language.Hakaru.Syntax.DatumCase
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Prelude
+import           Language.Hakaru.Syntax.Value
 import           Language.Hakaru.Syntax.Variable
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.HClasses
 import           Language.Hakaru.Types.Sing
-import           Language.Hakaru.Sample (runEvaluate)
+import           Prelude                          hiding (product, (*), (+),
+                                                   (-), (==))
+
+import qualified System.Random.MWC                as MWC
 import           Test.HUnit
+import           Tests.Disintegrate               hiding (allTests)
 import           Tests.TestTools
+
+checkMeasure :: String
+             -> Value ('HMeasure a)
+             -> Value ('HMeasure a)
+             -> Assertion
+checkMeasure p (VMeasure m1) (VMeasure m2) = do
+  g1 <- MWC.createSystemRandom
+  s  <- MWC.save g1
+  g2 <- MWC.restore s
+  forM_ [1 :: Int .. 100] $ \_ -> do
+      p1 <- LF.logFloat `fmap` MWC.uniform g1
+      p2 <- LF.logFloat `fmap` MWC.uniform g2
+      Just (v1, w1) <- m1 (VProb p1) g1
+      Just (v2, w2) <- m2 (VProb p2) g2
+      assertEqual p v1 v2
+      assertEqual p w1 w2
 
 allTests :: Test
 allTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
@@ -39,6 +64,7 @@ allTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "runExample1" ~: testPreservesResult "example1" example1
                 , "runExample2" ~: testPreservesResult "example2" example2
                 , "runExample3" ~: testPreservesResult "example3" example3
+                , "norm2"       ~: testPreservesMeasure "norm2" norm2
                 ]
 
 example1 :: TrivialABT Term '[] 'HReal
@@ -84,4 +110,13 @@ testPreservesResult
 testPreservesResult name ast = assertEqual name result1 result2
   where result1 = runEvaluate ast
         result2 = runEvaluate (normalize ast)
+
+testPreservesMeasure
+  :: forall (a :: Hakaru) abt . (ABT Term abt)
+  => String
+  -> abt '[] ('HMeasure a)
+  -> Assertion
+testPreservesMeasure name ast = checkMeasure name result1 result1
+  where result1 = runEvaluate ast
+        result2 = runEvaluate ast
 
