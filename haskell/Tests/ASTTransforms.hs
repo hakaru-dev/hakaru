@@ -77,7 +77,6 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "norm1c"      ~: testPreservesMeasure "norm1c" norm1c
                 , "norm1'"      ~: testPreservesMeasure "norm1c" norm1c
                 , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad
-                {-, "helloWorld"  ~: testPreservesMeasure "helloWorld100" helloWorld100-}
                 ]
 
 
