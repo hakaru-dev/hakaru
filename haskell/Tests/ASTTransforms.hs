@@ -45,6 +45,7 @@ checkMeasure :: String
              -> Value ('HMeasure a)
              -> Assertion
 checkMeasure p (VMeasure m1) (VMeasure m2) = do
+  -- Generate 2 copies of the same random seed so that
   g1 <- MWC.createSystemRandom
   s  <- MWC.save g1
   g2 <- MWC.restore s
@@ -61,9 +62,14 @@ allTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "example2" ~: testNormalizer "example2" example2 example2'
                 , "example3" ~: testNormalizer "example3" example3 example3'
 
+                -- Test some deterministic results
                 , "runExample1" ~: testPreservesResult "example1" example1
                 , "runExample2" ~: testPreservesResult "example2" example2
                 , "runExample3" ~: testPreservesResult "example3" example3
+
+                -- Test some programs which produce measures, these are
+                -- statistical tests
+                , "norm1a"      ~: testPreservesMeasure "norm1a" norm1a
                 , "norm2"       ~: testPreservesMeasure "norm2" norm2
                 ]
 
@@ -116,7 +122,7 @@ testPreservesMeasure
   => String
   -> abt '[] ('HMeasure a)
   -> Assertion
-testPreservesMeasure name ast = checkMeasure name result1 result1
+testPreservesMeasure name ast = checkMeasure name result1 result2
   where result1 = runEvaluate ast
-        result2 = runEvaluate ast
+        result2 = runEvaluate (normalize ast)
 

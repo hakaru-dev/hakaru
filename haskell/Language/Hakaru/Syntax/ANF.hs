@@ -26,7 +26,8 @@ module Language.Hakaru.Syntax.ANF where
 -- 4. CSE (in order to clean up work duplicated by hoisting)
 --------------------------------------------------------------------------------
 
-import           Prelude                          hiding (product, (*), (+), (-), (==), (>>=), (<))
+import           Prelude                          hiding (product, (*), (+),
+                                                   (-), (<), (==), (>>=))
 
 import qualified Data.IntMap                      as IM
 import           Data.Number.Nat
@@ -148,7 +149,17 @@ normalizeTerm
 normalizeTerm (NaryOp_ op args) = normalizeNaryOp op args
 normalizeTerm (x :$ args)       = normalizeSCon x args
 normalizeTerm (Case_ c bs)      = normalizeCase c bs
+normalizeTerm (Datum_ d)        = normalizeDatum d
 normalizeTerm term              = const ($ syn term)
+
+normalizeDatum
+  :: (ABT Term abt)
+  => Datum (abt '[]) (HData' t)
+  -> Env
+  -> (abt '[] (HData' t) -> abt '[] r)
+  -> abt '[] r
+normalizeDatum d env ctxt = ctxt $ datum_ newdata
+  where newdata = fmap11 (\x -> normalize' x env id) d
 
 remapVar
   :: (ABT Term abt)
@@ -280,7 +291,7 @@ normalizeSCon MBind =
     in ctxt $ syn (MBind :$ ma' :* b'' :* End)
 
 normalizeSCon Dirac =
-  \(e :* end) env ctxt -> normalize' e env (ctxt . dirac)
+  \(e :* end) env ctxt -> ctxt $ dirac (normalize' e env id)
 
 normalizeSCon (MeasureOp_ op) = normalizeMeasureOp op
 
@@ -298,24 +309,24 @@ normalizePrimOp
 normalizePrimOp op xs env ctxt =
   case (op, xs) of
     -- Logical operatons
-    (Not  ,      x :* End) -> normalizePrimOp1 op x env ctxt
-    (Impl , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Diff , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Nand , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Nor  , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Not  ,      x :* End)      -> normalizePrimOp1 op x env ctxt
+    (Impl , x :* y :* End)      -> normalizePrimOp2 op x y env ctxt
+    (Diff , x :* y :* End)      -> normalizePrimOp2 op x y env ctxt
+    (Nand , x :* y :* End)      -> normalizePrimOp2 op x y env ctxt
+    (Nor  , x :* y :* End)      -> normalizePrimOp2 op x y env ctxt
 
     -- Trig stuff
-    (Pi  ,      End)      -> ctxt $ primOp0_ Pi
-    (Sin , x :* End)      -> normalizePrimOp1 op x env ctxt
-    (Cos , x :* End)      -> normalizePrimOp1 op x env ctxt
-    (Tan , x :* End)      -> normalizePrimOp1 op x env ctxt
+    (Pi  ,      End)            -> ctxt $ primOp0_ Pi
+    (Sin , x :* End)            -> normalizePrimOp1 op x env ctxt
+    (Cos , x :* End)            -> normalizePrimOp1 op x env ctxt
+    (Tan , x :* End)            -> normalizePrimOp1 op x env ctxt
 
     -- Comparisons
-    (Equal _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Less _  , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Equal _ , x :* y :* End)   -> normalizePrimOp2 op x y env ctxt
+    (Less _  , x :* y :* End)   -> normalizePrimOp2 op x y env ctxt
 
     -- HSemiring operations
-    (NatPow _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (NatPow _ , x :* y :* End)  -> normalizePrimOp2 op x y env ctxt
 
     -- HRing operations
     (Negate _  ,      x :* End) -> normalizePrimOp1 op x env ctxt
