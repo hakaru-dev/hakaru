@@ -29,11 +29,6 @@ import           Text.PrettyPrint
 import           System.Environment
 import           System.FilePath
 
-data Options = Options
-  { program  :: String
-  , asFunc   :: Maybe String
-  }
-
 main :: IO ()
 main = do
   args   <- getArgs
@@ -54,7 +49,9 @@ prettyProg name ast =
          , nest 2 (pretty ast)
          ])
 
-compileHakaru :: String -> IO ()
+compileHakaru
+    :: String
+    -> IO ()
 compileHakaru file = do
     prog <- IO.readFile file
     let target = replaceFileName file (takeBaseName file) ++ ".hs"
@@ -67,7 +64,10 @@ compileHakaru file = do
           footer typ
   where et = expandTransformations
 
-compileRandomWalk :: String -> String -> IO ()
+compileRandomWalk
+    :: String
+    -> String
+    -> IO ()
 compileRandomWalk f1 f2 = do
     p1 <- IO.readFile f1
     p2 <- IO.readFile f2
