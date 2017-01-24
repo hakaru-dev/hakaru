@@ -58,7 +58,10 @@ checkMeasure p (VMeasure m1) (VMeasure m2) = do
       assertEqual p w1 w2
 
 allTests :: Test
-allTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
+allTests = test [ TestLabel "ANF" anfTests ]
+
+anfTests :: Test
+anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "example2" ~: testNormalizer "example2" example2 example2'
                 , "example3" ~: testNormalizer "example3" example3 example3'
 
@@ -76,6 +79,7 @@ allTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad
                 {-, "helloWorld"  ~: testPreservesMeasure "helloWorld100" helloWorld100-}
                 ]
+
 
 example1 :: TrivialABT Term '[] 'HReal
 example1 = if_ (real_ 1 == real_ 2)
