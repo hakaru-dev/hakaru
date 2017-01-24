@@ -282,6 +282,14 @@ normalizeSCon MBind =
         b''   = freshVar v f
     in ctxt $ syn (MBind :$ ma' :* b'' :* End)
 
+normalizeSCon Plate =
+  \(e :* b :* End) env ctxt ->
+    normalize' e env $ \e' ->
+    caseBind b $ \v b' ->
+    let f var = normalize' b' (updateEnv v var env) id
+        b''   = freshVar v f
+    in ctxt $ syn (Plate :$ e' :* b'' :* End)
+
 normalizeSCon Dirac =
   \(e :* end) env ctxt -> normalize' e env (ctxt . dirac)
 

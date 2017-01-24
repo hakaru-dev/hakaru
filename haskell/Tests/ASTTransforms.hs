@@ -49,7 +49,7 @@ checkMeasure p (VMeasure m1) (VMeasure m2) = do
   g1 <- MWC.createSystemRandom
   s  <- MWC.save g1
   g2 <- MWC.restore s
-  forM_ [1 :: Int .. 100] $ \_ -> do
+  forM_ [1 :: Int .. 1000] $ \_ -> do
       p1 <- LF.logFloat `fmap` MWC.uniform g1
       p2 <- LF.logFloat `fmap` MWC.uniform g2
       Just (v1, w1) <- m1 (VProb p1) g1
@@ -74,6 +74,7 @@ allTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "norm1c"      ~: testPreservesMeasure "norm1c" norm1c
                 , "norm1'"      ~: testPreservesMeasure "norm1c" norm1c
                 , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad
+                {-, "helloWorld"  ~: testPreservesMeasure "helloWorld100" helloWorld100-}
                 ]
 
 example1 :: TrivialABT Term '[] 'HReal
