@@ -54,14 +54,6 @@ import           Language.Hakaru.Syntax.Prelude
 -- new variable is introduced and the variable in the old expression must be
 -- mapped to the new one.
 
-norm2 :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-norm2 =
-    normal (real_ 3) (prob_ 2) >>= \x ->
-    normal (real_ 5) (prob_ 4) >>= \y ->
-    dirac $ if_ (x < y)
-        (pair y x)
-        (pair x x)
-
 data EAssoc =
     forall (a :: Hakaru) . EAssoc {-# UNPACK #-} !(Variable a) {-# UNPACK #-} !(Variable a)
 
