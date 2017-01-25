@@ -84,7 +84,7 @@ KB := module ()
   global
      # The type of KBs. It is 'assumed' that things 'with this type'
      # are actually KBs in the proper form
-     t_kb, t_kb_atom,
+     t_kb, t_kb_atom, t_kb_atoms,
 
      # Some silly things that KB must do to appease
      # Maple when using Maple functions to work with
@@ -1064,7 +1064,11 @@ KB := module ()
   end proc;
 
   # Avoid FAILure modes of the assumption system
+  # This transforms {size,idx}(a,b,..x) to {size,id}[a,b,..x] (that is, a
+  # subscript operator, which doesn't evaluate) and back. Some functions
+  # evaluating causes simplification to fail because information is lost
   chilled := '{size, idx}';
+
   chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
   warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
 
@@ -1082,6 +1086,7 @@ KB := module ()
     # Note that boolean already includes `Bound`s in the form `x R y`
     TypeTools[AddType](t_kb_atom,
       '{`::`, boolean, `in`, specfunc(anything,{Or,Not,And})}');
+    TypeTools[AddType](t_kb_atoms,list(t_kb_atom));
 
     # Prevent expand(product(f(i),i=0..n-1))
     # from producing (product(f(i),i=0..n))/f(n)
