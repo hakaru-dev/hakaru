@@ -45,8 +45,8 @@ KB := module ()
 
      # Various utilities
      t_intro, t_lo, t_hi, log_metric,
-     boolean_if, coalesce_bounds, htype_to_property,
-     negate_kb1 # , from_FAIL
+     boolean_if, coalesce_bounds, htype_to_property
+
      ;
   export
      # Functions which build up KBs from KBs and other pieces
@@ -56,7 +56,7 @@ KB := module ()
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
-     negated_relation, negate_relation,
+     negated_relation, negate_kb1,
 
      # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
      kb_subtract,
@@ -148,25 +148,21 @@ KB := module ()
   end proc;
 
   #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
+  #
   #Carl 2016Sep09
   negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
 
   # Takes the bool type (true/false) to mean universal and empty relations respectively.
-  negate_relation:= proc(R::t_kb_atom, $)::t_kb_atom;
-      if R :: truefalse then
-          `if`(R,false,true);
-      else
+  # i.e. negate R, where R is an 'atomic' relation of a KB
+  negate_kb1:= proc(R::t_kb_atom, $)::t_kb_atom;
+      if R :: relation then
           negated_relation[op(0,R)](op(R));
+      else
+          # This is to appease 'piecewise', which won't be happy with Not
+          # However, KB doesn't really care - it's already expecting {Not,not}
+          # 'Technically' this is a KB 'constructor'!
+          not(R);
       end if;
-  end proc;
-
-  # Negate b, where b is an 'atomic' relation of a KB (?)
-  negate_kb1 := proc(b::t_kb_atom,$)
-     if b :: {relation,truefalse} then
-         negate_relation(b);
-     else
-         Not(b);
-     end if;
   end proc;
 
   # Like assert_deny, except does not accept a boolean

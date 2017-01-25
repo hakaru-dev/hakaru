@@ -426,11 +426,11 @@ Hakaru := module ()
      #piecewise.
      r:= [
           And(C_O, C_I[1]), B_I[1],
-          And(C_O, KB:-negate_relation(C_I[1])), B_I[2],
-          And(KB:-negate_relation(C_O), C_I[2]), B_I[3],
-           # negate_relation is not happy with non-relations!
+          And(C_O, KB:-negate_kb1(C_I[1])), B_I[2],
+          And(KB:-negate_kb1(C_O), C_I[2]), B_I[3],
+           # negate_kb1 is not happy with non-relations!
           `if`(C_O=true or C_I[2]=true, false,
-               And(KB:-negate_relation(C_O), KB:-negate_relation(C_I[2]))), B_I[4]
+               And(KB:-negate_kb1(C_O), KB:-negate_kb1(C_I[2]))), B_I[4]
      ];
      userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
      piecewise(r[])
@@ -590,7 +590,7 @@ Hakaru := module ()
          #short-cut rule: Proceeding left to right, once satisfaction of the type
          #can be determined, the remaining elements aren't evaluated. Therefore,
          #recursive types are possible by placing the base cases at the beginning.
-         #But use Or instead of {} because you can't control the order of 
+         #But use Or instead of {} because you can't control the order of
          #expressions with {}.
          Or(
            'known_continuous', 'known_discrete',
