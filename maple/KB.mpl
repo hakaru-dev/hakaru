@@ -288,8 +288,8 @@ KB := module ()
       ch := chill(e);
       if rel = `<>` then
         # Refine <> to > or < if possible.
-        if   is(x<=ch) assuming op(as) then rel := `<`
-        elif is(x>=ch) assuming op(as) then rel := `>`
+        if   is(x<=ch) &assuming_safe op(as) then rel := `<`
+        elif is(x>=ch) &assuming_safe op(as) then rel := `>`
         else return KB(Constrain(x<>e), op(kb)) end if
       end if;
 
