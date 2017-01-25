@@ -15,7 +15,7 @@ extra-deps:
  # Version Cabal-1.24.1.0 (which is in lts 7.12) seems to have impossible bound `base (>1 && <1),` ?? 
  # at least on hackage (https://hackage.haskell.org/package/Cabal-1.24.1.0)
  # Proper solution (?): lts-7.15 
- - Cabal-1.24.2.0
+ # - Cabal-1.24.2.0
 
  # This pulls in about 5 additional transitive dependencies (building Cabal still takes 
  # about 80% of the compile time for the dependencies, total...)
