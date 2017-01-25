@@ -84,7 +84,7 @@ KB := module ()
   global
      # The type of KBs. It is 'assumed' that things 'with this type'
      # are actually KBs in the proper form
-     t_kb,
+     t_kb, t_kb_atom,
 
      # Some silly things that KB must do to appease
      # Maple when using Maple functions to work with
@@ -150,29 +150,30 @@ KB := module ()
   #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
   #Carl 2016Sep09
   negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
-  negate_relation:= proc(R::relation, $)::relation;
-       negated_relation[op(0,R)](op(R))
-  end proc;
 
+  # Takes the bool type (true/false) to mean universal and empty relations respectively.
+  negate_relation:= proc(R::t_kb_atom, $)::t_kb_atom;
+      if R :: truefalse then
+          `if`(R,false,true);
+      else
+          negated_relation[op(0,R)](op(R));
+      end if;
+  end proc;
 
   # Negate b, where b is an 'atomic' relation of a KB (?)
-  # TODO: this should make use of `negated_relation'
-  negate_kb1 := proc(b,$)
-     if   b :: `=`  then `<>`(op(b))
-     elif b :: `<>` then `=` (op(b))
-     elif b :: `<`  then `>=`(op(b))
-     elif b :: `<=` then `>` (op(b))
-     else Not(b) end if
+  negate_kb1 := proc(b::t_kb_atom,$)
+     if b :: {relation,truefalse} then
+         negate_relation(b);
+     else
+         Not(b);
+     end if;
   end proc;
-
-  # Perhaps this exists somewhere
-  # from_FAIL := proc(e,def,$) if not e::identical(FAIL) then def else e end if; end proc;
 
   # Like assert_deny, except does not accept a boolean
   # parameter to indicate negation, and evaluates
   # (using Maple's eval, anything can happen!) the
   # new conjunct under the derived knowledge of the KB
-  assert := proc(b, kb::t_kb, $)
+  assert := proc(b::t_kb_atom, kb::t_kb, $)
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 
@@ -339,7 +340,7 @@ KB := module ()
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
    # Great deal of magic happens behind the scenes
-   ModuleApply := proc(bb, pol::identical(true,false), kb::t_kb, $)
+   ModuleApply := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
     local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
 
@@ -1080,6 +1081,11 @@ KB := module ()
          Bound(name, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
          Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
        }, KB)');
+
+    # KB 'atoms' , i.e. single pieces of knowledge, in "maple form".
+    # Note that boolean already includes `Bound`s in the form `x R y`
+    TypeTools[AddType](t_kb_atom,
+      '{`::`, boolean, `in`, specfunc(anything,{Or,Not,And})}');
 
     # Prevent expand(product(f(i),i=0..n-1))
     # from producing (product(f(i),i=0..n))/f(n)
