@@ -46,7 +46,7 @@ KB := module ()
      # Various utilities
      t_intro, t_lo, t_hi, log_metric,
      boolean_if, coalesce_bounds, htype_to_property,
-     negate_kb1 , `&assuming_safe`, from_FAIL
+     negate_kb1 # , from_FAIL
      ;
   export
      # Functions which build up KBs from KBs and other pieces
@@ -166,20 +166,7 @@ KB := module ()
   end proc;
 
   # Perhaps this exists somewhere
-  from_FAIL := proc(e,def,$) if not e::identical(FAIL) then def else e end if; end proc;
-
-
-  # Catches and reports a contradiction which could arise as result of
-  # some forms of simplification and evaluation
-  `&assuming_safe` := proc (e :: uneval)
-     try
-        e assuming args[2 .. -1];
-     catch "when calling '%1'. Received: 'contradictory assumptions'":
-        # We seem to be on an unreachable control path
-        userinfo(1, 'procname', "Received contradictory assumptions.");
-        FAIL;
-     end try;
-  end proc;
+  # from_FAIL := proc(e,def,$) if not e::identical(FAIL) then def else e end if; end proc;
 
   # Like assert_deny, except does not accept a boolean
   # parameter to indicate negation, and evaluates
@@ -288,8 +275,8 @@ KB := module ()
       ch := chill(e);
       if rel = `<>` then
         # Refine <> to > or < if possible.
-        if   is(x<=ch) &assuming_safe op(as) then rel := `<`
-        elif is(x>=ch) &assuming_safe op(as) then rel := `>`
+        if   is(x<=ch) assuming op(as) then rel := `<`
+        elif is(x>=ch) assuming op(as) then rel := `>`
         else return KB(Constrain(x<>e), op(kb)) end if
       end if;
 
@@ -316,7 +303,7 @@ KB := module ()
       # Compare the new bound rel        (x,e          )
       # against the old bound op([1,1],c)(x,op([1,2],c))
       if e = `if`(rel :: t_lo, -infinity, infinity)
-          or nops(c)>0 and (is(rel(y,ch)) &assuming_safe
+          or nops(c)>0 and (is(rel(y,ch)) assuming
                               (op(1,c)(y,op(2,c)),
                                y::htype_to_property(k), op(as)) ) then
           # The old bound renders the new bound superfluous.
@@ -325,7 +312,7 @@ KB := module ()
       # "assuming" used to be in a try which would
       # cause the return to never be reached if it threw, but now it
       # produces FAIL instead - and `_x or FAIL = FAIL'
-      elif nops(c)=0 or (is(op(1,c)(y,op(2,c))) &assuming_safe
+      elif nops(c)=0 or (is(op(1,c)(y,op(2,c))) assuming
                              (rel(y,ch),
                               y::htype_to_property(k), op(as)) ) then
           # The new bound supersedes the old bound.
@@ -372,7 +359,7 @@ KB := module ()
 
       # Simplify `bb' in context `as' placing result in `b'
       b := chill(bb);
-      b := from_FAIL( simplify(b) &assuming_safe op(as) , b );
+      b := simplify(b) assuming op(as);
       b := warm(b);
 
       # Look through kb for the innermost scope where b makes sense.
@@ -386,10 +373,6 @@ KB := module ()
         # Reduce (in)equality between exp(A) and exp(B) to between A and B.
         do
           try log_b := map(simplify@ln, b) assuming op(as); catch: break; end try;
-
-          # assuming_safe doesn't work here
-          # log_b := map(simplify@ln, b) &assuming_safe op(as);
-          # if log_b :: identical(FAIL) then break; end if;
 
           if log_metric(log_b, x) < log_metric(b, x)
              and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
@@ -423,7 +406,7 @@ KB := module ()
       # If `b' reduces to `true' in the KB environment then there is no need to
       # add it
       ch := chill(b);
-      if is(ch) &assuming_safe op(as) then return kb end if;
+      if is(ch) assuming op(as) then return kb end if;
 
       # Add constraint to KB.
       KB(Constrain(b), op(kb))
@@ -573,14 +556,12 @@ KB := module ()
     e := chill(e);                                                        `chill`;
     as := chill(as);
 
+    # The assumptions may be contradictory - I'm not sure why the right thing to
+    # do is to return the original expression. Assuming false one can derive
+    # anything - hence exception - so who calls this function under which
+    # contexts that they expect `false` to mean something other than `false`?
     e0 := e;
-    e := simplify(e) &assuming_safe op(as);
-    if e :: identical(FAIL) then e := e0 end if;
-
-    # This causes an additional test to fail compared to the above .. either
-    # from_FAIL is wrong or simplify is somehow (for some reason?!)  mutating
-    # `e' (?)
-    # e := from_FAIL( simplify(e) &assuming_safe op(as), e );
+    try e := simplify(e) assuming op(as); catch: e := e0; end try;
 
     e := warm(e);                                            `warm (then expand@exp)`;
     eval(e, exp = expand @ exp);
