@@ -210,19 +210,6 @@ normalizeNames abts env = foldr f ($ S.empty) abts
   where
     f x acc ctxt = normalizeName x env $ \t -> acc (ctxt . (t <|))
 
-{-normalizeSArgs-}
-  {-:: forall (a :: Hakaru) abt args . (ABT Term abt)-}
-  {-=> SArgs abt args-}
-  {--> Env-}
-  {--> (SArgs abt args -> abt '[] a)-}
-  {--> abt '[] a-}
-{-normalizeSArgs args env ctxt =-}
-  {-case args of-}
-    {-End     -> ctxt End-}
-    {-x :* xs -> normalizeName x   $ \t ->-}
-               {-normalizeSArgs xs $ \ts ->-}
-               {-ctxt (t :* ts)-}
-
 normalizeNaryOp
   :: (ABT Term abt)
   => NaryOp a
@@ -416,3 +403,4 @@ normalizeMeasureOp op xs env ctxt =
     (Normal      , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
     (Gamma       , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
     (Beta        , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
+
