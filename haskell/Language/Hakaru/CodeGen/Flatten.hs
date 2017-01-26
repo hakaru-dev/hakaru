@@ -559,27 +559,29 @@ flattenArray
   -> (CExpr -> CodeGen ())
 flattenArray arity body =
   \loc ->
-    caseBind body $ \v@(Variable _ _ typ) body' ->
+    caseBind body $ \v body' -> do
       let arityE = arraySize loc
-          dataE  = arrayData loc in
-      do flattenABT arity arityE
+          dataE  = arrayData loc
+          typ    = typeOf body'
 
-         isManagedMem <- managedMem <$> get
-         let malloc' = if isManagedMem then gc_mallocE else mallocE
-         putExprStat $   dataE
-                     .=. (CCast (mkPtrDecl . buildType $ typ)
-                                (malloc' (arityE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+      flattenABT arity arityE
 
-         itId  <- createIdent v
-         declare SNat itId
-         let itE     = CVar itId
-             currInd = indirect (dataE .+. itE)
+      isManagedMem <- managedMem <$> get
+      let malloc' = if isManagedMem then gc_mallocE else mallocE
+      putExprStat $   dataE
+                  .=. (CCast (mkPtrDecl . buildType $ typ)
+                             (malloc' (arityE .*. (CSizeOfType . mkDecl . buildType $ typ))))
 
-         putStat $ opComment "Create Array"
-         forCG (itE .=. (intE 0))
-               (itE .<. arityE)
-               (CUnary CPostIncOp itE)
-               (flattenABT body' currInd)
+      itId  <- createIdent v
+      declare SNat itId
+      let itE     = CVar itId
+          currInd = indirect (dataE .+. itE)
+
+      putStat $ opComment "Create Array"
+      forCG (itE .=. (intE 0))
+            (itE .<. arityE)
+            (CUnary CPostIncOp itE)
+            (flattenABT body' currInd)
 
 
 --------------
