@@ -192,47 +192,60 @@ flattenSCon (ArrayOp_ op) = flattenArrayOp op
 flattenSCon (Summate _ sr) =
   \(lo :* hi :* body :* End) ->
     \loc ->
-      caseBind body $ \v body' ->
-        do loId <- genIdent
-           hiId <- genIdent
-           declare (typeOf lo) loId
-           declare (typeOf hi) hiId
-           let loE = CVar loId
-               hiE = CVar hiId
-           flattenABT lo loE
-           flattenABT hi hiE
+      do loId <- genIdent
+         hiId <- genIdent
+         declare (typeOf lo) loId
+         declare (typeOf hi) hiId
+         let loE     = CVar loId
+             hiE     = CVar hiId
+             semiTyp = sing_HSemiring sr
+         flattenABT lo loE
+         flattenABT hi hiE
 
-           iterI <- createIdent v
-           declare SNat iterI
+         putStat $ opComment "Begin Summate"
 
-           accI <- genIdent' "acc"
-           let semiT = sing_HSemiring sr
-           declare semiT accI
-           assign accI (case semiT of
-                          SProb -> negInfinityE
-                          SReal -> floatE 0
-                          _     -> intE 0)
+         case semiTyp of
+           -- special prob branch
+           SProb -> do
+             summateArrId <- genIdent' "summate_arr"
+             declare (SArray SProb) summateArrId
+             let summateArrE = CVar summateArrId
+             putExprStat $ arraySize summateArrE .=. (hiE .-. loE)
+             putExprStat $ arrayData summateArrE
+                   .=. (CCast (mkPtrDecl [CDouble])
+                              (mallocE ((arraySize summateArrE) .*.
+                                        (CSizeOfType . mkDecl $ [CDouble]))))
+             lseSummateArrayCG body summateArrE loc
+             putExprStat $ freeE $ arrayData summateArrE
 
-           let accVar  = CVar accI
-               iterVar = CVar iterI
+           _ -> do
+             caseBind body $ \v body' -> do
+               iterI <- createIdent v
+               declare SNat iterI
+  
+               accI <- genIdent' "acc"
+               declare semiTyp accI
+               assign accI (case semiTyp of
+                              SReal -> floatE 0
+                              _     -> intE 0)
+  
+               let accVar  = CVar accI
+                   iterVar = CVar iterI
+  
+               reductionCG CAddOp
+                           accI
+                           (iterVar .=. loE)
+                           (iterVar .<. hiE)
+                           (CUnary CPostIncOp iterVar) $
+                 do tmpId <- genIdent
+                    declare (typeOf body') tmpId
+                    let tmpE = CVar tmpId
+                    flattenABT body' tmpE
+                    putStat . CExpr . Just $ (accVar .+=. tmpE)
+                    putExprStat (loc .=. accVar)
 
+         putStat $ opComment "End Summate"
 
-           putStat $ opComment "Summate"
-           -- logSumExp for probabilities
-           reductionCG CAddOp
-                       accI
-                       (iterVar .=. loE)
-                       (iterVar .<. hiE)
-                       (CUnary CPostIncOp iterVar) $
-             do tmpId <- genIdent
-                declare (typeOf body') tmpId
-                let tmpE = CVar tmpId
-                flattenABT body' tmpE
-                case semiT of
-                  SProb -> logSumExpCG (S.fromList [accVar,tmpE]) accVar
-                  _     -> putStat . CExpr . Just $ (accVar .+=. tmpE)
-
-           putExprStat (loc .=. accVar)
 
 
 flattenSCon (Product _ sr) =
@@ -513,7 +526,7 @@ logSumExpCG seqE =
   let size   = S.length $ seqE
       name   = "logSumExp" ++ (show size)
       funcId = Ident name
-  in \loc -> do-- reset the names so that the function is the same for each arity
+  in \loc -> do -- reset the names so that the function is the same for each arity
        cg <- get
        put (cg { freshNames = suffixes })
        argIds <- replicateM size genIdent
@@ -528,6 +541,53 @@ logSumExpCG seqE =
        put (cg' { freshNames = freshNames cg })
        putExprStat $ loc .=. (CCall (CVar funcId) (F.toList seqE))
 
+-------------------------------------
+-- LogSumExp for Summation of Prob --
+-------------------------------------
+{-
+
+For summation of SProb we need a new logSumExp function that will find the max
+of an array and then sum it in a loop
+
+-}
+
+lseSummateArrayCG
+  :: ( ABT Term abt )
+  => (abt '[ a ] b)
+  -> CExpr
+  -> (CExpr -> CodeGen ())
+lseSummateArrayCG body arrayE =
+  caseBind body $ \v body' ->
+    \loc -> do
+      (maxVId:maxIId:sumId:[]) <- mapM genIdent' ["maxV","maxI","sum"]
+      itId <- createIdent v
+      mapM_ (declare SProb) [maxVId,sumId]
+      mapM_ (declare SNat)  [maxIId,itId]
+      let (maxVE:maxIE:sumE:itE:[]) = fmap CVar [maxVId,maxIId,sumId,itId]
+      forCG (itE .=. intE 0)
+            (itE .<. arraySize arrayE)
+            (CUnary CPostIncOp itE)
+            (do tmpId <- genIdent
+                declare SProb tmpId
+                let tmpE = CVar tmpId
+                flattenABT body' tmpE
+                putExprStat $ derefIndex itE .=. tmpE
+                putStat $ CIf ((maxVE .<. tmpE) .||. (itE .==. (intE 0)))
+                              (seqCStat . fmap (CExpr . Just) $
+                                [ maxVE .=. tmpE
+                                , maxIE .=. itE ])
+                              Nothing)
+      putExprStat $ sumE  .=. (floatE 0) -- the sum is actually in real space
+      forCG (itE .=. intE 0)
+            (itE .<. arraySize arrayE)
+            (CUnary CPostIncOp itE)
+            (putStat $ CIf (itE .!=. maxIE)
+                           (CExpr . Just $ sumE .+=. (expE ((derefIndex itE) .-. (maxVE))))
+                           Nothing)
+
+      putExprStat $ loc .=. (maxVE .+. (logE sumE))
+
+  where derefIndex xE = indirect (arrayData arrayE .+. xE)
 
 --------------------------------------------------------------------------------
 --                                  Literals                                  --

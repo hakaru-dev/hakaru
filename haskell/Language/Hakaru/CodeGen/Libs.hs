@@ -82,7 +82,7 @@ freeE = mkUnaryE "free"
 -- stdlio.h --
 --------------
 
-        
+
 
 printfE :: [CExpr] -> CExpr
 printfE = mkCallE "printf"

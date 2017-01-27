@@ -101,10 +101,11 @@ data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generatio
              , managedMem    :: Bool         -- ^ garbage collected block
              , sharedMem     :: Bool         -- ^ shared memory supported block
              , distributed   :: Bool         -- ^ distributed supported block
+             , logProbs      :: Bool         -- ^ true by default, but might not matter in some situations
              }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty mempty [] [] emptyEnv False False False
+emptyCG = CG suffixes mempty mempty [] [] emptyEnv False False False True
 
 type CodeGen = State CG
 
