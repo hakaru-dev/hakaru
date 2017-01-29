@@ -11,8 +11,6 @@ import           Language.Hakaru.Simplify
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
-(<>) :: Monoid a => a -> a -> a
-(<>) = mappend
 #endif
 
 import           Data.Monoid
