@@ -13,6 +13,8 @@ import Language.Hakaru.CodeGen.AST
 import Language.Hakaru.CodeGen.Pretty
 
 import           Control.Monad.Reader
+
+import           Data.Monoid
 import           Data.Text hiding (any,map,filter,foldr)
 import qualified Data.Text.IO as IO
 import           Text.PrettyPrint (render)
