@@ -56,7 +56,7 @@ import           Language.Hakaru.Syntax.Prelude
 -- mapped to the new one.
 
 data EAssoc =
-    forall (a :: Hakaru) . EAssoc {-# UNPACK #-} !(Variable a) {-# UNPACK #-} !(Variable a)
+    forall (a :: Hakaru) . EAssoc !(Variable a) !(Variable a)
 
 newtype Env = Env (IM.IntMap EAssoc)
 
@@ -64,11 +64,8 @@ emptyEnv :: Env
 emptyEnv = Env IM.empty
 
 updateEnv :: forall (a :: Hakaru) . Variable a -> Variable a -> Env -> Env
-updateEnv vin vout = updateEnv' (EAssoc vin vout)
-
-updateEnv' :: EAssoc -> Env -> Env
-updateEnv' v@(EAssoc x _) (Env xs) =
-    Env $ IM.insert (fromNat $ varID x) v xs
+updateEnv vin vout (Env xs) = Env $ IM.insert nat (EAssoc vin vout) xs
+  where nat = fromNat $ varID vin
 
 lookupVar :: forall (a :: Hakaru) . Variable a -> Env -> Maybe (Variable a)
 lookupVar x (Env env) = do
