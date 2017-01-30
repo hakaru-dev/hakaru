@@ -184,6 +184,15 @@ normalizeCase cond bs env ctxt =
         bs' = map normalizeBranch bs
     in ctxt $ syn (Case_ cond' bs')
 
+normalizeBody
+  :: (ABT Term abt)
+  => abt '[] b
+  -> Variable a
+  -> Env
+  -> abt '[a] b
+normalizeBody body vold env =
+  freshVar vold $ \vnew -> normalize' body (updateEnv vold vnew env) id
+
 normalizeName
   :: (ABT Term abt)
   => abt '[] a
@@ -225,16 +234,15 @@ normalizeSCon
 normalizeSCon Lam_ =
   \(body :* End) env ctxt -> caseBind body $
     \v body' ->
-      let f var = normalize' body' (updateEnv v var env) id
-      in ctxt $ syn (Lam_ :$ freshVar v f :* End)
+      let body'' = normalizeBody body' v env
+      in ctxt $ syn (Lam_ :$ body'' :* End)
 
 normalizeSCon Let_ =
   \(rhs :* body :* End) env ctxt -> caseBind body $
     \v body' ->
       normalize' rhs env $ \rhs' ->
         let_ rhs' $ \v' ->
-          let var  = getVar v'
-              env' = updateEnv v var env
+          let env' = updateEnv v (getVar v') env
           in normalize' body' env' ctxt
 
 -- TODO: Remove code duplication between sum and product cases
@@ -243,8 +251,7 @@ normalizeSCon s@Summate{} =
     normalizeName lo env $ \lo' ->
     normalizeName hi env $ \hi' ->
     caseBind body $ \v body' ->
-    let f var  = normalize' body' (updateEnv v var env) id
-        body'' = freshVar v f
+    let body'' = normalizeBody body' v env
     in ctxt $ syn (s :$ lo' :* hi' :* body'' :* End)
 
 normalizeSCon p@Product{} =
@@ -252,24 +259,21 @@ normalizeSCon p@Product{} =
     normalizeName lo env $ \lo' ->
     normalizeName hi env $ \hi' ->
     caseBind body $ \v body' ->
-    let f var  = normalize' body' (updateEnv v var env) id
-        body'' = freshVar v f
+    let body'' = normalizeBody body' v env
     in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
 
 normalizeSCon MBind =
   \(ma :* b :* End) env ctxt ->
     normalize' ma env $ \ma' ->
     caseBind b $ \v b' ->
-    let f var = normalize' b' (updateEnv v var env) id
-        b''   = freshVar v f
+    let b'' = normalizeBody b' v env
     in ctxt $ syn (MBind :$ ma' :* b'' :* End)
 
 normalizeSCon Plate =
   \(e :* b :* End) env ctxt ->
     normalize' e env $ \e' ->
     caseBind b $ \v b' ->
-    let f var = normalize' b' (updateEnv v var env) id
-        b''   = freshVar v f
+    let b'' = normalizeBody b' v env
     in ctxt $ syn (Plate :$ e' :* b'' :* End)
 
 normalizeSCon Dirac =
