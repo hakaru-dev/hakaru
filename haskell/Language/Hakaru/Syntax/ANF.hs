@@ -30,6 +30,7 @@ import           Prelude                          hiding (product, (*), (+),
                                                    (-), (<), (==), (>>=))
 
 import qualified Data.IntMap                      as IM
+import           Data.Maybe
 import           Data.Number.Nat
 import           Data.Sequence                    ((<|))
 import qualified Data.Sequence                    as S
@@ -111,11 +112,8 @@ normalize'
   -> abt '[] b
 normalize' abt = caseVarSyn abt normalizeVar normalizeTerm
 
-normalizeVar :: (ABT Term abt) => (Variable a) -> Env -> Context abt a b -> abt '[] b
-normalizeVar v env ctxt =
-  case lookupVar v env of
-    Just v' -> ctxt (var v')
-    Nothing -> ctxt (var v)
+normalizeVar :: (ABT Term abt) => Variable a -> Env -> Context abt a b -> abt '[] b
+normalizeVar v env ctxt = ctxt . var $ fromMaybe v (lookupVar v env)
 
 isValue
   :: (ABT Term abt)
