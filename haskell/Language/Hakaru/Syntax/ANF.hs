@@ -163,8 +163,7 @@ normalizeCase cond bs env ctxt =
           case pat of
             PWild -> Branch PWild (normalize' body env id)
             PVar  -> caseBind body $ \v body' ->
-                       Branch PVar $ remapVar v env $ \ env' ->
-                         normalize' body' env' id
+                       Branch PVar (normalizeBody body' v env)
 
             -- Minimum needed to match True and False
             PDatum _ (PInl PDone)        -> Branch pat (normalize' body env id)
