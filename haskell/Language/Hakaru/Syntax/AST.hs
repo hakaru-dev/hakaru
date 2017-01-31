@@ -789,7 +789,7 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     Bucket
         :: !(abt '[] 'HNat)
         -> !(abt '[] 'HNat)
-        -> Reducer abt '[ 'HNat ] a
+        -> Reducer abt '[] a
         -> Term abt a
            
     -- -- User-defined data types

@@ -14,12 +14,12 @@ data Reducer (abt :: [Hakaru] -> Hakaru -> *)
              (a :: Hakaru) where
      Red_Add
          :: HSemiring a
-         -> abt xs a
+         -> abt ( 'HNat ': xs) a         -- (bound i)
          -> Reducer abt xs a
      Red_Index
-         :: abt xs 'HNat               -- size of resulting array
-         -> abt ( 'HNat ': xs ) 'HNat  -- index into array (bound i)
-         -> Reducer abt ( 'HNat ': xs) a
-         -> Reducer abt xs a
+         :: abt xs 'HNat                 -- size of resulting array
+         -> abt ( 'HNat ': xs) 'HNat     -- index into array (bound i)
+         -> Reducer abt ( 'HNat ': xs) a -- reduction body (bound b)
+         -> Reducer abt xs ('HArray a)
 
 
