@@ -146,9 +146,7 @@ remapVar
   -> Env
   -> (Env -> abt xs b)
   -> abt (a ': xs) b
-remapVar var env f = freshVar var $ \var' ->
-  let env' = updateEnv var var' env
-  in f env'
+remapVar var env f = freshVar var $ \var' -> f (updateEnv var var' env)
 
 normalizeCase
   :: forall a b c abt . (ABT Term abt)
