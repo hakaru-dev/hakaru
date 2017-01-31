@@ -35,13 +35,8 @@ import qualified Data.Sequence                    as S
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.Datum
-import           Language.Hakaru.Syntax.DatumCase
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.Variable
-import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind
-import           Language.Hakaru.Types.HClasses
-import           Language.Hakaru.Types.Sing
 
 import           Language.Hakaru.Syntax.Prelude
 
@@ -174,8 +169,8 @@ normalizeCase cond bs env ctxt =
                          normalize' body' env' id
 
             -- Minimum needed to match True and False
-            PDatum t (PInl PDone)        -> Branch pat (normalize' body env id)
-            PDatum t (PInr (PInl PDone)) -> Branch pat (normalize' body env id)
+            PDatum _ (PInl PDone)        -> Branch pat (normalize' body env id)
+            PDatum _ (PInr (PInl PDone)) -> Branch pat (normalize' body env id)
             _     -> error "normalizeBranch: pattern variables not implemented"
 
         bs' = map normalizeBranch bs
@@ -274,13 +269,13 @@ normalizeSCon Plate =
     in ctxt $ syn (Plate :$ e' :* b'' :* End)
 
 normalizeSCon Dirac =
-  \(e :* end) env ctxt -> normalize' e env (ctxt . dirac)
+  \(e :* End) env ctxt -> normalize' e env (ctxt . dirac)
 
 normalizeSCon (UnsafeFrom_ c) =
-  \(t :* end) env ctxt -> normalize' t env (ctxt . unsafeFrom_ c)
+  \(t :* End) env ctxt -> normalize' t env (ctxt . unsafeFrom_ c)
 
 normalizeSCon (CoerceTo_ c) =
-  \(t :* end) env ctxt -> normalize' t env (ctxt . coerceTo_ c)
+  \(t :* End) env ctxt -> normalize' t env (ctxt . coerceTo_ c)
 
 normalizeSCon (MeasureOp_ op) = normalizeMeasureOp op
 
@@ -327,11 +322,11 @@ normalizePrimOp op xs env ctxt =
     (BetaFunc   , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
 
     -- Comparisons
-    (Equal _ , x :* y :* End)   -> normalizePrimOp2 op x y env ctxt
-    (Less _  , x :* y :* End)   -> normalizePrimOp2 op x y env ctxt
+    (Equal _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Less _  , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
 
     -- HSemiring operations
-    (NatPow _ , x :* y :* End)  -> normalizePrimOp2 op x y env ctxt
+    (NatPow _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
 
     -- HRing operations
     (Negate _  ,      x :* End) -> normalizePrimOp1 op x env ctxt
@@ -339,6 +334,7 @@ normalizePrimOp op xs env ctxt =
     (Signum _  ,      x :* End) -> normalizePrimOp1 op x env ctxt
     (Recip _   ,      x :* End) -> normalizePrimOp1 op x env ctxt
     (NatRoot _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Erf _     ,      x :* End) -> normalizePrimOp1 op x env ctxt
 
 normalizePrimOp1
   :: (ABT Term abt)
@@ -373,18 +369,6 @@ normalizePrimOp3 op x y z env ctxt =
   normalizeName y env $ \y' ->
   normalizeName z env $ \z' ->
   ctxt (primOp3_ op x' y' z')
-
--- TODO: Would be nice to get this simple version working
-{-normalizePrimOp-}
-  {-:: (ABT Term abt, args ~ LCs typs, typs ~ UnLCs args, '[] ~ AllArgs args)-}
-  {-=> PrimOp typs a-}
-  {--> SArgs abt args-}
-  {--> Env-}
-  {--> Context abt a b-}
-  {--> abt '[] b-}
-{-normalizePrimOp op (x :* End)           = normalizePrimOp1 op x-}
-{-normalizePrimOp op (x :* y :* End)      = normalizePrimOp2 op x y-}
-{-normalizePrimOp op (x :* y :* z :* End) = normalizePrimOp3 op x y z-}
 
 normalizeMeasureOp2
   :: (ABT Term abt)
