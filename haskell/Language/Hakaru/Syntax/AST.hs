@@ -801,6 +801,7 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: L.NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
         -> Term abt ('HMeasure a)
 
+    -- The zero measure
     Reject_ :: !(Sing ('HMeasure a)) -> Term abt ('HMeasure a)
 
 ----------------------------------------------------------------
