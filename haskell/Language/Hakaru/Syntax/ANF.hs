@@ -71,7 +71,7 @@ lookupVar :: forall (a :: Hakaru) . Variable a -> Env -> Maybe (Variable a)
 lookupVar x (Env env) = do
     EAssoc v1 v2 <- IM.lookup (fromNat $ varID x) env
     Refl         <- varEq x v1
-    return $ v2
+    return v2
 
 -- | The context in which A-normalization occurs. Represented as a continuation,
 -- the context expects an expression of a particular type (usually a variable)
