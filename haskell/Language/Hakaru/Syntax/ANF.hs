@@ -293,94 +293,70 @@ normalizePrimOp
 normalizePrimOp op xs env ctxt =
   case (op, xs) of
     -- Logical operatons
-    (Not  ,      x :* End) -> normalizePrimOp1 op x env ctxt
-    (Impl , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Diff , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Nand , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Nor  , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Not  ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Impl , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
+    (Diff , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
+    (Nand , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
+    (Nor  , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
 
     -- Trig stuff
     (Pi    ,      End) -> ctxt $ primOp0_ Pi
-    (Sin   , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Cos   , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Tan   , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Asin  , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Acos  , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Atan  , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Sinh  , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Cosh  , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Tanh  , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Asinh , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Acosh , x :* End) -> normalizePrimOp1 op x env ctxt
-    (Atanh , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Sin   , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Cos   , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Tan   , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Asin  , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Acos  , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Atan  , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Sinh  , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Cosh  , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Tanh  , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Asinh , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Acosh , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Atanh , x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
 
-    (RealPow    , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Exp        ,      x :* End) -> normalizePrimOp1 op x env ctxt
-    (Log        ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (RealPow    , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
+    (Exp        ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Log        ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
     (Infinity _ ,           End) -> ctxt $ primOp0_ op
-    (GammaFunc  ,      x :* End) -> normalizePrimOp1 op x env ctxt
-    (BetaFunc   , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (GammaFunc  ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (BetaFunc   , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
 
     -- Comparisons
-    (Equal _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Less _  , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Equal _ , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
+    (Less _  , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
 
     -- HSemiring operations
-    (NatPow _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (NatPow _ , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
 
     -- HRing operations
-    (Negate _  ,      x :* End) -> normalizePrimOp1 op x env ctxt
-    (Abs _     ,      x :* End) -> normalizePrimOp1 op x env ctxt
-    (Signum _  ,      x :* End) -> normalizePrimOp1 op x env ctxt
-    (Recip _   ,      x :* End) -> normalizePrimOp1 op x env ctxt
-    (NatRoot _ , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
-    (Erf _     ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (Negate _  ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Abs _     ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Signum _  ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (Recip _   ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
+    (NatRoot _ , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
+    (Erf _     ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
 
-normalizePrimOp1
+normalizeOp1
   :: (ABT Term abt)
-  => PrimOp '[ a ] r
+  => (abt '[] a -> t)
   -> abt '[] a
   -> Env
-  -> Context abt r r'
-  -> abt '[] r'
-normalizePrimOp1 op x env ctxt = normalizeName x env (ctxt . primOp1_ op)
+  -> (t -> abt '[] c)
+  -> abt '[] c
+normalizeOp1 mk x env ctxt = normalizeName x env (ctxt . mk)
 
-normalizePrimOp2
+normalizeOp2
   :: (ABT Term abt)
-  => PrimOp '[ a, b ] r
-  -> abt '[] a -> abt '[] b
+  => (abt '[] a -> abt '[] b -> t)
+  -> abt '[] a
+  -> abt '[] b
   -> Env
-  -> Context abt r r'
-  -> abt '[] r'
-normalizePrimOp2 op x y env ctxt =
+  -> (t -> abt '[] c)
+  -> abt '[] c
+normalizeOp2 mk x y env ctxt =
   normalizeName x env $ \x' ->
   normalizeName y env $ \y' ->
-  ctxt (primOp2_ op x' y')
-
-normalizePrimOp3
-  :: (ABT Term abt)
-  => PrimOp '[ a, b, c ] r
-  -> abt '[] a -> abt '[] b -> abt '[] c
-  -> Env
-  -> Context abt r r'
-  -> abt '[] r'
-normalizePrimOp3 op x y z env ctxt =
-  normalizeName x env $ \x' ->
-  normalizeName y env $ \y' ->
-  normalizeName z env $ \z' ->
-  ctxt (primOp3_ op x' y' z')
-
-normalizeMeasureOp2
-  :: (ABT Term abt)
-  => MeasureOp '[ a, b ] r
-  -> abt '[] a -> abt '[] b
-  -> Env
-  -> Context abt ('HMeasure r) r'
-  -> abt '[] r'
-normalizeMeasureOp2 op x y env ctxt =
-  normalizeName x env $ \x' ->
-  normalizeName y env $ \y' ->
-  ctxt (measure2_ op x' y')
+  ctxt (mk x' y')
 
 normalizeMeasureOp
   :: (ABT Term abt, args ~ LCs typs)
@@ -395,8 +371,8 @@ normalizeMeasureOp op xs env ctxt =
     (Counting    ,           End) -> ctxt $ measure0_ op
     (Categorical ,      x :* End) -> normalizeName x env (ctxt . measure1_ op)
     (Poisson     ,      x :* End) -> normalizeName x env (ctxt . measure1_ op)
-    (Uniform     , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
-    (Normal      , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
-    (Gamma       , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
-    (Beta        , x :* y :* End) -> normalizeMeasureOp2 op x y env ctxt
+    (Uniform     , x :* y :* End) -> normalizeOp2 (measure2_ op) x y env ctxt
+    (Normal      , x :* y :* End) -> normalizeOp2 (measure2_ op) x y env ctxt
+    (Gamma       , x :* y :* End) -> normalizeOp2 (measure2_ op) x y env ctxt
+    (Beta        , x :* y :* End) -> normalizeOp2 (measure2_ op) x y env ctxt
 
