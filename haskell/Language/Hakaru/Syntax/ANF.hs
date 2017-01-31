@@ -26,9 +26,6 @@ module Language.Hakaru.Syntax.ANF where
 -- 4. CSE (in order to clean up work duplicated by hoisting)
 --------------------------------------------------------------------------------
 
-import           Prelude                          hiding (product, (*), (+),
-                                                   (-), (<), (==), (>>=))
-
 import qualified Data.IntMap                      as IM
 import           Data.Maybe
 import           Data.Number.Nat
@@ -301,17 +298,33 @@ normalizePrimOp
 normalizePrimOp op xs env ctxt =
   case (op, xs) of
     -- Logical operatons
-    (Not  ,      x :* End)      -> normalizePrimOp1 op x env ctxt
-    (Impl , x :* y :* End)      -> normalizePrimOp2 op x y env ctxt
-    (Diff , x :* y :* End)      -> normalizePrimOp2 op x y env ctxt
-    (Nand , x :* y :* End)      -> normalizePrimOp2 op x y env ctxt
-    (Nor  , x :* y :* End)      -> normalizePrimOp2 op x y env ctxt
+    (Not  ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (Impl , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Diff , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Nand , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Nor  , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
 
     -- Trig stuff
-    (Pi  ,      End)            -> ctxt $ primOp0_ Pi
-    (Sin , x :* End)            -> normalizePrimOp1 op x env ctxt
-    (Cos , x :* End)            -> normalizePrimOp1 op x env ctxt
-    (Tan , x :* End)            -> normalizePrimOp1 op x env ctxt
+    (Pi    ,      End) -> ctxt $ primOp0_ Pi
+    (Sin   , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Cos   , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Tan   , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Asin  , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Acos  , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Atan  , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Sinh  , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Cosh  , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Tanh  , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Asinh , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Acosh , x :* End) -> normalizePrimOp1 op x env ctxt
+    (Atanh , x :* End) -> normalizePrimOp1 op x env ctxt
+
+    (RealPow    , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
+    (Exp        ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (Log        ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (Infinity _ ,           End) -> ctxt $ primOp0_ op
+    (GammaFunc  ,      x :* End) -> normalizePrimOp1 op x env ctxt
+    (BetaFunc   , x :* y :* End) -> normalizePrimOp2 op x y env ctxt
 
     -- Comparisons
     (Equal _ , x :* y :* End)   -> normalizePrimOp2 op x y env ctxt
