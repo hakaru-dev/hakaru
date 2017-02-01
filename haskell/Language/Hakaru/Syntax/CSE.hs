@@ -91,7 +91,7 @@ cse' :: (ABT Term abt) => abt xs a -> CSE abt (abt xs a)
 cse' abt = case viewABT abt of
              Var v    -> cseVar v
              Syn s    -> cseTerm s
-             Bind v b -> error "cse': NYI"
+             Bind _ _ -> error "cse': NYI"
 
 -- Variables can be equivalent to other variables
 -- TODO: A good sanity check would be to ensure the result in this case is
@@ -108,12 +108,19 @@ cseTerm
   => Term abt a
   -> CSE abt (abt '[] a)
 cseTerm (x :$ args) = cseSCon x args
-cseTerm term        = traverse21 cse' term >>= replace . syn
+cseTerm term        = traverse21 cse' term >>= replaceCSE . syn
 
 cseSCon
   :: (ABT Term abt)
   => SCon args a
   -> SArgs abt args
   -> CSE abt (abt '[] a)
-cseSCon = undefined
+cseSCon Let_ (rhs :* body :* End) = do
+  rhs' <- cse' rhs
+  caseBind body $ \v body' ->
+    local (insertEnv rhs (var v)) $ do
+      body'' <- cse' body'
+      return $ syn (Let_ :$ rhs' :* bind v body'' :* End)
+
+cseSCon scon args = traverse21 cse' args >>= replaceCSE . syn . (scon :$)
 
