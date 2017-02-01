@@ -115,24 +115,19 @@ cseVar
   -> CSE abt (abt '[] a)
 cseVar v = replaceCSE (var v)
 
+-- Thanks to A-normalization, the only case we really need to care about is let
+-- bindings. Everything else is just structural recursion.
 cseTerm
   :: (ABT Term abt)
   => Term abt a
   -> CSE abt (abt '[] a)
-cseTerm (x :$ args) = cseSCon x args
-cseTerm term        = traverse21 cse' term >>= replaceCSE . syn
 
-cseSCon
-  :: (ABT Term abt)
-  => SCon args a
-  -> SArgs abt args
-  -> CSE abt (abt '[] a)
-cseSCon Let_ (rhs :* body :* End) = do
+cseTerm (Let_ :$ rhs :* body :* End) = do
   rhs' <- cse' rhs
   caseBind body $ \v body' ->
     local (insertEnv rhs' (var v)) $ do
       body'' <- cse' body'
       return $ syn (Let_ :$ rhs' :* bind v body'' :* End)
 
-cseSCon scon args = traverse21 cse' args >>= replaceCSE . syn . (scon :$)
+cseTerm term = traverse21 cse' term >>= replaceCSE . syn
 
