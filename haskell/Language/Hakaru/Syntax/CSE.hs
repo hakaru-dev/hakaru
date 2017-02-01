@@ -13,6 +13,8 @@
 {-# LANGUAGE TypeOperators              #-}
 module Language.Hakaru.Syntax.CSE where
 
+import           Prelude hiding ((+))
+import           Control.Monad.Reader
 import qualified Data.IntMap                     as IM
 import           Data.Maybe
 import           Data.Number.Nat
@@ -27,7 +29,18 @@ import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
 
-import           Language.Hakaru.Syntax.Prelude hiding (fst, (.))
+import           Language.Hakaru.Syntax.Prelude hiding (fst, (.), (>>=))
+
+example1 :: TrivialABT Term '[] 'HReal
+example1 = triv $ real_ 1 + real_ 2 + real_ 3
+
+example2 :: TrivialABT Term '[] 'HReal
+example2 = triv $ real_ 6
+
+example3 :: TrivialABT Term '[] 'HReal
+example3 = let_ (real_ 1 + real_ 2) $ \x ->
+           let_ (real_ 1 + real_ 2) $ \y ->
+           x + y
 
 -- What we need is an environment like data structure which maps Terms (or
 -- general abts?) to other abts. Can such a mapping be implemented efficiently?
@@ -39,10 +52,15 @@ data EAssoc (abt :: [Hakaru] -> Hakaru -> *)
 -- An association list for now
 newtype Env (abt :: [Hakaru] -> Hakaru -> *) = Env [EAssoc abt]
 
+emptyEnv :: Env a
+emptyEnv = Env []
+
 -- Attempt to find a new expression in then environment. The lookup is chained
 -- to iteratively perform lookup until no match is found, resulting in an
 -- equivalence-relation in the environment. This could be made faster with path
 -- compression and a more efficient lookup structure.
+-- NB: This code could potentially produce an infinite loop depending on how
+-- terms are added to the environment. How do we want to prevent this?
 lookupEnv
   :: forall abt a . (ABT Term abt)
   => abt '[] a
@@ -54,17 +72,66 @@ lookupEnv ast (Env env) = go ast env
     go ast []                = ast
     go ast (EAssoc a b : xs) =
       case jmEq1 (typeOf ast) (typeOf a) of
-        Nothing   -> go ast xs
-        Just Refl -> if alphaEq ast a then go b env else go ast xs
+        Nothing                   -> go ast xs
+        Just Refl | alphaEq ast a -> go b env
+                  | otherwise     -> go ast xs
 
 insertEnv
-  :: forall abt a
-  .  abt '[] a
+  :: forall abt a . (ABT Term abt)
+  => abt '[] a
   -> abt '[] a
   -> Env abt
   -> Env abt
-insertEnv ast1 ast2 (Env env) = Env (EAssoc ast1 ast2 : env)
+insertEnv ast1 ast2 (Env env) =
+  case viewABT ast1 of
+    -- Point new variables to the older ones, this does not affect the amount of
+    -- work done, since ast2 is always a variable, but will make eliminating
+    -- redundant let bindings easier.
+    Var v -> Env (EAssoc ast2 ast1 : env)
+    -- Otherwise map expressions to their binding variables
+    _     -> Env (EAssoc ast1 ast2 : env)
+
+newtype CSE (abt :: [Hakaru] -> Hakaru -> *) a = CSE { runCSE :: Reader (Env abt) a }
+  deriving (Functor, Applicative, Monad, MonadReader (Env abt))
+
+replaceCSE
+  :: (ABT Term abt)
+  => abt '[] a
+  -> CSE abt (abt '[] a)
+replaceCSE abt = lookupEnv abt `fmap` ask
 
 cse :: (ABT Term abt) => abt '[] a -> abt '[] a
-cse = undefined
+cse abt = runReader (runCSE (cse' abt)) emptyEnv
+
+cse' :: (ABT Term abt) => abt xs a -> CSE abt (abt xs a)
+cse' abt = case viewABT abt of
+             Var v    -> cseVar v
+             Syn s    -> cseTerm s
+             Bind _ _ -> error "cse': NYI"
+
+-- Variables can be equivalent to other variables
+-- TODO: A good sanity check would be to ensure the result in this case is
+-- always a variable or constant. A variable should never be substituted for
+-- a more complex expression.
+cseVar
+  :: (ABT Term abt)
+  => Variable a
+  -> CSE abt (abt '[] a)
+cseVar v = replaceCSE (var v)
+
+-- Thanks to A-normalization, the only case we really need to care about is let
+-- bindings. Everything else is just structural recursion.
+cseTerm
+  :: (ABT Term abt)
+  => Term abt a
+  -> CSE abt (abt '[] a)
+
+cseTerm (Let_ :$ rhs :* body :* End) = do
+  rhs' <- cse' rhs
+  caseBind body $ \v body' ->
+    local (insertEnv rhs' (var v)) $ do
+      body'' <- cse' body'
+      return $ syn (Let_ :$ rhs' :* bind v body'' :* End)
+
+cseTerm term = traverse21 cse' term >>= replaceCSE . syn
 
