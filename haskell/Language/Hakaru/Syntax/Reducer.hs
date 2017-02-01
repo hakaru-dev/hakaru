@@ -22,7 +22,7 @@ data Reducer (abt :: [Hakaru] -> Hakaru -> *)
          -> Reducer abt ( 'HNat ': xs) a -- reduction body (bound b)
          -> Reducer abt xs ('HArray a)
      Red_Split
-         :: abt ( 'HNat ': xs) HBool
+         :: abt ( 'HNat ': xs) HBool     -- (bound i)
          -> Reducer abt xs a
          -> Reducer abt xs b
          -> Reducer abt xs (HPair a b)
