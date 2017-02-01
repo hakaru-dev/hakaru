@@ -29,7 +29,7 @@ import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
 
-import           Language.Hakaru.Syntax.Prelude hiding (fst, (.))
+import           Language.Hakaru.Syntax.Prelude hiding (fst, (.), (>>=))
 
 example1 :: TrivialABT Term '[] 'HReal
 example1 = triv $ real_ 1 + real_ 2 + real_ 3
@@ -78,11 +78,20 @@ insertEnv ast1 ast2 (Env env) = Env (EAssoc ast1 ast2 : env)
 newtype CSE (abt :: [Hakaru] -> Hakaru -> *) a = CSE { runCSE :: Reader (Env abt) a }
   deriving (Functor, Applicative, Monad, MonadReader (Env abt))
 
+replaceCSE
+  :: (ABT Term abt)
+  => abt '[] a
+  -> CSE abt (abt '[] a)
+replaceCSE abt = lookupEnv abt `fmap` ask
+
 cse :: (ABT Term abt) => abt '[] a -> abt '[] a
 cse abt = runReader (runCSE (cse' abt)) emptyEnv
 
-cse' :: (ABT Term abt) => abt '[] a -> CSE abt (abt '[] a)
-cse' abt = caseVarSyn abt cseVar cseTerm
+cse' :: (ABT Term abt) => abt xs a -> CSE abt (abt xs a)
+cse' abt = case viewABT abt of
+             Var v    -> cseVar v
+             Syn s    -> cseTerm s
+             Bind v b -> error "cse': NYI"
 
 -- Variables can be equivalent to other variables
 -- TODO: A good sanity check would be to ensure the result in this case is
@@ -92,11 +101,19 @@ cseVar
   :: (ABT Term abt)
   => Variable a
   -> CSE abt (abt '[] a)
-cseVar v = lookupEnv (var v) `fmap` ask
+cseVar v = replaceCSE (var v)
 
 cseTerm
   :: (ABT Term abt)
   => Term abt a
   -> CSE abt (abt '[] a)
-cseTerm = undefined
+cseTerm (x :$ args) = cseSCon x args
+cseTerm term        = traverse21 cse' term >>= replace . syn
+
+cseSCon
+  :: (ABT Term abt)
+  => SCon args a
+  -> SArgs abt args
+  -> CSE abt (abt '[] a)
+cseSCon = undefined
 
