@@ -37,7 +37,7 @@ import Data.Functor ((<$>))
 
 import Language.Hakaru.Syntax.IClasses (Pair2(..), fst2, snd2)
 import Language.Hakaru.Syntax.Variable (varType)
-import Language.Hakaru.Syntax.ABT      (ABT, caseBind, caseBinds, paraABT)
+import Language.Hakaru.Syntax.ABT      (ABT, caseBind, paraABT)
 import Language.Hakaru.Types.DataKind  (Hakaru())
 import Language.Hakaru.Types.HClasses  (sing_HSemiring)
 import Language.Hakaru.Types.Sing      (Sing(..), sUnMeasure, sUnit, sPair)
@@ -141,14 +141,14 @@ getTermSing singify = go
     {-# INLINE getBranchSing #-}
 
     typeOfReducer
-        :: ABT Term abt 
-        => Reducer abt xs a
-        -> Sing a
-    typeOfReducer (Red_Fanout a b)  = sPair  (typeOfReducer a) (typeOfReducer b)
-    typeOfReducer (Red_Index _ _ a) = SArray (typeOfReducer a)
-    typeOfReducer (Red_Split _ a b) = sPair  (typeOfReducer a) (typeOfReducer b)
-    typeOfReducer Red_Nop           = sUnit
-    typeOfReducer (Red_Add _ a)     = typeOf . snd $ caseBinds a
+        :: forall xs a
+        .  Reducer (Pair2 abt r) xs a
+        -> Either String (Sing a)
+    typeOfReducer (Red_Fanout a b)  = sPair  <$> typeOfReducer a <*> typeOfReducer b
+    typeOfReducer (Red_Index _ _ a) = SArray <$> typeOfReducer a
+    typeOfReducer (Red_Split _ a b) = sPair  <$> typeOfReducer a <*> typeOfReducer b
+    typeOfReducer Red_Nop           = return sUnit
+    typeOfReducer (Red_Add h _)     = return (sing_HSemiring h)
 
                                  
     go :: forall a. Term (Pair2 abt r) a -> Either String (Sing a)
@@ -181,7 +181,7 @@ getTermSing singify = go
     go (Literal_ v)                 = return $ sing_Literal v
     go (Empty_   typ)               = return typ
     go (Array_   _  r2)             = SArray <$> getSing r2
-    --go (Bucket _ _  r)              = return (typeOfReducer r)
+    go (Bucket _ _  r)              = typeOfReducer r
     go (Datum_ (Datum _ typ _))     = return typ
     go (Case_    _  bs) = tryAll "Case_"      getBranchSing   bs
     go (Superpose_ pes) = tryAll "Superpose_" (getSing . snd) pes
