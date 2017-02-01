@@ -39,6 +39,10 @@ data EAssoc (abt :: [Hakaru] -> Hakaru -> *)
 -- An association list for now
 newtype Env (abt :: [Hakaru] -> Hakaru -> *) = Env [EAssoc abt]
 
+-- Attempt to find a new expression in then environment. The lookup is chained
+-- to iteratively perform lookup until no match is found, resulting in an
+-- equivalence-relation in the environment. This could be made faster with path
+-- compression and a more efficient lookup structure.
 lookupEnv
   :: forall abt a . (ABT Term abt)
   => abt '[] a
