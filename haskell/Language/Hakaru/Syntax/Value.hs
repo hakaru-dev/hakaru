@@ -113,4 +113,3 @@ data VReducer :: Hakaru -> * where
                  -> VReducer 'HNat
      VRed_Array  :: ST s (MV.MVector s (VReducer a))
                  -> VReducer ('HArray a)
-                     
