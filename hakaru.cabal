@@ -51,6 +51,7 @@ Library
                        Language.Hakaru.Syntax.AST.Transforms,
                        Language.Hakaru.Syntax.AST.Sing,
                        Language.Hakaru.Syntax.AST.Eq,
+                       Language.Hakaru.Syntax.CSE,
                        Language.Hakaru.Syntax.TypeCheck,
                        Language.Hakaru.Syntax.TypeOf,
                        Language.Hakaru.Syntax.Prelude,
