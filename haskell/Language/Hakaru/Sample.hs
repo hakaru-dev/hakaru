@@ -21,6 +21,7 @@ import qualified Data.Number.LogFloat            as LF
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector                     as V
+import qualified Data.Vector.Mutable             as MV
 import           Data.Sequence (Seq)
 import qualified Data.Foldable                   as F
 import qualified Data.List.NonEmpty              as L
@@ -43,6 +44,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.Value
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.AST
@@ -155,14 +157,15 @@ evaluateTerm
     -> Value a
 evaluateTerm t env =
     case t of
-    o :$ es       -> evaluateSCon    o es env
-    NaryOp_  o es -> evaluateNaryOp  o es env
+    o :$ es       -> evaluateSCon    o es    env
+    NaryOp_  o es -> evaluateNaryOp  o es    env
     Literal_ v    -> evaluateLiteral v
     Empty_   _    -> evaluateEmpty
-    Array_   n es -> evaluateArray   n es env
-    Datum_   d    -> evaluateDatum   d    env
-    Case_    o es -> evaluateCase    o es env
-    Superpose_ es -> evaluateSuperpose es env
+    Array_   n es -> evaluateArray   n es    env
+    Bucket b e rs -> evaluateBucket  b e  rs env
+    Datum_   d    -> evaluateDatum   d       env
+    Case_    o es -> evaluateCase    o es    env
+    Superpose_ es -> evaluateSuperpose es    env
     Reject_ _     -> VMeasure $ \_ _ -> return Nothing
 
 evaluateSCon
@@ -537,6 +540,24 @@ evaluateArray n e env =
             let v' = VNat $ unsafeNat v in
             evaluate e' (updateEnv (EAssoc x v') env)
 
+evaluateBucket
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> abt '[] 'HNat
+    -> Reducer abt '[] a
+    -> Env
+    -> Value a
+evaluateBucket b e rs env = undefined                            
+    where init :: (ABT Term abt)
+               => Reducer abt xs a
+               -> VReducer a
+          init (Red_Add HSemiring_Nat _) = VRed_Nat (return 0)
+          init (Red_Index n _ mr)        =
+              let (_, e') = caseBinds n in
+              case evaluate e' env of
+                VNat n' -> VRed_Array $ MV.replicate (fromIntegral n') (init mr)
+          accum _                 = undefined
+                     
 evaluateDatum
     :: (ABT Term abt)
     => Datum (abt '[]) (HData' a)
