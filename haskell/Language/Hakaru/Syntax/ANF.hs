@@ -10,21 +10,22 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TypeOperators             #-}
-module Language.Hakaru.Syntax.ANF where
+module Language.Hakaru.Syntax.ANF
+  ( normalize
+  ) where
 
---------------------------------------------------------------------------------
--- An implementation of A-normalization as described in
---   https://pdfs.semanticscholar.org/5da1/4c8b7851e56e4bf08e30db4ced54be989768.pdf
--- A-normalization is not strictly necessary, but make implementing later
--- transformations easy, as all non-trivial operations are assigned names.
+----------------------------------------------------------------
+--                                                    2017.02.01
+-- |
+-- Module      :  Language.Hakaru.Syntax.ANF
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :
+-- Stability   :  experimental
+-- Portability :  GHC-only
 --
--- The planned pipeline:
--- 1. ANF conversion
--- 2. Expression hoising (perform operations as soon as their data dependencies
---    are satisified)
--- 3. (Conditional hoisting)
--- 4. CSE (in order to clean up work duplicated by hoisting)
---------------------------------------------------------------------------------
+--
+----------------------------------------------------------------
 
 import qualified Data.IntMap                      as IM
 import           Data.Maybe

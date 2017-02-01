@@ -61,6 +61,7 @@ module Language.Hakaru.Syntax.ABT
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
+    , binderM
     -- *** Highly experimental
     -- , Hint(..)
     -- , multibinder
@@ -82,6 +83,7 @@ import qualified Data.Foldable     as F
 import           Data.Monoid       (Monoid(..))
 #endif
 
+import Control.Monad.Fix
 import Data.Number.Nat
 import Language.Hakaru.Syntax.IClasses
 -- TODO: factor the definition of the 'Sing' type family out from
@@ -914,6 +916,22 @@ binder hint typ hoas = bind x body
     body = hoas (var x)
     x    = Variable hint (nextBind body) typ
     -- N.B., cannot use 'nextFree' when deciding the 'varID' of @x@
+
+-- A Monadic variant of @binder@ which allows constructing a term in a monadic
+-- context. The dependency on MonadFix is due to the knot-tying used to generate
+-- the bound variable.
+binderM
+  :: (MonadFix m, ABT syn abt)
+  => Text
+  -> Sing a
+  -> (abt '[] a -> m (abt xs b))
+  -> m (abt (a ': xs) b)
+binderM hint typ hoas = do
+  (var, body) <- mfix $ \ ~(_, b) -> do
+    let v = Variable hint (nextBind b) typ
+    b' <- hoas (var v)
+    return (v, b')
+  return (bind var body)
 
 {-
 data Hint (a :: k)
