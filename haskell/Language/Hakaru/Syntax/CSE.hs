@@ -30,12 +30,18 @@ import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Syntax.Prelude hiding (fst, (.), (>>=))
+import Debug.Trace
 
 example1 :: TrivialABT Term '[] 'HReal
 example1 = triv $ real_ 1 + real_ 2 + real_ 3
 
 example2 :: TrivialABT Term '[] 'HReal
 example2 = triv $ real_ 6
+
+example3 :: TrivialABT Term '[] 'HReal
+example3 = let_ (real_ 1 + real_ 2) $ \x ->
+           let_ (real_ 1 + real_ 2) $ \y ->
+           x + y
 
 -- What we need is an environment like data structure which maps Terms (or
 -- general abts?) to other abts. Can such a mapping be implemented efficiently?
@@ -68,12 +74,17 @@ lookupEnv ast (Env env) = go ast env
                   | otherwise     -> go ast xs
 
 insertEnv
-  :: forall abt a
-  .  abt '[] a
+  :: forall abt a . (ABT Term abt)
+  => abt '[] a
   -> abt '[] a
   -> Env abt
   -> Env abt
-insertEnv ast1 ast2 (Env env) = Env (EAssoc ast1 ast2 : env)
+insertEnv ast1 ast2 (Env env) =
+  case viewABT ast1 of
+    -- Point new variables to the older ones
+    Var v -> Env (EAssoc ast2 ast1 : env)
+    -- Otherwise map expressions to their binding variables
+    _     -> Env (EAssoc ast1 ast2 : env)
 
 newtype CSE (abt :: [Hakaru] -> Hakaru -> *) a = CSE { runCSE :: Reader (Env abt) a }
   deriving (Functor, Applicative, Monad, MonadReader (Env abt))
@@ -118,7 +129,7 @@ cseSCon
 cseSCon Let_ (rhs :* body :* End) = do
   rhs' <- cse' rhs
   caseBind body $ \v body' ->
-    local (insertEnv rhs (var v)) $ do
+    local (insertEnv rhs' (var v)) $ do
       body'' <- cse' body'
       return $ syn (Let_ :$ rhs' :* bind v body'' :* End)
 
