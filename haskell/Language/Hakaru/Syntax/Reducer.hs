@@ -12,14 +12,23 @@ import Language.Hakaru.Types.HClasses
 data Reducer (abt :: [Hakaru] -> Hakaru -> *)
              (xs  :: [Hakaru])
              (a :: Hakaru) where
-     Red_Add
-         :: HSemiring a
-         -> abt ( 'HNat ': xs) a         -- (bound i)
-         -> Reducer abt xs a
+     Red_Fanout
+         :: Reducer abt xs a
+         -> Reducer abt xs b
+         -> Reducer abt xs (HPair a b)
      Red_Index
          :: abt xs 'HNat                 -- size of resulting array
          -> abt ( 'HNat ': xs) 'HNat     -- index into array (bound i)
          -> Reducer abt ( 'HNat ': xs) a -- reduction body (bound b)
          -> Reducer abt xs ('HArray a)
-
-
+     Red_Split
+         :: abt ( 'HNat ': xs) HBool
+         -> Reducer abt xs a
+         -> Reducer abt xs b
+         -> Reducer abt xs (HPair a b)
+     Red_Nop
+         :: Reducer abt xs HUnit
+     Red_Add
+         :: HSemiring a
+         -> abt ( 'HNat ': xs) a         -- (bound i)
+         -> Reducer abt xs a
