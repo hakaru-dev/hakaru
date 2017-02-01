@@ -30,7 +30,6 @@ import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Syntax.Prelude hiding (fst, (.), (>>=))
-import Debug.Trace
 
 example1 :: TrivialABT Term '[] 'HReal
 example1 = triv $ real_ 1 + real_ 2 + real_ 3
@@ -81,7 +80,9 @@ insertEnv
   -> Env abt
 insertEnv ast1 ast2 (Env env) =
   case viewABT ast1 of
-    -- Point new variables to the older ones
+    -- Point new variables to the older ones, this does not affect the amount of
+    -- work done, since ast2 is always a variable, but will make eliminating
+    -- redundant let bindings easier.
     Var v -> Env (EAssoc ast2 ast1 : env)
     -- Otherwise map expressions to their binding variables
     _     -> Env (EAssoc ast1 ast2 : env)
