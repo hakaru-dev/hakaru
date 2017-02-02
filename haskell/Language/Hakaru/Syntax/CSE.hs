@@ -115,7 +115,7 @@ getVar abt = case viewABT abt of
                Var v -> Just v
                _     -> Nothing
 
-mklet :: ABT Term abt => (Variable b) -> abt '[] b -> abt '[] a -> abt '[] a
+mklet :: ABT Term abt => Variable b -> abt '[] b -> abt '[] a -> abt '[] a
 mklet v rhs body = syn (Let_ :$ rhs :* bind v body :* End)
 
 -- Thanks to A-normalization, the only case we need to care about is let bindings.
@@ -128,7 +128,7 @@ cseTerm
 cseTerm (Let_ :$ rhs :* body :* End) = do
   rhs' <- cse' rhs
   caseBind body $ \v body' ->
-    local (insertEnv rhs' (var v)) $ do
+    local (insertEnv rhs' (var v)) $
       case getVar rhs' of
         Just _ -> cse' body'
         _      -> fmap (mklet v rhs') (cse' body')
