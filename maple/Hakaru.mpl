@@ -60,7 +60,7 @@ Hakaru := module ()
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
-         case, app, ary, idx, fst, snd, size, Datum,
+         case, app, ary, idx, fst, snd, size, Datum, 
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
@@ -595,6 +595,7 @@ Hakaru := module ()
          Or(
            'known_continuous', 'known_discrete',
            t_pw, #Needs to be more specific!
+           specfunc(PARTITION), #Appropriate to put this here?
            t_case,
           'Ret(anything)',
           'Bind(t_Hakaru, name, t_Hakaru)',

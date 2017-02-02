@@ -74,7 +74,7 @@ KB := module ()
 
      # Various 'views' of the KB, in that they take a KB and produce something
      # which is somehow 'representative' of the KB
-     kb_to_variables, kb_to_assumptions, kb_to_equations, kb_piecewise,
+     kb_to_variables, kb_to_assumptions, kb_to_equations, kb_piecewise, kb_Partition,
 
      # Various utilities ...
      list_of_mul, for_poly, range_of_HInt,
@@ -996,7 +996,7 @@ KB := module ()
   end proc;
 
   kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen, $)
-    local kb1, update, n, i;
+    local n, i, kb1, update;
     kb1 := kb;
     update := proc(c, $)
       local kb0;
@@ -1009,6 +1009,17 @@ KB := module ()
                    `if`(i=n,    doThen(op(i,e), kb1),
                                 doIf  (op(i,e), kb1))),
                   i=1..n))
+  end proc;
+
+  #For now at least, this procedure is parallel to kb_piecewise.
+  kb_Partition:= proc(e::Partition, kb::t_kb, doIf, doThen, $)::Partition;
+  local br;
+    #Unlike `piecewise`, the conditions in a Partition are necessarily
+    #disjoint, so the `update` used in kb_piecewise isn't needed. We may
+    #simply `assert` the condition (i.e., roll it into the kb) without
+    #needing to `assert` the negation of all previous conditions.
+
+    Partition:-Amap([doIf, doThen, curry(assert, kb)], e);
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
