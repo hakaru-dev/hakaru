@@ -42,6 +42,11 @@ example3 = let_ (real_ 1 + real_ 2) $ \x ->
            let_ (real_ 1 + real_ 2) $ \y ->
            x + y
 
+example4 :: TrivialABT Term '[] 'HReal
+example4 = let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \x ->
+           let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \y ->
+           x + y
+
 -- What we need is an environment like data structure which maps Terms (or
 -- general abts?) to other abts. Can such a mapping be implemented efficiently?
 -- This would seem to require a hash operation to make efficient.
@@ -100,14 +105,16 @@ replaceCSE
   -> CSE abt (abt '[] a)
 replaceCSE abt = lookupEnv abt `fmap` ask
 
-cse :: (ABT Term abt) => abt '[] a -> abt '[] a
+cse :: forall abt a . (ABT Term abt) => abt '[] a -> abt '[] a
 cse abt = runReader (runCSE (cse' abt)) emptyEnv
 
-cse' :: (ABT Term abt) => abt xs a -> CSE abt (abt xs a)
-cse' abt = case viewABT abt of
-             Var v    -> cseVar v
-             Syn s    -> cseTerm s
-             Bind _ _ -> error "cse': NYI"
+cse' :: forall abt xs a . (ABT Term abt) => abt xs a -> CSE abt (abt xs a)
+cse' = loop . viewABT
+  where
+    loop :: View (Term abt) ys a ->  CSE abt (abt ys a)
+    loop (Var v)    = cseVar v
+    loop (Syn s)    = cseTerm s
+    loop (Bind v b) = loop b >>= return . bind v
 
 -- Variables can be equivalent to other variables
 -- TODO: A good sanity check would be to ensure the result in this case is
