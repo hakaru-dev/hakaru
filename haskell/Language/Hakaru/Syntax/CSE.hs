@@ -28,22 +28,15 @@
 module Language.Hakaru.Syntax.CSE (cse) where
 
 import           Control.Monad.Reader
-import qualified Data.IntMap                     as IM
 import           Data.Maybe
-import           Data.Number.Nat
-import           Data.Sequence                   ((<|))
-import qualified Data.Sequence                   as S
 import           Prelude                         hiding ((+))
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq
-import           Language.Hakaru.Syntax.Datum
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
-
-import           Language.Hakaru.Syntax.Prelude  hiding ((>>=))
 
 -- What we need is an environment like data structure which maps Terms (or
 -- general abts?) to other abts. Can such a mapping be implemented efficiently?
