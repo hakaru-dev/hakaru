@@ -126,6 +126,11 @@ jmEq_S (Product h1 h2) es (Product h1' h2') es' = do
     Refl <- jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
     Refl <- jmEq1 es es'
     Just (Refl, Refl)
+jmEq_S (Product h1 h2) es (Product h1' h2') es' = do
+    Refl <- jmEq1 (sing_HDiscrete h1) (sing_HDiscrete h1')
+    Refl <- jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
+    Refl <- jmEq1 es es'
+    Just (Refl, Refl)
 jmEq_S Expect    es Expect     es' =
     jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
 jmEq_S _         _  _          _   = Nothing
@@ -371,12 +376,14 @@ alphaEq e1 e2 =
         go (viewABT e2) (viewABT e2')
 
     sConEq (CoerceTo_ _) (e1 :* End)
-           (CoerceTo_ _) (e2 :* End) =
-        void_jmEq1 (typeOf e1) (typeOf e2)
+           (CoerceTo_ _) (e2 :* End) = do
+        Refl <- lift $ jmEq1 (typeOf e1) (typeOf e2)
+        go (viewABT e1) (viewABT e2)
 
     sConEq (UnsafeFrom_ _) (e1 :* End)
-           (UnsafeFrom_ _) (e2 :* End) =
-        void_jmEq1 (typeOf e1) (typeOf e2)
+           (UnsafeFrom_ _) (e2 :* End) = do
+        Refl <- lift $ jmEq1 (typeOf e1) (typeOf e2)
+        go (viewABT e1) (viewABT e2)
 
     sConEq (PrimOp_ o1) es1
            (PrimOp_ o2) es2    = primOpEq o1 es1 o2 es2
@@ -401,6 +408,11 @@ alphaEq e1 e2 =
     sConEq Integrate e1 Integrate e2    = sArgsEq e1 e2
 
     sConEq (Summate h1 h2) e1 (Summate h1' h2') e2 = do
+        Refl <- lift $ jmEq1 (sing_HDiscrete h1) (sing_HDiscrete h1')
+        Refl <- lift $ jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
+        sArgsEq e1 e2
+
+    sConEq (Product h1 h2) e1 (Product h1' h2') e2 = do
         Refl <- lift $ jmEq1 (sing_HDiscrete h1) (sing_HDiscrete h1')
         Refl <- lift $ jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
         sArgsEq e1 e2
