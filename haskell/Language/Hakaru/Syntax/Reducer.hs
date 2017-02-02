@@ -2,6 +2,7 @@
            , GADTs
            , KindSignatures
            , Rank2Types
+           , TypeOperators
            #-}
 
 module Language.Hakaru.Syntax.Reducer where
