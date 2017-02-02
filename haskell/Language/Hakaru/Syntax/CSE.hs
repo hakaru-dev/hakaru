@@ -31,26 +31,6 @@ import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Syntax.Prelude hiding (fst, (.), (>>=))
 
-example1 :: TrivialABT Term '[] 'HReal
-example1 = triv $ real_ 1 + real_ 2 + real_ 3
-
-example2 :: TrivialABT Term '[] 'HReal
-example2 = triv $ real_ 6
-
-example3 :: TrivialABT Term '[] 'HReal
-example3 = let_ (real_ 1 + real_ 2) $ \x ->
-           let_ (real_ 1 + real_ 2) $ \y ->
-           x + y
-
-example4 :: TrivialABT Term '[] 'HReal
-example4 = let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \x ->
-           let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \y ->
-           x + y
-
-example5 :: TrivialABT Term '[] 'HReal
-example5 = (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1)
-         + (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1)
-
 -- What we need is an environment like data structure which maps Terms (or
 -- general abts?) to other abts. Can such a mapping be implemented efficiently?
 -- This would seem to require a hash operation to make efficient.
