@@ -205,7 +205,10 @@ instance Eq a => Eq (AST' a) where
     e1                  == (WithMeta e2 _)          = e1   == e2
     _                   == _                        = False
                                  
-data Import a = Import a 
+data Import a = Import a
+     deriving (Eq, Show)
+data ASTWithImport' a = ASTWithImport' [Import a] (AST' a)
+     deriving (Eq, Show)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

@@ -9,6 +9,7 @@ read("./KB.mpl"):
 read("./Loop.mpl"):
 read("./NewSLO.mpl"):
 read("./Partition.mpl"):
+read("./Summary.mpl"):
 LibraryTools:-Save(`gensym`, lib):
 LibraryTools:-Save('BindingTools', lib):
 LibraryTools:-Save(`depends/lam`, lib):
@@ -46,3 +47,8 @@ LibraryTools:-Save(`eval/Integrand`, lib):
 LibraryTools:-Save(`eval/LO`, lib):
 LibraryTools:-Save('NewSLO', lib):
 LibraryTools:-Save('Partition', lib):
+LibraryTools:-Save(`depends/Bucket`, lib):
+LibraryTools:-Save(`depends/Index`, lib):
+LibraryTools:-Save(`eval/Bucket`, lib):
+LibraryTools:-Save(`eval/Index`, lib):
+LibraryTools:-Save('Summary', lib):

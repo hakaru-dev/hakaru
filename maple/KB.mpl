@@ -25,7 +25,7 @@ KB := module ()
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
          negated_relation, negate_relation,
          kb_subtract, simplify_assuming, simplify_factor_assuming,
-         kb_to_assumptions, kb_to_equations, 
+         getType, kb_to_variables, kb_to_assumptions, kb_to_equations,
          kb_piecewise, kb_Partition, list_of_mul, for_poly, range_of_HInt;
   global t_kb, `expand/product`, `simplify/int/simplify`,
          `product/indef/indef`, `convert/Beta`;
@@ -65,10 +65,10 @@ KB := module ()
   #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
   #Carl 2016Sep09
   negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
-  negate_relation:= proc(R::relation, $)::relation; 
+  negate_relation:= proc(R::relation, $)::relation;
        negated_relation[op(0,R)](op(R))
   end proc;
-  
+
   assert := proc(b, kb::t_kb, $)
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
@@ -486,6 +486,8 @@ KB := module ()
       true
     end proc;
 
+    # eval_piecewise has the same calling convention as eval_factor.
+    # It simplifies piecewise expressions.
     eval_piecewise := proc(e :: specfunc(piecewise),
                            kb :: t_kb, mode :: identical(`*`,`+`),
                            loops :: list([identical(product,Product,sum,Sum),
@@ -519,6 +521,9 @@ KB := module ()
             if nops(kb_subtract(kbs[i+2], kbs[i])) > 0 then
               pieces[i] := cond;
               pieces[i+1] := op(i+1,e);
+            else
+              # This condition is false in context, so delete this piece
+              # by not putting anything inside "pieces"
             end if
           end if
         end if
@@ -538,7 +543,7 @@ KB := module ()
       if nops(res) <= 1 then
         return eval_factor(default, kb, mode, loops);
       end if;
-      if nops(res) <= 3 and op(1,res) :: `=` and Testzero(default-mode()) then
+      if nops(res) <= 3 and op(1,res) :: `=` and Testzero(default - mode()) then
         # Reduce product(piecewise(i=3,f(i),1),i=1..10) to f(3)
         for i from 1 to nops(loops) do
           x := op([i,2,1],loops);
@@ -550,7 +555,7 @@ KB := module ()
                                              b <= op([i,2,2,2],loops)),
                                          kb), kb)) = 0 then
                 return eval_factor(eval(op(2,res), x=b),
-                                   assert(x=b, kb),
+                                   assert(x=b, kb), # TODO: why not just use kb?
                                    mode,
                                    eval(subsop(i=NULL, loops), x=b));
               end if;
@@ -571,13 +576,28 @@ KB := module ()
       return res;
     end proc;
 
-    eval_factor := proc(e, kb :: t_kb, mode :: identical(`*`,`+`),
-                        loops :: list([identical(product,Product,sum,Sum),
-                                       name=range]),
-                        $)
+    # eval_factor is a simplifier.  It maintains the following invariants:
+    #   eval_factor(e, kb, mode, []) = e
+    #   eval_factor(e, kb, `*` , [...,[product,i=lo..hi]])
+    #     = product(eval_factor(e, kb, `*`, [...]), i=lo..hi)
+    #   eval_factor(e, kb, `+` , [...,[sum    ,i=lo..hi]])
+    #     = sum    (eval_factor(e, kb, `+`, [...]), i=lo..hi)
+    # It recursively traverses e while "remembering" the loops traversed,
+    # as ``context'' information, to help with transformations.
+    eval_factor := proc(e, kb :: t_kb, mode :: identical(`*`,`+`), loops, $)
       local o, body, x, bounds, res, go, y, kb1, i, j, k, s, r;
+      if not (loops :: 'list'([`if`(mode=`*`, 'identical(product,Product)',
+                                              'identical(sum    ,Sum    )'),
+                               'name=range'])) then
+        error "invalid input: mode=%1, loops=%2", mode, loops;
+      end if;
       if e :: mode then
+        # Transform product(a*b,...) to product(a,...)*product(b,...)
+        # (where e=a*b and loops=[[product,...]])
         return map(eval_factor, e, kb, mode, loops);
+      end if;
+      if e = mode () then
+        return e;
       end if;
       if e :: And(specfunc(`if`(mode=`*`, '{product,Product}', '{sum,Sum}')),
                     'anyfunc(anything, name=range)') then
@@ -605,7 +625,9 @@ KB := module ()
         return eval_piecewise(e, kb, mode, loops);
       end if;
       if e :: `*` then
+        # If we're here, then mode=`+` (else "e :: mode" above would be true)
         s, r := selectremove(depends, e, map2(op,[2,1],loops));
+        # Transform sum(a*b(i),i=...) to a*sum(b(i),i=...)
         if r <> 1 then
           return eval_factor(s, kb, `+`, loops)
                * maptype(`*`, eval_factor, r, kb, `+`, []);
@@ -613,6 +635,7 @@ KB := module ()
       end if;
       if mode = `*` then
         if e :: '`^`' then
+          # Transform product(a(i)^b,i=...) to product(a(i),i=...)^b
           i := map2(op,[2,1],loops);
           if not depends(op(2,e), i) then
             return eval_factor(op(1,e), kb, `*`, loops)
@@ -620,6 +643,10 @@ KB := module ()
           end if;
         end if;
         if e :: 'exp(anything)' or e :: '`^`' and not depends(op(1,e), i) then
+          # Transform product(a^((b(i)+c(i))^2),i=...)
+          #        to a^   sum(b(i)^2   ,i=...)
+          #         * a^(2*sum(b(i)*c(i),i=...))
+          #         * a^   sum(c(i)^2   ,i=...)
           return mul(subsop(-1=i,e),
                      i in convert(eval_factor(expand(op(-1,e)), kb, `+`,
                                               map2(subsop,1=sum,loops)),
@@ -641,9 +668,11 @@ KB := module ()
         if res <> FAIL then return res end if;
       end if;
       if nops(loops) > 0 then
-        return op([-1,1],loops)(eval_factor(e, kb, mode, subsop(-1=NULL, loops)),
+        # Emit outermost loop as last resort
+        return op([-1,1],loops)(eval_factor(e, kb, mode, loops[1..-2]),
                                 op([-1,2],loops));
       end if;
+      # In the remainder of this function, assume loops=[] and recur in
       if e :: '{specfunc({GAMMA, Beta, exp, And, Or, Not}), relation, logical}' then
         return map(eval_factor, e, kb, `+`, []);
       end if;
@@ -661,6 +690,24 @@ KB := module ()
       simplify_assuming(eval_factor(convert(e, 'Beta'), kb, `*`, []), kb);
     end proc;
   end module; # simplify_factor_assuming
+
+  getType := proc(kb :: t_kb, x :: name, $)
+    local res, over, bound;
+    res := op([1,2], select(type, kb, 'Introduce(identical(x), anything)'));
+    over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
+                   `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
+    for bound in select(type, kb, 'Bound(identical(x),
+                                         identical(`<`,`<=`,`>`,`>=`),
+                                         anything)') do
+      res := remove(type, res, 'Bound'(over[op(2,bound)], 'anything'));
+      res := op(0,res)(subsop(1=NULL,bound), op(res));
+    end do;
+    res
+  end proc;
+
+  kb_to_variables := proc(kb :: t_kb, $)
+    [op(map2(op, 1, select(type, kb, t_intro)))];
+  end proc;
 
   kb_to_assumptions := proc(kb, e:={}, $)
     local n;
@@ -745,7 +792,7 @@ KB := module ()
     #disjoint, so the `update` used in kb_piecewise isn't needed. We may
     #simply `assert` the condition (i.e., roll it into the kb) without
     #needing to `assert` the negation of all previous conditions.
-    
+
     Partition:-Amap([doIf, doThen, curry(assert, kb)], e);
   end proc;
 

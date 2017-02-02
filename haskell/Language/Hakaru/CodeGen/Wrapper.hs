@@ -39,6 +39,7 @@ import           Language.Hakaru.CodeGen.CodeGenMonad
 import           Language.Hakaru.CodeGen.Flatten
 import           Language.Hakaru.CodeGen.Types
 import           Language.Hakaru.CodeGen.AST
+import           Language.Hakaru.CodeGen.Libs
 import           Language.Hakaru.Types.DataKind (Hakaru(..))
 
 import           Control.Monad.State.Strict
@@ -50,9 +51,10 @@ import           Control.Applicative
 #endif
 
 
--- | Create program is the top level C codegen. Depending on the type a program
---   will have a different construction. HNat will just return while a measure
---   returns a sampling program.
+-- | wrapProgram is the top level C codegen. Depending on the type a program
+--   will have a different construction. It will produce an effect in the
+--   CodeGenMonad that will produce a standalone C file containing the CPP
+--   includes, struct declarations, functions, and sometimes a main.
 wrapProgram
   :: TypedAST (TrivialABT Term) -- ^ Some Hakaru ABT
   -> Maybe String               -- ^ Maybe an output name
@@ -60,43 +62,52 @@ wrapProgram
   -> CodeGen ()
 wrapProgram tast@(TypedAST typ _) mn pc =
   do sequence_ . fmap (extDeclare . CPPExt) . header $ typ
+     isManagedMem <- managedMem <$> get
+     when isManagedMem $ extDeclare . CPPExt . PPInclude $ "gc.h"
      baseCG
      return ()
   where baseCG = case (tast,mn) of
-               ( TypedAST (SFun _ retT) abt, Just name ) ->
+               ( TypedAST (SFun _ _) abt, Just name ) ->
                  do reserveName name
-                    case retT of
-                      SMeasure _ -> do reserveName "sample"
-                                       putSample (Sample (Ident "sample") undefined)
-                                       flattenTopLambda abt $ Ident name
-                      _          -> flattenTopLambda abt $ Ident name
+                    flattenTopLambda abt $ Ident name
 
-               ( TypedAST (SFun _ retT) abt, Nothing   ) ->
+               ( TypedAST (SFun _ _) abt, Nothing   ) ->
                  genIdent' "fn" >>= \name ->
-                   case retT of
-                     SMeasure _ -> do reserveName "sample"
-                                      putSample (Sample (Ident "sample") undefined)
-                                      flattenTopLambda abt name
-                     _          -> flattenTopLambda abt name
+                   flattenTopLambda abt name
 
 
-               ( TypedAST typ'       abt, Just name ) ->
+               ( TypedAST typ' abt,       Just name ) ->
+                 -- still buggy for measures
                  do reserveName name
-                    defineFunction typ'
-                                   (Ident name)
-                                   []
-                                   (putStat . CReturn . Just =<< flattenABT abt)
+                    defineFunction
+                      typ'
+                      (Ident name)
+                      []
+                      $ do outId <- genIdent' "out"
+                           let outE = CVar outId
+                           flattenABT abt outE
+                           putStat $ CReturn . Just $ outE
 
                ( TypedAST typ'       abt, Nothing   ) ->
                  mainFunction pc typ' abt
 
 
 
-----------------------------------------------------------------
-
 header :: Sing (a :: Hakaru) -> [Preprocessor]
 header (SMeasure _) = fmap PPInclude ["time.h", "stdlib.h", "stdio.h", "math.h"]
 header _            = fmap PPInclude ["stdlib.h", "stdio.h", "math.h"]
+
+
+
+--------------------------------------------------------------------------------
+--                             A Main Function                                --
+--------------------------------------------------------------------------------
+{-
+
+Create standalone C program for a Hakaru ABT. This program will also print the
+computed value to stdin.
+
+-}
 
 mainFunction
   :: ABT Term abt
@@ -104,52 +115,27 @@ mainFunction
   -> Sing (a :: Hakaru)    -- ^ type of program
   -> abt '[] (a :: Hakaru) -- ^ Hakaru ABT
   -> CodeGen ()
+
 -- when measure, compile to a sampler
 mainFunction pc typ@(SMeasure t) abt =
-  let ident = Ident "measure"
-      funId = Ident "main"
-      isArray = isSArray t
+  let ident   = Ident "measure"
+      funId   = Ident "main"
+      mdataId = Ident "mdata"
   in  do reserveName "measure"
-         sampleId <- genIdent' "s"
+         reserveName "mdata"
+         reserveName "main"
 
-         when isArray . extDeclare . mkArrayStruct $ t
+         mapM_ extDeclare $ mdataStruct t
 
-         let samplePtr = typePtrDeclaration t sampleId
-         putSample $ Sample sampleId (undefined :: CExpr)
-
-         -- defined a measure function that returns a Double
-         defineFunction SProb ident [samplePtr]
-           $ do wE <- flattenABT abt
-                (Sample i sE) <- getSample
-                unless isArray
-                  $ putStat . CExpr . Just $ (indirect . CVar $ i) .=. sE
-                putStat . CReturn . Just $ wE
+         -- defined a measure function that returns mdata
+         funCG CVoid ident [mdataPtrDeclaration t mdataId] $
+           do flattenABT abt (CVar mdataId)
+              putStat (CReturn Nothing)
 
          -- need to set seed?
          -- srand(time(NULL));
-
-         -- main function
-         reserveName "main"
-
-         -- get a place to return a sample
-         reserveName "sample"
-         declare t (Ident "sample")
-         reserveName "weight"
-         declare SProb (Ident "weight")
-
-         -- if it is a plate then allocate space here
-         when isArray $
-           do let arityABT = caseVarSyn abt (error "mainFunction Plate") getPlateArity
-              aE <- flattenABT arityABT
-              let dataPtr = CMember (CVar . Ident $ "sample") (Ident "data") True
-                  size    = CMember (CVar . Ident $ "sample") (Ident "size") True
-                  innerType = getArrayType t
-                  mallocCall = CCast (mkPtrDecl innerType)
-                                     (mkUnary "malloc"
-                                       (aE .*. (CSizeOfType . mkDecl $ innerType)))
-              putStat . CExpr . Just $ size .=. aE
-              putStat . CExpr . Just $ dataPtr .=. mallocCall
-
+         isManagedMem <- managedMem <$> get
+         when isManagedMem (putExprStat gc_initE)
 
          printf pc typ (CVar ident)
          putStat . CReturn . Just $ intE 0
@@ -160,33 +146,22 @@ mainFunction pc typ@(SMeasure t) abt =
                                                []
                                                (P.reverse $ declarations cg)
                                                (P.reverse $ statements cg)
-  where isSArray (SArray _) = True
-        isSArray _          = False
-        mkArrayStruct :: Sing (a :: Hakaru) -> CExtDecl
-        mkArrayStruct (SArray t) = arrayStruct t
-        mkArrayStruct _          = error "Not Array"
-        getArrayType :: Sing (b :: Hakaru) -> [CTypeSpec]
-        getArrayType (SArray t) = case buildType t of
-                                    [] -> error "wrapper: this shouldn't happen"
-                                    t  -> t
-        getArrayType _          = error "Not Array"
-        getPlateArity :: ABT Term abt => Term abt a -> abt '[] 'HNat
-        getPlateArity (Plate :$ arity :* _ :* End) = arity
-        getPlateArity _ = error "mainFunction not a plate"
 
 -- just a computation
 mainFunction pc typ abt =
-  let ident = Ident "result"
+  let resId = Ident "result"
+      resE  = CVar resId
       funId = Ident "main"
   in  do reserveName "result"
          reserveName "main"
+         declare typ resId
 
-         declare typ ident
-         expr <- flattenABT abt
-         assign ident expr
+         isManagedMem <- managedMem <$> get
+         when isManagedMem (putExprStat gc_initE)
 
-         printf pc typ (CVar ident)
-           -- can be undefined because weights are only computed for measures
+         flattenABT abt resE
+
+         printf pc typ resE
          putStat . CReturn . Just $ intE 0
 
          cg <- get
@@ -196,8 +171,16 @@ mainFunction pc typ abt =
                                               (P.reverse $ declarations cg)
                                               (P.reverse $ statements cg)
 
+
 --------------------------------------------------------------------------------
--- PRINTING VALUES
+--                               Printing Values                              --
+--------------------------------------------------------------------------------
+{-
+
+In HKC the printconfig is parsed from the command line. The default being that
+we don't show weights and probabilities are printed as normal real values.
+
+-}
 
 data PrintConfig
   = PrintConfig { showWeights   :: Bool
@@ -210,27 +193,30 @@ printf
   -> Sing (a :: Hakaru) -- ^ Hakaru type to be printed
   -> CExpr              -- ^ CExpr representing value
   -> CodeGen ()
-printf pc (SMeasure t) sampleFunc =
-  let sampleE    = CVar . Ident $ "sample"
-      sampleELoc = address sampleE
-      weightLoc  = CVar . Ident $ "weight"
-  in  case t of
-        (SArray _) -> do s <- runCodeGenBlock $ do
-                                putStat . CExpr . Just $ if showWeights pc
-                                                         then weightLoc .=. CCall sampleFunc [sampleELoc]
-                                                         else CCall sampleFunc [sampleELoc]
-                                printf pc t sampleE
-                         putStat $ CFor Nothing Nothing Nothing s
 
-        _ -> do putStat $ CFor Nothing Nothing Nothing
-                            $ CCompound . fmap CBlockStat
-                                $ [ CExpr . Just $ if showWeights pc
-                                                   then weightLoc .=. CCall sampleFunc [sampleELoc]
-                                                   else CCall sampleFunc [sampleELoc]
-                                  , CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                         (if showWeights pc
-                                                          then [ printfText pc t " with weight: %.15f\n", sampleE, exp weightLoc ]
-                                                          else [ printfText pc t "\n", sampleE ])]
+printf pc mt@(SMeasure t) sampleFunc =
+  case t of
+    _ -> do mId <- genIdent' "m"
+            declare mt mId
+            let mE = CVar mId
+                getSampleS   = CExpr . Just $ CCall sampleFunc [address mE]
+                printSampleE = CExpr . Just
+                             $ printfE
+                             $ [ stringE $ printfText pc mt "\n"]
+                             ++ (if showWeights pc
+                                 then [ if showProbInLog pc
+                                        then mdataWeight mE
+                                        else expE $ mdataWeight mE ]
+                                 else [])
+                             ++ [ case t of
+                                    SProb -> if showProbInLog pc
+                                             then mdataSample mE
+                                             else expE $ mdataSample mE
+                                    _ -> mdataSample mE ]
+                wrapSampleFunc = CCompound $ [CBlockStat getSampleS
+                                             ,CBlockStat $ CIf ((expE $ mdataWeight mE) .>. (floatE 0)) printSampleE Nothing]
+            putStat $ CWhile (intE 1) wrapSampleFunc False
+
 
 printf pc (SArray t) arg =
   do iterId <- genIdent' "it"
@@ -242,46 +228,61 @@ printf pc (SArray t) arg =
          cond     = iter .<. sizeVar
          inc      = CUnary CPostIncOp iter
          currInd  = indirect (dataPtr .+. iter)
-         loopBody = do putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                      [ printfText pc t " ", currInd ]
+         loopBody = putExprStat $ CCall (CVar . Ident $ "printf")
+                                        [ stringE $ printfText pc t " "
+                                        , currInd ]
 
 
      putString "[ "
      mkSequential -- cant print arrays in parallel
      forCG (iter .=. (intE 0)) cond inc loopBody
      putString "]\n"
-  where putString s = putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                                     [stringE s]
+  where putString s = putExprStat $ CCall (CVar . Ident $ "printf")
+                                          [stringE s]
 
 printf pc SProb arg =
-  putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                 [ printfText pc SProb "\n"
-                                 , if showProbInLog pc
-                                   then arg
-                                   else exp arg ]
+  putExprStat $ printfE
+                      [ stringE $ printfText pc SProb "\n"
+                      , if showProbInLog pc
+                        then arg
+                        else expE arg ]
 
 printf pc typ arg =
-  putStat . CExpr . Just $ CCall (CVar . Ident $ "printf")
-                                 [ printfText pc typ "\n"
-                                 , arg ]
+  putExprStat $ printfE
+              [ stringE $ printfText pc typ "\n"
+              , arg ]
 
 
 
-printfText :: PrintConfig -> Sing (a :: Hakaru) -> (String -> CExpr)
-printfText _ SInt         = \s -> stringE $ "%d" ++ s
-printfText _ SNat         = \s -> stringE $ "%d" ++ s
+printfText :: PrintConfig -> Sing (a :: Hakaru) -> (String -> String)
+printfText _ SInt         = \s -> "%d" ++ s
+printfText _ SNat         = \s -> "%d" ++ s
 printfText c SProb        = \s -> if showProbInLog c
-                                  then stringE $ "exp(%.15f)" ++ s
-                                  else stringE $ "%.15f" ++ s
-printfText _ SReal        = \s -> stringE $ "%.17f" ++ s
-printfText c (SMeasure t) = printfText c t
+                                  then "exp(%.15f)" ++ s
+                                  else "%.15f" ++ s
+printfText _ SReal        = \s -> "%.17f" ++ s
+printfText c (SMeasure t) = if showWeights c
+                            then \s -> if showProbInLog c
+                                       then "exp(%.15f) " ++ printfText c t s
+                                       else "%.15f " ++ printfText c t s
+                            else printfText c t
 printfText c (SArray t)   = printfText c t
-printfText c (SFun _ _)   = \s -> stringE s
-printfText c (SData _ _)  = \s -> stringE $ "TODO: printft datum" ++ s
+printfText _ (SFun _ _)   = id
+printfText _ (SData _ _)  = \s -> "TODO: printft datum" ++ s
 
 
 --------------------------------------------------------------------------------
---
+--                           Wrapping   Lambdas                               --
+--------------------------------------------------------------------------------
+{-
+
+Lambdas become function in C. The Hakaru ABT only allows one arguement for each
+lambda. So at the top level of a Hakaru program that is a function there may be
+several nested lambdas. In C however, we can and should coalesce these into one
+function with several arguements. This is what flattenTopLambda is for.
+
+-}
+
 
 flattenTopLambda
   :: ABT Term abt
@@ -294,28 +295,20 @@ flattenTopLambda abt name =
         typ   = typeOf abt'
     in  do argDecls <- sequence varMs
            cg <- get
-
-           case typ of
-             SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-                                  (_,cg') = runState m $ cg { statements = []
-                                                            , declarations = [] }
-                              put $ cg' { statements   = statements cg
-                                        , declarations = declarations cg }
-                              extDeclare . CFunDefExt
-                                $ functionDef typ name
-                                                  argDecls
-                                                  (P.reverse $ declarations cg')
-                                                  (P.reverse $ statements cg')
-             _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-                         (_,cg') = runState m $ cg { statements = []
-                                                   , declarations = [] }
-                     put $ cg' { statements   = statements cg
-                               , declarations = declarations cg }
-                     extDeclare . CFunDefExt
-                       $ functionDef typ name
-                                         argDecls
-                                         (P.reverse $ declarations cg')
-                                         (P.reverse $ statements cg')
+           let m       = do outId <- genIdent' "out"
+                            declare (typeOf abt') outId
+                            let outE = CVar outId
+                            flattenABT abt' outE
+                            putStat . CReturn . Just $ outE
+               (_,cg') = runState m $ cg { statements = []
+                                         , declarations = [] }
+           put $ cg' { statements   = statements cg
+                     , declarations = declarations cg }
+           extDeclare . CFunDefExt
+             $ functionDef typ name
+                 argDecls
+                 (P.reverse $ declarations cg')
+                 (P.reverse $ statements cg')
   -- do at top level
   where coalesceLambda
           :: ABT Term abt
@@ -331,14 +324,13 @@ flattenTopLambda abt name =
                   coalesceLambda body' $ \vars body'' -> k (Cons1 v vars) body''
               _ -> k Nil1 abt_
 
-
         mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
         mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
         mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
         mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
         mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
-        mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
+        mkVarDecl (Variable _ _ (SArray t)) = \i -> do mapM_ extDeclare $ arrayStruct t
                                                        return $ arrayDeclaration t i
-        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
+        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do mapM_ extDeclare $ datumStruct d
                                                           return $ datumDeclaration d i
         mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v

@@ -12,9 +12,6 @@ return y
 
 We call `compile example.hk`, which produces a file `example.hs`.
 
-This is a regular Haskell file, which can then be furthered compiled into
-machine code.
-
 ````bash
 cat example.hs
 ````
@@ -39,6 +36,9 @@ main = do
   g <- MWC.createSystemRandom
   forever $ run g prog
 ````
+
+This is a regular Haskell file, which can then be furthered compiled into
+machine code.
 
 
 

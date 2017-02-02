@@ -19,18 +19,37 @@
 
 module Language.Hakaru.CodeGen.Types
   ( buildDeclaration
+  , buildPtrDeclaration
 
   -- tools for building C types
   , typeDeclaration
   , typePtrDeclaration
+  , typeName
+
+  -- arrays
   , arrayDeclaration
   , arrayName
   , arrayStruct
+  , arraySize
+  , arrayData
+  , arrayPtrSize
+  , arrayPtrData
+
+  -- mdata
+  , mdataDeclaration
+  , mdataPtrDeclaration
+  , mdataName
+  , mdataStruct
+  , mdataStruct'
+  , mdataWeight
+  , mdataSample
+  , mdataPtrWeight
+  , mdataPtrSample
+
   , datumDeclaration
   , datumName
   , datumStruct
   , functionDef
-
   , datumSum
   , datumProd
 
@@ -57,13 +76,19 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.Libs
 
-import Prelude hiding (exp,log,sqrt)
 
 buildDeclaration :: CTypeSpec -> Ident -> CDecl
 buildDeclaration ctyp ident =
   CDecl [ CTypeSpec ctyp ]
         [( CDeclr Nothing [ CDDeclrIdent ident ]
+         , Nothing)]
+
+buildPtrDeclaration :: CTypeSpec -> Ident -> CDecl
+buildPtrDeclaration ctyp ident =
+  CDecl [ CTypeSpec ctyp ]
+        [( CDeclr (Just $ CPtrDeclr []) [ CDDeclrIdent ident ]
          , Nothing)]
 
 typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
@@ -79,8 +104,32 @@ typePtrDeclaration typ ident =
                   [ CDDeclrIdent ident ]
          , Nothing)]
 
+
+----------------
+-- Type Names --
+----------------
+
+typeName :: Sing (a :: Hakaru) -> String
+typeName SInt         = "Int"
+typeName SNat         = "Nat"
+typeName SReal        = "Real"
+typeName SProb        = "Prob"
+typeName (SArray t)   = "Array" ++ typeName t
+typeName (SMeasure t) = "MData" ++ typeName t
+typeName (SData _ t)  = "D" ++ datumName t
+typeName _            = error "TODO: typeName SFun" -- when would this be used?
+
+
 --------------------------------------------------------------------------------
---
+--                                   Arrays                                   --
+--------------------------------------------------------------------------------
+{-
+  We represent arrays as structs with an 'unsigned int' for the size and a
+  pointer to a block of array elements.
+
+  Because arrays may point to undeclared types (such as arrays of datum), we
+  need to return a list of external declarations with our array type
+-}
 
 arrayName :: Sing (a :: Hakaru) -> String
 arrayName SInt  = "arrayInt"
@@ -89,8 +138,8 @@ arrayName SReal = "arrayReal"
 arrayName SProb = "arrayProb"
 arrayName t    = error $ "arrayName: cannot make array from type: " ++ show t
 
-arrayStruct :: Sing (a :: Hakaru) -> CExtDecl
-arrayStruct t = CDeclExt (CDecl [CTypeSpec $ arrayStruct' t] [])
+arrayStruct :: Sing (a :: Hakaru) -> [CExtDecl]
+arrayStruct t = [CDeclExt (CDecl [CTypeSpec $ arrayStruct' t] [])]
 
 arrayStruct' :: Sing (a :: Hakaru) -> CTypeSpec
 arrayStruct' t = aStruct
@@ -105,11 +154,95 @@ arrayDeclaration
   -> CDecl
 arrayDeclaration typ = buildDeclaration (callStruct (arrayName typ))
 
+
+arraySize :: CExpr -> CExpr
+arraySize e = CMember e (Ident "size") True
+
+arrayData :: CExpr -> CExpr
+arrayData e = CMember e (Ident "data") True
+
+arrayPtrSize :: CExpr -> CExpr
+arrayPtrSize e = CMember e (Ident "size") False
+
+arrayPtrData :: CExpr -> CExpr
+arrayPtrData e = CMember e (Ident "data") False
+
+
+
 --------------------------------------------------------------------------------
--- | datumProd and datumSum use a store of names, which needs to match up with
--- the names used when they are assigned and printed
--- datumDeclaration declares struct internally
--- datumStruct declares struct definitions externally
+--                                  Measure Data                              --
+--------------------------------------------------------------------------------
+{-
+  Measure datum are structures that will be used for sampling. We represent it
+  as a structure with a 'double' in log-domain corresponding to the weight of
+  the sample and an item of the sample type.
+
+  Because measure data may point to undeclared types (such as measures of
+  datum), we need to return a list of external declarations with our mdata type
+-}
+
+mdataName :: Sing (a :: Hakaru) -> String
+mdataName SInt  = "mdataInt"
+mdataName SNat  = "mdataNat"
+mdataName SReal = "mdataReal"
+mdataName SProb = "mdataProb"
+mdataName (SArray SInt)  = "mdataArrayInt"
+mdataName (SArray SNat)  = "mdataArrayNat"
+mdataName (SArray SReal) = "mdataArrayReal"
+mdataName (SArray SProb) = "mdataArrayProb"
+mdataName t    = error $ "mdataName: cannot make mdata from type: " ++ show t
+
+mdataStruct :: Sing (a :: Hakaru) -> [CExtDecl]
+mdataStruct t = [CDeclExt (CDecl [CTypeSpec $ mdataStruct' t] [])]
+
+mdataStruct' :: Sing (a :: Hakaru) -> CTypeSpec
+mdataStruct' t = mdStruct
+  where weight = buildDeclaration CDouble (Ident "weight")
+        sample = typeDeclaration t (Ident "sample")
+        mdStruct = buildStruct (Just . Ident . mdataName $ t) [weight,sample]
+
+mdataDeclaration
+  :: Sing (a :: Hakaru)
+  -> Ident
+  -> CDecl
+mdataDeclaration typ = buildDeclaration (callStruct (mdataName typ))
+
+mdataPtrDeclaration
+  :: Sing (a :: Hakaru)
+  -> Ident
+  -> CDecl
+mdataPtrDeclaration typ = buildPtrDeclaration (callStruct (mdataName typ))
+
+mdataWeight :: CExpr -> CExpr
+mdataWeight d = CMember d (Ident "weight") True
+
+mdataSample :: CExpr -> CExpr
+mdataSample d = CMember d (Ident "sample") True
+
+mdataPtrWeight :: CExpr -> CExpr
+mdataPtrWeight d = CMember d (Ident "weight") False
+
+mdataPtrSample :: CExpr -> CExpr
+mdataPtrSample d = CMember d (Ident "sample") False
+
+
+
+--------------------------------------------------------------------------------
+--                                     Datum                                  --
+--------------------------------------------------------------------------------
+{-
+  In order to successfully represent Hakaru datum (Sums of Products of Hakaru
+  types), we must have:
+
+  > unique names for a given datum so if SVoid occurs twice in a program, C will
+    be using the same structure
+
+  > C structs
+
+  > A datum may be recursive, so we will need to generate structures for all
+    subtypes as well. These subtypes will need to be declared before the datum
+    for the code to compile
+-}
 
 -- | datumName provides a unique name to identify a struct type
 datumName :: Sing (a :: [[HakaruFun]]) -> String
@@ -126,8 +259,9 @@ datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
         names = [[x] | x <- base] `mplus` (do n <- names
                                               [n++[x] | x <- base])
 
-datumStruct :: (Sing (HData' t)) -> CExtDecl
-datumStruct (SData _ typ) = CDeclExt $ datumSum typ (Ident (datumName typ))
+
+datumStruct :: (Sing (HData' t)) -> [CExtDecl]
+datumStruct (SData _ typ) = [CDeclExt $ datumSum typ (Ident (datumName typ))]
 
 datumDeclaration
   :: (Sing (HData' t))
@@ -177,7 +311,14 @@ datumProd' (SEt (SKonst t) rest) =
      return $ [decl] ++ rest'
 datumProd' (SEt SIdent _) = error "TODO: datumProd' SIdent"
 
-----------------------------------------------------------------
+--------------------------------------------------------------------------------
+--                                Functions                                   --
+--------------------------------------------------------------------------------
+{-
+   This still needs some work. Currently, we use the CodeGenMonad to give us
+   a list of local declarations and statements to be used in a function. Then
+   build a function from that.
+-}
 
 functionDef
   :: Sing (a :: Hakaru)
@@ -190,18 +331,20 @@ functionDef typ ident argDecls internalDecls stmts =
   CFunDef (fmap CTypeSpec $ buildType typ)
           (CDeclr Nothing [ CDDeclrIdent ident ])
           argDecls
-          (CCompound ((fmap CBlockDecl internalDecls) ++ (fmap CBlockStat stmts)))
+          (CCompound ((fmap CBlockDecl internalDecls)
+                   ++ (fmap CBlockStat stmts)))
 
-----------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | buildType function do the work of describing how the Hakaru
 -- type will be stored in memory. Arrays needed their own
 -- declaration function for their arity
+
 buildType :: Sing (a :: Hakaru) -> [CTypeSpec]
 buildType SInt         = [CInt]
 buildType SNat         = [CUnsigned, CInt]
 buildType SProb        = [CDouble]
 buildType SReal        = [CDouble]
-buildType (SMeasure x) = buildType $ x
+buildType (SMeasure x) = [callStruct . mdataName $ x]
 buildType (SArray t)   = [callStruct $ arrayName t]
 buildType (SFun _ x)   = buildType $ x -- build type the function returns
 buildType (SData _ t)  = [callStruct $ datumName t]
@@ -220,7 +363,8 @@ buildStruct :: Maybe Ident -> [CDecl] -> CTypeSpec
 buildStruct mi decls =
   CSUType (CSUSpec CStructTag mi decls)
 
--- | callStruct will give the type spec calling a struct we have already declared externally
+-- | callStruct will give the type spec calling a struct we have already
+--   declared externally
 callStruct :: String -> CTypeSpec
 callStruct name =
   CSUType (CSUSpec CStructTag (Just (Ident name)) [])
@@ -254,7 +398,7 @@ boolTyp =
 
 
 binaryOp :: NaryOp a -> CExpr -> CExpr -> CExpr
-binaryOp (Sum HSemiring_Prob)  a b = CBinary CAddOp (exp a) (exp b)
+binaryOp (Sum HSemiring_Prob)  a b = CBinary CAddOp (expE a) (expE b)
 binaryOp (Prod HSemiring_Prob) a b = CBinary CAddOp a b
 binaryOp (Sum _)               a b = CBinary CAddOp a b
 binaryOp (Prod _)              a b = CBinary CMulOp a b

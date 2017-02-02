@@ -50,11 +50,10 @@ NewSLO := module ()
 
   RoundTrip := proc(e, t::t_type)
     local result;
-    interface(screenwidth=infinity, prettyprint=0);
+    interface(screenwidth=infinity, prettyprint=0, warnlevel=0,
+      showassumed=0,quiet=true);
     kernelopts(assertlevel=0);
-    writeto("/dev/fd/2");
     result := eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL);
-    writeto(terminal);
     lprint(result)
   end proc;
 
@@ -1364,7 +1363,7 @@ NewSLO := module ()
             ),
             Counting= Record(
                  cond_constructor= `<=`, 
-                 disintegrator= LREtools:-delta,
+                 disintegrator= LREtools[delta],
                  disintegrator_arg_extractor= (A-> op(1,A))
             ),
             #Ret is aka Dirac.

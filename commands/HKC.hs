@@ -13,6 +13,8 @@ import Language.Hakaru.CodeGen.AST
 import Language.Hakaru.CodeGen.Pretty
 
 import           Control.Monad.Reader
+
+import           Data.Monoid
 import           Data.Text hiding (any,map,filter,foldr)
 import qualified Data.Text.IO as IO
 import           Text.PrettyPrint (render)
@@ -20,6 +22,7 @@ import           Options.Applicative
 import           System.IO
 import           System.Process
 import           System.Exit
+import           Prelude hiding (concat)
 
 data Options =
  Options { debug            :: Bool
@@ -31,6 +34,8 @@ data Options =
          , par              :: Bool
          , showWeightsOpt   :: Bool
          , showProbInLogOpt :: Bool
+         , garbageCollector :: Bool
+         -- , logProbs         :: Bool
          } deriving Show
 
 
@@ -66,6 +71,11 @@ options = Options
              <> help "Shows the weights along with the samples in samplers")
   <*> switch (  long "show-prob-log"
              <> help "Shows prob types as 'exp(<log-domain-value>)' instead of '<value>'")
+  <*> switch (  long "garbage-collector"
+             <> short 'g'
+             <> help "Use Boehm Garbage Collector")
+  -- <*> switch (  long "-no-log-space-probs"
+  --            <> help "Do not log `prob` types; WARNING this is more likely to underflow.")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -84,27 +94,26 @@ compileHakaru prog = ask >>= \config -> lift $ do
                                 (asFunc config)
                                 (PrintConfig { showWeights   = showWeightsOpt config
                                              , showProbInLog = showProbInLogOpt config })
-          cast    = CAST $ runCodeGenWith codeGen (emptyCG {parallel = par config})
+          codeGenConfig = emptyCG {sharedMem = par config, managedMem = garbageCollector config}
+          cast    = CAST $ runCodeGenWith codeGen codeGenConfig
           output  = pack . render . pretty $ cast
       when (debug config) $ do
-        putErrorLn hrule
-        putErrorLn $ "Type:\n"
+        putErrorLn $ hrule "Hakaru Type"
         putErrorLn . pack . show $ typ
-        putErrorLn hrule
-        putErrorLn $ "Hakaru AST:\n"
-        putErrorLn $ pack $ show ast
         when (optimize config) $ do
-          putErrorLn hrule
-          putErrorLn $ pack $ show ast'
-        putErrorLn hrule
-        putErrorLn $ "C AST:\n"
+          putErrorLn $ hrule "Hakaru AST"
+          putErrorLn $ pack $ show ast
+        putErrorLn $ hrule "Hakaru AST'"
+        putErrorLn $ pack $ show ast
+        putErrorLn $ hrule "C AST"
         putErrorLn $ pack $ show cast
-        putErrorLn hrule
+        putErrorLn $ hrule "Fin"
       case make config of
         Nothing -> writeToFile outPath output
         Just cc -> makeFile cc (fileOut config) (unpack output) config
 
-  where hrule  = "\n----------------------------------------------------------------"
+  where hrule s = concat ["\n<=======================| "
+                         ,s," |=======================>\n"]
         abtPasses = [ expandTransformations
                     , constantPropagation ]
 
@@ -121,7 +130,7 @@ makeFile cc mout prog opts =
                        ,"-"]
                        ++ (case mout of
                             Nothing -> []
-                            Just o  -> ["-o " ++ o])
+                            Just o  -> ["-o" ++ o])
                        ++ (if par opts then ["-fopenmp"] else [])
      (Just inH, _, _, pH) <- createProcess p { std_in    = CreatePipe
                                              , std_out   = CreatePipe }

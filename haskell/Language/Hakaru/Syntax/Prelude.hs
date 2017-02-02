@@ -79,7 +79,7 @@ module Language.Hakaru.Syntax.Prelude
     , densityNormal, normal, normal'
     , densityPoisson, poisson, poisson'
     , densityGamma, gamma, gamma'
-    , densityBeta, beta, beta'
+    , densityBeta, beta, beta', beta''
     , plateWithVar, plate, plate'
     , chain, chain'
     , invgamma
@@ -1461,7 +1461,7 @@ densityBeta a b x =
     * unsafeProb (real_ 1 - fromProb x) ** (fromProb b - real_ 1)
     / betaFunc a b
 
-beta, beta'
+beta, beta', beta''
     :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
@@ -1472,6 +1472,11 @@ beta' a b =
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...
     unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \x ->
     weightedDirac x (densityBeta a b x)
+
+beta'' a b =
+    gamma a (prob_ 1) >>= \x ->
+    gamma b (prob_ 1) >>= \y ->
+    dirac (x / (x+y))
 
 plateWithVar
     :: (ABT Term abt)
