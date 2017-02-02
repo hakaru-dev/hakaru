@@ -29,7 +29,6 @@ module Language.Hakaru.Syntax.CSE (cse) where
 
 import           Control.Monad.Reader
 import           Data.Maybe
-import           Prelude                         hiding ((+))
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
