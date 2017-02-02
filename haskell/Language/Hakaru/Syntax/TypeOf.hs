@@ -32,7 +32,7 @@ module Language.Hakaru.Syntax.TypeOf
 
 import qualified Data.Foldable as F
 #if __GLASGOW_HASKELL__ < 710
-import Data.Functor ((<$>))
+import Control.Applicative   (Applicative(..), (<$>))
 #endif
 
 import Language.Hakaru.Syntax.IClasses (Pair2(..), fst2, snd2)
