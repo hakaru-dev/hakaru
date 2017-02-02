@@ -29,7 +29,7 @@ import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
 
-import           Language.Hakaru.Syntax.Prelude  hiding (fst, (.), (>>=))
+import           Language.Hakaru.Syntax.Prelude  hiding ((>>=))
 
 -- What we need is an environment like data structure which maps Terms (or
 -- general abts?) to other abts. Can such a mapping be implemented efficiently?
@@ -76,7 +76,7 @@ insertEnv ast1 ast2 (Env env) =
     -- Point new variables to the older ones, this does not affect the amount of
     -- work done, since ast2 is always a variable. This allows the pass to
     -- eliminate redundant variables, as we only eliminate binders during CSE.
-    Var v -> Env (EAssoc ast2 ast1 : env)
+    Var _ -> Env (EAssoc ast2 ast1 : env)
     -- Otherwise map expressions to their binding variables
     _     -> Env (EAssoc ast1 ast2 : env)
 
