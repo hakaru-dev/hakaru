@@ -11,6 +11,20 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2017.02.01
+-- |
+-- Module      :  Language.Hakaru.Syntax.CSE
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+--
+----------------------------------------------------------------
 module Language.Hakaru.Syntax.CSE (cse) where
 
 import           Control.Monad.Reader

@@ -10,10 +10,8 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TypeOperators             #-}
-module Language.Hakaru.Syntax.ANF
-  ( normalize
-  ) where
 
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
 --                                                    2017.02.01
 -- |
@@ -26,6 +24,9 @@ module Language.Hakaru.Syntax.ANF
 --
 --
 ----------------------------------------------------------------
+module Language.Hakaru.Syntax.ANF
+  ( normalize
+  ) where
 
 import qualified Data.IntMap                      as IM
 import           Data.Maybe
