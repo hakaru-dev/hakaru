@@ -35,6 +35,7 @@ data Options =
          , showWeightsOpt   :: Bool
          , showProbInLogOpt :: Bool
          , garbageCollector :: Bool
+         -- , logProbs         :: Bool
          } deriving Show
 
 
@@ -73,6 +74,8 @@ options = Options
   <*> switch (  long "garbage-collector"
              <> short 'g'
              <> help "Use Boehm Garbage Collector")
+  -- <*> switch (  long "-no-log-space-probs"
+  --            <> help "Do not log `prob` types; WARNING this is more likely to underflow.")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)

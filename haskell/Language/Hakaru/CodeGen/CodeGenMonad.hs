@@ -101,10 +101,11 @@ data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generatio
              , managedMem    :: Bool         -- ^ garbage collected block
              , sharedMem     :: Bool         -- ^ shared memory supported block
              , distributed   :: Bool         -- ^ distributed supported block
+             , logProbs      :: Bool         -- ^ true by default, but might not matter in some situations
              }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty mempty [] [] emptyEnv False False False
+emptyCG = CG suffixes mempty mempty [] [] emptyEnv False False False True
 
 type CodeGen = State CG
 
@@ -208,16 +209,28 @@ declare SInt          = declare' . typeDeclaration SInt
 declare SNat          = declare' . typeDeclaration SNat
 declare SProb         = declare' . typeDeclaration SProb
 declare SReal         = declare' . typeDeclaration SReal
-declare (SMeasure (SArray t))  = \i -> do extDeclare $ arrayStruct t
-                                          extDeclare $ mdataStruct t
-                                          declare'   $ mdataDeclaration (SArray t) i
-declare (SMeasure t)  = \i -> do extDeclare $ mdataStruct t
-                                 declare'   $ mdataDeclaration t i
-declare (SArray t)    = \i -> do extDeclare $ arrayStruct t
-                                 declare'   $ arrayDeclaration t i
-declare d@(SData _ _) = \i -> do extDeclare $ datumStruct d
-                                 declare'   $ datumDeclaration d i
+declare (SMeasure (SArray t))  = \i -> do mapM_ extDeclare $ arrayStruct t
+                                          mapM_ extDeclare $ mdataStruct t
+                                          declare' $ mdataDeclaration (SArray t) i
+declare (SMeasure t)  = \i -> do mapM_ extDeclare $ mdataStruct t
+                                 declare' $ mdataDeclaration t i
+declare (SArray t)    = \i -> do mapM_ extDeclare $ arrayStruct t
+                                 declare' $ arrayDeclaration t i
+declare d@(SData _ _) = \i -> do mapM_ extDeclare $ datumStruct d
+                                 declare' $ datumDeclaration d i
 declare (SFun _ _)    = \_ -> return () -- function definitions handeled in flatten
+
+-- | declareType takes a Hakaru type and produces an external declaration in the
+--   codegen monad. Is to be used as a helper for declare. This is important for
+--   types that need a recursive traversal, such as SMeasure (SArray SInt)
+-- declareType :: Sing (a :: Hakaru) -> CodeGen ()
+-- declareType SInt  = return ()
+-- declareType SNat  = return ()
+-- declareType SProb = return ()
+-- declareType SReal = return ()
+-- declareType (SMeasure t)  = declareType t >> (extDeclare $ mdataStruct t)
+-- declareType (SArray t)    = declareType t >> (extDeclare $ arrayStruct t)
+-- declareType d@(SData _ _) = declareType t >> (extDeclare $ datumStructd)
 
 
 declare' :: CDecl -> CodeGen ()
