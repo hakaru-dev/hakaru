@@ -61,6 +61,9 @@ checkMeasure p (VMeasure m1) (VMeasure m2) = do
 allTests :: Test
 allTests = test [ TestLabel "ANF" anfTests ]
 
+opts :: (ABT Term abt) => abt '[] a -> abt '[] a
+opts = cse . normalize
+
 anfTests :: Test
 anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "example2" ~: testNormalizer "example2" example2 example2'
@@ -73,16 +76,22 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
 
                 -- Test some programs which produce measures, these are
                 -- statistical tests
-                , "norm1a"      ~: testPreservesMeasure "norm1a" norm1a
-                , "norm1b"      ~: testPreservesMeasure "norm1b" norm1b
-                , "norm1c"      ~: testPreservesMeasure "norm1c" norm1c
-                , "norm1'"      ~: testPreservesMeasure "norm1c" norm1c
-                , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad
+                , "norm1a"      ~: testPreservesMeasure "norm1a" norm1a normalize
+                , "norm1b"      ~: testPreservesMeasure "norm1b" norm1b normalize
+                , "norm1c"      ~: testPreservesMeasure "norm1c" norm1c normalize
+                , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad normalize
 
                 , "cse1" ~: testCSE "cse1" example1CSE example1CSE'
                 , "cse2" ~: testCSE "cse2" example2CSE example2CSE'
                 , "cse3" ~: testCSE "cse3" example3CSE example3CSE
                 , "cse4" ~: testCSE "cse4" (normalize example3CSE) example2CSE'
+
+                -- Test some programs which produce measures, these are
+                -- statistical tests
+                , "norm1a CSE"   ~: testPreservesMeasure "norm1a" norm1a opts
+                , "norm1b CSE"   ~: testPreservesMeasure "norm1b" norm1b opts
+                , "norm1c CSE"   ~: testPreservesMeasure "norm1c" norm1c opts
+                {-, "easyRoad CSE" ~: testPreservesMeasure "easyRoad" easyRoad opts-}
                 ]
 
 
@@ -137,10 +146,11 @@ testPreservesMeasure
   :: forall (a :: Hakaru) abt . (ABT Term abt)
   => String
   -> abt '[] ('HMeasure a)
+  -> (abt '[] ('HMeasure a) -> abt '[] ('HMeasure a))
   -> Assertion
-testPreservesMeasure name ast = checkMeasure name result1 result2
+testPreservesMeasure name ast opt = checkMeasure name result1 result2
   where result1 = runEvaluate ast
-        result2 = runEvaluate (normalize ast)
+        result2 = runEvaluate (opt ast)
 
 example1CSE :: TrivialABT Term '[] 'HReal
 example1CSE = let_ (real_ 1 + real_ 2) $ \x ->
