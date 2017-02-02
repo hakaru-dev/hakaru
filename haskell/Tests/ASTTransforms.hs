@@ -149,7 +149,6 @@ example1CSE = let_ (real_ 1 + real_ 2) $ \x ->
 
 example1CSE' :: TrivialABT Term '[] 'HReal
 example1CSE' = let_ (real_ 1 + real_ 2) $ \x ->
-               let_ x $ \y ->
                x + x
 
 example2CSE :: TrivialABT Term '[] 'HReal
@@ -159,7 +158,6 @@ example2CSE = let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \x ->
 
 example2CSE' :: TrivialABT Term '[] 'HReal
 example2CSE' = let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \x ->
-               let_ x $ \y ->
                x + x
 
 example3CSE :: TrivialABT Term '[] 'HReal

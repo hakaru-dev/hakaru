@@ -74,8 +74,8 @@ insertEnv
 insertEnv ast1 ast2 (Env env) =
   case viewABT ast1 of
     -- Point new variables to the older ones, this does not affect the amount of
-    -- work done, since ast2 is always a variable, but will make eliminating
-    -- redundant let bindings easier.
+    -- work done, since ast2 is always a variable. This allows the pass to
+    -- eliminate redundant variables, as we only eliminate binders during CSE.
     Var v -> Env (EAssoc ast2 ast1 : env)
     -- Otherwise map expressions to their binding variables
     _     -> Env (EAssoc ast1 ast2 : env)
@@ -110,6 +110,14 @@ cseVar
   -> CSE abt (abt '[] a)
 cseVar v = replaceCSE (var v)
 
+getVar :: (ABT Term abt) => abt '[] a -> Maybe (Variable a)
+getVar abt = case viewABT abt of
+               Var v -> Just v
+               _     -> Nothing
+
+mklet :: ABT Term abt => (Variable b) -> abt '[] b -> abt '[] a -> abt '[] a
+mklet v rhs body = syn (Let_ :$ rhs :* bind v body :* End)
+
 -- Thanks to A-normalization, the only case we need to care about is let bindings.
 -- Everything else is just structural recursion.
 cseTerm
@@ -121,8 +129,9 @@ cseTerm (Let_ :$ rhs :* body :* End) = do
   rhs' <- cse' rhs
   caseBind body $ \v body' ->
     local (insertEnv rhs' (var v)) $ do
-      body'' <- cse' body'
-      return $ syn (Let_ :$ rhs' :* bind v body'' :* End)
+      case getVar rhs' of
+        Just _ -> cse' body'
+        _      -> fmap (mklet v rhs') (cse' body')
 
 cseTerm term = traverse21 cse' term >>= replaceCSE . syn
 
