@@ -70,9 +70,9 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "example3" ~: testNormalizer "example3" example3 example3'
 
                 -- Test some deterministic results
-                , "runExample1" ~: testPreservesResult "example1" example1
-                , "runExample2" ~: testPreservesResult "example2" example2
-                , "runExample3" ~: testPreservesResult "example3" example3
+                , "runExample1" ~: testPreservesResult "example1" example1 normalize
+                , "runExample2" ~: testPreservesResult "example2" example2 normalize
+                , "runExample3" ~: testPreservesResult "example3" example3 normalize
 
                 -- Test some programs which produce measures, these are
                 -- statistical tests
@@ -80,6 +80,11 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "norm1b"      ~: testPreservesMeasure "norm1b" norm1b normalize
                 , "norm1c"      ~: testPreservesMeasure "norm1c" norm1c normalize
                 , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad normalize
+
+                -- Test some deterministic results
+                , "runExample1CSE" ~: testPreservesResult "example1" example1 opts
+                , "runExample2CSE" ~: testPreservesResult "example2" example2 opts
+                , "runExample3CSE" ~: testPreservesResult "example3" example3 opts
 
                 , "cse1" ~: testCSE "cse1" example1CSE example1CSE'
                 , "cse2" ~: testCSE "cse2" example2CSE example2CSE'
@@ -137,10 +142,11 @@ testPreservesResult
   :: forall (a :: Hakaru) abt . (ABT Term abt)
   => String
   -> abt '[] a
+  -> (abt '[] a -> abt '[] a)
   -> Assertion
-testPreservesResult name ast = assertEqual name result1 result2
+testPreservesResult name ast opt = assertEqual name result1 result2
   where result1 = runEvaluate ast
-        result2 = runEvaluate (normalize ast)
+        result2 = runEvaluate (opt ast)
 
 testPreservesMeasure
   :: forall (a :: Hakaru) abt . (ABT Term abt)
