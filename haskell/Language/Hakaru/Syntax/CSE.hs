@@ -11,10 +11,10 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
-module Language.Hakaru.Syntax.CSE  where
+module Language.Hakaru.Syntax.CSE (cse) where
 
-import           Prelude hiding ((+), (>>=))
-import           Control.Monad.Reader hiding ((>>=))
+import           Prelude hiding ((+))
+import           Control.Monad.Reader
 import qualified Data.IntMap                     as IM
 import           Data.Maybe
 import           Data.Number.Nat
@@ -29,21 +29,7 @@ import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
 
-import           Language.Hakaru.Syntax.Prelude hiding (fst, (.))
-
-easyRoad
-    :: TrivialABT Term '[]
-        ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))
-easyRoad =
-    uniform (real_ 3) (real_ 8) >>= \noiseT_ ->
-    uniform (real_ 1) (real_ 4) >>= \noiseE_ ->
-    let_ (unsafeProb noiseT_) $ \noiseT ->
-    let_ (unsafeProb noiseE_) $ \noiseE ->
-    normal (real_ 0) noiseT >>= \x1 ->
-    normal x1 noiseE >>= \m1 ->
-    normal x1 noiseT >>= \x2 ->
-    normal x2 noiseE >>= \m2 ->
-    dirac (pair (pair m1 m2) (pair noiseT noiseE))
+import           Language.Hakaru.Syntax.Prelude hiding (fst, (.), (>>=))
 
 -- What we need is an environment like data structure which maps Terms (or
 -- general abts?) to other abts. Can such a mapping be implemented efficiently?
@@ -147,5 +133,5 @@ cseTerm (Let_ :$ rhs :* body :* End) = do
         Just _ -> cse' body'
         _      -> fmap (mklet v rhs') (cse' body')
 
-cseTerm term = do { x <- traverse21 cse' term ; replaceCSE (syn x) }
+cseTerm term = traverse21 cse' term >>= replaceCSE . syn
 

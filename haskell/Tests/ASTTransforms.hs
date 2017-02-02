@@ -91,7 +91,7 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "norm1a CSE"   ~: testPreservesMeasure "norm1a" norm1a opts
                 , "norm1b CSE"   ~: testPreservesMeasure "norm1b" norm1b opts
                 , "norm1c CSE"   ~: testPreservesMeasure "norm1c" norm1c opts
-                {-, "easyRoad CSE" ~: testPreservesMeasure "easyRoad" easyRoad opts-}
+                , "easyRoad CSE" ~: testPreservesMeasure "easyRoad" easyRoad opts
                 ]
 
 
