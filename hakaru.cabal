@@ -39,6 +39,7 @@ Library
                        Language.Hakaru.Syntax.ABT,
                        Language.Hakaru.Syntax.Variable,
                        Language.Hakaru.Syntax.Value,
+                       Language.Hakaru.Syntax.Reducer,
                        Language.Hakaru.Syntax.Datum,
                        Language.Hakaru.Syntax.DatumABT,
                        Language.Hakaru.Syntax.DatumCase,

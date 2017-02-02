@@ -74,6 +74,7 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.ABT (ABT(syn))
 
 ----------------------------------------------------------------
@@ -784,6 +785,13 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> !(abt '[ 'HNat ] a)
         -> Term abt ('HArray a)
 
+    -- Constructor for Reducers
+    Bucket
+        :: !(abt '[] 'HNat)
+        -> !(abt '[] 'HNat)
+        -> Reducer abt '[] a
+        -> Term abt a
+           
     -- -- User-defined data types
     -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'Datum_'... wtf?
     --
@@ -801,6 +809,7 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: L.NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
         -> Term abt ('HMeasure a)
 
+    -- The zero measure
     Reject_ :: !(Sing ('HMeasure a)) -> Term abt ('HMeasure a)
 
 ----------------------------------------------------------------
