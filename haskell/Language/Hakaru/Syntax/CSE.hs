@@ -11,7 +11,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
-module Language.Hakaru.Syntax.CSE where
+module Language.Hakaru.Syntax.CSE (cse) where
 
 import           Prelude hiding ((+))
 import           Control.Monad.Reader
@@ -46,6 +46,10 @@ example4 :: TrivialABT Term '[] 'HReal
 example4 = let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \x ->
            let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \y ->
            x + y
+
+example5 :: TrivialABT Term '[] 'HReal
+example5 = (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1)
+         + (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1)
 
 -- What we need is an environment like data structure which maps Terms (or
 -- general abts?) to other abts. Can such a mapping be implemented efficiently?
@@ -114,7 +118,7 @@ cse' = loop . viewABT
     loop :: View (Term abt) ys a ->  CSE abt (abt ys a)
     loop (Var v)    = cseVar v
     loop (Syn s)    = cseTerm s
-    loop (Bind v b) = loop b >>= return . bind v
+    loop (Bind v b) = fmap (bind v) (loop b)
 
 -- Variables can be equivalent to other variables
 -- TODO: A good sanity check would be to ensure the result in this case is
@@ -126,8 +130,8 @@ cseVar
   -> CSE abt (abt '[] a)
 cseVar v = replaceCSE (var v)
 
--- Thanks to A-normalization, the only case we really need to care about is let
--- bindings. Everything else is just structural recursion.
+-- Thanks to A-normalization, the only case we need to care about is let bindings.
+-- Everything else is just structural recursion.
 cseTerm
   :: (ABT Term abt)
   => Term abt a

@@ -20,6 +20,7 @@ import           GHC.Word                         (Word32)
 import           Language.Hakaru.Sample           (runEvaluate)
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.ANF       (normalize)
+import           Language.Hakaru.Syntax.CSE       (cse)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq    (alphaEq)
 import           Language.Hakaru.Syntax.Datum
@@ -77,6 +78,11 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "norm1c"      ~: testPreservesMeasure "norm1c" norm1c
                 , "norm1'"      ~: testPreservesMeasure "norm1c" norm1c
                 , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad
+
+                , "cse1" ~: testCSE "cse1" example1CSE example1CSE'
+                , "cse2" ~: testCSE "cse2" example2CSE example2CSE'
+                , "cse3" ~: testCSE "cse3" example3CSE example3CSE
+                , "cse4" ~: testCSE "cse4" (normalize example3CSE) example2CSE'
                 ]
 
 
@@ -115,6 +121,9 @@ example3' = let_ (real_ 2 + real_ 3) $ \ x2 ->
 testNormalizer :: (ABT Term abt) => String -> abt '[] a -> abt '[] a -> Assertion
 testNormalizer name a b = assertBool name (alphaEq (normalize a) b)
 
+testCSE :: (ABT Term abt) => String -> abt '[] a -> abt '[] a -> Assertion
+testCSE name a b = assertBool name (alphaEq (cse a) b)
+
 testPreservesResult
   :: forall (a :: Hakaru) abt . (ABT Term abt)
   => String
@@ -133,3 +142,26 @@ testPreservesMeasure name ast = checkMeasure name result1 result2
   where result1 = runEvaluate ast
         result2 = runEvaluate (normalize ast)
 
+example1CSE :: TrivialABT Term '[] 'HReal
+example1CSE = let_ (real_ 1 + real_ 2) $ \x ->
+              let_ (real_ 1 + real_ 2) $ \y ->
+              x + y
+
+example1CSE' :: TrivialABT Term '[] 'HReal
+example1CSE' = let_ (real_ 1 + real_ 2) $ \x ->
+               let_ x $ \y ->
+               x + x
+
+example2CSE :: TrivialABT Term '[] 'HReal
+example2CSE = let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \x ->
+              let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \y ->
+              x + y
+
+example2CSE' :: TrivialABT Term '[] 'HReal
+example2CSE' = let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \x ->
+               let_ x $ \y ->
+               x + x
+
+example3CSE :: TrivialABT Term '[] 'HReal
+example3CSE = (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1)
+            + (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1)
