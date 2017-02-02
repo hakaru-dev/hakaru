@@ -94,7 +94,8 @@ KB := module ()
   uses Hakaru;
 
   # Some types
-  # A particular form of Introduce.. (?)
+  # A particular form of Introduce, containing those types
+  # about which Maple currently knows
   t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
 
   # Low and high bounds (?)
