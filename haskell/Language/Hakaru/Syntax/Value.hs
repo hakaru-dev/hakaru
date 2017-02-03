@@ -111,5 +111,15 @@ enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (init (enumFromTo lo hi))
 data VReducer :: Hakaru -> * where
      VRed_Nat    :: ST s Nat
                  -> VReducer 'HNat
+     VRed_Int    :: ST s Int
+                 -> VReducer 'HInt
+     VRed_Prob   :: ST s LF.LogFloat
+                 -> VReducer 'HProb
+     VRed_Real   :: ST s Double
+                 -> VReducer 'HReal
+     VRed_Unit   :: VReducer HUnit
+     VRed_Pair   :: VReducer a
+                 -> VReducer b
+                 -> VReducer (HPair a b)
      VRed_Array  :: ST s (MV.MVector s (VReducer a))
                  -> VReducer ('HArray a)

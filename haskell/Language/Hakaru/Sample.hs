@@ -551,12 +551,27 @@ evaluateBucket b e rs env = undefined
     where init :: (ABT Term abt)
                => Reducer abt xs a
                -> VReducer a
-          init (Red_Add HSemiring_Nat _) = VRed_Nat (return 0)
-          init (Red_Index n _ mr)        =
+          init (Red_Fanout r1 r2)         = VRed_Pair (init r1) (init r2)
+          init (Red_Index  n  _  mr)      =
               let (_, n') = caseBinds n in
               case evaluate n' env of
                 VNat n'' -> VRed_Array $ MV.replicate (fromIntegral n'') (init mr)
-          accum _                        = undefined
+          init (Red_Split _ r1 r2)        = VRed_Pair (init r1) (init r2)
+          init Red_Nop                    = VRed_Unit
+          init (Red_Add HSemiring_Nat  _) = VRed_Nat  (return 0)
+          init (Red_Add HSemiring_Int  _) = VRed_Int  (return 0)
+          init (Red_Add HSemiring_Prob _) = VRed_Prob (return 0)
+          init (Red_Add HSemiring_Real _) = VRed_Real (return 0)
+
+          accum :: (ABT Term abt)
+                => abt '[ 'HNat ] a
+                -> abt '[] 'HNat
+                -> Reducer abt xs a
+                -> VReducer a
+                -> Env
+                -> VReducer a
+          accum _ _ _       _ env         = undefined
+          accum _ _ Red_Nop s env         = s
 
 evaluateDatum
     :: (ABT Term abt)
