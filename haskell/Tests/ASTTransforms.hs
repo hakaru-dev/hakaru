@@ -76,10 +76,11 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
 
                 -- Test some programs which produce measures, these are
                 -- statistical tests
-                , "norm1a"      ~: testPreservesMeasure "norm1a" norm1a normalize
-                , "norm1b"      ~: testPreservesMeasure "norm1b" norm1b normalize
-                , "norm1c"      ~: testPreservesMeasure "norm1c" norm1c normalize
-                , "easyRoad"    ~: testPreservesMeasure "easyRoad" easyRoad normalize
+                , "norm1a"        ~: testPreservesMeasure "norm1a" norm1a normalize
+                , "norm1b"        ~: testPreservesMeasure "norm1b" norm1b normalize
+                , "norm1c"        ~: testPreservesMeasure "norm1c" norm1c normalize
+                , "easyRoad"      ~: testPreservesMeasure "easyRoad" easyRoad normalize
+                , "helloWorld100" ~: testPreservesMeasure "helloWorld100" helloWorld100 normalize
 
                 -- Test some deterministic results
                 , "runExample1CSE" ~: testPreservesResult "example1" example1 opts
@@ -93,10 +94,11 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
 
                 -- Test some programs which produce measures, these are
                 -- statistical tests
-                , "norm1a CSE"   ~: testPreservesMeasure "norm1a" norm1a opts
-                , "norm1b CSE"   ~: testPreservesMeasure "norm1b" norm1b opts
-                , "norm1c CSE"   ~: testPreservesMeasure "norm1c" norm1c opts
-                , "easyRoad CSE" ~: testPreservesMeasure "easyRoad" easyRoad opts
+                , "norm1a CSE"        ~: testPreservesMeasure "norm1a" norm1a opts
+                , "norm1b CSE"        ~: testPreservesMeasure "norm1b" norm1b opts
+                , "norm1c CSE"        ~: testPreservesMeasure "norm1c" norm1c opts
+                , "easyRoad CSE"      ~: testPreservesMeasure "easyRoad" easyRoad opts
+                , "helloWorld100 CSE" ~: testPreservesMeasure "helloWorld100" helloWorld100 opts
                 ]
 
 
