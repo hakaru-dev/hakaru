@@ -20,16 +20,20 @@ import qualified Data.Number.LogFloat            as LF
 -- import qualified Numeric.Integration.TanhSinh    as TS
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
+
 import qualified Data.Vector                     as V
 import qualified Data.Vector.Mutable             as MV
+import           Data.STRef
 import           Data.Sequence (Seq)
 import qualified Data.Foldable                   as F
 import qualified Data.List.NonEmpty              as L
 import           Data.List.NonEmpty              (NonEmpty(..))
 import           Data.Maybe                      (fromMaybe)
+
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
+import           Control.Monad.ST
 import           Control.Monad.Identity
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.State.Strict
@@ -558,10 +562,10 @@ evaluateBucket b e rs env = undefined
                 VNat n'' -> VRed_Array $ MV.replicate (fromIntegral n'') (init mr)
           init (Red_Split _ r1 r2)        = VRed_Pair (init r1) (init r2)
           init Red_Nop                    = VRed_Unit
-          init (Red_Add HSemiring_Nat  _) = VRed_Nat  (return 0)
-          init (Red_Add HSemiring_Int  _) = VRed_Int  (return 0)
-          init (Red_Add HSemiring_Prob _) = VRed_Prob (return 0)
-          init (Red_Add HSemiring_Real _) = VRed_Real (return 0)
+          init (Red_Add HSemiring_Nat  _) = VRed_Nat  (newSTRef 0)
+          init (Red_Add HSemiring_Int  _) = VRed_Int  (newSTRef 0)
+          init (Red_Add HSemiring_Prob _) = VRed_Prob (newSTRef 0)
+          init (Red_Add HSemiring_Real _) = VRed_Real (newSTRef 0)
 
           accum :: (ABT Term abt)
                 => abt '[ 'HNat ] a
@@ -572,6 +576,9 @@ evaluateBucket b e rs env = undefined
                 -> VReducer a
           accum _ _ _       _ env         = undefined
           accum _ _ Red_Nop s env         = s
+
+          done :: ST s (VReducer a)
+          done = undefined
 
 evaluateDatum
     :: (ABT Term abt)
