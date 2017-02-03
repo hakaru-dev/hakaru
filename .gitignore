@@ -8,5 +8,5 @@ Language/Hakaru/Paths.hs
 site
 *~
 a.out
-default.nix
+*.nix
 foo.c
