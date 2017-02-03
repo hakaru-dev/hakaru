@@ -46,6 +46,7 @@ instance Eq1 Value where
     eq1 (VProb a) (VProb b)   = a == b
     eq1 (VReal a) (VReal b)   = a == b
     eq1 (VDatum a) (VDatum b) = a == b
+    eq1 (VArray a) (VArray b) = a == b
     eq1 _        _            = False
 
 instance Eq (Value a) where
