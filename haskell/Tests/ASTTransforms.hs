@@ -46,7 +46,8 @@ checkMeasure :: String
              -> Value ('HMeasure a)
              -> Assertion
 checkMeasure p (VMeasure m1) (VMeasure m2) = do
-  -- Generate 2 copies of the same random seed so that
+  -- Generate 2 copies of the same random seed so that sampling the random seeds
+  -- always produce the same trace of results.
   g1 <- MWC.createSystemRandom
   s  <- MWC.save g1
   g2 <- MWC.restore s
