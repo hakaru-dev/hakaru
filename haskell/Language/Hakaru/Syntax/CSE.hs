@@ -67,9 +67,8 @@ lookupEnv ast (Env env) = go ast env
     go ast []                = ast
     go ast (EAssoc a b : xs) =
       case jmEq1 (typeOf ast) (typeOf a) of
-        Nothing                   -> go ast xs
         Just Refl | alphaEq ast a -> go b env
-                  | otherwise     -> go ast xs
+        _                         -> go ast xs
 
 insertEnv
   :: forall abt a . (ABT Term abt)
