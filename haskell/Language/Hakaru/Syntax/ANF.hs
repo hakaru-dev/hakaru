@@ -47,23 +47,10 @@ import           Language.Hakaru.Syntax.Prelude
 -- new variable is introduced and the variable in the old expression must be
 -- mapped to the new one.
 
-data EAssoc =
-    forall (a :: Hakaru) . EAssoc !(Variable a) !(Variable a)
-
-newtype Env = Env (IM.IntMap EAssoc)
-
-emptyEnv :: Env
-emptyEnv = Env IM.empty
+type Env = Assocs (Variable :: Hakaru -> *)
 
 updateEnv :: forall (a :: Hakaru) . Variable a -> Variable a -> Env -> Env
-updateEnv vin vout (Env xs) = Env $ IM.insert nat (EAssoc vin vout) xs
-  where nat = fromNat $ varID vin
-
-lookupVar :: forall (a :: Hakaru) . Variable a -> Env -> Maybe (Variable a)
-lookupVar x (Env env) = do
-    EAssoc v1 v2 <- IM.lookup (fromNat $ varID x) env
-    Refl         <- varEq x v1
-    return v2
+updateEnv vin vout = insertAssoc (Assoc vin vout)
 
 -- | The context in which A-normalization occurs. Represented as a continuation,
 -- the context expects an expression of a particular type (usually a variable)
@@ -91,7 +78,7 @@ normalize
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-normalize abt = normalize' abt emptyEnv id
+normalize abt = normalize' abt emptyAssocs id
 
 normalize'
   :: (ABT Term abt)
@@ -102,7 +89,7 @@ normalize'
 normalize' abt = caseVarSyn abt normalizeVar normalizeTerm
 
 normalizeVar :: (ABT Term abt) => Variable a -> Env -> Context abt a b -> abt '[] b
-normalizeVar v env ctxt = ctxt . var $ fromMaybe v (lookupVar v env)
+normalizeVar v env ctxt = ctxt . var $ fromMaybe v (lookupAssoc v env)
 
 isValue
   :: (ABT Term abt)
