@@ -12,6 +12,10 @@ module Language.Hakaru.Syntax.AST.Transforms where
 
 import qualified Data.Sequence as S
 
+import Language.Hakaru.Syntax.ANF      (normalize)
+import Language.Hakaru.Syntax.CSE      (cse)
+import Language.Hakaru.Syntax.Unroll   (unroll)
+import Language.Hakaru.Syntax.Uniquify (uniquify)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeOf
@@ -20,6 +24,14 @@ import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Expect       (expect)
 import Language.Hakaru.Disintegrate (determine, observe)
+import Language.Hakaru.Pretty.Haskell
+import Text.PrettyPrint (render)
+
+optimizations
+  :: (ABT Term abt)
+  => abt '[] a
+  -> abt '[] a
+optimizations = normalize
 
 underLam
     :: (ABT Term abt, Monad m)

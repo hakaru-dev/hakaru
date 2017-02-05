@@ -15,6 +15,7 @@ import           Language.Hakaru.Sample           (runEvaluate)
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.ANF       (normalize)
 import           Language.Hakaru.Syntax.CSE       (cse)
+import           Language.Hakaru.Syntax.Unroll    (unroll)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq    (alphaEq)
 import           Language.Hakaru.Syntax.Datum
@@ -57,7 +58,7 @@ allTests :: Test
 allTests = test [ TestLabel "ANF" anfTests ]
 
 opts :: (ABT Term abt) => abt '[] a -> abt '[] a
-opts = cse . normalize
+opts = cse . normalize . unroll
 
 anfTests :: Test
 anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'

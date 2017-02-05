@@ -5,7 +5,7 @@ module Main where
 
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
+import Language.Hakaru.Syntax.AST.Transforms (expandTransformations, optimizations)
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 import Language.Hakaru.CodeGen.CodeGenMonad
@@ -110,7 +110,8 @@ compileHakaru prog = ask >>= \config -> lift $ do
   where hrule s = concat ["\n<=======================| "
                          ,s," |=======================>\n"]
         abtPasses = [ expandTransformations
-                    , constantPropagation ]
+                    , constantPropagation
+                    , optimizations ]
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr
