@@ -97,6 +97,7 @@ header =
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
+  , "import           Data.Number.LogFloat"
   , ""
   ]
 
