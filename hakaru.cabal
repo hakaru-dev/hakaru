@@ -47,6 +47,8 @@ Library
                        Language.Hakaru.Types.HClasses,
                        Language.Hakaru.Types.Coercion,
                        Language.Hakaru.Syntax.ANF,
+                       Language.Hakaru.Syntax.Uniquify,
+                       Language.Hakaru.Syntax.Unroll,
                        Language.Hakaru.Syntax.AST,
                        Language.Hakaru.Syntax.AST.Transforms,
                        Language.Hakaru.Syntax.AST.Sing,
