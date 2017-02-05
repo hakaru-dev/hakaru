@@ -568,14 +568,14 @@ evaluateBucket b e rs env = undefined
           init (Red_Add HSemiring_Real _) = VRed_Real (newSTRef 0)
 
           accum :: (ABT Term abt)
-                => abt '[ 'HNat ] a
-                -> abt '[] 'HNat
+                => abt '[] 'HNat
                 -> Reducer abt xs a
                 -> VReducer a
                 -> Env
-                -> VReducer a
-          accum _ _ _       _ env         = undefined
-          accum _ _ Red_Nop s env         = s
+                -> ST s (VReducer a)
+          accum n (Red_Add HSemiring_Real e) _ env =
+              caseBind e $ \i e' -> undefined
+          accum _ Red_Nop                  s env = return s
 
           done :: ST s (VReducer a)
           done = undefined
