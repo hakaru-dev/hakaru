@@ -282,6 +282,19 @@ normalizeSCon (ArrayOp_ _) = error "normalizeSCon: ArrayOp unimplemented" -- fla
 normalizeSCon (PrimOp_ op) = normalizePrimOp op
 normalizeSCon op           = error $ "not implemented: normalizeSCon{" ++ show op ++ "}"
 
+normalizeArrayOp
+  :: (ABT Term abt, args ~ LCs typs)
+  => ArrayOp typs a
+  -> SArgs abt args
+  -> Env
+  -> Context abt a b
+  -> abt '[] b
+normalizeArrayOp op xs env ctxt =
+  case (op, xs) of
+    (Size _   ,           x :* End) -> normalizeOp1 (arrayOp1_ op) x env ctxt
+    (Index _  ,      x :* y :* End) -> normalizeOp2 (arrayOp2_ op) x y env ctxt
+    (Reduce _ , x :* y :* z :* End) -> normalizeOp3 (arrayOp3_ op) x y z env ctxt
+
 normalizePrimOp
   :: (ABT Term abt, args ~ LCs typs)
   => PrimOp typs a
@@ -356,6 +369,21 @@ normalizeOp2 mk x y env ctxt =
   normalizeName x env $ \x' ->
   normalizeName y env $ \y' ->
   ctxt (mk x' y')
+
+normalizeOp3
+  :: (ABT Term abt)
+  => (abt '[] a -> abt '[] b -> abt '[] c -> t)
+  -> abt '[] a
+  -> abt '[] b
+  -> abt '[] c
+  -> Env
+  -> (t -> abt '[] d)
+  -> abt '[] d
+normalizeOp3 mk x y z env ctxt =
+  normalizeName x env $ \x' ->
+  normalizeName y env $ \y' ->
+  normalizeName z env $ \z' ->
+  ctxt (mk x' y' z')
 
 normalizeMeasureOp
   :: (ABT Term abt, args ~ LCs typs)
