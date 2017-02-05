@@ -24,9 +24,7 @@
 --
 --
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.ANF
-  ( normalize
-  ) where
+module Language.Hakaru.Syntax.ANF where
 
 import qualified Data.IntMap                      as IM
 import           Data.Maybe
@@ -199,6 +197,16 @@ normalizeBody
 normalizeBody body vold env =
   freshVar vold $ \vnew -> normalize' body (updateEnv vold vnew env) id
 
+normalizeBodyWithCtxt
+  :: (ABT Term abt)
+  => abt '[] a
+  -> Variable b
+  -> Env
+  -> Context abt a c
+  -> abt '[b] c
+normalizeBodyWithCtxt body vold env ctxt =
+  freshVar vold $ \vnew -> normalize' body (updateEnv vold vnew env) ctxt
+
 normalizeName
   :: (ABT Term abt)
   => abt '[] a
@@ -247,9 +255,8 @@ normalizeSCon Let_ =
   \(rhs :* body :* End) env ctxt -> caseBind body $
     \v body' ->
       normalize' rhs env $ \rhs' ->
-        let_ rhs' $ \v' ->
-          let env' = updateEnv v (getVar v') env
-          in normalize' body' env' ctxt
+      let mkbody v' = normalize' body' (updateEnv v v' env) ctxt
+      in syn (Let_ :$ rhs' :* freshVar v mkbody :* End)
 
 -- TODO: Remove code duplication between sum and product cases
 normalizeSCon s@Summate{} =
