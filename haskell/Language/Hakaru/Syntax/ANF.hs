@@ -278,9 +278,9 @@ normalizeSCon (CoerceTo_ c) =
 
 normalizeSCon (MeasureOp_ op) = normalizeMeasureOp op
 
-normalizeSCon (ArrayOp_ _) = error "normalizeSCon: ArrayOp unimplemented" -- flattenArrayOp op
-normalizeSCon (PrimOp_ op) = normalizePrimOp op
-normalizeSCon op           = error $ "not implemented: normalizeSCon{" ++ show op ++ "}"
+normalizeSCon (ArrayOp_ op) = normalizeArrayOp op
+normalizeSCon (PrimOp_ op)  = normalizePrimOp op
+normalizeSCon op            = error $ "not implemented: normalizeSCon{" ++ show op ++ "}"
 
 normalizeArrayOp
   :: (ABT Term abt, args ~ LCs typs)
