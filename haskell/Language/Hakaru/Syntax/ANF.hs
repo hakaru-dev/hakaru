@@ -121,6 +121,7 @@ isValue abt =
     isValueTerm (Lam_ :$ _) = True
     isValueTerm _           = False
 
+-- TODO: Probably need to implement Superpose_ and maybe Reject_
 normalizeTerm
   :: (ABT Term abt)
   => Term abt a
@@ -131,7 +132,21 @@ normalizeTerm (NaryOp_ op args) = normalizeNaryOp op args
 normalizeTerm (x :$ args)       = normalizeSCon x args
 normalizeTerm (Case_ c bs)      = normalizeCase c bs
 normalizeTerm (Datum_ d)        = normalizeDatum d
+normalizeTerm (Array_ s b)      = normalizeArray s b
 normalizeTerm term              = const ($ syn term)
+
+normalizeArray
+  :: (ABT Term abt)
+  => abt '[] 'HNat
+  -> abt '[ 'HNat ] a
+  -> Env
+  -> Context abt ('HArray a) b
+  -> abt '[] b
+normalizeArray size body env ctxt =
+  normalizeName size env $ \size' ->
+  caseBind body $ \v body' ->
+  let body'' = normalizeBody body' v env
+  in ctxt $ syn (Array_ size' body'')
 
 normalizeDatum
   :: (ABT Term abt)
