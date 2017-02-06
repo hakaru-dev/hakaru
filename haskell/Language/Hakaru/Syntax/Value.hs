@@ -15,6 +15,10 @@ import           Language.Hakaru.Types.HClasses
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Coercion
 
+import           Control.Monad.ST
+import           Data.STRef
+import qualified Data.Vector.Mutable             as MV
+
 import qualified Data.Vector                     as V
 import qualified Data.Number.LogFloat            as LF
 import           Data.Number.Nat
@@ -106,3 +110,14 @@ enumFromUntilValue
     -> [Value a]
 enumFromUntilValue _ (VNat lo) (VNat hi) = map VNat (init (enumFromTo lo hi))
 enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (init (enumFromTo lo hi))
+
+data VReducer :: Hakaru -> * where
+     VRed_Num    :: HSemiring a
+                 -> ST s (STRef s (Value a))
+                 -> VReducer a
+     VRed_Unit   :: VReducer HUnit
+     VRed_Pair   :: VReducer a
+                 -> VReducer b
+                 -> VReducer (HPair a b)
+     VRed_Array  :: ST s (MV.MVector s (VReducer a))
+                 -> VReducer ('HArray a)
