@@ -113,7 +113,7 @@ cseVar
   :: (ABT Term abt)
   => Variable a
   -> CSE abt (abt '[] a)
-cseVar v = replaceCSE (var v)
+cseVar = replaceCSE  . var
 
 getVar :: (ABT Term abt) => abt '[] a -> Maybe (Variable a)
 getVar abt = case viewABT abt of

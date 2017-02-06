@@ -83,7 +83,7 @@ unrollTerm
   :: (ABT Term abt)
   => Term abt a
   -> Unroll (abt '[] a)
-unrollTerm ((Summate disc semi) :$ lo :* hi :* body :* End) =
+unrollTerm (Summate disc semi :$ lo :* hi :* body :* End) =
   case (disc, semi) of
     (HDiscrete_Nat, HSemiring_Nat)  -> unrollSummate disc semi lo hi body
     (HDiscrete_Nat, HSemiring_Int)  -> unrollSummate disc semi lo hi body
@@ -95,7 +95,7 @@ unrollTerm ((Summate disc semi) :$ lo :* hi :* body :* End) =
     (HDiscrete_Int, HSemiring_Prob) -> unrollSummate disc semi lo hi body
     (HDiscrete_Int, HSemiring_Real) -> unrollSummate disc semi lo hi body
 
-unrollTerm ((Product disc semi) :$ lo :* hi :* body :* End) =
+unrollTerm (Product disc semi :$ lo :* hi :* body :* End) =
   case (disc, semi) of
     (HDiscrete_Nat, HSemiring_Nat)  -> unrollProduct disc semi lo hi body
     (HDiscrete_Nat, HSemiring_Int)  -> unrollProduct disc semi lo hi body
