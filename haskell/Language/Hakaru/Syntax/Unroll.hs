@@ -118,7 +118,9 @@ unrollTerm ((Product disc semi) :$ lo :* hi :* body :* End) =
 unrollTerm term        = fmap syn $ traverse21 unroll' term
 
 -- Conditionally introduce a variable for the rhs if the rhs is not currently a
--- variable already.
+-- variable already. Be careful that the provided variable has been remaped to
+-- its equivalent in the target term if altering the binding structure of the
+-- program.
 letM' :: (MonadFix m, ABT Term abt)
       => abt '[] a
       -> (abt '[] a -> m (abt '[] b))
