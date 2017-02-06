@@ -26,6 +26,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ANF where
 
+import Prelude hiding ((==), (+))
 import qualified Data.IntMap                      as IM
 import           Data.Maybe
 import           Data.Number.Nat
@@ -160,20 +161,35 @@ normalizeCase
 normalizeCase cond bs env ctxt =
   normalizeName cond env $ \ cond' ->
     let -- TODO: How do we deal with pattern variables?
-        normalizeBranch :: Branch a abt b -> Branch a abt b
-        normalizeBranch (Branch pat body) =
+        {-normalizeBranch :: Branch a abt b -> Context abt b c -> Branch a abt c-}
+        normalizeBranch :: forall d e f . Branch d abt e -> Context abt e f -> Branch d abt f
+        normalizeBranch (Branch pat body) ctxt' =
           case pat of
-            PWild -> Branch PWild (normalize' body env id)
+            PWild -> Branch PWild (normalize' body env ctxt')
             PVar  -> caseBind body $ \v body' ->
-                       Branch PVar (normalizeBody body' v env)
+                       Branch PVar (normalizeBodyWithCtxt body' v env ctxt')
 
             -- Minimum needed to match True and False
-            PDatum _ (PInl PDone)        -> Branch pat (normalize' body env id)
-            PDatum _ (PInr (PInl PDone)) -> Branch pat (normalize' body env id)
+            PDatum _ (PInl PDone)        -> Branch pat (normalize' body env ctxt')
+            PDatum _ (PInr (PInl PDone)) -> Branch pat (normalize' body env ctxt')
             _     -> error "normalizeBranch: pattern variables not implemented"
 
-        bs' = map normalizeBranch bs
-    in ctxt $ syn (Case_ cond' bs')
+        simple :: Branch a abt b -> Bool
+        simple (Branch pat body) =
+          case pat of
+            PWild                        -> isValue body
+            PVar                         -> caseBind body $ \_ body' -> isValue body'
+            PDatum _ (PInl PDone)        -> isValue body
+            PDatum _ (PInr (PInl PDone)) -> isValue body
+
+        branches :: forall d . Context abt b d -> [Branch a abt d]
+        branches ctxt = map (flip normalizeBranch ctxt) bs
+
+    -- A possible optimization is to push the context into each conditional,
+    -- possibly opening up other optimizations at the cost of code growth.
+    in if False -- all simple bs
+       then syn $ Case_ cond' (branches ctxt)
+       else ctxt $ syn $ Case_ cond' (branches id)
 
 normalizeBody
   :: (ABT Term abt)
