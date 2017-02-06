@@ -58,11 +58,9 @@ freshBinder
   => Variable a
   -> (Variable a -> Unroll (abt xs b))
   -> Unroll (abt (a ': xs) b)
-freshBinder var abt = binderM (varHint var) (varType var) $ \var' ->
-  let v = case viewABT var' of
-            Var v -> v
-            _     -> error "oops"
-  in local (insertAssoc (Assoc var v)) (abt v)
+freshBinder source abt = binderM (varHint source) (varType source) $ \var' ->
+  let v = caseVarSyn var' id (const $ error "oops")
+  in local (insertAssoc (Assoc source v)) (abt v)
 
 unroll :: forall abt xs a . (ABT Term abt) => abt xs a -> abt xs a
 unroll abt = runReader (runUnroll $ unroll' abt) emptyAssocs
@@ -145,9 +143,9 @@ unrollSummate disc semi lo hi body =
    hi' <- unroll' hi
    letM' lo' $ \loVar ->
      letM' hi' $ \hiVar -> do
-       preamble <- fmap (mklet loVar) (freshBinder v $ \_ -> unroll' body')
-       loop     <- fmap (mksummate disc semi (loVar + one) hiVar)
-                        (freshBinder v $ \_ -> unroll' body')
+       let body'' = freshBinder v $ const (unroll' body')
+       preamble <- fmap (mklet loVar) body''
+       loop     <- fmap (mksummate disc semi (loVar + one) hiVar) body''
        -- Note: preamble must precede loop in the left to right order of the
        -- resulting addition operation, as A-normalization will result in all
        -- the ops from the preamble dominating the loop.
@@ -167,7 +165,7 @@ unrollProduct disc semi lo hi body =
    hi' <- unroll' hi
    letM' lo' $ \loVar ->
      letM' hi' $ \hiVar -> do
-       preamble <- fmap (mklet loVar) (freshBinder v $ \_ -> unroll' body')
-       loop     <- fmap (mkproduct disc semi (loVar + one) hi')
-                        (freshBinder v $ \_ -> unroll' body')
+       let body'' = freshBinder v $ const (unroll' body')
+       preamble <- fmap (mklet loVar) body''
+       loop     <- fmap (mkproduct disc semi (loVar + one) hi') body''
        return $ if_ (loVar == hiVar) one (preamble * loop)

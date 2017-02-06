@@ -24,14 +24,12 @@ import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Expect       (expect)
 import Language.Hakaru.Disintegrate (determine, observe)
-import Language.Hakaru.Pretty.Haskell
-import Text.PrettyPrint (render)
 
 optimizations
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-optimizations = uniquify . cse . cse . cse . normalize . unroll
+optimizations = uniquify . cse . normalize . unroll
 
 underLam
     :: (ABT Term abt, Monad m)
