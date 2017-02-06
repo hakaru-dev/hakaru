@@ -50,9 +50,9 @@ freshBinder
   => Variable a
   -> (Variable a -> Unroll (abt xs b))
   -> Unroll (abt (a ': xs) b)
-freshBinder source abt = binderM (varHint source) (varType source) $ \var' ->
+freshBinder source f = binderM (varHint source) (varType source) $ \var' ->
   let v = caseVarSyn var' id (const $ error "oops")
-  in local (insertAssoc (Assoc source v)) (abt v)
+  in local (insertAssoc (Assoc source v)) (f v)
 
 unroll :: forall abt xs a . (ABT Term abt) => abt xs a -> abt xs a
 unroll abt = runReader (runUnroll $ unroll' abt) emptyAssocs
