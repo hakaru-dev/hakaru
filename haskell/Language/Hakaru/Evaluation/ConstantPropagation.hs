@@ -30,6 +30,7 @@ import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
 
+import Control.Monad.Reader
 import Language.Hakaru.Syntax.IClasses (Traversable21(..))
 import Language.Hakaru.Syntax.ABT      (View(..), ABT(..), cataABT)
 import Language.Hakaru.Syntax.AST
@@ -66,3 +67,10 @@ constantPropagation =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
+
+{-constantProp-}
+  {-:: forall abt a . (ABT Term abt)-}
+  {-=> abt '[] a-}
+  {--> abt '[] a-}
+{-constantProp = cataABT propVars propBind propTerm-}
+

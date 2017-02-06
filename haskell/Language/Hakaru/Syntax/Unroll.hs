@@ -29,7 +29,7 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.Prelude
+import           Language.Hakaru.Syntax.Prelude  hiding ((>>=))
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.HClasses
 import           Prelude                         hiding (product, (*), (+), (-),
@@ -58,11 +58,14 @@ unroll :: forall abt xs a . (ABT Term abt) => abt xs a -> abt xs a
 unroll abt = runReader (runUnroll $ unroll' abt) emptyAssocs
 
 unroll' :: forall abt xs a . (ABT Term abt) => abt xs a -> Unroll (abt xs a)
-unroll' = loop . viewABT
+unroll' = start
   where
-    loop :: View (Term abt) ys a -> Unroll (abt ys a)
+    start :: forall ys b . abt ys b -> Unroll (abt ys b)
+    start = loop . viewABT
+
+    loop :: forall ys b . View (Term abt) ys b -> Unroll (abt ys b)
     loop (Var v)    = fmap (var . fromMaybe v . lookupAssoc v) ask
-    loop (Syn s)    = unrollTerm s
+    loop (Syn s)    = traverse21 start s >>= unrollTerm
     loop (Bind v b) = freshBinder v (const $ loop b)
 
 mklet :: ABT Term abt => abt '[] b -> abt '[b] a -> abt '[] a
@@ -107,7 +110,7 @@ unrollTerm (Product disc semi :$ lo :* hi :* body :* End) =
     (HDiscrete_Int, HSemiring_Prob) -> unrollProduct disc semi lo hi body
     (HDiscrete_Int, HSemiring_Real) -> unrollProduct disc semi lo hi body
 
-unrollTerm term        = fmap syn (traverse21 unroll' term)
+unrollTerm term = return (syn term)
 
 -- Conditionally introduce a variable for the rhs if the rhs is not currently a
 -- variable already. Be careful that the provided variable has been remaped to
@@ -132,13 +135,10 @@ unrollSummate
   -> abt '[a] b
   -> Unroll (abt '[] b)
 unrollSummate disc semi lo hi body = do
-   lo'   <- unroll' lo
-   hi'   <- unroll' hi
-   body' <- unroll' body
-   letM' lo' $ \loVar ->
-     letM' hi' $ \hiVar ->
-       let preamble = mklet loVar body'
-           loop     = mksummate disc semi (loVar + one) hiVar body'
+   letM' lo $ \loVar ->
+     letM' hi $ \hiVar ->
+       let preamble = mklet loVar body
+           loop     = mksummate disc semi (loVar + one) hiVar body
        in return $ if_ (loVar == hiVar) zero (preamble + loop)
 
 unrollProduct
@@ -150,12 +150,9 @@ unrollProduct
   -> abt '[a] b
   -> Unroll (abt '[] b)
 unrollProduct disc semi lo hi body = do
-   lo'   <- unroll' lo
-   hi'   <- unroll' hi
-   body' <- unroll' body
-   letM' lo' $ \loVar ->
-     letM' hi' $ \hiVar ->
-       let preamble = mklet loVar body'
-           loop     = mkproduct disc semi (loVar + one) hiVar body'
+   letM' lo $ \loVar ->
+     letM' hi $ \hiVar ->
+       let preamble = mklet loVar body
+           loop     = mkproduct disc semi (loVar + one) hiVar body
        in return $ if_ (loVar == hiVar) one (preamble * loop)
 
