@@ -134,7 +134,7 @@ unrollSummate
   -> abt '[] a
   -> abt '[a] b
   -> Unroll (abt '[] b)
-unrollSummate disc semi lo hi body = do
+unrollSummate disc semi lo hi body =
    letM' lo $ \loVar ->
      letM' hi $ \hiVar ->
        let preamble = mklet loVar body
@@ -149,7 +149,7 @@ unrollProduct
   -> abt '[] a
   -> abt '[a] b
   -> Unroll (abt '[] b)
-unrollProduct disc semi lo hi body = do
+unrollProduct disc semi lo hi body =
    letM' lo $ \loVar ->
      letM' hi $ \hiVar ->
        let preamble = mklet loVar body
