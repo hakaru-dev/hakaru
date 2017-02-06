@@ -572,12 +572,19 @@ evaluateBucket b e rs env = undefined
                 -> Reducer abt xs a
                 -> VReducer a
                 -> Env
-                -> ST s (VReducer a)
-          accum n (Red_Add HSemiring_Real e) _ env =
-              caseBind e $ \i e' -> undefined
-          accum _ Red_Nop                  s env = return s
+                -> VReducer a
+          accum n (Red_Add HSemiring_Real e) (VRed_Real s) env =
+              let n' = evaluate n env in
+              caseBind e $ \i e' ->
+                  let (_, e'') = caseBinds e' in
+                  case evaluate e'' (updateEnv (EAssoc i n') env) of
+                    VReal e''' -> VRed_Real $ do
+                       s' <- s
+                       modifySTRef s' (+ e''')
+                       return s' 
+          accum _ Red_Nop s env = s
 
-          done :: ST s (VReducer a)
+          done :: ST s (Value a)
           done = undefined
 
 evaluateDatum
