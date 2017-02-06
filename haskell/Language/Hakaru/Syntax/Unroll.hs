@@ -138,7 +138,7 @@ unrollSummate disc semi lo hi body = do
    letM' lo' $ \loVar ->
      letM' hi' $ \hiVar ->
        let preamble = mklet loVar body'
-           loop     = mksummate disc semi (loVar + one) hi' body'
+           loop     = mksummate disc semi (loVar + one) hiVar body'
        in return $ if_ (loVar == hiVar) zero (preamble + loop)
 
 unrollProduct
@@ -156,6 +156,6 @@ unrollProduct disc semi lo hi body = do
    letM' lo' $ \loVar ->
      letM' hi' $ \hiVar ->
        let preamble = mklet loVar body'
-           loop     = mkproduct disc semi (loVar + one) hi' body'
+           loop     = mkproduct disc semi (loVar + one) hiVar body'
        in return $ if_ (loVar == hiVar) one (preamble * loop)
 
