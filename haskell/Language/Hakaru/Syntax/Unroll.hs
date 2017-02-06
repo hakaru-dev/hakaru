@@ -34,7 +34,6 @@ import           Prelude                         hiding (product, (*), (+), (-),
                                                   (==), (>=))
 import           Data.Maybe (fromMaybe)
 import           Control.Monad.Reader
-import           Control.Monad.Fix
 import           Language.Hakaru.Syntax.Variable
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
@@ -120,6 +119,18 @@ unrollTerm ((Product disc semi) :$ lo :* hi :* body :* End) =
 
 unrollTerm term        = fmap syn $ traverse21 unroll' term
 
+-- Conditionally introduce a variable for the rhs if the rhs is not currently a
+-- variable already.
+letM' :: (MonadFix m, ABT Term abt)
+      => abt '[] a
+      -> (abt '[] a -> m (abt '[] b))
+      -> m (abt '[] b)
+letM' e f =
+  case viewABT e of
+    Var _            -> f e
+    Syn (Literal_ _) -> f e
+    _                -> letM e f
+
 unrollSummate
   :: (ABT Term abt, HSemiring_ a, HSemiring_ b, HEq_ a)
   => HDiscrete a
@@ -132,12 +143,15 @@ unrollSummate disc semi lo hi body =
    caseBind body $ \v body' -> do
    lo' <- unroll' lo
    hi' <- unroll' hi
-   letM lo' $ \loVar ->
-     letM hi' $ \hiVar -> do
-       preamble <- fmap (mklet lo') (freshBinder v $ \_ -> unroll' body')
-       loop     <- fmap (mksummate disc semi (lo' + one) hi')
+   letM' lo' $ \loVar ->
+     letM' hi' $ \hiVar -> do
+       preamble <- fmap (mklet loVar) (freshBinder v $ \_ -> unroll' body')
+       loop     <- fmap (mksummate disc semi (loVar + one) hiVar)
                         (freshBinder v $ \_ -> unroll' body')
-       return $ if_ (lo == hi) zero (preamble + loop)
+       -- Note: preamble must precede loop in the left to right order of the
+       -- resulting addition operation, as A-normalization will result in all
+       -- the ops from the preamble dominating the loop.
+       return $ if_ (loVar == hiVar) zero (preamble + loop)
 
 unrollProduct
   :: (ABT Term abt, HSemiring_ a, HSemiring_ b, HEq_ a)
@@ -151,9 +165,9 @@ unrollProduct disc semi lo hi body =
    caseBind body $ \v body' -> do
    lo' <- unroll' lo
    hi' <- unroll' hi
-   letM lo' $ \loVar ->
-     letM hi' $ \hiVar -> do
-       preamble <- fmap (mklet lo') (freshBinder v $ \_ -> unroll' body')
-       loop     <- fmap (mkproduct disc semi (lo' + one) hi')
+   letM' lo' $ \loVar ->
+     letM' hi' $ \hiVar -> do
+       preamble <- fmap (mklet loVar) (freshBinder v $ \_ -> unroll' body')
+       loop     <- fmap (mkproduct disc semi (loVar + one) hi')
                         (freshBinder v $ \_ -> unroll' body')
-       return $ if_ (lo == hi) one (preamble * loop)
+       return $ if_ (loVar == hiVar) one (preamble * loop)
