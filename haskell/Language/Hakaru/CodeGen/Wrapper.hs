@@ -76,12 +76,17 @@ wrapProgram tast@(TypedAST typ _) mn pc =
                    flattenTopLambda abt name
 
 
-               ( TypedAST _ _,                  Just _ ) -> undefined
-                 -- do reserveName name
-                 --    defineFunction typ'
-                 --                   (Ident name)
-                 --                   []
-                 --                   (putStat . CReturn . Just =<< flattenABT abt)
+               ( TypedAST typ' abt,       Just name ) ->
+                 -- still buggy for measures
+                 do reserveName name
+                    defineFunction
+                      typ'
+                      (Ident name)
+                      []
+                      $ do outId <- genIdent' "out"
+                           let outE = CVar outId
+                           flattenABT abt outE
+                           putStat $ CReturn . Just $ outE
 
                ( TypedAST typ'       abt, Nothing   ) ->
                  mainFunction pc typ' abt
@@ -120,7 +125,7 @@ mainFunction pc typ@(SMeasure t) abt =
          reserveName "mdata"
          reserveName "main"
 
-         extDeclare . mdataStruct $ t
+         mapM_ extDeclare $ mdataStruct t
 
          -- defined a measure function that returns mdata
          funCG CVoid ident [mdataPtrDeclaration t mdataId] $
@@ -290,32 +295,20 @@ flattenTopLambda abt name =
         typ   = typeOf abt'
     in  do argDecls <- sequence varMs
            cg <- get
-           case typ of
-             -- SMeasure _ -> error "flattenTopLambda: for Measures"
-             -- SMeasure _ -> do let m       = putStat . CReturn . Just =<< flattenABT abt'
-             --                      (_,cg') = runState m $ cg { statements = []
-             --                                                , declarations = [] }
-             --                  put $ cg' { statements   = statements cg
-             --                            , declarations = declarations cg }
-             --                  extDeclare . CFunDefExt
-             --                    $ functionDef typ name
-             --                                      argDecls
-             --                                      (P.reverse $ declarations cg')
-             --                                      (P.reverse $ statements cg')
-             _ -> do let m       = do outId <- genIdent' "out"
-                                      declare (typeOf abt') outId
-                                      let outE = CVar outId
-                                      flattenABT abt' outE
-                                      putStat . CReturn . Just $ outE
-                         (_,cg') = runState m $ cg { statements = []
-                                                   , declarations = [] }
-                     put $ cg' { statements   = statements cg
-                               , declarations = declarations cg }
-                     extDeclare . CFunDefExt
-                       $ functionDef typ name
-                                         argDecls
-                                         (P.reverse $ declarations cg')
-                                         (P.reverse $ statements cg')
+           let m       = do outId <- genIdent' "out"
+                            declare (typeOf abt') outId
+                            let outE = CVar outId
+                            flattenABT abt' outE
+                            putStat . CReturn . Just $ outE
+               (_,cg') = runState m $ cg { statements = []
+                                         , declarations = [] }
+           put $ cg' { statements   = statements cg
+                     , declarations = declarations cg }
+           extDeclare . CFunDefExt
+             $ functionDef typ name
+                 argDecls
+                 (P.reverse $ declarations cg')
+                 (P.reverse $ statements cg')
   -- do at top level
   where coalesceLambda
           :: ABT Term abt
@@ -331,14 +324,13 @@ flattenTopLambda abt name =
                   coalesceLambda body' $ \vars body'' -> k (Cons1 v vars) body''
               _ -> k Nil1 abt_
 
-
         mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
         mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
         mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
         mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
         mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
-        mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
+        mkVarDecl (Variable _ _ (SArray t)) = \i -> do mapM_ extDeclare $ arrayStruct t
                                                        return $ arrayDeclaration t i
-        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
+        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do mapM_ extDeclare $ datumStruct d
                                                           return $ datumDeclaration d i
         mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v

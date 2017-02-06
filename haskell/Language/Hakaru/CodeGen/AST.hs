@@ -27,8 +27,8 @@ module Language.Hakaru.CodeGen.AST
   , CBinaryOp(..), CAssignOp(..)
 
   -- infix and smart constructors
-  , (.>.),(.<.),(.==.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.)
-  , (.>=.),(.<=.)
+  , (.>.),(.<.),(.==.),(.!=.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.)
+  , (.*=.),(.>=.),(.<=.)
   , seqCStat
   , indirect, address, intE, floatE, stringE, mkCallE, mkUnaryE
   ) where
@@ -312,11 +312,12 @@ data CConst
 seqCStat :: [CStat] -> CStat
 seqCStat = CCompound . fmap CBlockStat
 
-(.<.),(.>.),(.==.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.),(.<=.),(.>=.)
+(.<.),(.>.),(.==.),(.!=.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.),(.<=.),(.>=.)
   :: CExpr -> CExpr -> CExpr
 a .<. b  = CBinary CLeOp a b
 a .>. b  = CBinary CGrOp a b
 a .==. b = CBinary CEqOp a b
+a .!=. b = CBinary CNeqOp a b
 a .||. b = CBinary CLorOp a b
 a .&&. b = CBinary CAndOp a b
 a .*. b  = CBinary CMulOp a b
