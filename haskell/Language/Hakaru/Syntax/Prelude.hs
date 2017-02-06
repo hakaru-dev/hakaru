@@ -113,7 +113,7 @@ module Language.Hakaru.Syntax.Prelude
     , nil, cons, list
 
     -- * Lambda calculus
-    , lam, lamWithVar, let_
+    , lam, lamWithVar, let_, letM
     , app, app2, app3
 
     -- * Arrays

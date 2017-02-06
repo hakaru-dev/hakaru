@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
@@ -31,7 +32,10 @@ module Language.Hakaru.Syntax.Unroll where
 
 import           Prelude                         hiding (product, (*), (+), (-),
                                                   (==), (>=))
-
+import           Data.Maybe (fromMaybe)
+import           Control.Monad.Reader
+import           Control.Monad.Fix
+import           Language.Hakaru.Syntax.Variable
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
@@ -47,21 +51,49 @@ example2 :: TrivialABT Term '[] 'HNat
 example2 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
                                         (product a (a + (nat_ 10)) (\i -> i)))
 
-unroll :: forall abt xs a . (ABT Term abt) => abt xs a -> abt xs a
-unroll = loop . viewABT
-  where
-    loop :: View (Term abt) ys a -> abt ys a
-    loop (Var v)    = var v
-    loop (Syn s)    = unrollTerm s
-    loop (Bind v b) = bind v (loop b)
+newtype Unroll a = Unroll { runUnroll :: Reader Varmap a }
+  deriving (Functor, Applicative, Monad, MonadReader Varmap, MonadFix)
 
-mklet :: ABT Term abt => Variable b -> abt '[] b -> abt '[] a -> abt '[] a
-mklet v rhs body = syn (Let_ :$ rhs :* bind v body :* End)
+freshBinder
+  :: (ABT Term abt)
+  => Variable a
+  -> (Variable a -> Unroll (abt xs b))
+  -> Unroll (abt (a ': xs) b)
+freshBinder var abt = binderM (varHint var) (varType var) $ \var' ->
+  let v = case viewABT var' of
+            Var v -> v
+            _     -> error "oops"
+  in local (insertAssoc (Assoc var v)) (abt v)
+
+unroll :: forall abt xs a . (ABT Term abt) => abt xs a -> abt xs a
+unroll abt = runReader (runUnroll $ unroll' abt) emptyAssocs
+
+unroll' :: forall abt xs a . (ABT Term abt) => abt xs a -> Unroll (abt xs a)
+unroll' = loop . viewABT
+  where
+    loop :: View (Term abt) ys a -> Unroll (abt ys a)
+    loop (Var v)    = fmap (var . fromMaybe v . lookupAssoc v) ask
+    loop (Syn s)    = unrollTerm s
+    loop (Bind v b) = freshBinder v (const $ loop b)
+
+mklet :: ABT Term abt => abt '[] b -> abt '[b] a -> abt '[] a
+mklet rhs body = syn (Let_ :$ rhs :* body :* End)
+
+mksummate, mkproduct
+  :: (ABT Term abt)
+  => HDiscrete a
+  -> HSemiring b
+  -> abt '[] a
+  -> abt '[] a
+  -> abt '[a] b
+  -> abt '[] b
+mksummate a b lo hi body = syn (Summate a b :$ lo :* hi :* body :* End)
+mkproduct a b lo hi body = syn (Product a b :$ lo :* hi :* body :* End)
 
 unrollTerm
   :: (ABT Term abt)
   => Term abt a
-  -> abt '[] a
+  -> Unroll (abt '[] a)
 unrollTerm ((Summate disc semi) :$ lo :* hi :* body :* End) =
   case (disc, semi) of
     (HDiscrete_Nat, HSemiring_Nat)  -> unrollSummate disc semi lo hi body
@@ -86,7 +118,7 @@ unrollTerm ((Product disc semi) :$ lo :* hi :* body :* End) =
     (HDiscrete_Int, HSemiring_Prob) -> unrollProduct disc semi lo hi body
     (HDiscrete_Int, HSemiring_Real) -> unrollProduct disc semi lo hi body
 
-unrollTerm term        = syn $ fmap21 unroll term
+unrollTerm term        = fmap syn $ traverse21 unroll' term
 
 unrollSummate
   :: (ABT Term abt, HSemiring_ a, HSemiring_ b, HEq_ a)
@@ -95,16 +127,17 @@ unrollSummate
   -> abt '[] a
   -> abt '[] a
   -> abt '[a] b
-  -> abt '[] b
+  -> Unroll (abt '[] b)
 unrollSummate disc semi lo hi body =
-  caseBind body $ \v body' ->
-  let body''   = unroll body'
-      preamble = mklet v lo body''
-      loop     = syn (Summate disc semi :$ lo + one :* hi :* bind v body'' :* End)
-  -- The resulting expression must have the form (preamble + loop) since we
-  -- rely on the ordering to produce the proper code post ANF (i.e. we need all
-  -- expressions in the preamble to dominate those in the loop).
-  in if_ (lo == hi) zero (preamble + loop)
+   caseBind body $ \v body' -> do
+   lo' <- unroll' lo
+   hi' <- unroll' hi
+   letM lo' $ \loVar ->
+     letM hi' $ \hiVar -> do
+       preamble <- fmap (mklet lo') (freshBinder v $ \_ -> unroll' body')
+       loop     <- fmap (mksummate disc semi (lo' + one) hi')
+                        (freshBinder v $ \_ -> unroll' body')
+       return $ if_ (lo == hi) zero (preamble + loop)
 
 unrollProduct
   :: (ABT Term abt, HSemiring_ a, HSemiring_ b, HEq_ a)
@@ -113,14 +146,14 @@ unrollProduct
   -> abt '[] a
   -> abt '[] a
   -> abt '[a] b
-  -> abt '[] b
+  -> Unroll (abt '[] b)
 unrollProduct disc semi lo hi body =
-  caseBind body $ \v body' ->
-  let body''   = unroll body'
-      preamble = mklet v lo body''
-      loop     = syn (Product disc semi :$ lo + one :* hi :* bind v body'' :* End)
-  -- The resulting expression must have the form (preamble + loop) since we
-  -- rely on the ordering to produce the proper code post ANF (i.e. we need all
-  -- expressions in the preamble to dominate those in the loop).
-  in if_ (lo == hi) one (preamble * loop)
-
+   caseBind body $ \v body' -> do
+   lo' <- unroll' lo
+   hi' <- unroll' hi
+   letM lo' $ \loVar ->
+     letM hi' $ \hiVar -> do
+       preamble <- fmap (mklet lo') (freshBinder v $ \_ -> unroll' body')
+       loop     <- fmap (mkproduct disc semi (lo' + one) hi')
+                        (freshBinder v $ \_ -> unroll' body')
+       return $ if_ (lo == hi) one (preamble * loop)
