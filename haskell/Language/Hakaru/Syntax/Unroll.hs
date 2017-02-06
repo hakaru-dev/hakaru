@@ -131,19 +131,15 @@ unrollSummate
   -> abt '[] a
   -> abt '[a] b
   -> Unroll (abt '[] b)
-unrollSummate disc semi lo hi body =
-   caseBind body $ \v body' -> do
-   lo' <- unroll' lo
-   hi' <- unroll' hi
+unrollSummate disc semi lo hi body = do
+   lo'   <- unroll' lo
+   hi'   <- unroll' hi
+   body' <- unroll' body
    letM' lo' $ \loVar ->
-     letM' hi' $ \hiVar -> do
-       let body'' = freshBinder v $ const (unroll' body')
-       preamble <- fmap (mklet loVar) body''
-       loop     <- fmap (mksummate disc semi (loVar + one) hiVar) body''
-       -- Note: preamble must precede loop in the left to right order of the
-       -- resulting addition operation, as A-normalization will result in all
-       -- the ops from the preamble dominating the loop.
-       return $ if_ (loVar == hiVar) zero (preamble + loop)
+     letM' hi' $ \hiVar ->
+       let preamble = mklet loVar body'
+           loop     = mksummate disc semi (loVar + one) hi' body'
+       in return $ if_ (loVar == hiVar) zero (preamble + loop)
 
 unrollProduct
   :: (ABT Term abt, HSemiring_ a, HSemiring_ b, HEq_ a)
@@ -153,14 +149,13 @@ unrollProduct
   -> abt '[] a
   -> abt '[a] b
   -> Unroll (abt '[] b)
-unrollProduct disc semi lo hi body =
-   caseBind body $ \v body' -> do
-   lo' <- unroll' lo
-   hi' <- unroll' hi
+unrollProduct disc semi lo hi body = do
+   lo'   <- unroll' lo
+   hi'   <- unroll' hi
+   body' <- unroll' body
    letM' lo' $ \loVar ->
-     letM' hi' $ \hiVar -> do
-       let body'' = freshBinder v $ const (unroll' body')
-       preamble <- fmap (mklet loVar) body''
-       loop     <- fmap (mkproduct disc semi (loVar + one) hi') body''
-       return $ if_ (loVar == hiVar) one (preamble * loop)
+     letM' hi' $ \hiVar ->
+       let preamble = mklet loVar body'
+           loop     = mkproduct disc semi (loVar + one) hi' body'
+       in return $ if_ (loVar == hiVar) one (preamble * loop)
 
