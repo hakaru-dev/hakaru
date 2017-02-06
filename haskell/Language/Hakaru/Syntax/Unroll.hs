@@ -107,7 +107,7 @@ unrollTerm (Product disc semi :$ lo :* hi :* body :* End) =
     (HDiscrete_Int, HSemiring_Prob) -> unrollProduct disc semi lo hi body
     (HDiscrete_Int, HSemiring_Real) -> unrollProduct disc semi lo hi body
 
-unrollTerm term        = fmap syn $ traverse21 unroll' term
+unrollTerm term        = fmap syn (traverse21 unroll' term)
 
 -- Conditionally introduce a variable for the rhs if the rhs is not currently a
 -- variable already. Be careful that the provided variable has been remaped to
