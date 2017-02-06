@@ -1,16 +1,9 @@
 {-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE EmptyCase                  #-}
-{-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -37,7 +30,6 @@ import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Prelude
-import           Language.Hakaru.Syntax.Variable
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.HClasses
 import           Prelude                         hiding (product, (*), (+), (-),
