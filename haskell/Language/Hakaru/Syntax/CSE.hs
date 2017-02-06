@@ -50,6 +50,12 @@ newtype Env (abt :: [Hakaru] -> Hakaru -> *) = Env [EAssoc abt]
 emptyEnv :: Env a
 emptyEnv = Env []
 
+trivial :: (ABT Term abt) => abt '[] a -> Bool
+trivial abt = case viewABT abt of
+                Var _            -> True
+                Syn (Literal_ _) -> True
+                _                -> False
+
 -- Attempt to find a new expression in then environment. The lookup is chained
 -- to iteratively perform lookup until no match is found, resulting in an
 -- equivalence-relation in the environment. This could be made faster with path
@@ -76,14 +82,13 @@ insertEnv
   -> abt '[] a
   -> Env abt
   -> Env abt
-insertEnv ast1 ast2 (Env env) =
-  case viewABT ast1 of
-    -- Point new variables to the older ones, this does not affect the amount of
-    -- work done, since ast2 is always a variable. This allows the pass to
-    -- eliminate redundant variables, as we only eliminate binders during CSE.
-    Var _ -> Env (EAssoc ast2 ast1 : env)
-    -- Otherwise map expressions to their binding variables
-    _     -> Env (EAssoc ast1 ast2 : env)
+insertEnv ast1 ast2 (Env env)
+  -- Point new variables to the older ones, this does not affect the amount of
+  -- work done, since ast2 is always a variable. This allows the pass to
+  -- eliminate redundant variables, as we only eliminate binders during CSE.
+  | trivial ast1 = Env (EAssoc ast2 ast1 : env)
+  -- Otherwise map expressions to their binding variables
+  | otherwise    = Env (EAssoc ast1 ast2 : env)
 
 newtype CSE (abt :: [Hakaru] -> Hakaru -> *) a = CSE { runCSE :: Reader (Env abt) a }
   deriving (Functor, Applicative, Monad, MonadReader (Env abt))
@@ -115,11 +120,6 @@ cseVar
   -> CSE abt (abt '[] a)
 cseVar = replaceCSE  . var
 
-getVar :: (ABT Term abt) => abt '[] a -> Maybe (Variable a)
-getVar abt = case viewABT abt of
-               Var v -> Just v
-               _     -> Nothing
-
 mklet :: ABT Term abt => Variable b -> abt '[] b -> abt '[] a -> abt '[] a
 mklet v rhs body = syn (Let_ :$ rhs :* bind v body :* End)
 
@@ -134,9 +134,9 @@ cseTerm (Let_ :$ rhs :* body :* End) = do
   rhs' <- cse' rhs
   caseBind body $ \v body' ->
     local (insertEnv rhs' (var v)) $
-      case getVar rhs' of
-        Just _ -> cse' body'
-        _      -> fmap (mklet v rhs') (cse' body')
+      if trivial rhs'
+      then cse' body'
+      else fmap (mklet v rhs') (cse' body')
 
 cseTerm term = traverse21 cse' term >>= replaceCSE . syn
 
