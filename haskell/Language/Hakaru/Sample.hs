@@ -562,10 +562,7 @@ evaluateBucket b e rs env = undefined
                 VNat n'' -> VRed_Array $ MV.replicate (fromIntegral n'') (init mr)
           init (Red_Split _ r1 r2)        = VRed_Pair (init r1) (init r2)
           init Red_Nop                    = VRed_Unit
-          init (Red_Add HSemiring_Nat  _) = VRed_Nat  (newSTRef 0)
-          init (Red_Add HSemiring_Int  _) = VRed_Int  (newSTRef 0)
-          init (Red_Add HSemiring_Prob _) = VRed_Prob (newSTRef 0)
-          init (Red_Add HSemiring_Real _) = VRed_Real (newSTRef 0)
+          init (Red_Add h _) = VRed_Num h $ newSTRef (identityElement (Sum h))
 
           accum :: (ABT Term abt)
                 => abt '[] 'HNat
@@ -573,15 +570,15 @@ evaluateBucket b e rs env = undefined
                 -> VReducer a
                 -> Env
                 -> VReducer a
-          accum n (Red_Add HSemiring_Real e) (VRed_Real s) env =
+          accum n (Red_Add h e) (VRed_Num h' s) env =
               let n' = evaluate n env in
               caseBind e $ \i e' ->
-                  let (_, e'') = caseBinds e' in
-                  case evaluate e'' (updateEnv (EAssoc i n') env) of
-                    VReal e''' -> VRed_Real $ do
-                       s' <- s
-                       modifySTRef s' (+ e''')
-                       return s' 
+                  let (_, e'') = caseBinds e'
+                      v = evaluate e'' (updateEnv (EAssoc i n') env) in
+                  VRed_Num h' $ do
+                    s' <- s
+                    modifySTRef' s' (evalOp (Sum h') v)
+                    return s' 
           accum _ Red_Nop s env = s
 
           done :: ST s (Value a)
