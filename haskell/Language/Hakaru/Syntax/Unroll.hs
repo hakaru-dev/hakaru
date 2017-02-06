@@ -17,7 +17,7 @@
 ----------------------------------------------------------------
 --                                                    2017.02.01
 -- |
--- Module      :  Language.Hakaru.Syntax.Uniquify
+-- Module      :  Language.Hakaru.Syntax.Unroll
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :
@@ -30,18 +30,18 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Unroll where
 
-import           Prelude                         hiding (product, (*), (+), (-),
-                                                  (==), (>=))
-import           Data.Maybe (fromMaybe)
 import           Control.Monad.Reader
-import           Language.Hakaru.Syntax.Variable
+import           Data.Maybe                      (fromMaybe)
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Prelude
+import           Language.Hakaru.Syntax.Variable
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.HClasses
+import           Prelude                         hiding (product, (*), (+), (-),
+                                                  (==), (>=))
 
 example :: TrivialABT Term '[] 'HInt
 example = (summate (int_ 0) (int_ 100) $ \x -> x + (int_ 1 * int_ 42))
@@ -171,3 +171,4 @@ unrollProduct disc semi lo hi body =
        preamble <- fmap (mklet loVar) body''
        loop     <- fmap (mkproduct disc semi (loVar + one) hi') body''
        return $ if_ (loVar == hiVar) one (preamble * loop)
+
