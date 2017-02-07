@@ -112,7 +112,7 @@ hoistTerm
 hoistTerm (Let_ :$ rhs :* body :* End) = do
   rhs' <- hoist' rhs
   caseBind body $ \ v body' -> do
-    body'' <- fmap fst $ isolateBinder v (hoist' body')
+    (body'', bindings) <- isolateBinder v (hoist' body')
     tell [Entry v (freeVars rhs') rhs']
     return $ syn (Let_ :$ rhs :* bind v body'' :* End)
 
