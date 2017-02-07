@@ -24,6 +24,7 @@ import           Language.Hakaru.Command
 import           Data.Text                  as TxT
 import qualified Data.Text.IO               as IO
 import           Data.Maybe (fromJust)
+import           Data.Monoid ((<>))
 import           System.IO (stderr)
 import           Text.PrettyPrint    hiding ((<>))
 import           Options.Applicative hiding (header,footer)
