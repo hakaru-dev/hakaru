@@ -27,25 +27,34 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Hoist where
 
+import           Data.Proxy        (KProxy(..))
 import           Control.Monad.Reader
 import           Control.Monad.Writer.Strict
-import           Data.Maybe
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
-import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
 
 data Entry = forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *)
            . Entry !(Variable a) !(VarSet (KindOf a)) !(abt '[] a)
 
-newtype HoistM a = HoistM { runHoistM :: ReaderT (VarSet (KindOf Hakaru)) (Writer [Entry]) a }
+type HakaruProxy = ('KProxy :: KProxy Hakaru)
+
+-- The @HoistM@ monad makes use of two monadic layers to propagate information
+-- both downwards to the leaves and upwards to the root node.
+--
+-- The Writer layer propagates the live expressions which may be hoisted (i.e.
+-- all their data dependencies are currently filled) from each subexpression to
+-- their parents.
+--
+-- The Reader layer propagates the currently bound variables which will be used
+-- to decide when to
+newtype HoistM a = HoistM { runHoistM :: ReaderT (VarSet HakaruProxy) (Writer [Entry]) a }
   deriving ( Functor
            , Applicative
            , Monad
-           , MonadReader (VarSet (KindOf Hakaru))
+           , MonadReader (VarSet HakaruProxy)
            , MonadWriter [Entry] )
 
 execHoistM :: HoistM a -> a
@@ -56,6 +65,22 @@ hoist
   => abt '[] a
   -> abt '[] a
 hoist = execHoistM . hoist'
+
+zapDependencies
+  :: forall (a :: Hakaru) b
+  .  Variable a
+  -> HoistM b
+  -> HoistM b
+zapDependencies v = censor zap
+  where
+    zap :: [Entry] -> [Entry]
+    zap = filter (\ (Entry _ s _) -> not $ memberVarSet v s)
+
+isolateBinder
+  :: Variable (a :: Hakaru)
+  -> HoistM b
+  -> HoistM (b, [Entry])
+isolateBinder v = zapDependencies v . local (insertVarSet v) . listen
 
 hoist'
   :: forall abt xs a . (ABT Term abt)
@@ -69,24 +94,27 @@ hoist' = start
     loop :: forall ys b . View (Term abt) ys b -> HoistM (abt ys b)
     loop (Var v)    = return (var v)
     loop (Syn s)    = hoistTerm s
-    loop (Bind v b) = undefined
+    loop (Bind v b) = fmap (bind v . fst) (isolateBinder v $ loop b)
 
-zapDependencies
-  :: forall (a :: Hakaru) b
-  .  Variable a
-  -> HoistM b
-  -> HoistM b
-zapDependencies var = censor zap
-  where
-    zap :: [Entry] -> [Entry]
-    zap = filter (\ (Entry _ s _) -> not $ memberVarSet var s)
+introducePotentialBindings
+  :: (ABT Term abt)
+  => abt '[] a
+  -> [Entry]
+  -> HoistM (abt '[] a)
+introducePotentialBindings body bindings = do
+  available <- ask
+  undefined
 
 hoistTerm
-  :: (ABT Term abt)
+  :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *) . (ABT Term abt)
   => Term abt a
   -> HoistM (abt '[] a)
 hoistTerm (Let_ :$ rhs :* body :* End) = do
-  undefined
+  rhs' <- hoist' rhs
+  caseBind body $ \ v body' -> do
+    body'' <- fmap fst $ isolateBinder v (hoist' body')
+    tell [Entry v (freeVars rhs') rhs']
+    return $ syn (Let_ :$ rhs :* bind v body'' :* End)
 
 hoistTerm term = fmap syn (traverse21 hoist' term)
 
