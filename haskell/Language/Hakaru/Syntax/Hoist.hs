@@ -39,7 +39,7 @@ import           Language.Hakaru.Syntax.TypeOf
 import           Language.Hakaru.Types.DataKind
 
 data Entry = forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *)
-           . Entry {-# UNPACK #-} !(Variable a) !(VarSet (KindOf a)) !(abt '[] a)
+           . Entry !(Variable a) !(VarSet (KindOf a)) !(abt '[] a)
 
 newtype HoistM a = HoistM { runHoistM :: ReaderT (VarSet (KindOf Hakaru)) (Writer [Entry]) a }
   deriving ( Functor
