@@ -64,8 +64,8 @@ options = Options
   <*> (optional $ strOption (  long "as-module"
                             <> short 'M'
                             <> help "creates a haskell module with this name"))
-  <*> (optional $ strOption (  long "with-kernal"
-                            <> help "<transition kernal> <initial measure>"))
+  <*> (optional $ strOption (  long "with-kernel"
+                            <> help "<transition kernel> <initial measure>"))
 
 prettyProg :: (ABT T.Term abt)
            => String
