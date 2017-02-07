@@ -22,7 +22,6 @@ import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 
 import qualified Data.Vector                     as V
-import qualified Data.Vector.Mutable             as MV
 import           Data.STRef
 import           Data.Sequence (Seq)
 import qualified Data.Foldable                   as F
@@ -551,25 +550,29 @@ evaluateBucket
     -> Reducer abt '[] a
     -> Env
     -> Value a
-evaluateBucket b e rs env = undefined
+evaluateBucket b e rs env = runST $ done (init rs)
     where init :: (ABT Term abt)
                => Reducer abt xs a
-               -> VReducer a
-          init (Red_Fanout r1 r2)         = VRed_Pair (init r1) (init r2)
+               -> VReducer s a
+          init (Red_Fanout r1 r2)         =
+              VRed_Pair (type_ r1) (type_ r2) (init r1) (init r2)
           init (Red_Index  n  _  mr)      =
               let (_, n') = caseBinds n in
               case evaluate n' env of
-                VNat n'' -> VRed_Array $ MV.replicate (fromIntegral n'') (init mr)
-          init (Red_Split _ r1 r2)        = VRed_Pair (init r1) (init r2)
+                VNat n'' -> VRed_Array $ V.replicate (fromIntegral n'') (init mr)
+          init (Red_Split _ r1 r2)        =
+              VRed_Pair (type_ r1) (type_ r2) (init r1) (init r2)
           init Red_Nop                    = VRed_Unit
           init (Red_Add h _) = VRed_Num h $ newSTRef (identityElement (Sum h))
+
+          type_ = typeOfReducer
 
           accum :: (ABT Term abt)
                 => abt '[] 'HNat
                 -> Reducer abt xs a
-                -> VReducer a
+                -> VReducer s a
                 -> Env
-                -> VReducer a
+                -> VReducer s a
           accum n (Red_Add h e) (VRed_Num h' s) env =
               let n' = evaluate n env in
               caseBind e $ \i e' ->
@@ -581,8 +584,24 @@ evaluateBucket b e rs env = undefined
                     return s' 
           accum _ Red_Nop s env = s
 
-          done :: ST s (Value a)
-          done = undefined
+          done :: VReducer s a -> ST s (Value a)
+          done (VRed_Num _ s)          = s >>= readSTRef
+          done VRed_Unit               = return (VDatum dUnit)
+          done (VRed_Pair s1 s2 v1 v2) = do
+            v1' <- done v1
+            v2' <- done v2
+            return (VDatum $ dPair_ s1 s2 v1' v2')
+          done (VRed_Array v)          = VArray <$> V.sequence (V.map done v)
+
+typeOfReducer
+    :: Reducer abt xs a
+    -> Sing a
+typeOfReducer (Red_Fanout a b)  = sPair  (typeOfReducer a) (typeOfReducer b)
+typeOfReducer (Red_Index _ _ a) = SArray (typeOfReducer a)
+typeOfReducer (Red_Split _ a b) = sPair  (typeOfReducer a) (typeOfReducer b)
+typeOfReducer Red_Nop           = sUnit
+typeOfReducer (Red_Add h _)     = sing_HSemiring h
+
 
 evaluateDatum
     :: (ABT Term abt)
