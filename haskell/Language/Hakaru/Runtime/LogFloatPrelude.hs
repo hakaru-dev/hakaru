@@ -5,11 +5,12 @@
            , FlexibleContexts
            , UndecidableInstances
            , LambdaCase
+           , MultiParamTypeClasses
            , OverloadedStrings
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 #-}
-module Language.Hakaru.Runtime.Prelude where
+module Language.Hakaru.Runtime.LogFloatPrelude where
 
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor                    ((<$>))
@@ -19,6 +20,7 @@ import           Data.Foldable                   as F
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
+import           Data.Number.LogFloat
 import qualified Data.Vector                     as V
 import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
@@ -33,9 +35,11 @@ type instance MinBoxVec U.Vector U.Vector = U.Vector
 type family MayBoxVec a :: * -> *
 type instance MayBoxVec Int          = U.Vector
 type instance MayBoxVec Double       = U.Vector
+type instance MayBoxVec LogFloat     = V.Vector
 type instance MayBoxVec (U.Vector a) = V.Vector
 type instance MayBoxVec (V.Vector a) = V.Vector
 type instance MayBoxVec (a,b)        = MinBoxVec (MayBoxVec a) (MayBoxVec b)
+
 
 lam :: (a -> b) -> a -> b
 lam = id
@@ -81,20 +85,23 @@ uniform :: Double -> Double -> Measure Double
 uniform lo hi = makeMeasure $ MWC.uniformR (lo, hi)
 {-# INLINE uniform #-}
 
-normal :: Double -> Double -> Measure Double
-normal mu sd = makeMeasure $ MWCD.normal mu sd
+normal :: Double -> LogFloat -> Measure Double
+normal mu sd = makeMeasure $ MWCD.normal mu (fromLogFloat sd)
 {-# INLINE normal #-}
 
-beta :: Double -> Double -> Measure Double
-beta a b = makeMeasure $ MWCD.beta a b
+beta :: LogFloat -> LogFloat -> Measure LogFloat
+beta a b = makeMeasure $ \g ->
+  logFloat <$> MWCD.beta (fromLogFloat a) (fromLogFloat b) g
 {-# INLINE beta #-}
 
-gamma :: Double -> Double -> Measure Double
-gamma a b = makeMeasure $ MWCD.gamma a b
+gamma :: LogFloat -> LogFloat -> Measure LogFloat
+gamma a b = makeMeasure $ \g ->
+  logFloat <$> MWCD.gamma (fromLogFloat a) (fromLogFloat b) g
 {-# INLINE gamma #-}
 
-categorical :: MayBoxVec Double Double -> Measure Int
-categorical a = makeMeasure (\g -> fromIntegral <$> MWCD.categorical a g)
+categorical :: MayBoxVec LogFloat LogFloat -> Measure Int
+categorical a = makeMeasure $ \g ->
+  fromIntegral <$> MWCD.categorical (fmap fromLogFloat a :: V.Vector Double) g
 {-# INLINE categorical #-}
 
 plate :: (G.Vector (MayBoxVec a) a) =>
@@ -125,7 +132,7 @@ pfalse b = Branch { extract = extractBool False b }
 {-# INLINE pfalse #-}
 
 extractBool :: Bool -> a -> Bool -> Maybe a
-extractBool b a p | p == b     = Just a  
+extractBool b a p | p == b     = Just a
                   | otherwise  = Nothing
 {-# INLINE extractBool #-}
 
@@ -179,7 +186,7 @@ int_ = id
 unsafeNat :: Int -> Int
 unsafeNat = id
 
-nat2prob :: Int -> Double
+nat2prob :: Int -> LogFloat
 nat2prob = fromIntegral
 
 fromInt  :: Int -> Double
@@ -191,16 +198,16 @@ nat2int  = id
 nat2real :: Int -> Double
 nat2real = fromIntegral
 
-fromProb :: Double -> Double
-fromProb = id
+fromProb :: LogFloat -> Double
+fromProb = fromLogFloat
 
-unsafeProb :: Double -> Double
-unsafeProb = id
+unsafeProb :: Double -> LogFloat
+unsafeProb = logFloat
 
 real_ :: Rational -> Double
 real_ = fromRational
 
-prob_ :: NonNegativeRational -> Double
+prob_ :: NonNegativeRational -> LogFloat
 prob_ = fromRational . fromNonNegativeRational
 
 infinity :: Double

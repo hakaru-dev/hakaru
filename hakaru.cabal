@@ -63,6 +63,7 @@ Library
                        Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Runtime.Prelude,
+                       Language.Hakaru.Runtime.LogFloatPrelude,
                        Language.Hakaru.Observe,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Sample,
