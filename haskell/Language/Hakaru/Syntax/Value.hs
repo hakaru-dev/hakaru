@@ -45,11 +45,13 @@ data Value :: Hakaru -> * where
      VArray   :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
 
 instance Eq1 Value where
-    eq1 (VNat  a) (VNat  b) = a == b
-    eq1 (VInt  a) (VInt  b) = a == b
-    eq1 (VProb a) (VProb b) = a == b
-    eq1 (VReal a) (VReal b) = a == b
-    eq1 _        _        = False
+    eq1 (VNat  a) (VNat  b)   = a == b
+    eq1 (VInt  a) (VInt  b)   = a == b
+    eq1 (VProb a) (VProb b)   = a == b
+    eq1 (VReal a) (VReal b)   = a == b
+    eq1 (VDatum a) (VDatum b) = a == b
+    eq1 (VArray a) (VArray b) = a == b
+    eq1 _        _            = False
 
 instance Eq (Value a) where
     (==) = eq1
@@ -110,14 +112,9 @@ enumFromUntilValue _ (VNat lo) (VNat hi) = map VNat (init (enumFromTo lo hi))
 enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (init (enumFromTo lo hi))
 
 data VReducer :: Hakaru -> * where
-     VRed_Nat    :: ST s (STRef s Nat)
-                 -> VReducer 'HNat
-     VRed_Int    :: ST s (STRef s Int)
-                 -> VReducer 'HInt
-     VRed_Prob   :: ST s (STRef s LF.LogFloat)
-                 -> VReducer 'HProb
-     VRed_Real   :: ST s (STRef s Double)
-                 -> VReducer 'HReal
+     VRed_Num    :: HSemiring a
+                 -> ST s (STRef s (Value a))
+                 -> VReducer a
      VRed_Unit   :: VReducer HUnit
      VRed_Pair   :: VReducer a
                  -> VReducer b
