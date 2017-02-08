@@ -30,6 +30,7 @@ module Language.Hakaru.Syntax.Hoist where
 import           Control.Monad.Reader
 import           Control.Monad.RWS
 import           Control.Monad.Writer.Strict
+import qualified Data.Maybe                      as M
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 import           Prelude                         hiding ((+))
@@ -37,9 +38,12 @@ import           Prelude                         hiding ((+))
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.Prelude  hiding (fst, not)
+import           Language.Hakaru.Syntax.Prelude  hiding (fst, maybe, not, (<$>), (==))
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
+import           Language.Hakaru.Syntax.Variable (varSubSet)
 import           Language.Hakaru.Types.DataKind
+import           Language.Hakaru.Types.Sing      (Sing)
+import Debug.Trace
 
 data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
@@ -47,6 +51,9 @@ data Entry (abt :: Hakaru -> *)
   , expression      :: !(abt a)
   , binding         :: !(Maybe (Variable a))
   }
+
+instance Show (Entry a) where
+  show (Entry deps _ bindings) = "Entry (" ++ show deps ++ ") (" ++ show bindings ++ ")"
 
 type VarState = Assocs Entry
 
@@ -91,20 +98,21 @@ execHoistM counter act = a
 
 newVar
   :: (ABT Term abt)
-  => abt '[] a
+  => Sing a
   -> HoistM abt (Variable a)
-newVar a = do
+newVar typ = do
   vid <- gets succ
   put vid
-  return $ Variable "" vid (typeOf a)
+  return $ Variable "" vid typ
 
 hoist
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-hoist abt = execHoistM counter $ hoist' abt
-  where
-    counter = nextFreeOrBind abt
+hoist abt = execHoistM (nextFreeOrBind abt) $ do
+  (abt', w) <- listen $ hoist' abt
+  let toplevel = filter (\Entry{varDependencies=d} -> sizeVarSet d == 0) w
+  introducePotentialBindings emptyVarSet [] abt' toplevel True
 
 zapDependencies
   :: forall (a :: Hakaru) b abt
@@ -136,23 +144,64 @@ hoist' = start
          -> View (Term abt) ys b
          -> HoistM abt (abt ys b)
     loop xs (Var v)    = return (var v)
-    loop xs (Syn s)    = hoistTerm s
+
+    loop [] (Syn s)    = hoistTerm s
+
+    loop xs (Syn s)    = do
+      (term, entries) <- listen $ hoistTerm s
+      available       <- ask
+      introducePotentialBindings available xs term entries False
+
     loop xs (Bind v b) = do
       let xs' = SomeVariable v : xs
       b' <- zapDependencies v (loop xs' b)
       return (bind v b')
 
 introducePotentialBindings
-  :: (ABT Term abt)
-  => abt '[] a
+  :: forall (a :: Hakaru) abt
+  .  (ABT Term abt)
+  => VarSet HakaruProxy
+  -> [SomeVariable HakaruProxy]
+  -> abt '[] a
   -> [Entry (abt '[])]
+  -> Bool
   -> HoistM abt (abt '[] a)
-introducePotentialBindings = foldM wrap
+introducePotentialBindings available init body entries top =
+  foldM wrap body resultEntries
   where
-    wrap body Entry{expression=e} = do
-      var <- newVar e
-      return $ syn (Let_ :$ e :* bind var body :* End)
+    wrap :: abt '[] b -> Entry (abt '[]) -> HoistM abt (abt '[] b)
+    wrap acc Entry{expression=e,binding=b} =
+      case b of
+        Just v  -> return $ syn (Let_ :$ e :* bind v acc :* End)
+        Nothing -> do
+          v <- newVar (typeOf e)
+          return $ syn (Let_ :$ e :* bind v acc :* End)
 
+    toplevel :: [Entry (abt '[])]
+    toplevel
+      | top       = filter (\Entry{varDependencies=d} -> sizeVarSet d == 0) entries
+      | otherwise = []
+
+    topvars = M.mapMaybe (\Entry{binding=b} -> fmap SomeVariable b) toplevel
+
+    resultEntries :: [Entry (abt '[])]
+    resultEntries = toplevel ++ loop available (init ++ topvars)
+
+    loop :: VarSet HakaruProxy -> [SomeVariable HakaruProxy] -> [Entry (abt '[])]
+    loop avail [] = []
+    loop avail (var@(SomeVariable v) : xs)
+      | memberVarSet v avail = loop avail xs
+      | otherwise            = new ++ loop avail' (vars ++ xs)
+      where
+        avail' = insertVarSet v avail
+        vars   = M.mapMaybe (\Entry{binding=b} -> fmap SomeVariable b) new
+        new    = [ e | e@Entry{varDependencies=d} <- entries
+                     , memberVarSet v d
+                     , varSubSet d avail' ]
+
+-- Let forms should not kill bindings, since we are going to float the rhs of
+-- all let expressions. The remaining binding forms are what decide when
+-- expressions are removed from the expression pool.
 hoistTerm
   :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *) . (ABT Term abt)
   => Term abt a
@@ -160,13 +209,14 @@ hoistTerm
 hoistTerm (Let_ :$ rhs :* body :* End) = do
   rhs' <- hoist' rhs
   caseBind body $ \ v body' -> do
+    tell [Entry (freeVars rhs') rhs' (Just v)]
     (body'', bindings) <- isolateBinder v (hoist' body')
-    wrapped <- introducePotentialBindings body'' bindings
-    return $ syn (Let_ :$ rhs :* bind v wrapped :* End)
+    tell [Entry (freeVars body'') body' Nothing]
+    available <- ask
+    return body''
 
 hoistTerm term = do
-  result <- fmap syn $ traverse21 hoist' term
-  tell [Entry (freeVars $ result) result Nothing]
+  result <- syn <$> traverse21 hoist' term
+  tell [Entry (freeVars result) result Nothing]
   return result
-
 

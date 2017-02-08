@@ -42,6 +42,8 @@ module Language.Hakaru.Syntax.Variable
     , insertVarSet
     , deleteVarSet
     , memberVarSet
+    , varSubSet
+    , sizeVarSet
     , nextVarID
     -- ** Substitutions; aka: maps from variables to their definitions
     , Assoc(..)
@@ -52,6 +54,7 @@ module Language.Hakaru.Syntax.Variable
     , toAssocs
     , toAssocs1
     , insertAssoc
+    , insertOrReplaceAssoc
     , insertAssocs
     , lookupAssoc
     , adjustAssoc
@@ -366,7 +369,6 @@ toVarSet1 = toVarSet . someVariables
     someVariables Nil1         = []
     someVariables (Cons1 x xs) = SomeVariable x : someVariables xs
 
-
 instance Monoid (VarSet kproxy) where
     mempty = emptyVarSet
     mappend (VarSet xs) (VarSet ys) = VarSet (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
@@ -405,6 +407,18 @@ memberVarSet x (VarSet xs) =
         case varEq x x' of
         Nothing -> False
         Just _  -> True
+
+varSubSet
+    :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    => VarSet (kproxy :: KProxy k)
+    -> VarSet (kproxy :: KProxy k)
+    -> Bool
+varSubSet (VarSet s1) y@(VarSet s2)
+  | IM.size s1 > IM.size s2 = False
+  | otherwise               = all (\ (SomeVariable v) -> memberVarSet v y) s1
+
+sizeVarSet :: VarSet a -> Int
+sizeVarSet (VarSet xs) = IM.size xs
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
@@ -515,7 +529,11 @@ insertAssoc :: Assoc ast -> Assocs ast -> Assocs ast
 insertAssoc v@(Assoc x _) (Assocs xs) =
     case IM.insertLookupWithKey (\_ v' _ -> v') (fromNat $ varID x) v xs of
     (Nothing, xs') -> Assocs xs'
-    (Just _,  _)   -> error "insertAssoc: variable is already assigned!"
+    (Just _,  _  ) -> error "insertAssoc: variable is already assigned!"
+
+insertOrReplaceAssoc :: Assoc ast -> Assocs ast -> Assocs ast
+insertOrReplaceAssoc v@(Assoc x _) (Assocs xs) =
+    Assocs $ IM.insert (fromNat $ varID x) v xs
 
 insertAssocs :: Assocs ast -> Assocs ast -> Assocs ast
 insertAssocs (Assocs from) to = IM.foldr insertAssoc to from

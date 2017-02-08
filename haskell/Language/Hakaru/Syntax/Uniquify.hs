@@ -68,7 +68,7 @@ uniquify' = loop . viewABT
           assoc = Assoc v fresh
       -- Process the body with the updated Varmap and wrap the
       -- result in a bind form
-      bind fresh <$> local (insertAssoc assoc) (loop b)
+      bind fresh <$> local (insertOrReplaceAssoc assoc) (loop b)
 
 uniquifyVar
   :: (ABT Term abt)
