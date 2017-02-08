@@ -14,8 +14,10 @@ import qualified Data.Sequence as S
 
 import Language.Hakaru.Syntax.ANF      (normalize)
 import Language.Hakaru.Syntax.CSE      (cse)
+import Language.Hakaru.Syntax.Prune    (prune)
 import Language.Hakaru.Syntax.Unroll   (unroll)
 import Language.Hakaru.Syntax.Uniquify (uniquify)
+import Language.Hakaru.Syntax.Hoist    (hoist)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeOf
@@ -29,7 +31,7 @@ optimizations
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-optimizations = uniquify . cse . normalize . unroll
+optimizations = uniquify . prune . cse . normalize . unroll
 
 underLam
     :: (ABT Term abt, Monad m)

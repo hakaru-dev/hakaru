@@ -25,11 +25,11 @@ module Language.Hakaru.Syntax.Prune where
 import           Control.Monad.Reader
 import           Data.Maybe
 
-import           Language.Hakaru.Syntax.ABT      hiding (rename)
+import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.Unroll   (rename)
+import           Language.Hakaru.Syntax.Unroll   (renameInEnv)
 import           Language.Hakaru.Types.DataKind
 
 -- A Simple pass for pruning the unused let bindings from an AST.
@@ -62,7 +62,7 @@ prune' = loop . viewABT
     loop :: forall (b :: Hakaru) ys . View (Term abt) ys b -> PruneM (abt ys b)
     loop (Var v)    = (var . lookupEnv v) `fmap` ask
     loop (Syn s)    = pruneTerm s
-    loop (Bind v b) = rename v (loop b)
+    loop (Bind v b) = renameInEnv v (loop b)
 
 pruneTerm
   :: (ABT Term abt)
@@ -73,7 +73,7 @@ pruneTerm (Let_ :$ rhs :* body :* End) =
   let frees     = freeVars body'
       mklet r b = syn (Let_ :$ r :* b :* End)
   in if memberVarSet v frees
-     then mklet <$> prune' rhs <*> rename v (prune' body')
+     then mklet <$> prune' rhs <*> renameInEnv v (prune' body')
      else prune' body'
 
 pruneTerm term = syn <$> traverse21 prune' term

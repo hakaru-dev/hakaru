@@ -27,17 +27,21 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Hoist where
 
-import           Data.Proxy        (KProxy(..))
 import           Control.Monad.Reader
 import           Control.Monad.Writer.Strict
+import           Data.Proxy                      (KProxy (..))
+import           Prelude                         hiding ((+))
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.IClasses
+import           Language.Hakaru.Syntax.Prelude  hiding (fst, not)
 import           Language.Hakaru.Types.DataKind
 
-data Entry = forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *)
-           . Entry !(Variable a) !(VarSet (KindOf a)) !(abt '[] a)
+data Entry (abt :: [Hakaru] -> Hakaru -> *)
+  = forall (a :: Hakaru) . Entry !(VarSet (KindOf a)) !(abt '[] a)
+
+type VarState = Assocs Entry
 
 type HakaruProxy = ('KProxy :: KProxy Hakaru)
 
@@ -50,14 +54,20 @@ type HakaruProxy = ('KProxy :: KProxy Hakaru)
 --
 -- The Reader layer propagates the currently bound variables which will be used
 -- to decide when to
-newtype HoistM a = HoistM { runHoistM :: ReaderT (VarSet HakaruProxy) (Writer [Entry]) a }
+newtype HoistM abt a = HoistM { runHoistM :: ReaderT (VarSet HakaruProxy) (Writer [Entry abt]) a }
   deriving ( Functor
            , Applicative
            , Monad
            , MonadReader (VarSet HakaruProxy)
-           , MonadWriter [Entry] )
+           , MonadWriter [Entry abt] )
 
-execHoistM :: HoistM a -> a
+example :: TrivialABT Term '[] 'HInt
+example = let_ (int_ 0) $ \z ->
+          summate (int_ 0) (int_ 1) $ \x ->
+          summate (int_ 0) (int_ 1) $ \y ->
+          z + int_ 1
+
+execHoistM :: HoistM abt a -> a
 execHoistM = fst . runWriter . flip runReaderT emptyVarSet . runHoistM
 
 hoist
@@ -67,54 +77,64 @@ hoist
 hoist = execHoistM . hoist'
 
 zapDependencies
-  :: forall (a :: Hakaru) b
+  :: forall (a :: Hakaru) b abt
   .  Variable a
-  -> HoistM b
-  -> HoistM b
+  -> HoistM abt b
+  -> HoistM abt b
 zapDependencies v = censor zap
   where
-    zap :: [Entry] -> [Entry]
-    zap = filter (\ (Entry _ s _) -> not $ memberVarSet v s)
+    zap :: [Entry abt] -> [Entry abt]
+    zap = filter (\ (Entry s _) -> not $ memberVarSet v s)
 
 isolateBinder
   :: Variable (a :: Hakaru)
-  -> HoistM b
-  -> HoistM (b, [Entry])
+  -> HoistM abt b
+  -> HoistM abt (b, [Entry abt])
 isolateBinder v = zapDependencies v . local (insertVarSet v) . listen
 
 hoist'
   :: forall abt xs a . (ABT Term abt)
   => abt xs a
-  -> HoistM (abt xs a)
+  -> HoistM abt (abt xs a)
 hoist' = start
   where
-    start :: forall ys b . abt ys b -> HoistM (abt ys b)
-    start = loop . viewABT
+    start :: forall ys b . abt ys b -> HoistM abt (abt ys b)
+    start = loop [] . viewABT
 
-    loop :: forall ys b . View (Term abt) ys b -> HoistM (abt ys b)
-    loop (Var v)    = return (var v)
-    loop (Syn s)    = hoistTerm s
-    loop (Bind v b) = fmap (bind v . fst) (isolateBinder v $ loop b)
+    loop :: forall ys b
+         .  [SomeVariable HakaruProxy]
+         -> View (Term abt) ys b
+         -> HoistM abt (abt ys b)
+    loop xs (Var v)    = return (var v)
+    loop xs (Syn s)    = hoistTerm s
+    loop xs (Bind v b) = do
+      let xs' = SomeVariable v : xs
+      b' <- zapDependencies v (loop xs' b)
+      return (bind v b')
 
 introducePotentialBindings
   :: (ABT Term abt)
   => abt '[] a
-  -> [Entry]
-  -> HoistM (abt '[] a)
-introducePotentialBindings body bindings = do
-  available <- ask
-  undefined
+  -> [Entry abt]
+  -> (abt '[] a)
+introducePotentialBindings = foldl wrap
+  where
+    wrap acc (Entry _ x) = let_ x (const acc)
 
 hoistTerm
   :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *) . (ABT Term abt)
   => Term abt a
-  -> HoistM (abt '[] a)
+  -> HoistM abt (abt '[] a)
 hoistTerm (Let_ :$ rhs :* body :* End) = do
   rhs' <- hoist' rhs
   caseBind body $ \ v body' -> do
     (body'', bindings) <- isolateBinder v (hoist' body')
-    tell [Entry v (freeVars rhs') rhs']
-    return $ syn (Let_ :$ rhs :* bind v body'' :* End)
+    let wrapped = introducePotentialBindings body'' bindings
+    return $ syn (Let_ :$ rhs :* bind v wrapped :* End)
 
-hoistTerm term = fmap syn (traverse21 hoist' term)
+hoistTerm term = do
+  result <- fmap syn $ traverse21 hoist' term
+  tell [Entry (freeVars $ result) result]
+  return result
+
 
