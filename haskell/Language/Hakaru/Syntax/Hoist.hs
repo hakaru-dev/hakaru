@@ -28,8 +28,8 @@
 module Language.Hakaru.Syntax.Hoist where
 
 import           Control.Monad.Reader
-import           Control.Monad.Writer.Strict
 import           Control.Monad.RWS
+import           Control.Monad.Writer.Strict
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 import           Prelude                         hiding ((+))
@@ -38,6 +38,7 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Prelude  hiding (fst, not)
+import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Types.DataKind
 
 data Entry (abt :: Hakaru -> *)
@@ -52,7 +53,7 @@ type VarState = Assocs Entry
 type HakaruProxy = ('KProxy :: KProxy Hakaru)
 type LiveSet = VarSet HakaruProxy
 
--- The @HoistM@ monad makes use of two monadic layers to propagate information
+-- The @HoistM@ monad makes use of three monadic layers to propagate information
 -- both downwards to the leaves and upwards to the root node.
 --
 -- The Writer layer propagates the live expressions which may be hoisted (i.e.
@@ -60,7 +61,13 @@ type LiveSet = VarSet HakaruProxy
 -- their parents.
 --
 -- The Reader layer propagates the currently bound variables which will be used
--- to decide when to
+-- to decide when to introduce new bindings.
+--
+-- The State layer is just to provide a counter in order to gensym new
+-- variables, since the process of adding new bindings is a little tricky.
+-- What we want is to fully duplicate bindings without altering the original
+-- variable identifiers. To do so, all original variable names are preserved and
+-- new variables are added outside the range of existing variables.
 newtype HoistM (abt :: [Hakaru] -> Hakaru -> *) a
   = HoistM { runHoistM :: RWS LiveSet [Entry (abt '[])] Nat a }
   deriving ( Functor
@@ -81,6 +88,15 @@ execHoistM counter act = a
   where
     hoisted   = runHoistM act
     (a, _, _) = runRWS hoisted emptyVarSet counter
+
+newVar
+  :: (ABT Term abt)
+  => abt '[] a
+  -> HoistM abt (Variable a)
+newVar a = do
+  vid <- gets succ
+  put vid
+  return $ Variable "" vid (typeOf a)
 
 hoist
   :: (ABT Term abt)
@@ -130,10 +146,12 @@ introducePotentialBindings
   :: (ABT Term abt)
   => abt '[] a
   -> [Entry (abt '[])]
-  -> (abt '[] a)
-introducePotentialBindings = foldl wrap
+  -> HoistM abt (abt '[] a)
+introducePotentialBindings = foldM wrap
   where
-    wrap acc Entry{expression=e} = let_ e (const acc)
+    wrap body Entry{expression=e} = do
+      var <- newVar e
+      return $ syn (Let_ :$ e :* bind var body :* End)
 
 hoistTerm
   :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *) . (ABT Term abt)
@@ -143,7 +161,7 @@ hoistTerm (Let_ :$ rhs :* body :* End) = do
   rhs' <- hoist' rhs
   caseBind body $ \ v body' -> do
     (body'', bindings) <- isolateBinder v (hoist' body')
-    let wrapped = introducePotentialBindings body'' bindings
+    wrapped <- introducePotentialBindings body'' bindings
     return $ syn (Let_ :$ rhs :* bind v wrapped :* End)
 
 hoistTerm term = do
