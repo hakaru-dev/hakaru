@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeOperators              #-}
@@ -25,7 +26,7 @@ module Language.Hakaru.Syntax.Unroll where
 
 import           Control.Monad.Reader
 import           Data.Maybe                      (fromMaybe)
-import           Language.Hakaru.Syntax.ABT hiding (rename)
+import           Language.Hakaru.Syntax.ABT      hiding (rename)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.IClasses
@@ -34,13 +35,6 @@ import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.HClasses
 import           Prelude                         hiding (product, (*), (+), (-),
                                                   (==), (>=))
-
-example :: TrivialABT Term '[] 'HInt
-example = (summate (int_ 0) (int_ 100) $ \x -> x + (int_ 1 * int_ 42))
-
-example2 :: TrivialABT Term '[] 'HNat
-example2 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
-                                        (product a (a + (nat_ 10)) (\i -> i)))
 
 newtype Unroll a = Unroll { runUnroll :: Reader Varmap a }
   deriving (Functor, Applicative, Monad, MonadReader Varmap, MonadFix)
