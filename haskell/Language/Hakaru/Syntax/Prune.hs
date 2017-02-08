@@ -77,12 +77,10 @@ pruneTerm
   -> PruneM (abt '[] a)
 pruneTerm (Let_ :$ rhs :* body :* End) =
   caseBind body $ \v body' ->
-  let frees = freeVars body'
+  let frees     = freeVars body'
+      mklet r b = syn (Let_ :$ r :* b :* End)
   in case memberVarSet v frees of
-    False -> prune' body'
-    True  -> do
-      rhs'   <- prune' rhs
-      body'' <- rename v (prune' body')
-      return $ syn (Let_ :$ rhs' :* body'' :* End)
+       False -> prune' body'
+       True  -> mklet <$> prune' rhs <*> rename v (prune' body')
 
 pruneTerm term = fmap syn $ traverse21 prune' term
