@@ -11,7 +11,6 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE RecordWildCards            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -30,6 +29,7 @@ module Language.Hakaru.Syntax.Hoist where
 
 import           Control.Monad.Reader
 import           Control.Monad.Writer.Strict
+import           Control.Monad.RWS
 import           Data.Proxy                      (KProxy (..))
 import           Prelude                         hiding ((+))
 
@@ -49,6 +49,7 @@ data Entry (abt :: Hakaru -> *)
 type VarState = Assocs Entry
 
 type HakaruProxy = ('KProxy :: KProxy Hakaru)
+type LiveSet = VarSet HakaruProxy
 
 -- The @HoistM@ monad makes use of two monadic layers to propagate information
 -- both downwards to the leaves and upwards to the root node.
@@ -60,7 +61,7 @@ type HakaruProxy = ('KProxy :: KProxy Hakaru)
 -- The Reader layer propagates the currently bound variables which will be used
 -- to decide when to
 newtype HoistM (abt :: [Hakaru] -> Hakaru -> *) a
-  = HoistM { runHoistM :: ReaderT (VarSet HakaruProxy) (Writer [Entry (abt '[])]) a }
+  = HoistM { runHoistM :: RWS LiveSet [Entry (abt '[])] Int a }
   deriving ( Functor
            , Applicative
            , Monad
@@ -74,7 +75,10 @@ example = let_ (int_ 0) $ \z ->
           z + int_ 1
 
 execHoistM :: HoistM abt a -> a
-execHoistM = fst . runWriter . flip runReaderT emptyVarSet . runHoistM
+execHoistM act = a
+  where
+    hoisted   = runHoistM act
+    (a, _, _) = runRWS hoisted emptyVarSet 0
 
 hoist
   :: (ABT Term abt)
@@ -90,7 +94,7 @@ zapDependencies
 zapDependencies v = censor zap
   where
     zap :: [Entry (abt '[])] -> [Entry (abt '[])]
-    zap = filter (\ Entry{..} -> not $ memberVarSet v $ varDependencies)
+    zap = filter (\ Entry{varDependencies=d} -> not $ memberVarSet v d)
 
 isolateBinder
   :: Variable (a :: Hakaru)
