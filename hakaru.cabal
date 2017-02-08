@@ -63,6 +63,7 @@ Library
                        Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Runtime.Prelude,
+                       Language.Hakaru.Runtime.LogFloatPrelude,
                        Language.Hakaru.Observe,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Sample,
@@ -163,12 +164,13 @@ Executable compile
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
 
-    build-depends:     base             >= 4.7  && < 5.0,
-                       mwc-random       >= 0.13 && < 0.14,
-                       text             >= 0.11 && < 1.3,
-                       pretty           >= 1.1  && < 1.2,
-                       filepath         >= 1.3,
-                       hakaru           >= 0.3
+    build-depends:     base                 >= 4.7  && < 5.0,
+                       mwc-random           >= 0.13 && < 0.14,
+                       text                 >= 0.11 && < 1.3,
+                       pretty               >= 1.1  && < 1.2,
+                       filepath             >= 1.3,
+                       optparse-applicative >= 0.11 && < 0.14,
+                       hakaru               >= 0.3
 
 ----------------------------------------------------------------
 Executable simplify
@@ -196,7 +198,7 @@ Executable density
                        text             >= 0.11 && < 1.3,
                        pretty           >= 1.1  && < 1.2,
                        hakaru           >= 0.3
- 
+
 ----------------------------------------------------------------
 Executable disintegrate
     Main-is:           Disintegrate.hs
