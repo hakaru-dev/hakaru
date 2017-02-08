@@ -25,7 +25,7 @@ module Language.Hakaru.Syntax.Unroll where
 
 import           Control.Monad.Reader
 import           Data.Maybe                      (fromMaybe)
-import           Language.Hakaru.Syntax.ABT
+import           Language.Hakaru.Syntax.ABT hiding (rename)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.IClasses
@@ -45,14 +45,22 @@ example2 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
 newtype Unroll a = Unroll { runUnroll :: Reader Varmap a }
   deriving (Functor, Applicative, Monad, MonadReader Varmap, MonadFix)
 
-freshBinder
-  :: (ABT Term abt)
+rebind
+  :: (ABT Term abt, MonadFix m)
   => Variable a
-  -> (Variable a -> Unroll (abt xs b))
-  -> Unroll (abt (a ': xs) b)
-freshBinder source f = binderM (varHint source) (varType source) $ \var' ->
+  -> (Variable a -> m (abt xs b))
+  -> m (abt (a ': xs) b)
+rebind source f = binderM (varHint source) (varType source) $ \var' ->
   let v = caseVarSyn var' id (const $ error "oops")
-  in local (insertAssoc (Assoc source v)) (f v)
+  in f v
+
+renameInEnv
+  :: (ABT Term abt, MonadReader Varmap m, MonadFix m)
+  => Variable a
+  -> m (abt xs b)
+  -> m (abt (a ': xs) b)
+renameInEnv source action = rebind source $ \v ->
+  local (insertAssoc $ Assoc source v) action
 
 unroll :: forall abt xs a . (ABT Term abt) => abt xs a -> abt xs a
 unroll abt = runReader (runUnroll $ unroll' abt) emptyAssocs
@@ -66,7 +74,7 @@ unroll' = start
     loop :: forall ys b . View (Term abt) ys b -> Unroll (abt ys b)
     loop (Var v)    = fmap (var . fromMaybe v . lookupAssoc v) ask
     loop (Syn s)    = traverse21 start s >>= unrollTerm
-    loop (Bind v b) = freshBinder v (const $ loop b)
+    loop (Bind v b) = renameInEnv v (loop b)
 
 mklet :: ABT Term abt => abt '[] b -> abt '[b] a -> abt '[] a
 mklet rhs body = syn (Let_ :$ rhs :* body :* End)
