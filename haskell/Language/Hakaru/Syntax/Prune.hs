@@ -1,15 +1,10 @@
 {-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE EmptyCase                  #-}
-{-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -30,13 +25,11 @@ module Language.Hakaru.Syntax.Prune where
 import           Control.Monad.Reader
 import           Data.Maybe
 
-import           Language.Hakaru.Syntax.Unroll (rename)
-import           Language.Hakaru.Syntax.ABT    hiding (rename)
+import           Language.Hakaru.Syntax.ABT      hiding (rename)
 import           Language.Hakaru.Syntax.AST
-import           Language.Hakaru.Syntax.Variable
 import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.TypeOf
+import           Language.Hakaru.Syntax.Unroll   (rename)
 import           Language.Hakaru.Types.DataKind
 
 -- A Simple pass for pruning the unused let bindings from an AST.
@@ -48,7 +41,7 @@ newtype PruneM a = PruneM { runPruneM :: Reader Varmap a }
   deriving (Functor, Applicative, Monad, MonadReader Varmap, MonadFix)
 
 lookupEnv
-  :: forall abt (a :: Hakaru)
+  :: forall (a :: Hakaru)
   .  Variable a
   -> Varmap
   -> Variable a
@@ -79,8 +72,8 @@ pruneTerm (Let_ :$ rhs :* body :* End) =
   caseBind body $ \v body' ->
   let frees     = freeVars body'
       mklet r b = syn (Let_ :$ r :* b :* End)
-  in case memberVarSet v frees of
-       False -> prune' body'
-       True  -> mklet <$> prune' rhs <*> rename v (prune' body')
+  in if memberVarSet v frees
+     then mklet <$> prune' rhs <*> rename v (prune' body')
+     else prune' body'
 
-pruneTerm term = fmap syn $ traverse21 prune' term
+pruneTerm term = syn <$> traverse21 prune' term
