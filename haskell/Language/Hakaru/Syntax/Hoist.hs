@@ -30,6 +30,7 @@ module Language.Hakaru.Syntax.Hoist where
 import           Control.Monad.Reader
 import           Control.Monad.Writer.Strict
 import           Control.Monad.RWS
+import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 import           Prelude                         hiding ((+))
 
@@ -61,11 +62,12 @@ type LiveSet = VarSet HakaruProxy
 -- The Reader layer propagates the currently bound variables which will be used
 -- to decide when to
 newtype HoistM (abt :: [Hakaru] -> Hakaru -> *) a
-  = HoistM { runHoistM :: RWS LiveSet [Entry (abt '[])] Int a }
+  = HoistM { runHoistM :: RWS LiveSet [Entry (abt '[])] Nat a }
   deriving ( Functor
            , Applicative
            , Monad
            , MonadReader (VarSet HakaruProxy)
+           , MonadState Nat
            , MonadWriter [Entry (abt '[])] )
 
 example :: TrivialABT Term '[] 'HInt
@@ -74,17 +76,19 @@ example = let_ (int_ 0) $ \z ->
           summate (int_ 0) (int_ 1) $ \y ->
           z + int_ 1
 
-execHoistM :: HoistM abt a -> a
-execHoistM act = a
+execHoistM :: Nat -> HoistM abt a -> a
+execHoistM counter act = a
   where
     hoisted   = runHoistM act
-    (a, _, _) = runRWS hoisted emptyVarSet 0
+    (a, _, _) = runRWS hoisted emptyVarSet counter
 
 hoist
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-hoist = execHoistM . hoist'
+hoist abt = execHoistM counter $ hoist' abt
+  where
+    counter = nextFreeOrBind abt
 
 zapDependencies
   :: forall (a :: Hakaru) b abt
