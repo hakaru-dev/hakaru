@@ -11,6 +11,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -38,8 +39,12 @@ import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Prelude  hiding (fst, not)
 import           Language.Hakaru.Types.DataKind
 
-data Entry (abt :: [Hakaru] -> Hakaru -> *)
-  = forall (a :: Hakaru) . Entry !(VarSet (KindOf a)) !(abt '[] a)
+data Entry (abt :: Hakaru -> *)
+  = forall (a :: Hakaru) . Entry
+  { varDependencies :: !(VarSet (KindOf a))
+  , expression      :: !(abt a)
+  , binding         :: !(Maybe (Variable a))
+  }
 
 type VarState = Assocs Entry
 
@@ -54,12 +59,13 @@ type HakaruProxy = ('KProxy :: KProxy Hakaru)
 --
 -- The Reader layer propagates the currently bound variables which will be used
 -- to decide when to
-newtype HoistM abt a = HoistM { runHoistM :: ReaderT (VarSet HakaruProxy) (Writer [Entry abt]) a }
+newtype HoistM (abt :: [Hakaru] -> Hakaru -> *) a
+  = HoistM { runHoistM :: ReaderT (VarSet HakaruProxy) (Writer [Entry (abt '[])]) a }
   deriving ( Functor
            , Applicative
            , Monad
            , MonadReader (VarSet HakaruProxy)
-           , MonadWriter [Entry abt] )
+           , MonadWriter [Entry (abt '[])] )
 
 example :: TrivialABT Term '[] 'HInt
 example = let_ (int_ 0) $ \z ->
@@ -83,13 +89,13 @@ zapDependencies
   -> HoistM abt b
 zapDependencies v = censor zap
   where
-    zap :: [Entry abt] -> [Entry abt]
-    zap = filter (\ (Entry s _) -> not $ memberVarSet v s)
+    zap :: [Entry (abt '[])] -> [Entry (abt '[])]
+    zap = filter (\ Entry{..} -> not $ memberVarSet v $ varDependencies)
 
 isolateBinder
   :: Variable (a :: Hakaru)
   -> HoistM abt b
-  -> HoistM abt (b, [Entry abt])
+  -> HoistM abt (b, [Entry (abt '[])])
 isolateBinder v = zapDependencies v . local (insertVarSet v) . listen
 
 hoist'
@@ -115,11 +121,11 @@ hoist' = start
 introducePotentialBindings
   :: (ABT Term abt)
   => abt '[] a
-  -> [Entry abt]
+  -> [Entry (abt '[])]
   -> (abt '[] a)
 introducePotentialBindings = foldl wrap
   where
-    wrap acc (Entry _ x) = let_ x (const acc)
+    wrap acc Entry{expression=e} = let_ e (const acc)
 
 hoistTerm
   :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *) . (ABT Term abt)
@@ -134,7 +140,7 @@ hoistTerm (Let_ :$ rhs :* body :* End) = do
 
 hoistTerm term = do
   result <- fmap syn $ traverse21 hoist' term
-  tell [Entry (freeVars $ result) result]
+  tell [Entry (freeVars $ result) result Nothing]
   return result
 
 
