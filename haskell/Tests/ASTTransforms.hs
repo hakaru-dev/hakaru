@@ -15,6 +15,7 @@ import           Language.Hakaru.Sample           (runEvaluate)
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.ANF       (normalize)
 import           Language.Hakaru.Syntax.CSE       (cse)
+import           Language.Hakaru.Syntax.Prune     (prune)
 import           Language.Hakaru.Syntax.Unroll    (unroll)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq    (alphaEq)
@@ -58,7 +59,7 @@ allTests :: Test
 allTests = test [ TestLabel "ANF" anfTests ]
 
 opts :: (ABT Term abt) => abt '[] a -> abt '[] a
-opts = cse . normalize . unroll
+opts = prune . cse . normalize . unroll
 
 anfTests :: Test
 anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
@@ -90,11 +91,13 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
 
                 -- Test some programs which produce measures, these are
                 -- statistical tests
-                , "norm1a CSE"        ~: testPreservesMeasure "norm1a" norm1a opts
-                , "norm1b CSE"        ~: testPreservesMeasure "norm1b" norm1b opts
-                , "norm1c CSE"        ~: testPreservesMeasure "norm1c" norm1c opts
-                , "easyRoad CSE"      ~: testPreservesMeasure "easyRoad" easyRoad opts
-                , "helloWorld100 CSE" ~: testPreservesMeasure "helloWorld100" helloWorld100 opts
+                , "norm1a all"        ~: testPreservesMeasure "norm1a" norm1a opts
+                , "norm1b all"        ~: testPreservesMeasure "norm1b" norm1b opts
+                , "norm1c all"        ~: testPreservesMeasure "norm1c" norm1c opts
+                , "easyRoad all"      ~: testPreservesMeasure "easyRoad" easyRoad opts
+                , "helloWorld100 all" ~: testPreservesMeasure "helloWorld100" helloWorld100 opts
+
+                , "unroll" ~: testTransform "unroll" example1Unroll example1Unroll' opts
                 ]
 
 
@@ -131,7 +134,16 @@ example3' = let_ (real_ 2 + real_ 3) $ \ x2 ->
             real_ 1 * x2 * x0
 
 testNormalizer :: (ABT Term abt) => String -> abt '[] a -> abt '[] a -> Assertion
-testNormalizer name a b = assertBool name (alphaEq (normalize a) b)
+testNormalizer name a b = testTransform name a b normalize
+
+testTransform
+  :: (ABT Term abt)
+  => String
+  -> abt '[] a
+  -> abt '[] a
+  -> (abt '[] a -> abt '[] a)
+  -> Assertion
+testTransform name a b opt = assertBool name (alphaEq (opt a) b)
 
 testCSE :: (ABT Term abt) => String -> abt '[] a -> abt '[] a -> Assertion
 testCSE name a b = assertBool name (alphaEq (cse a) b)
@@ -177,3 +189,17 @@ example2CSE' = let_ (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1) $ \x ->
 example3CSE :: TrivialABT Term '[] 'HReal
 example3CSE = (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1)
             + (summate (nat_ 0) (nat_ 1) $ \x -> real_ 1)
+
+
+example1Unroll :: TrivialABT Term '[] 'HInt
+example1Unroll = (summate (int_ 0) (int_ 100) $ \x -> x + (int_ 1 * int_ 42))
+
+example1Unroll' :: TrivialABT Term '[] 'HInt
+example1Unroll' = let_ (int_ 0 == int_ 100) $ \cond ->
+                  if_ cond (int_ 0)
+                      (let_ (int_ 1 * int_ 42) $ \tmp ->
+                       let_ (int_ 0 + tmp)     $ \first ->
+                       let_ (int_ 0 + int_ 1)  $ \start ->
+                       let_ (summate start (int_ 100) $ \x ->
+                             x + tmp) $ \total ->
+                       first + total)
