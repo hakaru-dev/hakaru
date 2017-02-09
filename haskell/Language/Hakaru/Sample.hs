@@ -583,10 +583,11 @@ evaluateBucket b e rs env =
                 -> VReducer s a
           accum n (Red_Fanout r1 r2)   (VRed_Pair s1 s2 v1 v2) env =
               VRed_Pair s1 s2 (accum n r1 v1 env) (accum n r2 v2 env)
-          accum n (Red_Index n' r1 r2) (VRed_Array v)          env =
-              let (_, r1') = caseBinds r1
-                  VNat ov = evaluate r1' env
-                  ov' = fromIntegral ov + 1 in
+          accum n (Red_Index n' a1 r2) (VRed_Array v)          env =
+              caseBind a1 $ \i a1' ->
+              let (_, a1'') = caseBinds a1'
+                  VNat ov = evaluate a1'' (updateEnv (EAssoc i n) env)
+                  ov' = fromIntegral ov in
               VRed_Array $ v V.// [(ov', accum n r2 (v V.! ov') env)]
           accum n (Red_Split b  r1 r2) (VRed_Pair s1 s2 v1 v2) env =
               caseBind b $ \i b' ->
