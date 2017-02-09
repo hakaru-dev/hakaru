@@ -571,7 +571,7 @@ evaluateBucket b e rs env =
           init (Red_Split _ r1 r2)   env  =
               VRed_Pair (type_ r1) (type_ r2) (init r1 env) (init r2 env)
           init Red_Nop               env  = VRed_Unit
-          init (Red_Add h _) env = VRed_Num h $ newSTRef (identityElement (Sum h))
+          init (Red_Add h _) env = VRed_Num $ newSTRef (identityElement (Sum h))
 
           type_ = typeOfReducer
 
@@ -598,19 +598,19 @@ evaluateBucket b e rs env =
                                    VRed_Pair s1 s2 (accum n r1 v1 env) v2
                                else
                                    VRed_Pair s1 s2 v1 (accum n r2 v2 env)
-          accum n (Red_Add h e) (VRed_Num h' s) env =
+          accum n (Red_Add h e) (VRed_Num s) env =
               caseBind e $ \i e' ->
                   -- TODO: Use bindings for here
                   let (_, e'') = caseBinds e'
                       v = evaluate e'' (updateEnv (EAssoc i n) env) in
-                  VRed_Num h' $ do
+                  VRed_Num $ do
                     s' <- s
-                    modifySTRef' s' (evalOp (Sum h') v)
+                    modifySTRef' s' (evalOp (Sum h) v)
                     return s' 
           accum _ Red_Nop s _ = s
 
           done :: VReducer s a -> ST s (Value a)
-          done (VRed_Num _ s)          = s >>= readSTRef
+          done (VRed_Num s)            = s >>= readSTRef
           done VRed_Unit               = return (VDatum dUnit)
           done (VRed_Pair s1 s2 v1 v2) = do
             v1' <- done v1
