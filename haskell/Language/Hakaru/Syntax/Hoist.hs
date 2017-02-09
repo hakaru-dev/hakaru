@@ -90,7 +90,8 @@ deriving instance (ABT Term abt) => MonadState Nat (HoistM abt)
 deriving instance (ABT Term abt) => MonadWriter (EntrySet abt) (HoistM abt)
 deriving instance (ABT Term abt) => MonadReader LiveSet (HoistM abt)
 
-newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *) = EntrySet [Entry (abt '[])]
+newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
+  = EntrySet { entryList :: [Entry (abt '[])] }
 
 instance (ABT Term abt) => Monoid (EntrySet abt) where
   mempty = EntrySet []
@@ -145,13 +146,18 @@ newVar typ = do
   put vid
   return $ Variable "" vid typ
 
+toplevelEntry
+  :: Entry abt
+  -> Bool
+toplevelEntry Entry{varDependencies=d} = sizeVarSet d == 0
+
 hoist
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
 hoist abt = execHoistM (nextFreeOrBind abt) $ do
-  (abt', EntrySet entries) <- listen $ hoist' abt
-  let toplevel = filter (\Entry{varDependencies=d} -> sizeVarSet d == 0) entries
+  (abt', entries) <- listen $ hoist' abt
+  let toplevel = filter toplevelEntry $ entryList entries
       intro    = M.mapMaybe (\ Entry{binding=b} -> fmap SomeVariable b ) toplevel
   wrapped <- introducePotentialBindings emptyVarSet intro abt' entries
   wrapExpr wrapped toplevel
@@ -188,11 +194,11 @@ hoist' = start
          .  [SomeVariable HakaruProxy]
          -> View (Term abt) ys b
          -> HoistM abt (abt ys b)
-    loop xs (Var v)    = return (var v)
+    loop _  (Var v)    = return (var v)
 
     loop [] (Syn s)    = hoistTerm s
     loop xs (Syn s)    = do
-      (term, EntrySet entries) <- listen $ hoistTerm s
+      (term, entries) <- listen $ hoistTerm s
       available       <- ask
       introducePotentialBindings available xs term entries
 
@@ -225,9 +231,9 @@ introducePotentialBindings
   => VarSet HakaruProxy
   -> [SomeVariable HakaruProxy]
   -> abt '[] a
-  -> [Entry (abt '[])]
+  -> EntrySet abt
   -> HoistM abt (abt '[] a)
-introducePotentialBindings liveVars newVars body entries =
+introducePotentialBindings liveVars newVars body (EntrySet entries) =
   wrapExpr body resultEntries
   where
     resultEntries :: [Entry (abt '[])]
