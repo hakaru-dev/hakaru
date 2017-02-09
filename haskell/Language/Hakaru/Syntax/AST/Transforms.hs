@@ -31,7 +31,7 @@ optimizations
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-optimizations = uniquify . hoist . normalize
+optimizations = uniquify . prune . cse . normalize . unroll
 
 underLam
     :: (ABT Term abt, Monad m)
