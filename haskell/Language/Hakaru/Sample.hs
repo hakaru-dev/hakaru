@@ -561,7 +561,7 @@ evaluateBucket b e rs env = runST $ done (init rs env)
               -- TODO: Use bindings for here
               let (_, n') = caseBinds n in
               case evaluate n' env of
-                VNat n'' -> VRed_Array $ V.replicate (fromIntegral n'') (init mr env)
+                VNat n'' -> VRed_Array $ V.generate (fromIntegral n'') (\b -> init mr env)
           init (Red_Split _ r1 r2)   env  =
               VRed_Pair (type_ r1) (type_ r2) (init r1 env) (init r2 env)
           init Red_Nop               env  = VRed_Unit
@@ -575,9 +575,14 @@ evaluateBucket b e rs env = runST $ done (init rs env)
                 -> VReducer s a
                 -> Env
                 -> VReducer s a
-          accum n (Red_Fanout r1 r2) (VRed_Pair s1 s2 v1 v2) env =
+          accum n (Red_Fanout r1 r2)   (VRed_Pair s1 s2 v1 v2) env =
               VRed_Pair s1 s2 (accum n r1 v1 env) (accum n r2 v2 env)
-          accum n (Red_Split b r1 r2) (VRed_Pair s1 s2 v1 v2) env =
+          accum n (Red_Index n' r1 r2) (VRed_Array v)          env =
+              let (_, r1') = caseBinds r1
+                  VNat ov = evaluate r1' env
+                  ov' = fromIntegral ov + 1 in
+              VRed_Array $ v V.// [(ov', accum n r2 (v V.! ov') env)]
+          accum n (Red_Split b  r1 r2) (VRed_Pair s1 s2 v1 v2) env =
               let n' = evaluate n env in
               caseBind b $ \i b' ->
                   -- TODO: Use bindings for here
