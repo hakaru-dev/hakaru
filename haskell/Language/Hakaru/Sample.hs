@@ -550,7 +550,13 @@ evaluateBucket
     -> Reducer abt '[] a
     -> Env
     -> Value a
-evaluateBucket b e rs env = runST $ done (init rs env)
+evaluateBucket b e rs env =
+    case (evaluate b env, evaluate e env) of
+      (VNat b', VNat e') ->
+          runST $ done $ foldr (\i s -> accum (VNat i) rs s env)
+                               (init rs env)
+                               [b' .. e']
+      v2                 -> case v2 of {}
     where init :: (ABT Term abt)
                => Reducer abt xs a
                -> Env
@@ -570,7 +576,7 @@ evaluateBucket b e rs env = runST $ done (init rs env)
           type_ = typeOfReducer
 
           accum :: (ABT Term abt)
-                => abt '[] 'HNat
+                => Value 'HNat
                 -> Reducer abt xs a
                 -> VReducer s a
                 -> Env
@@ -583,21 +589,19 @@ evaluateBucket b e rs env = runST $ done (init rs env)
                   ov' = fromIntegral ov + 1 in
               VRed_Array $ v V.// [(ov', accum n r2 (v V.! ov') env)]
           accum n (Red_Split b  r1 r2) (VRed_Pair s1 s2 v1 v2) env =
-              let n' = evaluate n env in
               caseBind b $ \i b' ->
                   -- TODO: Use bindings for here
                   let (_, b'') = caseBinds b' in
-                  case evaluate b'' (updateEnv (EAssoc i n') env) of
+                  case evaluate b'' (updateEnv (EAssoc i n) env) of
                   VDatum b' -> if b' == dTrue then
                                    VRed_Pair s1 s2 (accum n r1 v1 env) v2
                                else
                                    VRed_Pair s1 s2 v1 (accum n r2 v2 env)
           accum n (Red_Add h e) (VRed_Num h' s) env =
-              let n' = evaluate n env in
               caseBind e $ \i e' ->
                   -- TODO: Use bindings for here
                   let (_, e'') = caseBinds e'
-                      v = evaluate e'' (updateEnv (EAssoc i n') env) in
+                      v = evaluate e'' (updateEnv (EAssoc i n) env) in
                   VRed_Num h' $ do
                     s' <- s
                     modifySTRef' s' (evalOp (Sum h') v)
