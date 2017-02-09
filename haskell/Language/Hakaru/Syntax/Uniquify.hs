@@ -74,5 +74,5 @@ uniquifyVar
   :: (ABT Term abt)
   => Variable a
   -> Uniqifier (abt '[] a)
-uniquifyVar v = var . fromMaybe v . lookupAssoc v <$> ask
+uniquifyVar v = (var . fromMaybe v . lookupAssoc v) <$> ask
 

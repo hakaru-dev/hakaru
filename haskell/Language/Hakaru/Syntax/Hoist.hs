@@ -55,10 +55,10 @@ data Entry (abt :: Hakaru -> *)
 instance Show (Entry a) where
   show (Entry deps _ bindings) = "Entry (" ++ show deps ++ ") (" ++ show bindings ++ ")"
 
-type VarState = Assocs Entry
-
+type VarState    = Assocs Entry
 type HakaruProxy = ('KProxy :: KProxy Hakaru)
-type LiveSet = VarSet HakaruProxy
+type LiveSet     = VarSet HakaruProxy
+type HakaruVar   = SomeVariable HakaruProxy
 
 -- The @HoistM@ monad makes use of three monadic layers to propagate information
 -- both downwards to the leaves and upwards to the root node.
@@ -110,9 +110,11 @@ hoist
   => abt '[] a
   -> abt '[] a
 hoist abt = execHoistM (nextFreeOrBind abt) $ do
-  (abt', w) <- listen $ hoist' abt
-  let toplevel = filter (\Entry{varDependencies=d} -> sizeVarSet d == 0) w
-  introducePotentialBindings emptyVarSet [] abt' toplevel True
+  (abt', entries) <- listen $ hoist' abt
+  let toplevel = filter (\Entry{varDependencies=d} -> sizeVarSet d == 0) entries
+      intro    = M.mapMaybe (\ Entry{binding=b} -> fmap SomeVariable b ) toplevel
+  wrapped <- introducePotentialBindings emptyVarSet intro abt' entries
+  wrapExpr wrapped toplevel
 
 zapDependencies
   :: forall (a :: Hakaru) b abt
@@ -128,7 +130,7 @@ isolateBinder
   :: Variable (a :: Hakaru)
   -> HoistM abt b
   -> HoistM abt (b, [Entry (abt '[])])
-isolateBinder v = zapDependencies v . local (insertVarSet v) . listen
+isolateBinder v m = zapDependencies v . local (insertVarSet v) $ listen m
 
 hoist'
   :: forall abt xs a . (ABT Term abt)
@@ -150,24 +152,22 @@ hoist' = start
     loop xs (Syn s)    = do
       (term, entries) <- listen $ hoistTerm s
       available       <- ask
-      introducePotentialBindings available xs term entries False
+      introducePotentialBindings available xs term entries
 
     loop xs (Bind v b) = do
       let xs' = SomeVariable v : xs
       b' <- zapDependencies v (loop xs' b)
       return (bind v b')
 
-introducePotentialBindings
-  :: forall (a :: Hakaru) abt
-  .  (ABT Term abt)
-  => VarSet HakaruProxy
-  -> [SomeVariable HakaruProxy]
-  -> abt '[] a
+getBoundVar :: Entry x -> Maybe HakaruVar
+getBoundVar Entry{binding=b} = fmap SomeVariable b
+
+wrapExpr
+  :: forall abt b . (ABT Term abt)
+  => abt '[] b
   -> [Entry (abt '[])]
-  -> Bool
-  -> HoistM abt (abt '[] a)
-introducePotentialBindings available init body entries top =
-  foldM wrap body resultEntries
+  -> HoistM abt (abt '[] b)
+wrapExpr = foldM wrap
   where
     wrap :: abt '[] b -> Entry (abt '[]) -> HoistM abt (abt '[] b)
     wrap acc Entry{expression=e,binding=b} =
@@ -177,27 +177,29 @@ introducePotentialBindings available init body entries top =
           v <- newVar (typeOf e)
           return $ syn (Let_ :$ e :* bind v acc :* End)
 
-    toplevel :: [Entry (abt '[])]
-    toplevel
-      | top       = filter (\Entry{varDependencies=d} -> sizeVarSet d == 0) entries
-      | otherwise = []
-
-    topvars = M.mapMaybe (\Entry{binding=b} -> fmap SomeVariable b) toplevel
-
+introducePotentialBindings
+  :: forall (a :: Hakaru) abt
+  .  (ABT Term abt)
+  => VarSet HakaruProxy
+  -> [SomeVariable HakaruProxy]
+  -> abt '[] a
+  -> [Entry (abt '[])]
+  -> HoistM abt (abt '[] a)
+introducePotentialBindings liveVars newVars body entries =
+  wrapExpr body resultEntries
+  where
     resultEntries :: [Entry (abt '[])]
-    resultEntries = toplevel ++ loop available (init ++ topvars)
+    resultEntries = loop liveVars newVars
 
-    loop :: VarSet HakaruProxy -> [SomeVariable HakaruProxy] -> [Entry (abt '[])]
-    loop avail [] = []
-    loop avail (var@(SomeVariable v) : xs)
-      | memberVarSet v avail = loop avail xs
-      | otherwise            = new ++ loop avail' (vars ++ xs)
+    loop :: LiveSet -> [HakaruVar] -> [Entry (abt '[])]
+    loop _    [] = []
+    loop live (SomeVariable v : xs) = introduced ++ loop live' (xs ++ vars)
       where
-        avail' = insertVarSet v avail
-        vars   = M.mapMaybe (\Entry{binding=b} -> fmap SomeVariable b) new
-        new    = [ e | e@Entry{varDependencies=d} <- entries
-                     , memberVarSet v d
-                     , varSubSet d avail' ]
+        live'      = insertVarSet v live
+        vars       = M.mapMaybe getBoundVar introduced
+        introduced = [e | e@Entry{varDependencies=deps} <- entries
+                        , memberVarSet v deps
+                        , varSubSet deps live' ]
 
 -- Let forms should not kill bindings, since we are going to float the rhs of
 -- all let expressions. The remaining binding forms are what decide when
@@ -207,13 +209,12 @@ hoistTerm
   => Term abt a
   -> HoistM abt (abt '[] a)
 hoistTerm (Let_ :$ rhs :* body :* End) = do
-  rhs' <- hoist' rhs
   caseBind body $ \ v body' -> do
-    tell [Entry (freeVars rhs') rhs' (Just v)]
-    (body'', bindings) <- isolateBinder v (hoist' body')
-    tell [Entry (freeVars body'') body' Nothing]
-    available <- ask
-    return body''
+    rhs'   <- hoist' rhs
+    body'' <- local (insertVarSet v) (hoist' body')
+    tell [ Entry (freeVars rhs') rhs' (Just v)
+         , Entry (freeVars body'') body'' Nothing ]
+    return body'' -- $ syn (Let_ :$ rhs' :* bind v body'' :* End)
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
