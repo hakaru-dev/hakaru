@@ -220,13 +220,13 @@ wrapExpr
   -> HoistM abt (abt '[] b)
 wrapExpr = foldrM wrap
   where
+    mklet e b v = syn (Let_ :$ e :* bind v b :* End)
+
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
     wrap Entry{expression=e,binding=b} acc =
       case b of
-        Just v  -> return $ syn (Let_ :$ e :* bind v acc :* End)
-        Nothing -> do
-          v <- newVar (typeOf e)
-          return $ syn (Let_ :$ e :* bind v acc :* End)
+        Just v  -> return $ mklet e acc v
+        Nothing -> mklet e acc <$> newVar (typeOf e)
 
 introduceBindings
   :: forall (a :: Hakaru) abt
