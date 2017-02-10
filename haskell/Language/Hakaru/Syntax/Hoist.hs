@@ -107,7 +107,7 @@ newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
 instance (ABT Term abt) => Monoid (EntrySet abt) where
   mempty = EntrySet []
   mappend (EntrySet xs) (EntrySet ys) =
-     EntrySet $ concat $ map uniquify $ groupBy equal (xs ++ ys)
+    EntrySet $ concat $ map uniquify $ groupBy equal (xs ++ ys)
     where
       uniquify :: [Entry (abt '[])] -> [Entry (abt '[])]
       uniquify []  = []
@@ -232,10 +232,10 @@ wrapExpr = foldrM wrap
     mklet e b v = syn (Let_ :$ e :* bind v b :* End)
 
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
-    wrap Entry{expression=e,binding=b} acc =
-      case b of
-        [] -> mklet e acc <$> newVar (typeOf e)
-        _  -> return $ foldr (\v acc' -> mklet e acc' v) acc b
+    wrap Entry{expression=e,binding=b} acc = do
+      tmp <- newVar (typeOf e)
+      let body = foldr (\v acc' -> mklet (var tmp) acc' v) acc b
+      return $ mklet e body tmp
 
 introduceBindings
   :: forall (a :: Hakaru) abt
