@@ -61,7 +61,7 @@ data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
   { varDependencies :: !(VarSet (KindOf a))
   , expression      :: !(abt a)
-  , binding         :: !(Maybe (Variable a))
+  , binding         :: ![Variable a]
   }
 
 instance Show (Entry a) where
@@ -100,6 +100,8 @@ deriving instance (ABT Term abt) => MonadReader LiveSet (HoistM abt)
 newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
   = EntrySet { entryList :: [Entry (abt '[])] }
 
+-- This instance should behave more like a set, but the rest of the algorith
+-- currently does not support that.
 instance (ABT Term abt) => Monoid (EntrySet abt) where
   mempty = EntrySet []
   mappend (EntrySet xs) (EntrySet ys) = EntrySet (xs ++ ys)
@@ -113,9 +115,9 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
           []                  -> [x]
           SomeVariable v : xs ->
             case jmEq1 (varType v) (typeOf e) of
-              Just Refl -> [Entry deps e (Just v)]
+              Just Refl -> [Entry deps e [v]]
         where
-          bindings = M.mapMaybe getBoundVar l
+          bindings = concatMap getBoundVar l
 
       equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
       equal Entry{expression=e1} Entry{expression=e2} =
@@ -125,10 +127,16 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
 
 singleEntry
   :: (ABT Term abt)
-  => Maybe (Variable a)
+  => Variable a
   -> abt '[] a
   -> EntrySet abt
-singleEntry v abt = EntrySet [Entry (freeVars abt) abt v]
+singleEntry v abt = EntrySet [Entry (freeVars abt) abt [v]]
+
+freeEntry
+  :: (ABT Term abt)
+  => abt '[] a
+  -> EntrySet abt
+freeEntry abt = EntrySet [Entry (freeVars abt) abt []]
 
 execHoistM :: Nat -> HoistM abt a -> a
 execHoistM counter act = a
@@ -157,7 +165,7 @@ hoist
 hoist abt = execHoistM (nextFreeOrBind abt) $ do
   (abt', entries) <- listen $ hoist' abt
   let toplevel = filter toplevelEntry $ entryList entries
-      intro    = M.mapMaybe (\ Entry{binding=b} -> fmap SomeVariable b ) toplevel
+      intro    = concatMap (\ Entry{binding=b} -> fmap SomeVariable b) toplevel
   wrapped <- introduceBindings emptyVarSet intro abt' entries
   wrapExpr wrapped toplevel
 
@@ -210,7 +218,7 @@ hoist' = start
       b' <- zapDependencies v (loop xs' b)
       return (bind v b')
 
-getBoundVar :: Entry x -> Maybe HakaruVar
+getBoundVar :: Entry x -> [HakaruVar]
 getBoundVar Entry{binding=b} = fmap SomeVariable b
 
 wrapExpr
@@ -225,8 +233,8 @@ wrapExpr = foldrM wrap
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
     wrap Entry{expression=e,binding=b} acc =
       case b of
-        Just v  -> return $ mklet e acc v
-        Nothing -> mklet e acc <$> newVar (typeOf e)
+        [] -> mklet e acc <$> newVar (typeOf e)
+        _  -> return $ foldr (\v acc' -> mklet e acc' v) acc b
 
 introduceBindings
   :: forall (a :: Hakaru) abt
@@ -247,7 +255,7 @@ introduceBindings liveVars newVars body (EntrySet entries) =
     loop live (SomeVariable v : xs) = introduced ++ loop live' (xs ++ vars)
       where
         live'      = insertVarSet v live
-        vars       = M.mapMaybe getBoundVar introduced
+        vars       = concatMap getBoundVar introduced
         introduced = [e | e@Entry{varDependencies=deps} <- entries
                         , memberVarSet v deps
                         , varSubSet deps live' ]
@@ -263,11 +271,11 @@ hoistTerm
 hoistTerm (Let_ :$ rhs :* body :* End) =
   caseBind body $ \ v body' -> do
     rhs' <- hoist' rhs
-    tell $ singleEntry (Just v) rhs'
+    tell $ singleEntry v rhs'
     local (insertVarSet v) (hoist' body')
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
-  tell $ singleEntry Nothing result
+  tell $ freeEntry result
   return result
 
