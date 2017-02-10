@@ -63,6 +63,9 @@ allTests = test [ TestLabel "ANF" anfTests ]
 opts :: (ABT Term abt) => abt '[] a -> abt '[] a
 opts = uniquify . prune . cse . hoist . uniquify . normalize
 
+optsUnroll :: (ABT Term abt) => abt '[] a -> abt '[] a
+optsUnroll = uniquify . prune . cse . normalize . unroll
+
 anfTests :: Test
 anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "example2" ~: testNormalizer "example2" example2 example2'
@@ -99,7 +102,7 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "easyRoad all"      ~: testPreservesMeasure "easyRoad" easyRoad opts
                 , "helloWorld100 all" ~: testPreservesMeasure "helloWorld100" helloWorld100 opts
 
-                {-, "unroll" ~: testTransform "unroll" example1Unroll example1Unroll' opts-}
+                , "unroll" ~: testTransform "unroll" example1Unroll example1Unroll' optsUnroll
                 ]
 
 
