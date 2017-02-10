@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE EmptyCase                  #-}
 {-# LANGUAGE ExistentialQuantification  #-}
@@ -40,6 +41,7 @@ module Language.Hakaru.Syntax.Hoist where
 
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
+import           Data.List                       (groupBy, nub)
 import qualified Data.Maybe                      as M
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
@@ -104,20 +106,19 @@ newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
 -- currently does not support that.
 instance (ABT Term abt) => Monoid (EntrySet abt) where
   mempty = EntrySet []
-  mappend (EntrySet xs) (EntrySet ys) = EntrySet (xs ++ ys)
-    -- EntrySet $ concat $ map uniquify $ groupBy equal (xs ++ ys)
+  mappend (EntrySet xs) (EntrySet ys) =
+     EntrySet $ concat $ map uniquify $ groupBy equal (xs ++ ys)
     where
       uniquify :: [Entry (abt '[])] -> [Entry (abt '[])]
-      uniquify []                       = []
-      uniquify [x]                      = [x]
-      uniquify l@(x@(Entry deps e _) : xs) =
-        case bindings of
-          []                  -> [x]
-          SomeVariable v : xs ->
-            case jmEq1 (varType v) (typeOf e) of
-              Just Refl -> [Entry deps e [v]]
-        where
-          bindings = concatMap getBoundVar l
+      uniquify []  = []
+      uniquify [x] = [x]
+      uniquify xs  = [foldl1 join xs]
+
+      join :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
+      join (Entry d e b1) (Entry _ e' b2) =
+        case jmEq1 (typeOf e) (typeOf e') of
+          Just Refl -> Entry d e $ nub (b1 ++ b2)
+          Nothing   -> error "cannot mappend mismatched entries"
 
       equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
       equal Entry{expression=e1} Entry{expression=e2} =
