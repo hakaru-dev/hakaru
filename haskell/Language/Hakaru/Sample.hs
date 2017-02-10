@@ -563,59 +563,64 @@ evaluateBucket
 evaluateBucket b e rs env =
     case (evaluate b env, evaluate e env) of
       (VNat b', VNat e') -> runST $ do
-          s' <- init rs env
-          mapM_ (\i -> accum (VNat i) rs s' env) [b' .. e']
+          s' <- init Nil1 rs env
+          mapM_ (\i -> accum (VNat i) Nil1 rs s' env) [b' .. e']
           done s'
       v2                 -> case v2 of {}
     where init :: (ABT Term abt)
-               => Reducer abt xs a
+               => List1 Value xs
+               -> Reducer abt xs a
                -> Env
                -> ST s (VReducer s a)
-          init (Red_Fanout r1 r2)    env  =
-              VRed_Pair (type_ r1) (type_ r2) <$> init r1 env <*> init r2 env
-          init (Red_Index  n  _  mr) env  =
-              -- TODO: Use bindings for here
-              let (_, n') = caseBinds n in
-              case evaluate n' env of
-                VNat n'' -> VRed_Array <$> V.generateM (fromIntegral n'') (\b -> init mr env)
-          init (Red_Split _ r1 r2)   env  =
-              VRed_Pair (type_ r1) (type_ r2) <$> init r1 env <*> init r2 env
-          init Red_Nop               env  = return VRed_Unit
-          init (Red_Add h _) env = VRed_Num <$> newSTRef (identityElement (Sum h))
+          init ix (Red_Fanout r1 r2)    env  =
+              VRed_Pair (type_ r1) (type_ r2) <$> init ix r1 env <*> init ix r2 env
+          init ix (Red_Index  n  _  mr) env  =
+              let (vars, n') = caseBinds n in
+              case evaluate n' (updateEnvs vars ix env) of
+                VNat n'' -> VRed_Array <$> V.generateM (fromIntegral n'')
+                            (\b -> init (Cons1 (vnat b) ix) mr env)
+          init ix (Red_Split _ r1 r2)   env  =
+              VRed_Pair (type_ r1) (type_ r2) <$> init ix r1 env <*> init ix r2 env
+          init ix Red_Nop               env  = return VRed_Unit
+          init ix (Red_Add h _) env = VRed_Num <$> newSTRef (identityElement (Sum h))
 
           type_ = typeOfReducer
 
+          vnat :: Int -> Value 'HNat
+          vnat  = VNat . fromIntegral
+
           accum :: (ABT Term abt)
                 => Value 'HNat
+                -> List1 Value xs
                 -> Reducer abt xs a
                 -> VReducer s a
                 -> Env
                 -> ST s ()
-          accum n (Red_Fanout r1 r2)   (VRed_Pair s1 s2 v1 v2) env =
-              accum n r1 v1 env >> accum n r2 v2 env
-          accum n (Red_Index n' a1 r2) (VRed_Array v)          env =
+          accum n ix (Red_Fanout r1 r2)   (VRed_Pair s1 s2 v1 v2) env =
+              accum n ix r1 v1 env >> accum n ix r2 v2 env
+          accum n ix (Red_Index n' a1 r2) (VRed_Array v)          env =
               caseBind a1 $ \i a1' ->
-              let (_, a1'') = caseBinds a1'
-                  -- TODO: Use bindings for here
-                  VNat ov = evaluate a1'' (updateEnv (EAssoc i n) env)
+              let (vars, a1'') = caseBinds a1'
+                  VNat ov = evaluate a1''
+                            (updateEnv (EAssoc i n) (updateEnvs vars ix env))
                   ov' = fromIntegral ov in
-              accum n r2 (v V.! ov') env
-          accum n (Red_Split b  r1 r2) (VRed_Pair s1 s2 v1 v2) env =
+              accum n (Cons1 (VNat ov) ix) r2 (v V.! ov') env
+          accum n ix (Red_Split b  r1 r2) (VRed_Pair s1 s2 v1 v2) env =
               caseBind b $ \i b' ->
-                  -- TODO: Use bindings for here
-                  let (_, b'') = caseBinds b' in
-                  case evaluate b'' (updateEnv (EAssoc i n) env) of
+                  let (vars, b'') = caseBinds b' in
+                  case evaluate b''
+                       (updateEnv (EAssoc i n) (updateEnvs vars ix env)) of
                   VDatum b' -> if b' == dTrue then
-                                   accum n r1 v1 env
+                                   accum n ix r1 v1 env
                                else
-                                   accum n r2 v2 env
-          accum n (Red_Add h e) (VRed_Num s) env =
+                                   accum n ix r2 v2 env
+          accum n ix (Red_Add h e) (VRed_Num s) env =
               caseBind e $ \i e' ->
-                  -- TODO: Use bindings for here
-                  let (_, e'') = caseBinds e'
-                      v = evaluate e'' (updateEnv (EAssoc i n) env) in
+                  let (vars, e'') = caseBinds e'
+                      v = evaluate e''
+                          (updateEnv (EAssoc i n) (updateEnvs vars ix env)) in
                   modifySTRef' s (evalOp (Sum h) v)
-          accum _ Red_Nop _ _ = return ()
+          accum _ _ Red_Nop _ _ = return ()
 
           done :: VReducer s a -> ST s (Value a)
           done (VRed_Num s)            = readSTRef s
