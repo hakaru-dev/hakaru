@@ -32,6 +32,7 @@ import           Data.Maybe                      (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
+import           Control.Monad
 import           Control.Monad.ST
 import           Control.Monad.Identity
 import           Control.Monad.Trans.Maybe
@@ -552,26 +553,26 @@ evaluateBucket
     -> Value a
 evaluateBucket b e rs env =
     case (evaluate b env, evaluate e env) of
-      (VNat b', VNat e') ->
-          runST $ done $ foldr (\i s -> accum (VNat i) rs s env)
-                               (init rs env)
-                               [b' .. e']
+      (VNat b', VNat e') -> runST $ do
+          s' <- init rs env
+          mapM_ (\i -> accum (VNat i) rs s' env) [b' .. e']
+          done s'
       v2                 -> case v2 of {}
     where init :: (ABT Term abt)
                => Reducer abt xs a
                -> Env
-               -> VReducer s a
+               -> ST s (VReducer s a)
           init (Red_Fanout r1 r2)    env  =
-              VRed_Pair (type_ r1) (type_ r2) (init r1 env) (init r2 env)
+              VRed_Pair (type_ r1) (type_ r2) <$> init r1 env <*> init r2 env
           init (Red_Index  n  _  mr) env  =
               -- TODO: Use bindings for here
               let (_, n') = caseBinds n in
               case evaluate n' env of
-                VNat n'' -> VRed_Array $ V.generate (fromIntegral n'') (\b -> init mr env)
+                VNat n'' -> VRed_Array <$> V.generateM (fromIntegral n'') (\b -> init mr env)
           init (Red_Split _ r1 r2)   env  =
-              VRed_Pair (type_ r1) (type_ r2) (init r1 env) (init r2 env)
-          init Red_Nop               env  = VRed_Unit
-          init (Red_Add h _) env = VRed_Num $ newSTRef (identityElement (Sum h))
+              VRed_Pair (type_ r1) (type_ r2) <$> init r1 env <*> init r2 env
+          init Red_Nop               env  = return VRed_Unit
+          init (Red_Add h _) env = VRed_Num <$> newSTRef (identityElement (Sum h))
 
           type_ = typeOfReducer
 
@@ -580,37 +581,34 @@ evaluateBucket b e rs env =
                 -> Reducer abt xs a
                 -> VReducer s a
                 -> Env
-                -> VReducer s a
+                -> ST s ()
           accum n (Red_Fanout r1 r2)   (VRed_Pair s1 s2 v1 v2) env =
-              VRed_Pair s1 s2 (accum n r1 v1 env) (accum n r2 v2 env)
+              accum n r1 v1 env >> accum n r2 v2 env
           accum n (Red_Index n' a1 r2) (VRed_Array v)          env =
               caseBind a1 $ \i a1' ->
               let (_, a1'') = caseBinds a1'
                   VNat ov = evaluate a1'' (updateEnv (EAssoc i n) env)
                   ov' = fromIntegral ov in
-              VRed_Array $ v V.// [(ov', accum n r2 (v V.! ov') env)]
+              accum n r2 (v V.! ov') env
           accum n (Red_Split b  r1 r2) (VRed_Pair s1 s2 v1 v2) env =
               caseBind b $ \i b' ->
                   -- TODO: Use bindings for here
                   let (_, b'') = caseBinds b' in
                   case evaluate b'' (updateEnv (EAssoc i n) env) of
                   VDatum b' -> if b' == dTrue then
-                                   VRed_Pair s1 s2 (accum n r1 v1 env) v2
+                                   accum n r1 v1 env
                                else
-                                   VRed_Pair s1 s2 v1 (accum n r2 v2 env)
+                                   accum n r2 v2 env
           accum n (Red_Add h e) (VRed_Num s) env =
               caseBind e $ \i e' ->
                   -- TODO: Use bindings for here
                   let (_, e'') = caseBinds e'
                       v = evaluate e'' (updateEnv (EAssoc i n) env) in
-                  VRed_Num $ do
-                    s' <- s
-                    modifySTRef' s' (evalOp (Sum h) v)
-                    return s' 
-          accum _ Red_Nop s _ = s
+                  modifySTRef' s (evalOp (Sum h) v)
+          accum _ Red_Nop _ _ = return ()
 
           done :: VReducer s a -> ST s (Value a)
-          done (VRed_Num s)            = s >>= readSTRef
+          done (VRed_Num s)            = readSTRef s
           done VRed_Unit               = return (VDatum dUnit)
           done (VRed_Pair s1 s2 v1 v2) = do
             v1' <- done v1
