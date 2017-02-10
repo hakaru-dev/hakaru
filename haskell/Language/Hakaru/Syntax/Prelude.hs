@@ -127,7 +127,7 @@ module Language.Hakaru.Syntax.Prelude
     , unsafeNaryOp_, naryOp_withIdentity, naryOp2_
 
     -- * Reducers
-    , bucket, r_index, r_split, r_nop, r_add
+    , bucket, r_fanout, r_index, r_split, r_nop, r_add
 
     ) where
 
@@ -1141,6 +1141,13 @@ zipWithV f v1 v2 =
     array (size v1) (\i -> f (v1 ! i) (v2 ! i))
 
 ----------------------------------------------------------------
+
+r_fanout
+    :: (ABT Term abt)
+    => Reducer abt xs a
+    -> Reducer abt xs b
+    -> Reducer abt xs (HPair a b)
+r_fanout = Red_Fanout
 
 r_index
     :: (ABT Term abt)

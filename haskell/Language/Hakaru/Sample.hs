@@ -587,6 +587,7 @@ evaluateBucket b e rs env =
           accum n (Red_Index n' a1 r2) (VRed_Array v)          env =
               caseBind a1 $ \i a1' ->
               let (_, a1'') = caseBinds a1'
+                  -- TODO: Use bindings for here
                   VNat ov = evaluate a1'' (updateEnv (EAssoc i n) env)
                   ov' = fromIntegral ov in
               accum n r2 (v V.! ov') env
