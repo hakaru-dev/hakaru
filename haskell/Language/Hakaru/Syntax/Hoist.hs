@@ -42,18 +42,13 @@ module Language.Hakaru.Syntax.Hoist where
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
 import           Data.List                       (groupBy, nub)
-import qualified Data.Maybe                      as M
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
-import           Prelude                         hiding (product, (+))
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.Prelude  hiding (fst, maybe, not, (<$>),
-                                                  (==))
-import qualified Language.Hakaru.Syntax.Prelude  as P
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Syntax.Variable (varSubSet)
 import           Language.Hakaru.Types.DataKind
@@ -92,7 +87,7 @@ type HakaruVar   = SomeVariable HakaruProxy
 newtype HoistM (abt :: [Hakaru] -> Hakaru -> *) a
   = HoistM { runHoistM :: RWS LiveSet (EntrySet abt) Nat a }
 
-deriving instance (ABT Term abt) => Functor (HoistM abt)
+deriving instance                   Functor (HoistM abt)
 deriving instance (ABT Term abt) => Applicative (HoistM abt)
 deriving instance (ABT Term abt) => Monad (HoistM abt)
 deriving instance (ABT Term abt) => MonadState Nat (HoistM abt)
@@ -112,7 +107,7 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
       uniquify :: [Entry (abt '[])] -> [Entry (abt '[])]
       uniquify []  = []
       uniquify [x] = [x]
-      uniquify xs  = [foldl1 join xs]
+      uniquify x   = [foldl1 join x]
 
       join :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
       join (Entry d e b1) (Entry _ e' b2) =
