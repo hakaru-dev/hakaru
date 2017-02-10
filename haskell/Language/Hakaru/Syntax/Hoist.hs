@@ -38,17 +38,13 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Hoist where
 
-import           Control.Monad.Reader
 import           Control.Monad.RWS
-import           Control.Monad.Writer.Strict
 import           Data.Foldable                   (foldrM)
-import           Data.List                       (groupBy)
 import qualified Data.Maybe                      as M
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 import           Prelude                         hiding (product, (+))
 
-import           Debug.Trace
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq
@@ -127,32 +123,12 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
           Nothing   -> False
           Just Refl -> alphaEq e1 e2
 
-example1 :: TrivialABT Term '[] 'HInt
-example1 = let_ (int_ 0) $ \z ->
-           summate (int_ 0) (int_ 1) $ \x ->
-           summate (int_ 0) (int_ 1) $ \y ->
-           z + int_ 1
-
-example2 :: TrivialABT Term '[] 'HInt
-example2 = let_ (int_ 0) $ \z ->
-           let_ (int_ 1) $ \y ->
-           z
-
-example3 :: TrivialABT Term '[] 'HReal
-example3 = if_ (real_ 1 P.== real_ 2)
-               (real_ 2 + real_ 3)
-               (real_ 3 + real_ 4)
-
-example4 :: TrivialABT Term '[] 'HNat
-example4 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
-                                        (product a (a + (nat_ 10)) (\i -> i)))
-
 singleEntry
   :: (ABT Term abt)
   => Maybe (Variable a)
   -> abt '[] a
   -> EntrySet abt
-singleEntry var abt = EntrySet [Entry (freeVars abt) abt var]
+singleEntry v abt = EntrySet [Entry (freeVars abt) abt v]
 
 execHoistM :: Nat -> HoistM abt a -> a
 execHoistM counter act = a
@@ -182,7 +158,7 @@ hoist abt = execHoistM (nextFreeOrBind abt) $ do
   (abt', entries) <- listen $ hoist' abt
   let toplevel = filter toplevelEntry $ entryList entries
       intro    = M.mapMaybe (\ Entry{binding=b} -> fmap SomeVariable b ) toplevel
-  wrapped <- introducePotentialBindings emptyVarSet intro abt' entries
+  wrapped <- introduceBindings emptyVarSet intro abt' entries
   wrapExpr wrapped toplevel
 
 zapDependencies
@@ -194,8 +170,9 @@ zapDependencies
 zapDependencies v = censor zap
   where
     zap :: EntrySet abt -> EntrySet abt
-    zap (EntrySet s) =
-      EntrySet $ filter (\ Entry{varDependencies=d} -> not $ memberVarSet v d) s
+    zap = EntrySet
+        . filter (\ Entry{varDependencies=d} -> not $ memberVarSet v d)
+        . entryList
 
 isolateBinder
   :: (ABT Term abt)
@@ -219,11 +196,14 @@ hoist' = start
          -> HoistM abt (abt ys b)
     loop _  (Var v)    = return (var v)
 
+    -- This case is not needed, but we can avoid performing the expensive work
+    -- of calling introduceBindings in the case were we won't be performing any
+    -- work.
     loop [] (Syn s)    = hoistTerm s
     loop xs (Syn s)    = do
       (term, entries) <- listen $ hoistTerm s
       available       <- ask
-      introducePotentialBindings available xs term entries
+      introduceBindings available xs term entries
 
     loop xs (Bind v b) = do
       let xs' = SomeVariable v : xs
@@ -248,7 +228,7 @@ wrapExpr = foldrM wrap
           v <- newVar (typeOf e)
           return $ syn (Let_ :$ e :* bind v acc :* End)
 
-introducePotentialBindings
+introduceBindings
   :: forall (a :: Hakaru) abt
   .  (ABT Term abt)
   => VarSet HakaruProxy
@@ -256,7 +236,7 @@ introducePotentialBindings
   -> abt '[] a
   -> EntrySet abt
   -> HoistM abt (abt '[] a)
-introducePotentialBindings liveVars newVars body (EntrySet entries) =
+introduceBindings liveVars newVars body (EntrySet entries) =
   wrapExpr body resultEntries
   where
     resultEntries :: [Entry (abt '[])]
@@ -272,16 +252,17 @@ introducePotentialBindings liveVars newVars body (EntrySet entries) =
                         , memberVarSet v deps
                         , varSubSet deps live' ]
 
--- Let forms should not kill bindings, since we are going to float the rhs of
--- all let expressions. The remaining binding forms are what decide when
--- expressions are removed from the expression pool.
+-- Contrary to the other binding forms, let expressions are killed by the
+-- hoisting pass. Their RHSs are floated upward in the AST and re-introduced
+-- where their data dependencies are fulfilled. Thus, the result of hoisting
+-- a let expression is just the hoisted body.
 hoistTerm
   :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *) . (ABT Term abt)
   => Term abt a
   -> HoistM abt (abt '[] a)
 hoistTerm (Let_ :$ rhs :* body :* End) = do
   caseBind body $ \ v body' -> do
-    rhs'   <- hoist' rhs
+    rhs' <- hoist' rhs
     tell $ singleEntry (Just v) rhs'
     local (insertVarSet v) (hoist' body')
 
