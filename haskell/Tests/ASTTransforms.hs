@@ -16,6 +16,8 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.ANF       (normalize)
 import           Language.Hakaru.Syntax.CSE       (cse)
 import           Language.Hakaru.Syntax.Prune     (prune)
+import           Language.Hakaru.Syntax.Hoist     (hoist)
+import           Language.Hakaru.Syntax.Uniquify  (uniquify)
 import           Language.Hakaru.Syntax.Unroll    (unroll)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq    (alphaEq)
@@ -59,7 +61,7 @@ allTests :: Test
 allTests = test [ TestLabel "ANF" anfTests ]
 
 opts :: (ABT Term abt) => abt '[] a -> abt '[] a
-opts = prune . cse . normalize . unroll
+opts = prune . cse . uniquify . hoist . normalize
 
 anfTests :: Test
 anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
@@ -97,7 +99,7 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "easyRoad all"      ~: testPreservesMeasure "easyRoad" easyRoad opts
                 , "helloWorld100 all" ~: testPreservesMeasure "helloWorld100" helloWorld100 opts
 
-                , "unroll" ~: testTransform "unroll" example1Unroll example1Unroll' opts
+                {-, "unroll" ~: testTransform "unroll" example1Unroll example1Unroll' opts-}
                 ]
 
 

@@ -1,19 +1,19 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE EmptyCase                  #-}
 {-# LANGUAGE ExistentialQuantification  #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -30,25 +30,28 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Hoist where
 
-import           Data.List (groupBy)
 import           Control.Monad.Reader
 import           Control.Monad.RWS
 import           Control.Monad.Writer.Strict
+import           Data.Foldable                   (foldrM)
+import           Data.List                       (groupBy)
 import qualified Data.Maybe                      as M
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
-import           Prelude                         hiding ((+))
+import           Prelude                         hiding (product, (+))
 
+import           Debug.Trace
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.Prelude  hiding (fst, maybe, not, (<$>), (==))
+import           Language.Hakaru.Syntax.Prelude  hiding (fst, maybe, not, (<$>),
+                                                  (==))
+import qualified Language.Hakaru.Syntax.Prelude  as P
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Syntax.Variable (varSubSet)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
-import Debug.Trace
 
 data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
@@ -95,7 +98,6 @@ newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
 
 instance (ABT Term abt) => Monoid (EntrySet abt) where
   mempty = EntrySet []
-
   mappend (EntrySet xs) (EntrySet ys) = EntrySet (xs ++ ys)
     -- EntrySet $ concat $ map uniquify $ groupBy equal (xs ++ ys)
     where
@@ -128,8 +130,21 @@ example2 = let_ (int_ 0) $ \z ->
            let_ (int_ 1) $ \y ->
            z
 
-singleEntry :: Entry (abt '[]) -> EntrySet abt
-singleEntry = EntrySet . (:[])
+example3 :: TrivialABT Term '[] 'HReal
+example3 = if_ (real_ 1 P.== real_ 2)
+               (real_ 2 + real_ 3)
+               (real_ 3 + real_ 4)
+
+example4 :: TrivialABT Term '[] 'HNat
+example4 = let_ (nat_ 1) $ \ a -> triv ((summate a (a + (nat_ 10)) (\i -> i)) +
+                                        (product a (a + (nat_ 10)) (\i -> i)))
+
+singleEntry
+  :: (ABT Term abt)
+  => Maybe (Variable a)
+  -> abt '[] a
+  -> EntrySet abt
+singleEntry var abt = EntrySet [Entry (freeVars abt) abt var]
 
 execHoistM :: Nat -> HoistM abt a -> a
 execHoistM counter act = a
@@ -215,10 +230,10 @@ wrapExpr
   => abt '[] b
   -> [Entry (abt '[])]
   -> HoistM abt (abt '[] b)
-wrapExpr = foldM wrap
+wrapExpr = foldrM wrap
   where
-    wrap :: abt '[] b -> Entry (abt '[]) -> HoistM abt (abt '[] b)
-    wrap acc Entry{expression=e,binding=b} =
+    wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
+    wrap Entry{expression=e,binding=b} acc =
       case b of
         Just v  -> return $ syn (Let_ :$ e :* bind v acc :* End)
         Nothing -> do
@@ -259,12 +274,11 @@ hoistTerm
 hoistTerm (Let_ :$ rhs :* body :* End) = do
   caseBind body $ \ v body' -> do
     rhs'   <- hoist' rhs
-    body'' <- local (insertVarSet v) (hoist' body')
-    tell $ singleEntry $ Entry (freeVars rhs') rhs' (Just v)
-    return body''
+    tell $ singleEntry (Just v) rhs'
+    local (insertVarSet v) (hoist' body')
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
-  tell $ singleEntry $ Entry (freeVars result) result Nothing
+  tell $ singleEntry Nothing result
   return result
 

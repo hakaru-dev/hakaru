@@ -161,7 +161,6 @@ normalizeCase
 normalizeCase cond bs env ctxt =
   normalizeName cond env $ \ cond' ->
     let -- TODO: How do we deal with pattern variables?
-        {-normalizeBranch :: Branch a abt b -> Context abt b c -> Branch a abt c-}
         normalizeBranch :: forall d e f . Branch d abt e -> Context abt e f -> Branch d abt f
         normalizeBranch (Branch pat body) ctxt' =
           case pat of
