@@ -61,7 +61,7 @@ allTests :: Test
 allTests = test [ TestLabel "ANF" anfTests ]
 
 opts :: (ABT Term abt) => abt '[] a -> abt '[] a
-opts = uniquify . prune . cse . hoist . normalize
+opts = uniquify . prune . cse . hoist . uniquify . normalize
 
 anfTests :: Test
 anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'

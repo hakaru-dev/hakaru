@@ -26,6 +26,14 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
+-- Hoist expressions to the point where their data dependencies are met.
+-- This pass duplicates *a lot* of work and relies on a the CSE and pruning
+-- passes to cleanup the junk (most of which is trivial to do, but we don't know
+-- what is junk until after CSE has occured).
+--
+-- NOTE: This pass assumes globally unique variable ids, as two subterms may
+-- otherwise bind the same variable. Those variables would potentially shadow
+-- eachother if hoisted upward to a common scope.
 --
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Hoist where

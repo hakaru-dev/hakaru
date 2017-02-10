@@ -31,7 +31,13 @@ optimizations
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-optimizations = uniquify . prune . cse . normalize . unroll
+optimizations = uniquify
+              . prune
+              . cse
+              . hoist
+              -- The hoist pass needs globally uniqiue identifiers
+              . uniquify
+              . normalize
 
 underLam
     :: (ABT Term abt, Monad m)
