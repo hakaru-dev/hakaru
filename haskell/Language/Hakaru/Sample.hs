@@ -66,6 +66,15 @@ updateEnv :: EAssoc -> Env -> Env
 updateEnv v@(EAssoc x _) (Env xs) =
     Env $ IM.insert (fromNat $ varID x) v xs
 
+updateEnvs
+    :: List1 Variable xs
+    -> List1 Value xs
+    -> Env
+    -> Env
+updateEnvs Nil1         Nil1         env = env
+updateEnvs (Cons1 x xs) (Cons1 y ys) env =
+    updateEnvs xs ys (updateEnv (EAssoc x y) env)
+
 lookupVar :: Variable a -> Env -> Maybe (Value a)
 lookupVar x (Env env) = do
     EAssoc x' e' <- IM.lookup (fromNat $ varID x) env
