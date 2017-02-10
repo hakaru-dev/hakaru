@@ -260,7 +260,7 @@ hoistTerm
   :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *) . (ABT Term abt)
   => Term abt a
   -> HoistM abt (abt '[] a)
-hoistTerm (Let_ :$ rhs :* body :* End) = do
+hoistTerm (Let_ :$ rhs :* body :* End) =
   caseBind body $ \ v body' -> do
     rhs' <- hoist' rhs
     tell $ singleEntry (Just v) rhs'
