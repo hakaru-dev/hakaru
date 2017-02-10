@@ -97,20 +97,20 @@ deriving instance (ABT Term abt) => MonadReader LiveSet (HoistM abt)
 newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
   = EntrySet { entryList :: [Entry (abt '[])] }
 
--- This instance should behave more like a set, but the rest of the algorith
--- currently does not support that.
 instance (ABT Term abt) => Monoid (EntrySet abt) where
+
   mempty = EntrySet []
+
   mappend (EntrySet xs) (EntrySet ys) =
-    EntrySet $ concat $ map uniquify $ groupBy equal (xs ++ ys)
+    EntrySet . concat . map uniquify $ groupBy equal (xs ++ ys)
     where
       uniquify :: [Entry (abt '[])] -> [Entry (abt '[])]
       uniquify []  = []
       uniquify [x] = [x]
-      uniquify x   = [foldl1 join x]
+      uniquify x   = [foldl1' join x]
 
-      join :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
-      join (Entry d e b1) (Entry _ e' b2) =
+      merge :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
+      merge (Entry d e b1) (Entry _ e' b2) =
         case jmEq1 (typeOf e) (typeOf e') of
           Just Refl -> Entry d e $ nub (b1 ++ b2)
           Nothing   -> error "cannot mappend mismatched entries"
