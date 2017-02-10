@@ -127,7 +127,7 @@ module Language.Hakaru.Syntax.Prelude
     , unsafeNaryOp_, naryOp_withIdentity, naryOp2_
 
     -- * Reducers
-    , bucket, r_index, r_nop, r_add
+    , bucket, r_index, r_split, r_nop, r_add
 
     ) where
 
@@ -1148,7 +1148,15 @@ r_index
     -> (abt '[] 'HNat -> abt xs 'HNat)
     -> Reducer abt ( 'HNat ': xs) a
     -> Reducer abt xs ('HArray a)
-r_index n f r = Red_Index n (binder Text.empty SNat f) r
+r_index n f = Red_Index n (binder Text.empty SNat f)
+
+r_split
+    :: (ABT Term abt)
+    => (abt '[] 'HNat -> abt xs HBool)
+    -> Reducer abt xs a
+    -> Reducer abt xs b
+    -> Reducer abt xs (HPair a b)
+r_split b = Red_Split (binder Text.empty SNat b)
 
 r_nop :: (ABT Term abt) => Reducer abt xs HUnit
 r_nop = Red_Nop
