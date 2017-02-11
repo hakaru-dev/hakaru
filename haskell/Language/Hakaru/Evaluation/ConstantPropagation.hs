@@ -86,12 +86,13 @@ tryEval term
   | isFoldable term = runPureEvaluate (syn term)
   | otherwise       = syn term
 
+isLiteral :: forall abt b ys . (ABT Term abt) => abt ys b -> Bool
+isLiteral abt = case viewABT abt of
+                  Syn (Literal_ _) -> True
+                  _                -> False
+
 isFoldable :: forall abt b . (ABT Term abt) => Term abt b -> Bool
-isFoldable = getAll . foldMap21 islit
-  where
-    islit :: forall a ys . abt ys a -> All
-    islit (viewABT -> Syn (Literal_ _)) = All True
-    islit _                             = All False
+isFoldable = getAll . foldMap21 (All . isLiteral)
 
 getLiteral :: forall abt ys b. (ABT Term abt) => abt ys b -> Maybe (Literal b)
 getLiteral e =
