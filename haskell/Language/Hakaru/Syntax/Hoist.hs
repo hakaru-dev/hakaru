@@ -41,7 +41,7 @@ module Language.Hakaru.Syntax.Hoist where
 
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
-import           Data.List                       (groupBy, nub)
+import           Data.List                       (foldl1', groupBy, nub)
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 
@@ -107,7 +107,7 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
       uniquify :: [Entry (abt '[])] -> [Entry (abt '[])]
       uniquify []  = []
       uniquify [x] = [x]
-      uniquify x   = [foldl1' join x]
+      uniquify x   = [foldl1' merge x]
 
       merge :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
       merge (Entry d e b1) (Entry _ e' b2) =
@@ -224,13 +224,13 @@ wrapExpr
   -> HoistM abt (abt '[] b)
 wrapExpr = foldrM wrap
   where
-    mklet e b v = syn (Let_ :$ e :* bind v b :* End)
+    mklet e v b = syn (Let_ :$ e :* bind v b :* End)
 
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
     wrap Entry{expression=e,binding=b} acc = do
       tmp <- newVar (typeOf e)
-      let body = foldr (\v acc' -> mklet (var tmp) acc' v) acc b
-      return $ mklet e body tmp
+      let body = foldr (mklet $ var tmp) acc b
+      return $ mklet e tmp body
 
 introduceBindings
   :: forall (a :: Hakaru) abt

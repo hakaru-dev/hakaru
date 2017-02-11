@@ -6,6 +6,7 @@
            , DeriveDataTypeable
            , ExistentialQuantification
            , UndecidableInstances
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -42,6 +43,8 @@ module Language.Hakaru.Syntax.Variable
     , insertVarSet
     , deleteVarSet
     , memberVarSet
+    , unionVarSet
+    , intersectVarSet
     , varSubSet
     , sizeVarSet
     , nextVarID
@@ -407,6 +410,25 @@ memberVarSet x (VarSet xs) =
         case varEq x x' of
         Nothing -> False
         Just _  -> True
+
+-- NB: The union and intersection operations are left biased.
+-- What is the best behaviour when we have two variables with
+-- different types in the set?
+unionVarSet
+    :: forall (kproxy :: KProxy k)
+    .  (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    => VarSet kproxy
+    -> VarSet kproxy
+    -> VarSet kproxy
+unionVarSet (VarSet s1) (VarSet s2) = VarSet (IM.union s1 s2)
+
+intersectVarSet
+    :: forall (kproxy :: KProxy k)
+    .  (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    => VarSet kproxy
+    -> VarSet kproxy
+    -> VarSet kproxy
+intersectVarSet (VarSet s1) (VarSet s2) = VarSet (IM.intersection s1 s2)
 
 varSubSet
     :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
