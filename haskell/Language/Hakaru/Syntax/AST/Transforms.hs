@@ -15,7 +15,6 @@ import qualified Data.Sequence as S
 import Language.Hakaru.Syntax.ANF      (normalize)
 import Language.Hakaru.Syntax.CSE      (cse)
 import Language.Hakaru.Syntax.Prune    (prune)
-import Language.Hakaru.Syntax.Unroll   (unroll)
 import Language.Hakaru.Syntax.Uniquify (uniquify)
 import Language.Hakaru.Syntax.Hoist    (hoist)
 import Language.Hakaru.Syntax.ABT

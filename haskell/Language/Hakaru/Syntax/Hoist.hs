@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE EmptyCase                  #-}
 {-# LANGUAGE ExistentialQuantification  #-}
@@ -61,9 +60,6 @@ data Entry (abt :: Hakaru -> *)
   , binding         :: ![Variable a]
   }
 
-instance Show (Entry a) where
-  show (Entry deps _ bindings) = "Entry (" ++ show deps ++ ") (" ++ show bindings ++ ")"
-
 type VarState    = Assocs Entry
 type HakaruProxy = ('KProxy :: KProxy Hakaru)
 type LiveSet     = VarSet HakaruProxy
@@ -102,7 +98,7 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
   mempty = EntrySet []
 
   mappend (EntrySet xs) (EntrySet ys) =
-    EntrySet . concat . map uniquify $ groupBy equal (xs ++ ys)
+    EntrySet . concatMap uniquify $ groupBy equal (xs ++ ys)
     where
       uniquify :: [Entry (abt '[])] -> [Entry (abt '[])]
       uniquify []  = []
