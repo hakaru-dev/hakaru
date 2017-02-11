@@ -224,6 +224,7 @@ wrapExpr
   -> HoistM abt (abt '[] b)
 wrapExpr = foldrM wrap
   where
+    mklet :: abt '[] a -> Variable a -> abt '[] b -> abt '[] b
     mklet e v b = syn (Let_ :$ e :* bind v b :* End)
 
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
