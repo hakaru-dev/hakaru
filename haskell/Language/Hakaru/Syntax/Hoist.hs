@@ -264,7 +264,8 @@ introduceBindings liveVars newVars body (EntrySet entries) =
 -- where their data dependencies are fulfilled. Thus, the result of hoisting
 -- a let expression is just the hoisted body.
 hoistTerm
-  :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *) . (ABT Term abt)
+  :: forall (a :: Hakaru) (abt :: [Hakaru] -> Hakaru -> *)
+  .  (ABT Term abt)
   => Term abt a
   -> HoistM abt (abt '[] a)
 hoistTerm (Let_ :$ rhs :* body :* End) =
