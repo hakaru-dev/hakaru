@@ -178,6 +178,13 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                  [ ppArg e1
                  , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
                  ]
+        Bucket b e r  ->
+            ppFun p "bucket"
+            [ ppArg b
+            , ppArg e
+            , error "TODO: prettyPrec{Bucket}"
+            ]
+              
         Superpose_ pes ->
             case pes of
             (e1,e2) L.:| [] ->
