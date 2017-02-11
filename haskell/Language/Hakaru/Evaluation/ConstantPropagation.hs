@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE Rank2Types                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -31,14 +32,18 @@ import           Data.Functor                         ((<$>))
 #endif
 
 import           Control.Monad.Reader
+import           Data.Monoid                          (All (..))
 import           Language.Hakaru.Evaluation.EvalMonad (runPureEvaluate)
 import           Language.Hakaru.Syntax.ABT           (ABT (..), View (..))
 import           Language.Hakaru.Syntax.AST
-import           Language.Hakaru.Syntax.IClasses      (Traversable21 (..))
+import           Language.Hakaru.Syntax.IClasses      (Foldable21 (..),
+                                                       Traversable21 (..))
 import           Language.Hakaru.Syntax.Variable
 
 type Env = Assocs Literal
 
+-- The constant propagation monad. Simply threads through an environment mapping
+-- variables to known constant values.
 newtype PropM a = PropM { runPropM :: Reader Env a }
   deriving (Functor, Applicative, Monad, MonadReader Env)
 
@@ -46,12 +51,9 @@ newtype PropM a = PropM { runPropM :: Reader Env a }
 ----------------------------------------------------------------
 -- TODO: try evaluating certain things even if not all their immediate
 -- subterms are literals. For example:
--- (1) substitute let-bindings of literals
--- (2) evaluate beta-redexes where the argument is a literal
--- (3) evaluate case-of-constructor if we can
--- (4) handle identity elements for NaryOps
--- N.B., some of these will require performing top-down work to
--- avoid re-traversing subtrees.
+-- (1) evaluate beta-redexes where the argument is a literal
+-- (2) evaluate case-of-constructor if we can
+-- (3) handle identity elements for NaryOps
 --
 -- | Perform basic constant propagation.
 constantPropagation
@@ -72,20 +74,18 @@ constantProp' = start
 
     loop :: forall b ys . View (Term abt) ys b -> PropM (abt ys b)
     loop (Var v)    = (maybe (var v) (syn . Literal_) . lookupAssoc v) <$> ask
-    loop (Syn s)    = constantPropTerm s --alg <$> traverse21 start s
+    loop (Syn s)    = constantPropTerm s
     loop (Bind v b) = bind v <$> loop b
 
 
 tryEval :: forall abt b . (ABT Term abt) => Term abt b -> abt '[] b
-tryEval t =
-  case traverse21 getLit t of
-    Nothing -> syn t
-    Just t' -> runPureEvaluate (syn t')
+tryEval term
+  | getAll (foldMap21 islit term) = runPureEvaluate (syn term)
+  | otherwise                     = syn term
   where
-    getLit :: forall a ys . abt ys a -> Maybe (abt ys a)
-    getLit l = case viewABT l of
-                 Syn (Literal_ _) -> Just l
-                 _                -> Nothing
+    islit :: forall a ys . abt ys a -> All
+    islit (viewABT -> Syn (Literal_ _)) = mempty
+    islit _                             = All False
 
 getLiteral :: forall abt ys b. (ABT Term abt) => abt ys b -> Maybe (Literal b)
 getLiteral e =
