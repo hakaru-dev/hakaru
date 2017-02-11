@@ -183,7 +183,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             ppFun p "bucket"
             [ ppArg b
             , ppArg e
-            , toDoc $ prettyPrec_ p r
+            , toDoc $ parens True (prettyPrec_ p r)
             ]
               
         Superpose_ pes ->
@@ -435,7 +435,28 @@ instance (ABT Term abt) => Pretty (Branch a abt) where
             ]
 
 instance (ABT Term abt) => Pretty (Reducer abt xs) where
-    prettyPrec_ p Red_Nop = [ PP.text "r_nop" ]
+    prettyPrec_ p (Red_Fanout r1 r2)  =
+        ppFun p "r_fanout"
+            [ toDoc $ prettyPrec_ 11 r1
+            , toDoc $ prettyPrec_ 11 r2
+            ]
+    prettyPrec_ p (Red_Index n o e)   =
+        ppFun p "r_index"
+            [ toDoc $ ppBinder n
+            , toDoc $ ppBinder o
+            , toDoc $ prettyPrec_ 11 e
+            ]
+    prettyPrec_ p (Red_Split b r1 r2) =
+        ppFun p "r_split"
+            [ toDoc $ ppBinder b
+            , toDoc $ prettyPrec_ 11 r1
+            , toDoc $ prettyPrec_ 11 r2
+            ]
+    prettyPrec_ p Red_Nop             =
+        [ PP.text "r_nop" ]
+    prettyPrec_ p (Red_Add _ e)       =
+        ppFun p "r_add"
+            [ toDoc $ parens True (ppBinder e)]
         
 ----------------------------------------------------------------
 -- | For the \"@lam $ \x ->\n@\"  style layout.
