@@ -227,6 +227,8 @@ wrapExpr = foldrM wrap
     mklet :: abt '[] a -> Variable a -> abt '[] b -> abt '[] b
     mklet e v b = syn (Let_ :$ e :* bind v b :* End)
 
+    -- Binds the Entry's expression to a fresh variable and rebinds any other
+    -- variable uses to the fresh variable.
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
     wrap Entry{expression=e,binding=b} acc = do
       tmp <- newVar (typeOf e)
