@@ -54,6 +54,10 @@ newtype PropM a = PropM { runPropM :: Reader Env a }
 -- (1) evaluate beta-redexes where the argument is a literal
 -- (2) evaluate case-of-constructor if we can
 -- (3) handle identity elements for NaryOps
+-- (4) Recognize trivial cases for looping constructs:
+--     summate a b (const 0) == 0
+--     summate a b id        == b - a
+--     summate a b (const x) == x * (b - a)
 --
 -- | Perform basic constant propagation.
 constantPropagation
