@@ -77,7 +77,7 @@ constantProp' = start
     start = loop . viewABT
 
     loop :: forall b ys . View (Term abt) ys b -> PropM (abt ys b)
-    loop (Var v)    = (maybe (var v) (syn . Literal_) . lookupAssoc v) <$> ask
+    loop (Var v)    = maybe (var v) (syn . Literal_) . lookupAssoc v <$> ask
     loop (Syn s)    = constantPropTerm s
     loop (Bind v b) = bind v <$> loop b
 
