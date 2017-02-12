@@ -196,6 +196,14 @@ hoist' = start
     start :: forall ys b . abt ys b -> HoistM abt (abt ys b)
     start = loop [] . viewABT
 
+    -- @loop@ takes 2 parameters.
+    --
+    -- 1. The list of variables bound so far
+    -- 2. The current term we are recurring over
+    --
+    -- We add a value to the first every time we hit a @Bind@ term, and when
+    -- a @Syn@ term is finally reached, we introduce any hoisted values whose
+    -- data dependencies are satisified by these new variables.
     loop :: forall ys b
          .  [SomeVariable HakaruProxy]
          -> View (Term abt) ys b
