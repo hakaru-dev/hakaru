@@ -68,6 +68,7 @@ module Language.Hakaru.Syntax.ABT
     , withMetadata
     -- ** Abstract nonsense
     , cataABT
+    , cataABTM
     , paraABT
 
     -- * Some ABT instances
@@ -1004,6 +1005,31 @@ cataABT var_ bind_ syn_ = start
     loop (Bind x e) = bind_ x (loop e)
 {-# INLINE cataABT #-}
 
+-- | A monadic variant of @cataABT@, which may not fit the precise definition of
+-- a catamorphism? The @bind@ and @syn@ operations receive monadic actions as their
+-- inputs, which allows the @bind@ and @syn@ operations to update the monadic
+-- context in which the subterms are evaluated if need be.
+cataABTM
+    :: forall
+        (abt :: [k] -> k -> *)
+        (syn :: ([k] -> k -> *) -> k -> *)
+        (r   :: [k] -> k -> *)
+        (m   :: * -> *)
+    .  (ABT syn abt, Traversable21 syn, Monad m)
+    => (forall a.      Variable a  -> m (r '[] a))
+    -> (forall x xs a. Variable x  -> m (r xs a) -> m (r (x ': xs) a))
+    -> (forall a.      m (syn r a) -> m (r '[] a))
+    -> forall  xs a.   abt xs a    -> m (r xs a)
+cataABTM var_ bind_ syn_ = start
+    where
+    start :: forall ys b. abt ys b -> m (r ys b)
+    start = loop . viewABT
+
+    loop :: forall ys b. View (syn abt) ys b -> m (r ys b)
+    loop (Syn  t)   = syn_ (traverse21 start t)
+    loop (Var  x)   = var_  x
+    loop (Bind x e) = bind_ x (loop e)
+{-# INLINE cataABTM #-}
 
 -- | The paramorphism (aka: recursor) for ABTs. While this is
 -- equivalent to 'cataABT' in terms of the definable /functions/,

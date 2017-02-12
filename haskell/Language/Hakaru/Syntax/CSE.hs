@@ -28,7 +28,6 @@
 module Language.Hakaru.Syntax.CSE (cse) where
 
 import           Control.Monad.Reader
-import           Data.Maybe
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
@@ -67,7 +66,7 @@ lookupEnv
   => abt '[] a
   -> Env abt
   -> abt '[] a
-lookupEnv ast (Env env) = go ast env
+lookupEnv start (Env env) = go start env
   where
     go :: abt '[] a -> [EAssoc abt] -> abt '[] a
     go ast []                = ast
@@ -103,12 +102,7 @@ cse :: forall abt a . (ABT Term abt) => abt '[] a -> abt '[] a
 cse abt = runReader (runCSE (cse' abt)) emptyEnv
 
 cse' :: forall abt xs a . (ABT Term abt) => abt xs a -> CSE abt (abt xs a)
-cse' = loop . viewABT
-  where
-    loop :: View (Term abt) ys a ->  CSE abt (abt ys a)
-    loop (Var v)    = cseVar v
-    loop (Syn s)    = cseTerm s
-    loop (Bind v b) = fmap (bind v) (loop b)
+cse' = cataABTM cseVar (fmap . bind) (>>= cseTerm)
 
 -- Variables can be equivalent to other variables
 -- TODO: A good sanity check would be to ensure the result in this case is
