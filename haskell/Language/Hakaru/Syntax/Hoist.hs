@@ -41,6 +41,7 @@ module Language.Hakaru.Syntax.Hoist where
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
 import           Data.List                       (foldl1', groupBy, nub)
+import           Data.Maybe                      (mapMaybe)
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 
@@ -98,12 +99,11 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
   mempty = EntrySet []
 
   mappend (EntrySet xs) (EntrySet ys) =
-    EntrySet . concatMap uniquify $ groupBy equal (xs ++ ys)
+    EntrySet . mapMaybe uniquify $ groupBy equal (xs ++ ys)
     where
-      uniquify :: [Entry (abt '[])] -> [Entry (abt '[])]
-      uniquify []  = []
-      uniquify [x] = [x]
-      uniquify x   = [foldl1' merge x]
+      uniquify :: [Entry (abt '[])] -> Maybe (Entry (abt '[]))
+      uniquify [] = Nothing
+      uniquify zs = Just $ foldl1' merge zs
 
       merge :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
       merge (Entry d e b1) (Entry _ e' b2) =
@@ -156,9 +156,15 @@ hoist
   -> abt '[] a
 hoist abt = execHoistM (nextFreeOrBind abt) $ do
   (abt', entries) <- listen $ hoist' abt
+  -- After transforming the given ast, we need to introduce all the toplevel
+  -- bindings (i.e. bindings with no data dependencies), most of which should be
+  -- eliminated by constant propagation.
   let toplevel = filter toplevelEntry $ entryList entries
-      intro    = concatMap (\ Entry{binding=b} -> fmap SomeVariable b) toplevel
+      intro    = concatMap getBoundVar toplevel
+  -- First we wrap the now AST in the all terms which depdend on top level
+  -- definitions
   wrapped <- introduceBindings emptyVarSet intro abt' entries
+  -- Then wrap the result in the toplevel definitions
   wrapExpr wrapped toplevel
 
 zapDependencies
