@@ -25,14 +25,14 @@
 module Language.Hakaru.Syntax.Unroll where
 
 import           Control.Monad.Reader
-import           Data.Maybe                      (fromMaybe)
-import           Language.Hakaru.Syntax.ABT      hiding (rename)
+import           Data.Maybe                     (fromMaybe)
+import           Language.Hakaru.Syntax.ABT     hiding (rename)
 import           Language.Hakaru.Syntax.AST
-import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
-import           Language.Hakaru.Syntax.Prelude  hiding ((>>=))
+import           Language.Hakaru.Syntax.AST.Eq  (Varmap)
+import           Language.Hakaru.Syntax.Prelude hiding ((>>=))
 import           Language.Hakaru.Types.HClasses
-import           Prelude                         hiding (product, (*), (+), (-),
-                                                  (==), (>=))
+import           Prelude                        hiding (product, (*), (+), (-),
+                                                 (==), (>=))
 
 newtype Unroll a = Unroll { runUnroll :: Reader Varmap a }
   deriving (Functor, Applicative, Monad, MonadReader Varmap, MonadFix)
