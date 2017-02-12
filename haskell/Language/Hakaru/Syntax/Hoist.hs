@@ -160,7 +160,7 @@ hoist abt = execHoistM (nextFreeOrBind abt) $ do
   -- bindings (i.e. bindings with no data dependencies), most of which should be
   -- eliminated by constant propagation.
   let toplevel = filter toplevelEntry $ entryList entries
-      intro    = concatMap getBoundVar toplevel
+      intro    = concatMap getBoundVars toplevel
   -- First we wrap the now AST in the all terms which depdend on top level
   -- definitions
   wrapped <- introduceBindings emptyVarSet intro abt' entries
@@ -216,8 +216,8 @@ hoist' = start
       b' <- zapDependencies v (loop xs' b)
       return (bind v b')
 
-getBoundVar :: Entry x -> [HakaruVar]
-getBoundVar Entry{binding=b} = fmap SomeVariable b
+getBoundVars :: Entry x -> [HakaruVar]
+getBoundVars Entry{binding=b} = fmap SomeVariable b
 
 wrapExpr
   :: forall abt b . (ABT Term abt)
@@ -256,7 +256,7 @@ introduceBindings liveVars newVars body (EntrySet entries) =
     loop live (SomeVariable v : xs) = introduced ++ loop live' (xs ++ vars)
       where
         live'      = insertVarSet v live
-        vars       = concatMap getBoundVar introduced
+        vars       = concatMap getBoundVars introduced
         introduced = [e | e@Entry{varDependencies=deps} <- entries
                         , memberVarSet v deps
                         , varSubSet deps live' ]
