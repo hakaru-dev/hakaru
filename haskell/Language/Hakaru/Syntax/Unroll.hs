@@ -29,9 +29,7 @@ import           Data.Maybe                      (fromMaybe)
 import           Language.Hakaru.Syntax.ABT      hiding (rename)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
-import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Prelude  hiding ((>>=))
-import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.HClasses
 import           Prelude                         hiding (product, (*), (+), (-),
                                                   (==), (>=))
@@ -60,15 +58,10 @@ unroll :: forall abt xs a . (ABT Term abt) => abt xs a -> abt xs a
 unroll abt = runReader (runUnroll $ unroll' abt) emptyAssocs
 
 unroll' :: forall abt xs a . (ABT Term abt) => abt xs a -> Unroll (abt xs a)
-unroll' = start
+unroll' = cataABTM var_ renameInEnv (>>= unrollTerm)
   where
-    start :: forall ys b . abt ys b -> Unroll (abt ys b)
-    start = loop . viewABT
-
-    loop :: forall ys b . View (Term abt) ys b -> Unroll (abt ys b)
-    loop (Var v)    = fmap (var . fromMaybe v . lookupAssoc v) ask
-    loop (Syn s)    = traverse21 start s >>= unrollTerm
-    loop (Bind v b) = renameInEnv v (loop b)
+    var_ :: Variable b -> Unroll (abt '[] b)
+    var_ v = fmap (var . fromMaybe v . lookupAssoc v) ask
 
 mklet :: ABT Term abt => abt '[] b -> abt '[b] a -> abt '[] a
 mklet rhs body = syn (Let_ :$ rhs :* body :* End)
