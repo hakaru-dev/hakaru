@@ -81,11 +81,6 @@ constantProp' = start
     loop (Syn s)    = constantPropTerm s
     loop (Bind v b) = bind v <$> loop b
 
-tryEval :: forall abt b . (ABT Term abt) => Term abt b -> abt '[] b
-tryEval term
-  | isFoldable term = runPureEvaluate (syn term)
-  | otherwise       = syn term
-
 isLiteral :: forall abt b ys . (ABT Term abt) => abt ys b -> Bool
 isLiteral abt = case viewABT abt of
                   Syn (Literal_ _) -> True
@@ -99,6 +94,11 @@ getLiteral e =
   case viewABT e of
     Syn (Literal_ l) -> Just l
     _                -> Nothing
+
+tryEval :: forall abt b . (ABT Term abt) => Term abt b -> abt '[] b
+tryEval term
+  | isFoldable term = runPureEvaluate (syn term)
+  | otherwise       = syn term
 
 constantPropTerm
   :: (ABT Term abt)
