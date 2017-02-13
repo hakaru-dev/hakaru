@@ -1,3 +1,7 @@
+# Note that this 'module' and Loop.mpl are currently mutually recursive.
+# Loop:-intssums > simplify_factor_assuming > eval_factor > hack_Beta > Loop:-graft
+# but Loop:-intssums does not seem to even be used anywhere...
+
     hack_Beta := proc(e :: specfunc(Beta), kb :: t_kb,
                       loops :: list([identical(product,Product,sum,Sum),
                                      name=range]),
@@ -61,4 +65,69 @@
         end if
       end if;
       return FAIL;
+    end proc;
+
+
+
+    # GAMMAratio(s, r) = GAMMA(s+r) / GAMMA(r)
+    GAMMAratio := proc(s, r, $)
+      local var;
+      if s :: t_piecewiselike then
+        map_piecewiselike(GAMMAratio,
+          `if`(s :: 'specfunc(piecewise)' and nops(s) :: even, 'piecewise'(op(s), 0), s),
+          r)
+      elif s :: 'numeric' then
+        product(var+r, var=0..s-1)
+      else
+        var := 'j';
+        if has(r, var) then var := gensym(var) end if;
+        Product(var+r, var=0..s-1) # inert so as to not become GAMMA
+      end if
+    end proc;
+
+
+
+
+    # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
+    #      to piecewise(i<=j,1,0) + ...
+    # and rewrite piecewise(And(i<=j-1,a<b),1) + piecewise(And(a<b,i=j),1) + ...
+    #          to piecewise(And(i<=j,a<b),1) + ...
+    graft_pw := proc(ee, $)
+      subsindets(ee, 'And(`+`, Not(`+`(Not(specfunc(piecewise)))))', proc(e, $)
+        local terms, j, i, jcond, icond, conds;
+        terms := sort(convert(e,'list'),
+                      key = proc(term, $) local rel; -add(numboccur(term,rel), rel in indets(term,`<=`)) end proc);
+        for i from nops(terms) to 2 by -1 do
+          if not (op(i,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
+          icond := op([i,1],terms);
+          icond := `if`(icond :: 'specfunc(And)', {op(icond)}, {icond});
+          for j from i-1 to 1 by -1 do
+            if not (op(j,terms) :: 'And(specfunc(piecewise), Or(anyfunc(anything,1), anyfunc(anything,1,0)))') then next end if;
+            jcond := op([j,1],terms);
+            jcond := `if`(jcond :: 'specfunc(And)', {op(jcond)}, {jcond});
+            conds := jcond intersect icond;
+            jcond := jcond minus conds;
+            icond := icond minus conds;
+            if not (nops(jcond) = 1 and nops(icond) = 1) then next end if;
+            jcond := op(jcond);
+            icond := op(icond);
+            if not (jcond :: `<=` and icond :: `=`) then next end if;
+            if not Testzero(`-`(op(jcond)) - `-`(op(icond)) - 1) then next end if; # Unsound HACK: assuming integers, so jcond<=-1 is equivalent to jcond<0
+            terms := subsop(i=NULL, [j,1]=maptype('specfunc(And)', (c -> `if`(c=jcond, subsop(0=`<=`,icond), c)), op([j,1],terms)), terms);
+            break
+          end do
+        end do;
+        `+`(op(terms))
+      end proc)
+    end proc;
+
+
+    wrap := proc(e, loops :: list([identical(product,Product,sum,Sum),
+                                   name=range]), $)
+      local res, loop;
+      res := e;
+      for loop in loops do
+        res := op(1,loop)(res, op(2,loop));
+      end do;
+      res
     end proc;
