@@ -31,7 +31,6 @@ import           Data.Maybe
 import           Data.Number.Nat
 import           Data.Sequence                   ((<|))
 import qualified Data.Sequence                   as S
-{-import           Prelude                         hiding ((+), (==))-}
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
