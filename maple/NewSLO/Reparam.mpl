@@ -105,34 +105,6 @@
             return e
        end if;
 
-       (*#************ This isn't currently used. **********************************
-       #Check the invertibility of the change of vars.
-
-       #The ability of `solve` to select a branch is very limited. For example,
-               solve({y=x^2, x > 0}, {x})
-       #returns
-               sqrt(y), -sqrt(y).
-       #This needs to be dealt with. First idea: Use `is` to filter
-       #solutions. This is implemented below.
-
-       #The next command is redundantly performed in the local inits. I put it here also
-       #because I anticipate some future situations where that's no longer valid.
-
-       #Save current vars for comparison with vars after `solve`.
-       Ns:= indets(oldarg, symbol);
-       #The usage of `explicit` in the next line is undocumented.
-       S:= {solve({'y'=oldarg, a <= x, x <= b}, {x}, allsolutions, explicit)};
-       S:= map(s->`if`(s::specfunc(piecewise), s[], s), S);
-       #Use `is` to filter solutions under the assumptions.
-       assume(a <= x, x <= b);
-       S:= select(s-> ver(rhs,lhs)(eval(s, y= oldarg)[]), S);
-       if  nops(S) <> 1  or  indets(S, symbol) <> Ns union {y}  or  hastype(S, RootOf)  then
-            WARNING("Reparam target is not invertible (upto `solve` and `is`).");
-            userinfo(1, procname, "Target:", subs(x= ':-x', oldarg), "S:", subs(x= ':-x', S), "domain:", ':-x'= a..b);
-            return 'procname'(e)
-       end if;
-       *******************************************************************************)
-
        #Make the change of vars.
        newJ:= simplify_assuming('ChangeVarInt(J, oldarg)', foldr(assert, empty, ctx[]));
 
