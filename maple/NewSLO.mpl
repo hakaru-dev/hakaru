@@ -40,6 +40,11 @@ NewSLO := module ()
          RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, Efficient,
          toLO, fromLO, unintegrate, unweight, improve, reduce,
          density, bounds,
+
+     # Like simplify_assuming, but also applies `hack_Beta` and `eval_factor`
+     # which helps some things simplify.
+     simplify_factor_assuming,
+
          ReparamDetermined, determined, reparam, disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
@@ -56,6 +61,7 @@ $include "NewSLO\Banish.mpl"
 $include "NewSLO\Improve.mpl"
 $include "NewSLO\Disint.mpl"
 $include "NewSLO\Reparam.mpl"
+$include "NewSLO\Factor.mpl"
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied

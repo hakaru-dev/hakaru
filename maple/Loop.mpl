@@ -104,7 +104,7 @@ Loop := module ()
     else
       pp := 'make'(pp, x=r);
       for i in l do pp := 'product'(pp, i) end do;
-      simplify_factor_assuming(w0 * pp, kb);
+      NewSLO:-simplify_factor_assuming(w0 * pp, kb);
     end if
   end proc;
 
@@ -287,7 +287,7 @@ Loop := module ()
   # Also, a t_binder is a Product/product/Sum/sum.
   # And, a t_stmt is a 1-hole context of a (multiplicative) AST,
   #   used for [a ^ hole, hole ^ b, exp(hole), c * hole].
-  
+
   wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),
                kb1::t_kb, kb0::t_kb, $)
     local e, kb, mode, i, entry, rest, var, new_rng, make,
