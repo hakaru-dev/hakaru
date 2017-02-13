@@ -39,7 +39,7 @@ import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.IClasses
 
-newtype Uniqifier a = Uniquifier { runUniquifier :: StateT Nat (Reader Varmap) a }
+newtype Uniquifier a = Uniquifier { runUniquifier :: StateT Nat (Reader Varmap) a }
   deriving (Functor, Applicative, Monad, MonadState Nat, MonadReader Varmap)
 
 uniquify :: (ABT Term abt) => abt '[] a -> abt '[] a
@@ -47,32 +47,32 @@ uniquify abt = fst $ runReader (runStateT unique 0) emptyAssocs
   where
     unique = runUniquifier (uniquify' abt)
 
-genVarID :: Uniqifier Nat
+genVarID :: Uniquifier Nat
 genVarID = do
   vid <- get
   put (succ vid)
   return vid
 
+newVar :: Variable a -> Uniquifier (Variable a)
+newVar v = do
+  vid <- genVarID
+  let fresh = v { varID = vid }
+  return fresh
+
 uniquify'
   :: forall abt xs a . (ABT Term abt)
   => abt xs a
-  -> Uniqifier (abt xs a)
-uniquify' = loop . viewABT
+  -> Uniquifier (abt xs a)
+uniquify' = cataABTM uniquifyVar bind_ (fmap syn)
   where
-    loop :: View (Term abt) ys a -> Uniqifier (abt ys a)
-    loop (Var v)    = uniquifyVar v
-    loop (Syn s)    = fmap syn (traverse21 uniquify' s)
-    loop (Bind v b) = do
-      vid <- genVarID
-      let fresh = v { varID = vid }
-          assoc = Assoc v fresh
-      -- Process the body with the updated Varmap and wrap the
-      -- result in a bind form
-      bind fresh <$> local (insertOrReplaceAssoc assoc) (loop b)
+    bind_ v b = do
+      fresh <- newVar v
+      let assoc = Assoc v fresh
+      bind fresh <$> local (insertOrReplaceAssoc assoc) b
 
 uniquifyVar
   :: (ABT Term abt)
   => Variable a
-  -> Uniqifier (abt '[] a)
+  -> Uniquifier (abt '[] a)
 uniquifyVar v = (var . fromMaybe v . lookupAssoc v) <$> ask
 
