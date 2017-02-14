@@ -57,10 +57,12 @@ prune'
   :: forall abt xs a . (ABT Term abt)
   => abt xs a
   -> PruneM (abt xs a)
-prune' = cataABTM var_ renameInEnv (>>= pruneTerm)
-  where
-    var_ :: Variable b -> PruneM (abt '[] b)
-    var_ v = var . lookupEnv v <$> ask
+prune' = loop . viewABT
+   where
+    loop :: forall (b :: Hakaru) ys . View (Term abt) ys b -> PruneM (abt ys b)
+    loop (Var v)    = (var . lookupEnv v) `fmap` ask
+    loop (Syn s)    = pruneTerm s
+    loop (Bind v b) = renameInEnv v (loop b)
 
 pruneTerm
   :: (ABT Term abt)
