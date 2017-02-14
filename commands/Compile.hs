@@ -32,10 +32,11 @@ import           System.FilePath
 
 
 data Options =
-  Options { fileIn   :: String
-          , fileOut  :: Maybe String
-          , asModule :: Maybe String
-          , fileIn2  :: Maybe String
+  Options { fileIn          :: String
+          , fileOut         :: Maybe String
+          , asModule        :: Maybe String
+          , fileIn2         :: Maybe String
+          , logFloatPrelude :: Bool
           } deriving Show
 
 main :: IO ()
@@ -67,6 +68,8 @@ options = Options
                             <> help "creates a haskell module with this name"))
   <*> (optional $ strOption (  long "with-kernel"
                             <> help "<transition kernel> <initial measure>"))
+  <*> switch (  long "logfloat-prelude"
+             <> help "use logfloat prelude for numeric stability")
 
 prettyProg :: (ABT T.Term abt)
            => String
@@ -88,7 +91,7 @@ compileHakaru opts = do
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
         writeHkHsToFile file (fileOut opts) . TxT.unlines $
-          header (asModule opts) ++
+          header (logFloatPrelude opts) (asModule opts) ++
           [ pack $ prettyProg "prog" (et ast) ] ++
           (case asModule opts of
              Nothing -> footer typ
@@ -110,7 +113,7 @@ compileRandomWalk opts = do
             (SFun a (SMeasure b), SMeasure c)
               | (Just Refl, Just Refl) <- (jmEq1 a b, jmEq1 b c)
               -> writeHkHsToFile f1 (fileOut opts) . TxT.unlines $
-                   header (asModule opts) ++
+                   header (logFloatPrelude opts) (asModule opts) ++
                    [ pack $ prettyProg "prog1" (expandTransformations ast1) ] ++
                    [ pack $ prettyProg "prog2" (expandTransformations ast2) ] ++
                    (case asModule opts of
@@ -127,8 +130,8 @@ writeHkHsToFile inFile moutFile content =
                    Just x  -> x
   in  writeToFile outFile content
 
-header :: Maybe String -> [Text]
-header mmodule =
+header :: Bool -> Maybe String -> [Text]
+header logfloats mmodule =
   [ "{-# LANGUAGE DataKinds, NegativeLiterals #-}"
   , TxT.unwords [ "module"
                 , case mmodule of
@@ -137,7 +140,9 @@ header mmodule =
                 , "where" ]
   , ""
   , "import           Prelude                          hiding (product)"
-  , "import           Language.Hakaru.Runtime.Prelude"
+  , if logfloats
+    then "import           Language.Hakaru.Runtime.LogFloatPrelude"
+    else "import           Language.Hakaru.Runtime.Prelude"
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
