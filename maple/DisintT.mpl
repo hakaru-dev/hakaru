@@ -40,16 +40,6 @@ end proc
 #the statistician and end user of this Hakaru product; they aren't meant to
 #have any statistical meaning.--Carl 2016Oct04
 
-#This one is a basic test of the Counting wrt-var type.
-#This one gives the Weight(-1, ...) error
-assume(n_, integer);
-TestDisint(
-     [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_ &M Counting((-1,1)*~infinity)],
-     {},  #I don't know what to expect.
-     ctx= [n::integer, n >= 0],
-     label= "(d0_1) `Counting` test; `Weight` bug (currently failing)"
-);
-
 TestDisint(
      [Ret(Pair(sqrt(Pi), x)), t &M Ret(7)],
      {Msum()},
@@ -70,12 +60,6 @@ TestDisint(
      label= "(d0_4) `Dirac` test with `Bind`"
 );
 
-#In this one the function in the inequality, x+x^3, is injective but nonlinear.
-TestDisint(
-     Bind(Gaussian(0,1), x, Ret(Pair(x+x^3, f(x)))),
-     {}, #I don't know what to expect.
-     label= "(d0_5) Injective nonlinear inequality"
-);
 # End of the possibly statistically meaningless tests.
 
 d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
@@ -206,27 +190,61 @@ helloWorldr:= {
 
 TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
 TestDisint(d2, d2r, label = "(d2) Disintegrate linear function II");
-TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
-TestDisint(d4, d4r, label = "(d4) Disintegrate U(0,1) twice, over x/y");
 TestDisint(d5, d5r, label = "(d5) Disintegrate N(0,1)*N(x,1), over y");
 TestDisint(d6, d6r, label = "(d6) Disintegrate N(0,1)*N(x,1), over x");
-TestDisint( normalFB1, normalFB1r,
-     label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
-);
 TestDisint(norm0a, norm0r,
      label = "(norm0a) U(0,1) >>= \x -> U(x,1) >>= \y -> Ret(y,x)"
 );
+
+######################################################################
+#
+# These tests fail, and are expected to.  Move them up when they 
+# start passing (and are expected to).
+#
+# They are, however, roughly in order of what we'd like to have work.
+#
+
+# change of variables
+TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
+TestDisint(d4, d4r, label = "(d4) Disintegrate U(0,1) twice, over x/y");
+
+# funky piecewise
 TestDisint(norm1a, norm1r,
      label = "(norm1a) U(0,1) into Ret of pw"
 );
 TestDisint(norm1b, norm1r,
      label = "(norm1b) U(0,1) into pw of Ret"
 );
+# This one is kind of cosmetic; it would be 'fixed' properly if the
+# disintegration process did not use 'improve' to do "domain information
+# discovery", but rather had a specific function (and then improve could
+# indeed do this integral).
+TestDisint( normalFB1, normalFB1r,
+     label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
+);
+#In this one the function in the inequality, x+x^3, is injective but nonlinear.
+TestDisint(
+     Bind(Gaussian(0,1), x, Ret(Pair(x+x^3, f(x)))),
+     {}, #I don't know what to expect.
+     label= "(d0_5) Injective nonlinear inequality"
+);
+# takes too long.
 TestDisint(
      easyRoad, easyRoadr,
      label= "(easyRoad) Combo of Normals with distinct Uniform noises",
-     TLim= 20 #takes 6 - 8 minutes to `improve` on an Intel i7
+     TLim= 5 #takes 6 - 8 minutes to `improve` on an Intel i7
 );
+
+#This one is a basic test of the Counting wrt-var type.
+#This one gives the Weight(-1, ...) error
+assume(n_, integer);
+TestDisint(
+     [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_ &M Counting((-1,1)*~infinity)],
+     {},  #I don't know what to expect.
+     ctx= [n::integer, n >= 0],
+     label= "(d0_1) `Counting` test; `Weight` bug (currently failing)"
+);
+
 TestDisint(
      helloWorld, helloWorldr,
      label= "(helloWorld) Plate of Normals",
