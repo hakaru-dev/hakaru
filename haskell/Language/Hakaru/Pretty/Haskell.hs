@@ -53,6 +53,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.ABT
 ----------------------------------------------------------------
 
@@ -178,6 +179,13 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                  [ ppArg e1
                  , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
                  ]
+        Bucket b e r  ->
+            ppFun p "bucket"
+            [ ppArg b
+            , ppArg e
+            , toDoc $ parens True (prettyPrec_ p r)
+            ]
+              
         Superpose_ pes ->
             case pes of
             (e1,e2) L.:| [] ->
@@ -426,6 +434,30 @@ instance (ABT Term abt) => Pretty (Branch a abt) where
             --       have them decide if they need to or not.
             ]
 
+instance (ABT Term abt) => Pretty (Reducer abt xs) where
+    prettyPrec_ p (Red_Fanout r1 r2)  =
+        ppFun p "r_fanout"
+            [ toDoc $ prettyPrec_ 11 r1
+            , toDoc $ prettyPrec_ 11 r2
+            ]
+    prettyPrec_ p (Red_Index n o e)   =
+        ppFun p "r_index"
+            [ toDoc $ ppBinder n
+            , toDoc $ ppBinder o
+            , toDoc $ prettyPrec_ 11 e
+            ]
+    prettyPrec_ p (Red_Split b r1 r2) =
+        ppFun p "r_split"
+            [ toDoc $ ppBinder b
+            , toDoc $ prettyPrec_ 11 r1
+            , toDoc $ prettyPrec_ 11 r2
+            ]
+    prettyPrec_ p Red_Nop             =
+        [ PP.text "r_nop" ]
+    prettyPrec_ p (Red_Add _ e)       =
+        ppFun p "r_add"
+            [ toDoc $ parens True (ppBinder e)]
+        
 ----------------------------------------------------------------
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs

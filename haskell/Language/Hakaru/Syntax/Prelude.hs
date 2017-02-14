@@ -125,6 +125,10 @@ module Language.Hakaru.Syntax.Prelude
     , arrayOp0_, arrayOp1_, arrayOp2_, arrayOp3_
     , measure0_, measure1_, measure2_
     , unsafeNaryOp_, naryOp_withIdentity, naryOp2_
+
+    -- * Reducers
+    , bucket, r_fanout, r_index, r_split, r_nop, r_add
+
     ) where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
@@ -144,6 +148,7 @@ import Language.Hakaru.Types.Sing (Sing(..), SingI(sing), sUnPair, sUnEither, sU
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT hiding (View(..))
@@ -1135,6 +1140,47 @@ zipWithV
 zipWithV f v1 v2 =
     array (size v1) (\i -> f (v1 ! i) (v2 ! i))
 
+----------------------------------------------------------------
+
+r_fanout
+    :: (ABT Term abt)
+    => Reducer abt xs a
+    -> Reducer abt xs b
+    -> Reducer abt xs (HPair a b)
+r_fanout = Red_Fanout
+
+r_index
+    :: (ABT Term abt)
+    => abt xs 'HNat
+    -> (abt '[] 'HNat -> abt xs 'HNat)
+    -> Reducer abt ( 'HNat ': xs) a
+    -> Reducer abt xs ('HArray a)
+r_index n f = Red_Index n (binder Text.empty SNat f)
+
+r_split
+    :: (ABT Term abt)
+    => (abt '[] 'HNat -> abt xs HBool)
+    -> Reducer abt xs a
+    -> Reducer abt xs b
+    -> Reducer abt xs (HPair a b)
+r_split b = Red_Split (binder Text.empty SNat b)
+
+r_nop :: (ABT Term abt) => Reducer abt xs HUnit
+r_nop = Red_Nop
+
+r_add
+    :: (ABT Term abt, HSemiring_ a)
+    => (abt '[] 'HNat -> abt xs a)
+    -> Reducer abt xs a
+r_add f = Red_Add hSemiring (binder Text.empty SNat f)
+
+bucket
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> abt '[] 'HNat
+    -> Reducer abt '[] a
+    -> abt '[] a
+bucket i j r = syn $ Bucket i j r
 
 ----------------------------------------------------------------
 (>>=)

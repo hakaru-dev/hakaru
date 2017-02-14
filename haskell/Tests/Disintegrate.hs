@@ -181,6 +181,28 @@ testDisintegrate2
 testDisintegrate2 = disintegrate norm2
 
 ----------------------------------------------------------------
+
+normSquare :: TrivialABT Term '[] ('HMeasure (HPair 'HProb 'HReal))
+normSquare =
+    normal (real_ 0) (prob_ 1) >>= \x ->
+    dirac (pair (square x) x)
+
+normDirac :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+normDirac =
+    normal (real_ 0) (prob_ 1) >>= \x ->
+    dirac x >>= \y ->
+    dirac (pair y x)
+
+----------------------------------------------------------------
+
+pendulum :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+pendulum =
+    normal (real_ 42) (prob_ 1) >>= \theta ->
+    dirac (sin theta) >>= \x ->
+    normal (real_ 0) (prob_ 1) >>= \noise ->
+    dirac (pair (x + noise) theta)
+
+----------------------------------------------------------------
 easyRoad
     :: TrivialABT Term '[]
         ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))

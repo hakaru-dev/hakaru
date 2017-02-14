@@ -103,6 +103,15 @@ plate n f = G.generateM (fromIntegral n) $ \x ->
              f (fromIntegral x)
 {-# INLINE plate #-}
 
+bucket :: Int -> Int -> Reducer a -> a
+bucket = undefined
+
+data Reducer a =
+    Reducer { init  :: a
+            , accum :: a
+            , done  :: a
+            }
+
 pair :: a -> b -> (a, b)
 pair = (,)
 {-# INLINE pair #-}

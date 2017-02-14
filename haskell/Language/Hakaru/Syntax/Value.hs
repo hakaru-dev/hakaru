@@ -113,8 +113,7 @@ enumFromUntilValue _ (VNat lo) (VNat hi) = map VNat (init (enumFromTo lo hi))
 enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (init (enumFromTo lo hi))
 
 data VReducer :: * -> Hakaru -> * where
-     VRed_Num    :: HSemiring a
-                 -> ST s (STRef s (Value a))
+     VRed_Num    :: STRef s (Value a)
                  -> VReducer s a
      VRed_Unit   :: VReducer s HUnit
      VRed_Pair   :: Sing a
