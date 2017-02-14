@@ -147,7 +147,13 @@
                       Msum()
                  )
             );
+
+            userinfo(3, Disint, "Disint defn:", eval(mc));
+
             mc:= improve(toLO(mc), _ctx= kb);
+
+            userinfo(3, Disint, "Disint improved:", eval(mc));
+
             #Does the order of application of the disintegrators matter?
             #Theoretically, I think not, it's just like differentiation. As far
             #as Maple's ability to do the computation, maybe it matters.
@@ -155,9 +161,17 @@
                  mc:= applyop(
                       Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator,
                       2, mc, DV[v]:-disintegrator_arg
-                )
+                );
+
+                userinfo(3, Disint, "Disint diff:", eval(mc));
             end do;
-            fromLO(mc, _ctx= kb)
+
+            mc := fromLO(mc, _ctx= kb);
+
+            userinfo(3, Disint, "Disint hakaru:", eval(mc));
+
+            mc
+
        end proc #disint:-ModuleApply
   ;
        ModuleLoad()

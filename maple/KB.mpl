@@ -62,7 +62,9 @@ KB := module ()
      kb_subtract,
 
      # Simplify a Hakaru term assuming the knowledge of the kb
-     simplify_assuming,
+     # variants do different things in case of simplification error
+     # (which should really only occur when the KB contains a contradicition)
+     simplify_assuming, simplify_assuming_mb, simplify_assuming_f,
 
      # Gets the most refined (see refine_given) type of a given name under the
      # assumptions of the KB
@@ -73,7 +75,7 @@ KB := module ()
      kb_to_variables, kb_to_assumptions, kb_to_equations, kb_piecewise, kb_Partition,
 
      # Various utilities ...
-     list_of_mul, for_poly, range_of_HInt,
+     list_of_mul, for_poly, range_of_HInt, eval_kb,
 
      # Types corresponding to the constructor forms of the 'atoms' of KBs
      t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
@@ -538,14 +540,21 @@ KB := module ()
     end proc, kb);
   end proc;
 
+  eval_kb := proc(e,kb::t_kb, $)
+    foldl(eval, e, op(kb_to_equations(kb)));
+  end proc;
+
   # Simplfies a given Hakaru term under knowledge of the
   # given KB. Does some magic to appease the Maple simplifier.
-  simplify_assuming := proc(ee, kb::t_kb, $)
+  # simplification might fail, in which case `failure(e)` where `e`
+  # is the un-simplified (and chilled) expression is taken to be the result of
+  # simplification. 'mb' for 'maybe'
+  simplify_assuming_mb := proc(ee, kb::t_kb, failure, $)
     local e, as, e0;                                                         # for debugging
     if not (indets(ee,'specfunc(applyintegrand)') = {}) then
       WARNING("simplify_assuming called on an expression containing 'applyintegrand' -- this is probably a mistake, and could result in incorrect results");
     end if;
-    e := foldl(eval, ee, op(kb_to_equations(kb)));                         `eval`;
+    e := eval_kb(ee,kb);                                                  `eval`;
     as := kb_to_assumptions(kb, e);
     e := chill(e);                                                        `chill`;
     as := chill(as);
@@ -555,10 +564,21 @@ KB := module ()
     # anything - hence exception - so who calls this function under which
     # contexts that they expect `false` to mean something other than `false`?
     e0 := e;
-    try e := simplify(e) assuming op(as); catch: e := e0; end try;
+    try e := simplify(e) assuming op(as); catch: e := failure(e0); end try;
 
     e := warm(e);                                            `warm (then expand@exp)`;
     eval(e, exp = expand @ exp);
+  end proc;
+
+  simplify_assuming := proc(ee, kb::t_kb, $)
+    simplify_assuming_mb(ee,kb,e->e);
+  end proc;
+
+  # like simplify_assuming but propgates the failure (as FAIL) instead of
+  # silently consuming it and returning the unsimplified expression.  'f' for
+  # 'failure'
+  simplify_assuming_f := proc(ee, kb::t_kb, $)
+    simplify_assuming_mb(ee,kb,e->FAIL);
   end proc;
 
   getType := proc(kb :: t_kb, x :: name, $)

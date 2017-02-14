@@ -60,7 +60,7 @@ Hakaru := module ()
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
-         case, app, ary, idx, fst, snd, size, Datum, 
+         case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
@@ -595,7 +595,7 @@ Hakaru := module ()
          Or(
            'known_continuous', 'known_discrete',
            t_pw, #Needs to be more specific!
-           specfunc(PARTITION), #Appropriate to put this here?
+           t_partition,
            t_case,
           'Ret(anything)',
           'Bind(t_Hakaru, name, t_Hakaru)',
@@ -615,8 +615,12 @@ Hakaru := module ()
     TypeTools:-AddType(t_case,
       'case(anything, specfunc(Branch(anything, anything), Branches))');
     TypeTools:-AddType(t_pw, 'specfunc(piecewise)');
+    TypeTools:-AddType(t_partition, 'specfunc(PARTITION)'); #Appropriate to put this here?
     TypeTools:-AddType(t_piecewiselike,
       '{specfunc(piecewise), t_case, idx(list, anything)}');
+
+    # A temporary type which should be removed when piecewise is gone
+    TypeTools:-AddType(t_pw_or_part, Or(t_pw,t_partition));
 
     #Protect the keywords of the Hakaru language.
     #op([2,6], ...) of a module is its globals.
