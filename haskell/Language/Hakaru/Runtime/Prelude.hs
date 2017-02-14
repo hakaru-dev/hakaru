@@ -160,6 +160,19 @@ extractBool b a p | p == b     = Just a
                   | otherwise  = Nothing
 {-# INLINE extractBool #-}
 
+
+pnothing :: b -> Branch (Maybe a) b
+pnothing b = Branch { extract = \ma -> case ma of
+                                         Nothing -> Just b
+                                         Just _  -> Nothing }
+
+pjust :: Pattern -> (a -> b) -> Branch (Maybe a) b
+pjust PVar c = Branch { extract = \ma -> case ma of
+                                           Nothing -> Nothing
+                                           Just x  -> Just (c x) }
+pjust _ _ = error "Runtime.Prelude pjust"
+
+
 ppair :: Pattern -> Pattern -> (x -> y -> b) -> Branch (x,y) b
 ppair PVar  PVar c = Branch { extract = (\(x,y) -> Just (c x y)) }
 ppair _     _    _ = error "ppair: TODO"
