@@ -137,15 +137,15 @@ export
        # each clause evaluated under the context so far,
        # which is the conjunction of the negations of all clauses
        # so far
-       local ctx := empty, n := nops(x), cls := {}, cnd_raw, cnd,i;
+       local ctx := empty, n := nops(x), cls := {}, cnd_raw, cnd,i, q;
 
-       userinfo(5, 'PWToPartition'
+       userinfo(5, PWToPartition
                , printf("PWToPartition: found %d ops in %a \n ", n, x) );
 
        # handles all but the `otherwise` case if there is such a case
-       for i in 1 .. n mod 2 do
+       for i in seq(q, q = 1 .. iquo(n, 2)) do
 
-           userinfo(3, 'PWToPartition'
+           userinfo(3, PWToPartition
                     , printf("PWToPartition: looking at clause %d (op %d) \n ", i, 2*i-1));
 
            cnd_raw := op(2*i-1,x); # the clause as given
