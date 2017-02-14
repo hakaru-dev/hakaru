@@ -6,9 +6,9 @@ LibraryTools:-Create(lib):
 read("./BindingTools.mpl"):
 read("./Hakaru.mpl"):
 read("./KB.mpl"):
+read("./Partition.mpl"):
 read("./Loop.mpl"):
 read("./NewSLO.mpl"):
-read("./Partition.mpl"):
 read("./Summary.mpl"):
 LibraryTools:-Save(`gensym`, lib):
 LibraryTools:-Save('BindingTools', lib):

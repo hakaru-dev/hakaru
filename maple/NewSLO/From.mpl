@@ -83,16 +83,28 @@
         m := weight(simplify_factor_assuming(op(1,m), kb1), op(2,m));
       end if;
       piecewise_And(w0, m, Msum())
-    elif e :: t_pw
-         and `and`(seq(not (depends(op(i,e), h)),
-                       i=1..nops(e)-1, 2)) then
-      kb_piecewise(e, kb, ((lhs, kb) -> lhs),
-                          ((rhs, kb) -> unintegrate(h, rhs, kb)))
-    elif e :: Partition
-      #For now at least, we simply code this as parallel to the elif e::t_pw
-      #paragraph above.
-      and not Partition:-ConditionsDepend(e, h) then
-      kb_Partition(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)))
+
+    # elif e :: t_pw
+    #      and `and`(seq(not (depends(op(i,e), h)),
+    #                    i=1..nops(e)-1, 2)) then
+    #   kb_piecewise(e, kb, ((lhs, kb) -> lhs),
+    #                       ((rhs, kb) -> unintegrate(h, rhs, kb)))
+
+    # elif e :: Partition
+    #   #For now at least, we simply code this as parallel to the elif e::t_pw
+    #   #paragraph above.
+    #   and not Partition:-ConditionsDepend(e, h) then
+    #   kb_Partition(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)))
+
+    elif e :: t_pw_or_part then
+      Partition:-AppPartOrPw
+        ( proc(p)
+              if not Partition:-ConditionsDepend(p, h) then
+                  kb_Partition(p, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)))
+              end if;
+          end proc
+        , e);
+
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),

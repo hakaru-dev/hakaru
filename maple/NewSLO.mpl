@@ -49,7 +49,7 @@ NewSLO := module ()
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global LO, Integrand, Indicator, SumIE, ProductIE;
-  uses Hakaru, KB, Loop;
+  uses Hakaru, KB, Loop, Partition;
 
   t_sum     := 'specfunc({sum    ,Sum    })';
   t_product := 'specfunc({product,Product})';

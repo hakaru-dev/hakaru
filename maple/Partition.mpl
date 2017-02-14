@@ -6,6 +6,8 @@
 
 Partition:= module()
 
+option package;
+
 #This module is essentially an object, but we decided, for now at least, to not
 #use Maple's "option object".
 local
@@ -63,8 +65,8 @@ export
             #need to write our own as neither Maple's 'boolean' nor
             #'boolean &under (convert, boolean_operator)' is inclusive enough.
             cond::anything,
-            val::t_Hakaru
-            #Is that inclusive enough?
+            val::anything
+             # TODO: t_Hakaru doesn't work here because sometimes there is an `applyintegrand`
          )
       ),
       $ #no optional arguments, for now at least
@@ -91,7 +93,7 @@ export
    end proc,
 
    #Deconstructor that returns a set of [cond, val] pairs
-   Pairs:= proc(P::Partition)::set([anything, t_Hakaru]);
+   Pairs:= proc(P::Partition)::set([anything, anything]);
    local p;
       {seq([p:-cond, p:-val], p= op(1,P)) }
    end proc,
@@ -133,7 +135,7 @@ export
       PARTITION(map(doIt,op(1,part)));
    end proc,
 
-   PartitionToPW := proc(x::Partition)::t_pw;
+   PartitionToPW := proc(x::Partition)::specfunc(piecewise);
        piecewise( op( ListTools[Flatten]( [op(Pairs(x))] ) ) );
    end proc,
 
@@ -149,22 +151,34 @@ export
 
    # the logic of this function is already essentially implemented, by KB
    # in fact, kb_piecewise does something extremely similar to this
-   PWToPartition := proc(x::t_pw)::Partition;
+   PWToPartition := proc(x::specfunc(piecewise))::Partition;
 
        # each clause evaluated under the context so far,
        # which is the conjunction of the negations of all clauses
        # so far
        local ctx := empty, n := nops(x), cls := {}, cnd_raw, cnd,i;
 
+       userinfo(5, 'PWToPartition'
+               , printf("PWToPartition: found %d ops in %a \n ", n, x) );
+
        # handles all but the `otherwise` case if there is such a case
-       for i in 1..(n/2) do
+       for i in 1 .. n mod 2 do
+
+           userinfo(3, 'PWToPartition'
+                    , printf("PWToPartition: looking at clause %d (op %d) \n ", i, 2*i-1));
+
            cnd_raw := op(2*i-1,x); # the clause as given
 
            # simplified clause - perhaps strangley, the clause is simplified
            # under an assumption of itself. If `cnd_raw and ctx` is a
            # contradiction, simplify_assuming_f will not produce `FAIL` for
            # `simplify_assuming_f(cnd_raw,ctx)`
-           cnd := simplify_assuming_f( cnd_raw , assert(cnd_raw, ctx) );
+           # TODO: this doesn't actually work for clauses of the form `x = y`
+           # and it is likely very fragile in every other case as well. need
+           # a way to test if a KB contains a contradiction
+           # cnd := simplify_assuming_f( cnd_raw , assert(cnd_raw, ctx) );
+
+           cnd := simplify_assuming_f( cnd_raw , ctx );
 
            # if this clause is unreachable, then every subsequent clause will be as well
            if cnd :: identical(FAIL) then
@@ -208,8 +222,8 @@ export
    # applies the function, then converts back to piecewise
    # this mainly acts as a sanity check
 
-   AppPartOrPw := proc(f::anything # why does appliable not work?
-                      ,x::Or(Partition,'specfunc(piecewise)')
+   AppPartOrPw := proc(f::anything # TODO better type
+                      ,x::Or(Partition,specfunc(piecewise))
                       )
        if x::Partition then
            f(x);
