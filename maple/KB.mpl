@@ -659,20 +659,12 @@ KB := module ()
     else TopProp end if
   end proc;
 
+  # implementing this in terms of Partition (as opposed to algebraic
+  # manipulations with the piecewise) cause d0_2(DisintT) to fail
   kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen, $)
-    local n, i, kb1, update;
-    kb1 := kb;
-    update := proc(c, $)
-      local kb0;
-      kb0 := assert(    c , kb1);
-      kb1 := assert(Not(c), kb1); # Mutation!
-      kb0
-    end proc;
-    n := nops(e);
-    piecewise(seq(`if`(i::even, doThen(op(i,e), update(op(i-1,e))),
-                   `if`(i=n,    doThen(op(i,e), kb1),
-                                doIf  (op(i,e), kb1))),
-                  i=1..n))
+    Partition:-PartitionToPW(
+        kb_Partition( Partition:-PWToPartition(e), kb, doIf, doThen )
+        ) ;
   end proc;
 
   #For now at least, this procedure is parallel to kb_piecewise.
