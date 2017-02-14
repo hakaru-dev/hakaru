@@ -120,6 +120,12 @@ true, false :: Bool
 true  = True
 false = False
 
+nothing :: Maybe a
+nothing = Nothing
+
+just :: a -> Maybe a
+just = Just
+
 unit :: ()
 unit = ()
 
@@ -134,7 +140,7 @@ pfalse b = Branch { extract = extractBool False b }
 {-# INLINE pfalse #-}
 
 extractBool :: Bool -> a -> Bool -> Maybe a
-extractBool b a p | p == b     = Just a  
+extractBool b a p | p == b     = Just a
                   | otherwise  = Nothing
 {-# INLINE extractBool #-}
 

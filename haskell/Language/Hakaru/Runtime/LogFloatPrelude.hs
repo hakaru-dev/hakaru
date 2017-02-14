@@ -118,6 +118,12 @@ true, false :: Bool
 true  = True
 false = False
 
+nothing :: Maybe a
+nothing = Nothing
+
+just :: a -> Maybe a
+just = Just
+
 unit :: ()
 unit = ()
 
