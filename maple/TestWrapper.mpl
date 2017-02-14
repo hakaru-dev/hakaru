@@ -29,7 +29,7 @@ TestWrapper := module ()
         testProc := TestGroups[testGroup]["runTest"];
         testixl := nops([indices(TestGroups[testGroup]["tests"])]);
 
-        printf("===BEGIN(%s:%d) %s===\n", testGroup, testixl, lbl);
+        # printf("===BEGIN(%s:%d) %s===\n", testGroup, testixl, lbl);
         res := "SUCCESS";
 
         try testProc(_passed)
@@ -39,7 +39,7 @@ TestWrapper := module ()
               );
           res := "ERROR";
         finally
-          printf("===END(%s:%d) %s ===\n\n", testGroup, testixl, res);
+          # printf("===END(%s:%d) %s ===\n\n", testGroup, testixl, res);
         end try ;
 
       else
