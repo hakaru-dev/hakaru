@@ -187,11 +187,28 @@ normSquare =
     normal (real_ 0) (prob_ 1) >>= \x ->
     dirac (pair (square x) x)
 
+normSquare' :: TrivialABT Term '[] ('HProb :-> 'HMeasure 'HReal)
+normSquare' =
+    lam $ \t ->
+    weight (recip (nat2prob (nat_ 2) * sqrt t)) >>= \_ ->
+    weight (densityNormal (real_ 0) (prob_ 1) (fromProb (sqrt t))) >>= \_ ->
+    dirac (fromProb (sqrt t)) >>= \x ->
+    dirac x
+          
+----------------------------------------------------------------
+
 normDirac :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
 normDirac =
     normal (real_ 0) (prob_ 1) >>= \x ->
     dirac x >>= \y ->
     dirac (pair y x)
+
+normDirac' :: TrivialABT Term '[] ('HReal :-> 'HMeasure 'HReal)
+normDirac' =
+    lam $ \t ->
+    weight (densityNormal (real_ 0) (prob_ 1) t) >>= \_ ->
+    dirac t >>= \x ->
+    dirac x
 
 ----------------------------------------------------------------
 
@@ -202,6 +219,13 @@ pendulum =
     normal (real_ 0) (prob_ 1) >>= \noise ->
     dirac (pair (x + noise) theta)
 
+pendulum' :: TrivialABT Term '[] ('HReal :-> 'HMeasure 'HReal)
+pendulum' =
+    lam $ \t ->
+    normal (real_ 42) (prob_ 1) >>= \theta ->
+    weight (densityNormal (real_ 0) (prob_ 1) (t - sin theta)) >>= \_ ->
+    dirac theta
+          
 ----------------------------------------------------------------
 easyRoad
     :: TrivialABT Term '[]
