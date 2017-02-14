@@ -6,6 +6,7 @@
            , UndecidableInstances
            , LambdaCase
            , OverloadedStrings
+           , Rank2Types
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 #-}
@@ -19,11 +20,13 @@ import           Data.Foldable                   as F
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
+import           Data.STRef
 import qualified Data.Vector                     as V
 import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
 import           Control.Monad
-import           Prelude                         hiding (product)
+import           Control.Monad.ST
+import           Prelude                         hiding (product, init)
 
 type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
 type instance MinBoxVec V.Vector v        = V.Vector
@@ -103,14 +106,27 @@ plate n f = G.generateM (fromIntegral n) $ \x ->
              f (fromIntegral x)
 {-# INLINE plate #-}
 
-bucket :: Int -> Int -> Reducer a -> a
-bucket = undefined
+bucket :: Int -> Int -> (forall s. Reducer s a) -> a
+bucket b e r = runST $ do
+    s' <- init r
+    mapM_ (\i -> accum r i s') [b .. e]
+    done r s'
 
-data Reducer a =
-    Reducer { init  :: a
-            , accum :: a
-            , done  :: a
+data Reducer s a =
+    Reducer { init  :: ST s (STRef s a)
+            , accum :: Int
+                    -> STRef s a
+                    -> ST s ()
+            , done  :: STRef s a
+                    -> ST s a
             }
+
+r_add :: forall s a. Num a => (Int -> a) -> Reducer s a
+r_add e = Reducer
+   { init  = newSTRef 0
+   , accum = \i s -> modifySTRef' s (+ (e i))
+   , done  = readSTRef
+   }
 
 pair :: a -> b -> (a, b)
 pair = (,)
