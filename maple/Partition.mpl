@@ -21,6 +21,7 @@ local
       end proc;
 
       TypeTools:-AddType(Partition, specfunc(PARTITION));
+
       NULL
    end proc,
 
@@ -53,26 +54,6 @@ local
    end proc
 ;
 export
-
-   #The object's (internal) constructor. This just checks the argument types and
-   #returns unevaluated.
-   # this must be exported in in order to define the type for partition
-   # inside of Hakaru
-   PARTITION::static:= proc(
-      Pairs::set(
-         record(
-            #The type `anything` below should be some boolean type, but we'll
-            #need to write our own as neither Maple's 'boolean' nor
-            #'boolean &under (convert, boolean_operator)' is inclusive enough.
-            cond::anything,
-            val::anything
-             # TODO: t_Hakaru doesn't work here because sometimes there is an `applyintegrand`
-         )
-      ),
-      $ #no optional arguments, for now at least
-   )::Partition;
-     'procname'(_passed)
-   end proc,
 
    #This is the exported lazy-syntax constructor. The syntax is like piecewise except
    #that there can be no 'otherwise'.

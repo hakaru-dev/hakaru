@@ -7,7 +7,7 @@
   end proc;
 
   integrate := proc(m, h, loops :: list(name = range) := [], $)
-    local x, n, i, res, l, br;
+    local x, n, i, res, l, br, m0;
 
     if m :: known_continuous then
       integrate_known(Int, Ints, 'xx', m, h, loops)

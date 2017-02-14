@@ -84,8 +84,6 @@ $include "NewSLO\Factor.mpl"
     end if
   end proc;
 
-
-
   mysolve := proc(constraints)
     # This wrapper around "solve" works around the problem that Maple sometimes
     # thinks there is no solution to a set of constraints because it doesn't
