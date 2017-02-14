@@ -23,7 +23,6 @@
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
       foldl(product, op(1,m), op(loops)) * integrate(op(2,m), h, loops)
-
     elif m :: t_pw_or_part then
       Partition:-AppPartOrPw
                  ( proc(p)
@@ -32,7 +31,6 @@
                        end if;
                    end proc
                  , m);
-
     elif m :: t_case and not depends(op(1,m), map(lhs, loops)) then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='integrate'(op(2,b), x, loops),b), x=h)
