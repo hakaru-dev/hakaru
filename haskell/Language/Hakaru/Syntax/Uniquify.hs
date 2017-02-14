@@ -63,12 +63,18 @@ uniquify'
   :: forall abt xs a . (ABT Term abt)
   => abt xs a
   -> Uniquifier (abt xs a)
-uniquify' = cataABTM uniquifyVar bind_ (fmap syn)
+uniquify' = loop . viewABT
   where
-    bind_ v b = do
-      fresh <- newVar v
-      let assoc = Assoc v fresh
-      bind fresh <$> local (insertOrReplaceAssoc assoc) b
+    loop :: View (Term abt) ys a -> Uniquifier (abt ys a)
+    loop (Var v)    = uniquifyVar v
+    loop (Syn s)    = fmap syn (traverse21 uniquify' s)
+    loop (Bind v b) = do
+      vid <- genVarID
+      let fresh = v { varID = vid }
+          assoc = Assoc v fresh
+      -- Process the body with the updated Varmap and wrap the
+      -- result in a bind form
+      bind fresh <$> local (insertOrReplaceAssoc assoc) (loop b)
 
 uniquifyVar
   :: (ABT Term abt)

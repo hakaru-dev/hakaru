@@ -102,7 +102,12 @@ cse :: forall abt a . (ABT Term abt) => abt '[] a -> abt '[] a
 cse abt = runReader (runCSE (cse' abt)) emptyEnv
 
 cse' :: forall abt xs a . (ABT Term abt) => abt xs a -> CSE abt (abt xs a)
-cse' = cataABTM cseVar (fmap . bind) (>>= cseTerm)
+cse' = loop . viewABT
+  where
+    loop :: View (Term abt) ys a ->  CSE abt (abt ys a)
+    loop (Var v)    = cseVar v
+    loop (Syn s)    = cseTerm s
+    loop (Bind v b) = fmap (bind v) (loop b)
 
 -- Variables can be equivalent to other variables
 -- TODO: A good sanity check would be to ensure the result in this case is

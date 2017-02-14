@@ -154,8 +154,14 @@ hoist
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-hoist abt = execHoistM (nextFreeOrBind abt) $ do
-  (abt', entries) <- listen $ hoist' abt
+hoist abt = execHoistM (nextFreeOrBind abt) (introduceToplevel $ hoist' abt)
+
+introduceToplevel
+  :: (ABT Term abt)
+  => HoistM abt (abt '[] a)
+  -> HoistM abt (abt '[] a)
+introduceToplevel action = do
+  (abt, entries) <- censor (const mempty) $ listen action
   -- After transforming the given ast, we need to introduce all the toplevel
   -- bindings (i.e. bindings with no data dependencies), most of which should be
   -- eliminated by constant propagation.
@@ -163,7 +169,7 @@ hoist abt = execHoistM (nextFreeOrBind abt) $ do
       intro    = concatMap getBoundVars toplevel
   -- First we wrap the now AST in the all terms which depdend on top level
   -- definitions
-  wrapped <- introduceBindings emptyVarSet intro abt' entries
+  wrapped <- introduceBindings emptyVarSet intro abt entries
   -- Then wrap the result in the toplevel definitions
   wrapExpr wrapped toplevel
 
@@ -283,6 +289,11 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
     rhs' <- hoist' rhs
     tell $ singleEntry v rhs'
     local (insertVarSet v) (hoist' body')
+
+{-hoistTerm (Lam_ :$ body :* End) =-}
+  {-caseBind body $ \ v body' -> do-}
+    {-body'' <- hoist' body'-}
+    {-return $ syn (Lam_ :$ bind v body'' :* End)-}
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
