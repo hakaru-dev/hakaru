@@ -73,6 +73,7 @@ import           Control.Category     (Category(..))
 import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
+import           Data.Traversable
 #endif
 import           Control.Arrow        ((***))
 import qualified Data.Foldable        as F
