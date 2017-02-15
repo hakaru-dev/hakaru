@@ -42,6 +42,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , putStat
   , putExprStat
   , extDeclare
+  , extDeclareTypes
   , defineFunction
   , funCG
   , isParallel
@@ -205,32 +206,45 @@ lookupIdent var =
 --   code in the CodeGenMonad while literal types SReal, SInt, SNat, and SProb
 --   do not
 declare :: Sing (a :: Hakaru) -> Ident -> CodeGen ()
-declare SInt          = declare' . typeDeclaration SInt
-declare SNat          = declare' . typeDeclaration SNat
-declare SProb         = declare' . typeDeclaration SProb
-declare SReal         = declare' . typeDeclaration SReal
-declare (SMeasure (SArray t))  = \i -> do mapM_ extDeclare $ arrayStruct t
-                                          mapM_ extDeclare $ mdataStruct t
-                                          declare' $ mdataDeclaration (SArray t) i
-declare (SMeasure t)  = \i -> do mapM_ extDeclare $ mdataStruct t
-                                 declare' $ mdataDeclaration t i
-declare (SArray t)    = \i -> do mapM_ extDeclare $ arrayStruct t
-                                 declare' $ arrayDeclaration t i
-declare d@(SData _ _) = \i -> do mapM_ extDeclare $ datumStruct d
-                                 declare' $ datumDeclaration d i
-declare (SFun _ _)    = \_ -> return () -- function definitions handeled in flatten
+declare SInt  = declare' . typeDeclaration SInt
+declare SNat  = declare' . typeDeclaration SNat
+declare SProb = declare' . typeDeclaration SProb
+declare SReal = declare' . typeDeclaration SReal
+declare m@(SMeasure t) = \i ->
+  extDeclareTypes m >> (declare' $ mdataDeclaration t i)
 
--- | declareType takes a Hakaru type and produces an external declaration in the
---   codegen monad. Is to be used as a helper for declare. This is important for
---   types that need a recursive traversal, such as SMeasure (SArray SInt)
--- declareType :: Sing (a :: Hakaru) -> CodeGen ()
--- declareType SInt  = return ()
--- declareType SNat  = return ()
--- declareType SProb = return ()
--- declareType SReal = return ()
--- declareType (SMeasure t)  = declareType t >> (extDeclare $ mdataStruct t)
--- declareType (SArray t)    = declareType t >> (extDeclare $ arrayStruct t)
--- declareType d@(SData _ _) = declareType t >> (extDeclare $ datumStructd)
+declare a@(SArray t) = \i ->
+  extDeclareTypes a >> (declare' $ arrayDeclaration t i)
+
+declare d@(SData _ _)  = \i ->
+  extDeclareTypes d >> (declare' $ datumDeclaration d i)
+
+declare (SFun _ _) = \_ -> return () -- function definitions handeled in flatten
+
+-- | for types that contain subtypes we need to recursively traverse them and
+--   build up a list of external type declarations.
+--   For example: Measure (Array Nat) will need to have structures for arrays
+--   declared before the top level type
+extDeclareTypes :: Sing (a :: Hakaru) -> CodeGen ()
+extDeclareTypes SInt          = return ()
+extDeclareTypes SNat          = return ()
+extDeclareTypes SReal         = return ()
+extDeclareTypes SProb         = return ()
+extDeclareTypes (SMeasure i)  = extDeclareTypes i >> extDeclare (mdataStruct i)
+extDeclareTypes (SArray i)    = extDeclareTypes i >> extDeclare (arrayStruct i)
+extDeclareTypes (SFun _ _)    = error "TODO: extDeclareTypes SFun"
+extDeclareTypes d@(SData _ i) = extDeclDatum i    >> extDeclare (datumStruct d)
+  where extDeclDatum :: Sing (a :: [[HakaruFun]]) -> CodeGen ()
+        extDeclDatum SVoid       = return ()
+        extDeclDatum (SPlus p s) = extDeclDatum s >> datumProdTypes p
+
+        datumProdTypes :: Sing (a :: [HakaruFun]) -> CodeGen ()
+        datumProdTypes SDone     = return ()
+        datumProdTypes (SEt x p) = datumProdTypes p >> datumPrimTypes x
+
+        datumPrimTypes :: Sing (a :: HakaruFun) -> CodeGen ()
+        datumPrimTypes SIdent     = return ()
+        datumPrimTypes (SKonst s) = extDeclareTypes s
 
 
 declare' :: CDecl -> CodeGen ()

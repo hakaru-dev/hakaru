@@ -723,7 +723,7 @@ flattenDatum
   -> (CExpr -> CodeGen ())
 flattenDatum (Datum _ typ code) =
   \loc ->
-    do mapM_ extDeclare $ datumStruct typ
+    do extDeclareTypes typ
        assignDatum code loc
 
 datumNames :: [String]
@@ -1128,7 +1128,7 @@ gammaFun = CFunDef [CTypeSpec CVoid]
 gammaCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 gammaCG aE bE =
   \loc -> do
-     mapM_ extDeclare $ mdataStruct SReal
+     extDeclareTypes (SMeasure SReal)
      mapM_ reserveName ["uniform","normal","gamma"]
      mapM_ (extDeclare . CFunDefExt) [uniformFun,normalFun,gammaFun]
      putExprStat $ CCall (CVar . Ident $ "gamma") [aE,bE,loc]

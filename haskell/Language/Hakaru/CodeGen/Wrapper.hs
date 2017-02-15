@@ -125,7 +125,7 @@ mainFunction pc typ@(SMeasure t) abt =
          reserveName "mdata"
          reserveName "main"
 
-         mapM_ extDeclare $ mdataStruct t
+         extDeclareTypes typ
 
          -- defined a measure function that returns mdata
          funCG CVoid ident [mdataPtrDeclaration t mdataId] $
@@ -329,8 +329,10 @@ flattenTopLambda abt name =
         mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
         mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
         mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
-        mkVarDecl (Variable _ _ (SArray t)) = \i -> do mapM_ extDeclare $ arrayStruct t
-                                                       return $ arrayDeclaration t i
-        mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do mapM_ extDeclare $ datumStruct d
-                                                          return $ datumDeclaration d i
+        mkVarDecl (Variable _ _ (SArray t)) = \i ->
+          extDeclareTypes (SArray t) >> (return $ arrayDeclaration t i)
+
+        mkVarDecl (Variable _ _ d@(SData _ _)) = \i ->
+          extDeclareTypes d >> (return $ datumDeclaration d i)
+
         mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
