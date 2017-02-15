@@ -378,15 +378,7 @@ array_index = flip Index <$> brackets expr
 array_literal :: Parser (AST' Text)
 array_literal = checkEmpty <$> brackets (commaSep expr)
   where checkEmpty [] = Empty
-        checkEmpty xs = Array "" (ULiteral . Nat . fromIntegral . length $ xs)
-                        (go 0 xs)
-
-        go _ []      = error "the impossible happened"
-        go _ [x]     = x
-        go n (x:xs)  = If (Var "equal" `App` (Var "") `App` (ULiteral $ Nat n))
-                          x
-                          (go (n + 1) xs)
-                
+        checkEmpty xs = ArrayLiteral xs                
 
 plate_expr :: Parser (AST' Text)
 plate_expr =
@@ -480,7 +472,7 @@ term =  try if_expr
     <|> try product_expr
     <|> try expect_expr
     <|> try observe_expr
-    <|> try array_expr
+    <|> try array_expr    
     <|> try plate_expr
     <|> try chain_expr
     <|> try let_expr

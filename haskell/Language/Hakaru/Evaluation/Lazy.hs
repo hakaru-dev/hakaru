@@ -145,6 +145,7 @@ evaluate perform evaluateCase = evaluate_
         Datum_   d               -> return . Head_ $ WDatum   d
         Empty_   typ             -> return . Head_ $ WEmpty   typ
         Array_   e1 e2           -> return . Head_ $ WArray e1 e2
+        ArrayLiteral_ es         -> return . Head_ $ WArrayLiteral es
         Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
         Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
         MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2

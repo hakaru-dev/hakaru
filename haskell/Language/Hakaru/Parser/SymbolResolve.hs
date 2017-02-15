@@ -337,6 +337,8 @@ symbolResolution symbols ast =
 
     U.Array name e1 e2  -> resolveBinder symbols name e1 e2 U.Array
 
+    U.ArrayLiteral es   -> U.ArrayLiteral <$> mapM (symbolResolution symbols) es
+
     U.Index a i -> U.Index
         <$> symbolResolution symbols a
         <*> symbolResolution symbols i
@@ -426,6 +428,7 @@ normAST ast =
     U.Empty                   -> U.Empty
     U.Pair e1 e2              -> U.Pair (normAST e1) (normAST e2)
     U.Array  name e1 e2       -> U.Array name (normAST e1) (normAST e2)
+    U.ArrayLiteral   es       -> U.ArrayLiteral (map normAST es)
     U.Index       e1 e2       -> U.Index (normAST e1) (normAST e2)    
     U.Case        e1 e2       -> U.Case  (normAST e1) (map branchNorm e2)
     U.Dirac       e1          -> U.Dirac (normAST e1)
@@ -520,6 +523,7 @@ makeAST ast =
     U.Array s e1 e2 ->
         withName "U.Array" s $ \name ->
             syn $ U.Array_ (makeAST e1) (bind name $ makeAST e2)
+    U.ArrayLiteral es -> syn $ U.ArrayLiteral_ (map makeAST es)
     U.Index e1 e2     -> syn $ U.ArrayOp_ U.Index_ [(makeAST e1), (makeAST e2)]
     U.Case e bs       -> syn $ U.Case_ (makeAST e) (map makeBranch bs)
     U.Dirac e1        -> syn $ U.Dirac_ (makeAST e1)

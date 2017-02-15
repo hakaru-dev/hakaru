@@ -181,6 +181,7 @@ getTermSing singify = go
     go (Literal_ v)                 = return $ sing_Literal v
     go (Empty_   typ)               = return typ
     go (Array_   _  r2)             = SArray <$> getSing r2
+    go (ArrayLiteral_ es)           = SArray <$> tryAll "ArrayLiteral_" getSing es
     go (Bucket _ _  r)              = typeOfReducer r
     go (Datum_ (Datum _ typ _))     = return typ
     go (Case_    _  bs) = tryAll "Case_"      getBranchSing   bs

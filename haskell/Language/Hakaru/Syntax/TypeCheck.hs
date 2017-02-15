@@ -164,10 +164,11 @@ mustCheck e = caseVarSyn e (const False) go
     -- typing issue. Thus, for non-empty arrays and non-phantom
     -- record types, we should be able to infer the whole type
     -- provided we can infer the various subterms.
-    go U.Empty_          = True
-    go (U.Pair_ e1 e2)   = mustCheck  e1 && mustCheck e2
-    go (U.Array_ _ e1)   = mustCheck' e1
-    go (U.Datum_ _)      = True
+    go U.Empty_             = True
+    go (U.Pair_ e1 e2)      = mustCheck  e1 && mustCheck e2
+    go (U.Array_ _ e1)      = mustCheck' e1
+    go (U.ArrayLiteral_ es) = F.all mustCheck es
+    go (U.Datum_ _)         = True
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
@@ -597,6 +598,15 @@ inferType = inferType_
            e1' <- checkType_ SNat e1
            inferBinder SNat e2 $ \typ2 e2' ->
                return . TypedAST (SArray typ2) $ syn (Array_ e1' e2')
+
+       U.ArrayLiteral_ es -> do
+           mode <- getMode
+           TypedASTs typ es' <-
+               case mode of
+                 StrictMode -> inferOneCheckOthers_ es
+                 LaxMode    -> inferLubType sourceSpan es
+                 UnsafeMode -> inferLubType sourceSpan es
+           return . TypedAST (SArray typ) $ syn (ArrayLiteral_ es')
 
        U.Case_ e1 branches -> do
            TypedAST typ1 e1' <- inferType_ e1
@@ -1361,6 +1371,13 @@ checkType = checkType_
                 e1' <- checkType_  SNat e1
                 e2' <- checkBinder SNat typ1 e2
                 return $ syn (Array_ e1' e2')
+            _ -> typeMismatch sourceSpan (Right typ0) (Left "HArray")
+
+        U.ArrayLiteral_ es ->
+            case typ0 of
+            SArray typ1 -> do
+               es' <- T.forM es $ checkType_ typ1
+               return $ syn (ArrayLiteral_ es')
             _ -> typeMismatch sourceSpan (Right typ0) (Left "HArray")
 
         U.Datum_ (U.Datum hint d) ->

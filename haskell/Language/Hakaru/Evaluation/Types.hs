@@ -134,6 +134,8 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WDatum :: !(Datum (abt '[]) (HData' t)) -> Head abt (HData' t)
     WEmpty :: !(Sing ('HArray a)) -> Head abt ('HArray a)
     WArray :: !(abt '[] 'HNat) -> !(abt '[ 'HNat] a) -> Head abt ('HArray a)
+    WArrayLiteral
+           :: [abt '[] a] -> Head abt ('HArray a)
     WLam   :: !(abt '[ a ] b) -> Head abt (a ':-> b)
 
     -- Measure heads (N.B., not simply @abt '[] ('HMeasure _)@)
@@ -195,6 +197,7 @@ fromHead (WLiteral    v)        = syn (Literal_ v)
 fromHead (WDatum      d)        = syn (Datum_ d)
 fromHead (WEmpty      typ)      = syn (Empty_ typ)
 fromHead (WArray      e1 e2)    = syn (Array_ e1 e2)
+fromHead (WArrayLiteral  es)    = syn (ArrayLiteral_ es)
 fromHead (WLam        e1)       = syn (Lam_ :$ e1 :* End)
 fromHead (WMeasureOp  o  es)    = syn (MeasureOp_ o :$ es)
 fromHead (WDirac      e1)       = syn (Dirac :$ e1 :* End)
@@ -218,6 +221,7 @@ toHead e =
         Datum_       d                      -> Just $ WDatum     d
         Empty_       typ                    -> Just $ WEmpty     typ
         Array_       e1     e2              -> Just $ WArray     e1 e2
+        ArrayLiteral_       es              -> Just $ WArrayLiteral es
         Lam_      :$ e1  :* End             -> Just $ WLam       e1
         MeasureOp_   o   :$ es              -> Just $ WMeasureOp o  es
         Dirac     :$ e1  :* End             -> Just $ WDirac     e1
@@ -236,6 +240,7 @@ instance Functor21 Head where
     fmap21 f (WDatum      d)        = WDatum (fmap11 f d)
     fmap21 _ (WEmpty      typ)      = WEmpty typ
     fmap21 f (WArray      e1 e2)    = WArray (f e1) (f e2)
+    fmap21 f (WArrayLiteral  es)    = WArrayLiteral (fmap f es)
     fmap21 f (WLam        e1)       = WLam (f e1)
     fmap21 f (WMeasureOp  o  es)    = WMeasureOp o (fmap21 f es)
     fmap21 f (WDirac      e1)       = WDirac (f e1)
@@ -254,6 +259,7 @@ instance Foldable21 Head where
     foldMap21 f (WDatum      d)        = foldMap11 f d
     foldMap21 _ (WEmpty      _)        = mempty
     foldMap21 f (WArray      e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (WArrayLiteral  es)    = F.foldMap f es
     foldMap21 f (WLam        e1)       = f e1
     foldMap21 f (WMeasureOp  _  es)    = foldMap21 f es
     foldMap21 f (WDirac      e1)       = f e1
@@ -272,6 +278,7 @@ instance Traversable21 Head where
     traverse21 f (WDatum      d)        = WDatum <$> traverse11 f d
     traverse21 _ (WEmpty      typ)      = pure $ WEmpty typ
     traverse21 f (WArray      e1 e2)    = WArray <$> f e1 <*> f e2
+    traverse21 f (WArrayLiteral  es)    = WArrayLiteral <$> traverse f es
     traverse21 f (WLam        e1)       = WLam <$> f e1
     traverse21 f (WMeasureOp  o  es)    = WMeasureOp o <$> traverse21 f es
     traverse21 f (WDirac      e1)       = WDirac <$> f e1

@@ -172,6 +172,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 [ ppArg e1 <+> PP.char '$'
                 , toDoc $ ppBinder e2
                 ]
+        ArrayLiteral_ es -> ppFun 11 "arrayLit" (ppList $ map (prettyPrec 0) es)
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
         Case_  e1 bs  ->
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?

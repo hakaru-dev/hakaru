@@ -172,6 +172,12 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
         (Refl, Refl) <- jmEq2 i j
         (Refl, Refl) <- jmEq2 f g
         Just Refl
+    -- Assumes nonempty literal arrays. The hope is that Empty_ covers that case.
+    -- TODO handle empty literal arrays.
+    jmEq1 (ArrayLiteral_ (e:es)) (ArrayLiteral_ (e':es')) = do
+        (Refl, Refl) <- jmEq2 e e'
+        () <- all_jmEq2 (S.fromList es) (S.fromList es')
+        return Refl
     jmEq1 (Datum_ (Datum hint _ _)) (Datum_ (Datum hint' _ _))
         -- BUG: We need to compare structurally rather than using the hint
         | hint == hint' = unsafeCoerce (Just Refl)
@@ -333,6 +339,8 @@ alphaEq e1 e2 =
         (Array_ n1 e1, Array_ n2 e2)       -> do
             go (viewABT n1) (viewABT n2)
             go (viewABT e1) (viewABT e2)
+        (ArrayLiteral_ es, ArrayLiteral_ es') ->
+            F.sequence_ $ zipWith go (viewABT <$> es) (viewABT <$> es')
         (Case_ e1 bs1, Case_ e2 bs2)       -> do
             Refl <- lift $ jmEq1 (typeOf e1) (typeOf e2)
             go (viewABT e1) (viewABT e2)
