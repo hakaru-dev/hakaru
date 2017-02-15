@@ -109,7 +109,7 @@ plate n f = G.generateM (fromIntegral n) $ \x ->
 bucket :: Int -> Int -> (forall s. Reducer s a) -> a
 bucket b e r = runST $ do
     s' <- init r
-    mapM_ (\i -> accum r i s') [b .. e]
+    mapM_ (\i -> accum r i s') [b .. e - 1]
     done r s'
 
 data Reducer s a =

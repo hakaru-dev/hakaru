@@ -564,7 +564,7 @@ evaluateBucket b e rs env =
     case (evaluate b env, evaluate e env) of
       (VNat b', VNat e') -> runST $ do
           s' <- init Nil1 rs env
-          mapM_ (\i -> accum (VNat i) Nil1 rs s' env) [b' .. e']
+          mapM_ (\i -> accum (VNat i) Nil1 rs s' env) [b' .. e' - 1]
           done s'
       v2                 -> case v2 of {}
     where init :: (ABT Term abt)
