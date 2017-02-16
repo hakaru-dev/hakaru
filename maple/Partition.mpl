@@ -151,20 +151,11 @@ export
                     , printf("PWToPartition: looking at clause %d (op %d) \n ", i, 2*i-1));
 
            cnd_raw := op(2*i-1,x); # the clause as given
-
-           # simplified clause - perhaps strangley, the clause is simplified
-           # under an assumption of itself. If `cnd_raw and ctx` is a
-           # contradiction, simplify_assuming_f will not produce `FAIL` for
-           # `simplify_assuming_f(cnd_raw,ctx)`
-           # TODO: this doesn't actually work for clauses of the form `x = y`
-           # and it is likely very fragile in every other case as well. need
-           # a way to test if a KB contains a contradiction
-           # cnd := simplify_assuming_f( cnd_raw , assert(cnd_raw, ctx) );
-
            cnd := simplify_assuming_f( cnd_raw , ctx );
 
            # if this clause is unreachable, then every subsequent clause will be as well
-           if cnd :: identical(FAIL) then
+           if kb_is_false( assert(cnd_raw, ctx) )
+            or cnd :: identical(FAIL) then
                return PARTITION( cls );
            else
                ctx := assert(Not(cnd), ctx); # the context for the next clause
@@ -181,13 +172,8 @@ export
        end do;
 
        # if there is an otherwise case, handle that.
+       if n::odd and not kb_is_false(ctx) then
 
-       # TODO: the clause for this case should also be checked for a
-       # contradiction, which could be done with simplify_assuming_f, except it
-       # does not fail when the expression doesn't mention the variables causing
-       # the contradiction (e.g. simplify_assuming_f(0, a<0 and a>0) = 0)
-
-       if n::odd then
            cls := { op(cls)
                   , Record('cond' = foldl(And,op(kb_to_assumptions(ctx)))
                           , 'val' = op(n,x)
