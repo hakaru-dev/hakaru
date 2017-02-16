@@ -54,14 +54,14 @@ NewSLO := module ()
   t_sum     := 'specfunc({sum    ,Sum    })';
   t_product := 'specfunc({product,Product})';
 
-$include "NewSLO\Interface.mpl"
-$include "NewSLO\To.mpl"
-$include "NewSLO\From.mpl"
-$include "NewSLO\Banish.mpl"
-$include "NewSLO\Improve.mpl"
-$include "NewSLO\Disint.mpl"
-$include "NewSLO\Reparam.mpl"
-$include "NewSLO\Factor.mpl"
+$include "NewSLO/Interface.mpl"
+$include "NewSLO/To.mpl"
+$include "NewSLO/From.mpl"
+$include "NewSLO/Banish.mpl"
+$include "NewSLO/Improve.mpl"
+$include "NewSLO/Disint.mpl"
+$include "NewSLO/Reparam.mpl"
+$include "NewSLO/Factor.mpl"
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied

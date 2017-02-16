@@ -706,7 +706,7 @@ KB := module ()
     #simply `assert` the condition (i.e., roll it into the kb) without
     #needing to `assert` the negation of all previous conditions.
 
-    Partition:-Amap([doIf, doThen, z -> assert(z,kb)], e);
+    Partition:-Amap([doIf, doThen, z -> kb], e);
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
