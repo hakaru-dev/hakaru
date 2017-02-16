@@ -14,9 +14,11 @@ import           Language.Hakaru.Syntax.Datum
 import           Language.Hakaru.Types.HClasses
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Coercion
+import           Language.Hakaru.Types.Sing
 
 import           Control.Monad.ST
-import qualified Data.Vector.Mutable             as MV
+import           Data.STRef
+import qualified Data.Vector.Unboxed             as UV
 
 import qualified Data.Vector                     as V
 import qualified Data.Number.LogFloat            as LF
@@ -44,11 +46,13 @@ data Value :: Hakaru -> * where
      VArray   :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
 
 instance Eq1 Value where
-    eq1 (VNat  a) (VNat  b) = a == b
-    eq1 (VInt  a) (VInt  b) = a == b
-    eq1 (VProb a) (VProb b) = a == b
-    eq1 (VReal a) (VReal b) = a == b
-    eq1 _        _        = False
+    eq1 (VNat  a) (VNat  b)   = a == b
+    eq1 (VInt  a) (VInt  b)   = a == b
+    eq1 (VProb a) (VProb b)   = a == b
+    eq1 (VReal a) (VReal b)   = a == b
+    eq1 (VDatum a) (VDatum b) = a == b
+    eq1 (VArray a) (VArray b) = a == b
+    eq1 _        _            = False
 
 instance Eq (Value a) where
     (==) = eq1
@@ -108,8 +112,15 @@ enumFromUntilValue
 enumFromUntilValue _ (VNat lo) (VNat hi) = map VNat (init (enumFromTo lo hi))
 enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (init (enumFromTo lo hi))
 
-data VReducer :: Hakaru -> * where
-     VRed_Nat    :: ST s Nat
-                 -> VReducer 'HNat
-     VRed_Array  :: ST s (MV.MVector s (VReducer a))
-                 -> VReducer ('HArray a)
+data VReducer :: * -> Hakaru -> * where
+     VRed_Num    :: HSemiring a
+                 -> ST s (STRef s (Value a))
+                 -> VReducer s a
+     VRed_Unit   :: VReducer s HUnit
+     VRed_Pair   :: Sing a
+                 -> Sing b
+                 -> VReducer s a
+                 -> VReducer s b
+                 -> VReducer s (HPair a b)
+     VRed_Array  :: V.Vector (VReducer s a)
+                 -> VReducer s ('HArray a)
