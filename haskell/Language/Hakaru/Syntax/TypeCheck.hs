@@ -284,7 +284,7 @@ makeErrMsg header sourceSpan footer = do
   case (sourceSpan, input_) of
     (Just s, Just input) ->
           return $ mconcat [ header
-                           , "\n"
+                           , "\n\n"
                            , U.printSourceSpan s input
                            , footer
                            ]
@@ -299,7 +299,7 @@ typeMismatch
     -> TypeCheckMonad r
 typeMismatch s typ1 typ2 = failwith =<<
     makeErrMsg
-     "Type Mismatch:\n"
+     "Type Mismatch:"
      s
      (mconcat [ "expected "
               , msg1
@@ -317,7 +317,7 @@ missingInstance
     -> TypeCheckMonad r
 missingInstance clas typ s = failwith =<<
    makeErrMsg
-    "Missing Instance: "
+    "Missing Instance:"
     s
     (mconcat $ ["No ", clas, " instance for type ", showT typ])
 
@@ -328,7 +328,7 @@ missingLub
     -> TypeCheckMonad r
 missingLub typ1 typ2 s = failwith =<<
     makeErrMsg
-     "Missing common type:\n"
+     "Missing common type:"
      s
      (mconcat ["No lub of types ", showT typ1, " and ", showT typ2])
 

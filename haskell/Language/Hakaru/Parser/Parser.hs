@@ -505,7 +505,7 @@ parseHakaru =
 parseHakaruWithImports :: Text -> Either ParseError (ASTWithImport' Text)
 parseHakaruWithImports =
     runParser (skipMany (comments <|> emptyLine) *>
-               exprWithImport <* eof) () "<input>" . indentConfig
+               exprWithImport <* eof) () "<input>" . indentConfig . Text.strip
 
 withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
