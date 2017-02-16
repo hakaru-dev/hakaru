@@ -75,7 +75,7 @@ KB := module ()
      kb_to_variables, kb_to_assumptions, kb_to_equations, kb_piecewise, kb_Partition,
 
      # Various utilities ...
-     list_of_mul, for_poly, range_of_HInt, eval_kb,
+     list_of_mul, for_poly, range_of_HInt, eval_kb, kb_is_false,
 
      # Types corresponding to the constructor forms of the 'atoms' of KBs
      t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
@@ -108,6 +108,37 @@ KB := module ()
 
   # The empty KB means "true".
   empty := KB();
+
+  # a KB might contain a contradiction, which this checks for.
+  # The additional `variables' arguement determine which (free) variables
+  # in the KB are checked for a contradiction. `ALL` denotes every
+  # free variable occuring in the KB should be checked
+  kb_is_false :=
+    proc( kb::t_kb
+         , {variables :: Or(identical(`ALL`), set(name)) := `ALL`}
+        )
+
+    local allVs, res;
+
+    if variables::identical(`ALL`) then
+        allVs := select(type,indets(kb), name);
+    else
+        allVs := variables
+    end if;
+
+    # This is kind of a hack - if simplify_assuming fails to simplify the
+    # product of all the variables, the KB contains inconsistent information
+    # about those variables. kb should probably be internally guaranteeing
+    # consistency and replacing inconsistent KBs with the 'false' KB.
+
+    # KB bound variables are excluded - KB deals with substituting the
+    # let-bound expressions within in into subsequent KB clauses
+    res := simplify_assuming_f ( `*`(op( allVs ))
+                               , kb ) ;
+
+    if res::identical(FAIL) then true else false end if;
+
+  end proc;
 
   # A smart constructor for introducing Lebesgue integration variables (?)
   #   genLebesgue(var,lo,hi,kb) =
