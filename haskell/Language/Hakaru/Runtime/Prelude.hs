@@ -106,27 +106,38 @@ plate n f = G.generateM (fromIntegral n) $ \x ->
              f (fromIntegral x)
 {-# INLINE plate #-}
 
-bucket :: Int -> Int -> (forall s. Reducer s a) -> a
+bucket :: Int -> Int -> (forall s. Reducer () s a) -> a
 bucket b e r = runST $ do
-    s' <- init r
-    F.mapM_ (\i -> accum r i s') [b .. e - 1]
+    s' <- init r ()
+    F.mapM_ (\i -> accum r () i s') [b .. e - 1]
     done r s'
 
-data Reducer s a =
-    Reducer { init  :: ST s (STRef s a)
-            , accum :: Int
+data Reducer xs s a =
+    Reducer { init  :: xs -> ST s (STRef s a)
+            , accum :: xs
+                    -> Int
                     -> STRef s a
                     -> ST s ()
             , done  :: STRef s a
                     -> ST s a
             }
 
-r_add :: forall s a. Num a => (Int -> a) -> Reducer s a
+r_add :: Num a => ((Int, xs) -> a) -> Reducer xs s a
 r_add e = Reducer
-   { init  = newSTRef 0
-   , accum = \i s -> modifySTRef' s (+ (e i))
+   { init  = \_ -> newSTRef 0
+   , accum = \bs i s -> modifySTRef' s (+ (e (i,bs)))
    , done  = readSTRef
    }
+
+-- r_index :: Int
+--         -> (Int -> Int)
+--         -> Reducer s a
+--         -> Reducer s (MayBoxVec a a)
+-- r_index n f body = Reducer
+--    { init  = newSTRef $ G.replicate n (init body)
+--    , accum = undefined
+--    , done  = readSTRef
+--    }
 
 pair :: a -> b -> (a, b)
 pair = (,)
