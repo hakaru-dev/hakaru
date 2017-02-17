@@ -455,13 +455,13 @@ instance (ABT Term abt) => Pretty (Reducer abt xs) where
             ]
     prettyPrec_ p (Red_Index n o e)   =
         ppFun p "r_index"
-            [ toDoc $ ppBinder n
-            , toDoc $ ppBinder o
+            [ toDoc $ parens True $ ppUncurryBinder n
+            , toDoc $ parens True $ ppUncurryBinder o
             , toDoc $ prettyPrec_ 11 e
             ]
     prettyPrec_ p (Red_Split b r1 r2) =
         ppFun p "r_split"
-            [ toDoc $ ppBinder b
+            [ toDoc $ ppUncurryBinder b
             , toDoc $ prettyPrec_ 11 r1
             , toDoc $ prettyPrec_ 11 r2
             ]
@@ -469,7 +469,7 @@ instance (ABT Term abt) => Pretty (Reducer abt xs) where
         [ PP.text "r_nop" ]
     prettyPrec_ p (Red_Add _ e)       =
         ppFun p "r_add"
-            [ toDoc $ parens True (ppBinder e)]
+            [ toDoc $ parens True (ppUncurryBinder e)]
         
 ----------------------------------------------------------------
 -- | For the \"@lam $ \x ->\n@\"  style layout.
