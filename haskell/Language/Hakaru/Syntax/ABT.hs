@@ -61,6 +61,7 @@ module Language.Hakaru.Syntax.ABT
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
+    , Binders(binders)
     -- *** Highly experimental
     -- , Hint(..)
     -- , multibinder
@@ -75,7 +76,7 @@ module Language.Hakaru.Syntax.ABT
     , MetaABT(..)
     ) where
 
-import           Data.Text         (Text)
+import           Data.Text         (Text, empty)
 --import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
@@ -914,6 +915,18 @@ binder hint typ hoas = bind x body
     body = hoas (var x)
     x    = Variable hint (nextBind body) typ
     -- N.B., cannot use 'nextFree' when deciding the 'varID' of @x@
+
+class (ABT syn abt) =>
+    Binders syn abt xs as | abt -> syn, abt xs -> as, abt as -> xs where
+    binders :: (as -> abt '[] b) -> abt xs b
+
+instance (ABT syn abt) =>
+    Binders syn abt '[] () where
+    binders hoas = hoas ()
+
+instance (Binders syn abt xs as, SingI x) =>
+    Binders syn abt (x ': xs) (abt '[] x, as) where
+    binders hoas = binder empty sing (binders . curry hoas)
 
 {-
 data Hint (a :: k)
