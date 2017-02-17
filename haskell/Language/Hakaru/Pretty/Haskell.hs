@@ -112,9 +112,21 @@ ppVariables = ppList . go
 -- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
 ppBinder :: (ABT Term abt) => abt xs a -> Docs
 ppBinder e =
-    case go [] (viewABT e) of
+    case ppViewABT e of
     ([],  body) -> body
     (vars,body) -> PP.char '\\' <+> PP.sep vars <+> PP.text "->" : body
+
+ppUncurryBinder :: (ABT Term abt) => abt xs a -> Docs
+ppUncurryBinder e =
+    case ppViewABT e of
+    (vars,body) -> PP.char '\\' <+> unc vars <+> PP.text "->" : body
+    where
+    unc :: [Doc] -> Doc
+    unc []     = PP.text "()"
+    unc (x:xs) = PP.parens (x <> PP.comma <> unc xs)
+
+ppViewABT :: (ABT Term abt) => abt xs a -> ([Doc], Docs)
+ppViewABT e = go [] (viewABT e)
     where
     go :: (ABT Term abt) => [Doc] -> View (Term abt) xs a -> ([Doc],Docs)
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
