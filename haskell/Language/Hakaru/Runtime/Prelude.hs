@@ -107,47 +107,50 @@ plate n f = G.generateM (fromIntegral n) $ \x ->
 {-# INLINE plate #-}
 
 bucket :: Int -> Int -> (forall s. Reducer () s a) -> a
-bucket b e r = runST $ do
-    s' <- init r ()
-    F.mapM_ (\i -> accum r () i s') [b .. e - 1]
-    done r s'
-
-data VReducer s a where
-    VRed_Num   :: STRef s a -> VReducer s a
-    VRed_Unit  :: VReducer s ()
-    VRed_Array :: V.Vector (VReducer s a)
-               -> VReducer s (V.Vector a)
+bucket b e r = runST
+             $ case r of Reducer{init=initR,accum=accumR,done=doneR} -> do
+                          s' <- initR ()
+                          F.mapM_ (\i -> accumR () i s') [b .. e - 1]
+                          doneR s'
+{-# INLINE bucket #-}
 
 data Reducer xs s a =
-    Reducer { init  :: xs -> ST s (VReducer s a)
-            , accum :: xs
-                    -> Int
-                    -> VReducer s a
-                    -> ST s ()
-            , done  :: VReducer s a
-                    -> ST s a
+    forall cell.
+    Reducer { init  :: xs -> ST s cell
+            , accum :: xs -> Int -> cell -> ST s ()
+            , done  :: cell -> ST s a
             }
 
 r_add :: Num a => ((Int, xs) -> a) -> Reducer xs s a
 r_add e = Reducer
-   { init  = \_ -> VRed_Num <$> newSTRef 0
-   , accum = \bs i (VRed_Num s) ->
+   { init  = \_ -> newSTRef 0
+   , accum = \bs i s ->
              modifySTRef' s (+ (e (i,bs)))
-   , done  = \(VRed_Num s) -> readSTRef s
+   , done  = readSTRef
    }
+{-# INLINE r_add #-}
 
-r_index :: (xs -> Int)
+r_nop :: Reducer xs s ()
+r_nop = Reducer
+   { init  = \_ -> return ()
+   , accum = \_ _ _ -> return ()
+   , done  = \_ -> return ()
+   }
+{-# INLINE r_nop #-}
+
+r_index :: (G.Vector (MayBoxVec a) a)
+        => (xs -> Int)
         -> ((Int, xs) -> Int)
         -> Reducer (Int, xs) s a
-        -> Reducer xs s (V.Vector a)
-r_index n f body = Reducer
-   { init  = \xs -> VRed_Array <$>
-      G.generateM (n xs) (\b -> init body (b, xs))
-   , accum = \bs i (VRed_Array v) ->
+        -> Reducer xs s (MayBoxVec a a)
+r_index n f Reducer{init=initR,accum=accumR,done=doneR} = Reducer
+   { init  = \xs -> V.generateM (n xs) (\b -> initR (b, xs))
+   , accum = \bs i v ->
              let ov = f (i, bs) in
-             accum body (ov,bs) i (v V.! ov) 
-   , done  = \(VRed_Array v) -> V.mapM (done body) v
+             accumR (ov,bs) i (v V.! ov)
+   , done  = \v -> fmap G.convert (V.mapM doneR v)
    }
+{-# INLINE r_index #-}
 
 pair :: a -> b -> (a, b)
 pair = (,)
