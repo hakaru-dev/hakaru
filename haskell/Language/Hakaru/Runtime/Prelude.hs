@@ -112,21 +112,28 @@ bucket b e r = runST $ do
     F.mapM_ (\i -> accum r () i s') [b .. e - 1]
     done r s'
 
+data VReducer s a where
+    VRed_Num   :: STRef s a -> VReducer s a
+    VRed_Unit  :: VReducer s ()
+    VRed_Array :: MayBoxVec (VReducer s a) (VReducer s a)
+               -> VReducer s (MayBoxVec a a)
+
 data Reducer xs s a =
-    Reducer { init  :: xs -> ST s (STRef s a)
+    Reducer { init  :: xs -> ST s (VReducer s a)
             , accum :: xs
                     -> Int
-                    -> STRef s a
+                    -> VReducer s a
                     -> ST s ()
-            , done  :: STRef s a
+            , done  :: VReducer s a
                     -> ST s a
             }
 
 r_add :: Num a => ((Int, xs) -> a) -> Reducer xs s a
 r_add e = Reducer
-   { init  = \_ -> newSTRef 0
-   , accum = \bs i s -> modifySTRef' s (+ (e (i,bs)))
-   , done  = readSTRef
+   { init  = \_ -> VRed_Num <$> newSTRef 0
+   , accum = \bs i (VRed_Num s) ->
+             modifySTRef' s (+ (e (i,bs)))
+   , done  = \(VRed_Num s) -> readSTRef s
    }
 
 -- r_index :: Int
