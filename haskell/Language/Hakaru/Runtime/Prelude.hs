@@ -115,8 +115,8 @@ bucket b e r = runST $ do
 data VReducer s a where
     VRed_Num   :: STRef s a -> VReducer s a
     VRed_Unit  :: VReducer s ()
-    VRed_Array :: MayBoxVec (VReducer s a) (VReducer s a)
-               -> VReducer s (MayBoxVec a a)
+    VRed_Array :: V.Vector (VReducer s a)
+               -> VReducer s (V.Vector a)
 
 data Reducer xs s a =
     Reducer { init  :: xs -> ST s (VReducer s a)
@@ -136,15 +136,18 @@ r_add e = Reducer
    , done  = \(VRed_Num s) -> readSTRef s
    }
 
--- r_index :: Int
---         -> (Int -> Int)
---         -> Reducer s a
---         -> Reducer s (MayBoxVec a a)
--- r_index n f body = Reducer
---    { init  = newSTRef $ G.replicate n (init body)
---    , accum = undefined
---    , done  = readSTRef
---    }
+r_index :: (xs -> Int)
+        -> ((Int, xs) -> Int)
+        -> Reducer (Int, xs) s a
+        -> Reducer xs s (V.Vector a)
+r_index n f body = Reducer
+   { init  = \xs -> VRed_Array <$>
+      G.generateM (n xs) (\b -> init body (b, xs))
+   , accum = \bs i (VRed_Array v) ->
+             let ov = f (i, bs) in
+             accum body (ov,bs) i (v V.! ov) 
+   , done  = \(VRed_Array v) -> V.mapM (done body) v
+   }
 
 pair :: a -> b -> (a, b)
 pair = (,)
