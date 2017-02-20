@@ -205,6 +205,5 @@ example1Unroll' = let_ (int_ 0 == int_ 100) $ \cond ->
                       (let_ (int_ 1 * int_ 42) $ \tmp ->
                        let_ (int_ 0 + tmp)     $ \first ->
                        let_ (int_ 0 + int_ 1)  $ \start ->
-                       let_ (summate start (int_ 100) $ \x ->
-                             x + tmp) $ \total ->
+                       let_ (summate start (int_ 100) $ (+ tmp)) $ \total ->
                        first + total)

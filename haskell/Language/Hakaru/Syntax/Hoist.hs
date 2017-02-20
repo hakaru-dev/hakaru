@@ -114,8 +114,8 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
       equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
       equal Entry{expression=e1} Entry{expression=e2} =
         case jmEq1 (typeOf e1) (typeOf e2) of
-          Nothing   -> False
           Just Refl -> alphaEq e1 e2
+          Nothing   -> False
 
 singleEntry
   :: (ABT Term abt)
@@ -150,18 +150,25 @@ toplevelEntry
   -> Bool
 toplevelEntry Entry{varDependencies=d} = sizeVarSet d == 0
 
+captureEntries
+  :: (ABT Term abt)
+  => HoistM abt a
+  -> HoistM abt (a, EntrySet abt)
+captureEntries = censor (const mempty) . listen
+
 hoist
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-hoist abt = execHoistM (nextFreeOrBind abt) (introduceToplevel $ hoist' abt)
+hoist abt = execHoistM (nextFreeOrBind abt) $
+  captureEntries (hoist' abt) >>= uncurry introduceToplevel
 
 introduceToplevel
   :: (ABT Term abt)
-  => HoistM abt (abt '[] a)
+  => abt '[] a
+  -> EntrySet abt
   -> HoistM abt (abt '[] a)
-introduceToplevel action = do
-  (abt, entries) <- censor (const mempty) $ listen action
+introduceToplevel abt entries = do
   -- After transforming the given ast, we need to introduce all the toplevel
   -- bindings (i.e. bindings with no data dependencies), most of which should be
   -- eliminated by constant propagation.
@@ -292,8 +299,8 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
 
 {-hoistTerm (Lam_ :$ body :* End) =-}
   {-caseBind body $ \ v body' -> do-}
-    {-body'' <- hoist' body'-}
-    {-return $ syn (Lam_ :$ bind v body'' :* End)-}
+    {-available <- ask-}
+    {-body'' <- introduceBindings available [SomeVariable v] -}
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
