@@ -53,6 +53,7 @@ import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Syntax.Variable (varSubSet)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
+import Debug.Trace
 
 data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
@@ -199,7 +200,7 @@ isolateBinder
   => Variable (a :: Hakaru)
   -> HoistM abt b
   -> HoistM abt (b, EntrySet abt)
-isolateBinder v = zapDependencies v . listen
+isolateBinder v = censor (const mempty) . listen . local (insertVarSet v)
 
 hoist'
   :: forall abt xs a . (ABT Term abt)
@@ -208,7 +209,7 @@ hoist'
 hoist' = start
   where
     insertMany :: [SomeVariable HakaruProxy] -> LiveSet -> LiveSet
-    insertMany vs set = foldl' (\ acc (SomeVariable v) -> insertVarSet v acc) set vs
+    insertMany = flip $ foldl' (\ acc (SomeVariable v) -> insertVarSet v acc)
 
     start :: forall ys b . abt ys b -> HoistM abt (abt ys b)
     start = loop [] . viewABT
@@ -252,7 +253,7 @@ wrapExpr
 wrapExpr = foldrM wrap
   where
     mklet :: abt '[] a -> Variable a -> abt '[] b -> abt '[] b
-    mklet e v b = syn (Let_ :$ e :* bind v b :* End)
+    mklet e v b = show v `trace` syn (Let_ :$ e :* bind v b :* End)
 
     -- Binds the Entry's expression to a fresh variable and rebinds any other
     -- variable uses to the fresh variable.
@@ -278,9 +279,7 @@ introduceBindings liveVars newVars body (EntrySet entries) =
 
     loop :: LiveSet -> [HakaruVar] -> [Entry (abt '[])]
     loop _    [] = []
-    loop live (SomeVariable v : xs) 
-      | memberVarSet v live = loop live xs
-      | otherwise           = introduced ++ loop live' (xs ++ vars)
+    loop live (SomeVariable v : xs) = introduced ++ loop live' (xs ++ vars)
       where
         live'      = insertVarSet v live
         vars       = concatMap getBoundVars introduced
@@ -306,9 +305,11 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
 hoistTerm (Lam_ :$ body :* End) =
   caseBind body $ \ v body' -> do
     available         <- ask
-    (body'', entries) <- censor (const mempty) $ isolateBinder v (hoist' body')
-    wrapped           <- introduceBindings available [SomeVariable v] body'' entries
-    finalized         <- introduceToplevel available wrapped entries
+    let intros   = SomeVariable v : fromVarSet available
+        extended = insertVarSet v available
+    (body'', entries) <- isolateBinder v (hoist' body')
+    wrapped           <- introduceBindings emptyVarSet intros body'' entries
+    finalized         <- introduceToplevel extended wrapped entries
     return $ syn (Lam_ :$ bind v finalized :* End)
 
 hoistTerm term = do

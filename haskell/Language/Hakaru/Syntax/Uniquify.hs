@@ -43,9 +43,10 @@ newtype Uniquifier a = Uniquifier { runUniquifier :: StateT Nat (Reader Varmap) 
   deriving (Functor, Applicative, Monad, MonadState Nat, MonadReader Varmap)
 
 uniquify :: (ABT Term abt) => abt '[] a -> abt '[] a
-uniquify abt = fst $ runReader (runStateT unique 0) emptyAssocs
+uniquify abt = fst $ runReader (runStateT unique seed) emptyAssocs
   where
     unique = runUniquifier (uniquify' abt)
+    seed   = nextFreeOrBind abt
 
 genVarID :: Uniquifier Nat
 genVarID = do
@@ -74,7 +75,7 @@ uniquify' = loop . viewABT
           assoc = Assoc v fresh
       -- Process the body with the updated Varmap and wrap the
       -- result in a bind form
-      bind fresh <$> local (insertOrReplaceAssoc assoc) (loop b)
+      bind fresh <$> local (insertAssoc assoc) (loop b)
 
 uniquifyVar
   :: (ABT Term abt)
