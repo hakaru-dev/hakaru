@@ -191,6 +191,12 @@ nothing = Nothing
 just :: a -> Maybe a
 just = Just
 
+left :: a -> Either a b
+left = Left
+
+right :: b -> Either a b
+right = Right
+
 unit :: ()
 unit = ()
 
@@ -219,7 +225,19 @@ pjust :: Pattern -> (a -> b) -> Branch (Maybe a) b
 pjust PVar c = Branch { extract = \ma -> case ma of
                                            Nothing -> Nothing
                                            Just x  -> Just (c x) }
-pjust _ _ = error "Runtime.Prelude pjust"
+pjust _ _ = error "TODO: Runtime.Prelude{pjust}"
+
+pleft :: Pattern -> (a -> c) -> Branch (Either a b) c
+pleft PVar f = Branch { extract = \ma -> case ma of
+                                           Right _ -> Nothing
+                                           Left x -> Just (f x) }
+pleft _ _ = error "TODO: Runtime.Prelude{pLeft}"
+
+pright :: Pattern -> (b -> c) -> Branch (Either a b) c
+pright PVar f = Branch { extract = \ma -> case ma of
+                                            Left _ -> Nothing
+                                            Right x -> Just (f x) }
+pright _ _ = error "TODO: Runtime.Prelude{pRight}"
 
 
 ppair :: Pattern -> Pattern -> (x -> y -> b) -> Branch (x,y) b
