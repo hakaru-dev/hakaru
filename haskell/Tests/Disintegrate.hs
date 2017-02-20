@@ -385,6 +385,14 @@ hiv = normal (real_ 0) (prob_ 1) >>= \muA1 ->
           dataTime   = var (Variable "dataTime"   41 (SArray SReal)) -- hacks :(
 
 ----------------------------------------------------------------
+
+testEmissions :: TrivialABT Term '[]
+                 ('HMeasure (HPair ('HArray 'HReal) HUnit))
+testEmissions = plate n (\_ -> lebesgue) >>= \xs ->
+                plate n (\_ -> lebesgue) >>= \ys ->
+                dirac (pair (array n (\i -> (xs ! i) + (ys ! i))) unit)
+    where n = nat_ 100
+
 runPerform
     :: TrivialABT Term '[] ('HMeasure a)
     -> [TrivialABT Term '[] ('HMeasure a)]
