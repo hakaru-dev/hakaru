@@ -161,14 +161,15 @@ hoist
   => abt '[] a
   -> abt '[] a
 hoist abt = execHoistM (nextFreeOrBind abt) $
-  captureEntries (hoist' abt) >>= uncurry introduceToplevel
+  captureEntries (hoist' abt) >>= uncurry (introduceToplevel emptyVarSet)
 
 introduceToplevel
   :: (ABT Term abt)
-  => abt '[] a
+  => LiveSet
+  -> abt '[] a
   -> EntrySet abt
   -> HoistM abt (abt '[] a)
-introduceToplevel abt entries = do
+introduceToplevel avail abt entries = do
   -- After transforming the given ast, we need to introduce all the toplevel
   -- bindings (i.e. bindings with no data dependencies), most of which should be
   -- eliminated by constant propagation.
@@ -176,7 +177,7 @@ introduceToplevel abt entries = do
       intro    = concatMap getBoundVars toplevel
   -- First we wrap the now AST in the all terms which depdend on top level
   -- definitions
-  wrapped <- introduceBindings emptyVarSet intro abt entries
+  wrapped <- introduceBindings avail intro abt entries
   -- Then wrap the result in the toplevel definitions
   wrapExpr wrapped toplevel
 
@@ -186,7 +187,7 @@ zapDependencies
   => Variable a
   -> HoistM abt b
   -> HoistM abt b
-zapDependencies v = censor zap
+zapDependencies v = censor zap . local (insertVarSet v)
   where
     zap :: EntrySet abt -> EntrySet abt
     zap = EntrySet
@@ -198,7 +199,7 @@ isolateBinder
   => Variable (a :: Hakaru)
   -> HoistM abt b
   -> HoistM abt (b, EntrySet abt)
-isolateBinder v m = zapDependencies v . local (insertVarSet v) $ listen m
+isolateBinder v = zapDependencies v . listen
 
 hoist'
   :: forall abt xs a . (ABT Term abt)
@@ -261,7 +262,7 @@ wrapExpr = foldrM wrap
 introduceBindings
   :: forall (a :: Hakaru) abt
   .  (ABT Term abt)
-  => VarSet HakaruProxy
+  => LiveSet
   -> [SomeVariable HakaruProxy]
   -> abt '[] a
   -> EntrySet abt
@@ -298,7 +299,7 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
     local (insertVarSet v) (hoist' body')
 
 {-hoistTerm (Lam_ :$ body :* End) =-}
-  {-caseBind body $ \ v body' -> do-}
+  {-caseBind body $ \ v body' -> local (IM. do-}
     {-available <- ask-}
     {-body'' <- introduceBindings available [SomeVariable v] -}
 

@@ -26,7 +26,7 @@ module Language.Hakaru.Syntax.Unroll where
 
 import           Control.Monad.Reader
 import           Data.Maybe                     (fromMaybe)
-import           Language.Hakaru.Syntax.ABT     hiding (rename)
+import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq  (Varmap)
 import           Language.Hakaru.Syntax.Prelude hiding ((>>=))
