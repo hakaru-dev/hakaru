@@ -303,13 +303,13 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
     tell $ singleEntry v rhs'
     local (insertVarSet v) (hoist' body')
 
-{-hoistTerm (Lam_ :$ body :* End) =-}
-  {-caseBind body $ \ v body' -> do-}
-    {-available         <- ask-}
-    {-(body'', entries) <- censor (const mempty) $ isolateBinder v (hoist' body')-}
-    {-wrapped           <- introduceBindings available [SomeVariable v] body'' entries-}
-    {-finalized         <- introduceToplevel available wrapped entries-}
-    {-return $ syn (Lam_ :$ bind v finalized :* End)-}
+hoistTerm (Lam_ :$ body :* End) =
+  caseBind body $ \ v body' -> do
+    available         <- ask
+    (body'', entries) <- censor (const mempty) $ isolateBinder v (hoist' body')
+    wrapped           <- introduceBindings available [SomeVariable v] body'' entries
+    finalized         <- introduceToplevel available wrapped entries
+    return $ syn (Lam_ :$ bind v finalized :* End)
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
