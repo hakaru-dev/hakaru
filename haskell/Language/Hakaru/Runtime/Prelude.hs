@@ -131,6 +131,7 @@ r_fanout Reducer{init=initA,accum=accumA,done=doneA}
              accumA bs i s1 >> accumB bs i s2
    , done  = \(s1, s2) -> liftM2 (,) (doneA s1) (doneB s2)
    }
+{-# INLINE r_fanout #-}
 
 r_index :: (G.Vector (MayBoxVec a) a)
         => (xs -> Int)
@@ -157,6 +158,7 @@ r_split b Reducer{init=initA,accum=accumA,done=doneA}
              if b then accumA bs i s1 else accumB bs i s2
    , done  = \(s1, s2) -> liftM2 (,) (doneA s1) (doneB s2)
    }
+{-# INLINE r_split #-}
 
 r_add :: Num a => ((Int, xs) -> a) -> Reducer xs s a
 r_add e = Reducer
