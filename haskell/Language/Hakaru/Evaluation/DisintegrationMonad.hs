@@ -452,8 +452,7 @@ convertLocs newlocs = F.foldr step emptyAssocs . fromAssocs <$> getLocs
             -> Name a
             -> Assoc (abt '[])
       build (Assoc x loc) name =
-          Assoc x (fromLoc name (varType x)
-                    (case loc of Loc _ js -> js; MultiLoc _ js -> js))
+          Assoc x (fromLoc name (varType x) (locIndices loc))
       step assoc@(Assoc _ loc) = insertAssoc $
           case loc of
                  Loc      l _ -> maybe (freeLocError l)
