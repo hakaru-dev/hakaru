@@ -121,6 +121,43 @@ data Reducer xs s a =
             , done  :: cell -> ST s a
             }
 
+r_fanout :: Reducer xs s a
+         -> Reducer xs s b
+         -> Reducer xs s (a,b)
+r_fanout Reducer{init=initA,accum=accumA,done=doneA}
+         Reducer{init=initB,accum=accumB,done=doneB} = Reducer
+   { init  = \xs       -> liftM2 (,) (initA xs) (initB xs)
+   , accum = \bs i (s1, s2) ->
+             accumA bs i s1 >> accumB bs i s2
+   , done  = \(s1, s2) -> liftM2 (,) (doneA s1) (doneB s2)
+   }
+
+r_index :: (G.Vector (MayBoxVec a) a)
+        => (xs -> Int)
+        -> ((Int, xs) -> Int)
+        -> Reducer (Int, xs) s a
+        -> Reducer xs s (MayBoxVec a a)
+r_index n f Reducer{init=initR,accum=accumR,done=doneR} = Reducer
+   { init  = \xs -> V.generateM (n xs) (\b -> initR (b, xs))
+   , accum = \bs i v ->
+             let ov = f (i, bs) in
+             accumR (ov,bs) i (v V.! ov)
+   , done  = \v -> fmap G.convert (V.mapM doneR v)
+   }
+{-# INLINE r_index #-}
+
+r_split :: Bool
+        -> Reducer xs s a
+         -> Reducer xs s b
+         -> Reducer xs s (a,b)
+r_split b Reducer{init=initA,accum=accumA,done=doneA}
+          Reducer{init=initB,accum=accumB,done=doneB} = Reducer
+   { init  = \xs -> liftM2 (,) (initA xs) (initB xs)
+   , accum = \bs i (s1, s2) ->
+             if b then accumA bs i s1 else accumB bs i s2
+   , done  = \(s1, s2) -> liftM2 (,) (doneA s1) (doneB s2)
+   }
+
 r_add :: Num a => ((Int, xs) -> a) -> Reducer xs s a
 r_add e = Reducer
    { init  = \_ -> newSTRef 0
@@ -137,20 +174,6 @@ r_nop = Reducer
    , done  = \_ -> return ()
    }
 {-# INLINE r_nop #-}
-
-r_index :: (G.Vector (MayBoxVec a) a)
-        => (xs -> Int)
-        -> ((Int, xs) -> Int)
-        -> Reducer (Int, xs) s a
-        -> Reducer xs s (MayBoxVec a a)
-r_index n f Reducer{init=initR,accum=accumR,done=doneR} = Reducer
-   { init  = \xs -> V.generateM (n xs) (\b -> initR (b, xs))
-   , accum = \bs i v ->
-             let ov = f (i, bs) in
-             accumR (ov,bs) i (v V.! ov)
-   , done  = \v -> fmap G.convert (V.mapM doneR v)
-   }
-{-# INLINE r_index #-}
 
 pair :: a -> b -> (a, b)
 pair = (,)
