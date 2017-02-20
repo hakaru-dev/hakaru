@@ -919,7 +919,7 @@ evaluateCase evaluate_ = evaluateCase_
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 
--- | Simulate performing 'HMeasure' actions by simply emiting code
+-- | Simulate performing 'HMeasure' actions by simply emitting code
 -- for those actions, returning the bound variable.
 --
 -- This is the function called @(|>>)@ in the disintegration paper.
