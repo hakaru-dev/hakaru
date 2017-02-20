@@ -40,7 +40,7 @@ module Language.Hakaru.Syntax.Hoist where
 
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
-import           Data.List                       (foldl1', groupBy, nub)
+import           Data.List                       (foldl', foldl1', groupBy, nub)
 import           Data.Maybe                      (mapMaybe)
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
@@ -187,7 +187,7 @@ zapDependencies
   => Variable a
   -> HoistM abt b
   -> HoistM abt b
-zapDependencies v = censor zap . local (insertVarSet v)
+zapDependencies v = censor zap
   where
     zap :: EntrySet abt -> EntrySet abt
     zap = EntrySet
@@ -207,6 +207,9 @@ hoist'
   -> HoistM abt (abt xs a)
 hoist' = start
   where
+    insertMany :: [SomeVariable HakaruProxy] -> LiveSet -> LiveSet
+    insertMany vs set = foldl' (\ acc (SomeVariable v) -> insertVarSet v acc) set vs
+
     start :: forall ys b . abt ys b -> HoistM abt (abt ys b)
     start = loop [] . viewABT
 
@@ -229,7 +232,7 @@ hoist' = start
     -- work.
     loop [] (Syn s)    = hoistTerm s
     loop xs (Syn s)    = do
-      (term, entries) <- listen $ hoistTerm s
+      (term, entries) <- listen $ local (insertMany xs) $ hoistTerm s
       available       <- ask
       introduceBindings available xs term entries
 
@@ -275,7 +278,9 @@ introduceBindings liveVars newVars body (EntrySet entries) =
 
     loop :: LiveSet -> [HakaruVar] -> [Entry (abt '[])]
     loop _    [] = []
-    loop live (SomeVariable v : xs) = introduced ++ loop live' (xs ++ vars)
+    loop live (SomeVariable v : xs) 
+      | memberVarSet v live = loop live xs
+      | otherwise           = introduced ++ loop live' (xs ++ vars)
       where
         live'      = insertVarSet v live
         vars       = concatMap getBoundVars introduced
@@ -299,9 +304,12 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
     local (insertVarSet v) (hoist' body')
 
 {-hoistTerm (Lam_ :$ body :* End) =-}
-  {-caseBind body $ \ v body' -> local (IM. do-}
-    {-available <- ask-}
-    {-body'' <- introduceBindings available [SomeVariable v] -}
+  {-caseBind body $ \ v body' -> do-}
+    {-available         <- ask-}
+    {-(body'', entries) <- censor (const mempty) $ isolateBinder v (hoist' body')-}
+    {-wrapped           <- introduceBindings available [SomeVariable v] body'' entries-}
+    {-finalized         <- introduceToplevel available wrapped entries-}
+    {-return $ syn (Lam_ :$ bind v finalized :* End)-}
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
