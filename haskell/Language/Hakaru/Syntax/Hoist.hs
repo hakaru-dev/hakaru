@@ -62,6 +62,9 @@ data Entry (abt :: Hakaru -> *)
   , binding         :: ![Variable a]
   }
 
+instance Show (Entry abt) where
+  show (Entry d _ b) = "Entry (" ++ show d ++ ") (" ++ show b ++ ")"
+
 type VarState    = Assocs Entry
 type HakaruProxy = ('KProxy :: KProxy Hakaru)
 type LiveSet     = VarSet HakaruProxy
@@ -175,10 +178,10 @@ introduceToplevel avail abt entries = do
   -- bindings (i.e. bindings with no data dependencies), most of which should be
   -- eliminated by constant propagation.
   let toplevel = filter toplevelEntry $ entryList entries
-      intro    = concatMap getBoundVars toplevel
+      intro    = fromVarSet avail ++ concatMap getBoundVars toplevel
   -- First we wrap the now AST in the all terms which depdend on top level
   -- definitions
-  wrapped <- introduceBindings avail intro abt entries
+  wrapped <- introduceBindings emptyVarSet intro abt entries
   -- Then wrap the result in the toplevel definitions
   wrapExpr wrapped toplevel
 
@@ -208,7 +211,7 @@ hoist'
   -> HoistM abt (abt xs a)
 hoist' = start
   where
-    insertMany :: [SomeVariable HakaruProxy] -> LiveSet -> LiveSet
+    insertMany :: [HakaruVar] -> LiveSet -> LiveSet
     insertMany = flip $ foldl' (\ acc (SomeVariable v) -> insertVarSet v acc)
 
     start :: forall ys b . abt ys b -> HoistM abt (abt ys b)
@@ -223,7 +226,7 @@ hoist' = start
     -- a @Syn@ term is finally reached, we introduce any hoisted values whose
     -- data dependencies are satisified by these new variables.
     loop :: forall ys b
-         .  [SomeVariable HakaruProxy]
+         .  [HakaruVar]
          -> View (Term abt) ys b
          -> HoistM abt (abt ys b)
     loop _  (Var v)    = return (var v)
@@ -253,26 +256,29 @@ wrapExpr
 wrapExpr = foldrM wrap
   where
     mklet :: abt '[] a -> Variable a -> abt '[] b -> abt '[] b
-    mklet e v b = show v `trace` syn (Let_ :$ e :* bind v b :* End)
+    mklet e v b = syn (Let_ :$ e :* bind v b :* End)
 
     -- Binds the Entry's expression to a fresh variable and rebinds any other
     -- variable uses to the fresh variable.
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
-    wrap Entry{expression=e,binding=b} acc = do
+    wrap Entry{expression=e,binding=[]} acc = do
       tmp <- newVar (typeOf e)
-      let body = foldr (mklet $ var tmp) acc b
-      return $ mklet e tmp body
+      return $ mklet e tmp acc
+    wrap Entry{expression=e,binding=(x:xs)} acc = do
+      let rhs  = var x
+          body = foldr (mklet rhs) acc xs
+      return $ mklet e x body
 
 introduceBindings
   :: forall (a :: Hakaru) abt
   .  (ABT Term abt)
   => LiveSet
-  -> [SomeVariable HakaruProxy]
+  -> [HakaruVar]
   -> abt '[] a
   -> EntrySet abt
   -> HoistM abt (abt '[] a)
 introduceBindings liveVars newVars body (EntrySet entries) =
-  wrapExpr body resultEntries
+  unlines (map show entries) `trace` wrapExpr body resultEntries
   where
     resultEntries :: [Entry (abt '[])]
     resultEntries = loop liveVars newVars
@@ -305,11 +311,9 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
 hoistTerm (Lam_ :$ body :* End) =
   caseBind body $ \ v body' -> do
     available         <- ask
-    let intros   = SomeVariable v : fromVarSet available
-        extended = insertVarSet v available
+    let extended = insertVarSet v available
     (body'', entries) <- isolateBinder v (hoist' body')
-    wrapped           <- introduceBindings emptyVarSet intros body'' entries
-    finalized         <- introduceToplevel extended wrapped entries
+    finalized         <- introduceToplevel extended body'' entries
     return $ syn (Lam_ :$ bind v finalized :* End)
 
 hoistTerm term = do
