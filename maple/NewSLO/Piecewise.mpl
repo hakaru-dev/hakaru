@@ -18,25 +18,29 @@
           cond := op(i,e);
           # cond := eval_factor(cond, kbs[i], `+`, []);
           kbs[i+1] := assert(cond, kbs[i]);
-          cond := map(proc(cond::[identical(assert),anything], $)
-                        op(2,cond)
-                      end proc,
-                      kb_subtract(kbs[i+1], kbs[i]));
-          if nops(cond) = 0 then
-            default := op(i+1,e);
-            pieces[i] := default;
-            break;
-          else
-            cond := `if`(nops(cond)=1, op(1,cond), And(op(cond)));
-            # TODO: Extend KB interface to optimize for
-            #       entails(kb,cond) := nops(kb_subtract(assert(cond,kb),kb))=0
-            kbs[i+2] := assert(Not(cond), kbs[i]);
-            if nops(kb_subtract(kbs[i+2], kbs[i])) > 0 then
-              pieces[i] := cond;
-              pieces[i+1] := op(i+1,e);
-            else
               # This condition is false in context, so delete this piece
               # by not putting anything inside "pieces"
+          if kbs[i+1] :: t_kb then
+            cond := map(proc(cond::[identical(assert),anything], $)
+                          op(2,cond)
+                        end proc,
+                        kb_subtract(kbs[i+1], kbs[i]));
+            if nops(cond) = 0 then
+              default := op(i+1,e);
+              pieces[i] := default;
+              break;
+            else
+              cond := `if`(nops(cond)=1, op(1,cond), And(op(cond)));
+              # TODO: Extend KB interface to optimize for
+              #       entails(kb,cond) := nops(kb_subtract(assert(cond,kb),kb))=0
+              kbs[i+2] := assert(Not(cond), kbs[i]);
+              if nops(kb_subtract(kbs[i+2], kbs[i])) > 0 then
+                pieces[i] := cond;
+                pieces[i+1] := op(i+1,e);
+              else
+                # This condition is false in context, so delete this piece
+                # by not putting anything inside "pieces"
+              end if
             end if
           end if
         end if
