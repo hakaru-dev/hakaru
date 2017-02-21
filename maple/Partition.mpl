@@ -62,7 +62,7 @@ export
       if nargs::odd then
          error "Expected an even number of arguments"
       end if;
-      s:= {seq(Record('cond'= Terms[k], 'val'= Terms[k+1]), k= 1..nargs-1, 2)};
+      s:= [ seq(Record('cond'= Terms[k], 'val'= Terms[k+1]), k= 1..nargs-1, 2) ] ;
       userinfo(3, PARTITION, s);
       PARTITION(s)
    end proc,
@@ -88,13 +88,13 @@ export
       res := map_check(procname, args);
       if res::string then error res else pos := res; end if;
       PARTITION(
-         {seq(
+         [seq(
             Record(
                'cond'= pair:-cond,
                'val'= f(args[2..pos], pair:-val, args[pos+2..])
             ),
             pair= op(1, args[pos+1])
-         )}
+         )]
       )
    end proc,
 
@@ -139,7 +139,7 @@ export
        # each clause evaluated under the context so far,
        # which is the conjunction of the negations of all clauses
        # so far
-       local ctx := empty, n := nops(x), cls := {}, cnd_raw, cnd,i, q;
+       local ctx := empty, n := nops(x), cls := [], cnd_raw, cnd,i, q;
 
        userinfo(5, PWToPartition
                , printf("PWToPartition: found %d ops in %a \n ", n, x) );
@@ -163,22 +163,22 @@ export
                userinfo(3, PWToPartition, printf("PWToPartition: ctx after %d clauses "
                                                  "is %a\n", i, ctx));
 
-               cls := { op(cls)
+               cls := [ op(cls)
                       , Record('cond' = cnd
                               ,'val'  = op(2*i ,x)
                               )
-                      };
+                      ];
            end if;
        end do;
 
        # if there is an otherwise case, handle that.
        if n::odd and not kb_is_false(ctx) then
 
-           cls := { op(cls)
+           cls := [ op(cls)
                   , Record('cond' = foldl(And,op(kb_to_assumptions(ctx)))
                           , 'val' = op(n,x)
                           )
-                  };
+                  ];
        end if;
 
        PARTITION( cls );

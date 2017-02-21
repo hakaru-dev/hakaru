@@ -567,7 +567,7 @@ Hakaru := module ()
    # matches partitions, but the `t_partition` type in Hakaru does not.
    # clearly I'm missing something
    PARTITION::static:= proc(
-      Pairs::set(
+      Pairs::list(
          record(
             #The type `anything` below should be some boolean type, but we'll
             #need to write our own as neither Maple's 'boolean' nor
