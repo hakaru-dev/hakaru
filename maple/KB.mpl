@@ -117,35 +117,9 @@ KB := module ()
       'procname'()
   end proc;
 
-  # a KB might contain a contradiction, which this checks for.
-  # The additional `variables' arguement determine which (free) variables
-  # in the KB are checked for a contradiction. `ALL` denotes every
-  # free variable occuring in the KB should be checked
-  kb_is_false :=
-    proc( kb::t_kb
-         , {variables :: Or(identical(`ALL`), set(name)) := `ALL`}
-        )
-
-    local allVs, res;
-
-    if variables::identical(`ALL`) then
-        allVs := select(type,indets(kb), name);
-    else
-        allVs := variables
-    end if;
-
-    # This is kind of a hack - if simplify_assuming fails to simplify the
-    # product of all the variables, the KB contains inconsistent information
-    # about those variables. kb should probably be internally guaranteeing
-    # consistency and replacing inconsistent KBs with the 'false' KB.
-
-    # KB bound variables are excluded - KB deals with substituting the
-    # let-bound expressions within in into subsequent KB clauses
-    res := simplify_assuming_f ( `*`(op( allVs ))
-                               , kb ) ;
-
-    if res::identical(FAIL) then true else false end if;
-
+  # Check if a kb which might be NotAKB is indeed NotAKB
+  kb_is_false := proc(mbkb :: t_kb_mb, $)
+      if mbkb :: t_not_a_kb then true else false end if;
   end proc;
 
   # A smart constructor for introducing Lebesgue integration variables (?)
@@ -376,7 +350,18 @@ KB := module ()
    # Great deal of magic happens behind the scenes
    ModuleApply := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
+    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret, mbf;
+
+    # Setup the assumptions
+    as := chill(kb_to_assumptions(kb, bb));
+
+    # Check that the new clause would not cause a contradictory
+    # KB. If it does, then produce NotAKB. If the clause immediately
+    # reduces to true under the assumption of the KB, then adding
+    # the clause is redundant.
+    if not coulditbe(`if`(pol,bb,not(bb))) assuming op(as) then
+        return NotAKB();
+    end if;
 
     if bb = pol then
       # Ignore literal true and Not(false).
@@ -389,8 +374,6 @@ KB := module ()
       foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
 
     else
-      # Setup the assumptions
-      as := chill(kb_to_assumptions(kb, bb));
 
       # Simplify `bb' in context `as' placing result in `b'
       b := chill(bb);
