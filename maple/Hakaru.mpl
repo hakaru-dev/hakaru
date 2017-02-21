@@ -428,9 +428,7 @@ Hakaru := module ()
           And(C_O, C_I[1]), B_I[1],
           And(C_O, KB:-negate_kb1(C_I[1])), B_I[2],
           And(KB:-negate_kb1(C_O), C_I[2]), B_I[3],
-           # negate_kb1 is not happy with non-relations!
-          `if`(C_O=true or C_I[2]=true, false,
-               And(KB:-negate_kb1(C_O), KB:-negate_kb1(C_I[2]))), B_I[4]
+          And(KB:-negate_kb1(C_O), KB:-negate_kb1(C_I[2])), B_I[4]
      ];
      userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
      piecewise(r[])
