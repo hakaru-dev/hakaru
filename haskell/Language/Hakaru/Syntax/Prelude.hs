@@ -117,7 +117,7 @@ module Language.Hakaru.Syntax.Prelude
     , app, app2, app3
 
     -- * Arrays
-    , empty, arrayWithVar, array, (!), size, reduce
+    , empty, arrayWithVar, array, arrayLit, (!), size, reduce
     , sumV, summateV, appendV, mapV, mapWithIndex, normalizeV, constV, unitV, zipWithV
 
     -- * Implementation details
@@ -125,6 +125,10 @@ module Language.Hakaru.Syntax.Prelude
     , arrayOp0_, arrayOp1_, arrayOp2_, arrayOp3_
     , measure0_, measure1_, measure2_
     , unsafeNaryOp_, naryOp_withIdentity, naryOp2_
+
+    -- * Reducers
+    , bucket, r_fanout, r_index, r_split, r_nop, r_add
+
     ) where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
@@ -144,6 +148,7 @@ import Language.Hakaru.Types.Sing (Sing(..), SingI(sing), sUnPair, sUnEither, sU
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT hiding (View(..))
@@ -969,7 +974,7 @@ array
     -> (abt '[] 'HNat -> abt '[] a)
     -> abt '[] ('HArray a)
 array n =
-    syn . Array_ n . binder Text.empty sing
+    syn . Array_ n . binder Text.empty sing        
 
 arrayWithVar
     :: (ABT Term abt)
@@ -980,6 +985,11 @@ arrayWithVar
 arrayWithVar n x body =
     syn $ Array_ n (bind x body)
 
+arrayLit
+    :: (ABT Term abt)
+    => [abt '[] a]
+    -> abt '[] ('HArray a)
+arrayLit = syn . ArrayLiteral_
 
 empty :: (ABT Term abt, SingI a) => abt '[] ('HArray a)
 empty = syn (Empty_ sing)
@@ -1135,6 +1145,47 @@ zipWithV
 zipWithV f v1 v2 =
     array (size v1) (\i -> f (v1 ! i) (v2 ! i))
 
+----------------------------------------------------------------
+
+r_fanout
+    :: (ABT Term abt)
+    => Reducer abt xs a
+    -> Reducer abt xs b
+    -> Reducer abt xs (HPair a b)
+r_fanout = Red_Fanout
+
+r_index
+    :: (Binders Term abt xs as)
+    => (as -> abt '[] 'HNat)
+    -> ((abt '[] 'HNat, as) -> abt '[] 'HNat)
+    -> Reducer abt ( 'HNat ': xs) a
+    -> Reducer abt xs ('HArray a)
+r_index n f = Red_Index (binders n) (binders f)
+
+r_split
+    :: (Binders Term abt xs as)
+    => ((abt '[] 'HNat, as) -> abt '[] HBool)
+    -> Reducer abt xs a
+    -> Reducer abt xs b
+    -> Reducer abt xs (HPair a b)
+r_split b = Red_Split (binders b)
+
+r_nop :: (ABT Term abt) => Reducer abt xs HUnit
+r_nop = Red_Nop
+
+r_add
+    :: (Binders Term abt xs as, HSemiring_ a)
+    => ((abt '[] 'HNat, as) -> abt '[] a)
+    -> Reducer abt xs a
+r_add f = Red_Add hSemiring (binders f)
+
+bucket
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> abt '[] 'HNat
+    -> Reducer abt '[] a
+    -> abt '[] a
+bucket i j r = syn $ Bucket i j r
 
 ----------------------------------------------------------------
 (>>=)

@@ -145,6 +145,7 @@ evaluate perform evaluateCase = evaluate_
         Datum_   d               -> return . Head_ $ WDatum   d
         Empty_   typ             -> return . Head_ $ WEmpty   typ
         Array_   e1 e2           -> return . Head_ $ WArray e1 e2
+        ArrayLiteral_ es         -> return . Head_ $ WArrayLiteral es
         Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
         Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
         MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
@@ -559,12 +560,15 @@ evaluateArrayOp evaluate_ = go
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
             Head_   v1  ->
                 case head2array v1 of
-                WAEmpty      -> return . Head_ $ WLiteral (LNat 0)
-                WAArray e3 _ -> evaluate_ e3
+                WAEmpty           -> return . Head_ $ WLiteral (LNat 0)
+                WAArray e3      _ -> evaluate_ e3
+                WAArrayLiteral es -> return . Head_ . WLiteral $ listLengthNat es
 
     go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
         error "TODO: evaluateArrayOp{Reduce}"
 
+listLengthNat :: [a] -> Literal 'HNat
+listLengthNat = primCoerceFrom (Signed HRing_Int) . LInt . toInteger . length
 
 data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WAEmpty :: ArrayHead abt a
@@ -572,12 +576,14 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: !(abt '[] 'HNat)
         -> !(abt '[ 'HNat] a)
         -> ArrayHead abt a
+    WAArrayLiteral :: [abt '[] a] -> ArrayHead abt a
 
 head2array :: Head abt ('HArray a) -> ArrayHead abt a
-head2array (WEmpty _)     = WAEmpty
-head2array (WArray e1 e2) = WAArray e1 e2
+head2array (WEmpty _)         = WAEmpty
+head2array (WArray e1 e2)     = WAArray e1 e2
+head2array (WArrayLiteral es) = WAArrayLiteral es
 
-
+                                
 ----------------------------------------------------------------
 -- TODO: maybe we should adjust 'Whnf' to have a third option for
 -- closed terms of the atomic\/literal types, so that we can avoid

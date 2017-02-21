@@ -5,12 +5,12 @@
            , FlexibleContexts
            , UndecidableInstances
            , LambdaCase
+           , MultiParamTypeClasses
            , OverloadedStrings
-           , Rank2Types
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 #-}
-module Language.Hakaru.Runtime.Prelude where
+module Language.Hakaru.Runtime.LogFloatPrelude where
 
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor                    ((<$>))
@@ -20,13 +20,12 @@ import           Data.Foldable                   as F
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
-import           Data.STRef
+import           Data.Number.LogFloat
 import qualified Data.Vector                     as V
 import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
 import           Control.Monad
-import           Control.Monad.ST
-import           Prelude                         hiding (product, init)
+import           Prelude                         hiding (product)
 
 type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
 type instance MinBoxVec V.Vector v        = V.Vector
@@ -36,9 +35,11 @@ type instance MinBoxVec U.Vector U.Vector = U.Vector
 type family MayBoxVec a :: * -> *
 type instance MayBoxVec Int          = U.Vector
 type instance MayBoxVec Double       = U.Vector
+type instance MayBoxVec LogFloat     = V.Vector
 type instance MayBoxVec (U.Vector a) = V.Vector
 type instance MayBoxVec (V.Vector a) = V.Vector
 type instance MayBoxVec (a,b)        = MinBoxVec (MayBoxVec a) (MayBoxVec b)
+
 
 lam :: (a -> b) -> a -> b
 lam = id
@@ -84,20 +85,23 @@ uniform :: Double -> Double -> Measure Double
 uniform lo hi = makeMeasure $ MWC.uniformR (lo, hi)
 {-# INLINE uniform #-}
 
-normal :: Double -> Double -> Measure Double
-normal mu sd = makeMeasure $ MWCD.normal mu sd
+normal :: Double -> LogFloat -> Measure Double
+normal mu sd = makeMeasure $ MWCD.normal mu (fromLogFloat sd)
 {-# INLINE normal #-}
 
-beta :: Double -> Double -> Measure Double
-beta a b = makeMeasure $ MWCD.beta a b
+beta :: LogFloat -> LogFloat -> Measure LogFloat
+beta a b = makeMeasure $ \g ->
+  logFloat <$> MWCD.beta (fromLogFloat a) (fromLogFloat b) g
 {-# INLINE beta #-}
 
-gamma :: Double -> Double -> Measure Double
-gamma a b = makeMeasure $ MWCD.gamma a b
+gamma :: LogFloat -> LogFloat -> Measure LogFloat
+gamma a b = makeMeasure $ \g ->
+  logFloat <$> MWCD.gamma (fromLogFloat a) (fromLogFloat b) g
 {-# INLINE gamma #-}
 
-categorical :: MayBoxVec Double Double -> Measure Int
-categorical a = makeMeasure (\g -> fromIntegral <$> MWCD.categorical a g)
+categorical :: MayBoxVec LogFloat LogFloat -> Measure Int
+categorical a = makeMeasure $ \g ->
+  fromIntegral <$> MWCD.categorical (fmap fromLogFloat a :: V.Vector Double) g
 {-# INLINE categorical #-}
 
 plate :: (G.Vector (MayBoxVec a) a) =>
@@ -105,77 +109,6 @@ plate :: (G.Vector (MayBoxVec a) a) =>
 plate n f = G.generateM (fromIntegral n) $ \x ->
              f (fromIntegral x)
 {-# INLINE plate #-}
-
-bucket :: Int -> Int -> (forall s. Reducer () s a) -> a
-bucket b e r = runST
-             $ case r of Reducer{init=initR,accum=accumR,done=doneR} -> do
-                          s' <- initR ()
-                          F.mapM_ (\i -> accumR () i s') [b .. e - 1]
-                          doneR s'
-{-# INLINE bucket #-}
-
-data Reducer xs s a =
-    forall cell.
-    Reducer { init  :: xs -> ST s cell
-            , accum :: xs -> Int -> cell -> ST s ()
-            , done  :: cell -> ST s a
-            }
-
-r_fanout :: Reducer xs s a
-         -> Reducer xs s b
-         -> Reducer xs s (a,b)
-r_fanout Reducer{init=initA,accum=accumA,done=doneA}
-         Reducer{init=initB,accum=accumB,done=doneB} = Reducer
-   { init  = \xs       -> liftM2 (,) (initA xs) (initB xs)
-   , accum = \bs i (s1, s2) ->
-             accumA bs i s1 >> accumB bs i s2
-   , done  = \(s1, s2) -> liftM2 (,) (doneA s1) (doneB s2)
-   }
-{-# INLINE r_fanout #-}
-
-r_index :: (G.Vector (MayBoxVec a) a)
-        => (xs -> Int)
-        -> ((Int, xs) -> Int)
-        -> Reducer (Int, xs) s a
-        -> Reducer xs s (MayBoxVec a a)
-r_index n f Reducer{init=initR,accum=accumR,done=doneR} = Reducer
-   { init  = \xs -> V.generateM (n xs) (\b -> initR (b, xs))
-   , accum = \bs i v ->
-             let ov = f (i, bs) in
-             accumR (ov,bs) i (v V.! ov)
-   , done  = \v -> fmap G.convert (V.mapM doneR v)
-   }
-{-# INLINE r_index #-}
-
-r_split :: Bool
-        -> Reducer xs s a
-         -> Reducer xs s b
-         -> Reducer xs s (a,b)
-r_split b Reducer{init=initA,accum=accumA,done=doneA}
-          Reducer{init=initB,accum=accumB,done=doneB} = Reducer
-   { init  = \xs -> liftM2 (,) (initA xs) (initB xs)
-   , accum = \bs i (s1, s2) ->
-             if b then accumA bs i s1 else accumB bs i s2
-   , done  = \(s1, s2) -> liftM2 (,) (doneA s1) (doneB s2)
-   }
-{-# INLINE r_split #-}
-
-r_add :: Num a => ((Int, xs) -> a) -> Reducer xs s a
-r_add e = Reducer
-   { init  = \_ -> newSTRef 0
-   , accum = \bs i s ->
-             modifySTRef' s (+ (e (i,bs)))
-   , done  = readSTRef
-   }
-{-# INLINE r_add #-}
-
-r_nop :: Reducer xs s ()
-r_nop = Reducer
-   { init  = \_ -> return ()
-   , accum = \_ _ _ -> return ()
-   , done  = \_ -> return ()
-   }
-{-# INLINE r_nop #-}
 
 pair :: a -> b -> (a, b)
 pair = (,)
@@ -190,12 +123,6 @@ nothing = Nothing
 
 just :: a -> Maybe a
 just = Just
-
-left :: a -> Either a b
-left = Left
-
-right :: b -> Either a b
-right = Right
 
 unit :: ()
 unit = ()
@@ -215,7 +142,6 @@ extractBool b a p | p == b     = Just a
                   | otherwise  = Nothing
 {-# INLINE extractBool #-}
 
-
 pnothing :: b -> Branch (Maybe a) b
 pnothing b = Branch { extract = \ma -> case ma of
                                          Nothing -> Just b
@@ -225,19 +151,7 @@ pjust :: Pattern -> (a -> b) -> Branch (Maybe a) b
 pjust PVar c = Branch { extract = \ma -> case ma of
                                            Nothing -> Nothing
                                            Just x  -> Just (c x) }
-pjust _ _ = error "TODO: Runtime.Prelude{pjust}"
-
-pleft :: Pattern -> (a -> c) -> Branch (Either a b) c
-pleft PVar f = Branch { extract = \ma -> case ma of
-                                           Right _ -> Nothing
-                                           Left x -> Just (f x) }
-pleft _ _ = error "TODO: Runtime.Prelude{pLeft}"
-
-pright :: Pattern -> (b -> c) -> Branch (Either a b) c
-pright PVar f = Branch { extract = \ma -> case ma of
-                                            Left _ -> Nothing
-                                            Right x -> Just (f x) }
-pright _ _ = error "TODO: Runtime.Prelude{pRight}"
+pjust _ _ = error "Runtime.Prelude pjust"
 
 
 ppair :: Pattern -> Pattern -> (x -> y -> b) -> Branch (x,y) b
@@ -290,7 +204,7 @@ int_ = id
 unsafeNat :: Int -> Int
 unsafeNat = id
 
-nat2prob :: Int -> Double
+nat2prob :: Int -> LogFloat
 nat2prob = fromIntegral
 
 fromInt  :: Int -> Double
@@ -302,16 +216,16 @@ nat2int  = id
 nat2real :: Int -> Double
 nat2real = fromIntegral
 
-fromProb :: Double -> Double
-fromProb = id
+fromProb :: LogFloat -> Double
+fromProb = fromLogFloat
 
-unsafeProb :: Double -> Double
-unsafeProb = id
+unsafeProb :: Double -> LogFloat
+unsafeProb = logFloat
 
 real_ :: Rational -> Double
 real_ = fromRational
 
-prob_ :: NonNegativeRational -> Double
+prob_ :: NonNegativeRational -> LogFloat
 prob_ = fromRational . fromNonNegativeRational
 
 infinity :: Double
@@ -330,10 +244,6 @@ array
     -> MayBoxVec a a
 array n f = G.generate (fromIntegral n) (f . fromIntegral)
 {-# INLINE array #-}
-
-arrayLit :: (G.Vector (MayBoxVec a) a) => [a] -> MayBoxVec a a
-arrayLit = G.fromList
-{-# INLINE arrayLit #-}
 
 (!) :: (G.Vector (MayBoxVec a) a) => MayBoxVec a a -> Int -> a
 a ! b = a G.! (fromIntegral b)

@@ -28,7 +28,6 @@ module Language.Hakaru.CodeGen.Types
 
   -- arrays
   , arrayDeclaration
-  , arrayName
   , arrayStruct
   , arraySize
   , arrayData
@@ -38,7 +37,6 @@ module Language.Hakaru.CodeGen.Types
   -- mdata
   , mdataDeclaration
   , mdataPtrDeclaration
-  , mdataName
   , mdataStruct
   , mdataStruct'
   , mdataWeight
@@ -47,7 +45,6 @@ module Language.Hakaru.CodeGen.Types
   , mdataPtrSample
 
   , datumDeclaration
-  , datumName
   , datumStruct
   , functionDef
   , datumSum
@@ -110,14 +107,27 @@ typePtrDeclaration typ ident =
 ----------------
 
 typeName :: Sing (a :: Hakaru) -> String
-typeName SInt         = "Int"
-typeName SNat         = "Nat"
-typeName SReal        = "Real"
-typeName SProb        = "Prob"
-typeName (SArray t)   = "Array" ++ typeName t
-typeName (SMeasure t) = "MData" ++ typeName t
-typeName (SData _ t)  = "D" ++ datumName t
-typeName _            = error "TODO: typeName SFun" -- when would this be used?
+typeName SInt         = "int"
+typeName SNat         = "nat"
+typeName SReal        = "real"
+typeName SProb        = "prob"
+typeName (SArray t)   = "array_" ++ typeName t
+typeName (SMeasure t) = "mdata_" ++ typeName t
+typeName (SFun _ _)   = error "TODO: typeName SFun" -- when would this be used?
+typeName (SData _ t)  = "dat_" ++ datumSumName t
+  where datumSumName :: Sing (a :: [[HakaruFun]]) -> String
+        datumSumName SVoid = "V"
+        datumSumName (SPlus p s) = datumProdName p ++ datumSumName s
+
+        datumProdName :: Sing (a :: [HakaruFun]) -> String
+        datumProdName SDone     = "D"
+        datumProdName (SEt x p) = datumPrimName x ++ datumProdName p
+
+        datumPrimName :: Sing (a :: HakaruFun) -> String
+        datumPrimName SIdent = "I"
+        datumPrimName (SKonst s) = "K" ++ typeName s
+
+
 
 
 --------------------------------------------------------------------------------
@@ -131,28 +141,21 @@ typeName _            = error "TODO: typeName SFun" -- when would this be used?
   need to return a list of external declarations with our array type
 -}
 
-arrayName :: Sing (a :: Hakaru) -> String
-arrayName SInt  = "arrayInt"
-arrayName SNat  = "arrayNat"
-arrayName SReal = "arrayReal"
-arrayName SProb = "arrayProb"
-arrayName t    = error $ "arrayName: cannot make array from type: " ++ show t
-
-arrayStruct :: Sing (a :: Hakaru) -> [CExtDecl]
-arrayStruct t = [CDeclExt (CDecl [CTypeSpec $ arrayStruct' t] [])]
+arrayStruct :: Sing (a :: Hakaru) -> CExtDecl
+arrayStruct t = CDeclExt (CDecl [CTypeSpec $ arrayStruct' t] [])
 
 arrayStruct' :: Sing (a :: Hakaru) -> CTypeSpec
 arrayStruct' t = aStruct
   where aSize   = buildDeclaration CInt (Ident "size")
         aData   = typePtrDeclaration t (Ident "data")
-        aStruct = buildStruct (Just . Ident . arrayName $ t) [aSize,aData]
+        aStruct = buildStruct (Just . Ident . typeName . SArray $ t) [aSize,aData]
 
 
 arrayDeclaration
   :: Sing (a :: Hakaru)
   -> Ident
   -> CDecl
-arrayDeclaration typ = buildDeclaration (callStruct (arrayName typ))
+arrayDeclaration = buildDeclaration . callStruct . typeName . SArray
 
 
 arraySize :: CExpr -> CExpr
@@ -176,42 +179,28 @@ arrayPtrData e = CMember e (Ident "data") False
   Measure datum are structures that will be used for sampling. We represent it
   as a structure with a 'double' in log-domain corresponding to the weight of
   the sample and an item of the sample type.
-
-  Because measure data may point to undeclared types (such as measures of
-  datum), we need to return a list of external declarations with our mdata type
 -}
 
-mdataName :: Sing (a :: Hakaru) -> String
-mdataName SInt  = "mdataInt"
-mdataName SNat  = "mdataNat"
-mdataName SReal = "mdataReal"
-mdataName SProb = "mdataProb"
-mdataName (SArray SInt)  = "mdataArrayInt"
-mdataName (SArray SNat)  = "mdataArrayNat"
-mdataName (SArray SReal) = "mdataArrayReal"
-mdataName (SArray SProb) = "mdataArrayProb"
-mdataName t    = error $ "mdataName: cannot make mdata from type: " ++ show t
-
-mdataStruct :: Sing (a :: Hakaru) -> [CExtDecl]
-mdataStruct t = [CDeclExt (CDecl [CTypeSpec $ mdataStruct' t] [])]
+mdataStruct :: Sing (a :: Hakaru) -> CExtDecl
+mdataStruct t = CDeclExt (CDecl [CTypeSpec $ mdataStruct' t] [])
 
 mdataStruct' :: Sing (a :: Hakaru) -> CTypeSpec
 mdataStruct' t = mdStruct
   where weight = buildDeclaration CDouble (Ident "weight")
         sample = typeDeclaration t (Ident "sample")
-        mdStruct = buildStruct (Just . Ident . mdataName $ t) [weight,sample]
+        mdStruct = buildStruct (Just . Ident . typeName . SMeasure $ t) [weight,sample]
 
 mdataDeclaration
   :: Sing (a :: Hakaru)
   -> Ident
   -> CDecl
-mdataDeclaration typ = buildDeclaration (callStruct (mdataName typ))
+mdataDeclaration = buildDeclaration . callStruct . typeName . SMeasure
 
 mdataPtrDeclaration
   :: Sing (a :: Hakaru)
   -> Ident
   -> CDecl
-mdataPtrDeclaration typ = buildPtrDeclaration (callStruct (mdataName typ))
+mdataPtrDeclaration = buildPtrDeclaration . callStruct . typeName . SMeasure
 
 mdataWeight :: CExpr -> CExpr
 mdataWeight d = CMember d (Ident "weight") True
@@ -244,15 +233,6 @@ mdataPtrSample d = CMember d (Ident "sample") False
     for the code to compile
 -}
 
--- | datumName provides a unique name to identify a struct type
-datumName :: Sing (a :: [[HakaruFun]]) -> String
-datumName SVoid = "V"
-datumName (SPlus prodD sumD) = concat ["S",datumName' prodD,datumName sumD]
-  where datumName' :: Sing (a :: [HakaruFun]) -> String
-        datumName' SDone = "U"
-        datumName' (SEt (SKonst x) prod') = concat ["S",tail . show $ x,datumName' prod']
-        datumName' (SEt SIdent _)         = error "TODO: datumName of SIdent"
-
 datumNames :: [String]
 datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
   where base = ['0'..'9'] ++ ['a'..'z']
@@ -260,18 +240,23 @@ datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
                                               [n++[x] | x <- base])
 
 
-datumStruct :: (Sing (HData' t)) -> [CExtDecl]
-datumStruct (SData _ typ) = [CDeclExt $ datumSum typ (Ident (datumName typ))]
+datumStruct :: (Sing (HData' t)) -> CExtDecl
+datumStruct dat@(SData _ typ)
+  = CDeclExt $ datumSum dat typ (Ident (typeName dat))
 
 datumDeclaration
   :: (Sing (HData' t))
   -> Ident
   -> CDecl
-datumDeclaration (SData _ typ) = buildDeclaration (callStruct (datumName typ))
+datumDeclaration = buildDeclaration . callStruct . typeName
 
-datumSum :: Sing (a :: [[HakaruFun]]) -> Ident -> CDecl
-datumSum funs ident =
-  let declrs = fst $ runState (datumSum' funs) datumNames
+datumSum
+  :: Sing (HData' t)
+  -> Sing (a :: [[HakaruFun]])
+  -> Ident
+  -> CDecl
+datumSum dat funs ident =
+  let declrs = fst $ runState (datumSum' dat funs) datumNames
       union  = buildDeclaration (buildUnion declrs) (Ident "sum")
       index  = buildDeclaration CInt (Ident "index")
       struct = buildStruct (Just ident) $ case declrs of
@@ -279,37 +264,58 @@ datumSum funs ident =
                                             _  -> [index,union]
   in CDecl [ CTypeSpec struct ] []
 
-datumSum' :: Sing (a :: [[HakaruFun]]) -> State [String] [CDecl]
-datumSum' SVoid          = return []
-datumSum' (SPlus prod rest) =
+datumSum'
+  :: Sing (HData' t)
+  -> Sing (a :: [[HakaruFun]])
+  -> State [String] [CDecl]
+datumSum' _ SVoid               = return []
+datumSum' dat (SPlus prod rest) =
   do (name:names) <- get
      put names
      let ident = Ident name
-         mdecl = datumProd prod ident
-     rest' <- datumSum' rest
+         mdecl = datumProd dat prod ident
+     rest' <- datumSum' dat rest
      case mdecl of
        Nothing -> return rest'
        Just d  -> return $ [d] ++ rest'
 
-
-datumProd :: Sing (a :: [HakaruFun]) -> Ident -> Maybe CDecl
-datumProd SDone _     = Nothing
-datumProd funs ident  =
-  let declrs = fst $ runState (datumProd' funs) datumNames
+datumProd
+  :: Sing (HData' t)
+  -> Sing (a :: [HakaruFun])
+  -> Ident
+  -> Maybe CDecl
+datumProd _ SDone _       = Nothing
+datumProd dat funs ident  =
+  let declrs = fst $ runState (datumProd' dat funs) datumNames
   in  Just $ buildDeclaration (buildStruct Nothing $ declrs) ident
 
 -- datumProd uses a store of names, which needs to match up with the names used
 -- when they are assigned as well as printed
-datumProd' :: Sing (a :: [HakaruFun]) -> State [String] [CDecl]
-datumProd' SDone                 = return []
-datumProd' (SEt (SKonst t) rest) =
+datumProd'
+  :: Sing (HData' t)
+  -> Sing (a :: [HakaruFun])
+  -> State [String] [CDecl]
+datumProd' _ SDone        = return []
+datumProd' dat (SEt x ps) =
+  do x'  <- datumPrim dat x
+     ps' <- datumProd' dat ps
+     return $ x' ++ ps'
+
+-- We need to pass HData in case it is some recursive type
+datumPrim
+  :: Sing (HData' t)
+  -> Sing (a :: HakaruFun)
+  -> State [String] [CDecl]
+datumPrim dat prim =
   do (name:names) <- get
      put names
      let ident = Ident name
-         decl  = typeDeclaration t ident
-     rest' <- datumProd' rest
-     return $ [decl] ++ rest'
-datumProd' (SEt SIdent _) = error "TODO: datumProd' SIdent"
+         decl  = case prim of
+                   SIdent     -> datumDeclaration dat ident
+                   (SKonst k) -> typeDeclaration k ident
+     return [decl]
+
+
 
 --------------------------------------------------------------------------------
 --                                Functions                                   --
@@ -340,14 +346,14 @@ functionDef typ ident argDecls internalDecls stmts =
 -- declaration function for their arity
 
 buildType :: Sing (a :: Hakaru) -> [CTypeSpec]
-buildType SInt         = [CInt]
-buildType SNat         = [CUnsigned, CInt]
-buildType SProb        = [CDouble]
-buildType SReal        = [CDouble]
-buildType (SMeasure x) = [callStruct . mdataName $ x]
-buildType (SArray t)   = [callStruct $ arrayName t]
-buildType (SFun _ x)   = buildType $ x -- build type the function returns
-buildType (SData _ t)  = [callStruct $ datumName t]
+buildType SInt          = [CInt]
+buildType SNat          = [CUnsigned, CInt]
+buildType SProb         = [CDouble]
+buildType SReal         = [CDouble]
+buildType (SMeasure x)  = [callStruct . typeName . SMeasure $ x]
+buildType (SArray t)    = [callStruct . typeName . SArray $ t]
+buildType (SFun _ x)    = buildType $ x -- build type the function returns
+buildType d@(SData _ _) = [callStruct . typeName $ d]
 
 
 -- these mk...Decl functions are used in coersions

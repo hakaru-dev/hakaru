@@ -96,26 +96,27 @@ flattenTerm
   :: ABT Term abt
   => Term abt a
   -> (CExpr -> CodeGen ())
-flattenTerm (NaryOp_ t s)    = flattenNAryOp t s
-flattenTerm (Literal_ x)     = flattenLit x
-flattenTerm (Empty_ _)       = error "TODO: flattenTerm Empty"
-
-flattenTerm (Datum_ d)       = flattenDatum d
-flattenTerm (Case_ c bs)     = flattenCase c bs
-
-flattenTerm (Array_ s e)     = flattenArray s e
-
 -- SCon can contain mochastic terms
-flattenTerm (x :$ ys)        = flattenSCon x ys
+flattenTerm (x :$ ys)         = flattenSCon x ys
+
+flattenTerm (NaryOp_ t s)     = flattenNAryOp t s
+flattenTerm (Literal_ x)      = flattenLit x
+flattenTerm (Empty_ _)        = error "TODO: flattenTerm{Empty}"
+
+flattenTerm (Datum_ d)        = flattenDatum d
+flattenTerm (Case_ c bs)      = flattenCase c bs
+
+flattenTerm (Bucket _ _ _)    = error "TODO: flattenTerm{Bucket}"
+
+flattenTerm (Array_ s e)      = flattenArray s e
+flattenTerm (ArrayLiteral_ _) = error "TODO: flattenTerm{ArrayLiteral}"
+
 
 ---------------------
 -- Mochastic Terms --
 ---------------------
-flattenTerm (Reject_ _)      = \loc -> putExprStat (mdataPtrWeight loc .=. (intE 0)) -- fail to draw a sample
-flattenTerm (Superpose_ wes) = flattenSuperpose wes
-
-
-
+flattenTerm (Superpose_ wes)  = flattenSuperpose wes
+flattenTerm (Reject_ _)       = \loc -> putExprStat (mdataPtrWeight loc .=. (intE 0)) -- fail to draw a sample
 
 
 --------------------------------------------------------------------------------
@@ -723,7 +724,7 @@ flattenDatum
   -> (CExpr -> CodeGen ())
 flattenDatum (Datum _ typ code) =
   \loc ->
-    do mapM_ extDeclare $ datumStruct typ
+    do extDeclareTypes typ
        assignDatum code loc
 
 datumNames :: [String]
@@ -1128,7 +1129,7 @@ gammaFun = CFunDef [CTypeSpec CVoid]
 gammaCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 gammaCG aE bE =
   \loc -> do
-     mapM_ extDeclare $ mdataStruct SReal
+     extDeclareTypes (SMeasure SReal)
      mapM_ reserveName ["uniform","normal","gamma"]
      mapM_ (extDeclare . CFunDefExt) [uniformFun,normalFun,gammaFun]
      putExprStat $ CCall (CVar . Ident $ "gamma") [aE,bE,loc]
