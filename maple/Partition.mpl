@@ -119,7 +119,7 @@ export
    PartitionToPW := proc(x::Partition)::specfunc(piecewise);
        # piecewise can reduce immediately to not-piecewise which makes the type
        # test fail
-       'piecewise'( op( ListTools[Flatten]( [op(Pairs(x))] ) ) );
+       'piecewise'( op( ListTools[Flatten]( [ seq([p:-cond, p:-val], p= op(1,x)) ] ) ) );
    end proc,
 
    # convert a piecewise to a partition, which is straightforward except:
