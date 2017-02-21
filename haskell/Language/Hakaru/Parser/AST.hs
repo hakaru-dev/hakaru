@@ -98,7 +98,7 @@ data Literal'
 
 data NaryOp
     = And | Or   | Xor
-    | Iff | Min  | Max 
+    | Iff | Min  | Max
     | Sum | Prod
     deriving (Eq, Show)
 
@@ -112,7 +112,7 @@ data TypeAST'
 
 data AST' a
     = Var a
-    | Lam a TypeAST' (AST' a) 
+    | Lam a TypeAST' (AST' a)
     | App (AST' a) (AST' a)
     | Let a    (AST' a) (AST' a)
     | If  (AST' a) (AST' a) (AST' a)
@@ -124,6 +124,7 @@ data AST' a
     | Empty
     | Pair (AST' a) (AST' a)
     | Array a (AST' a) (AST' a)
+    | ArrayLiteral [AST' a]
     | Index (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
     | Dirac (AST' a)
@@ -136,7 +137,7 @@ data AST' a
     | Expect a (AST' a) (AST' a)
     | Observe  (AST' a) (AST' a)
     | Msum  [AST' a]
-    | Data  a [TypeAST']
+    | Data  a [a] [TypeAST']
     | WithMeta (AST' a) SourceSpan
     deriving (Show)
 
@@ -166,6 +167,7 @@ instance Eq a => Eq (AST' a) where
     (Array e1 e2 e3)    == (Array  e1' e2' e3')     = e1   == e1' &&
                                                       e2   == e2' &&
                                                       e3   == e3'
+    (ArrayLiteral es)   == (ArrayLiteral es')       = es   == es'
     (Index e1 e2)       == (Index  e1' e2')         = e1   == e1' &&
                                                       e2   == e2'
     (Case  e1 bs)       == (Case   e1' bs')         = e1   == e1' &&
@@ -199,12 +201,13 @@ instance Eq a => Eq (AST' a) where
     (Observe  e1 e2)    == (Observe    e1' e2')     = e1   == e1' &&
                                                       e2   == e2'
     (Msum  es)          == (Msum   es')             = es   == es'
-    (Data  e1 ts)       == (Data   e1' ts')         = e1   == e1' &&
+    (Data  n ft ts)     == (Data   n' ft' ts')      = n    == n'  &&
+                                                      ft   == ft' &&
                                                       ts   == ts'
     (WithMeta e1 _ )    == e2                       = e1   == e2
     e1                  == (WithMeta e2 _)          = e1   == e2
     _                   == _                        = False
-                                 
+
 data Import a = Import a
      deriving (Eq, Show)
 data ASTWithImport' a = ASTWithImport' [Import a] (AST' a)
@@ -348,33 +351,34 @@ nameToVar :: Name -> Variable 'U
 nameToVar (Name i h) = Variable h i SU
 
 data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
-    Lam_       :: SSing            -> abt '[ 'U ] 'U  -> Term abt 'U
-    App_       :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
-    Let_       :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Ann_       :: SSing            -> abt '[]     'U  -> Term abt 'U
-    CoerceTo_  :: Some2 Coercion   -> abt '[]     'U  -> Term abt 'U
-    UnsafeTo_  :: Some2 Coercion   -> abt '[]     'U  -> Term abt 'U
-    PrimOp_    :: PrimOp           -> [abt '[] 'U]    -> Term abt 'U
-    ArrayOp_   :: ArrayOp          -> [abt '[] 'U]    -> Term abt 'U
-    MeasureOp_ :: SomeOp MeasureOp -> [abt '[] 'U]    -> Term abt 'U
-    NaryOp_    :: NaryOp           -> [abt '[] 'U]    -> Term abt 'U
-    Literal_   :: Some1 Literal                       -> Term abt 'U
-    Empty_     ::                                        Term abt 'U
-    Pair_      :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
-    Array_     :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Datum_     :: Datum abt                           -> Term abt 'U
-    Case_      :: abt '[] 'U       -> [Branch_ abt]   -> Term abt 'U
-    Dirac_     :: abt '[] 'U                          -> Term abt 'U
-    MBind_     :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Plate_     :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Chain_     :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
-    Integrate_ :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
-    Summate_   :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
-    Product_   :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
-    Expect_    :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Observe_   :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
-    Superpose_ :: L.NonEmpty (abt '[] 'U, abt '[] 'U) -> Term abt 'U
-    Reject_    ::                                        Term abt 'U
+    Lam_          :: SSing            -> abt '[ 'U ] 'U  -> Term abt 'U
+    App_          :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
+    Let_          :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
+    Ann_          :: SSing            -> abt '[]     'U  -> Term abt 'U
+    CoerceTo_     :: Some2 Coercion   -> abt '[]     'U  -> Term abt 'U
+    UnsafeTo_     :: Some2 Coercion   -> abt '[]     'U  -> Term abt 'U
+    PrimOp_       :: PrimOp           -> [abt '[] 'U]    -> Term abt 'U
+    ArrayOp_      :: ArrayOp          -> [abt '[] 'U]    -> Term abt 'U
+    MeasureOp_    :: SomeOp MeasureOp -> [abt '[] 'U]    -> Term abt 'U
+    NaryOp_       :: NaryOp           -> [abt '[] 'U]    -> Term abt 'U
+    Literal_      :: Some1 Literal                       -> Term abt 'U
+    Empty_        ::                                        Term abt 'U
+    Pair_         :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
+    Array_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
+    ArrayLiteral_ :: [abt '[] 'U]                        -> Term abt 'U
+    Datum_        :: Datum abt                           -> Term abt 'U
+    Case_         :: abt '[] 'U       -> [Branch_ abt]   -> Term abt 'U
+    Dirac_        :: abt '[] 'U                          -> Term abt 'U
+    MBind_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
+    Plate_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
+    Chain_        :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
+    Integrate_    :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
+    Summate_      :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
+    Product_      :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
+    Expect_       :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
+    Observe_      :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
+    Superpose_    :: L.NonEmpty (abt '[] 'U, abt '[] 'U) -> Term abt 'U
+    Reject_       ::                                        Term abt 'U
 
 
 -- TODO: instance of Traversable21 for Term
@@ -393,6 +397,7 @@ instance Functor21 Term where
     fmap21 _ Empty_                 = Empty_
     fmap21 f (Pair_      e1  e2)    = Pair_      (f e1) (f e2)
     fmap21 f (Array_     e1  e2)    = Array_     (f e1) (f e2)
+    fmap21 f (ArrayLiteral_  es)    = ArrayLiteral_     (fmap f es)
     fmap21 f (Datum_     d)         = Datum_     (fmapDatum f d)
     fmap21 f (Case_      e1  bs)    = Case_      (f e1) (fmap (fmapBranch f) bs)
     fmap21 f (Dirac_     e1)        = Dirac_     (f e1)
@@ -422,6 +427,7 @@ instance Foldable21 Term where
     foldMap21 _ Empty_                = mempty
     foldMap21 f (Pair_      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Array_     e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (ArrayLiteral_ es)    = F.foldMap f es
     foldMap21 f (Datum_     d)        = foldDatum f d
     foldMap21 f (Case_      e1 bs)    = f e1 `mappend` F.foldMap (foldBranch f) bs
     foldMap21 f (Dirac_     e1)       = f e1

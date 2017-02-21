@@ -117,7 +117,7 @@ module Language.Hakaru.Syntax.Prelude
     , app, app2, app3
 
     -- * Arrays
-    , empty, arrayWithVar, array, (!), size, reduce
+    , empty, arrayWithVar, array, arrayLit, (!), size, reduce
     , sumV, summateV, appendV, mapV, mapWithIndex, normalizeV, constV, unitV, zipWithV
 
     -- * Implementation details
@@ -982,7 +982,7 @@ array
     -> (abt '[] 'HNat -> abt '[] a)
     -> abt '[] ('HArray a)
 array n =
-    syn . Array_ n . binder Text.empty sing
+    syn . Array_ n . binder Text.empty sing        
 
 arrayWithVar
     :: (ABT Term abt)
@@ -993,6 +993,11 @@ arrayWithVar
 arrayWithVar n x body =
     syn $ Array_ n (bind x body)
 
+arrayLit
+    :: (ABT Term abt)
+    => [abt '[] a]
+    -> abt '[] ('HArray a)
+arrayLit = syn . ArrayLiteral_
 
 empty :: (ABT Term abt, SingI a) => abt '[] ('HArray a)
 empty = syn (Empty_ sing)
@@ -1158,29 +1163,29 @@ r_fanout
 r_fanout = Red_Fanout
 
 r_index
-    :: (ABT Term abt)
-    => abt xs 'HNat
-    -> (abt '[] 'HNat -> abt xs 'HNat)
+    :: (Binders Term abt xs as)
+    => (as -> abt '[] 'HNat)
+    -> ((abt '[] 'HNat, as) -> abt '[] 'HNat)
     -> Reducer abt ( 'HNat ': xs) a
     -> Reducer abt xs ('HArray a)
-r_index n f = Red_Index n (binder Text.empty SNat f)
+r_index n f = Red_Index (binders n) (binders f)
 
 r_split
-    :: (ABT Term abt)
-    => (abt '[] 'HNat -> abt xs HBool)
+    :: (Binders Term abt xs as)
+    => ((abt '[] 'HNat, as) -> abt '[] HBool)
     -> Reducer abt xs a
     -> Reducer abt xs b
     -> Reducer abt xs (HPair a b)
-r_split b = Red_Split (binder Text.empty SNat b)
+r_split b = Red_Split (binders b)
 
 r_nop :: (ABT Term abt) => Reducer abt xs HUnit
 r_nop = Red_Nop
 
 r_add
-    :: (ABT Term abt, HSemiring_ a)
-    => (abt '[] 'HNat -> abt xs a)
+    :: (Binders Term abt xs as, HSemiring_ a)
+    => ((abt '[] 'HNat, as) -> abt '[] a)
     -> Reducer abt xs a
-r_add f = Red_Add hSemiring (binder Text.empty SNat f)
+r_add f = Red_Add hSemiring (binders f)
 
 bucket
     :: (ABT Term abt)

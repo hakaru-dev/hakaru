@@ -62,6 +62,7 @@ module Language.Hakaru.Syntax.ABT
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
     , binderM
+    , Binders(binders)
     -- *** Highly experimental
     -- , Hint(..)
     -- , multibinder
@@ -77,7 +78,7 @@ module Language.Hakaru.Syntax.ABT
     , MetaABT(..)
     ) where
 
-import           Data.Text         (Text)
+import           Data.Text         (Text, empty)
 --import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
@@ -918,6 +919,7 @@ binder hint typ hoas = bind x body
     x    = Variable hint (nextBind body) typ
     -- N.B., cannot use 'nextFree' when deciding the 'varID' of @x@
 
+
 -- A Monadic variant of @binder@ which allows constructing a term in a monadic
 -- context. The dependency on MonadFix is due to the knot-tying used to generate
 -- the bound variable.
@@ -933,6 +935,19 @@ binderM hint typ hoas = do
     b' <- hoas (var v)
     return (v, b')
   return (bind var body)
+
+class (ABT syn abt) =>
+    Binders syn abt xs as | abt -> syn, abt xs -> as, abt as -> xs where
+    binders :: (as -> abt '[] b) -> abt xs b
+
+instance (ABT syn abt) =>
+    Binders syn abt '[] () where
+    binders hoas = hoas ()
+
+instance (Binders syn abt xs as, SingI x) =>
+    Binders syn abt (x ': xs) (abt '[] x, as) where
+    binders hoas = binder empty sing (binders . curry hoas)
+
 
 {-
 data Hint (a :: k)

@@ -447,15 +447,11 @@ array3 :: Text
 array3 = "[4, 0, 9]"
 
 array3AST :: AST' Text
-array3AST = Array "" (ULiteral (Nat 3))
-            (If (App (App (Var "equal") (Var ""))
-                 (ULiteral (Nat 0)))
-             (ULiteral (Nat 4))
-             (If (App (App (Var "equal") (Var ""))
-                  (ULiteral (Nat 1)))
-              (ULiteral (Nat 0))
-              (ULiteral (Nat 9))))
-
+array3AST = ArrayLiteral [ ULiteral (Nat 4)
+                         , ULiteral (Nat 0)
+                         , ULiteral (Nat 9)
+                         ]
+                                   
 testArray :: Test
 testArray = test
     [ testParse array1 array1AST

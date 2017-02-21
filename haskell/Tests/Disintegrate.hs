@@ -3,6 +3,7 @@
            , TypeOperators
            , NoImplicitPrelude
            , FlexibleContexts
+           , OverloadedStrings
            #-}
 
 module Tests.Disintegrate where
@@ -320,13 +321,6 @@ testCopy2 = disintegrate copy2
 
 
 ----------------------------------------------------------------
-sizeVocab, numLabels, numDocs, sizeEachDoc :: (ABT Term abt) => abt '[] 'HNat
-
-sizeVocab   = nat_ 1000
-numLabels   = nat_ 40
-numDocs     = nat_ 200
-sizeEachDoc = nat_ 5000
-
 naiveBayes
     :: TrivialABT Term '[]
         ('HMeasure (HPair ('HArray ('HArray 'HNat)) ('HArray 'HNat)))
@@ -337,6 +331,10 @@ naiveBayes =
     plate numDocs (\i -> plate sizeEachDoc
                                (\_ -> categorical (bs ! (zs ! i)))) >>= \ds ->
     dirac (pair ds zs)
+    where sizeVocab   = nat_ 1000
+          numLabels   = nat_ 40
+          numDocs     = nat_ 200
+          sizeEachDoc = nat_ 5000
 
 naiveBayes'
     :: TrivialABT Term '[] ('HArray ('HArray 'HNat) ':-> ('HMeasure ('HArray 'HNat)))
@@ -349,7 +347,52 @@ testNaiveBayes
 testNaiveBayes = disintegrate naiveBayes
           
 ----------------------------------------------------------------
+-- | R2 benchmarks
+-- Based on examples from the R2 probabilistic programming tool
+-- Found in r2-0.0.1/examples/ when downloaded from:
+-- https://www.microsoft.com/en-us/download/details.aspx?id=52372
+
+linearRegression
+    :: TrivialABT Term '[] ('HMeasure (HPair ('HArray 'HReal) ('HArray 'HReal)))
+linearRegression =
+    normal (real_ 0) (prob_ 1) >>= \a ->
+    normal (real_ 5) (prob_ 1.82574185835055371152) >>= \b ->
+    gamma (prob_ 1) (prob_ 1) >>= \invNoise ->
+    plate n (\i -> normal (a * (dataX ! i)) (recip $ sqrt invNoise)) >>= \y ->
+    dirac (pair y (arrayLit [a, b, fromProb invNoise]))
+    where n     = nat_ 1000
+          dataX = var (Variable "dataX" 73 (SArray SReal)) -- hack :(
+
+hiv :: TrivialABT Term '[]
+       ('HMeasure (HPair ('HArray 'HReal)
+                         (HPair (HPair ('HArray 'HReal) ('HArray 'HReal))
+                                ('HArray 'HReal))))
+hiv = normal (real_ 0) (prob_ 1) >>= \muA1 ->
+      normal (real_ 0) (prob_ 1) >>= \muA2 ->
+      uniform (real_ 0) (real_ 100) >>= \sigmaA1 ->
+      uniform (real_ 0) (real_ 100) >>= \sigmaA2 ->
+      plate (nat_ 84) (\_ -> normal muA1       (unsafeProb sigmaA1)) >>= \a1 ->
+      plate (nat_ 84) (\_ -> normal ((real_ 0.1)*muA2) (unsafeProb sigmaA2)) >>= \a2 ->
+      dirac (array n (\i -> a1 ! (unsafeMinusNat (dataPerson ! i) (nat_ 1)) +
+                            a2 ! (unsafeMinusNat (dataPerson ! i) (nat_ 1)) *
+                            dataTime ! i)) >>= \yHat ->
+      uniform (real_ 0) (real_ 100) >>= \sigmaY ->
+      plate n (\i -> normal (yHat ! i) (unsafeProb sigmaY)) >>= \y ->
+      dirac (pair y (pair (pair a1 a2)
+                          (arrayLit [muA1, muA2, sigmaA1, sigmaA2, sigmaY])))
+    where n          = nat_ 369
+          dataPerson = var (Variable "dataPerson" 73 (SArray SNat)) 
+          dataTime   = var (Variable "dataTime"   41 (SArray SReal)) -- hacks :(
+
 ----------------------------------------------------------------
+
+testEmissions :: TrivialABT Term '[]
+                 ('HMeasure (HPair ('HArray 'HReal) HUnit))
+testEmissions = plate n (\_ -> lebesgue) >>= \xs ->
+                plate n (\_ -> lebesgue) >>= \ys ->
+                dirac (pair (array n (\i -> (xs ! i) + (ys ! i))) unit)
+    where n = nat_ 100
+
 runPerform
     :: TrivialABT Term '[] ('HMeasure a)
     -> [TrivialABT Term '[] ('HMeasure a)]

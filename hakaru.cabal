@@ -3,7 +3,7 @@
 cabal-version:       >=1.16
 build-type:          Simple
 name:                hakaru
-version:             0.3.0
+version:             0.4.0
 synopsis:            A probabilistic programming language
 description:         Hakaru is a simply-typed probabilistic programming language, designed
                      for easy specification of probabilistic models, and inference algorithms.
@@ -270,8 +270,8 @@ Executable hkc
                        optparse-applicative >= 0.11 && < 0.14,
                        pretty               >= 1.1  && < 1.2,
                        process              >= 1.1  && < 2.0,
-                       hakaru               >= 0.3,
-                       semigroups           >= 0.16
+                       semigroups           >= 0.16,
+                       hakaru               >= 0.3
 
 
 ----------------------------------------------------------------

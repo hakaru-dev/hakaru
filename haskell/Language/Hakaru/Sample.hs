@@ -170,16 +170,17 @@ evaluateTerm
     -> Value a
 evaluateTerm t env =
     case t of
-    o :$ es       -> evaluateSCon    o es    env
-    NaryOp_  o es -> evaluateNaryOp  o es    env
-    Literal_ v    -> evaluateLiteral v
-    Empty_   _    -> evaluateEmpty
-    Array_   n es -> evaluateArray   n es    env
-    Bucket b e rs -> evaluateBucket  b e  rs env
-    Datum_   d    -> evaluateDatum   d       env
-    Case_    o es -> evaluateCase    o es    env
-    Superpose_ es -> evaluateSuperpose es    env
-    Reject_ _     -> VMeasure $ \_ _ -> return Nothing
+    o :$          es -> evaluateSCon    o es    env
+    NaryOp_  o    es -> evaluateNaryOp  o es    env
+    Literal_ v       -> evaluateLiteral v
+    Empty_   _       -> evaluateEmpty
+    Array_   n    es -> evaluateArray   n es    env
+    ArrayLiteral_ es -> VArray . V.fromList $ map (flip evaluate env) es
+    Bucket b e    rs -> evaluateBucket  b e  rs env
+    Datum_   d       -> evaluateDatum   d       env
+    Case_    o    es -> evaluateCase    o es    env
+    Superpose_    es -> evaluateSuperpose es    env
+    Reject_  _       -> VMeasure $ \_ _ -> return Nothing
 
 evaluateSCon
     :: (ABT Term abt)
@@ -564,7 +565,7 @@ evaluateBucket b e rs env =
     case (evaluate b env, evaluate e env) of
       (VNat b', VNat e') -> runST $ do
           s' <- init Nil1 rs env
-          mapM_ (\i -> accum (VNat i) Nil1 rs s' env) [b' .. e']
+          mapM_ (\i -> accum (VNat i) Nil1 rs s' env) [b' .. e' - 1]
           done s'
       v2                 -> case v2 of {}
     where init :: (ABT Term abt)
