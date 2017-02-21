@@ -1012,8 +1012,9 @@ perform = \e0 ->
             -> Dis abt (Whnf abt a)
         nice o es = do
             es' <- traverse21 atomizeCore es
-            x   <- emitMBind $ syn (MeasureOp_ o :$ es')
-            return (Neutral $ var x)
+            x   <- emitMBind2 $ syn (MeasureOp_ o :$ es')
+            -- return (Neutral $ var x)
+            return (Neutral x)
 
         -- Try to be as complete as possible (i.e., 'bot' as little as possible), no matter how ugly the output code gets.
         complete

@@ -40,7 +40,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     --, reject
     -- ** Emitting code
     , emit
-    , emitMBind
+    , emitMBind , emitMBind2
     , emitLet
     , emitLet'
     , emitUnpair
@@ -696,7 +696,6 @@ emit hint typ f = do
     x <- freshVar hint typ
     Dis $ \_ c h l -> (f . bind x) <$> c x h l
 
-
 -- This function was called @lift@ in the finally-tagless code.
 -- | Emit an 'MBind' (i.e., \"@m >>= \x ->@\") and return the
 -- variable thus bound (i.e., @x@).
@@ -705,6 +704,17 @@ emitMBind m =
     emit Text.empty (sUnMeasure $ typeOf m) $ \e ->
         syn (MBind :$ m :* e :* End)
 
+emitMBind2 :: (ABT Term abt) => abt '[] ('HMeasure a) -> Dis abt (abt '[] a)
+emitMBind2 m = do
+  inds <- getIndices
+  let b = Whnf_ $ fromMaybe (error "emitMBind2: non-hnf term") (toWhnf m)
+      typ = sUnMeasure $ typeOf m
+  x <- freshVar Text.empty typ
+  (SBind x' b' _, name) <- reifyStatement (SBind x b inds)
+  let (idx, p) = (fromLoc name typ (map indVar inds), fromLazy b')
+  Dis $ \_ c h l ->
+      c idx h l >>= \e ->
+      return $ syn (MBind :$ p :* bind x' e :* End)
 
 -- | A smart constructor for emitting let-bindings. If the input
 -- is already a variable then we just return it; otherwise we emit
