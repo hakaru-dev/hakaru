@@ -98,7 +98,7 @@ data Literal'
 
 data NaryOp
     = And | Or   | Xor
-    | Iff | Min  | Max 
+    | Iff | Min  | Max
     | Sum | Prod
     deriving (Eq, Show)
 
@@ -112,7 +112,7 @@ data TypeAST'
 
 data AST' a
     = Var a
-    | Lam a TypeAST' (AST' a) 
+    | Lam a TypeAST' (AST' a)
     | App (AST' a) (AST' a)
     | Let a    (AST' a) (AST' a)
     | If  (AST' a) (AST' a) (AST' a)
@@ -137,7 +137,7 @@ data AST' a
     | Expect a (AST' a) (AST' a)
     | Observe  (AST' a) (AST' a)
     | Msum  [AST' a]
-    | Data  a [TypeAST']
+    | Data  a [a] [TypeAST']
     | WithMeta (AST' a) SourceSpan
     deriving (Show)
 
@@ -201,12 +201,13 @@ instance Eq a => Eq (AST' a) where
     (Observe  e1 e2)    == (Observe    e1' e2')     = e1   == e1' &&
                                                       e2   == e2'
     (Msum  es)          == (Msum   es')             = es   == es'
-    (Data  e1 ts)       == (Data   e1' ts')         = e1   == e1' &&
+    (Data  n ft ts)     == (Data   n' ft' ts')      = n    == n'  &&
+                                                      ft   == ft' &&
                                                       ts   == ts'
     (WithMeta e1 _ )    == e2                       = e1   == e2
     e1                  == (WithMeta e2 _)          = e1   == e2
     _                   == _                        = False
-                                 
+
 data Import a = Import a
      deriving (Eq, Show)
 data ASTWithImport' a = ASTWithImport' [Import a] (AST' a)

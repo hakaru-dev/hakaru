@@ -74,7 +74,7 @@ integer = Tok.integer lexer
 
 float :: Parser Rational
 float =  (decimal >>= fractExponent) <* whiteSpace
-                  
+
 fractFloat :: Integer -> Parser (Either Integer Rational)
 fractFloat n  =  fractExponent n >>= return . Right
 
@@ -182,7 +182,7 @@ binop s x y
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
 binary s = Ex.Infix (binop (Text.pack s) <$ reservedOp s)
 
-prefix :: String -> (a -> a) -> Operator a 
+prefix :: String -> (a -> a) -> Operator a
 prefix s f = Ex.Prefix (f <$ reservedOp s)
 
 postfix :: Parser (a -> a) -> Operator a
@@ -314,10 +314,10 @@ integrate_expr =
     reserved "integrate"
     *> (Integrate
         <$> identifier
-        <*  symbol "from"        
+        <*  symbol "from"
         <*> expr
         <*  symbol "to"
-        <*> expr     
+        <*> expr
         <*> semiblockExpr
         )
 
@@ -326,10 +326,10 @@ summate_expr =
     reserved "summate"
     *> (Summate
         <$> identifier
-        <*  symbol "from"        
+        <*  symbol "from"
         <*> expr
         <*  symbol "to"
-        <*> expr     
+        <*> expr
         <*> semiblockExpr
         )
 
@@ -338,10 +338,10 @@ product_expr =
     reserved "product"
     *> (Product
         <$> identifier
-        <*  symbol "from"        
+        <*  symbol "from"
         <*> expr
         <*  symbol "to"
-        <*> expr     
+        <*> expr
         <*> semiblockExpr
         )
 
@@ -378,7 +378,7 @@ array_index = flip Index <$> brackets expr
 array_literal :: Parser (AST' Text)
 array_literal = checkEmpty <$> brackets (commaSep expr)
   where checkEmpty [] = Empty
-        checkEmpty xs = ArrayLiteral xs                
+        checkEmpty xs = ArrayLiteral xs
 
 plate_expr :: Parser (AST' Text)
 plate_expr =
@@ -466,13 +466,13 @@ term =  try if_expr
     <|> try lam_expr
     <|> try def_expr
     <|> try match_expr
-    -- <|> try data_expr
+    <|> try data_expr
     <|> try integrate_expr
     <|> try summate_expr
     <|> try product_expr
     <|> try expect_expr
     <|> try observe_expr
-    <|> try array_expr    
+    <|> try array_expr
     <|> try plate_expr
     <|> try chain_expr
     <|> try let_expr
@@ -514,12 +514,24 @@ withPos x = do
     e  <- getPosition
     return $ WithMeta x' (SourceSpan s e)
 
+{-
+user-defined types:
+
+data either(a, b):
+  left(a)
+  right(a)
+
+data maybe(a):
+  nothing
+  just(a)
+-}
+
 data_expr :: Parser (AST' Text)
 data_expr =
     reserved "data"
     *>  (Data
         <$> identifier
-        <*  parens (commaSep identifier) -- TODO: why throw them away?
+        <*> parens (commaSep identifier) -- TODO: why throw them away?
         <*> blockOfMany (try type_app <|> type_var)
         )
 
