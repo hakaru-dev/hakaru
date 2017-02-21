@@ -229,15 +229,16 @@ primWeight, primFactor, primBern :: Symbol U.AST
 primWeight = t2 $ \w m -> syn $ U.Superpose_ (singleton (w, m))
 primFactor = TLam $ \w -> TNeu . syn . U.Superpose_ $
               singleton (w, syn $ U.Dirac_ unit_)
-primBern   =
-    TLam $ \p -> TNeu . syn . U.Superpose_ . L.fromList $
-        [ (p, syn $ U.Dirac_ true_)
-        , (unsafeFrom_ . syn $ U.NaryOp_ U.Sum
-            [ syn $ U.Literal_ (Some1 $ T.LReal 1.0)
-            , syn $ U.PrimOp_ U.Negate [p]
-            ]
-            , syn $ U.Dirac_ false_)
-        ]
+primBern   = TLam $ \p -> TNeu . syn . U.MBind_ (cat p) $ binder "" U.SU ret
+    where cat x = syn . U.MeasureOp_ (U.SomeOp T.Categorical) $
+                  [syn $ U.ArrayLiteral_
+                   [ x
+                   , unsafeFrom_ . syn $ U.NaryOp_ U.Sum 
+                     [ syn $ U.Literal_ (Some1 $ T.LReal 1.0)
+                     , syn $ U.PrimOp_ U.Negate [x] ]
+                   ]]
+          ret i = syn . U.Dirac_ . syn $ U.ArrayOp_ U.Index_
+                  [ syn $ U.ArrayLiteral_ [true_, false_] , i ]    
 
 two :: U.AST
 two = syn . U.Literal_ . U.val . U.Nat $ 2
