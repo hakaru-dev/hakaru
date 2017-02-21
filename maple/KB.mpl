@@ -167,7 +167,9 @@ KB := module ()
   # Takes the bool type (true/false) to mean universal and empty relations respectively.
   # i.e. negate R, where R is an 'atomic' relation of a KB
   negate_kb1:= proc(R::t_kb_atom, $)::t_kb_atom;
-      if R :: relation then
+      if R :: truefalse then
+        not R
+      elif R :: relation then
           negated_relation[op(0,R)](op(R));
       else
           # This is to appease 'piecewise', which won't be happy with Not
