@@ -84,6 +84,9 @@ KB := module ()
      # are actually KBs in the proper form
      t_kb, t_kb_atom, t_kb_atoms,
 
+     #
+     NotAKB,
+
      # Some silly things that KB must do to appease
      # Maple when using Maple functions to work with
      # Hakaru 'terms'.
@@ -108,6 +111,11 @@ KB := module ()
 
   # The empty KB means "true".
   empty := KB();
+
+  # The false KB
+  NotAKB := proc($)
+      'procname'()
+  end proc;
 
   # a KB might contain a contradiction, which this checks for.
   # The additional `variables' arguement determine which (free) variables
@@ -786,6 +794,12 @@ KB := module ()
     TypeTools[AddType](t_kb_atom,
       '{`::`, boolean, `in`, specfunc(anything,{Or,Not,And})}');
     TypeTools[AddType](t_kb_atoms,list(t_kb_atom));
+
+    # The 'false' KB, produced when a contradiction arises in a KB
+    TypeTools[AddType](t_not_a_kb, 'specfunc(NotAKB)');
+
+    # Something that might be a KB, or is the false KB
+    TypeTools[AddType](t_kb_mb, '{t_kb, t_not_a_kb}');
 
     # Prevent expand(product(f(i),i=0..n-1))
     # from producing (product(f(i),i=0..n))/f(n)
