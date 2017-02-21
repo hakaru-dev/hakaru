@@ -352,15 +352,13 @@ KB := module ()
    # Great deal of magic happens behind the scenes
    ModuleApply := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret, mbf;
+    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
 
     # Setup the assumptions
     as := chill(kb_to_assumptions(kb, bb));
 
     # Check that the new clause would not cause a contradictory
-    # KB. If it does, then produce NotAKB. If the clause immediately
-    # reduces to true under the assumption of the KB, then adding
-    # the clause is redundant.
+    # KB. If it does, then produce NotAKB.
     if not coulditbe(`if`(pol,bb,not(bb))) assuming op(as) then
         return NotAKB();
     end if;

@@ -78,11 +78,17 @@
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
       (w0, w) := get_indicators(w);
       kb1 := foldr(assert, kb, op(w0));
-      m := weight(w, unintegrate(h, subintegral, kb1));
-      if m :: Weight(anything, anything) then
-        m := weight(simplify_factor_assuming(op(1,m), kb1), op(2,m));
+
+      if kb1 :: t_kb then
+        m := weight(w, unintegrate(h, subintegral, kb1));
+        if m :: Weight(anything, anything) then
+          m := weight(simplify_factor_assuming(op(1,m), kb1), op(2,m));
+        end if;
+        piecewise_And(w0, m, Msum())
+      else
+        Msum()
       end if;
-      piecewise_And(w0, m, Msum())
+
     elif e :: t_pw_or_part then
       Partition:-AppPartOrPw
         ( proc(p)

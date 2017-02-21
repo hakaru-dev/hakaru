@@ -76,11 +76,16 @@
 
   reduce_IntSum := proc(mk :: identical(Int, Sum),
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
-    local e, dom_spec, w, var, new_rng, make, elim;
+    local e, dom_spec, w, var, new_rng, make, elim, kb2;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
-    dom_spec := kb_subtract(foldr(assert, kb1, op(dom_spec)), kb0);
+    kb2 := foldr(assert, kb1, op(dom_spec));
+    if kb2 :: t_not_a_kb then
+        error "%1: simplifying a dom_spec(%2) produces not a KB (TODO: fixme)", procname, dom_spec
+    end if;
+
+    dom_spec := kb_subtract(kb2, kb0);
     new_rng, dom_spec := selectremove(type, dom_spec,
       {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
        `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
