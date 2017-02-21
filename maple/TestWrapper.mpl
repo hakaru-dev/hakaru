@@ -6,7 +6,8 @@ TestWrapper := module ()
   option package;
   export ModuleApply, RunTest, PrintTest, MakeTest
        , RunOpts, args_to_table;
-  local TestGroups, ModuleLoad;
+  local TestGroups, ModuleLoad
+      , BeginFmt, EndFmt ;
 
   # Only works if numArgs is less than 4...
   PrintTest :=
@@ -29,7 +30,7 @@ TestWrapper := module ()
         testProc := TestGroups[testGroup]["runTest"];
         testixl := nops([indices(TestGroups[testGroup]["tests"])]);
 
-        # printf("===BEGIN(%s:%d) %s===\n", testGroup, testixl, lbl);
+        printf(BeginFmt, testGroup, testixl, lbl);
         res := "SUCCESS";
 
         try testProc(_passed)
@@ -39,7 +40,7 @@ TestWrapper := module ()
               );
           res := "ERROR";
         finally
-          # printf("===END(%s:%d) %s ===\n\n", testGroup, testixl, res);
+          printf(EndFmt, testGroup, testixl, res);
         end try ;
 
       else
@@ -83,6 +84,8 @@ TestWrapper := module ()
 
   ModuleLoad := proc($)
      RunOpts["DoRun"] := true;
+     BeginFmt := "";
+     EndFmt   := "";
   end proc;
 
   # converts args (as an list of s-expr) to a table, ignoring things not of the form
