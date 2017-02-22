@@ -36,6 +36,11 @@ KB := module ()
      # The 'constructors' of a KB, which should not be used externally to the module
      KB, Introduce, Let, Constrain,
 
+     # Experimental KB which allows one 'level' of a KB to be a partition along
+     # a particular dimension/variable.  Under that split, what is below are other
+     # layers of SplitKB.  A KB is a degenerate case of a KB with no split.
+     SplitKB,
+
      # Some sort of hideous hack to get built-in maple
      # functions (assuming,eval,is...) to work with
      # Hakaru types
@@ -53,6 +58,8 @@ KB := module ()
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
       empty, genLebesgue, genType, genLet, assert, assert_deny,
+     # Build a SplitKB from a KB
+      assertp,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -187,11 +194,20 @@ KB := module ()
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 
+  # partitional assert: like assert, but will return a
+  # SplitKB instead.  Note that this does not mean that it is
+  # actually _split_, as the assertion may not in fact need it.
+  assertp := proc(b::t_kb_atom, kb :: t_kb, $)
+    assert_deny:-part(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
+  end proc;
+
   # Implements the assert_deny function, which inserts either
   # a constraint or its negation into a KB, essentially, a
   # 'smart constructor'.
+  # Also implements a second way to call it, 'part', which will 
+  # return a SplitKB instead.
   assert_deny := module ()
-   export ModuleApply ;
+   export ModuleApply, part ;
    local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
          refine_given, t_bound_on;
 
