@@ -68,7 +68,7 @@
       # In particular, 42 :: t_Hakaru = false, so a term under a false
       # assumption should never be inspected in any way.
       if kb1 :: t_not_a_kb then
-          42
+          return 42
       end if;
       applyop(reduce, 2, e, h, kb1);
     elif e :: 'integrate(anything, Integrand(name, anything), list)' then
