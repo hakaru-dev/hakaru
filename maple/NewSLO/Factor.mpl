@@ -116,10 +116,10 @@ $include "NewSLO/Piecewise.mpl"
 
       # Try not to use hack_beta for now...
 
-      # if mode = `*` and e :: 'specfunc(Beta)' then
-      #   res := hack_Beta(e, kb, loops);
-      #   if res <> FAIL then return res end if;
-      # end if;
+      if mode = `*` and e :: 'specfunc(Beta)' then
+        res := hack_Beta(e, kb, loops);
+        if res <> FAIL then return res end if;
+      end if;
 
       if nops(loops) > 0 then
         # Emit outermost loop as last resort
