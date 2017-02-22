@@ -71,8 +71,10 @@
                                              op([i,2,2,1],loops) <= b,
                                              b <= op([i,2,2,2],loops)),
                                          kb), kb)) = 0 then
+                kb := assert(x=b, kb);# TODO: why not just use kb?
+                ASSERT(type(kb,t_kb), "eval_piecewise{product of pw}: not a kb");
                 return eval_factor(eval(op(2,res), x=b),
-                                   assert(x=b, kb), # TODO: why not just use kb?
+                                   kb,
                                    mode,
                                    eval(subsop(i=NULL, loops), x=b));
               end if;
