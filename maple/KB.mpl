@@ -61,6 +61,9 @@ KB := module ()
      # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
      kb_subtract,
 
+     # kb_entails(kb,cond) = "kb => cond"
+     kb_entails
+
      # Simplify a Hakaru term assuming the knowledge of the kb
      # variants do different things in case of simplification error
      # (which should really only occur when the KB contains a contradicition)
@@ -503,11 +506,20 @@ KB := module ()
   # or that `kb => cond'
   kb_entails := proc(kb::t_kb, cond,$)
       local kb0;
-      kb0 := assert(cond,kb);
-      if kb0 :: t_kb then
-          nops(kb_subtract(kb0,kb)) = 0
-      else
+      # nothing implies false (other than false, but kb is not false)
+      if cond :: t_not_a_kb then
           false
+      # if the condition is a kb, subtract from it directly
+      elif cond :: t_kb then
+          nops(kb_subtract(cond, kb)) = 0
+      else # if the condition is an atom, check that asserting it has
+           # no effect on the KB
+          kb0 := assert(cond,kb);
+          if kb0 :: t_kb then
+              nops(kb_subtract(kb0,kb)) = 0
+          else
+              false
+          end if;
       end if;
   end proc;
 

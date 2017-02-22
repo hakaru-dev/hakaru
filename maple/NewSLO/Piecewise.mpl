@@ -34,7 +34,7 @@
               # TODO: Extend KB interface to optimize for
               #       entails(kb,cond) := nops(kb_subtract(assert(cond,kb),kb))=0
               kbs[i+2] := assert(Not(cond), kbs[i]);
-              if kbs[i+2] :: t_not_a_kb or nops(kb_subtract(kbs[i+2], kbs[i])) > 0 then
+              if not(kb_entails(kbs[i], kbs[i+2])) then
                 pieces[i] := cond;
                 pieces[i+1] := op(i+1,e);
               else
@@ -67,10 +67,12 @@
           if depends(op(1,res), x) then
             if ispoly(`-`(op(op(1,res))), 'linear', x, 'b', 'a') then
               b := Normalizer(-b/a);
-              if nops(kb_subtract(assert(And(b :: integer,
-                                             op([i,2,2,1],loops) <= b,
-                                             b <= op([i,2,2,2],loops)),
-                                         kb), kb)) = 0 then
+
+              if kb_entails(kb,
+                            And(b :: integer,
+                                op([i,2,2,1],loops) <= b,
+                                b <= op([i,2,2,2],loops))
+                            ) then
                 kb := assert(x=b, kb);# TODO: why not just use kb?
                 ASSERT(type(kb,t_kb), "eval_piecewise{product of pw}: not a kb");
                 return eval_factor(eval(op(2,res), x=b),
