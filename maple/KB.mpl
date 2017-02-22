@@ -204,14 +204,14 @@ KB := module ()
   # Implements the assert_deny function, which inserts either
   # a constraint or its negation into a KB, essentially, a
   # 'smart constructor'.
-  # Also implements a second way to call it, 'part', which will 
+  # Also implements a second way to call it, 'part', which will
   # return a SplitKB instead.
   assert_deny := module ()
-   export ModuleApply, part ;
+   export ModuleApply, part;
    local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
          refine_given, t_bound_on;
 
-   # The 'type' of `if(,,)` where the first parameter is the given type
+   # Either And or Or type, chosen by boolean pol
    t_if_and_or_of := proc(pol,$)
        `if`(pol, '{specfunc(anything, And), `and`}', '{specfunc(anything, Or ), `or` }')
    end proc;
@@ -448,6 +448,11 @@ KB := module ()
     end if
 
    end proc: # ModuleApply
+
+   # same calling convention as above
+   part := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
+     error "assert_deny:-part not implemented yet";
+   end proc: # part
   end module; # assert_deny
 
   # In order to hopefully produce a simplification,
