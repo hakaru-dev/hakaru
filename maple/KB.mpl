@@ -610,9 +610,18 @@ KB := module ()
     end proc, kb);
   end proc;
 
-  kb_normalize := proc(kb::t_kb, $)
+  kb_normalize := proc(kb::t_kb, $)::[list(name), list(name), list(t_kb_atom)];
     local vars, parms, constraints;
-    error "kb_normalize not implemented yet"
+
+    # Select all of the relevant subparts
+    vars        := select(type, kb, 'Introduce(name, specfunc(AlmostEveryReal))');
+    parms       := select(type, kb, 'Introduce(name, specfunc({HReal,HInt}))');
+    constraints := select(type, kb, 'Constrain(anything)');
+
+    # extract the data:
+    #  from inside of KB,
+    #  from inside of KB atom constructors (Constrain, Intro)
+    map(z -> map[2](op, 1, [op(z)]), [vars,parms,constraints]) ;
   end proc;
 
   eval_kb := proc(e,kb::t_kb, $)
