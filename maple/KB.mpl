@@ -270,9 +270,8 @@ KB := module ()
    # Performs simplification(?) in case something of the form `t_bound_on` is
    # found
    # This function signals it has failed to find a result with `FAIL`
-   bound_simp := proc(b,x,k,kb,pol,as,e0,$)
+   bound_simp := proc(b,x,k,kb,pol,as,$)
       local e, rel, c, kb1,ch;
-      e = e0;
       # b is a bound on x, so compare it against the current bound on x.
       # First, express `if`(pol,b,Not(b)) as rel(x,e)
       rel := op(0,b);
@@ -437,7 +436,7 @@ KB := module ()
         # If `b' is of a particular form (a bound on `x'), simplification
         # is in order
         if b :: t_bound_on(`x`) then
-          kb0 := bound_simp(b,x,k,kb,pol,as,e);
+          kb0 := bound_simp(b,x,k,kb,pol,as);
         else
           kb0 := not_bound_simp(b,x,kb,pol,as);
         end if;
@@ -509,7 +508,7 @@ KB := module ()
         # If `b' is of a particular form (a bound on `x'), simplification
         # is in order
         if b :: t_bound_on(`x`) then
-          kb0 := bound_simp(b,x,k,kb,pol,as,e);
+          kb0 := bound_simp(b,x,k,kb,pol,as);
         else
           kb0 := not_bound_simp(b,x,kb,pol,as);
         end if;
