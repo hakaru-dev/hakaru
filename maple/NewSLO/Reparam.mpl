@@ -106,7 +106,7 @@
        end if;
 
        #Make the change of vars.
-       newJ:= simplify_assuming('ChangeVarInt(J, oldarg)', build_kb(ctx,procname));
+       newJ:= simplify_assuming('ChangeVarInt(J, oldarg)', build_kb(ctx,"reparam"));
 
        if newJ = 0 then
             WARNING("Integral is 0, likely due to improper handling of an infinity issue.");

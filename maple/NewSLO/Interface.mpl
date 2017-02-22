@@ -10,7 +10,7 @@ RoundTrip := proc(e, t::t_type)
 end proc;
 
 Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
-  subsindets(SimplifyKB(e, t, foldr(assert, empty, op(ctx))),
+  subsindets(SimplifyKB(e, t, build_kb(ctx, "Simplify")),
              And({t_sum, t_product}, anyfunc(anything, anything=range)),
              e -> subsop(0 = `if`(e::t_sum, SumIE, ProductIE),
                          applyop(`+`, [2,2,2], e, 1)))
@@ -68,7 +68,7 @@ end proc;
 
 TestHakaru := proc(m, n::{set(algebraic),algebraic}:=m,
                    {simp:=improve, verify:=simplify, ctx::list:=[]})
-  local kb := build_kb(ctx, procname);
+  local kb := build_kb(ctx, "TestHakaru");
   CodeTools[Test](fromLO(simp(toLO(m), _ctx=kb), _ctx=kb), n,
     measure(verify), _rest)
 end proc;

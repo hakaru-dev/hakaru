@@ -188,7 +188,7 @@ KB := module ()
       local
       kb := foldr(assert,empty, op(as));
       if shouldBeValid :: string then
-          ASSERT(type(kb,t_kb), sprintf("%s (in build_kb): KB contains a contradiction."));
+          ASSERT(type(kb,t_kb), sprintf("%s (in build_kb): KB contains a contradiction.", shouldBeValid));
       end if;
       kb
   end proc;
