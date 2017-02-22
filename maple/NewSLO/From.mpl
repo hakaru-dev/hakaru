@@ -105,7 +105,15 @@
                    op(2,e)),
              e);
     elif e :: 'Context(anything, anything)' then
-      subsop(2=unintegrate(h, op(2,e), assert(op(1,e), kb)), e)
+      kb1 := assert(op(1,e),kb);
+      if kb1 :: t_kb then
+          subsop(2=unintegrate(h, op(2,e), kb1, e);
+      else# A contradictory `Context' implies anything, so produce 'anything'
+          # In particular, 42 :: t_Hakaru = false, so a term under a false
+          # assumption should never be inspected in any way.
+          42
+      end if;
+
     elif e :: 'integrate'('freeof'(h), 'anything', identical([])) then
       x := mk_sym('x', op(2,e));
       # If we had HType information for op(1,e),
