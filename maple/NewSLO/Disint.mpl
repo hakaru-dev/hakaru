@@ -122,11 +122,10 @@
    local
     mc,  #final integral to be passed to improve @ toLO; then result
          #of each disintegration step
-    kb:= foldr(assert, empty, ctx[]),
+    kb:= build_kb(ctx,"disint"),
     V, #wrt vars
     v::name #iterator over V
    ;
-    ASSERT(type(kb,t_kb), "disint: input KB contains a contradiction.");
 
     #Init module variables.
     DV:= table();

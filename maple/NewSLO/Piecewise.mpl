@@ -21,6 +21,8 @@
               # This condition is false in context, so delete this piece
               # by not putting anything inside "pieces"
           if kbs[i+1] :: t_kb then
+
+            # find all of the assertions in "kbs[i+1] - kbs[i]"
             cond := map(proc(cond::[identical(assert),anything], $)
                           op(2,cond)
                         end proc,

@@ -52,7 +52,7 @@ KB := module ()
      # Functions which build up KBs from KBs and other pieces
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
-      empty, genLebesgue, genType, genLet, assert, assert_deny,
+      empty, genLebesgue, genType, genLet, assert, assert_deny, build_kb,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -62,7 +62,7 @@ KB := module ()
      kb_subtract,
 
      # kb_entails(kb,cond) = "kb => cond"
-     kb_entails
+     kb_entails,
 
      # Simplify a Hakaru term assuming the knowledge of the kb
      # variants do different things in case of simplification error
@@ -180,6 +180,17 @@ KB := module ()
           # 'Technically' this is a KB 'constructor'!
           not(R);
       end if;
+  end proc;
+
+  # Builds a kb from a list of atoms - simply foldr(assert,empty,as) except
+  # and extra check is (optionally) done for the resulting KB to be valid.
+  build_kb := proc(as::t_kb_atoms, shouldBeValid::{identical(false),string} := false, $)
+      local
+      kb := foldr(assert,empty, op(as));
+      if shouldBeValid :: string then
+          ASSERT(type(kb,t_kb), sprintf("%s (in build_kb): KB contains a contradiction."));
+      end if;
+      kb
   end proc;
 
   # Like assert_deny, except does not accept a boolean

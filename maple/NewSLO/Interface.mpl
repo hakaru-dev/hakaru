@@ -68,8 +68,7 @@ end proc;
 
 TestHakaru := proc(m, n::{set(algebraic),algebraic}:=m,
                    {simp:=improve, verify:=simplify, ctx::list:=[]})
-  local kb;
-  kb := foldr(assert, empty, op(ctx));
+  local kb := build_kb(ctx, procname);
   CodeTools[Test](fromLO(simp(toLO(m), _ctx=kb), _ctx=kb), n,
     measure(verify), _rest)
 end proc;
