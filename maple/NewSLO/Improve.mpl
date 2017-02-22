@@ -87,11 +87,21 @@
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
+
     kb2 := foldr(assert, kb1, op(dom_spec));
 
     ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
 
     dom_spec := kb_subtract(kb2, kb0);
+
+    if infolevel['procname'] > 3 then
+        printf("LMS     : %a\n"
+               "kb Big  : %a\n"
+               "kb small: %a\n"
+               "domain  : %a\n"
+         , kb_LMS(kb2), kb2, kb0, dom_spec );
+    end if;
+
     new_rng, dom_spec := selectremove(type, dom_spec,
       {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
        `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
