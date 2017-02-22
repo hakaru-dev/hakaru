@@ -1,4 +1,4 @@
--- module Tests.TestSuite(main) where
+module Tests.TestSuiteTasty where
 
 import System.Exit (exitFailure)
 import System.Environment (lookupEnv)
@@ -12,6 +12,13 @@ import qualified Tests.RoundTrip    as RT
 
 import Test.HUnit
 
+--  Tasty 
+import Test.Tasty               
+import Test.Tasty.HUnit.Adapter     ( hUnitTestToTestTree    )
+import Test.Tasty.Runners.Html      ( htmlRunner )
+import Test.Tasty.Ingredients.Rerun ( rerunningTests )
+import Test.Tasty.Ingredients.Basic ( consoleTestReporter, listingTests )
+
 -- master test suite
 
 ignored :: Assertion
@@ -23,8 +30,11 @@ simplifyTests t env =
     Just _  -> t
     Nothing -> test ignored
 
-allTests :: Maybe String -> Test
-allTests env = test
+allTests :: Maybe String -> TestTree
+allTests env = 
+  testGroup "hakaru" $
+  hUnitTestToTestTree $
+  test
   [ TestLabel "Parser"       P.allTests
   , TestLabel "TypeCheck"    TC.allTests
   , TestLabel "Simplify"     (simplifyTests S.allTests env)
@@ -33,13 +43,7 @@ allTests env = test
   , TestLabel "RoundTrip"    (simplifyTests RT.allTests env)
   ]
 
-main :: IO ()
-main = mainWith (fmap Just . runTestTT)
+hakaruRecipe = 
+  [ rerunningTests [ htmlRunner, consoleTestReporter ], listingTests ]
 
-mainWith :: (Test -> IO (Maybe Counts)) -> IO ()
-mainWith run = do
-    env <- lookupEnv "LOCAL_MAPLE"
-    run (allTests env) >>=
-      maybe (return ()) (\(Counts _ _ e f) -> if (e>0) || (f>0) then exitFailure else return ())
-
--- maini = mainWith 
+main = (allTests <$> lookupEnv "LOCAL_MAPLE") >>= defaultMainWithIngredients hakaruRecipe

@@ -517,7 +517,7 @@ withPos x = do
 {-
 user-defined types:
 
-data either(a, b):
+data either(a,b):
   left(a)
   right(a)
 
@@ -527,13 +527,13 @@ data maybe(a):
 -}
 
 data_expr :: Parser (AST' Text)
-data_expr =
+data_expr = do
     reserved "data"
-    *>  (Data
-        <$> identifier
-        <*> parens (commaSep identifier) -- TODO: why throw them away?
-        <*> blockOfMany (try type_app <|> type_var)
-        )
+    ident <- identifier
+    typvars <- parens (commaSep identifier)
+    ts <- blockOfMany (try type_app <|> type_var)
+    e <- expr
+    return (Data ident typvars ts e)
 
 import_expr :: Parser (Import Text)
 import_expr =

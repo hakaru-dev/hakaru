@@ -41,8 +41,11 @@ data Reducer (abt :: [Hakaru] -> Hakaru -> *)
          -> Reducer abt xs a
 
 instance Functor31 Reducer where
-    fmap31 _ Red_Nop       = Red_Nop
-    fmap31 f (Red_Add h e) = Red_Add h (f e)
+    fmap31 f (Red_Fanout r1 r2)  = Red_Fanout (fmap31 f r1) (fmap31 f r2)
+    fmap31 f (Red_Index n ix r)  = Red_Index (f n) (f ix) (fmap31 f r)
+    fmap31 f (Red_Split b r1 r2) = Red_Split (f b) (fmap31 f r1) (fmap31 f r2)
+    fmap31 _ Red_Nop             = Red_Nop
+    fmap31 f (Red_Add h e)       = Red_Add h (f e)
 
 instance Foldable31 Reducer where
     foldMap31 f (Red_Fanout r1 r2)  = foldMap31 f r1 `mappend` foldMap31 f r2

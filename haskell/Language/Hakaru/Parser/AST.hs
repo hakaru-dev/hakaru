@@ -137,7 +137,7 @@ data AST' a
     | Expect a (AST' a) (AST' a)
     | Observe  (AST' a) (AST' a)
     | Msum  [AST' a]
-    | Data  a [a] [TypeAST']
+    | Data  a [a] [TypeAST'] (AST' a)
     | WithMeta (AST' a) SourceSpan
     deriving (Show)
 
@@ -201,9 +201,10 @@ instance Eq a => Eq (AST' a) where
     (Observe  e1 e2)    == (Observe    e1' e2')     = e1   == e1' &&
                                                       e2   == e2'
     (Msum  es)          == (Msum   es')             = es   == es'
-    (Data  n ft ts)     == (Data   n' ft' ts')      = n    == n'  &&
+    (Data  n ft ts e)   == (Data   n' ft' ts' e')   = n    == n'  &&
                                                       ft   == ft' &&
-                                                      ts   == ts'
+                                                      ts   == ts' &&
+                                                      e    == e'
     (WithMeta e1 _ )    == e2                       = e1   == e2
     e1                  == (WithMeta e2 _)          = e1   == e2
     _                   == _                        = False

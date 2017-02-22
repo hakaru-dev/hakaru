@@ -364,7 +364,7 @@ symbolResolution symbols ast =
 
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
-    U.Data name tvars typ -> error $ "TODO: symbolResolution{U.Data} " ++ show name ++ " with " ++ show tvars ++ ":" ++ show typ
+    U.Data name tvars typ e -> error $ "TODO: symbolResolution{U.Data} " ++ show name ++ " with " ++ show tvars ++ ":" ++ show typ
     U.WithMeta a meta -> U.WithMeta
         <$> symbolResolution symbols a
         <*> return meta
@@ -439,7 +439,7 @@ normAST ast =
     U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
     U.Observe     e1 e2       -> U.Observe (normAST e1) (normAST e2)
     U.Msum es                 -> U.Msum (map normAST es)
-    U.Data name tvars typs    -> U.Data name tvars typs
+    U.Data name tvars typs e  -> U.Data name tvars typs e
      -- do we need to norm here? what if we try to define `true` which is already a constructor
     U.WithMeta a meta         -> U.WithMeta (normAST a) meta
 
@@ -553,7 +553,7 @@ makeAST ast =
     U.Observe e1 e2  -> syn $ U.Observe_ (makeAST e1) (makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
 
-    U.Data name tvars typs -> error "TODO: makeAST{U.Data}" 
+    U.Data name tvars typs e -> error "TODO: makeAST{U.Data}" 
     U.WithMeta a meta -> withMetadata meta (makeAST a)
 
     where
