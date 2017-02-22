@@ -435,10 +435,10 @@ allTests = test
     , assertAlphaEq "testDisintegrate1c" (head testDisintegrate1c) norm1'
     , testDis "testDisintegrate2" norm2
     , assertAlphaEq "testDisintegrate2" (head testDisintegrate2) norm2'
-    -- , testWithConcrete' match_norm_unif LaxMode $ \_typ ast ->
-    --     case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
-    --     Just Refl -> testDis "testMatchNormUnif" ast
-    --     Nothing   -> assertFailure "BUG: jmEq1 got the wrong type"
+    , testWithConcrete' match_norm_unif LaxMode $ \_typ ast ->
+        case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
+        Just Refl -> testDis "testMatchNormUnif" ast
+        Nothing   -> assertFailure "BUG: jmEq1 got the wrong type"
     , testWithConcrete' dont_atomize_weights LaxMode $ \_typ ast ->
         case jmEq1 _typ (SMeasure $ sPair SReal sUnit) of
         Just Refl -> testDis "testAtomizeWeights" ast
