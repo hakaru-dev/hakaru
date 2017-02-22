@@ -63,7 +63,14 @@
                    op(2,e)),
              e);
     elif e :: 'Context(anything, anything)' then
-      applyop(reduce, 2, e, h, assert(op(1,e), kb))
+      kb1 := assert(op(1,e), kb);
+      # A contradictory `Context' implies anything, so produce 'anything'
+      # In particular, 42 :: t_Hakaru = false, so a term under a false
+      # assumption should never be inspected in any way.
+      if kb1 :: t_not_a_kb then
+          42
+      end if;
+      applyop(reduce, 2, e, h, kb1);
     elif e :: 'integrate(anything, Integrand(name, anything), list)' then
       x := gensym(op([2,1],e));
       # If we had HType information for op(1,e),
@@ -81,9 +88,8 @@
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
     kb2 := foldr(assert, kb1, op(dom_spec));
-    if kb2 :: t_not_a_kb then
-        error "%1: simplifying a dom_spec(%2) produces not a KB (TODO: fixme)", procname, dom_spec
-    end if;
+
+    ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
 
     dom_spec := kb_subtract(kb2, kb0);
     new_rng, dom_spec := selectremove(type, dom_spec,
