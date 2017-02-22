@@ -681,28 +681,6 @@ KB := module ()
                seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]))
   end proc;
 
-  (*** #Code removed by Carl 2016Jul8. Maybe we'll need it again.
-  #Written by Carl 2016Jun24.
-  #This is a wrapper for `assuming` that gracefully handles the case of no
-  #assumptions and accepts the assumptions in our "knowledge base"/"context"
-  #format.
-  #
-  #Note that the 2nd parameter, corresponding to the right operand, is a list,
-  #possibly empty; whereas the right operand of regular `assuming` is a nonNULL
-  #expression sequence.
-
-  `&assuming`:= proc(e::uneval, ctx::list, $)
-  local as:= kb_to_assumptions(foldr(assert, empty, ctx[]));
-       userinfo(3, _KB, print(e &where (e-> e=eval(e))~(<op(e)>)));
-       if as = [] then
-           eval(e)
-       else
-           userinfo(3, _KB, "`assuming` clause:", as[]);
-           e assuming as[]
-       end if
-  end proc;
-  ***)
-
   kb_to_equations := proc(kb, $)
     local lets, constraints;
 
