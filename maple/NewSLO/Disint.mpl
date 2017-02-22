@@ -126,6 +126,8 @@
     V, #wrt vars
     v::name #iterator over V
    ;
+    ASSERT(type(kb,t_kb), "disint: input KB contains a contradiction.");
+
     #Init module variables.
     DV:= table();
     p:= gensym('p');
