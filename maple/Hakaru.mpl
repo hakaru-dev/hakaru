@@ -426,9 +426,9 @@ Hakaru := module ()
      #piecewise.
      r:= [
           And(C_O, C_I[1]), B_I[1],
-          And(C_O, KB:-negate_kb1(C_I[1])), B_I[2],
-          And(KB:-negate_kb1(C_O), C_I[2]), B_I[3],
-          And(KB:-negate_kb1(C_O), KB:-negate_kb1(C_I[2])), B_I[4]
+          And(C_O, KB:-negate_rel(C_I[1])), B_I[2],
+          And(KB:-negate_rel(C_O), C_I[2]), B_I[3],
+          And(KB:-negate_rel(C_O), KB:-negate_rel(C_I[2])), B_I[4]
      ];
      userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
      piecewise(r[])
