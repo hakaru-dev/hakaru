@@ -58,12 +58,12 @@ KB := module ()
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
       empty, genLebesgue, genType, genLet, assert, assert_deny,
-     # Build a SplitKB from a KB
+     # assert which may cause a split
       assertp,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
-     negated_relation, negate_kb1,
+     negated_relation, negate_rel,
 
      # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
      kb_subtract,
@@ -167,13 +167,11 @@ KB := module ()
   end proc;
 
   #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
-  #
-  #Carl 2016Sep09
   negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
 
   # Takes the bool type (true/false) to mean universal and empty relations respectively.
   # i.e. negate R, where R is an 'atomic' relation of a KB
-  negate_kb1:= proc(R::t_kb_atom, $)::t_kb_atom;
+  negate_rel:= proc(R::t_kb_atom, $)::t_kb_atom;
       if R :: truefalse then
         not R
       elif R :: relation then
@@ -194,9 +192,10 @@ KB := module ()
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 
-  # partitional assert: like assert, but will return a
+  # partitional assert: like assert, but may return a
   # SplitKB instead.  Note that this does not mean that it is
-  # actually _split_, as the assertion may not in fact need it.
+  # actually _split_, as the assertion may not in fact need it,
+  # in which case a KB is returned
   assertp := proc(b::t_kb_atom, kb :: t_kb, $)
     assert_deny:-part(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
@@ -435,7 +434,7 @@ KB := module ()
 
       # Normalize `=` and `<>` constraints a bit.
       if not pol then
-        b := negate_kb1(b);
+        b := negate_rel(b);
       end if;
 
       # If the name in the simple equality (if it is such) is not
@@ -449,14 +448,78 @@ KB := module ()
 
       # Add constraint to KB.
       KB(Constrain(b), op(kb))
-    end if
-
+    end if;
    end proc: # ModuleApply
 
    # same calling convention as above
    part := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
-     error "assert_deny:-part not implemented yet";
-   end proc: # part
+    # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB/SplitKB.
+    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
+
+    # Setup the assumptions
+    as := chill(kb_to_assumptions(kb, bb));
+
+    # Check that the new clause would not cause a contradictory
+    # KB. If it does, then produce NotAKB.
+    if not coulditbe(`if`(pol,bb,not(bb))) assuming op(as) then return NotAKB(); end if;
+
+    if bb = pol then # Ignore literal true and Not(false).
+      kb
+    elif bb :: t_if_and_or_of(pol) then
+      foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
+    elif bb :: t_not then
+      foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
+    else
+      b := simplify_in_context(bb, as);
+
+      # Look through kb for the innermost scope where b makes sense.
+      k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))), kb);
+
+      # If that scope is not precisely the trivial KB, then ..
+      if nops(k) > 0 then
+        x, k := op(op(1,k));
+        # Found the innermost scope where b makes sense.
+        # Reduce (in)equality between exp(A) and exp(B) to between A and B.
+        do
+          try log_b := map(simplify@ln, b) assuming op(as); catch: break; end try;
+
+          if log_metric(log_b, x) < log_metric(b, x)
+             and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
+            b := log_b;
+          else
+            break;
+          end if;
+        end do;
+
+        # syntactic adjustment
+        # If `b' is of a particular form (a bound on `x'), simplification
+        # is in order
+        if b :: t_bound_on(`x`) then
+          kb0 := bound_simp(b,x,k,kb,pol,as,e);
+        else
+          kb0 := not_bound_simp(b,x,kb,pol,as);
+        end if;
+
+        # If it succeeds, return that result
+        if not kb0 :: identical(FAIL) then return kb0 end if;
+      end if;
+
+      # Normalize `=` and `<>` constraints a bit.
+      if not pol then b := negate_rel(b); end if;
+
+      # If the name in the simple equality (if it is such) is not
+      # on the lhs, then flip the equality
+      if b :: t_constraint_flipped then b := (rhs(b)=lhs(b)) end if;
+
+      # If `b' reduces to `true' in the KB environment then there is no need to
+      # add it
+      ch := chill(b);
+      if is(ch) assuming op(as) then return kb end if;
+
+      # Add constraint to KB.
+      KB(Constrain(b), op(kb));
+    end if;
+   end proc; # part
   end module; # assert_deny
 
   # In order to hopefully produce a simplification,
@@ -643,6 +706,7 @@ KB := module ()
     res
   end proc;
 
+  # extract all introduced variables from a KB
   kb_to_variables := proc(kb :: t_kb, $)
     [op(map2(op, 1, select(type, kb, t_intro)))];
   end proc;
@@ -671,28 +735,7 @@ KB := module ()
                seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]))
   end proc;
 
-  (*** #Code removed by Carl 2016Jul8. Maybe we'll need it again.
-  #Written by Carl 2016Jun24.
-  #This is a wrapper for `assuming` that gracefully handles the case of no
-  #assumptions and accepts the assumptions in our "knowledge base"/"context"
-  #format.
-  #
-  #Note that the 2nd parameter, corresponding to the right operand, is a list,
-  #possibly empty; whereas the right operand of regular `assuming` is a nonNULL
-  #expression sequence.
-
-  `&assuming`:= proc(e::uneval, ctx::list, $)
-  local as:= kb_to_assumptions(foldr(assert, empty, ctx[]));
-       userinfo(3, _KB, print(e &where (e-> e=eval(e))~(<op(e)>)));
-       if as = [] then
-           eval(e)
-       else
-           userinfo(3, _KB, "`assuming` clause:", as[]);
-           e assuming as[]
-       end if
-  end proc;
-  ***)
-
+  # extract Lets and equality constraints (only!) from a KB
   kb_to_equations := proc(kb, $)
     local lets, constraints;
 
