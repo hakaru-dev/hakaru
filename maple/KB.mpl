@@ -209,7 +209,7 @@ KB := module ()
   assert_deny := module ()
    export ModuleApply, part;
    local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
-         refine_given, t_bound_on;
+         refine_given, t_bound_on, simplify_in_context;
 
    # Either And or Or type, chosen by boolean pol
    t_if_and_or_of := proc(pol,$)
@@ -362,6 +362,14 @@ KB := module ()
      end if;
    end proc;
 
+   # Simplify `bb' in context `as'
+   simplify_in_context := proc(bb, as, $)
+     local b;
+     b := chill(bb);
+     b := simplify(b) assuming op(as);
+     warm(b);
+   end proc;
+
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
@@ -390,11 +398,7 @@ KB := module ()
       foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
 
     else
-
-      # Simplify `bb' in context `as' placing result in `b'
-      b := chill(bb);
-      b := simplify(b) assuming op(as);
-      b := warm(b);
+      b := simplify_in_context(bb, as);
 
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
