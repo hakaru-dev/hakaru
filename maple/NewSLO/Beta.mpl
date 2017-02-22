@@ -54,7 +54,16 @@
                     eval(subsop(-1=NULL, loops), x=lhs(bounds)-1));
         return eval_factor(res, kb, `*`, []);
       end if;
-      # Temporary hack to show desired output for the "integrate BetaD out of BetaD-Bernoulli" test
+      # Temporary hack to show desired output for the "integrate BetaD out of
+      # BetaD-Bernoulli" test
+      return hackier_Beta(loops, e)
+
+      # return FAIL;
+    end proc;
+
+    hackier_Beta := proc(loops,e)
+      local s1, r1, s2, r2;
+
       if nops(loops) = 0 and e :: 'specfunc(And(`+`, Not(`+`(Not(idx({[1,0],[0,1]}, anything))))), Beta)' then
         s1, r1 := selectremove(type, op(1,e), 'idx({[1,0],[0,1]}, anything)');
         s2, r2 := selectremove(type, op(2,e), 'idx({[1,0],[0,1]}, anything)');
@@ -64,7 +73,9 @@
           return Beta(r1, r2) * idx([r2, r1], op(2,s1)) / (r1 + r2);
         end if
       end if;
-      return FAIL;
+
+      FAIL
+
     end proc;
 
 

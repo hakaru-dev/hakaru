@@ -3,7 +3,7 @@
   simplify_factor_assuming := module ()
 
     export ModuleApply;
-    local graft_pw, GAMMAratio, wrap, hack_Beta,
+    local graft_pw, GAMMAratio, wrap, hack_Beta, hackier_Beta,
           bounds_are_simple, eval_piecewise, eval_factor;
 
 $include "NewSLO/Beta.mpl"
