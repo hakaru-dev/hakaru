@@ -82,7 +82,7 @@ sliced :=
 sliceds :=
   Weight(2*sqrt(lu)*exp(-lu)/sqrt(Pi),
   Uniform(-sqrt(2*lu),sqrt(2*lu))):
-TestHakaru(sliced, sliceds, label = "slice sampling") assuming lu>0;
+TestHakaru(sliced, sliceds, label = "slice sampling", ctx = [lu>0]);
 module()
   local d, m, uMax, kb, result;
   for d in [Gaussian(0,1), GammaD(1,1)] do
