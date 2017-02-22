@@ -34,7 +34,7 @@
               # TODO: Extend KB interface to optimize for
               #       entails(kb,cond) := nops(kb_subtract(assert(cond,kb),kb))=0
               kbs[i+2] := assert(Not(cond), kbs[i]);
-              if nops(kb_subtract(kbs[i+2], kbs[i])) > 0 then
+              if kbs[i+2] :: t_not_a_kb or nops(kb_subtract(kbs[i+2], kbs[i])) > 0 then
                 pieces[i] := cond;
                 pieces[i+1] := op(i+1,e);
               else
@@ -85,7 +85,11 @@
       inds := [indices(pieces, 'nolist', 'indexorder')];
       for i in inds do
         if i::even or i=op(-1,inds) then
-          pieces[i] := eval_factor(pieces[i], kbs[i], mode, []);
+          # only simplify if the piece is not default;
+          # note that kbs[i] could be NotAKB(), but this is still valid
+          if not Testzero(pieces[i] - default) then
+            pieces[i] := eval_factor(pieces[i], kbs[i], mode, []);
+          end if;
         end if;
       end do;
       res := piecewise(entries(pieces, 'nolist', 'indexorder'));
