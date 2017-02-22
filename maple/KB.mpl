@@ -499,6 +499,18 @@ KB := module ()
     end proc, [op(coalesce_bounds(KB(op(1..cut, kb))))])
   end proc;
 
+  # checks that the given condition is fully contained in the given KB,
+  # or that `kb => cond'
+  kb_entails := proc(kb::t_kb, cond,$)
+      local kb0;
+      kb0 := assert(cond,kb);
+      if kb0 :: t_kb then
+          nops(kb_subtract(kb0,kb)) = 0
+      else
+          false
+      end if;
+  end proc;
+
   # This essentially extracts all of the `Bound`s from a
   # KB and then re-inserts them 'directly' by applying their
   # knowledge to the rest of the KB. This may (?) produce
