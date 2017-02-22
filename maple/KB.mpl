@@ -339,8 +339,8 @@ KB := module ()
 
      c := solve({b},[x], 'useassumptions'=true) assuming op(as);
      # success!
-     if c::list and nops(c)=1 and nops(c[1])=1 then
-       assert_deny(c[1][1], pol, kb);
+     if c::list and nops(c)=1 then
+       foldr(((z,kb)->assert_deny(z, pol, kb)), kb, op(c[1]));
      else
        FAIL; # No simplification could be done
      end if;
@@ -400,6 +400,7 @@ KB := module ()
           end if;
         end do;
 
+        # syntactic adjustment
         # If `b' is of a particular form (a bound on `x'), simplification
         # is in order
         if b :: t_bound_on(`x`) then
