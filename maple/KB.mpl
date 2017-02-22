@@ -57,7 +57,9 @@ KB := module ()
      # Functions which build up KBs from KBs and other pieces
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
-      empty, genLebesgue, genType, genLet, assert, assert_deny,
+      empty, genLebesgue, genType, genLet, assert, assert_deny, build_kb,
+     # assert which may cause a split
+      assertp,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -68,13 +70,6 @@ KB := module ()
 
      # kb_entails(kb,cond) = "kb => cond"
      kb_entails,
-
-     # Normalize a kb to take advantage of all of
-     # the information in it.  Warning: this can completely
-     # re-arrange things, so that it is no longer valid to call
-     # kb_substract after this operation is performed.
-     # In particular, the result may be a SplitKB.
-     kb_normalize,
 
      # Simplify a Hakaru term assuming the knowledge of the kb
      # variants do different things in case of simplification error
@@ -133,7 +128,9 @@ KB := module ()
   end proc;
 
   # Check if a kb which might be NotAKB is indeed NotAKB
-  kb_is_false := proc(mbkb :: t_kb_mb, $) evalb(mbkb :: t_not_a_kb) end proc;
+  kb_is_false := proc(mbkb :: t_kb_mb, $)
+      if mbkb :: t_not_a_kb then true else false end if;
+  end proc;
 
   # A smart constructor for introducing Lebesgue integration variables (?)
   #   genLebesgue(var,lo,hi,kb) =
@@ -209,13 +206,21 @@ KB := module ()
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 
+  # partitional assert: like assert, but may return a
+  # SplitKB instead.  Note that this does not mean that it is
+  # actually _split_, as the assertion may not in fact need it,
+  # in which case a KB is returned
+  assertp := proc(b::t_kb_atom, kb :: t_kb, $)
+    assert_deny:-part(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
+  end proc;
+
   # Implements the assert_deny function, which inserts either
   # a constraint or its negation into a KB, essentially, a
   # 'smart constructor'.
   # Also implements a second way to call it, 'part', which will
   # return a SplitKB instead.
   assert_deny := module ()
-   export ModuleApply;
+   export ModuleApply, part;
    local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
          refine_given, t_bound_on, simplify_in_context;
 
@@ -289,7 +294,7 @@ KB := module ()
       # Make inequalities loose over Real
       # Warning: other code relies on this!!!
       if k :: 'specfunc(AlmostEveryReal)' then
-        # A 'table' giving the relaxation of strict relations
+        # A 'table' giving the negation of strict relations
         rel := subs({`<=`=`<`, `>=`=`>`}, rel);
       end if;
 
@@ -458,6 +463,73 @@ KB := module ()
       KB(Constrain(b), op(kb))
     end if;
    end proc: # ModuleApply
+
+   # same calling convention as above
+   part := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
+    # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB/SplitKB.
+    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret, todo;
+
+    # Setup the assumptions
+    as := chill(kb_to_assumptions(kb, bb));
+
+    # Check that the new clause would not cause a contradictory
+    # KB. If it does, then produce NotAKB.
+    if not coulditbe(`if`(pol,bb,not(bb))) assuming op(as) then return NotAKB(); end if;
+
+    if bb = pol then # Ignore literal true and Not(false).
+      kb
+    elif bb :: t_if_and_or_of(pol) then
+      foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
+    elif bb :: t_not then
+      foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
+    else
+      b := simplify_in_context(bb, as);
+
+      # Look through kb for the innermost scope where b makes sense.
+      k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))), kb);
+
+      # If that scope is not precisely the trivial KB, then ..
+      if nops(k) > 0 then
+        x, k := op(op(1,k));
+        # Found the innermost scope where b makes sense.
+        # Reduce (in)equality between exp(A) and exp(B) to between A and B.
+        do
+          try log_b := map(simplify@ln, b) assuming op(as); catch: break; end try;
+
+          if log_metric(log_b, x) < log_metric(b, x)
+             and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
+            b := log_b;
+          else
+            break;
+          end if;
+        end do;
+
+        # syntactic adjustment
+        # If `b' is of a particular form (a bound on `x'), simplification
+        # is in order
+        todo := `if`(b :: t_bound_on(`x`), bound_simp, not_bound_simp);
+        kb0 := todo(b,x,k,kb,pol,as);
+
+        # If it succeeds, return that result
+        if not kb0 :: identical(FAIL) then return kb0 end if;
+      end if;
+
+      # Normalize `=` and `<>` constraints a bit.
+      if not pol then b := negate_rel(b); end if;
+
+      # If the name in the simple equality (if it is such) is not
+      # on the lhs, then flip the equality
+      if b :: t_constraint_flipped then b := (rhs(b)=lhs(b)) end if;
+
+      # If `b' reduces to `true' in the KB environment then there is no need to
+      # add it
+      ch := chill(b);
+      if is(ch) assuming op(as) then return kb end if;
+
+      # Add constraint to KB.
+      KB(Constrain(b), op(kb));
+    end if;
+   end proc; # part
   end module; # assert_deny
 
   # In order to hopefully produce a simplification,
@@ -608,11 +680,6 @@ KB := module ()
         k;
       end if;
     end proc, kb);
-  end proc;
-
-  kb_normalize := proc(kb::t_kb, $)
-    local vars, parms, constraints;
-    error "kb_normalize not implemented yet"
   end proc;
 
   eval_kb := proc(e,kb::t_kb, $)
