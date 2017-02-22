@@ -139,7 +139,7 @@ export
        # each clause evaluated under the context so far,
        # which is the conjunction of the negations of all clauses
        # so far
-       local ctx := empty, n := nops(x), cls := [], cnd_raw, cnd,i, q;
+       local ctx := empty, n := nops(x), cls := [], cnd,i, q;
 
        userinfo(5, PWToPartition
                , printf("PWToPartition: found %d ops in %a \n ", n, x) );
@@ -150,12 +150,10 @@ export
            userinfo(3, PWToPartition
                     , printf("PWToPartition: looking at clause %d (op %d) \n ", i, 2*i-1));
 
-           cnd_raw := op(2*i-1,x); # the clause as given
-           cnd := simplify_assuming_f( cnd_raw , ctx );
+           cnd := op(2*i-1,x); # the clause as given
 
            # if this clause is unreachable, then every subsequent clause will be as well
-           if kb_is_false( assert(cnd_raw, ctx) )
-            or cnd :: identical(FAIL) then
+           if kb_is_false( assert(cnd, ctx) ) then
                return PARTITION( cls );
            else
                ctx := assert(Not(cnd), ctx); # the context for the next clause
@@ -175,7 +173,7 @@ export
        if n::odd and not kb_is_false(ctx) then
 
            cls := [ op(cls)
-                  , Record('cond' = foldl(And,op(kb_to_assumptions(ctx)))
+                  , Record('cond' = And(op(kb_to_assumptions(ctx)))
                           , 'val' = op(n,x)
                           )
                   ];

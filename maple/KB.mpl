@@ -57,7 +57,7 @@ KB := module ()
      # Functions which build up KBs from KBs and other pieces
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
-      empty, genLebesgue, genType, genLet, assert, assert_deny,
+      empty, genLebesgue, genType, genLet, assert, assert_deny, build_kb,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -358,7 +358,7 @@ KB := module ()
    end proc;
 
    # Simplification when the `:: t_bound_on' predicate is false
-   # note: k is ignored, but this makes the API the same as 
+   # note: k is ignored, but this makes the API the same as
    # bound_simp
    not_bound_simp := proc(b,x,k,kb,pol,as,$)
      local c;
