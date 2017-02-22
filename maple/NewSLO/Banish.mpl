@@ -38,14 +38,21 @@
         genType(op([2,1],g), HInt(closed_bounds(lo..hi)), kb, make));
       subintegral := subs(op([2,1],g)=y, op(1,g));
       op(0,g)(banish(subintegral, h, kb1, levels-1, x, m), y=lo..hi)
+
+    # if `g' is an 'n-' integral or sum of the form
+    # {Ints/Sums}(f, nm, x..y, [nm0=x0..y0, .., nmk=xk..yk])
+    #   where x..y is free of `h'
     elif g :: 'And'('specfunc({Ints,ints,Sums,sums})',
                     'anyfunc'('anything', 'name', 'range'('freeof'(h)),
                               'list(name=range)')) then
-      lo, hi      := op(op(3,g));
-      loops       := op(4,g);
-      xx          := map(lhs, loops);
+      lo, hi      := op(op(3,g));       # 'primary' (?) integration bounds
+      loops       := op(4,g);           # rest of the integration bounds
+      xx          := map(lhs, loops);   # [nm0 .. nmk]
       m           := make;
       less        := `if`(op(0,g) in '{Ints,ints}', `<`, `<=`);
+
+      # banish the primary bounds if they depend on the primary integration
+      # variable
       if depends(lo, x) then
         m  := banish_guard(m, forall(xx, less(lo, mk_idx(y,loops))));
         lo := -infinity;
@@ -54,15 +61,24 @@
         m  := banish_guard(m, forall(xx, less(mk_idx(y,loops), hi)));
         hi := infinity;
       end if;
+
+      # augment the KB with a new binding (y) corresponding to the primary
+      # variable of integration.
       y, kb1 := genType(op(2,g),
                         mk_HArray(`if`(op(0,g) in '{Ints,ints}',
                                        HReal(open_bounds(lo..hi)),
                                        HInt(closed_bounds(lo..hi))),
                                   op(4,g)),
                         kb);
+
+      # if there are any more integration bounds, then add the information
+      # about the last (?) integration bound to the KB.
       if nops(op(4,g)) > 0 then
         kb1 := assert(size(y)=op([4,-1,2,2],g)-op([4,-1,2,1],g)+1, kb1);
+          ASSERT(type(kb1,t_kb), "banish/{Ints,Sums}: invalid integration bounds found "
+                 "in input.");
       end if;
+
       subintegral := subs(op(2,g)=y, op(1,g));
       op(0,g)(banish(subintegral, h, kb1, levels-1, x, m), y, lo..hi, op(4,g));
     elif g :: t_pw then
