@@ -74,7 +74,7 @@ KB := module ()
      # re-arrange things, so that it is no longer valid to call
      # kb_substract after this operation is performed.
      # In particular, the result may be a SplitKB.
-     kb_normalize,
+     kb_extract,
 
      # Like SolveTools.LinearMultivariateSolve, but for KB
      kb_LMS,
@@ -613,7 +613,10 @@ KB := module ()
     end proc, kb);
   end proc;
 
-  kb_normalize := proc(kb::t_kb, $)::[list(name), list(name), list(t_kb_atom)];
+  # Extracts information about the KB in a format suitable for manipulation
+  # with standard Maple library functions, which do not typically expect to
+  # find Hakaru constructors in their input
+  kb_extract := proc(kb::t_kb, $)::[list(name), list(name), list(t_kb_atom)];
     local vars, parms, constraints;
 
     # Select all of the relevant subparts
@@ -631,7 +634,7 @@ KB := module ()
   kb_LMS := proc(kb::t_kb, $)
       local vs, ps, cs;
 
-      vs, ps, cs := op(kb_normalize(kb));
+      vs, ps, cs := op(kb_extract(kb));
 
       LinearMultivariateSystem( {op(cs)}, vs );
   end proc;
