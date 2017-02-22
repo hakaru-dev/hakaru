@@ -55,8 +55,8 @@ parseAndInferWithDebug debug x =
       when debug $ putErrorLn $ hrule "Inferred AST"
       when debug $ putErrorLn . Text.pack . show $ inferred
       return $ inferred
-  where hrule s = mconcat ["\n<=======================| "
-                          ,s," |=======================>\n"]
+  where hrule s = Text.concat ["\n<=======================| "
+                              ,s," |=======================>\n"]
         putErrorLn = IO.hPutStrLn stderr
 
 
