@@ -77,8 +77,7 @@
        J:= innermostIntSum(e),   #the integral or sum
        newJ, #What J will become
        #possible subs target(s)
-       oldarg::{algebraic, set(algebraic)}:= map2(op, 2, indets(e, specfunc(applyintegrand))),
-       kb
+       oldarg::{algebraic, set(algebraic)}:= map2(op, 2, indets(e, specfunc(applyintegrand)))
   ;
        if nops(J) = 0 then
             userinfo(2, procname, "No sum or integral found.");
@@ -106,12 +105,8 @@
             return e
        end if;
 
-       kb := foldr(assert, empty, ctx[]);
-
-       ASSERT(type(kb,t_kb), "reparam: input KB contains a contradiction.");
-
        #Make the change of vars.
-       newJ:= simplify_assuming('ChangeVarInt(J, oldarg)', kb);
+       newJ:= simplify_assuming('ChangeVarInt(J, oldarg)', foldr(assert, empty, ctx[]));
 
        if newJ = 0 then
             WARNING("Integral is 0, likely due to improper handling of an infinity issue.");
