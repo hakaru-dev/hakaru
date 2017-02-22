@@ -182,6 +182,7 @@ Loop := module ()
     if not depends(w, var) then
       return [wrap(heap, w, mode, kb1, kb0), 1]
     end if;
+    # The `..' (indices) of all occurences of `idx(var,..)'
     ind := map2(op, 2, indets(w, idx(identical(var), anything)));
     if nops(ind) = 1 then
       ind := op(ind);
@@ -194,6 +195,8 @@ Loop := module ()
         # use kb as a local context, and 'solve' for the innermost bound var
         #   used in ind.
         kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
+        ASSERT(type(kb,t_kb), "unproduct: BUG! bijectivity assumed!");
+
         res := subs(idx(var,ind) = idx(var,lhs(loop)), w);
         res := wrap(heap, res, mode, kb, kb0);
         res := subs(idx(var,lhs(loop))=dummy, res);
@@ -214,7 +217,11 @@ Loop := module ()
       for i from 1 to nops(w) do
         if i :: even then
           kbThen := assert(    op(i-1,w) , kb);
+          ASSERT(type(kbThen,t_kb), "unproduct: KB of piecewise conditions is not valid, so the input piecewise must not be valid.");
+
           kb     := assert(Not(op(i-1,w)), kb);
+          ASSERT(type(kb,t_kb), "unproduct: KB of piecewise conditions is not valid, so the input piecewise must not be valid.");
+
           w1[i], pp[i] := op(unproduct(op(i,w),var,loop,heap,mode,kbThen,kb0))
         elif i = nops(w) then
           w1[i], pp[i] := op(unproduct(op(i,w),var,loop,heap,mode,kb    ,kb0))
@@ -277,6 +284,7 @@ Loop := module ()
         break;
       end if;
     end do;
+    ASSERT(type(kb,t_kb), "enter_piecewise: KB of piecewise conditions is not valid, so the input piecewise must not be valid.");
     e, kb
   end proc;
 
@@ -329,7 +337,12 @@ Loop := module ()
                        (piecewise_And(dom_spec, 1, 0), var=new_rng);
         end if;
         e := w * make(piecewise_And(dom_spec, `*`(op(e)), mode()), var=new_rng);
+
+        # `rest' originally comes from `entry', and this reinserts it after some
+        # processing. The original KB was valid, so this one should also be valid.
         kb := foldr(assert, op(2,entry), op(rest));
+        ASSERT(type(kb,t_kb), "Loop/wrap{t_binder}: rebuilding kb produced contradiction");
+
       elif entry :: t_stmt then
         # We evaluate arrrgs first, in case op(1,stmt) is an operation (such as
         # piecewise) that looks ahead at how many arguments it is passed before

@@ -48,6 +48,7 @@
       x, kb1 := genType(op(2,e), mk_HArray(t, loops), kb);
       if nops(op(4,e)) > 0 then
         kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
+        ASSERT(type(kb1,t_kb), "unintegrate{Ints,Sums}: integral bounds invalid");
       end if;
       subintegral := eval(op(1,e), op(2,e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
@@ -85,7 +86,7 @@
           m := weight(simplify_factor_assuming(op(1,m), kb1), op(2,m));
         end if;
         piecewise_And(w0, m, Msum())
-      else
+      else # if the domain is empty
         Msum()
       end if;
 
