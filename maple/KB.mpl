@@ -291,7 +291,8 @@ KB := module ()
         rel := subs({`<`=`>=`, `<=`=`>`, `>`=`<=`, `>=`=`<`, `=`=`<>`, `<>`=`=`}, rel);
       end if;
 
-      # Discards a few points (?)
+      # Make inequalities loose over Real
+      # Warning: other code relies on this!!!
       if k :: 'specfunc(AlmostEveryReal)' then
         # A 'table' giving the negation of strict relations
         rel := subs({`<=`=`<`, `>=`=`>`}, rel);
@@ -362,7 +363,9 @@ KB := module ()
    end proc;
 
    # Simplification when the `:: t_bound_on' predicate is false
-   not_bound_simp := proc(b,x,kb,pol,as,$)
+   # note: k is ignored, but this makes the API the same as 
+   # bound_simp
+   not_bound_simp := proc(b,x,k,kb,pol,as,$)
      local c;
 
      c := solve({b},[x], 'useassumptions'=true) assuming op(as);
@@ -388,7 +391,7 @@ KB := module ()
    # Great deal of magic happens behind the scenes
    ModuleApply := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
+    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret, todo;
 
     # Setup the assumptions
     as := chill(kb_to_assumptions(kb, bb));
@@ -435,11 +438,8 @@ KB := module ()
         # syntactic adjustment
         # If `b' is of a particular form (a bound on `x'), simplification
         # is in order
-        if b :: t_bound_on(`x`) then
-          kb0 := bound_simp(b,x,k,kb,pol,as);
-        else
-          kb0 := not_bound_simp(b,x,kb,pol,as);
-        end if;
+        todo := `if`(b :: t_bound_on(`x`), bound_simp, not_bound_simp);
+        kb0 := todo(b,x,k,kb,pol,as);
 
         # If it succeeds, return that result
         if not kb0 :: identical(FAIL) then return kb0 end if;
@@ -467,7 +467,7 @@ KB := module ()
    # same calling convention as above
    part := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB/SplitKB.
-    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
+    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret, todo;
 
     # Setup the assumptions
     as := chill(kb_to_assumptions(kb, bb));
@@ -507,11 +507,8 @@ KB := module ()
         # syntactic adjustment
         # If `b' is of a particular form (a bound on `x'), simplification
         # is in order
-        if b :: t_bound_on(`x`) then
-          kb0 := bound_simp(b,x,k,kb,pol,as);
-        else
-          kb0 := not_bound_simp(b,x,kb,pol,as);
-        end if;
+        todo := `if`(b :: t_bound_on(`x`), bound_simp, not_bound_simp);
+        kb0 := todo(b,x,k,kb,pol,as);
 
         # If it succeeds, return that result
         if not kb0 :: identical(FAIL) then return kb0 end if;
