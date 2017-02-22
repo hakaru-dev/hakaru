@@ -76,6 +76,9 @@ KB := module ()
      # In particular, the result may be a SplitKB.
      kb_normalize,
 
+     # Like SolveTools.LinearMultivariateSolve, but for KB
+     kb_LMS,
+
      # Simplify a Hakaru term assuming the knowledge of the kb
      # variants do different things in case of simplification error
      # (which should really only occur when the KB contains a contradicition)
@@ -107,7 +110,7 @@ KB := module ()
      # Hakaru 'terms'.
      `expand/product`, `simplify/int/simplify`,
      `product/indef/indef`, `convert/Beta`;
-  uses Hakaru;
+  uses Hakaru, SolveTools:-Inequality ;
 
   # Some types
   # A particular form of Introduce, containing those types
@@ -623,6 +626,16 @@ KB := module ()
     #  from inside of KB atom constructors (Constrain, Intro)
     map(z -> map[2](op, 1, [op(z)]), [vars,parms,constraints]) ;
   end proc;
+
+  # linear multivariate system solver for KB
+  kb_LMS := proc(kb::t_kb, $)
+      local vs, ps, cs;
+
+      vs, ps, cs := op(kb_normalize(kb));
+
+      LinearMultivariateSystem( {op(cs)}, vs );
+  end proc;
+
 
   eval_kb := proc(e,kb::t_kb, $)
     foldl(eval, e, op(kb_to_equations(kb)));
