@@ -1355,7 +1355,7 @@ NewSLO := module ()
             ),
             Counting= Record(
                  cond_constructor= `<=`, 
-                 disintegrator= LREtools:-delta,
+                 disintegrator= LREtools[delta],
                  disintegrator_arg_extractor= (A-> op(1,A))
             ),
             #Ret is aka Dirac.
