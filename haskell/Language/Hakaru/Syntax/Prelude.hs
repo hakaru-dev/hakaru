@@ -79,7 +79,7 @@ module Language.Hakaru.Syntax.Prelude
     , densityNormal, normal, normal'
     , densityPoisson, poisson, poisson'
     , densityGamma, gamma, gamma'
-    , densityBeta, beta, beta'
+    , densityBeta, beta, beta', beta''
     , plateWithVar, plate, plate'
     , chain, chain'
     , invgamma
@@ -117,7 +117,7 @@ module Language.Hakaru.Syntax.Prelude
     , app, app2, app3
 
     -- * Arrays
-    , empty, arrayWithVar, array, (!), size, reduce
+    , empty, arrayWithVar, array, arrayLit, (!), size, reduce
     , sumV, summateV, appendV, mapV, mapWithIndex, normalizeV, constV, unitV, zipWithV
 
     -- * Implementation details
@@ -125,6 +125,10 @@ module Language.Hakaru.Syntax.Prelude
     , arrayOp0_, arrayOp1_, arrayOp2_, arrayOp3_
     , measure0_, measure1_, measure2_
     , unsafeNaryOp_, naryOp_withIdentity, naryOp2_
+
+    -- * Reducers
+    , bucket, r_fanout, r_index, r_split, r_nop, r_add
+
     ) where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
@@ -144,6 +148,7 @@ import Language.Hakaru.Types.Sing (Sing(..), SingI(sing), sUnPair, sUnEither, sU
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT hiding (View(..))
@@ -969,7 +974,7 @@ array
     -> (abt '[] 'HNat -> abt '[] a)
     -> abt '[] ('HArray a)
 array n =
-    syn . Array_ n . binder Text.empty sing
+    syn . Array_ n . binder Text.empty sing        
 
 arrayWithVar
     :: (ABT Term abt)
@@ -980,6 +985,11 @@ arrayWithVar
 arrayWithVar n x body =
     syn $ Array_ n (bind x body)
 
+arrayLit
+    :: (ABT Term abt)
+    => [abt '[] a]
+    -> abt '[] ('HArray a)
+arrayLit = syn . ArrayLiteral_
 
 empty :: (ABT Term abt, SingI a) => abt '[] ('HArray a)
 empty = syn (Empty_ sing)
@@ -1135,6 +1145,47 @@ zipWithV
 zipWithV f v1 v2 =
     array (size v1) (\i -> f (v1 ! i) (v2 ! i))
 
+----------------------------------------------------------------
+
+r_fanout
+    :: (ABT Term abt)
+    => Reducer abt xs a
+    -> Reducer abt xs b
+    -> Reducer abt xs (HPair a b)
+r_fanout = Red_Fanout
+
+r_index
+    :: (Binders Term abt xs as)
+    => (as -> abt '[] 'HNat)
+    -> ((abt '[] 'HNat, as) -> abt '[] 'HNat)
+    -> Reducer abt ( 'HNat ': xs) a
+    -> Reducer abt xs ('HArray a)
+r_index n f = Red_Index (binders n) (binders f)
+
+r_split
+    :: (Binders Term abt xs as)
+    => ((abt '[] 'HNat, as) -> abt '[] HBool)
+    -> Reducer abt xs a
+    -> Reducer abt xs b
+    -> Reducer abt xs (HPair a b)
+r_split b = Red_Split (binders b)
+
+r_nop :: (ABT Term abt) => Reducer abt xs HUnit
+r_nop = Red_Nop
+
+r_add
+    :: (Binders Term abt xs as, HSemiring_ a)
+    => ((abt '[] 'HNat, as) -> abt '[] a)
+    -> Reducer abt xs a
+r_add f = Red_Add hSemiring (binders f)
+
+bucket
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> abt '[] 'HNat
+    -> Reducer abt '[] a
+    -> abt '[] a
+bucket i j r = syn $ Bucket i j r
 
 ----------------------------------------------------------------
 (>>=)
@@ -1461,7 +1512,7 @@ densityBeta a b x =
     * unsafeProb (real_ 1 - fromProb x) ** (fromProb b - real_ 1)
     / betaFunc a b
 
-beta, beta'
+beta, beta', beta''
     :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
@@ -1472,6 +1523,11 @@ beta' a b =
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...
     unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \x ->
     weightedDirac x (densityBeta a b x)
+
+beta'' a b =
+    gamma a (prob_ 1) >>= \x ->
+    gamma b (prob_ 1) >>= \y ->
+    dirac (x / (x+y))
 
 plateWithVar
     :: (ABT Term abt)
@@ -1581,8 +1637,8 @@ weibull b k =
 
 -- BUG: would it be better to 'observe' that @p <= 1@ before doing the superpose? At least that way things would be /defined/ for all inputs...
 bern :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure HBool)
-bern p = weightedDirac true  p
-     <|> weightedDirac false (prob_ 1 `unsafeMinusProb` p)
+bern p = categorical (arrayLit [p, prob_ 1 `unsafeMinusProb` p]) >>= \i ->
+         dirac (arrayLit [true, false] ! i)
 
 mix :: (ABT Term abt)
     => abt '[] ('HArray 'HProb) -> abt '[] ('HMeasure 'HNat)

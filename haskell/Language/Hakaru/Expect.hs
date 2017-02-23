@@ -189,9 +189,9 @@ expectTerm e = do
                 case t of
                 Case_ e1 bs -> expectCase e1 bs
                 _           -> residualizeExpect e'
-        Head_ (WLiteral    _)   -> error "expect: the impossible happened"
-        Head_ (WCoerceTo   _ _) -> error "expect: the impossible happened"
-        Head_ (WUnsafeFrom _ _) -> error "expect: the impossible happened"
+        Head_ (WLiteral    _)    -> error "expect: the impossible happened"
+        Head_ (WCoerceTo   _  _) -> error "expect: the impossible happened"
+        Head_ (WUnsafeFrom _  _) -> error "expect: the impossible happened"
         Head_ (WMeasureOp o es) -> expectMeasureOp o es
         Head_ (WDirac e1)       -> return e1
         Head_ (WMBind e1 e2)    -> do

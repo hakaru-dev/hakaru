@@ -47,7 +47,8 @@ newline :: Doc
 newline = char '\n'
 
 --------------------------------------------------------------------------------
--- Top Level
+--                                  Top Level                                 --
+--------------------------------------------------------------------------------
 
 instance Pretty Ident where
   pretty (Ident i) = text i
@@ -69,7 +70,8 @@ instance Pretty CFunDef where
     $+$ pretty s
 
 --------------------------------------------------------------------------------
--- Preprocessor
+--                               Preprocessor                                 --
+--------------------------------------------------------------------------------
 
 instance Pretty Preprocessor where
   pretty (PPDefine n x) = hsep . fmap text $ ["#define",n,x]
@@ -86,7 +88,8 @@ instance Pretty Preprocessor where
 
 
 --------------------------------------------------------------------------------
--- CDeclarations
+--                             CDeclarations                                  --
+--------------------------------------------------------------------------------
 
 instance Pretty CDecl where
   pretty (CDecl ds ps) =
@@ -137,8 +140,8 @@ instance Pretty CTypeSpec where
   pretty CSigned = text "signed"
   pretty CUnsigned = text "unsigned"
   pretty (CSUType cs) = pretty cs
-  pretty (CTypeDefType i) = error "TODO: Pretty TypeDef"
-  pretty (CEnumType e) = error "TODO: Pretty Enum"
+  pretty (CTypeDefType _) = error "TODO: Pretty TypeDef"
+  pretty (CEnumType _) = error "TODO: Pretty EnumType"
 
 instance Pretty CSUSpec where
   pretty (CSUSpec tag mi []) =
@@ -153,24 +156,25 @@ instance Pretty CSUTag where
   pretty CUnionTag = text "union"
 
 instance Pretty CEnum where
-  pretty (CEnum mi es) = error "TODO: Pretty Enum"
+  pretty (CEnum _ _) = error "TODO: Pretty Enum"
 
 instance Pretty CInit where
-  pretty (CInitExpr e) = error "TODO: Pretty Init"
-  pretty (CInitList list) = error "TODO: Pretty Init list"
+  pretty (CInitExpr _) = error "TODO: Pretty Init"
+  pretty (CInitList _) = error "TODO: Pretty Init list"
 
 instance Pretty CPartDesig where
-  pretty (CArrDesig e) = error "TODO: Pretty Arr Desig"
-  pretty (CMemberDesig e) = error "TODO: Pretty Memdesig"
+  pretty (CArrDesig _) = error "TODO: Pretty Arr Desig"
+  pretty (CMemberDesig _) = error "TODO: Pretty Memdesig"
 
 
 --------------------------------------------------------------------------------
--- CStatements
+--                                CStatements                                 --
+--------------------------------------------------------------------------------
 
 instance Pretty CStat where
   pretty (CLabel lId s) = pretty lId <> colon $$ nest 2 (pretty s)
   pretty (CGoto lId) = text "goto" <+> pretty lId <> semi
-  pretty (CSwitch e s) = text "switch" <+> (parens . pretty $ s )
+  pretty (CSwitch e s) = text "switch" <+> pretty e <+> (parens . pretty $ s )
   pretty (CCase e s) = text "case" <+> pretty e <> colon $$ nest 2 (pretty s)
   pretty (CDefault s) = text "default" <> colon $$ nest 2 (pretty s)
   pretty (CExpr me) = mpretty me <> semi
@@ -178,12 +182,12 @@ instance Pretty CStat where
     nest (-1) (lbrace $+$ (nest 2 . vcat . fmap pretty $ bs) $+$ rbrace)
 
   pretty (CIf ce thns (Just elss)) = nest 1 $
-    text "if" <+> (prettyPrec (-5) ce)
+    text "if" <+> (parens . prettyPrec (-5) $ ce)
               $+$ (nest 1 $ pretty thns)
               $+$ text "else"
               $+$ (nest 1 $ pretty elss)
   pretty (CIf ce thns Nothing) =
-    text "if" <+> (prettyPrec (-5) ce) $+$ (nest 1 $ pretty thns)
+    text "if" <+> (parens . prettyPrec (-5) $ ce) $+$ (nest 1 $ pretty thns)
 
   pretty (CWhile ce s b) =
     if b
@@ -207,11 +211,12 @@ instance Pretty CCompoundBlockItem where
 
 
 --------------------------------------------------------------------------------
--- CExpressions
+--                                CExpressions                                --
+--------------------------------------------------------------------------------
 
 instance Pretty CExpr where
   prettyPrec _ (CComma es) = hsep . punctuate comma . fmap pretty $ es
-  prettyPrec p (CAssign op le re) = pretty le <+> pretty op <+> pretty re
+  prettyPrec _ (CAssign op le re) = pretty le <+> pretty op <+> pretty re
   prettyPrec _ (CCond ce thn els) = pretty ce <+> text "?" <+> pretty thn <+> colon <+> pretty els
   prettyPrec p (CBinary op e1 e2) =
     parensPrec p 0 . hsep $ [pretty e1, pretty op, pretty e2]
@@ -220,7 +225,7 @@ instance Pretty CExpr where
   prettyPrec p (CUnary op e) =
     if elem op [CPostIncOp,CPostDecOp]
     then parensPrec p (-1) $ prettyPrec (-1) e <> pretty op
-    else parensPrec p (-1) $ pretty op <> prettyPrec (-1) e
+    else parens $ pretty op <> prettyPrec (-1) e
 
   prettyPrec _ (CSizeOfExpr e) = text "sizeof" <> (parens . pretty $ e)
   prettyPrec _ (CSizeOfType d) = text "sizeof" <> (parens . pretty $ d)
@@ -232,7 +237,7 @@ instance Pretty CExpr where
     in  pretty ve <> op <> pretty memId
   prettyPrec _ (CVar varId) = pretty varId
   prettyPrec _ (CConstant c) = pretty c
-  prettyPrec _ (CCompoundLit d init) = parens (pretty d) <> pretty init
+  prettyPrec _ (CCompoundLit d ini) = parens (pretty d) <> pretty ini
 
 
 instance Pretty CAssignOp where

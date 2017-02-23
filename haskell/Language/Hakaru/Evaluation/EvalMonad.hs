@@ -187,7 +187,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Eval abt) 'Pure where
                         unsafePushes ss
                         return (Just r)
 
--- TODO: make paremetric in the purity
+-- TODO: make parametric in the purity
 -- | Not exported because we only need it for defining 'select' on 'Eval'.
 unsafePop :: Eval abt (Maybe (Statement abt 'Pure))
 unsafePop =

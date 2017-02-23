@@ -53,6 +53,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.ABT
 ----------------------------------------------------------------
 
@@ -111,9 +112,21 @@ ppVariables = ppList . go
 -- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
 ppBinder :: (ABT Term abt) => abt xs a -> Docs
 ppBinder e =
-    case go [] (viewABT e) of
+    case ppViewABT e of
     ([],  body) -> body
     (vars,body) -> PP.char '\\' <+> PP.sep vars <+> PP.text "->" : body
+
+ppUncurryBinder :: (ABT Term abt) => abt xs a -> Docs
+ppUncurryBinder e =
+    case ppViewABT e of
+    (vars,body) -> PP.char '\\' <+> unc vars <+> PP.text "->" : body
+    where
+    unc :: [Doc] -> Doc
+    unc []     = PP.text "()"
+    unc (x:xs) = PP.parens (x <> PP.comma <> unc xs)
+
+ppViewABT :: (ABT Term abt) => abt xs a -> ([Doc], Docs)
+ppViewABT e = go [] (viewABT e)
     where
     go :: (ABT Term abt) => [Doc] -> View (Term abt) xs a -> ([Doc],Docs)
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
@@ -171,6 +184,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 [ ppArg e1 <+> PP.char '$'
                 , toDoc $ ppBinder e2
                 ]
+        ArrayLiteral_ es -> ppFun 11 "arrayLit" (ppList $ map (prettyPrec 0) es)
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
         Case_  e1 bs  ->
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
@@ -178,6 +192,13 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                  [ ppArg e1
                  , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
                  ]
+        Bucket b e r  ->
+            ppFun p "bucket"
+            [ ppArg b
+            , ppArg e
+            , toDoc $ parens True (prettyPrec_ p r)
+            ]
+              
         Superpose_ pes ->
             case pes of
             (e1,e2) L.:| [] ->
@@ -426,6 +447,30 @@ instance (ABT Term abt) => Pretty (Branch a abt) where
             --       have them decide if they need to or not.
             ]
 
+instance (ABT Term abt) => Pretty (Reducer abt xs) where
+    prettyPrec_ p (Red_Fanout r1 r2)  =
+        ppFun p "r_fanout"
+            [ toDoc $ prettyPrec_ 11 r1
+            , toDoc $ prettyPrec_ 11 r2
+            ]
+    prettyPrec_ p (Red_Index n o e)   =
+        ppFun p "r_index"
+            [ toDoc $ parens True $ ppUncurryBinder n
+            , toDoc $ parens True $ ppUncurryBinder o
+            , toDoc $ prettyPrec_ 11 e
+            ]
+    prettyPrec_ p (Red_Split b r1 r2) =
+        ppFun p "r_split"
+            [ toDoc $ ppUncurryBinder b
+            , toDoc $ prettyPrec_ 11 r1
+            , toDoc $ prettyPrec_ 11 r2
+            ]
+    prettyPrec_ p Red_Nop             =
+        [ PP.text "r_nop" ]
+    prettyPrec_ p (Red_Add _ e)       =
+        ppFun p "r_add"
+            [ toDoc $ parens True (ppUncurryBinder e)]
+        
 ----------------------------------------------------------------
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs

@@ -57,9 +57,11 @@ module Language.Hakaru.Syntax.IClasses
     , Functor12(..)
     , Functor21(..)
     , Functor22(..)
+    , Functor31(..)
     , Foldable11(..), Lift1(..)
     , Foldable21(..), Lift2(..)
     , Foldable22(..)
+    , Foldable31(..)
     , Traversable11(..)
     , Traversable21(..)
     , Traversable22(..)
@@ -475,6 +477,11 @@ class Functor22 f =>
     foldMap22 :: (Monoid m) => (forall h i. a h i -> m) -> f a j l -> m
     foldMap22 f = fold22 . fmap22 (Lift2 . f)
 
+class Functor31 (f :: (k1 -> k2 -> *) -> k3 -> k4 -> *) where
+    fmap31 :: (forall h i. a h i -> b h i) -> f a j k -> f b j k
+
+class Functor31 f => Foldable31 (f :: (k1 -> k2 -> *) -> k3 -> k4 -> *) where
+    foldMap31 :: (Monoid m) => (forall h i. a h i -> m) -> f a j k -> m
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

@@ -423,6 +423,8 @@ maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
 
+maple2AST (InertArgs List [InertArgs ExpSeq es]) = ArrayLiteral $ map maple2AST es
+
 maple2AST (InertArgs And_  es) = NaryOp And  (collapseNaryOp And  (map maple2AST es))
 maple2AST (InertArgs Sum_  es) = NaryOp Sum  (collapseNaryOp Sum  (map maple2AST es))
 maple2AST (InertArgs Prod_ es) = NaryOp Prod (collapseNaryOp Prod (map maple2AST es))

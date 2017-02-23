@@ -338,6 +338,7 @@ evaluate perform evaluateCase = goEvaluate
         Datum_   d               -> return . Head_ $ WDatum   d
         Empty_   typ             -> return . Head_ $ WEmpty   typ
         Array_   e1 e2           -> return . Head_ $ WArray e1 e2
+        ArrayLiteral_ es         -> return . Head_ $ WArrayLiteral es
         Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
         Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
         MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
@@ -515,7 +516,6 @@ indexArrayOp :: forall abt typs args a r
                 , typs ~ UnLCs args, args ~ LCs typs )
              => ArrayOp typs a
              -> SArgs abt args
-             -> TermEvaluator abt (Dis abt)
              -> (abt '[] a -> Dis abt r) -- evaluate or (constrainValue v0)
              -> (Head abt ('HArray a)    -- e1 is in whnf, and
                 -> Variable 'HNat        -- e2 is a free under current indices
@@ -528,12 +528,13 @@ indexArrayOp :: forall abt typs args a r
                 -> Variable 'HNat        -- e2 is a free under current indices
                 -> Dis abt r)
              -> Dis abt r
-indexArrayOp o@(Index _) (e1 :* e2 :* End) evaluate_ kInd kArr kSyn kFree kMultiLoc = do
+indexArrayOp o@(Index _) (e1 :* e2 :* End) kInd kArr kSyn kFree kMultiLoc = do
   w1 <- evaluate_ e1
   case w1 of
-    Head_ arr@(WArray _ b) -> caseBind b $ \x body ->
+    Head_ arr@(WArray _ b)  -> caseBind b $ \x body ->
       evalIndex (kInd . flip (rename x) body) (kArr arr)
-    Head_ (WEmpty _) -> error "TODO: indexArrayOp o (Empty_ :* _ :* End)"
+    Head_ (WEmpty _)        -> error "TODO: indexArrayOp o (Empty_ :* _ :* End)"
+    Head_ (WArrayLiteral _) -> error "TODO: indexArrayOp o (ArrayLiteral_ :* _ :* End)"
     Head_ _          -> error "indexArrayOp: unknown whnf of array type"
     Neutral e1' -> flip (caseVarSyn e1') kSyn $ \x ->
       do locs <- getLocs
@@ -554,7 +555,23 @@ indexArrayOp o@(Index _) (e1 :* e2 :* End) evaluate_ kInd kArr kSyn kFree kMulti
               flip (caseVarSyn term) (const bot) $ \v -> -- bot if index is neutral syntax
                 do isInd <- isIndex v
                    if isInd then thenCase v else elseCase v
-indexArrayOp _ _ _ _ _ _ _ _ = error "indexArrayOp called on incorrect ArrayOp"
+indexArrayOp _ _ _ _ _ _ _ = error "indexArrayOp called on incorrect ArrayOp"
+
+isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
+isLitBool e = caseVarSyn e (const Nothing) $ \b ->
+                  case b of
+                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
+                                                  Just Refl -> Just d
+                                                  Nothing   -> Nothing
+                    _ -> Nothing
+
+isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitTrue (Datum tdTrue sBool (Inl Done)) = True
+isLitTrue _                               = False
+
+isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
+isLitFalse _                                      = False
 
 evaluateArrayOp
     :: ( ABT Term abt
@@ -565,15 +582,29 @@ evaluateArrayOp
     -> Dis abt (Whnf abt a)
 evaluateArrayOp evaluate_ = go
     where
-    go o@(Index _) = \args@(_ :* e2 :* End) ->
+    go o@(Index _) = \args@(e1 :* e2 :* End) ->
       let returnIndex = return . Neutral . syn
-      in indexArrayOp o args
-                      evaluate_
-                      evaluate_
-                      (\arr v -> returnIndex (ArrayOp_ o :$ fromHead arr :* var v :* End))
-                      (\s     -> returnIndex (ArrayOp_ o :$ syn s        :* e2    :* End))
-                      (\e1'   -> returnIndex (ArrayOp_ o :$ e1'          :* e2    :* End))
-                      (\e1' v -> returnIndex (ArrayOp_ o :$ e1'          :* var v :* End))
+          generalCase = indexArrayOp o args
+                          evaluate_
+                          (\arr v -> returnIndex (ArrayOp_ o :$ fromHead arr :* var v :* End))
+                          (\s     -> returnIndex (ArrayOp_ o :$ syn s        :* e2    :* End))
+                          (\e1'   -> returnIndex (ArrayOp_ o :$ e1'          :* e2    :* End))
+                          (\e1' v -> returnIndex (ArrayOp_ o :$ e1'          :* var v :* End))
+      in caseVarSyn e1 (const generalCase) $ \t ->
+          case t of
+            -- Special case for [true,false] ! i, and [false, true] ! i
+            -- This helps us disintegrate bern
+            arr@(ArrayLiteral_ [a1,a2]) ->
+                 case (isLitBool a1, isLitBool a2) of
+                   (Just b1, Just b2)
+                       | (isLitTrue b1 && isLitFalse b2) ||
+                         (isLitTrue b2 && isLitFalse b1) ->
+                             fromWhnf <$> evaluate_ e2 >>= \i ->
+                             returnIndex (ArrayOp_ o :$ syn arr :* i :* End)
+                       | otherwise -> error "evaluateArrayOp: Cannot invert (Index [b,b] i)"
+                   _ -> error "TODO: evaluateArrayOp (Index [a1,a2] i)"
+            -- All other cases of array indexing
+            _ -> generalCase
                    
     go o@(Size _) = \(e1 :* End) -> do
         w1 <- evaluate_ e1
@@ -581,12 +612,15 @@ evaluateArrayOp evaluate_ = go
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
             Head_   v1  ->
                 case head2array v1 of
-                WAEmpty      -> return . Head_ $ WLiteral (LNat 0)
-                WAArray e3 _ -> evaluate_ e3
+                WAEmpty           -> return . Head_ $ WLiteral (LNat 0)
+                WAArray e3 _      -> evaluate_ e3
+                WAArrayLiteral es -> return . Head_ . WLiteral $ listLengthNat es
 
     go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
         error "TODO: evaluateArrayOp{Reduce}"
 
+listLengthNat :: [a] -> Literal 'HNat
+listLengthNat = C.primCoerceFrom (C.Signed HRing_Int) . LInt . toInteger . length
 
 data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WAEmpty :: ArrayHead abt a
@@ -594,10 +628,12 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: !(abt '[] 'HNat)
         -> !(abt '[ 'HNat] a)
         -> ArrayHead abt a
+    WAArrayLiteral :: [abt '[] a] -> ArrayHead abt a           
 
 head2array :: Head abt ('HArray a) -> ArrayHead abt a
 head2array (WEmpty _)     = WAEmpty
 head2array (WArray e1 e2) = WAArray e1 e2
+head2array (WArrayLiteral es) = WAArrayLiteral es
 
 impl, diff, nand, nor :: Bool -> Bool -> Bool
 impl x y = not x || y
@@ -912,7 +948,7 @@ evaluateCase evaluate_ = evaluateCase_
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 
--- | Simulate performing 'HMeasure' actions by simply emiting code
+-- | Simulate performing 'HMeasure' actions by simply emitting code
 -- for those actions, returning the bound variable.
 --
 -- This is the function called @(|>>)@ in the disintegration paper.
@@ -1005,8 +1041,9 @@ perform = \e0 ->
             -> Dis abt (Whnf abt a)
         nice o es = do
             es' <- traverse21 atomizeCore es
-            x   <- emitMBind $ syn (MeasureOp_ o :$ es')
-            return (Neutral $ var x)
+            x   <- emitMBind2 $ syn (MeasureOp_ o :$ es')
+            -- return (Neutral $ var x)
+            return (Neutral x)
 
         -- Try to be as complete as possible (i.e., 'bot' as little as possible), no matter how ugly the output code gets.
         complete
@@ -1124,7 +1161,7 @@ constrainValue v0 e0 =
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
         -- There's a bunch of stuff we don't even bother trying to handle
-        Empty_   _               -> error "TODO: disintegrate arrays"
+        Empty_   _               -> error "TODO: disintegrate empty arrays"
         Array_   n e             ->
             caseBind e $ \x body -> do j <- freshInd n
                                        let x'    = indVar j
@@ -1133,15 +1170,34 @@ constrainValue v0 e0 =
                                        withIndices (extendIndices j inds) $
                                                    constrainValue (v0 P.! (var x')) body'
                                                    -- TODO use meta-index
-        ArrayOp_ o@(Index _) :$ args -> indexArrayOp o args
-                                                     evaluate_
-                                                     (constrainValue v0)
-                                                     (const $ const bot)
-                                                     (const bot)
-                                                     (const bot)
-                                                     (const $ const bot)
-          
-        ArrayOp_ _ :$ _          -> error "TODO: disintegrate arrays"
+        ArrayLiteral_ _          -> error "TODO: disintegrate literal arrays"
+        ArrayOp_ o@(Index _) :$ args@(e1 :* e2 :* End) ->
+            let generalCase = indexArrayOp o args
+                                             (constrainValue v0)
+                                             (const $ const bot)
+                                             (const bot)
+                                             (const bot)
+                                             (const $ const bot)
+            in caseVarSyn e1 (const generalCase) $ \t ->
+                case t of
+                  -- Special case for [true,false] ! i, and [false, true] ! i
+                  -- This helps us disintegrate bern
+                  arr@(ArrayLiteral_ [a1,a2]) ->
+                      case (jmEq1 (typeOf v0) sBool) of
+                        Just Refl ->
+                            let constrainInd = flip constrainValue e2
+                            in case (isLitBool a1, isLitBool a2) of
+                                 (Just b1, Just b2)
+                                     | isLitTrue b1 && isLitFalse b2 ->
+                                         constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
+                                     | isLitTrue b2 && isLitFalse b1 ->
+                                         constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
+                                     | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
+                                 _ -> error "TODO: constrainValue (Index [b1,b2] i)"
+                        Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
+                  _ -> generalCase
+                           
+        ArrayOp_ _ :$ _          -> error "TODO: disintegrate non-Index arrayOps"
         Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"
         App_  :$ _  :* _ :* End  -> error "TODO: disintegrate lambdas"
         Integrate :$ _ :* _ :* _ :* End ->
@@ -1812,10 +1868,19 @@ constrainOutcomeMeasureOp v0 = go
         pushGuard (P.nat_ 0 P.<= v0' P.&& P.prob_ 0 P.< e1)
         pushWeight (P.densityPoisson e1 v0')
 
-    go Gamma = \(e1 :* e2 :* End) ->
-        error "TODO: constrainOutcomeMeasureOp{Gamma}"
-    go Beta = \(e1 :* e2 :* End) ->
-        error "TODO: constrainOutcomeMeasureOp{Beta}"
+    go Gamma = \(e1 :* e2 :* End) -> do
+        v0' <- emitLet' v0
+        pushGuard (P.prob_ 0 P.< v0' P.&&
+                   P.prob_ 0 P.< e1  P.&&
+                   P.prob_ 0 P.< e2)
+        pushWeight (P.densityGamma e1 e2 v0')
+    go Beta = \(e1 :* e2 :* End) -> do
+        v0' <- emitLet' v0
+        pushGuard (P.prob_ 0 P.<= v0' P.&&
+                   P.prob_ 1 P.>= v0' P.&&
+                   P.prob_ 0 P.< e1   P.&&
+                   P.prob_ 0 P.< e2)
+        pushWeight (P.densityBeta e1 e2 v0')
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

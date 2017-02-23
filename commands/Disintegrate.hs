@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DataKinds, GADTs #-}
+{-# LANGUAGE OverloadedStrings, PatternGuards, DataKinds, GADTs #-}
 
 module Main where
 
@@ -13,29 +13,28 @@ import           Language.Hakaru.Command
 
 import           Data.Text
 import qualified Data.Text.IO as IO
+import           System.IO (stderr)
 
 import           System.Environment
 
 main :: IO ()
 main = do
-  args <- getArgs
-  case args of
-      [prog] -> IO.readFile prog >>= runDisintegrate
-      []     -> IO.getContents   >>= runDisintegrate
-      _      -> IO.putStrLn "Usage: simplify <file>"
+  args  <- getArgs
+  progs <- mapM readFromFile args
+  case progs of
+      [prog] -> runDisintegrate prog
+      _      -> IO.hPutStrLn stderr "Usage: disintegrate <file>"
 
 runDisintegrate :: Text -> IO ()
 runDisintegrate prog =
     case parseAndInfer prog of
-    Left  err                -> IO.putStrLn err
+    Left  err                -> IO.hPutStrLn stderr err
     Right (TypedAST typ ast) ->
         case typ of
-            SMeasure (SData (STyCon sym `STyApp` _ `STyApp` _) _) ->
-                case jmEq1 sym sSymbol_Pair of
-                Just Refl ->
-                    case determine (disintegrate ast) of
-                    Just ast' -> print . pretty $ constantPropagation ast'
-                    Nothing   -> error "No disintegration found"
-                Nothing   -> error "Can only disintegrate a measure over pairs"
-            _               -> error "Can only disintegrate a measure over pairs"
+          SMeasure (SData (STyCon sym `STyApp` _ `STyApp` _) _)
+            | Just Refl <- jmEq1 sym sSymbol_Pair
+            -> case determine (disintegrate ast) of
+               Just ast' -> print . pretty $ constantPropagation ast'
+               Nothing   -> IO.hPutStrLn stderr "No disintegration found"
+          _ -> IO.hPutStrLn stderr "Can only disintegrate a measure over pairs"
 

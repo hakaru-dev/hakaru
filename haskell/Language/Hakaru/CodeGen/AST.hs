@@ -27,38 +27,15 @@ module Language.Hakaru.CodeGen.AST
   , CBinaryOp(..), CAssignOp(..)
 
   -- infix and smart constructors
-  , (.>.), (.<.), (.==.), (.||.), (.&&.), (.*.), (./.), (.-.), (.+.), (.=.)
-  , (.+=.),(.*=.)
-  , indirect, address, intE, floatE, stringE, mkUnary
-  , exp, expm1, log, log1p, sqrt, rand
+  , (.>.),(.<.),(.==.),(.!=.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.)
+  , (.*=.),(.>=.),(.<=.)
+  , seqCStat
+  , indirect, address, intE, floatE, stringE, mkCallE, mkUnaryE
   ) where
-
-import Prelude hiding (exp,log,sqrt)
-
-
--- very rough AST for preprocessor
-data Preprocessor
-  = PPDefine  String String
-  | PPInclude String
-  | PPUndef   String
-  | PPIf      String
-  | PPIfDef   String
-  | PPIfNDef  String
-  | PPElse    String
-  | PPElif    String
-  | PPEndif   String
-  | PPError   String
-  | PPPragma  [String]
-  deriving (Show, Eq, Ord)
-
-
-data Ident
- = Ident String
- deriving (Show, Eq, Ord)
 
 
 --------------------------------------------------------------------------------
--- Top Level
+--                               Top Level                                    --
 --------------------------------------------------------------------------------
 
 data CAST
@@ -77,24 +54,50 @@ data CFunDef
   = CFunDef [CDeclSpec] CDeclr [CDecl] CStat
   deriving (Show, Eq, Ord)
 
+{-
+  This is currently a very rough AST for preprocessor. Preprocessor macros
+  can be inserted at the top level and at the statement level
+-}
+data Preprocessor
+  = PPDefine  String String
+  | PPInclude String
+  | PPUndef   String
+  | PPIf      String
+  | PPIfDef   String
+  | PPIfNDef  String
+  | PPElse    String
+  | PPElif    String
+  | PPEndif   String
+  | PPError   String
+  | PPPragma  [String]
+  deriving (Show, Eq, Ord)
+
+data Ident
+ = Ident String
+ deriving (Show, Eq, Ord)
+
+
 --------------------------------------------------------------------------------
--- CDeclarations
+--                               C Declarations                               --
+--------------------------------------------------------------------------------
+{-
+  C Declarations provide tools for laying out memory objections.
+-}
 
 data CDecl
   = CDecl [CDeclSpec] [(CDeclr, Maybe CInit)]
   deriving (Show, Eq, Ord)
 
-------------
--- specifiers
+----------------
+-- Specifiers --
+----------------
 
+-- top level specifier
 data CDeclSpec
   = CStorageSpec CStorageSpec
   | CTypeSpec    CTypeSpec
   | CTypeQual    CTypeQual
   | CFunSpec     CFunSpec
-  deriving (Show, Eq, Ord)
-
-data CFunSpec = Inline
   deriving (Show, Eq, Ord)
 
 data CStorageSpec
@@ -108,6 +111,9 @@ data CStorageSpec
 data CTypeQual
   = CConstQual
   | CVolatQual
+  deriving (Show, Eq, Ord)
+
+data CFunSpec = Inline
   deriving (Show, Eq, Ord)
 
 data CTypeSpec
@@ -138,8 +144,13 @@ data CEnum
   = CEnum (Maybe Ident) [(Ident, Maybe CExpr)]
   deriving (Show, Eq, Ord)
 
------------
--- declarators
+-----------------
+-- Declarators --
+-----------------
+{-
+  Declarators give us labels to point at and describe the level of indirection.
+  between a label and the underlieing memory
+-}
 
 data CDeclr
   = CDeclr (Maybe CPtrDeclr) [CDirectDeclr]
@@ -155,8 +166,14 @@ data CDirectDeclr
   | CDDeclrFun   CDirectDeclr [CTypeSpec]
   deriving (Show, Eq, Ord)
 
------------
--- initializers
+------------------
+-- Initializers --
+------------------
+{-
+  Initializers allow us to fill our objects with values right as they are
+  declared rather than as a side-effect later in the program.
+-}
+
 data CInit
   = CInitExpr CExpr
   | CInitList [([CPartDesig], CInit)]
@@ -168,7 +185,14 @@ data CPartDesig
   deriving (Show, Eq, Ord)
 
 --------------------------------------------------------------------------------
--- CStatments
+--                                C Statments                                 --
+--------------------------------------------------------------------------------
+{-
+  The separation between C Statements and C Expressions is fuzzy. Here we take
+  statements as side-effecting operations sequenced by the ";" in pedantic C
+  concrete syntax. Though operators like "++" that are represented as C
+  Expressions in this AST also perform side-effects.
+-}
 
 data CStat
   = CLabel    Ident CStat
@@ -194,7 +218,11 @@ data CCompoundBlockItem
   deriving (Show, Eq, Ord)
 
 --------------------------------------------------------------------------------
--- CExpressions
+--                                C Expressions                               --
+--------------------------------------------------------------------------------
+{-
+  See C Statments...
+-}
 
 data CExpr
   = CComma       [CExpr]
@@ -274,22 +302,33 @@ data CConst
 
 
 --------------------------------------------------------------------------------
--- Infix and Smart Constructors
+--                      Infix and Smart Constructors                          --
+--------------------------------------------------------------------------------
+{-
+  These are helpful when building up ASTs in Haskell code. They correspond to
+  the concrete syntax of C. This is an incomplete set...
+-}
 
-(.<.),(.>.),(.==.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.)
+seqCStat :: [CStat] -> CStat
+seqCStat = CCompound . fmap CBlockStat
+
+(.<.),(.>.),(.==.),(.!=.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.),(.*=.),(.<=.),(.>=.)
   :: CExpr -> CExpr -> CExpr
 a .<. b  = CBinary CLeOp a b
 a .>. b  = CBinary CGrOp a b
 a .==. b = CBinary CEqOp a b
+a .!=. b = CBinary CNeqOp a b
 a .||. b = CBinary CLorOp a b
 a .&&. b = CBinary CAndOp a b
 a .*. b  = CBinary CMulOp a b
 a ./. b  = CBinary CDivOp a b
 a .-. b  = CBinary CSubOp a b
 a .+. b  = CBinary CAddOp a b
+a .<=. b = CBinary CLeqOp a b
+a .>=. b = CBinary CGeqOp a b
 a .=. b  = CAssign CAssignOp a b
-a .+=. b  = CAssign CAddAssOp a b
-a .*=. b  = CAssign CMulAssOp a b
+a .+=. b = CAssign CAddAssOp a b
+a .*=. b = CAssign CMulAssOp a b
 
 indirect, address :: CExpr -> CExpr
 indirect = CUnary CIndOp
@@ -304,22 +343,8 @@ floatE = CConstant . CFloatConst
 stringE :: String -> CExpr
 stringE = CConstant . CStringConst
 
-mkUnary :: String -> CExpr -> CExpr
-mkUnary s = CCall (CVar . Ident $ s) . (:[])
+mkCallE :: String -> [CExpr] -> CExpr
+mkCallE s = CCall (CVar . Ident $ s)
 
-
---------------------------------------------------------------------------------
--- math.h
-
-exp,expm1,log,log1p,sqrt :: CExpr -> CExpr
-exp   = mkUnary "exp"
-expm1 = mkUnary "expm1"
-log   = mkUnary "log"
-log1p = mkUnary "log1p"
-sqrt  = mkUnary "sqrt"
-
---------------------------------------------------------------------------------
--- stdlib.h
-
-rand :: CExpr
-rand = CCall (CVar . Ident $ "rand") []
+mkUnaryE :: String -> CExpr -> CExpr
+mkUnaryE s a = mkCallE s [a]

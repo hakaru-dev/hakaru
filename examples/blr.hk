@@ -1,0 +1,4 @@
+a <~ normal(2,3)
+b <~ normal(4,5)
+y <~ plate i of 10: normal(a*i+b,1)
+return (y,(a,b))

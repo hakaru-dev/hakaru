@@ -13,8 +13,10 @@ import           Language.Hakaru.Simplify
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 
+import           Data.Monoid
 import           Data.Text
 import qualified Data.Text.IO as IO
+import           System.IO (stderr)
 
 import qualified Options.Applicative as O
 
@@ -25,15 +27,15 @@ data Options = Options
 options :: O.Parser Options
 options = Options
   <$> O.switch
-      ( O.long "debug" O.<>
+      ( O.long "debug" <>
         O.help "Prints output that is sent to Maple" )
   <*> O.strArgument
-      ( O.metavar "PROGRAM" O.<> 
+      ( O.metavar "PROGRAM" <> 
         O.help "Program to be simplified" )
 
 parseOpts :: IO Options
 parseOpts = O.execParser $ O.info (O.helper <*> options)
-      (O.fullDesc O.<> O.progDesc "Simplify a hakaru program")
+      (O.fullDesc <> O.progDesc "Simplify a hakaru program")
 
 et :: Term a -> Term a
 et = expandTransformations
@@ -49,6 +51,6 @@ main = do
 runSimplify :: Text -> Bool -> IO ()
 runSimplify prog debug_ =
     case parseAndInfer prog of
-    Left  err              -> IO.putStrLn err
+    Left  err              -> IO.hPutStrLn stderr err
     Right (TypedAST _ ast) -> simplifyDebug debug_ (et ast) >>= print . pretty
 

@@ -141,7 +141,6 @@ instance Eq2 Coercion where
 
 -- TODO: the JmEq2 and JmEq1 instances
 
-
 instance Category Coercion where
     id = CNil
     xs . CNil       = xs

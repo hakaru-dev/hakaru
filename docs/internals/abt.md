@@ -16,3 +16,7 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
     caseBind :: abt (x ': xs) a -> (Variable x -> abt xs a -> r) -> r
     ...
 ````
+
+The advantage of having this typeclass is that we think about variable binding
+independently of the AST for our language. For example, we can define variable
+substitution once and for all.

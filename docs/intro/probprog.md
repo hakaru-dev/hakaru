@@ -111,12 +111,9 @@ directly transform our models into those which only generate the
 data we observed and don't waste any computation simulating data
 which we know will never exist.
 
-<div class="panel panel-warning">
-    <div class="panel-heading">
-        <h4 class="panel-title">TODO</h4>
-	</div>
-	<div class="panel-body">
-        Explain simplify and mh
-	</div>
-</div>
+### Metropolis Hastings
 
+By default hakaru performs importance sampling. This works well
+for inference in low dimensions, but we want to use MCMC for
+more realistic problems. Hakaru provides a `mh` command tool
+to transform probabilistic programs into a Markov Chain.

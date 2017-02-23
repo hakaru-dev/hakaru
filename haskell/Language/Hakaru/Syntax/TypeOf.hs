@@ -32,7 +32,7 @@ module Language.Hakaru.Syntax.TypeOf
 
 import qualified Data.Foldable as F
 #if __GLASGOW_HASKELL__ < 710
-import Data.Functor ((<$>))
+import Control.Applicative   (Applicative(..), (<$>))
 #endif
 
 import Language.Hakaru.Syntax.IClasses (Pair2(..), fst2, snd2)
@@ -40,10 +40,11 @@ import Language.Hakaru.Syntax.Variable (varType)
 import Language.Hakaru.Syntax.ABT      (ABT, caseBind, paraABT)
 import Language.Hakaru.Types.DataKind  (Hakaru())
 import Language.Hakaru.Types.HClasses  (sing_HSemiring)
-import Language.Hakaru.Types.Sing      (Sing(..), sUnMeasure)
+import Language.Hakaru.Types.Sing      (Sing(..), sUnMeasure, sUnit, sPair)
 import Language.Hakaru.Types.Coercion
     (singCoerceCod, singCoerceDom, Coerce(..))
 import Language.Hakaru.Syntax.Datum    (Datum(..), Branch(..))
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST      (Term(..), SCon(..), SArgs(..))
 import Language.Hakaru.Syntax.AST.Sing
     (sing_PrimOp, sing_ArrayOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
@@ -139,6 +140,17 @@ getTermSing singify = go
     getBranchSing (Branch _ e) = getSing e
     {-# INLINE getBranchSing #-}
 
+    typeOfReducer
+        :: forall xs a
+        .  Reducer (Pair2 abt r) xs a
+        -> Either String (Sing a)
+    typeOfReducer (Red_Fanout a b)  = sPair  <$> typeOfReducer a <*> typeOfReducer b
+    typeOfReducer (Red_Index _ _ a) = SArray <$> typeOfReducer a
+    typeOfReducer (Red_Split _ a b) = sPair  <$> typeOfReducer a <*> typeOfReducer b
+    typeOfReducer Red_Nop           = return sUnit
+    typeOfReducer (Red_Add h _)     = return (sing_HSemiring h)
+
+                                 
     go :: forall a. Term (Pair2 abt r) a -> Either String (Sing a)
     go (Lam_ :$ r1 :* End) =
         caseBind (fst2 r1) $ \x _ ->
@@ -169,6 +181,8 @@ getTermSing singify = go
     go (Literal_ v)                 = return $ sing_Literal v
     go (Empty_   typ)               = return typ
     go (Array_   _  r2)             = SArray <$> getSing r2
+    go (ArrayLiteral_ es)           = SArray <$> tryAll "ArrayLiteral_" getSing es
+    go (Bucket _ _  r)              = typeOfReducer r
     go (Datum_ (Datum _ typ _))     = return typ
     go (Case_    _  bs) = tryAll "Case_"      getBranchSing   bs
     go (Superpose_ pes) = tryAll "Superpose_" (getSing . snd) pes
