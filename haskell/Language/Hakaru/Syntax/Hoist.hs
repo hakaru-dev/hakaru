@@ -40,7 +40,7 @@ module Language.Hakaru.Syntax.Hoist where
 
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
-import           Data.List                       (foldl', foldl1', groupBy, nub)
+import           Data.List                       (foldl', foldl1', groupBy, nub, partition)
 import           Data.Maybe                      (mapMaybe)
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
@@ -54,6 +54,14 @@ import           Language.Hakaru.Syntax.Variable (varSubSet)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
 import Debug.Trace
+import qualified Language.Hakaru.Syntax.Prelude as P
+
+example :: TrivialABT Term '[] ('HInt ':-> 'HInt)
+example = P.lam                           $ \y ->
+          P.summate (P.int_ 0) (P.int_ 1) $ \x ->
+          P.let_ y                        $ \z ->
+          P.let_ (z P.+ x)                $ \w -> 
+          (z P.+ w)
 
 data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
@@ -126,7 +134,7 @@ singleEntry
   => Variable a
   -> abt '[] a
   -> EntrySet abt
-singleEntry v abt = EntrySet [Entry (freeVars abt) abt [v]]
+singleEntry v abt = show (v, freeVars abt) `trace` EntrySet [Entry (freeVars abt) abt [v]]
 
 freeEntry
   :: (ABT Term abt)
@@ -167,6 +175,14 @@ hoist
 hoist abt = execHoistM (nextFreeOrBind abt) $
   captureEntries (hoist' abt) >>= uncurry (introduceToplevel emptyVarSet)
 
+partitionEntrySet
+  :: (Entry (abt '[]) -> Bool)
+  -> EntrySet abt
+  -> (EntrySet abt, EntrySet abt)
+partitionEntrySet p (EntrySet xs) = (EntrySet true, EntrySet false)
+  where
+    (true, false) = partition p xs
+
 introduceToplevel
   :: (ABT Term abt)
   => LiveSet
@@ -177,11 +193,11 @@ introduceToplevel avail abt entries = do
   -- After transforming the given ast, we need to introduce all the toplevel
   -- bindings (i.e. bindings with no data dependencies), most of which should be
   -- eliminated by constant propagation.
-  let toplevel = filter toplevelEntry $ entryList entries
-      intro    = fromVarSet avail ++ concatMap getBoundVars toplevel
+  let (EntrySet toplevel, rest) = partitionEntrySet toplevelEntry entries
+      intro = concatMap getBoundVars toplevel ++ fromVarSet avail
   -- First we wrap the now AST in the all terms which depdend on top level
   -- definitions
-  wrapped <- introduceBindings emptyVarSet intro abt entries
+  wrapped <- introduceBindings emptyVarSet intro abt rest
   -- Then wrap the result in the toplevel definitions
   wrapExpr wrapped toplevel
 
@@ -278,7 +294,8 @@ introduceBindings
   -> EntrySet abt
   -> HoistM abt (abt '[] a)
 introduceBindings liveVars newVars body (EntrySet entries) =
-  unlines (map show entries) `trace` wrapExpr body resultEntries
+  --(unlines $ map show entries) `trace`
+  wrapExpr body resultEntries
   where
     resultEntries :: [Entry (abt '[])]
     resultEntries = loop liveVars newVars

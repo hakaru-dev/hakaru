@@ -64,11 +64,14 @@ uniquify'
   :: forall abt xs a . (ABT Term abt)
   => abt xs a
   -> Uniquifier (abt xs a)
-uniquify' = loop . viewABT
+uniquify' = start
   where
-    loop :: View (Term abt) ys a -> Uniquifier (abt ys a)
+    start :: abt ys b -> Uniquifier (abt ys b)
+    start = loop . viewABT
+
+    loop :: View (Term abt) ys b -> Uniquifier (abt ys b)
     loop (Var v)    = uniquifyVar v
-    loop (Syn s)    = fmap syn (traverse21 uniquify' s)
+    loop (Syn s)    = fmap syn (traverse21 start s)
     loop (Bind v b) = do
       vid <- genVarID
       let fresh = v { varID = vid }
