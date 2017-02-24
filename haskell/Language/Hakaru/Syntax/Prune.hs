@@ -65,15 +65,18 @@ prune' = loop . viewABT
     loop (Bind v b) = renameInEnv v (loop b)
 
 pruneTerm
-  :: (ABT Term abt)
+  :: forall a abt
+  .  (ABT Term abt)
   => Term abt a
   -> PruneM (abt '[] a)
 pruneTerm (Let_ :$ rhs :* body :* End) =
   caseBind body $ \v body' ->
   let frees     = freeVars body'
       mklet r b = syn (Let_ :$ r :* b :* End)
-  in if memberVarSet v frees
-     then mklet <$> prune' rhs <*> renameInEnv v (prune' body')
-     else prune' body'
+  in case viewABT body' of
+       Var v' | Just Refl <- varEq v v' -> prune' rhs
+       _      | memberVarSet v frees    -> mklet <$> prune' rhs
+                                                 <*> renameInEnv v (prune' body') 
+              | otherwise               -> prune' body'
 
 pruneTerm term = syn <$> traverse21 prune' term
