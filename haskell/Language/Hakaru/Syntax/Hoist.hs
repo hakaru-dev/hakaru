@@ -11,6 +11,7 @@
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -136,22 +137,38 @@ topSortEntries
   :: forall abt
   .  [Entry (abt '[])]
   -> [Entry (abt '[])]
-topSortEntries entryList = undefined
+topSortEntries entryList = map (entries V.!) $ G.topSort graph
   where
     entries :: V.Vector (Entry (abt '[]))
     entries = V.fromList entryList
 
+    -- The graph is represented as dependencies between entries, where an entry
+    -- (a) depends on entry (b) if (b) introduces a variable which (a) depends
+    -- on.
     getVIDs :: Entry (abt '[]) -> [Int]
     getVIDs Entry{binding=b} = map (fromNat . varID) b
 
+    -- Associates all variables introduced by an entry to the entry itself.
+    -- A given entry may introduce multiple bindings, since an entry stores all
+    -- α-equivalent variable definitions.
     assocBindingsTo :: Int -> IM.IntMap Int -> Entry (abt '[]) -> IM.IntMap Int
     assocBindingsTo n m = L.foldl' (\acc v -> IM.insert v n acc) m . getVIDs
 
+    -- Mapping from variable IDs to their corresponding entries
     varMap :: IM.IntMap Int
     varMap = V.ifoldl' (flip assocBindingsTo) IM.empty entries
 
+    -- Create an edge from each dependency to the variable
+    makeEdges :: Int -> Entry (abt '[]) -> [G.Edge]
+    makeEdges idx Entry{varDependencies=d} = map (, idx) $ varSetKeys d
+
+    -- Collect all the verticies to build the full graph
+    vertices :: [G.Edge]
+    vertices = V.foldr (++) [] $ V.imap makeEdges entries
+
+    -- The full graph structure to be sorted
     graph :: G.Graph
-    graph = G.buildG (0, V.length entries - 1) undefined
+    graph = G.buildG (0, V.length entries - 1) vertices
 
 singleEntry
   :: (ABT Term abt)
