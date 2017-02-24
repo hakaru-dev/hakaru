@@ -75,9 +75,10 @@ pruneTerm (Let_ :$ rhs :* body :* End) =
       mklet r b = syn (Let_ :$ r :* b :* End)
       doRhs     = prune' rhs
       doBody    = prune' body'
+      fullExpr  = mklet <$> doRhs <*> renameInEnv v doBody
   in case viewABT body' of
        Var v' | Just Refl <- varEq v v' -> doRhs
-       _      | memberVarSet v frees    -> mklet <$> doRhs <*> renameInEnv v doBody
+       _      | memberVarSet v frees    -> fullExpr
               | otherwise               -> doBody
 
 pruneTerm term = syn <$> traverse21 prune' term
