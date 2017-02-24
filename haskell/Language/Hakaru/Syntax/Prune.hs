@@ -73,10 +73,11 @@ pruneTerm (Let_ :$ rhs :* body :* End) =
   caseBind body $ \v body' ->
   let frees     = freeVars body'
       mklet r b = syn (Let_ :$ r :* b :* End)
+      doRhs     = prune' rhs
+      doBody    = prune' body'
   in case viewABT body' of
-       Var v' | Just Refl <- varEq v v' -> prune' rhs
-       _      | memberVarSet v frees    -> mklet <$> prune' rhs
-                                                 <*> renameInEnv v (prune' body') 
-              | otherwise               -> prune' body'
+       Var v' | Just Refl <- varEq v v' -> doRhs
+       _      | memberVarSet v frees    -> mklet <$> doRhs <*> renameInEnv v doBody
+              | otherwise               -> doBody
 
 pruneTerm term = syn <$> traverse21 prune' term
