@@ -40,6 +40,7 @@ module Language.Hakaru.Syntax.Variable
     , fromVarSet
     , toVarSet
     , toVarSet1
+    , varSetKeys
     , insertVarSet
     , deleteVarSet
     , memberVarSet
@@ -377,6 +378,8 @@ instance Monoid (VarSet kproxy) where
     mappend (VarSet xs) (VarSet ys) = VarSet (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
     mconcat = VarSet . IM.unions . map unVarSet
 
+varSetKeys :: VarSet a -> [Int]
+varSetKeys (VarSet set) = IM.keys set
 
 insertVarSet :: Variable a -> VarSet (KindOf a) -> VarSet (KindOf a)
 insertVarSet x (VarSet xs) =
