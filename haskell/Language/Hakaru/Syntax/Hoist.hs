@@ -56,8 +56,8 @@ import           Language.Hakaru.Types.Sing      (Sing)
 import Debug.Trace
 import qualified Language.Hakaru.Syntax.Prelude as P
 
-example :: TrivialABT Term '[] ('HInt ':-> 'HInt)
-example = P.lam                           $ \y ->
+example :: TrivialABT Term '[] 'HInt
+example = P.let_ (P.int_ 0)               $ \y ->
           P.summate (P.int_ 0) (P.int_ 1) $ \x ->
           P.let_ y                        $ \z ->
           P.let_ (z P.+ x)                $ \w -> 
@@ -134,7 +134,7 @@ singleEntry
   => Variable a
   -> abt '[] a
   -> EntrySet abt
-singleEntry v abt = show (v, freeVars abt) `trace` EntrySet [Entry (freeVars abt) abt [v]]
+singleEntry v abt = EntrySet [Entry (freeVars abt) abt [v]]
 
 freeEntry
   :: (ABT Term abt)
@@ -298,17 +298,24 @@ introduceBindings liveVars newVars body (EntrySet entries) =
   wrapExpr body resultEntries
   where
     resultEntries :: [Entry (abt '[])]
-    resultEntries = loop liveVars newVars
+    resultEntries = loop liveVars entries newVars
 
-    loop :: LiveSet -> [HakaruVar] -> [Entry (abt '[])]
-    loop _    [] = []
-    loop live (SomeVariable v : xs) = introduced ++ loop live' (xs ++ vars)
+    introducedBy
+      :: forall (b :: Hakaru) 
+      .  Variable b 
+      -> LiveSet 
+      -> Entry (abt '[]) 
+      -> Bool
+    introducedBy v live Entry{varDependencies=deps} = 
+      memberVarSet v deps && varSubSet deps live
+
+    loop :: LiveSet -> [Entry (abt '[])] -> [HakaruVar] -> [Entry (abt '[])]
+    loop _    _     []                    = []
+    loop live exprs (SomeVariable v : xs) = introduced ++ loop live' rest (xs ++ vars)
       where
-        live'      = insertVarSet v live
-        vars       = concatMap getBoundVars introduced
-        introduced = [e | e@Entry{varDependencies=deps} <- entries
-                        , memberVarSet v deps
-                        , varSubSet deps live' ]
+        live'              = insertVarSet v live
+        vars               = concatMap getBoundVars introduced
+        (introduced, rest) = partition (introducedBy v live') exprs
 
 -- Contrary to the other binding forms, let expressions are killed by the
 -- hoisting pass. Their RHSs are floated upward in the AST and re-introduced

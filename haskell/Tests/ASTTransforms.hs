@@ -208,10 +208,10 @@ example1Unroll' = let_ (int_ 0 == int_ 100) $ \cond ->
                        let_ (summate start (int_ 100) $ (+ tmp)) $ \total ->
                        first + total)
 
-example1Hoist :: TrivialABT Term '[] ('HInt ':-> 'HInt)
-example1Hoist =
-  P.lam                           $ \y ->
-  P.summate (P.int_ 0) (P.int_ 1) $ \x ->
-  P.let_ y                        $ \z ->
-  P.let_ (z P.+ x)                $ \w -> 
-  (z P.+ w)
+{-example1Hoist :: TrivialABT Term '[] ('HInt ':-> 'HInt)-}
+{-example1Hoist =-}
+  {-P.lam                           $ \y ->-}
+  {-P.summate (P.int_ 0) (P.int_ 1) $ \x ->-}
+  {-P.let_ y                        $ \z ->-}
+  {-P.let_ (z P.+ x)                $ \w -> -}
+  {-(z P.+ w)-}
