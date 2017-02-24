@@ -41,10 +41,12 @@ module Language.Hakaru.Syntax.Hoist where
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
 import qualified Data.Graph                      as G
+import qualified Data.IntMap                     as IM
 import qualified Data.List                       as L
 import           Data.Maybe                      (mapMaybe)
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
+import qualified Data.Vector                     as V
 
 import           Debug.Trace
 import           Language.Hakaru.Syntax.ABT
@@ -129,6 +131,24 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
         case jmEq1 (typeOf e1) (typeOf e2) of
           Just Refl -> alphaEq e1 e2
           Nothing   -> False
+
+topSortEntries
+  :: forall abt
+  .  [Entry (abt '[])]
+  -> [Entry (abt '[])]
+topSortEntries entryList = undefined
+  where
+    entries :: V.Vector (Entry (abt '[]))
+    entries = V.fromList entryList
+
+    getVIDs :: Entry (abt '[]) -> [Int]
+    getVIDs Entry{binding=b} = map (fromNat . varID) b
+
+    assocBindingsTo :: Int -> IM.IntMap Int -> Entry (abt '[]) -> IM.IntMap Int
+    assocBindingsTo n m = L.foldl' (\acc v -> IM.insert v n acc) m . getVIDs
+
+    varMap :: IM.IntMap Int
+    varMap = V.ifoldl' (\acc idx e -> undefined) IM.empty entries
 
 singleEntry
   :: (ABT Term abt)
