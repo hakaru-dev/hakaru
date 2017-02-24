@@ -40,27 +40,28 @@ module Language.Hakaru.Syntax.Hoist where
 
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
-import           Data.List                       (foldl', foldl1', groupBy, nub, partition)
+import qualified Data.Graph                      as G
+import qualified Data.List                       as L
 import           Data.Maybe                      (mapMaybe)
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 
+import           Debug.Trace
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
+import qualified Language.Hakaru.Syntax.Prelude  as P
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Syntax.Variable (varSubSet)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
-import Debug.Trace
-import qualified Language.Hakaru.Syntax.Prelude as P
 
 example :: TrivialABT Term '[] 'HInt
 example = P.let_ (P.int_ 0)               $ \y ->
           P.summate (P.int_ 0) (P.int_ 1) $ \x ->
           P.let_ y                        $ \z ->
-          P.let_ (z P.+ x)                $ \w -> 
+          P.let_ (z P.+ x)                $ \w ->
           (z P.+ w)
 
 data Entry (abt :: Hakaru -> *)
@@ -111,16 +112,16 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
   mempty = EntrySet []
 
   mappend (EntrySet xs) (EntrySet ys) =
-    EntrySet . mapMaybe uniquify $ groupBy equal (xs ++ ys)
+    EntrySet . mapMaybe uniquify $ L.groupBy equal (xs ++ ys)
     where
       uniquify :: [Entry (abt '[])] -> Maybe (Entry (abt '[]))
       uniquify [] = Nothing
-      uniquify zs = Just $ foldl1' merge zs
+      uniquify zs = Just $ L.foldl1' merge zs
 
       merge :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
       merge (Entry d e b1) (Entry _ e' b2) =
         case jmEq1 (typeOf e) (typeOf e') of
-          Just Refl -> Entry d e $ nub (b1 ++ b2)
+          Just Refl -> Entry d e $ L.nub (b1 ++ b2)
           Nothing   -> error "cannot mappend mismatched entries"
 
       equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
@@ -181,7 +182,7 @@ partitionEntrySet
   -> (EntrySet abt, EntrySet abt)
 partitionEntrySet p (EntrySet xs) = (EntrySet true, EntrySet false)
   where
-    (true, false) = partition p xs
+    (true, false) = L.partition p xs
 
 introduceToplevel
   :: (ABT Term abt)
@@ -228,7 +229,7 @@ hoist'
 hoist' = start
   where
     insertMany :: [HakaruVar] -> LiveSet -> LiveSet
-    insertMany = flip $ foldl' (\ acc (SomeVariable v) -> insertVarSet v acc)
+    insertMany = flip $ L.foldl' (\ acc (SomeVariable v) -> insertVarSet v acc)
 
     start :: forall ys b . abt ys b -> HoistM abt (abt ys b)
     start = loop [] . viewABT
@@ -301,12 +302,12 @@ introduceBindings liveVars newVars body (EntrySet entries) =
     resultEntries = loop liveVars entries newVars
 
     introducedBy
-      :: forall (b :: Hakaru) 
-      .  Variable b 
-      -> LiveSet 
-      -> Entry (abt '[]) 
+      :: forall (b :: Hakaru)
+      .  Variable b
+      -> LiveSet
+      -> Entry (abt '[])
       -> Bool
-    introducedBy v live Entry{varDependencies=deps} = 
+    introducedBy v live Entry{varDependencies=deps} =
       memberVarSet v deps && varSubSet deps live
 
     loop :: LiveSet -> [Entry (abt '[])] -> [HakaruVar] -> [Entry (abt '[])]
@@ -315,7 +316,7 @@ introduceBindings liveVars newVars body (EntrySet entries) =
       where
         live'              = insertVarSet v live
         vars               = concatMap getBoundVars introduced
-        (introduced, rest) = partition (introducedBy v live') exprs
+        (introduced, rest) = L.partition (introducedBy v live') exprs
 
 -- Contrary to the other binding forms, let expressions are killed by the
 -- hoisting pass. Their RHSs are floated upward in the AST and re-introduced
