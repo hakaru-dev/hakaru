@@ -148,7 +148,10 @@ topSortEntries entryList = undefined
     assocBindingsTo n m = L.foldl' (\acc v -> IM.insert v n acc) m . getVIDs
 
     varMap :: IM.IntMap Int
-    varMap = V.ifoldl' (\acc idx e -> undefined) IM.empty entries
+    varMap = V.ifoldl' (flip assocBindingsTo) IM.empty entries
+
+    graph :: G.Graph
+    graph = G.buildG (0, V.length entries - 1) undefined
 
 singleEntry
   :: (ABT Term abt)
