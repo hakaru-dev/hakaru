@@ -380,7 +380,7 @@ introduceBindings liveVars newVars body (EntrySet entries) = do
     loop _    exprs []                    = ([], exprs)
     loop live exprs (SomeVariable v : xs) = (introduced ++ intro, acc)
       where
-        (intro, acc)       = loop live' rest (xs ++ vars)
+        ~(intro, acc)      = loop live' rest (xs ++ vars)
         live'              = insertVarSet v live
         vars               = concatMap getBoundVars introduced
         (introduced, rest) = L.partition (introducedBy v live') exprs
