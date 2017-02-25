@@ -30,15 +30,12 @@ optimizations
   :: (ABT Term abt)
   => abt '[] a
   -> abt '[] a
-optimizations = -- uniquify
-              {-. prune-}
-              {-. cse-}
-                {-uniquify-}
-              {-. uniquify-}
-              {-. uniquify-}
-                {-hoist-}
+optimizations = uniquify
+              . prune
+              . cse
+              . hoist
               -- The hoist pass needs globally uniqiue identifiers
-                uniquify
+              . uniquify
               . normalize
 
 underLam

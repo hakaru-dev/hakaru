@@ -68,6 +68,11 @@ example = P.let_ (P.int_ 0)               $ \y ->
           P.let_ (z P.+ x)                $ \w ->
           (z P.+ w)
 
+example2 :: TrivialABT Term '[] 'HInt
+example2 = P.summate (P.int_ 0) (P.int_ 1) $ \x ->
+           P.summate (P.int_ 1) (P.int_ 2) $ \y ->
+           y
+
 easyRoad
     :: TrivialABT Term '[]
         ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))

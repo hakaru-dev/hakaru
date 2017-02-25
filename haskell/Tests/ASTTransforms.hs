@@ -102,6 +102,9 @@ anfTests = test [ "example1" ~: testNormalizer "example1" example1 example1'
                 , "easyRoad all"      ~: testPreservesMeasure "easyRoad" easyRoad opts
                 , "helloWorld100 all" ~: testPreservesMeasure "helloWorld100" helloWorld100 opts
 
+                , "example1Hoist" ~: testPreservesResult "result" example1Hoist opts
+                , "example1Hoist" ~: testTransform "transform" example1Hoist example1Hoist' opts
+
                 , "unroll" ~: testTransform "unroll" example1Unroll example1Unroll' optsUnroll
                 ]
 
@@ -208,10 +211,11 @@ example1Unroll' = let_ (int_ 0 == int_ 100) $ \cond ->
                        let_ (summate start (int_ 100) $ (+ tmp)) $ \total ->
                        first + total)
 
-{-example1Hoist :: TrivialABT Term '[] ('HInt ':-> 'HInt)-}
-{-example1Hoist =-}
-  {-P.lam                           $ \y ->-}
-  {-P.summate (P.int_ 0) (P.int_ 1) $ \x ->-}
-  {-P.let_ y                        $ \z ->-}
-  {-P.let_ (z P.+ x)                $ \w -> -}
-  {-(z P.+ w)-}
+example1Hoist :: TrivialABT Term '[] 'HInt
+example1Hoist = summate (int_ 0) (int_ 1) $ \_ ->
+                summate (int_ 1) (int_ 2) id
+
+example1Hoist' :: TrivialABT Term '[] 'HInt
+example1Hoist' = let_ (summate (int_ 1) (int_ 2) id) $ \x ->
+                 summate (int_ 0) (int_ 1) (const x)
+
