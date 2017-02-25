@@ -63,6 +63,9 @@ getVar abt = case viewABT abt of
                Var v -> v
                _     -> error "getVar: not given a variable"
 
+ε :: Context abt a a
+ε x = undefined
+
 -- | Useful function for generating fresh variables from an existing variable by
 -- wrapping @binder@.
 freshVar
@@ -102,7 +105,6 @@ isValue abt =
     Syn s  -> isValueTerm s
   where
     isValueTerm Literal_{}  = True
-    isValueTerm Datum_{}    = True
     isValueTerm (Lam_ :$ _) = True
     isValueTerm _           = False
 
@@ -133,6 +135,9 @@ normalizeArray size body env ctxt =
   let body'' = normalizeBody body' v env
   in ctxt $ syn (Array_ size' body'')
 
+-- TODO: This is not correct. Datums may have subcomponents referencing
+-- arbitrary values. To be fully correct, we need to recursivly traverse the
+-- datum, which should be like handling the application forms.
 normalizeDatum
   :: (ABT Term abt)
   => Datum (abt '[]) (HData' t)

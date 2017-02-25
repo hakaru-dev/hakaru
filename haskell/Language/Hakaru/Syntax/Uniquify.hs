@@ -38,6 +38,7 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.IClasses
+import           Debug.Trace
 
 newtype Uniquifier a = Uniquifier { runUniquifier :: StateT Nat (Reader Varmap) a }
   deriving (Functor, Applicative, Monad, MonadState Nat, MonadReader Varmap)
@@ -73,9 +74,8 @@ uniquify' = start
     loop (Var v)    = uniquifyVar v
     loop (Syn s)    = fmap syn (traverse21 start s)
     loop (Bind v b) = do
-      vid <- genVarID
-      let fresh = v { varID = vid }
-          assoc = Assoc v fresh
+      fresh <- newVar v
+      let assoc = Assoc v fresh
       -- Process the body with the updated Varmap and wrap the
       -- result in a bind form
       bind fresh <$> local (insertAssoc assoc) (loop b)

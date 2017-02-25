@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE EmptyCase                  #-}
 {-# LANGUAGE ExistentialQuantification  #-}
@@ -66,6 +67,20 @@ example = P.let_ (P.int_ 0)               $ \y ->
           P.let_ y                        $ \z ->
           P.let_ (z P.+ x)                $ \w ->
           (z P.+ w)
+
+easyRoad
+    :: TrivialABT Term '[]
+        ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))
+easyRoad =
+    P.uniform (P.real_ 3) (P.real_ 8) P.>>= \noiseT_ ->
+    P.uniform (P.real_ 1) (P.real_ 4) P.>>= \noiseE_ ->
+    P.let_ (P.unsafeProb noiseT_) $ \noiseT ->
+    P.let_ (P.unsafeProb noiseE_) $ \noiseE ->
+    P.normal (P.real_ 0) noiseT P.>>= \x1 ->
+    P.normal x1 noiseE P.>>= \m1 ->
+    P.normal x1 noiseT P.>>= \x2 ->
+    P.normal x2 noiseE P.>>= \m2 ->
+    P.dirac (P.pair (P.pair m1 m2) (P.pair noiseT noiseE))
 
 data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
@@ -140,7 +155,7 @@ topSortEntries
 topSortEntries entryList = map (entries V.!) $ G.topSort graph
   where
     entries :: V.Vector (Entry (abt '[]))
-    entries = V.fromList entryList
+    !entries = V.fromList entryList
 
     -- The graph is represented as dependencies between entries, where an entry
     -- (a) depends on entry (b) if (b) introduces a variable which (a) depends
@@ -156,19 +171,21 @@ topSortEntries entryList = map (entries V.!) $ G.topSort graph
 
     -- Mapping from variable IDs to their corresponding entries
     varMap :: IM.IntMap Int
-    varMap = V.ifoldl' (flip assocBindingsTo) IM.empty entries
+    !varMap = V.ifoldl' (flip assocBindingsTo) IM.empty entries
 
     -- Create an edge from each dependency to the variable
     makeEdges :: Int -> Entry (abt '[]) -> [G.Edge]
-    makeEdges idx Entry{varDependencies=d} = map (, idx) $ varSetKeys d
+    makeEdges idx Entry{varDependencies=d} = map (, idx)
+                                           . mapMaybe (flip IM.lookup varMap)
+                                           $ varSetKeys d
 
     -- Collect all the verticies to build the full graph
     vertices :: [G.Edge]
-    vertices = V.foldr (++) [] $ V.imap makeEdges entries
+    !vertices = V.foldr (++) [] $ V.imap makeEdges entries
 
     -- The full graph structure to be sorted
     graph :: G.Graph
-    graph = G.buildG (0, V.length entries - 1) vertices
+    !graph = G.buildG (0, V.length entries - 1) vertices
 
 singleEntry
   :: (ABT Term abt)
@@ -339,7 +356,7 @@ introduceBindings liveVars newVars body (EntrySet entries) =
   wrapExpr body resultEntries
   where
     resultEntries :: [Entry (abt '[])]
-    resultEntries = loop liveVars entries newVars
+    resultEntries = topSortEntries $ loop liveVars entries newVars
 
     introducedBy
       :: forall (b :: Hakaru)
@@ -347,8 +364,7 @@ introduceBindings liveVars newVars body (EntrySet entries) =
       -> LiveSet
       -> Entry (abt '[])
       -> Bool
-    introducedBy v live Entry{varDependencies=deps} =
-      memberVarSet v deps && varSubSet deps live
+    introducedBy v live Entry{varDependencies=deps} = memberVarSet v deps -- && varSubSet deps live
 
     loop :: LiveSet -> [Entry (abt '[])] -> [HakaruVar] -> [Entry (abt '[])]
     loop _    _     []                    = []
@@ -383,6 +399,6 @@ hoistTerm (Lam_ :$ body :* End) =
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
-  tell $ freeEntry result
+  {-tell $ freeEntry result-}
   return result
 
