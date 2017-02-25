@@ -63,9 +63,6 @@ getVar abt = case viewABT abt of
                Var v -> v
                _     -> error "getVar: not given a variable"
 
-ε :: Context abt a a
-ε x = undefined
-
 -- | Useful function for generating fresh variables from an existing variable by
 -- wrapping @binder@.
 freshVar

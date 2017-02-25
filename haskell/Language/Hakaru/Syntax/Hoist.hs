@@ -291,6 +291,9 @@ hoist' = start
     start :: forall ys b . abt ys b -> HoistM abt (abt ys b)
     start = loop [] . viewABT
 
+    isolateBinders :: [HakaruVar] -> HoistM abt c -> HoistM abt (c, EntrySet abt)
+    isolateBinders xs = censor (const mempty) . listen . local (insertMany xs)
+
     -- @loop@ takes 2 parameters.
     --
     -- 1. The list of variables bound so far
@@ -310,7 +313,7 @@ hoist' = start
     -- work.
     loop [] (Syn s)    = hoistTerm s
     loop xs (Syn s)    = do
-      (term, entries) <- listen $ local (insertMany xs) $ hoistTerm s
+      (term, entries) <- isolateBinders xs (hoistTerm s)
       available       <- ask
       introduceBindings available xs term entries
 
@@ -343,6 +346,9 @@ wrapExpr = foldrM wrap
           body = foldr (mklet rhs) acc xs
       return $ mklet e x body
 
+-- This will introduce all binders which must be introduced by binding the
+-- @newVars@ set. As a side effect, the remaining entries are written into the
+-- Writer layer of the stack.
 introduceBindings
   :: forall (a :: Hakaru) abt
   .  (ABT Term abt)
@@ -351,12 +357,12 @@ introduceBindings
   -> abt '[] a
   -> EntrySet abt
   -> HoistM abt (abt '[] a)
-introduceBindings liveVars newVars body (EntrySet entries) =
-  --(unlines $ map show entries) `trace`
-  wrapExpr body resultEntries
+introduceBindings liveVars newVars body (EntrySet entries) = do
+  tell (EntrySet leftOver)
+  wrapExpr body (topSortEntries resultEntries)
   where
-    resultEntries :: [Entry (abt '[])]
-    resultEntries = topSortEntries $ loop liveVars entries newVars
+    resultEntries, leftOver :: [Entry (abt '[])]
+    (resultEntries, leftOver) = loop liveVars entries newVars
 
     introducedBy
       :: forall (b :: Hakaru)
@@ -364,12 +370,17 @@ introduceBindings liveVars newVars body (EntrySet entries) =
       -> LiveSet
       -> Entry (abt '[])
       -> Bool
-    introducedBy v live Entry{varDependencies=deps} = memberVarSet v deps -- && varSubSet deps live
+    introducedBy v live Entry{varDependencies=deps} = memberVarSet v deps
 
-    loop :: LiveSet -> [Entry (abt '[])] -> [HakaruVar] -> [Entry (abt '[])]
-    loop _    _     []                    = []
-    loop live exprs (SomeVariable v : xs) = introduced ++ loop live' rest (xs ++ vars)
+    loop
+      :: LiveSet
+      -> [Entry (abt '[])]
+      -> [HakaruVar]
+      -> ([Entry (abt '[])], [Entry (abt '[])])
+    loop _    exprs []                    = ([], exprs)
+    loop live exprs (SomeVariable v : xs) = (introduced ++ intro, acc)
       where
+        (intro, acc)       = loop live' rest (xs ++ vars)
         live'              = insertVarSet v live
         vars               = concatMap getBoundVars introduced
         (introduced, rest) = L.partition (introducedBy v live') exprs
@@ -399,6 +410,6 @@ hoistTerm (Lam_ :$ body :* End) =
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
-  {-tell $ freeEntry result-}
+  tell $ freeEntry result
   return result
 
