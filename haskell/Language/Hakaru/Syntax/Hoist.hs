@@ -52,6 +52,7 @@ import qualified Data.Vector                     as V
 
 import           Debug.Trace
 import           Language.Hakaru.Syntax.ABT
+import           Language.Hakaru.Syntax.ANF      (isValue)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
@@ -103,7 +104,7 @@ type LiveSet     = VarSet HakaruProxy
 type HakaruVar   = SomeVariable HakaruProxy
 
 -- The @HoistM@ monad makes use of three monadic layers to propagate information
--- both downwards to the leaves and upwards to the root node.
+-- both downwards to the leaves and upwards to the root node of the AST.
 --
 -- The Writer layer propagates the live expressions which may be hoisted (i.e.
 -- all their data dependencies are currently filled) from each subexpression to
@@ -406,6 +407,6 @@ hoistTerm (Lam_ :$ body :* End) =
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
-  tell $ freeEntry result
+  unless (isValue result) (tell $ freeEntry result)
   return result
 
