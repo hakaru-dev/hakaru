@@ -222,6 +222,8 @@ newVar typ = do
   put vid
   return $ Variable "" vid typ
 
+-- | An expression is considered "toplevel" if it can be hoisted outside all
+-- binders. This means that the expression has no data dependencies.
 toplevelEntry
   :: Entry abt
   -> Bool
@@ -265,19 +267,6 @@ introduceToplevel avail abt entries = do
   wrapped <- introduceBindings intro abt rest
   -- Then wrap the result in the toplevel definitions
   wrapExpr wrapped toplevel
-
-zapDependencies
-  :: forall (a :: Hakaru) b abt
-  .  (ABT Term abt)
-  => Variable a
-  -> HoistM abt b
-  -> HoistM abt b
-zapDependencies v = censor zap
-  where
-    zap :: EntrySet abt -> EntrySet abt
-    zap = EntrySet
-        . filter (\ Entry{varDependencies=d} -> not $ memberVarSet v d)
-        . entryList
 
 bindVar
   :: (ABT Term abt)
@@ -328,13 +317,9 @@ hoist' = start
     loop [] (Syn s)    = hoistTerm s
     loop xs (Syn s)    = do
       (term, entries) <- isolateBinders xs (hoistTerm s)
-      available       <- ask
       introduceBindings xs term entries
 
-    loop xs (Bind v b) = do
-      let xs' = SomeVariable v : xs
-      b' <- zapDependencies v (loop xs' b)
-      return (bind v b')
+    loop xs (Bind v b) = bind v <$> loop (SomeVariable v : xs) b
 
 getBoundVars :: Entry x -> [HakaruVar]
 getBoundVars Entry{bindings=b} = fmap SomeVariable b

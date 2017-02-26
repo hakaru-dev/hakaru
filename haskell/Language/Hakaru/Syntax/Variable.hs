@@ -317,6 +317,9 @@ instance Show1 (Sing :: k -> *) => Show (VarSet (kproxy :: KProxy k)) where
             . showsPrec  11 xs
             )
 
+instance (Eq (SomeVariable (kproxy :: KProxy k))) => Eq (VarSet kproxy) where
+  VarSet s1 == VarSet s2 = s1 == s2
+
 -- | Return the successor of the largest 'varID' of all the variables
 -- in the set. Thus, we return zero for the empty set and non-zero
 -- for non-empty sets.
