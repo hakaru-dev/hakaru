@@ -91,7 +91,7 @@ data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
   { varDependencies :: !(VarSet (KindOf a))
   , expression      :: !(abt a)
-  , binding         :: ![Variable a]
+  , bindings        :: ![Variable a]
   }
 
 instance Show (Entry abt) where
@@ -168,7 +168,7 @@ topSortEntries entryList = map (entries V.!) $ G.topSort graph
     -- (a) depends on entry (b) if (b) introduces a variable which (a) depends
     -- on.
     getVIDs :: Entry (abt '[]) -> [Int]
-    getVIDs Entry{binding=b} = map (fromNat . varID) b
+    getVIDs Entry{bindings=b} = map (fromNat . varID) b
 
     -- Associates all variables introduced by an entry to the entry itself.
     -- A given entry may introduce multiple bindings, since an entry stores all
@@ -337,7 +337,7 @@ hoist' = start
       return (bind v b')
 
 getBoundVars :: Entry x -> [HakaruVar]
-getBoundVars Entry{binding=b} = fmap SomeVariable b
+getBoundVars Entry{bindings=b} = fmap SomeVariable b
 
 wrapExpr
   :: forall abt b . (ABT Term abt)
@@ -352,10 +352,10 @@ wrapExpr = foldrM wrap
     -- Binds the Entry's expression to a fresh variable and rebinds any other
     -- variable uses to the fresh variable.
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
-    wrap Entry{expression=e,binding=[]} acc = do
+    wrap Entry{expression=e,bindings=[]} acc = do
       tmp <- newVar (typeOf e)
       return $ mklet e tmp acc
-    wrap Entry{expression=e,binding=(x:xs)} acc = do
+    wrap Entry{expression=e,bindings=(x:xs)} acc = do
       let rhs  = var x
           body = foldr (mklet rhs) acc xs
       return $ mklet e x body
