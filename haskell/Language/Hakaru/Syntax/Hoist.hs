@@ -262,7 +262,7 @@ introduceToplevel avail abt entries = do
       intro = concatMap getBoundVars toplevel ++ fromVarSet avail
   -- First we wrap the now AST in the all terms which depdend on top level
   -- definitions
-  wrapped <- introduceBindings emptyVarSet intro abt rest
+  wrapped <- introduceBindings intro abt rest
   -- Then wrap the result in the toplevel definitions
   wrapExpr wrapped toplevel
 
@@ -329,7 +329,7 @@ hoist' = start
     loop xs (Syn s)    = do
       (term, entries) <- isolateBinders xs (hoistTerm s)
       available       <- ask
-      introduceBindings available xs term entries
+      introduceBindings xs term entries
 
     loop xs (Bind v b) = do
       let xs' = SomeVariable v : xs
@@ -366,38 +366,34 @@ wrapExpr = foldrM wrap
 introduceBindings
   :: forall (a :: Hakaru) abt
   .  (ABT Term abt)
-  => LiveSet
-  -> [HakaruVar]
+  => [HakaruVar]
   -> abt '[] a
   -> EntrySet abt
   -> HoistM abt (abt '[] a)
-introduceBindings liveVars newVars body (EntrySet entries) = do
+introduceBindings newVars body (EntrySet entries) = do
   tell (EntrySet leftOver)
   wrapExpr body (topSortEntries resultEntries)
   where
     resultEntries, leftOver :: [Entry (abt '[])]
-    (resultEntries, leftOver) = loop liveVars entries newVars
+    (resultEntries, leftOver) = loop entries newVars
 
     introducedBy
       :: forall (b :: Hakaru)
       .  Variable b
-      -> LiveSet
       -> Entry (abt '[])
       -> Bool
-    introducedBy v live Entry{varDependencies=deps} = memberVarSet v deps
+    introducedBy v Entry{varDependencies=deps} = memberVarSet v deps
 
     loop
-      :: LiveSet
-      -> [Entry (abt '[])]
+      :: [Entry (abt '[])]
       -> [HakaruVar]
       -> ([Entry (abt '[])], [Entry (abt '[])])
-    loop _    exprs []                    = ([], exprs)
-    loop live exprs (SomeVariable v : xs) = (introduced ++ intro, acc)
+    loop exprs []                    = ([], exprs)
+    loop exprs (SomeVariable v : xs) = (introduced ++ intro, acc)
       where
-        ~(intro, acc)      = loop live' rest (xs ++ vars)
-        live'              = insertVarSet v live
+        ~(intro, acc)      = loop rest (xs ++ vars)
         vars               = concatMap getBoundVars introduced
-        (introduced, rest) = L.partition (introducedBy v live') exprs
+        (introduced, rest) = L.partition (introducedBy v) exprs
 
 -- Contrary to the other binding forms, let expressions are killed by the
 -- hoisting pass. Their RHSs are floated upward in the AST and re-introduced
@@ -417,7 +413,7 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
 hoistTerm (Lam_ :$ body :* End) =
   caseBind body $ \ v body' -> do
     available         <- ask
-    let extended = insertVarSet v available
+    let !extended = insertVarSet v available
     (body'', entries) <- isolateBinder v (hoist' body')
     finalized         <- introduceToplevel extended body'' entries
     return $ syn (Lam_ :$ bind v finalized :* End)
