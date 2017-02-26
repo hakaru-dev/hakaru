@@ -148,10 +148,11 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
           Nothing   -> error "cannot mappend mismatched entries"
 
       equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
-      equal Entry{expression=e1} Entry{expression=e2} =
-        case jmEq1 (typeOf e1) (typeOf e2) of
-          Just Refl -> alphaEq e1 e2
-          Nothing   -> False
+      equal Entry{varDependencies=d1,expression=e1}
+            Entry{varDependencies=d2,expression=e2} =
+        case (d1 == d2, jmEq1 (typeOf e1) (typeOf e2)) of
+          (True , Just Refl) -> alphaEq e1 e2
+          _                  -> False
 
 -- Given a list of entries to introduce, order them so that their data
 -- data dependencies are satisified.
