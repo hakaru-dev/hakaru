@@ -60,7 +60,7 @@ Hakaru := module ()
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
-         case, app, ary, idx, fst, snd, size, Datum,
+         case, app, ary, idx, fst, snd, size, Datum, PARTITION,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
@@ -426,11 +426,9 @@ Hakaru := module ()
      #piecewise.
      r:= [
           And(C_O, C_I[1]), B_I[1],
-          And(C_O, KB:-negate_relation(C_I[1])), B_I[2],
-          And(KB:-negate_relation(C_O), C_I[2]), B_I[3],
-           # negate_relation is not happy with non-relations!
-          `if`(C_O=true or C_I[2]=true, false,
-               And(KB:-negate_relation(C_O), KB:-negate_relation(C_I[2]))), B_I[4]
+          And(C_O, KB:-negate_kb1(C_I[1])), B_I[2],
+          And(KB:-negate_kb1(C_O), C_I[2]), B_I[3],
+          And(KB:-negate_kb1(C_O), KB:-negate_kb1(C_I[2])), B_I[4]
      ];
      userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
      piecewise(r[])
@@ -557,6 +555,33 @@ Hakaru := module ()
     end if
   end proc;
 
+
+   #The object's (internal) constructor. This just checks the argument types and
+   #returns unevaluated.
+   # this must be exported in in order to define the type for partition
+   # inside of Hakaru
+
+   # YT: I don't know how to get Maple to accept `t_partition =
+   # specfunc(PARTITION)` without placing this inside Hakaru.mpl.
+   # If it lives in Partition, then `Partition:-Partition` (the type)
+   # matches partitions, but the `t_partition` type in Hakaru does not.
+   # clearly I'm missing something
+   PARTITION::static:= proc(
+      Pairs::list(
+         record(
+            #The type `anything` below should be some boolean type, but we'll
+            #need to write our own as neither Maple's 'boolean' nor
+            #'boolean &under (convert, boolean_operator)' is inclusive enough.
+            cond::anything,
+            val::anything
+             # TODO: t_Hakaru doesn't work here because sometimes there is an `applyintegrand`
+         )
+      ),
+      $ #no optional arguments, for now at least
+   )::t_partition;
+     'procname'(_passed)
+   end proc;
+
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
     VerifyTools[AddVerification](measure = eval(verify_measure));
@@ -590,11 +615,12 @@ Hakaru := module ()
          #short-cut rule: Proceeding left to right, once satisfaction of the type
          #can be determined, the remaining elements aren't evaluated. Therefore,
          #recursive types are possible by placing the base cases at the beginning.
-         #But use Or instead of {} because you can't control the order of 
+         #But use Or instead of {} because you can't control the order of
          #expressions with {}.
          Or(
            'known_continuous', 'known_discrete',
            t_pw, #Needs to be more specific!
+           t_partition,
            t_case,
           'Ret(anything)',
           'Bind(t_Hakaru, name, t_Hakaru)',
@@ -614,8 +640,12 @@ Hakaru := module ()
     TypeTools:-AddType(t_case,
       'case(anything, specfunc(Branch(anything, anything), Branches))');
     TypeTools:-AddType(t_pw, 'specfunc(piecewise)');
+    TypeTools:-AddType(t_partition, 'specfunc(PARTITION)'); #Appropriate to put this here?
     TypeTools:-AddType(t_piecewiselike,
       '{specfunc(piecewise), t_case, idx(list, anything)}');
+
+    # A temporary type which should be removed when piecewise is gone
+    TypeTools:-AddType(t_pw_or_part, Or(t_pw,t_partition));
 
     #Protect the keywords of the Hakaru language.
     #op([2,6], ...) of a module is its globals.

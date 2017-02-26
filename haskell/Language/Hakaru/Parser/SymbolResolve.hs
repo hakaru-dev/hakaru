@@ -229,15 +229,16 @@ primWeight, primFactor, primBern :: Symbol U.AST
 primWeight = t2 $ \w m -> syn $ U.Superpose_ (singleton (w, m))
 primFactor = TLam $ \w -> TNeu . syn . U.Superpose_ $
               singleton (w, syn $ U.Dirac_ unit_)
-primBern   =
-    TLam $ \p -> TNeu . syn . U.Superpose_ . L.fromList $
-        [ (p, syn $ U.Dirac_ true_)
-        , (unsafeFrom_ . syn $ U.NaryOp_ U.Sum
-            [ syn $ U.Literal_ (Some1 $ T.LReal 1.0)
-            , syn $ U.PrimOp_ U.Negate [p]
-            ]
-            , syn $ U.Dirac_ false_)
-        ]
+primBern   = TLam $ \p -> TNeu . syn . U.MBind_ (cat p) $ binder "" U.SU ret
+    where cat x = syn . U.MeasureOp_ (U.SomeOp T.Categorical) $
+                  [syn $ U.ArrayLiteral_
+                   [ x
+                   , unsafeFrom_ . syn $ U.NaryOp_ U.Sum 
+                     [ syn $ U.Literal_ (Some1 $ T.LReal 1.0)
+                     , syn $ U.PrimOp_ U.Negate [x] ]
+                   ]]
+          ret i = syn . U.Dirac_ . syn $ U.ArrayOp_ U.Index_
+                  [ syn $ U.ArrayLiteral_ [true_, false_] , i ]    
 
 two :: U.AST
 two = syn . U.Literal_ . U.val . U.Nat $ 2
@@ -363,7 +364,7 @@ symbolResolution symbols ast =
 
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
-    U.Data name tvars typ -> error $ "TODO: symbolResolution{U.Data} " ++ show name ++ " with " ++ show tvars ++ ":" ++ show typ
+    U.Data name tvars typ e -> error $ "TODO: symbolResolution{U.Data} " ++ show name ++ " with " ++ show tvars ++ ":" ++ show typ
     U.WithMeta a meta -> U.WithMeta
         <$> symbolResolution symbols a
         <*> return meta
@@ -438,7 +439,7 @@ normAST ast =
     U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
     U.Observe     e1 e2       -> U.Observe (normAST e1) (normAST e2)
     U.Msum es                 -> U.Msum (map normAST es)
-    U.Data name tvars typs    -> U.Data name tvars typs
+    U.Data name tvars typs e  -> U.Data name tvars typs e
      -- do we need to norm here? what if we try to define `true` which is already a constructor
     U.WithMeta a meta         -> U.WithMeta (normAST a) meta
 
@@ -552,7 +553,7 @@ makeAST ast =
     U.Observe e1 e2  -> syn $ U.Observe_ (makeAST e1) (makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
 
-    U.Data name tvars typs -> error "TODO: makeAST{U.Data}" 
+    U.Data name tvars typs e -> error "TODO: makeAST{U.Data}" 
     U.WithMeta a meta -> withMetadata meta (makeAST a)
 
     where

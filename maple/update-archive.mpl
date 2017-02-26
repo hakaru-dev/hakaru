@@ -6,6 +6,7 @@ LibraryTools:-Create(lib):
 read("./BindingTools.mpl"):
 read("./Hakaru.mpl"):
 read("./KB.mpl"):
+read("./Partition.mpl"):
 read("./Loop.mpl"):
 read("./NewSLO.mpl"):
 read("./Summary.mpl"):
@@ -45,8 +46,12 @@ LibraryTools:-Save(`depends/LO`, lib):
 LibraryTools:-Save(`eval/Integrand`, lib):
 LibraryTools:-Save(`eval/LO`, lib):
 LibraryTools:-Save('NewSLO', lib):
+LibraryTools:-Save('Partition', lib):
 LibraryTools:-Save(`depends/Bucket`, lib):
 LibraryTools:-Save(`depends/Index`, lib):
 LibraryTools:-Save(`eval/Bucket`, lib):
 LibraryTools:-Save(`eval/Index`, lib):
 LibraryTools:-Save('Summary', lib):
+
+read("./TestWrapper.mpl"):
+LibraryTools:-Save('TestWrapper', lib):

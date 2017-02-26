@@ -1,4 +1,4 @@
-module System.MapleSSH (maple) where
+module System.MapleSSH (maple, mapleWithArgs) where
 
 import Data.Maybe(fromMaybe)
 import Data.Char(isSpace)
@@ -25,20 +25,22 @@ envVarsSSH = do
     return (ssh, user, server, command)
     where get name def = fmap (fromMaybe def) (lookupEnv name)
 
-process :: IO CreateProcess
-process = do
+processWithArgs :: [String] -> IO CreateProcess
+processWithArgs args = do
     bin <- lookupEnv "LOCAL_MAPLE"
     case bin of
-        Just b  -> return $ proc b ["-q", "-t"]
+        Just b  -> return $ proc b args 
         Nothing -> 
           do (ssh, user, server, command) <- envVarsSSH
-             let commands = command ++ " -q -t" -- quiet mode
+             let commands = command ++ concatMap (' ':) args
              return $ proc ssh ["-l" ++ user, server, commands]
 
-
 maple :: String -> IO String
-maple cmd = do
-    p <- process
+maple = flip mapleWithArgs ["-q", "-t"]
+
+mapleWithArgs :: String -> [String] -> IO String
+mapleWithArgs cmd args = do
+    p <- processWithArgs args 
     (Just inH, Just outH, Nothing, p') <- createProcess p { std_in = CreatePipe, std_out = CreatePipe, close_fds = True }
     hPutStrLn inH $ cmd ++ ";"
     hClose inH
