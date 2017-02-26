@@ -153,6 +153,8 @@ instance (ABT Term abt) => Monoid (EntrySet abt) where
           Just Refl -> alphaEq e1 e2
           Nothing   -> False
 
+-- Given a list of entries to introduce, order them so that their data
+-- data dependencies are satisified.
 topSortEntries
   :: forall abt
   .  [Entry (abt '[])]
@@ -277,12 +279,19 @@ zapDependencies v = censor zap
         . filter (\ Entry{varDependencies=d} -> not $ memberVarSet v d)
         . entryList
 
+bindVar
+  :: (ABT Term abt)
+  => Variable (a :: Hakaru)
+  -> HoistM abt b
+  -> HoistM abt b
+bindVar = local . insertVarSet
+
 isolateBinder
   :: (ABT Term abt)
   => Variable (a :: Hakaru)
   -> HoistM abt b
   -> HoistM abt (b, EntrySet abt)
-isolateBinder v = censor (const mempty) . listen . local (insertVarSet v)
+isolateBinder v = censor (const mempty) . listen . bindVar v
 
 hoist'
   :: forall abt xs a . (ABT Term abt)
@@ -403,7 +412,7 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
   caseBind body $ \ v body' -> do
     rhs' <- hoist' rhs
     tell $ singleEntry v rhs'
-    local (insertVarSet v) (hoist' body')
+    bindVar v (hoist' body')
 
 hoistTerm (Lam_ :$ body :* End) =
   caseBind body $ \ v body' -> do
