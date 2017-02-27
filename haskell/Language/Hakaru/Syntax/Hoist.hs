@@ -407,6 +407,9 @@ hoistTerm (Lam_ :$ body :* End) =
 
 hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
-  unless (isValue result) (tell $ freeEntry result)
-  return result
+  if isValue result
+    then return result
+    else do fresh <- newVar (typeOf result)
+            tell $ singleEntry fresh result
+            return (var fresh)
 
