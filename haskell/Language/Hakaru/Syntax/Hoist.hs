@@ -203,12 +203,6 @@ singleEntry
   -> EntrySet abt
 singleEntry v abt = EntrySet [Entry (freeVars abt) abt [v]]
 
-freeEntry
-  :: (ABT Term abt)
-  => abt '[] a
-  -> EntrySet abt
-freeEntry abt = EntrySet [Entry (freeVars abt) abt []]
-
 execHoistM :: Nat -> HoistM abt a -> a
 execHoistM counter act = a
   where
