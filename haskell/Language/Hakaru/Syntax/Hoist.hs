@@ -131,29 +131,37 @@ deriving instance (ABT Term abt) => MonadReader LiveSet (HoistM abt)
 newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
   = EntrySet { entryList :: [Entry (abt '[])] }
 
+unionEntrySet
+  :: forall abt
+  .  (ABT Term abt)
+  => EntrySet abt
+  -> EntrySet abt
+  -> EntrySet abt
+unionEntrySet (EntrySet xs) (EntrySet ys) =
+  EntrySet . mapMaybe uniquify $ L.groupBy equal (xs ++ ys)
+  where
+    uniquify :: [Entry (abt '[])] -> Maybe (Entry (abt '[]))
+    uniquify [] = Nothing
+    uniquify zs = Just $ L.foldl1' merge zs
+
+    merge :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
+    merge (Entry d e b1) (Entry _ e' b2) =
+      case jmEq1 (typeOf e) (typeOf e') of
+        Just Refl -> Entry d e $ L.nub (b1 ++ b2)
+        Nothing   -> error "cannot union mismatched entries"
+
+    equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
+    equal Entry{varDependencies=d1,expression=e1}
+          Entry{varDependencies=d2,expression=e2} =
+      case (d1 == d2, jmEq1 (typeOf e1) (typeOf e2)) of
+        (True , Just Refl) -> alphaEq e1 e2
+        _                  -> False
+
+
 instance (ABT Term abt) => Monoid (EntrySet abt) where
+  mempty  = EntrySet []
+  mappend = unionEntrySet
 
-  mempty = EntrySet []
-
-  mappend (EntrySet xs) (EntrySet ys) =
-    EntrySet . mapMaybe uniquify $ L.groupBy equal (xs ++ ys)
-    where
-      uniquify :: [Entry (abt '[])] -> Maybe (Entry (abt '[]))
-      uniquify [] = Nothing
-      uniquify zs = Just $ L.foldl1' merge zs
-
-      merge :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
-      merge (Entry d e b1) (Entry _ e' b2) =
-        case jmEq1 (typeOf e) (typeOf e') of
-          Just Refl -> Entry d e $ L.nub (b1 ++ b2)
-          Nothing   -> error "cannot mappend mismatched entries"
-
-      equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
-      equal Entry{varDependencies=d1,expression=e1}
-            Entry{varDependencies=d2,expression=e2} =
-        case (d1 == d2, jmEq1 (typeOf e1) (typeOf e2)) of
-          (True , Just Refl) -> alphaEq e1 e2
-          _                  -> False
 
 -- Given a list of entries to introduce, order them so that their data
 -- data dependencies are satisified.
