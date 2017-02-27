@@ -401,10 +401,9 @@ hoistTerm (Let_ :$ rhs :* body :* End) =
 
 hoistTerm (Lam_ :$ body :* End) =
   caseBind body $ \ v body' -> do
-    available         <- ask
-    let !extended = insertVarSet v available
+    available         <- fmap (insertVarSet v) ask
     (body'', entries) <- isolateBinder v (hoist' body')
-    finalized         <- introduceToplevel extended body'' entries
+    finalized         <- introduceToplevel available body'' entries
     return $ syn (Lam_ :$ bind v finalized :* End)
 
 hoistTerm term = do
