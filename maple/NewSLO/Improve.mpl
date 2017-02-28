@@ -94,13 +94,12 @@
 
     dom_spec := kb_subtract(kb2, kb0);
 
-    if infolevel['procname'] > 3 then
-        printf("LMS     : %a\n"
-               "kb Big  : %a\n"
-               "kb small: %a\n"
-               "domain  : %a\n"
-         , kb_LMS(kb2), kb2, kb0, dom_spec );
-    end if;
+    userinfo('LMS', 3, print(
+        sprintf("    LMS     : %a\n"
+                "    kb Big  : %a\n"
+                "    kb small: %a\n"
+                "    domain  : %a\n"
+         , kb_LMS(kb2), kb2, kb0, dom_spec )));
 
     new_rng, dom_spec := selectremove(type, dom_spec,
       {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
