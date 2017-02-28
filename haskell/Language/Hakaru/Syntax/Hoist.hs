@@ -336,7 +336,10 @@ wrapExpr
 wrapExpr = foldrM wrap
   where
     mklet :: abt '[] a -> Variable a -> abt '[] b -> abt '[] b
-    mklet e v b = syn (Let_ :$ e :* bind v b :* End)
+    mklet e v b =
+      case viewABT b of
+        Var v' | Just Refl <- varEq v v' -> e
+        _      -> syn (Let_ :$ e :* bind v b :* End)
 
     -- Binds the Entry's expression to a fresh variable and rebinds any other
     -- variable uses to the fresh variable.
