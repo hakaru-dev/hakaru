@@ -20,7 +20,7 @@
 --
 --
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Prune where
+module Language.Hakaru.Syntax.Prune (prune) where
 
 import           Control.Monad.Reader
 import           Data.Maybe

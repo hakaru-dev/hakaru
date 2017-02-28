@@ -27,7 +27,7 @@
 -- identifiers.
 --
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Uniquify where
+module Language.Hakaru.Syntax.Uniquify (uniquify) where
 
 import           Control.Monad.Reader
 import           Control.Monad.State

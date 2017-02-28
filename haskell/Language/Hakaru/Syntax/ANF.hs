@@ -24,7 +24,7 @@
 --
 --
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.ANF where
+module Language.Hakaru.Syntax.ANF (normalize) where
 
 import qualified Data.IntMap                     as IM
 import           Data.Maybe
