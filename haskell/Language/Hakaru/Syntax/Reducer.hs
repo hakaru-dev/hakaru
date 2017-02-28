@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP
            , DataKinds
+           , InstanceSigs
            , GADTs
            , KindSignatures
            , Rank2Types
@@ -54,6 +55,14 @@ instance Foldable31 Reducer where
     foldMap31 _ Red_Nop             = mempty
     foldMap31 f (Red_Add _ e)       = f e
 
+instance Traversable31 Reducer where
+    traverse31 f (Red_Fanout r1 r2)  = Red_Fanout <$> traverse31 f r1 <*> traverse31 f r2
+    traverse31 f (Red_Index n ix r)  = Red_Index  <$> f n <*> f ix <*> traverse31 f r
+    traverse31 f (Red_Split b r1 r2) = Red_Split <$> f b <*> traverse31 f r1 <*> traverse31 f r2
+    traverse31 f Red_Nop             = pure Red_Nop
+    traverse31 f (Red_Add h e)       = Red_Add h <$> f e
+
+
 instance Eq2 abt => Eq1 (Reducer abt xs) where
     eq1 (Red_Fanout r1 r2)  (Red_Fanout r1' r2')   = eq1 r1 r1' && eq1 r2 r2'
     eq1 (Red_Index n ix r)  (Red_Index n' ix' r')  = eq2 n n' && eq2 ix ix' && eq1 r r'
@@ -89,3 +98,4 @@ jmEqReducer (Red_Add _ x) (Red_Add _ x') = do
   (Refl, Refl) <- jmEq2 x x'
   return Refl
 jmEqReducer _ _ = Nothing
+

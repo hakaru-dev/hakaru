@@ -942,6 +942,7 @@ instance Traversable21 Term where
     traverse21 _ (Empty_     typ)   = pure $ Empty_   typ
     traverse21 f (Array_     e1 e2) = Array_ <$> f e1 <*> f e2
     traverse21 f (ArrayLiteral_ es) = ArrayLiteral_ <$> traverse f es
+    traverse21 f (Bucket b e r)     = Bucket <$> f b <*> f e <*> traverse31 f r
     traverse21 f (Datum_     d)     = Datum_ <$> traverse11 f d
     traverse21 f (Case_      e  bs) = Case_  <$> f e <*> traverse (traverse21 f) bs
     traverse21 f (Superpose_ pes)   = Superpose_ <$> traversePairs f pes
