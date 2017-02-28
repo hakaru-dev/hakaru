@@ -22,7 +22,7 @@
 -- identifiers.
 --
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Unroll (unroll) where
+module Language.Hakaru.Syntax.Unroll (renameInEnv, unroll) where
 
 import           Control.Monad.Reader
 import           Data.Maybe                     (fromMaybe)

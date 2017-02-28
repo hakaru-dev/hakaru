@@ -50,7 +50,6 @@ import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 import qualified Data.Vector                     as V
 
-import           Debug.Trace
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.ANF      (isValue)
 import           Language.Hakaru.Syntax.AST
@@ -58,7 +57,6 @@ import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
 import qualified Language.Hakaru.Syntax.Prelude  as P
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
-import           Language.Hakaru.Syntax.Variable (varSubSet)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
 
@@ -129,7 +127,7 @@ deriving instance (ABT Term abt) => MonadWriter (EntrySet abt) (HoistM abt)
 deriving instance (ABT Term abt) => MonadReader LiveSet (HoistM abt)
 
 newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
-  = EntrySet { entryList :: [Entry (abt '[])] }
+  = EntrySet [Entry (abt '[])]
 
 unionEntrySet
   :: forall abt

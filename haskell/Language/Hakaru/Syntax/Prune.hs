@@ -34,9 +34,6 @@ import           Language.Hakaru.Types.DataKind
 
 -- A Simple pass for pruning the unused let bindings from an AST.
 
-updateEnv :: forall (a :: Hakaru) . Variable a -> Variable a -> Varmap -> Varmap
-updateEnv vin vout = insertAssoc (Assoc vin vout)
-
 newtype PruneM a = PruneM { runPruneM :: Reader Varmap a }
   deriving (Functor, Applicative, Monad, MonadReader Varmap, MonadFix)
 
