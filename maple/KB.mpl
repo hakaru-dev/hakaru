@@ -622,7 +622,7 @@ KB := module ()
     # Select all of the relevant subparts
     vars        := select(type, kb, 'Introduce(name, specfunc(AlmostEveryReal))');
     parms       := select(type, kb, 'Introduce(name, specfunc({HReal,HInt}))');
-    constraints := select(type, kb, 'Constrain(anything)');
+    constraints := select(type, kb, 'Constrain(relation)');
 
     # extract the data:
     #  from inside of KB,
@@ -635,8 +635,13 @@ KB := module ()
       local vs, ps, cs;
 
       vs, ps, cs := op(kb_extract(kb));
-
-      LinearMultivariateSystem( {op(cs)}, vs );
+      cs := {op(cs)}:
+      if cs = {} or vs = [] then
+        Empty;
+      else
+print(kb);
+        LinearMultivariateSystem( cs, vs );
+      end if;
   end proc;
 
 
