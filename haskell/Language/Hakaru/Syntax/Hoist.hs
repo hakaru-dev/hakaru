@@ -38,7 +38,7 @@
 -- eachother if hoisted upward to a common scope.
 --
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Hoist where
+module Language.Hakaru.Syntax.Hoist (hoist) where
 
 import           Control.Monad.RWS
 import           Data.Foldable                   (foldrM)
@@ -59,32 +59,6 @@ import qualified Language.Hakaru.Syntax.Prelude  as P
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
-
-example :: TrivialABT Term '[] 'HInt
-example = P.let_ (P.int_ 0)               $ \y ->
-          P.summate (P.int_ 0) (P.int_ 1) $ \x ->
-          P.let_ y                        $ \z ->
-          P.let_ (z P.+ x)                $ \w ->
-          (z P.+ w)
-
-example2 :: TrivialABT Term '[] 'HInt
-example2 = P.summate (P.int_ 0) (P.int_ 1) $ \x ->
-           P.summate (P.int_ 1) (P.int_ 2) $ \y ->
-           y
-
-easyRoad
-    :: TrivialABT Term '[]
-        ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))
-easyRoad =
-    P.uniform (P.real_ 3) (P.real_ 8) P.>>= \noiseT_ ->
-    P.uniform (P.real_ 1) (P.real_ 4) P.>>= \noiseE_ ->
-    P.let_ (P.unsafeProb noiseT_) $ \noiseT ->
-    P.let_ (P.unsafeProb noiseE_) $ \noiseE ->
-    P.normal (P.real_ 0) noiseT P.>>= \x1 ->
-    P.normal x1 noiseE P.>>= \m1 ->
-    P.normal x1 noiseT P.>>= \x2 ->
-    P.normal x2 noiseE P.>>= \m2 ->
-    P.dirac (P.pair (P.pair m1 m2) (P.pair noiseT noiseE))
 
 data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
