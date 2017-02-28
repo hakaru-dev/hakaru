@@ -48,6 +48,7 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf
+import Language.Hakaru.Syntax.Reducer
 
 import Control.Monad.Reader
 
@@ -135,7 +136,6 @@ jmEq_S Expect    es Expect     es' =
     jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
 jmEq_S _         _  _          _   = Nothing
 
-
 -- TODO: Handle jmEq2 of pat and pat'
 jmEq_Branch
     :: (ABT Term abt, JmEq2 abt)
@@ -177,6 +177,11 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
     jmEq1 (ArrayLiteral_ (e:es)) (ArrayLiteral_ (e':es')) = do
         (Refl, Refl) <- jmEq2 e e'
         () <- all_jmEq2 (S.fromList es) (S.fromList es')
+        return Refl
+    jmEq1 (Bucket a b r) (Bucket a' b' r') = do
+        (Refl, Refl) <- jmEq2 a a'
+        (Refl, Refl) <- jmEq2 b b'
+        Refl         <- jmEq1 r r'
         return Refl
     jmEq1 (Datum_ (Datum hint _ _)) (Datum_ (Datum hint' _ _))
         -- BUG: We need to compare structurally rather than using the hint
@@ -341,6 +346,10 @@ alphaEq e1 e2 =
             go (viewABT e1) (viewABT e2)
         (ArrayLiteral_ es, ArrayLiteral_ es') ->
             F.sequence_ $ zipWith go (viewABT <$> es) (viewABT <$> es')
+        (Bucket a b r, Bucket a' b' r')    -> do
+            go (viewABT a) (viewABT a')
+            go (viewABT b) (viewABT b')
+            reducerEq r r'
         (Case_ e1 bs1, Case_ e2 bs2)       -> do
             Refl <- lift $ jmEq1 (typeOf e1) (typeOf e2)
             go (viewABT e1) (viewABT e2)
@@ -522,3 +531,23 @@ alphaEq e1 e2 =
         -> Branch a abt b
         -> ReaderT Varmap Maybe ()
     sBranch (Branch _ e1) (Branch _ e2) = go (viewABT e1) (viewABT e2)
+
+    reducerEq
+        :: forall xs a
+        .  Reducer abt xs a
+        -> Reducer abt xs a
+        -> ReaderT Varmap Maybe ()
+    reducerEq (Red_Fanout r s) (Red_Fanout r' s')    = do
+        reducerEq r r'
+        reducerEq s s'
+    reducerEq (Red_Index s i r) (Red_Index s' i' r') = do
+        go (viewABT s) (viewABT s')
+        go (viewABT i) (viewABT i')
+        reducerEq r r'
+    reducerEq (Red_Split i r s) (Red_Split i' r' s') = do
+        go (viewABT i) (viewABT i')
+        reducerEq r r'
+        reducerEq s s'
+    reducerEq Red_Nop Red_Nop                        = return ()
+    reducerEq (Red_Add _ x) (Red_Add _ x')           = go (viewABT x) (viewABT x')
+    reducerEq _ _                                    = lift Nothing
