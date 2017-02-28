@@ -46,7 +46,6 @@ module Language.Hakaru.Syntax.Variable
     , memberVarSet
     , unionVarSet
     , intersectVarSet
-    , varSubSet
     , sizeVarSet
     , nextVarID
     -- ** Substitutions; aka: maps from variables to their definitions
@@ -435,15 +434,6 @@ intersectVarSet
     -> VarSet kproxy
     -> VarSet kproxy
 intersectVarSet (VarSet s1) (VarSet s2) = VarSet (IM.intersection s1 s2)
-
-varSubSet
-    :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
-    => VarSet (kproxy :: KProxy k)
-    -> VarSet (kproxy :: KProxy k)
-    -> Bool
-varSubSet (VarSet s1) y@(VarSet s2)
-  | IM.size s1 > IM.size s2 = False
-  | otherwise               = all (\ (SomeVariable v) -> memberVarSet v y) s1
 
 sizeVarSet :: VarSet a -> Int
 sizeVarSet (VarSet xs) = IM.size xs
