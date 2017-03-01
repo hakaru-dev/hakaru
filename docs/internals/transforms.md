@@ -181,3 +181,52 @@ Performs simple constant propagation and constant folding.
 The current implementation does not do that much work, mostly just evaluating
 primitive operations when their arguments are constant.
 
+## Unused Passes
+
+### Loop Peeling
+
+Found in `Language.Hakaru.Syntax.Unroll`
+
+Loop peeling was an initial attempt at performing loop invariant code motion by
+leveraging CSE to do most of the heavy lifting.
+Peeling is a common strategy to make other optimization passes "loop-aware".
+The idea is to peel off one iteration of a loop and then apply the existing
+suite of optimizations.
+Consider the following `summate` whose body  `e` is some loop-invariant
+computation.
+
+```
+(summate lo hi (λ x -> e))
+```
+
+After peeling we obtain
+
+```
+(if (= lo hi)
+    0
+    (let ([x lo])
+      (let ([t1 e])
+        (let ([t2 (summate (+ lo 1) hi (λ x -> e))])
+          (+ t1 t2)))))
+```
+
+After applying CSE, the loop invariant body is simply reused on each iteration
+
+```
+(if (= lo hi)
+    0
+    (let ([x lo])
+      (let ([t1 e])
+        (let ([t2 (summate (+ lo 1) hi (λ x -> t1))])
+          (+ t1 t2)))))
+```
+
+ANF ensures that all subexpression in the `e` bound to `t1` are shareable with
+the copy of `e` used in the body of the `summate`, allowing us to hoist out
+subexpressions of `e` and not just the entire `summate` body.
+
+This pass is currently disabled in favor of the let-floating pass, which does
+a better job without causing an exponential blow up in code size.
+Some of Hakaru's looping constructs, such as `array`, cannot be peeled, so we
+cannot move loop invariant operations out of `array` statements.
+

@@ -62,7 +62,7 @@ trivial abt = case viewABT abt of
                 Syn (Literal_ _) -> True
                 _                -> False
 
--- Attempt to find a new expression in then environment. The lookup is chained
+-- Attempt to find a new expression in the environment. The lookup is chained
 -- to iteratively perform lookup until no match is found, resulting in an
 -- equivalence-relation in the environment. This could be made faster with path
 -- compression and a more efficient lookup structure.
