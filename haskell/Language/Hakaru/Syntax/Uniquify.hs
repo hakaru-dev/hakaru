@@ -1,16 +1,18 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE EmptyCase                  #-}
-{-# LANGUAGE ExistentialQuantification  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PolyKinds                  #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE CPP
+           , DataKinds
+           , EmptyCase
+           , ExistentialQuantification
+           , FlexibleContexts
+           , GADTs
+           , GeneralizedNewtypeDeriving
+           , KindSignatures
+           , MultiParamTypeClasses
+           , OverloadedStrings
+           , PolyKinds
+           , ScopedTypeVariables
+           , TypeFamilies
+           , TypeOperators
+           #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -39,6 +41,10 @@ import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.IClasses
 import           Debug.Trace
+
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
+#endif
 
 newtype Uniquifier a = Uniquifier { runUniquifier :: StateT Nat (Reader Varmap) a }
   deriving (Functor, Applicative, Monad, MonadState Nat, MonadReader Varmap)

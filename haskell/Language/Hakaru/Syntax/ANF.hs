@@ -27,6 +27,7 @@
 module Language.Hakaru.Syntax.ANF (normalize, isValue) where
 
 import qualified Data.IntMap                     as IM
+import qualified Data.Foldable                   as F
 import           Data.Maybe
 import           Data.Number.Nat
 import           Data.Sequence                   ((<|))
@@ -227,7 +228,7 @@ normalizeNames
   -> Env
   -> (S.Seq (abt '[] a) -> abt '[] b)
   -> abt '[] b
-normalizeNames abts env = foldr f ($ S.empty) abts
+normalizeNames abts env = F.foldr f ($ S.empty) abts
   where
     f x acc ctxt = normalizeName x env $ \t -> acc (ctxt . (t <|))
 

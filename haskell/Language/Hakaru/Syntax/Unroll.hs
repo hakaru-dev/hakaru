@@ -1,11 +1,13 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE CPP
+           , DataKinds
+           , FlexibleContexts
+           , GADTs
+           , GeneralizedNewtypeDeriving
+           , MultiParamTypeClasses
+           , RankNTypes
+           , ScopedTypeVariables
+           , TypeOperators
+           #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -33,6 +35,10 @@ import           Language.Hakaru.Syntax.Prelude hiding ((>>=))
 import           Language.Hakaru.Types.HClasses
 import           Prelude                        hiding (product, (*), (+), (-),
                                                  (==), (>=))
+
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
+#endif
 
 newtype Unroll a = Unroll { runUnroll :: Reader Varmap a }
   deriving (Functor, Applicative, Monad, MonadReader Varmap, MonadFix)
@@ -111,7 +117,7 @@ unrollTerm term = return (syn term)
 -- variable already. Be careful that the provided variable has been remaped to
 -- its equivalent in the target term if altering the binding structure of the
 -- program.
-letM' :: (MonadFix m, ABT Term abt)
+letM' :: (Functor m, MonadFix m, ABT Term abt)
       => abt '[] a
       -> (abt '[] a -> m (abt '[] b))
       -> m (abt '[] b)

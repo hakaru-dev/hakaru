@@ -1,11 +1,13 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE CPP
+           , DataKinds
+           , FlexibleContexts
+           , GADTs
+           , GeneralizedNewtypeDeriving
+           , KindSignatures
+           , MultiParamTypeClasses
+           , ScopedTypeVariables
+           , TypeOperators
+           #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -31,6 +33,10 @@ import           Language.Hakaru.Syntax.AST.Eq
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Unroll   (renameInEnv)
 import           Language.Hakaru.Types.DataKind
+
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
+#endif
 
 -- A Simple pass for pruning the unused let bindings from an AST.
 

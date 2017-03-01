@@ -1,21 +1,23 @@
-{-# LANGUAGE BangPatterns               #-}
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE EmptyCase                  #-}
-{-# LANGUAGE ExistentialQuantification  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PolyKinds                  #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE CPP
+           , BangPatterns
+           , DataKinds
+           , EmptyCase
+           , ExistentialQuantification
+           , FlexibleContexts
+           , FlexibleInstances
+           , GADTs
+           , GeneralizedNewtypeDeriving
+           , KindSignatures
+           , MultiParamTypeClasses
+           , OverloadedStrings
+           , PolyKinds
+           , ScopedTypeVariables
+           , StandaloneDeriving
+           , TupleSections
+           , TypeFamilies
+           , TypeOperators
+           , UndecidableInstances
+           #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -59,6 +61,10 @@ import qualified Language.Hakaru.Syntax.Prelude  as P
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
+
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
+#endif
 
 data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry

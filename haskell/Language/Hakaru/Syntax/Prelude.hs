@@ -132,7 +132,7 @@ module Language.Hakaru.Syntax.Prelude
     ) where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
-import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), flip, fmap, const, error)
+import Prelude (Maybe(..), Functor(..), Bool(..), Integer, Rational, ($), flip, const, error)
 import qualified Prelude
 import           Data.Sequence       (Seq)
 import qualified Data.Sequence       as Seq
@@ -968,7 +968,7 @@ let_
     -> abt '[] b
 let_ e f = syn (Let_ :$ e :* binder Text.empty (typeOf e) f :* End)
 
-letM :: (MonadFix m, ABT Term abt)
+letM :: (Functor m, MonadFix m, ABT Term abt)
      => abt '[] a
      -> (abt '[] a -> m (abt '[] b))
      -> m (abt '[] b)

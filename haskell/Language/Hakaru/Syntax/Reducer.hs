@@ -14,6 +14,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.IClasses
 
 #if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
 import           Data.Monoid   (Monoid(..))
 #endif
 

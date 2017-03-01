@@ -82,7 +82,8 @@ import           Data.Text         (Text, empty)
 --import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid       (Monoid(..))
+import           Control.Applicative hiding (empty)
+import           Data.Monoid                (Monoid(..))
 #endif
 
 import Control.Monad.Fix
@@ -1029,18 +1030,18 @@ cataABTM
         (abt :: [k] -> k -> *)
         (syn :: ([k] -> k -> *) -> k -> *)
         (r   :: [k] -> k -> *)
-        (m   :: * -> *)
-    .  (ABT syn abt, Traversable21 syn, Monad m)
-    => (forall a.      Variable a  -> m (r '[] a))
-    -> (forall x xs a. Variable x  -> m (r xs a) -> m (r (x ': xs) a))
-    -> (forall a.      m (syn r a) -> m (r '[] a))
-    -> forall  xs a.   abt xs a    -> m (r xs a)
+        (f   :: * -> *)
+    .  (ABT syn abt, Traversable21 syn, Applicative f)
+    => (forall a.      Variable a  -> f (r '[] a))
+    -> (forall x xs a. Variable x  -> f (r xs a) -> f (r (x ': xs) a))
+    -> (forall a.      f (syn r a) -> f (r '[] a))
+    -> forall  xs a.   abt xs a    -> f (r xs a)
 cataABTM var_ bind_ syn_ = start
     where
-    start :: forall ys b. abt ys b -> m (r ys b)
+    start :: forall ys b. abt ys b -> f (r ys b)
     start = loop . viewABT
 
-    loop :: forall ys b. View (syn abt) ys b -> m (r ys b)
+    loop :: forall ys b. View (syn abt) ys b -> f (r ys b)
     loop (Syn  t)   = syn_ (traverse21 start t)
     loop (Var  x)   = var_  x
     loop (Bind x e) = bind_ x (loop e)
