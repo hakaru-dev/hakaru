@@ -20,12 +20,13 @@ import           Data.Foldable                   as F
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import           Data.Number.Natural
-import           Data.Number.LogFloat
+import           Data.Number.LogFloat            hiding (sum, product)
+import qualified Data.Number.LogFloat            as LF
 import qualified Data.Vector                     as V
 import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
 import           Control.Monad
-import           Prelude                         hiding (product)
+import           Prelude                         hiding (sum, product)
 
 type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
 type instance MinBoxVec V.Vector v        = V.Vector
@@ -253,23 +254,21 @@ size :: (G.Vector (MayBoxVec a) a) => MayBoxVec a a -> Int
 size v = fromIntegral (G.length v)
 {-# INLINE size #-}
 
-product
-    :: Num a
-    => Int
-    -> Int
-    -> (Int -> a)
-    -> a
-product a b f = F.foldl' (\x y -> x * f y) 1 [a .. b-1]
-{-# INLINE product #-}
+class Num a => Num' a where
+    product :: Int -> Int -> (Int -> a) -> a
+    product a b f = F.foldl' (\x y -> x * f y) 1 [a .. b-1]
+    {-# INLINE product #-}
+    summate :: Int -> Int -> (Int -> a) -> a
+    summate a b f = F.foldl' (\x y -> x + f y) 0 [a .. b-1]
+    {-# INLINE summate #-}
 
-summate
-    :: Num a
-    => Int
-    -> Int
-    -> (Int -> a)
-    -> a
-summate a b f = F.foldl' (\x y -> x + f y) 0 [a .. b-1]
-{-# INLINE summate #-}
+instance Num' Int
+instance Num' Double
+instance Num' LogFloat where
+    product a b f = LF.product (map f [a .. b-1])
+    {-# INLINE product #-}
+    summate a b f = LF.sum     (map f [a .. b-1])
+    {-# INLINE summate #-}
 
 run :: Show a
     => MWC.GenIO
