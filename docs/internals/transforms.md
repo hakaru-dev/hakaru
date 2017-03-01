@@ -33,12 +33,16 @@ In order, the optimizations performed are:
 4. Common subexpression elimination
 5. Pruning of dead binders
 6. Uniquification of variables (for the C backend)
+7. Constant Propagation
 
 Each pass is described in more detail below.
 
 ### A-normalization
 
 Found in `Language.Hakaru.Syntax.ANF`
+
+See **The Essence of Compiling with Continuations by Flannigan, Sabry, Duba, and
+Felleisen**
 
 A-normalization converts expressions into *administrative normal form* (ANF).
 This ensures that all intermediate values are named and all arguments to
@@ -68,7 +72,7 @@ Found in `Language.Hakaru.Syntax.Uniquify`
 
 Ensures all variables in the program have unique variable identifiers.
 This is not strictly necessary, but simplifies the implementation of other
-passes, and several of the following passes rely on this property.
+passes, several of which rely on this property.
 
 ### Let-floating
 
@@ -120,8 +124,9 @@ Consider the example
 (+ (add1 z) (add1 z))
 ```
 
-Eliminating the common expression `(add1 z)` requires us to know the evaluation
-order of arguments, recognize when an expression is duplicated, and introduce it
+Eliminating the common expression `(add1 z)` requires us to traverse the
+expression in evaluation order, track expression which have already been
+evaluated, recognize when an expression is duplicated, and introduce it
 with a new name that dominates all use sites of that expression.
 However, an expression in ANF allows us to perform CSE simply by keeping track
 of let-bound expressions and propagating those expressions downward into the
@@ -156,6 +161,8 @@ let-floating pass.
 
 ### Pruning
 
+Found in `Language.Hakaru.Syntax.Prune`
+
 This is essentially a limited form of dead code elimination.
 If an expression is bound to a variable which is never referenced, then that
 expression need never be executed, as the code language has no side effects.
@@ -165,4 +172,12 @@ Cases which are handled
 
 1. `(let ([x e1]) e2) => e2 if x not in fv(e2)`
 2. `(let ([x e1]) x)  => e1`
+
+### Constant Propagation
+
+Found in `Language.Hakaru.Evalutation.ConstantPropagation`
+
+Performs simple constant propagation and constant folding.
+The current implementation does not do that much work, mostly just evaluating
+primitive operations when their arguments are constant.
 
