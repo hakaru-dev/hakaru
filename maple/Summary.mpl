@@ -128,7 +128,9 @@ Summary := module ()
     local x, kb1, e1, rng, summary, mr, f;
     if not hasfun(e, '{Sum,sum}', 'piecewise') then
       e;
-    elif e :: '{specfunc({Weight, Categorical, exp, log, idx, And, Or, Not}),
+    elif e :: '{specfunc({Weight, Categorical,
+                          Fanout, Split, Nop, Add,
+                          exp, log, idx, And, Or, Not}),
                 `+`, `*`, `^`, `..`, boolean, indexed, list}' then
       map(procname, _passed);
     elif e :: 'Context(anything, anything)' then
@@ -152,6 +154,7 @@ Summary := module ()
       if op(0, e) in '{sum, Sum}' and has(e1, 'piecewise') then
         mr, f := summarize(e1, kb, x, summary);
         if hasfun(mr, '{Fanout, Index}') then
+          mr := summarize_throughout(mr, kb1);
           return Eval(simplify_factor_assuming(f, kb),
                       summary = Bucket(mr, x=rng));
         end if;
