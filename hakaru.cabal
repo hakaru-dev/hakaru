@@ -55,6 +55,7 @@ Library
                        Language.Hakaru.Syntax.AST.Sing,
                        Language.Hakaru.Syntax.AST.Eq,
                        Language.Hakaru.Syntax.CSE,
+                       Language.Hakaru.Syntax.Gensym,
                        Language.Hakaru.Syntax.Hoist,
                        Language.Hakaru.Syntax.Prune,
                        Language.Hakaru.Syntax.TypeCheck,
