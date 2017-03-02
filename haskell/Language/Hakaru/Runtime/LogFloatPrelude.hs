@@ -182,14 +182,14 @@ dirac :: a -> Measure a
 dirac = return
 {-# INLINE dirac #-}
 
-pose :: Double -> Measure a -> Measure a
+pose :: LogFloat -> Measure a -> Measure a
 pose _ a = a
 {-# INLINE pose #-}
 
-superpose :: [(Double, Measure a)]
+superpose :: [(LogFloat, Measure a)]
           -> Measure a
 superpose pms = do
-  i <- makeMeasure $ MWCD.categorical (U.fromList $ map fst pms)
+  i <- categorical (V.fromList $ map fst pms)
   snd (pms !! i)
 {-# INLINE superpose #-}
 
