@@ -149,7 +149,7 @@ Summary := module ()
       rng := map(summarize_throughout, op([2,2],e), kb);
       x, kb1 := genType(op([2,1],e), HInt(closed_bounds(rng)), kb);
       e1 := eval(op(1,e), op([2,1],e)=x);
-      if has(e1, 'piecewise') then
+      if op(0, e) in '{sum, Sum}' and has(e1, 'piecewise') then
         mr, f := summarize(e1, kb, x, summary);
         if hasfun(mr, '{Fanout, Index}') then
           return Eval(simplify_factor_assuming(f, kb),
