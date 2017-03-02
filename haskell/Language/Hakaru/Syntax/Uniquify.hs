@@ -39,6 +39,7 @@ import           Data.Number.Nat
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
+import           Language.Hakaru.Syntax.Gensym
 import           Language.Hakaru.Syntax.IClasses
 import           Debug.Trace
 
@@ -55,18 +56,6 @@ uniquify abt = fst $ runReader (runStateT unique seed) emptyAssocs
     unique = runUniquifier (uniquify' abt)
     seed   = nextFreeOrBind abt
 
-genVarID :: Uniquifier Nat
-genVarID = do
-  vid <- get
-  put (succ vid)
-  return vid
-
-newVar :: Variable a -> Uniquifier (Variable a)
-newVar v = do
-  vid <- genVarID
-  let fresh = v { varID = vid }
-  return fresh
-
 uniquify'
   :: forall abt xs a . (ABT Term abt)
   => abt xs a
@@ -80,7 +69,7 @@ uniquify' = start
     loop (Var v)    = uniquifyVar v
     loop (Syn s)    = fmap syn (traverse21 start s)
     loop (Bind v b) = do
-      fresh <- newVar v
+      fresh <- freshVar v
       let assoc = Assoc v fresh
       -- Process the body with the updated Varmap and wrap the
       -- result in a bind form

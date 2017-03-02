@@ -56,6 +56,7 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.ANF      (isValue)
 import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq
+import           Language.Hakaru.Syntax.Gensym
 import           Language.Hakaru.Syntax.IClasses
 import qualified Language.Hakaru.Syntax.Prelude  as P
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
@@ -195,15 +196,6 @@ execHoistM counter act = a
     hoisted   = runHoistM act
     (a, _, _) = runRWS hoisted emptyVarSet counter
 
-newVar
-  :: (ABT Term abt)
-  => Sing a
-  -> HoistM abt (Variable a)
-newVar typ = do
-  vid <- gets succ
-  put vid
-  return $ Variable "" vid typ
-
 -- | An expression is considered "toplevel" if it can be hoisted outside all
 -- binders. This means that the expression has no data dependencies.
 toplevelEntry
@@ -323,7 +315,7 @@ wrapExpr = foldrM wrap
     -- variable uses to the fresh variable.
     wrap :: Entry (abt '[]) -> abt '[] b ->  HoistM abt (abt '[] b)
     wrap Entry{expression=e,bindings=[]} acc = do
-      tmp <- newVar (typeOf e)
+      tmp <- varForExpr e
       return $ mklet e tmp acc
     wrap Entry{expression=e,bindings=(x:xs)} acc = do
       let rhs  = var x
@@ -391,7 +383,7 @@ hoistTerm term = do
   result <- syn <$> traverse21 hoist' term
   if isValue result
     then return result
-    else do fresh <- newVar (typeOf result)
+    else do fresh <- varForExpr result
             tell $ singleEntry fresh result
             return (var fresh)
 

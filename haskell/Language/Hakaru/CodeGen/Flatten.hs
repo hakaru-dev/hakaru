@@ -695,7 +695,8 @@ flattenCase
   -> [Branch a abt b]
   -> (CExpr -> CodeGen ())
 
-flattenCase c (Branch (PDatum _ (PInl PDone)) trueB:Branch (PDatum _ (PInr (PInl PDone))) falseB:[]) =
+flattenCase c [ Branch (PDatum _ (PInl PDone))        trueB
+              , Branch (PDatum _ (PInr (PInl PDone))) falseB ] =
   \loc ->
     do cId <- genIdent
        declare (typeOf c) cId
@@ -709,12 +710,12 @@ flattenCase c (Branch (PDatum _ (PInl PDone)) trueB:Branch (PDatum _ (PInr (PInl
            (_,cg'') = runState falseM $ cg' { statements = [] }
        put $ cg'' { statements = statements cg }
 
-       putStat $ CIf ((CMember cE (Ident "index") True) .==. (intE 0))
-                     (CCompound . fmap CBlockStat . reverse . statements $ cg')
-                     Nothing
-       putStat $ CIf ((CMember cE (Ident "index") True) .==. (intE 1))
+       let alt = CIf ((CMember cE (Ident "index") True) .==. (intE 1))
                      (CCompound . fmap CBlockStat . reverse . statements $ cg'')
                      Nothing
+       putStat $ CIf ((CMember cE (Ident "index") True) .==. (intE 0))
+                     (CCompound . fmap CBlockStat . reverse . statements $ cg')
+                     (Just alt)
 
 
 flattenCase _ _ = error "TODO: flattenCase"
