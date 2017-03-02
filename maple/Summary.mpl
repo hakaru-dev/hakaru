@@ -20,7 +20,7 @@ end proc:
 
 Summary := module ()
   option package;
-  export bucket, summarize;
+  export bucket, summarize, summarize_throughout;
   global Bucket, Fanout, Index, Split, Nop, Add;
   uses Hakaru, KB;
 
@@ -50,7 +50,11 @@ Summary := module ()
           e1, mr1, f1, e2, mr2, f2,
           variables, var_outerness, outermost, thunk, consider,
           o, t, lo, hi, b, a;
+
+    # Try to ensure termination
     e := simplify_assuming(ee, kb);
+    if length(e) >= length(ee) then e := ee end if;
+
     # Nop rule
     if Testzero(e) then return Nop(), 0 end if;
 
@@ -78,6 +82,9 @@ Summary := module ()
         thunk     := th;
       end if;
     end proc;
+    if has(variables, i) then
+      error "The loop to be summarized shadows the variable %1", i;
+    end if;
     for r in s do
       e1 := eval(e, r=true);  if e = e1 then next end if;
       e2 := eval(e, r=false); if e = e2 then next end if;
@@ -114,6 +121,45 @@ Summary := module ()
     else
       # Add rule
       return Add(e), summary;
+    end if;
+  end proc;
+
+  summarize_throughout := proc(e, kb :: t_kb, $)
+    local x, kb1, e1, rng, summary, mr, f;
+    if not hasfun(e, '{Sum,sum}', 'piecewise') then
+      e;
+    elif e :: '{specfunc({Weight, Categorical, exp, log, idx, And, Or, Not}),
+                `+`, `*`, `^`, `..`, boolean, indexed, list}' then
+      map(procname, _passed);
+    elif e :: 'Context(anything, anything)' then
+      kb1 := assert(op(1,e), kb);
+      applyop(procname, 2, e, kb1);
+    elif e :: 'specfunc(piecewise)' then
+      kb_piecewise(e, kb, ((lhs, kb) -> lhs), summarize_throughout);
+    elif e :: 'lam(name, anything, anything)' then
+      x, kb1 := genType(op(1,e), op(2,e), kb);
+      e1 := summarize_throughout(eval(op(3,e), op(1,e)=x), kb1);
+      subsop(1=x, 3=e1, e);
+    elif e :: 'ary(anything, name, anything)' then
+      x, kb1 := genType(op(2,e), HInt(closed_bounds(0..op(1,e)-1)), kb);
+      e1 := summarize_throughout(eval(op(3,e), op(2,e)=x), kb1);
+      subsop(2=x, 3=e1, e);
+    elif e :: 'And(specfunc({sum, Sum, product, Product}),
+                   anyfunc(anything, name=range))' then
+      rng := map(summarize_throughout, op([2,2],e), kb);
+      x, kb1 := genType(op([2,1],e), HInt(closed_bounds(rng)), kb);
+      e1 := eval(op(1,e), op([2,1],e)=x);
+      if has(e1, 'piecewise') then
+        mr, f := summarize(e1, kb, x, summary);
+        if hasfun(mr, '{Fanout, Index}') then
+          return Eval(simplify_factor_assuming(f, kb),
+                      summary = Bucket(mr, x=rng));
+        end if;
+      end if;
+      e1 := summarize_throughout(e1, kb1);
+      subsop(2=(x=rng), 1=e1, e);
+    else
+      error "summarize_throughout doesn't know how to handle %1", e;
     end if;
   end proc;
 end module; # Summary
