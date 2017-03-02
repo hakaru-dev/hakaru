@@ -223,16 +223,16 @@ flattenSCon (Summate _ sr) =
              caseBind body $ \v body' -> do
                iterI <- createIdent v
                declare SNat iterI
-  
+
                accI <- genIdent' "acc"
                declare semiTyp accI
                assign accI (case semiTyp of
                               SReal -> floatE 0
                               _     -> intE 0)
-  
+
                let accVar  = CVar accI
                    iterVar = CVar iterI
-  
+
                reductionCG CAddOp
                            accI
                            (iterVar .=. loE)
@@ -251,49 +251,51 @@ flattenSCon (Summate _ sr) =
 
 flattenSCon (Product _ sr) =
   \(lo :* hi :* body :* End) ->
-    \loc ->
-      caseBind body $ \v body' ->
-        do loId <- genIdent
-           hiId <- genIdent
-           declare (typeOf lo) loId
-           declare (typeOf hi) hiId
-           let loE = CVar loId
-               hiE = CVar hiId
-           flattenABT lo loE
-           flattenABT hi hiE
+    \loc -> do
+      loId <- genIdent
+      hiId <- genIdent
+      declare (typeOf lo) loId
+      declare (typeOf hi) hiId
+      let loE     = CVar loId
+          hiE     = CVar hiId
+          semiTyp = sing_HSemiring sr
+      flattenABT lo loE
+      flattenABT hi hiE
 
-           iterI <- createIdent v
-           declare SNat iterI
+      putStat $ opComment "Begin Product"
 
-           accI <- genIdent' "acc"
-           let semiT = sing_HSemiring sr
-           declare semiT accI
-           assign accI (case semiT of
-                          SProb -> floatE 0
-                          SReal -> floatE 1
-                          _     -> intE 1)
+      case semiTyp of
+      -- special prob branch
+        SProb -> kahanSummationCG body loE hiE loc
 
-           let accVar  = CVar accI
-               iterVar = CVar iterI
+        _ -> do
+          caseBind body $ \v body' -> do
+            iterI <- createIdent v
+            declare SNat iterI
 
-           putStat $ opComment "Product"
-           reductionCG (case semiT of
-                          SProb -> CAddOp
-                          _     -> CMulOp)
-                       accI
-                       (iterVar .=. loE)
-                       (iterVar .<. hiE)
-                       (CUnary CPostIncOp iterVar) $
-             do tmpId <- genIdent
-                declare (typeOf body') tmpId
-                let tmpE = CVar tmpId
-                flattenABT body' tmpE
-                putExprStat $ case semiT of
-                                SProb -> CAssign CAddAssOp accVar
-                                _ -> CAssign CMulAssOp accVar
-                            $ tmpE
+            accI <- genIdent' "acc"
+            declare semiTyp accI
+            assign accI (case semiTyp of
+                           SReal -> floatE 1
+                           _     -> intE 1)
 
-           putExprStat (loc .=. accVar)
+            let accVar  = CVar accI
+                iterVar = CVar iterI
+
+            reductionCG CMulOp
+                         accI
+                         (iterVar .=. loE)
+                         (iterVar .<. hiE)
+                         (CUnary CPostIncOp iterVar) $
+               do tmpId <- genIdent
+                  declare (typeOf body') tmpId
+                  let tmpE = CVar tmpId
+                  flattenABT body' tmpE
+                  putExprStat (accVar .*=. tmpE)
+
+            putExprStat (loc .=. accVar)
+
+      putStat $ opComment "End Product"
 
 
 --------------------
@@ -472,123 +474,6 @@ flattenNAryOp op args =
                                   (S.drop 1 es'')
           in  putExprStat ((indexOf loc') .=. expr)
 
-
---------------------------------------
--- LogSumExp for NaryOp Add [SProb] --
---------------------------------------
-{-
-
-Special for addition of probabilities we have a logSumExp. This will compute the
-sum of the probabilities safely. Just adding the exp(a . prob) would make us
-loose any of the safety from underflow that we got from storing prob in the log
-domain
-
--}
-
--- the tree traversal is a depth first search
-logSumExp :: S.Seq CExpr -> CExpr
-logSumExp es = mkCompTree 0 1
-
-  where lastIndex  = S.length es - 1
-
-        compIndices :: Int -> Int -> CExpr -> CExpr -> CExpr
-        compIndices i j = CCond ((S.index es i) .>. (S.index es j))
-
-        mkCompTree :: Int -> Int -> CExpr
-        mkCompTree i j
-          | j == lastIndex = compIndices i j (logSumExp' i) (logSumExp' j)
-          | otherwise      = compIndices i j
-                               (mkCompTree i (succ j))
-                               (mkCompTree j (succ j))
-
-        diffExp :: Int -> Int -> CExpr
-        diffExp a b = expm1E ((S.index es a) .-. (S.index es b))
-
-        -- given the max index, produce a logSumExp expression
-        logSumExp' :: Int -> CExpr
-        logSumExp' 0 = S.index es 0
-          .+. (log1pE $ foldr (\x acc -> diffExp x 0 .+. acc)
-                            (diffExp 1 0)
-                            [2..S.length es - 1]
-                    .+. (intE $ fromIntegral lastIndex))
-        logSumExp' i = S.index es i
-          .+. (log1pE $ foldr (\x acc -> if i == x
-                                       then acc
-                                       else diffExp x i .+. acc)
-                            (diffExp 0 i)
-                            [1..S.length es - 1]
-                    .+. (intE $ fromIntegral lastIndex))
-
-
--- | logSumExpCG creates global functions for every n-ary logSumExp function
--- this reduces code size
-logSumExpCG :: S.Seq CExpr -> (CExpr -> CodeGen ())
-logSumExpCG seqE =
-  let size   = S.length $ seqE
-      name   = "logSumExp" ++ (show size)
-      funcId = Ident name
-  in \loc -> do -- reset the names so that the function is the same for each arity
-       cg <- get
-       put (cg { freshNames = suffixes })
-       argIds <- replicateM size genIdent
-       let decls = fmap (typeDeclaration SProb) argIds
-           vars  = fmap CVar argIds
-       extDeclare . CFunDefExt $ functionDef SProb
-                                             funcId
-                                             decls
-                                             []
-                                             [CReturn . Just $ logSumExp $ S.fromList vars ]
-       cg' <- get
-       put (cg' { freshNames = freshNames cg })
-       putExprStat $ loc .=. (CCall (CVar funcId) (F.toList seqE))
-
--------------------------------------
--- LogSumExp for Summation of Prob --
--------------------------------------
-{-
-
-For summation of SProb we need a new logSumExp function that will find the max
-of an array and then sum it in a loop
-
--}
-
-lseSummateArrayCG
-  :: ( ABT Term abt )
-  => (abt '[ a ] b)
-  -> CExpr
-  -> (CExpr -> CodeGen ())
-lseSummateArrayCG body arrayE =
-  caseBind body $ \v body' ->
-    \loc -> do
-      (maxVId:maxIId:sumId:[]) <- mapM genIdent' ["maxV","maxI","sum"]
-      itId <- createIdent v
-      mapM_ (declare SProb) [maxVId,sumId]
-      mapM_ (declare SNat)  [maxIId,itId]
-      let (maxVE:maxIE:sumE:itE:[]) = fmap CVar [maxVId,maxIId,sumId,itId]
-      forCG (itE .=. intE 0)
-            (itE .<. arraySize arrayE)
-            (CUnary CPostIncOp itE)
-            (do tmpId <- genIdent
-                declare SProb tmpId
-                let tmpE = CVar tmpId
-                flattenABT body' tmpE
-                putExprStat $ derefIndex itE .=. tmpE
-                putStat $ CIf ((maxVE .<. tmpE) .||. (itE .==. (intE 0)))
-                              (seqCStat . fmap (CExpr . Just) $
-                                [ maxVE .=. tmpE
-                                , maxIE .=. itE ])
-                              Nothing)
-      putExprStat $ sumE  .=. (floatE 0) -- the sum is actually in real space
-      forCG (itE .=. intE 0)
-            (itE .<. arraySize arrayE)
-            (CUnary CPostIncOp itE)
-            (putStat $ CIf (itE .!=. maxIE)
-                           (CExpr . Just $ sumE .+=. (expE ((derefIndex itE) .-. (maxVE))))
-                           Nothing)
-
-      putExprStat $ loc .=. (maxVE .+. (logE sumE))
-
-  where derefIndex xE = indirect (arrayData arrayE .+. xE)
 
 --------------------------------------------------------------------------------
 --                                  Literals                                  --
@@ -1308,3 +1193,160 @@ flattenSuperpose pairs =
             putStat $ CLabel outLabel (CExpr Nothing)
             putExprStat $ mdataPtrWeight loc .=. ((mdataPtrWeight outE) .+. wSumE)
             putExprStat $ mdataPtrSample loc .=. (mdataPtrSample outE)
+
+
+
+--------------------------------------------------------------------------------
+--                           Specialized Arithmetic                           --
+--------------------------------------------------------------------------------
+
+--------------------------------------
+-- LogSumExp for NaryOp Add [SProb] --
+--------------------------------------
+{-
+
+Special for addition of probabilities we have a logSumExp. This will compute the
+sum of the probabilities safely. Just adding the exp(a . prob) would make us
+loose any of the safety from underflow that we got from storing prob in the log
+domain
+
+-}
+
+-- the tree traversal is a depth first search
+logSumExp :: S.Seq CExpr -> CExpr
+logSumExp es = mkCompTree 0 1
+
+  where lastIndex  = S.length es - 1
+
+        compIndices :: Int -> Int -> CExpr -> CExpr -> CExpr
+        compIndices i j = CCond ((S.index es i) .>. (S.index es j))
+
+        mkCompTree :: Int -> Int -> CExpr
+        mkCompTree i j
+          | j == lastIndex = compIndices i j (logSumExp' i) (logSumExp' j)
+          | otherwise      = compIndices i j
+                               (mkCompTree i (succ j))
+                               (mkCompTree j (succ j))
+
+        diffExp :: Int -> Int -> CExpr
+        diffExp a b = expm1E ((S.index es a) .-. (S.index es b))
+
+        -- given the max index, produce a logSumExp expression
+        logSumExp' :: Int -> CExpr
+        logSumExp' 0 = S.index es 0
+          .+. (log1pE $ foldr (\x acc -> diffExp x 0 .+. acc)
+                            (diffExp 1 0)
+                            [2..S.length es - 1]
+                    .+. (intE $ fromIntegral lastIndex))
+        logSumExp' i = S.index es i
+          .+. (log1pE $ foldr (\x acc -> if i == x
+                                       then acc
+                                       else diffExp x i .+. acc)
+                            (diffExp 0 i)
+                            [1..S.length es - 1]
+                    .+. (intE $ fromIntegral lastIndex))
+
+
+-- | logSumExpCG creates global functions for every n-ary logSumExp function
+-- this reduces code size
+logSumExpCG :: S.Seq CExpr -> (CExpr -> CodeGen ())
+logSumExpCG seqE =
+  let size   = S.length $ seqE
+      name   = "logSumExp" ++ (show size)
+      funcId = Ident name
+  in \loc -> do -- reset the names so that the function is the same for each arity
+       cg <- get
+       put (cg { freshNames = suffixes })
+       argIds <- replicateM size genIdent
+       let decls = fmap (typeDeclaration SProb) argIds
+           vars  = fmap CVar argIds
+       extDeclare . CFunDefExt $ functionDef SProb
+                                             funcId
+                                             decls
+                                             []
+                                             [CReturn . Just $ logSumExp $ S.fromList vars ]
+       cg' <- get
+       put (cg' { freshNames = freshNames cg })
+       putExprStat $ loc .=. (CCall (CVar funcId) (F.toList seqE))
+
+-------------------------------------
+-- LogSumExp for Summation of Prob --
+-------------------------------------
+{-
+
+For summation of SProb we need a new logSumExp function that will find the max
+of an array and then sum it in a loop
+
+-}
+
+lseSummateArrayCG
+  :: ( ABT Term abt )
+  => (abt '[ a ] b)
+  -> CExpr
+  -> (CExpr -> CodeGen ())
+lseSummateArrayCG body arrayE =
+  caseBind body $ \v body' ->
+    \loc -> do
+      (maxVId:maxIId:sumId:[]) <- mapM genIdent' ["maxV","maxI","sum"]
+      itId <- createIdent v
+      mapM_ (declare SProb) [maxVId,sumId]
+      mapM_ (declare SNat)  [maxIId,itId]
+      let (maxVE:maxIE:sumE:itE:[]) = fmap CVar [maxVId,maxIId,sumId,itId]
+      forCG (itE .=. intE 0)
+            (itE .<. arraySize arrayE)
+            (CUnary CPostIncOp itE)
+            (do tmpId <- genIdent
+                declare SProb tmpId
+                let tmpE = CVar tmpId
+                flattenABT body' tmpE
+                putExprStat $ derefIndex itE .=. tmpE
+                putStat $ CIf ((maxVE .<. tmpE) .||. (itE .==. (intE 0)))
+                              (seqCStat . fmap (CExpr . Just) $
+                                [ maxVE .=. tmpE
+                                , maxIE .=. itE ])
+                              Nothing)
+      putExprStat $ sumE  .=. (floatE 0) -- the sum is actually in real space
+      forCG (itE .=. intE 0)
+            (itE .<. arraySize arrayE)
+            (CUnary CPostIncOp itE)
+            (putStat $ CIf (itE .!=. maxIE)
+                           (CExpr . Just $ sumE .+=. (expE ((derefIndex itE) .-. (maxVE))))
+                           Nothing)
+
+      putExprStat $ loc .=. (maxVE .+. (logE sumE))
+
+  where derefIndex xE = indirect (arrayData arrayE .+. xE)
+
+---------------------
+-- Kahan Summation --
+---------------------
+-- | given a body and a size compute the kahan summation. This should work on
+--   both probs and reals
+kahanSummationCG
+  :: ( ABT Term abt )
+  => (abt '[ a ] b)
+  -> CExpr
+  -> CExpr
+  -> (CExpr -> CodeGen ())
+kahanSummationCG body loE hiE =
+  caseBind body $ \v body' ->
+    \loc -> do
+      (tId:cId:[]) <- mapM genIdent' ["t","c"]
+      itId <- createIdent v
+      declare SNat itId
+      mapM_ (declare SProb) [tId,cId]
+      let (tE:cE:itE:[]) = fmap CVar [tId,cId,itId]
+      putExprStat $ tE .=. (floatE 0)
+      putExprStat $ cE .=. (floatE 0)
+      forCG (itE .=. loE)
+            (itE .<. hiE)
+            (CUnary CPostIncOp itE)
+            (do (xId:yId:zId:[]) <- mapM genIdent' ["x","y","z"]
+                mapM_ (declare SProb) [xId,yId,zId]
+                let (xE:yE:zE:[]) = fmap CVar [xId,yId,zId]
+                flattenABT body' xE
+                putExprStat $ yE .=. (xE .-. cE)
+                putExprStat $ zE .=. (tE .+. yE)
+                putExprStat $ cE .=.  ((zE .-. tE) .-. yE)
+                putExprStat $ tE .=. zE)
+      putExprStat $ loc .=. tE
