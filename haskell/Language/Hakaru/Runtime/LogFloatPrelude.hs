@@ -27,7 +27,8 @@ import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
 import qualified Data.Vector.Generic.Mutable     as M
 import           Control.Monad
-import           Prelude                         hiding (sum, product, exp)
+import           Prelude                         hiding (sum, product, exp, log, (**), pi)
+import qualified Prelude                         as P
 
 type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
 type instance MinBoxVec V.Vector v        = V.Vector
@@ -108,9 +109,13 @@ ann_ :: a -> b -> b
 ann_ _ a = a
 {-# INLINE ann_ #-}
 
-exp :: Double -> LF.LogFloat
-exp = LF.logToLogFloat
+exp :: Double -> LogFloat
+exp = logToLogFloat
 {-# INLINE exp #-}
+
+log :: LogFloat -> Double
+log = logFromLogFloat
+{-# INLINE log #-}
 
 newtype Measure a = Measure { unMeasure :: MWC.GenIO -> IO (Maybe a) }
 
@@ -291,12 +296,17 @@ infinity = 1/0
 abs_ :: Num a => a -> a
 abs_ = abs
 
--- TODO: Don't use Floating and use a Floating' class instead
-instance Floating LogFloat where
-    x ** y = x `pow` (fromLogFloat y)
+(**) :: LogFloat -> Double -> LogFloat
+(**) = pow
+{-# INLINE (**) #-}
 
-thRootOf :: Floating a => Int -> a -> a
-thRootOf a b = b ** (recip $ fromIntegral a)
+pi :: LogFloat
+pi = logFloat P.pi
+{-# INLINE pi #-}
+
+thRootOf :: Int -> LogFloat -> LogFloat
+thRootOf a b = b `pow` (recip $ fromIntegral a)
+{-# INLINE thRootOf #-}
 
 array
     :: (G.Vector (MayBoxVec a) a)

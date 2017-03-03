@@ -322,6 +322,7 @@ abs_ = abs
 
 thRootOf :: Int -> Double -> Double
 thRootOf a b = b ** (recip $ fromIntegral a)
+{-# INLINE thRootOf #-}
 
 array
     :: (G.Vector (MayBoxVec a) a)
