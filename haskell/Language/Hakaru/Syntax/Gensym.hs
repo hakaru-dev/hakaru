@@ -1,5 +1,5 @@
-{-# LANGUAGE DataKinds
-           , PolyKinds
+{-# LANGUAGE CPP
+           , DataKinds
            , FlexibleInstances
            , FlexibleContexts
            , KindSignatures
@@ -10,6 +10,9 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Syntax.Gensym where
 
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Functor                    ((<$>))
+#endif
 import Control.Monad.State
 import Data.Number.Nat
 import Language.Hakaru.Syntax.ABT
@@ -27,12 +30,18 @@ instance (Monad m, MonadState Nat m) => Gensym m where
     put vid
     return vid
 
-freshVar :: Gensym m => Variable (a :: Hakaru) -> m (Variable a)
+freshVar
+    :: (Functor m, Gensym m)
+    => Variable (a :: Hakaru) -> m (Variable a)
 freshVar v = fmap (\n -> v{varID=n}) freshVarId
 
-varOfType :: Gensym m => Sing (a :: Hakaru) -> m (Variable a)
+varOfType
+    :: (Functor m, Gensym m)
+    => Sing (a :: Hakaru) -> m (Variable a)
 varOfType t = fmap (\n  -> Variable "" n t) freshVarId
 
-varForExpr :: (Gensym m, ABT Term abt) => abt '[] a -> m (Variable a)
+varForExpr
+    :: (Functor m, Gensym m, ABT Term abt)
+    => abt '[] a -> m (Variable a)
 varForExpr v = fmap (\n -> Variable "" n (typeOf v)) freshVarId
 
