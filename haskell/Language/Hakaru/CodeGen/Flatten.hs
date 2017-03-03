@@ -522,7 +522,7 @@ flattenArray arity body =
       itId  <- createIdent v
       declare SNat itId
       let itE     = CVar itId
-          currInd = indirect (dataE .+. itE)
+          currInd = index dataE itE
 
       putStat $ opComment "Create Array"
       forCG (itE .=. (intE 0))
@@ -556,7 +556,7 @@ flattenArrayOp (Index _)  =
          declare SNat indId
          flattenABT arr arrE
          flattenABT ind indE
-         let valE = CIndex (CMember arrE (Ident "data") True) indE
+         let valE = index (CMember arrE (Ident "data") True) indE
          putExprStat (loc .=. valE)
 
 flattenArrayOp (Size _)   =
@@ -1090,7 +1090,7 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        let wSumE = CVar wSumId
        assign wSumId (logE (intE 0))
 
-       let currE = indirect (arrayData arrE .+. itE)
+       let currE = index (arrayData arrE) itE
            cond  = itE .<. (arraySize arrE)
            inc   = CUnary CPostIncOp itE
 
@@ -1316,7 +1316,7 @@ lseSummateArrayCG body arrayE =
 
       putExprStat $ loc .=. (maxVE .+. (logE sumE))
 
-  where derefIndex xE = indirect (arrayData arrayE .+. xE)
+  where derefIndex xE = index (arrayData arrayE) xE
 
 ---------------------
 -- Kahan Summation --

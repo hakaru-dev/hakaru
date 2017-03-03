@@ -30,7 +30,7 @@ module Language.Hakaru.CodeGen.AST
   , (.>.),(.<.),(.==.),(.!=.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.)
   , (.*=.),(.>=.),(.<=.)
   , seqCStat
-  , indirect, address, intE, floatE, stringE, mkCallE, mkUnaryE
+  , indirect, address, index, intE, floatE, stringE, mkCallE, mkUnaryE
   ) where
 
 
@@ -333,6 +333,9 @@ a .*=. b = CAssign CMulAssOp a b
 indirect, address :: CExpr -> CExpr
 indirect = CUnary CIndOp
 address  = CUnary CAdrOp
+
+index :: CExpr -> CExpr -> CExpr
+index = CIndex
 
 intE :: Integer -> CExpr
 intE = CConstant . CIntConst
