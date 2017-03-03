@@ -25,6 +25,7 @@ import qualified Data.Number.LogFloat            as LF
 import qualified Data.Vector                     as V
 import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
+import qualified Data.Vector.Generic.Mutable     as M
 import           Control.Monad
 import           Prelude                         hiding (sum, product, exp)
 
@@ -36,10 +37,59 @@ type instance MinBoxVec U.Vector U.Vector = U.Vector
 type family MayBoxVec a :: * -> *
 type instance MayBoxVec Int          = U.Vector
 type instance MayBoxVec Double       = U.Vector
-type instance MayBoxVec LogFloat     = V.Vector
+type instance MayBoxVec LogFloat     = U.Vector
 type instance MayBoxVec (U.Vector a) = V.Vector
 type instance MayBoxVec (V.Vector a) = V.Vector
 type instance MayBoxVec (a,b)        = MinBoxVec (MayBoxVec a) (MayBoxVec b)
+
+newtype instance U.MVector s LogFloat = MV_LogFloat (U.MVector s Double)
+newtype instance U.Vector    LogFloat = V_LogFloat  (U.Vector    Double)
+
+instance U.Unbox LogFloat
+
+instance M.MVector U.MVector LogFloat where
+  {-# INLINE basicLength #-}
+  {-# INLINE basicUnsafeSlice #-}
+  {-# INLINE basicOverlaps #-}
+  {-# INLINE basicUnsafeNew #-}
+  {-# INLINE basicInitialize #-}
+  {-# INLINE basicUnsafeReplicate #-}
+  {-# INLINE basicUnsafeRead #-}
+  {-# INLINE basicUnsafeWrite #-}
+  {-# INLINE basicClear #-}
+  {-# INLINE basicSet #-}
+  {-# INLINE basicUnsafeCopy #-}
+  {-# INLINE basicUnsafeGrow #-}
+  basicLength (MV_LogFloat v) = M.basicLength v
+  basicUnsafeSlice i n (MV_LogFloat v) = MV_LogFloat $ M.basicUnsafeSlice i n v
+  basicOverlaps (MV_LogFloat v1) (MV_LogFloat v2) = M.basicOverlaps v1 v2
+  basicUnsafeNew n = MV_LogFloat `liftM` M.basicUnsafeNew n
+  basicInitialize (MV_LogFloat v) = M.basicInitialize v
+  basicUnsafeReplicate n x = MV_LogFloat `liftM` M.basicUnsafeReplicate n (logFromLogFloat x)
+  basicUnsafeRead (MV_LogFloat v) i = logToLogFloat `liftM` M.basicUnsafeRead v i
+  basicUnsafeWrite (MV_LogFloat v) i x = M.basicUnsafeWrite v i (logFromLogFloat x)
+  basicClear (MV_LogFloat v) = M.basicClear v
+  basicSet (MV_LogFloat v) x = M.basicSet v (logFromLogFloat x)
+  basicUnsafeCopy (MV_LogFloat v1) (MV_LogFloat v2) = M.basicUnsafeCopy v1 v2
+  basicUnsafeMove (MV_LogFloat v1) (MV_LogFloat v2) = M.basicUnsafeMove v1 v2
+  basicUnsafeGrow (MV_LogFloat v) n = MV_LogFloat `liftM` M.basicUnsafeGrow v n
+
+instance G.Vector U.Vector LogFloat where
+  {-# INLINE basicUnsafeFreeze #-}
+  {-# INLINE basicUnsafeThaw #-}
+  {-# INLINE basicLength #-}
+  {-# INLINE basicUnsafeSlice #-}
+  {-# INLINE basicUnsafeIndexM #-}
+  {-# INLINE elemseq #-}
+  basicUnsafeFreeze (MV_LogFloat v) = V_LogFloat `liftM` G.basicUnsafeFreeze v
+  basicUnsafeThaw (V_LogFloat v) = MV_LogFloat `liftM` G.basicUnsafeThaw v
+  basicLength (V_LogFloat v) = G.basicLength v
+  basicUnsafeSlice i n (V_LogFloat v) = V_LogFloat $ G.basicUnsafeSlice i n v
+  basicUnsafeIndexM (V_LogFloat v) i
+                = logToLogFloat `liftM` G.basicUnsafeIndexM v i
+  basicUnsafeCopy (MV_LogFloat mv) (V_LogFloat v)
+                = G.basicUnsafeCopy mv v
+  elemseq _ x z = G.elemseq (undefined :: U.Vector a) (logFromLogFloat x) z
 
 
 lam :: (a -> b) -> a -> b
@@ -106,7 +156,9 @@ gamma a b = makeMeasure $ \g ->
 
 categorical :: MayBoxVec LogFloat LogFloat -> Measure Int
 categorical a = makeMeasure $ \g ->
-  fromIntegral <$> MWCD.categorical (fmap fromLogFloat a :: V.Vector Double) g
+  fromIntegral <$> MWCD.categorical (U.map prep a) g
+  where prep p = fromLogFloat (p / m)
+        m      = G.maximum a
 {-# INLINE categorical #-}
 
 plate :: (G.Vector (MayBoxVec a) a) =>
@@ -193,7 +245,7 @@ pose _ a = a
 superpose :: [(LogFloat, Measure a)]
           -> Measure a
 superpose pms = do
-  i <- categorical (V.fromList $ map fst pms)
+  i <- categorical (G.fromList $ map fst pms)
   snd (pms !! i)
 {-# INLINE superpose #-}
 
