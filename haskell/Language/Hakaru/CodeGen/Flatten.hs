@@ -556,7 +556,7 @@ flattenArrayOp (Index _)  =
          declare SNat indId
          flattenABT arr arrE
          flattenABT ind indE
-         let valE = indirect ((CMember arrE (Ident "data") True) .+. indE)
+         let valE = CIndex (CMember arrE (Ident "data") True) indE
          putExprStat (loc .=. valE)
 
 flattenArrayOp (Size _)   =
