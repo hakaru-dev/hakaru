@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds
+           , PolyKinds
            , FlexibleInstances
            , FlexibleContexts
            , KindSignatures
