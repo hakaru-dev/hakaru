@@ -635,11 +635,18 @@ KB := module ()
       local vs, ps, cs;
 
       vs, ps, cs := op(kb_extract(kb));
+
+      userinfo(3, 'LMS',
+        printf("    LMS extract:\n"
+               "      vars     : %a\n"
+               "      parms    : %a\n"
+               "      cxts     : %a\n"
+         , vs, ps, cs ));
+
       cs := {op(cs)}:
       if cs = {} or vs = [] then
         Empty;
       else
-print(kb);
         LinearMultivariateSystem( cs, vs );
       end if;
   end proc;
