@@ -622,12 +622,33 @@ KB := module ()
     # Select all of the relevant subparts
     vars        := select(type, kb, 'Introduce(name, specfunc(AlmostEveryReal))');
     parms       := select(type, kb, 'Introduce(name, specfunc({HReal,HInt}))');
-    constraints := select(type, kb, 'Constrain(relation)');
+    # constraints := select(type, kb, 'Constrain(relation)');
+
+    # A lot of interesting things will happen here, but maybe they
+    # should happen as a 'pre-processing' step inside of kb_LMS
+
+    # get rid of "x::t", in which t is going to be {real,integer}.
+    # LMS assumes real implicitly, but it could give entirely bogus
+    # solutions if the type is really integer
+
+    # furthermore, kb_to_assumptions is not quite the right thing
+    #  here, as it will produce an empty list for e.g.
+    #     KB(KB:-Introduce(`x`,AlmostEveryReal()))
+    #  but LMS can't do anything with that empty list.
+
+    #  We (maybe?) want to 'trick' LMS here, e.g. if a var "x" occurs in
+    #  "vars" but has no constraints (and the constraints are otherwise empty),
+    #  just add "x = x" to the constraints, which LMS happily solves to
+    #  "x" .
+    constraints := remove(type, kb_to_assumptions(kb), `::`);
 
     # extract the data:
     #  from inside of KB,
     #  from inside of KB atom constructors (Constrain, Intro)
-    map(z -> map[2](op, 1, [op(z)]), [vars,parms,constraints]) ;
+    vars, parms := op(map(z -> map[2](op, 1, [op(z)]), [vars,parms]));
+
+    [vars, parms, constraints];
+
   end proc;
 
   # linear multivariate system solver for KB
