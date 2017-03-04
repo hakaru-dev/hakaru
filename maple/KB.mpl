@@ -684,7 +684,12 @@ KB := module ()
         ret := NoSol("Something went very wrong");
 
       else
-        ret := LinearMultivariateSystem( cs, vs );
+        try
+          ret := LinearMultivariateSystem( cs, vs );
+        catch "the system must be linear in %1":
+          ret := NoSol(sprintf("The system (%a) must be linear in %a."
+                              , cs, vs ));
+        end try;
 
       end if;
 
