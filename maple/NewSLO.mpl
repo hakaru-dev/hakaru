@@ -26,7 +26,7 @@ NewSLO := module ()
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, termize, bind, weight,
-        reduce_IntSum, reduce_IntsSums, get_indicators,
+        app_dom_spec_IntSum, reduce_IntSum, reduce_IntsSums, get_indicators,
         elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
         banish, banish_guard, banish_weight,
         reduce_pw, nub_piecewise, piecewise_if,

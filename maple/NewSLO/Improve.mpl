@@ -81,9 +81,59 @@
     end if;
   end proc;
 
+  app_dom_spec_IntSum :=
+    proc(mk :: identical(Int, Sum), ee, h, kb0 :: t_kb
+        ,dom_spec_
+        ,$)
+    local new_rng, make, var, elim, w,
+          dom_spec := dom_spec_, e := ee ;
+
+    new_rng, dom_spec := selectremove(type, dom_spec,
+      {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
+       `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
+       [identical(genLet), name, anything]});
+    if not (new_rng :: [list]) then
+      error "kb_subtract should return exactly one gen*"
+    end if;
+    make    := mk;
+    new_rng := op(new_rng);
+    var     := op(2,new_rng);
+    if op(1,new_rng) = genLebesgue then
+      new_rng := op(3,new_rng)..op(4,new_rng);
+    elif op(1,new_rng) = genType then
+      new_rng := range_of_HInt(op(3,new_rng));
+    else # op(1,new_rng) = genLet
+      if mk=Int then
+          # this was just a return, but now is in its own
+          # local function and the control flow must be handled
+          # up above. although calling 'reduce' on 0 will probably
+          # return immediately anyways(?)
+          return DONE(0)
+      else
+          make := eval;
+          new_rng := op(3,new_rng)
+      end if;
+    end if;
+    e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
+                         Indicator(op(2,a))
+                       end proc,
+                       dom_spec)));
+
+    elim := elim_intsum(make(e, var=new_rng), h, kb0);
+
+    if elim = FAIL then
+      e, w := selectremove(depends, list_of_mul(e), var);
+      DONE( reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0))
+        * make(`*`(op(e)), var=new_rng) );
+    else
+      elim
+    end if;
+
+  end proc;
+
   reduce_IntSum := proc(mk :: identical(Int, Sum),
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
-    local e, dom_spec, w, var, new_rng, make, elim, kb2;
+    local e, dom_spec, elim, kb2;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
@@ -101,35 +151,16 @@
                 "    domain  : %a\n"
          , kb_LMS(kb2), kb2, kb0, dom_spec ));
 
-    new_rng, dom_spec := selectremove(type, dom_spec,
-      {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
-       `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
-       [identical(genLet), name, anything]});
-    if not (new_rng :: [list]) then
-      error "kb_subtract should return exactly one gen*"
-    end if;
-    make    := mk;
-    new_rng := op(new_rng);
-    var     := op(2,new_rng);
-    if op(1,new_rng) = genLebesgue then
-      new_rng := op(3,new_rng)..op(4,new_rng);
-    elif op(1,new_rng) = genType then
-      new_rng := range_of_HInt(op(3,new_rng));
-    else # op(1,new_rng) = genLet
-      if mk=Int then return 0 else make := eval; new_rng := op(3,new_rng) end if
-    end if;
-    e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
-                         Indicator(op(2,a))
-                       end proc,
-                       dom_spec)));
-    elim := elim_intsum(make(e, var=new_rng), h, kb0);
-    if elim = FAIL then
-      e, w := selectremove(depends, list_of_mul(e), var);
-      reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0))
-        * make(`*`(op(e)), var=new_rng);
+    # apply the domain restrictions, which can produce
+    #   DONE(x) - produced something which can't be simplified further
+    #   x       - more work to be done
+    elim := app_dom_spec_IntSum(mk, e, h, kb0, dom_spec);
+
+    if elim :: specfunc('DONE') then
+      op(1,elim);
     else
       reduce(elim, h, kb0);
-    end if
+    end if;
   end proc;
 
   reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, $)
