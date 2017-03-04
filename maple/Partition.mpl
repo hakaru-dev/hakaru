@@ -132,6 +132,12 @@ export
    #   will not cover the entire domain) - the 'correct' thing to do would
    #   probably be to add a new clause whose value is 'undefined'
 
+   # YT: TODO: the condition produced in place of an 'otherwise' is not currently
+   #   simplified. I think that KB should be used to try to simplify it;
+   #   Maple doesn't seem to be able to do much in the realm of simplifying
+   #   boolean valued expressions containing 'range' information on real
+   #   numbers.
+
    # the logic of this function is already essentially implemented, by KB
    # in fact, kb_piecewise does something extremely similar to this
    PWToPartition := proc(x::specfunc(piecewise))::Partition;
