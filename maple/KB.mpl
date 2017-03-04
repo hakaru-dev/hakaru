@@ -102,8 +102,12 @@ KB := module ()
      # are actually KBs in the proper form
      t_kb, t_kb_atom, t_kb_atoms,
 
-     #
+     # Things which should produce a KB, but sometimes don't return this
+     # expression
      NotAKB,
+
+     # kb_LMS produces NoSol when it doesn't find a solution.
+     NoSol,
 
      # Some silly things that KB must do to appease
      # Maple when using Maple functions to work with
@@ -653,7 +657,7 @@ KB := module ()
 
   # linear multivariate system solver for KB
   kb_LMS := proc(kb::t_kb, $)
-      local vs, ps, cs;
+      local vs, ps, cs, ret;
 
       vs, ps, cs := op(kb_extract(kb));
 
@@ -665,11 +669,34 @@ KB := module ()
          , vs, ps, cs ));
 
       cs := {op(cs)}:
-      if cs = {} or vs = [] then
-        Empty;
+
+      # there are variables to solve for, but no non-trivial
+      # constraints which need to be solved.
+      if cs = {} and not vs = [] then
+        # this matches the output format of LMS; [x,y] -> { [ {x}, {y} ] }
+        ret := { map(o->{o}, vs) };
+
+      elif not cs = {} and vs = [] then
+        ret := NoSol("There are no variables to solve for, but there are constraints."
+                     " This means the variables have not been correctly identified.");
+
+      elif cs = {} and vs = [] then
+        ret := NoSol("Something went very wrong");
+
       else
-        LinearMultivariateSystem( cs, vs );
+        ret := LinearMultivariateSystem( cs, vs );
+
       end if;
+
+      # TODO: postprocessing on the output
+      #   in particular, if LMS produces a piecewise,
+      #    - we probably want it to be a partition
+      #    - it may contain cases which we can simply throw away
+      #       ("var = val" for var : almost every real)
+      #    - it may contain cases which are redundant, i.e.
+      #        with pw(var=val, e0, ..), simplifying e0 under "var=val"
+      #        produces an expression identical to another one of the pieces
+      ret;
   end proc;
 
 
