@@ -219,7 +219,9 @@ declare a@(SArray t) = \i ->
 declare d@(SData _ _)  = \i ->
   extDeclareTypes d >> (declare' $ datumDeclaration d i)
 
-declare (SFun _ _) = \_ -> return () -- function definitions handeled in flatten
+declare f@(SFun _ _) = \_ ->
+  extDeclareTypes f >> return ()
+  -- this currently avoids declaration if the type is a lambda, this is hacky
 
 -- | for types that contain subtypes we need to recursively traverse them and
 --   build up a list of external type declarations.
@@ -232,7 +234,7 @@ extDeclareTypes SReal         = return ()
 extDeclareTypes SProb         = return ()
 extDeclareTypes (SMeasure i)  = extDeclareTypes i >> extDeclare (mdataStruct i)
 extDeclareTypes (SArray i)    = extDeclareTypes i >> extDeclare (arrayStruct i)
-extDeclareTypes (SFun _ _)    = error "TODO: extDeclareTypes SFun"
+extDeclareTypes (SFun x y)    = extDeclareTypes x >> extDeclareTypes y
 extDeclareTypes d@(SData _ i) = extDeclDatum i    >> extDeclare (datumStruct d)
   where extDeclDatum :: Sing (a :: [[HakaruFun]]) -> CodeGen ()
         extDeclDatum SVoid       = return ()
@@ -245,7 +247,6 @@ extDeclareTypes d@(SData _ i) = extDeclDatum i    >> extDeclare (datumStruct d)
         datumPrimTypes :: Sing (a :: HakaruFun) -> CodeGen ()
         datumPrimTypes SIdent     = return ()
         datumPrimTypes (SKonst s) = extDeclareTypes s
-
 
 declare' :: CDecl -> CodeGen ()
 declare' d = do cg <- get
@@ -302,7 +303,7 @@ funCG ts ident args mbody =
                , declarations = declarations cg }
      extDeclare . CFunDefExt $
        CFunDef [CTypeSpec ts]
-               (CDeclr Nothing [ CDDeclrIdent ident ])
+               (CDeclr Nothing (CDDeclrIdent ident))
                args
                (CCompound ((fmap CBlockDecl decls) ++ (fmap CBlockStat stmts)))
 

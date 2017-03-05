@@ -99,8 +99,8 @@ instance Pretty CDecl where
           declarators (dr, Just ilist) = pretty dr <+> text "=" <+> pretty ilist
 
 instance Pretty CDeclr where
-  pretty (CDeclr mp dds) =
-    mpretty mp <+> (hsep . fmap pretty $ dds)
+  pretty (CDeclr mp dd) =
+    mpretty mp <+> (pretty $ dd)
 
 instance Pretty CPtrDeclr where
   pretty (CPtrDeclr ts) = text "*" <+> (hsep . fmap pretty $ ts)
@@ -109,7 +109,8 @@ instance Pretty CDirectDeclr where
   pretty (CDDeclrIdent i) = pretty i
   pretty (CDDeclrArr dd e) = pretty dd <+> (brackets . pretty $ e)
   pretty (CDDeclrFun dd ts) =
-    pretty dd <+> (hsep . punctuate comma . fmap pretty $ ts)
+    pretty dd <> (parens . hsep . punctuate comma . fmap pretty $ ts)
+  pretty (CDDeclrRec declr) = parens . pretty $ declr
 
 
 instance Pretty CDeclSpec where
@@ -142,6 +143,13 @@ instance Pretty CTypeSpec where
   pretty (CSUType cs) = pretty cs
   pretty (CTypeDefType _) = error "TODO: Pretty TypeDef"
   pretty (CEnumType _) = error "TODO: Pretty EnumType"
+
+instance Pretty CTypeName where
+  pretty (CTypeName tspecs pb) =
+    let ss = sep . fmap pretty $ tspecs
+    in if pb
+       then ss <+> text "*"
+       else ss
 
 instance Pretty CSUSpec where
   pretty (CSUSpec tag mi []) =

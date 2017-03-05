@@ -19,8 +19,8 @@ module Language.Hakaru.CodeGen.AST
 
   -- declaration constructors
   , CDecl(..), CDeclr(..), CDeclSpec(..), CStorageSpec(..), CTypeQual(..)
-  , CDirectDeclr(..), CTypeSpec(..), CSUSpec(..), CSUTag(..), CEnum(..)
-  , CInit(..), CPartDesig(..), CFunSpec(..), CPtrDeclr(..)
+  , CDirectDeclr(..), CTypeSpec(..), CTypeName(..), CSUSpec(..), CSUTag(..)
+  , CEnum(..), CInit(..), CPartDesig(..), CFunSpec(..), CPtrDeclr(..)
 
   -- statements and expression constructors
   , CStat(..), CCompoundBlockItem(..), CExpr(..), CConst(..), CUnaryOp(..)
@@ -131,6 +131,13 @@ data CTypeSpec
   | CEnumType    CEnum
   deriving (Show, Eq, Ord)
 
+-- CTypeName is necessary for cast operations, see C99 pp81 and pp122
+-- For now, we only need to use these casts for malloc, so this is
+-- incomplete with respect to C99
+data CTypeName
+  = CTypeName [CTypeSpec] Bool
+  deriving (Show, Eq, Ord)
+
 data CSUSpec
   = CSUSpec CSUTag (Maybe Ident) [CDecl]
   deriving (Show, Eq, Ord)
@@ -150,20 +157,22 @@ data CEnum
 {-
   Declarators give us labels to point at and describe the level of indirection.
   between a label and the underlieing memory
+
+  this is incomplete, see c99 reference p115
 -}
 
 data CDeclr
-  = CDeclr (Maybe CPtrDeclr) [CDirectDeclr]
+  = CDeclr (Maybe CPtrDeclr) CDirectDeclr
   deriving (Show, Eq, Ord)
 
 data CPtrDeclr = CPtrDeclr [CTypeQual]
   deriving (Show, Eq, Ord)
 
--- this is incomplete
 data CDirectDeclr
   = CDDeclrIdent Ident
   | CDDeclrArr   CDirectDeclr CExpr
   | CDDeclrFun   CDirectDeclr [CTypeSpec]
+  | CDDeclrRec   CDeclr
   deriving (Show, Eq, Ord)
 
 ------------------
@@ -229,10 +238,10 @@ data CExpr
   | CAssign      CAssignOp CExpr CExpr
   | CCond        CExpr CExpr CExpr
   | CBinary      CBinaryOp CExpr CExpr
-  | CCast        CDecl CExpr
+  | CCast        CTypeName CExpr
   | CUnary       CUnaryOp CExpr
   | CSizeOfExpr  CExpr
-  | CSizeOfType  CDecl
+  | CSizeOfType  CTypeName
   | CIndex       CExpr CExpr
   | CCall        CExpr [CExpr]
   | CMember      CExpr Ident Bool

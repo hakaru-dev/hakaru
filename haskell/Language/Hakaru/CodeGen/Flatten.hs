@@ -42,6 +42,7 @@ import Language.Hakaru.Syntax.Datum hiding (Ident)
 import qualified Language.Hakaru.Syntax.Prelude as HKP
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.Sing
 
@@ -134,57 +135,115 @@ flattenSCon Let_ =
     \loc -> do
       caseBind body $ \v@(Variable _ _ typ) body'->
         do ident <- createIdent v
-           declare typ ident
+           case typ of
+             (SFun _ _) -> return ()
+             _ -> declare typ ident
            flattenABT expr (CVar ident)
            flattenABT body' loc
 
--- Lambdas produce functions and then return a function pointer
-flattenSCon Lam_ = undefined
-  -- \(body :* End) ->
-  --   \loc ->
-  --     do coalesceLambda body $ \vars body' ->
-  --        let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
-  --        in  do funcId <- genIdent' "fn"
-  --               argDecls <- sequence varMs
+-- Lambdas produce functions and then return a function label exprssion
+flattenSCon Lam_ =
+  \(body :* End) ->
+    \loc -> do
+      -- externally declare closure and function
+      closureTypeSpec <- coalesceLambda body extDeclClosure
 
-  --               cg <- get
-  --               let m       = putStat . CReturn . Just =<< flattenABT body'
-  --                   (_,cg') = runState m $ cg { statements = []
-  --                                             , declarations = [] }
-  --               put $ cg' { statements   = statements cg
-  --                         , declarations = declarations cg }
+      -- declare local closure var
+      closureId <- genIdent' "closure"
+      declare' (buildDeclaration closureTypeSpec closureId)
 
-  --               extDeclare . CFunDefExt $ functionDef (typeOf body')
-  --                                                     funcId
-  --                                                     argDecls
-  --                                                     (reverse $ declarations cg')
-  --                                                     (reverse $ statements cg')
-  -- -- do at top level
-  -- where coalesceLambda
-  --         :: ( ABT Term abt )
-  --         => abt '[x] a
-  --         -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
-  --         -> r
-  --       coalesceLambda abt k =
-  --         caseBind abt $ \v abt' ->
-  --           caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
-  --             case term of
-  --               (Lam_ :$ body :* End) ->
-  --                 coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
-  --               _ -> k (Cons1 v Nil1) abt'
+      -- capture environment in closure
+      putExprStat $ loc .=. (CVar closureId)
 
-  --       mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
-  --       mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
-  --       mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
-  --       mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
-  --       mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
-  --       mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
-  --                                                      return $ arrayDeclaration t i
-  --       mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
-  --                                                         return $ datumDeclaration d i
-  --       mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
+  where coalesceLambda
+          :: ( ABT Term abt )
+          => abt '[x] a
+          -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
+          -> r
+        coalesceLambda abt k =
+          caseBind abt $ \v abt' ->
+            caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
+              case term of
+                (Lam_ :$ body :* End) ->
+                  coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
+                _ -> k (Cons1 v Nil1) abt'
 
-flattenSCon App_  = error "TODO: flattenSCon App_"
+        -- given a parameter, create identifiers corresponding to Hakaru vars,
+        -- and return a CTypeSpec for the param
+        -- Will this fail if the parameter is a SFun?
+        mkVarIdandSpec :: Variable (a :: Hakaru) -> CodeGen (Ident,[CTypeSpec])
+        mkVarIdandSpec v@(Variable _ _ typ) = do
+          extDeclareTypes typ
+          vId <- createIdent v
+          return (vId,buildType typ)
+
+        extDeclClosure
+          :: ( ABT Term abt )
+          => List1 Variable (ys :: [Hakaru])
+          -> abt '[] b
+          -> CodeGen CTypeSpec
+        extDeclClosure vars body'= do
+          funcId <- genIdent' "fn"
+          idAndSpecs <- sequence $ foldMap11 (\v -> [mkVarIdandSpec v]) vars
+          cg <- get
+          let fVars   = freeVars body'
+              typ     = typeOf body'
+              m       = do outId <- genIdent' "out"
+                           declare typ outId
+                           let outE = CVar outId
+                           flattenABT body' outE
+                           putStat . CReturn . Just $ outE
+              (_,cg') = runState m $ cg { statements = []
+                                        , declarations = [] }
+          put $ cg' { statements   = statements cg
+                    , declarations = declarations cg }
+          sId@(Ident sname) <- extDeclClosureStruct typ (fmap snd idAndSpecs) fVars
+          extDeclare . CFunDefExt
+            $ functionDef typ funcId
+                ([buildDeclaration (callStruct sname) (Ident "env")]
+                 ++ (fmap (\(vId,specs) -> buildDeclaration' specs vId) idAndSpecs))
+                (reverse $ declarations cg')
+                (reverse $ statements cg')
+          return (callStruct sname)
+
+        extDeclClosureStruct
+          :: forall (a :: Hakaru) (ys :: [Hakaru])
+          .  Sing a
+          -> [[CTypeSpec]]
+          -> VarSet (KindOf a)
+          -> CodeGen Ident
+        extDeclClosureStruct retTyp paramTypeSpecs freeVars = do
+          sId@(Ident sname) <- genIdent' "clos"
+          freeVarDecls <- mapM (\(SomeVariable v@(Variable _ _ typ)) -> do
+                                  extDeclareTypes typ
+                                  vId <- createIdent v
+                                  return (typeDeclaration typ vId)
+                               ) (fromVarSet freeVars)
+          let funPtrDecl =
+                CDecl (fmap CTypeSpec $ buildType retTyp)
+                      [( CDeclr Nothing
+                         (CDDeclrFun
+                           (CDDeclrRec (CDeclr (Just $ CPtrDeclr []) (CDDeclrIdent . Ident $ "fn")))
+                           ([callStruct sname]++(concat paramTypeSpecs)))
+                       , Nothing)]
+          extDeclare $ CDeclExt
+                     $ CDecl [ CTypeSpec $ buildStruct (Just sId)
+                                             ([funPtrDecl]++freeVarDecls) ]
+                             []
+          return sId
+
+flattenSCon App_  =
+ \(fun :* arg :* End) ->
+   \loc -> do
+     closId <- genIdent' "clos"
+     paramId <- genIdent' "param"
+     declare (typeOf fun) closId
+     declare (typeOf arg) paramId
+     let closE  = CVar closId
+         paramE = CVar paramId
+     flattenABT fun closE
+     flattenABT arg paramE
+     putExprStat $ loc .=. (CCall (CMember closE (Ident "fn") True) [paramE])
 
 flattenSCon (PrimOp_ op) = flattenPrimOp op
 
@@ -213,9 +272,9 @@ flattenSCon (Summate _ sr) =
              let summateArrE = CVar summateArrId
              putExprStat $ arraySize summateArrE .=. (hiE .-. loE)
              putExprStat $ arrayData summateArrE
-                   .=. (CCast (mkPtrDecl [CDouble])
-                              (mallocE ((arraySize summateArrE) .*.
-                                        (CSizeOfType . mkDecl $ [CDouble]))))
+                   .=. (castToPtrOf CDouble
+                         (mallocE ((arraySize summateArrE) .*.
+                                  (CSizeOfType (CTypeName [CDouble] False)))))
              lseSummateArrayCG body summateArrE loc
              putExprStat $ freeE $ arrayData summateArrE
 
@@ -349,7 +408,7 @@ flattenSCon (CoerceTo_ ctyp) =
                              declare SReal ident
                              assign ident $ (expm1E p) .+. (intE 1)
                              return (CVar ident)
-        int2real  = return . CCast doubleDecl
+        int2real  = return . castTo CDouble
 
 
 -----------------------------------
@@ -398,8 +457,8 @@ flattenSCon Plate           =
            isManagedMem <- managedMem <$> get
            if isManagedMem
               then putExprStat $   (arrayPtrData . mdataPtrSample $ loc)
-                               .=. (CCast (mkPtrDecl . buildType $ typ)
-                                          (gc_mallocE (sizeE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+                               .=. (CCast (CTypeName (buildType typ) True)
+                                      (gc_mallocE (sizeE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
               else error "plate requires used of the garbage collector, '-g' flag"
 
            weightId <- genIdent' "w"
@@ -516,8 +575,8 @@ flattenArray arity body =
       isManagedMem <- managedMem <$> get
       let malloc' = if isManagedMem then gc_mallocE else mallocE
       putExprStat $   dataE
-                  .=. (CCast (mkPtrDecl . buildType $ typ)
-                             (malloc' (arityE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+                  .=. (CCast (CTypeName (buildType typ) True)
+                             (malloc' (arityE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
 
       itId  <- createIdent v
       declare SNat itId
@@ -897,13 +956,13 @@ TODO: add inline pragmas to uniformCG, normalCG, and gammaCG
 
 uniformFun :: CFunDef
 uniformFun = CFunDef [CTypeSpec CVoid]
-                     (CDeclr Nothing [CDDeclrIdent funcId])
+                     (CDeclr Nothing (CDDeclrIdent funcId))
                      [typeDeclaration SReal loId
                      ,typeDeclaration SReal hiId
                      ,typePtrDeclaration (SMeasure SReal) mId]
                      (seqCStat $ comment ++[assW,assS,CReturn Nothing])
-  where r          = CCast doubleDecl randE
-        rMax       = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+  where r          = castTo CDouble randE
+        rMax       = castTo CDouble (CVar . Ident $ "RAND_MAX")
         (mId,mE)   = let ident = Ident "mdata" in (ident,CVar ident)
         (loId,loE) = let ident = Ident "lo" in (ident,CVar ident)
         (hiId,hiE) = let ident = Ident "hi" in (ident,CVar ident)
@@ -931,14 +990,14 @@ uniformCG aE bE =
 
 normalFun :: CFunDef
 normalFun = CFunDef [CTypeSpec CVoid]
-                    (CDeclr Nothing [CDDeclrIdent (Ident "normal")])
+                    (CDeclr Nothing (CDDeclrIdent (Ident "normal")))
                     [typeDeclaration SReal aId
                     ,typeDeclaration SProb bId
                     ,typePtrDeclaration (SMeasure SReal) mId]
                     (CCompound $ comment ++ decls ++ stmts)
 
-  where r      = CCast doubleDecl randE
-        rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+  where r      = castTo CDouble randE
+        rMax   = castTo CDouble (CVar . Ident $ "RAND_MAX")
         (aId,aE) = let ident = Ident "a" in (ident,CVar ident)
         (bId,bE) = let ident = Ident "b" in (ident,CVar ident)
         (qId,qE) = let ident = Ident "q" in (ident,CVar ident)
@@ -975,7 +1034,7 @@ normalCG aE bE =
 -}
 gammaFun :: CFunDef
 gammaFun = CFunDef [CTypeSpec CVoid]
-                   (CDeclr Nothing [CDDeclrIdent (Ident "gamma")])
+                   (CDeclr Nothing (CDDeclrIdent (Ident "gamma")))
                    [typeDeclaration SProb aId
                    ,typeDeclaration SProb bId
                    ,typePtrDeclaration (SMeasure SProb) mId]
@@ -1104,8 +1163,8 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        -- draw number from uniform(0, weightSum)
        rId <- genIdent' "r"
        declare SReal rId
-       let r    = CCast doubleDecl randE
-           rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+       let r    = castTo CDouble randE
+           rMax = castTo CDouble (CVar . Ident $ "RAND_MAX")
            rE = CVar rId
        assign rId ((r ./. rMax) .*. (expE wSumE))
 
@@ -1167,8 +1226,8 @@ flattenSuperpose pairs =
             -- draw number from uniform(0, weightSum)
             rId <- genIdent' "r"
             declare SReal rId
-            let r    = CCast doubleDecl randE
-                rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+            let r    = castTo CDouble randE
+                rMax = castTo CDouble (CVar . Ident $ "RAND_MAX")
                 rE = CVar rId
             assign rId ((r ./. rMax) .*. (expE wSumE))
 

@@ -19,6 +19,7 @@
 
 module Language.Hakaru.CodeGen.Types
   ( buildDeclaration
+  , buildDeclaration'
   , buildPtrDeclaration
 
   -- tools for building C types
@@ -44,25 +45,22 @@ module Language.Hakaru.CodeGen.Types
   , mdataPtrWeight
   , mdataPtrSample
 
+  -- datum
   , datumDeclaration
   , datumStruct
-  , functionDef
   , datumSum
   , datumProd
 
+  -- functions and closures
+  , functionDef
+  , closureDeclaration
+
   , buildType
-  , mkDecl
-  , mkPtrDecl
+  , castTo
+  , castToPtrOf
+  , callStruct
   , buildStruct
   , buildUnion
-
-  , intDecl
-  , natDecl
-  , doubleDecl
-  , doublePtr
-  , intPtr
-  , natPtr
-  , boolTyp
   , binaryOp
   ) where
 
@@ -79,32 +77,44 @@ import Language.Hakaru.CodeGen.Libs
 buildDeclaration :: CTypeSpec -> Ident -> CDecl
 buildDeclaration ctyp ident =
   CDecl [ CTypeSpec ctyp ]
-        [( CDeclr Nothing [ CDDeclrIdent ident ]
+        [( CDeclr Nothing (CDDeclrIdent ident)
+         , Nothing)]
+
+buildDeclaration' :: [CTypeSpec] -> Ident -> CDecl
+buildDeclaration' specs ident =
+  CDecl (fmap CTypeSpec specs)
+        [( CDeclr Nothing (CDDeclrIdent ident)
          , Nothing)]
 
 buildPtrDeclaration :: CTypeSpec -> Ident -> CDecl
 buildPtrDeclaration ctyp ident =
   CDecl [ CTypeSpec ctyp ]
-        [( CDeclr (Just $ CPtrDeclr []) [ CDDeclrIdent ident ]
+        [( CDeclr (Just $ CPtrDeclr []) (CDDeclrIdent ident)
          , Nothing)]
 
 typeDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typeDeclaration typ ident =
   CDecl (fmap CTypeSpec $ buildType typ)
-        [( CDeclr Nothing [ CDDeclrIdent ident ]
+        [( CDeclr Nothing (CDDeclrIdent ident)
          , Nothing)]
 
 typePtrDeclaration :: Sing (a :: Hakaru) -> Ident -> CDecl
 typePtrDeclaration typ ident =
   CDecl (fmap CTypeSpec $ buildType typ)
         [( CDeclr (Just $ CPtrDeclr [])
-                  [ CDDeclrIdent ident ]
+                  (CDDeclrIdent ident)
          , Nothing)]
 
 
 ----------------
 -- Type Names --
 ----------------
+{-
+Type names are used when constructing C structures. In most cases there is a
+unique C structure name for a Hakaru type. This is not the case for functions
+which are compiled into closures, which are unique to a certain context and
+Hakaru type.
+-}
 
 typeName :: Sing (a :: Hakaru) -> String
 typeName SInt         = "int"
@@ -113,7 +123,7 @@ typeName SReal        = "real"
 typeName SProb        = "prob"
 typeName (SArray t)   = "array_" ++ typeName t
 typeName (SMeasure t) = "mdata_" ++ typeName t
-typeName (SFun _ _)   = error "TODO: typeName SFun" -- when would this be used?
+typeName f@(SFun _ _)  = error $ "typeName{SFun} doen't make sense: unknown context for {" ++ show f ++ "}"
 typeName (SData _ t)  = "dat_" ++ datumSumName t
   where datumSumName :: Sing (a :: [[HakaruFun]]) -> String
         datumSumName SVoid = "V"
@@ -335,10 +345,22 @@ functionDef
   -> CFunDef
 functionDef typ ident argDecls internalDecls stmts =
   CFunDef (fmap CTypeSpec $ buildType typ)
-          (CDeclr Nothing [ CDDeclrIdent ident ])
+          (CDeclr Nothing (CDDeclrIdent ident))
           argDecls
           (CCompound ((fmap CBlockDecl internalDecls)
                    ++ (fmap CBlockStat stmts)))
+
+--------------
+-- Closures --
+--------------
+
+closureDeclaration
+  :: (Sing (a :: Hakaru))
+  -> Ident
+  -> CDecl
+closureDeclaration = buildDeclaration . callStruct . typeName
+
+
 
 --------------------------------------------------------------------------------
 -- | buildType function do the work of describing how the Hakaru
@@ -357,13 +379,11 @@ buildType d@(SData _ _) = [callStruct . typeName $ d]
 
 
 -- these mk...Decl functions are used in coersions
-mkDecl :: [CTypeSpec] -> CDecl
-mkDecl t = CDecl (fmap CTypeSpec t) []
+castTo :: CTypeSpec -> CExpr -> CExpr
+castTo t = CCast (CTypeName [t] False)
 
-mkPtrDecl :: [CTypeSpec] -> CDecl
-mkPtrDecl t = CDecl (fmap CTypeSpec t)
-                    [( CDeclr (Just $ CPtrDeclr []) []
-                     , Nothing )]
+castToPtrOf :: CTypeSpec -> CExpr -> CExpr
+castToPtrOf t = CCast (CTypeName [t] True)
 
 buildStruct :: Maybe Ident -> [CDecl] -> CTypeSpec
 buildStruct mi decls =
@@ -378,29 +398,6 @@ callStruct name =
 buildUnion :: [CDecl] -> CTypeSpec
 buildUnion decls =
  CSUType (CSUSpec CUnionTag Nothing decls)
-
-
-intDecl, natDecl, doubleDecl :: CDecl
-intDecl    = mkDecl [CInt]
-natDecl    = CDecl [CTypeSpec CUnsigned
-                   ,CTypeSpec CInt]
-                   [( CDeclr (Just $ CPtrDeclr []) [], Nothing )]
-doubleDecl = mkDecl [CDouble]
-
-intPtr, natPtr, doublePtr :: CDecl
-intPtr    = mkPtrDecl [CInt]
-natPtr    = CDecl [CTypeSpec CUnsigned, CTypeSpec CInt] []
-doublePtr = mkPtrDecl [CDouble]
-
-boolTyp :: CDecl
-boolTyp =
-  CDecl [CTypeSpec
-          (CSUType
-            (CSUSpec CStructTag
-                     (Just (Ident "bool"))
-                     [buildDeclaration CInt (Ident "index")]))]
-        []
-
 
 
 binaryOp :: NaryOp a -> CExpr -> CExpr -> CExpr
