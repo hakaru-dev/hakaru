@@ -72,6 +72,9 @@ data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
   { varDependencies :: !(VarSet (KindOf a))
   , expression      :: !(abt a)
+  -- The type of the expression, to allow for easy comparison of types.
+  -- The typeOf operator is technically O(n) in the size of the expresion
+  -- and we may need to call it many times.
   , sing            :: !(Sing a)
   , bindings        :: ![Variable a]
   }
