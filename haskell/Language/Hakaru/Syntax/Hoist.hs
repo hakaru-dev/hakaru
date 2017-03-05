@@ -58,7 +58,6 @@ import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (alphaEq)
 import           Language.Hakaru.Syntax.Gensym
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
 
@@ -193,12 +192,12 @@ topSortEntries entryList = map (entries V.!) $ G.topSort graph
     graph :: G.Graph
     !graph = G.buildG (0, V.length entries - 1) vertices
 
-singleEntry
+recordEntry
   :: (ABT Term abt)
   => Variable a
   -> abt '[] a
-  -> ExpressionSet abt
-singleEntry v abt = ExpressionSet [Entry (freeVars abt) abt (typeOf abt) [v]]
+  -> HoistM abt ()
+recordEntry v abt = tell $ ExpressionSet [Entry (freeVars abt) abt (varType v) [v]]
 
 execHoistM :: Nat -> HoistM abt a -> a
 execHoistM counter act = a
@@ -379,7 +378,7 @@ hoistTerm
 hoistTerm (Let_ :$ rhs :* body :* End) =
   caseBind body $ \ v body' -> do
     rhs' <- hoist' rhs
-    tell $ singleEntry v rhs'
+    recordEntry v rhs'
     bindVar v (hoist' body')
 
 hoistTerm (Lam_ :$ body :* End) =
@@ -394,6 +393,6 @@ hoistTerm term = do
   if isValue result
     then return result
     else do fresh <- varForExpr result
-            tell $ singleEntry fresh result
+            recordEntry fresh result
             return (var fresh)
 
