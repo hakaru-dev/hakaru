@@ -51,15 +51,13 @@ import           Data.Maybe                      (mapMaybe)
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 import qualified Data.Vector                     as V
-import qualified Data.Sequence as S
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.ANF      (isValue)
 import           Language.Hakaru.Syntax.AST
-import           Language.Hakaru.Syntax.AST.Eq
+import           Language.Hakaru.Syntax.AST.Eq   (alphaEq)
 import           Language.Hakaru.Syntax.Gensym
 import           Language.Hakaru.Syntax.IClasses
-import qualified Language.Hakaru.Syntax.Prelude  as P
 import           Language.Hakaru.Syntax.TypeOf   (typeOf)
 import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Sing      (Sing)
@@ -82,7 +80,6 @@ data Entry (abt :: Hakaru -> *)
 instance Show (Entry abt) where
   show (Entry d _ _ b) = "Entry (" ++ show d ++ ") (" ++ show b ++ ")"
 
-type VarState    = Assocs Entry
 type HakaruProxy = ('KProxy :: KProxy Hakaru)
 type LiveSet     = VarSet HakaruProxy
 type HakaruVar   = SomeVariable HakaruProxy
@@ -140,6 +137,14 @@ unionEntrySet (ExpressionSet xs) (ExpressionSet ys) =
       case (d1 == d2, jmEq1 s1 s2) of
         (True , Just Refl) -> alphaEq e1 e2
         _                  -> False
+
+intersectEntrySet
+  :: forall abt
+  .  (ABT Term abt)
+  => ExpressionSet abt
+  -> ExpressionSet abt
+  -> ExpressionSet abt
+intersectEntrySet (ExpressionSet xs) (ExpressionSet ys) = ExpressionSet undefined
 
 
 instance (ABT Term abt) => Monoid (ExpressionSet abt) where
