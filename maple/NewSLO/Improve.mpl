@@ -114,15 +114,34 @@
           new_rng := op(3,new_rng)
       end if;
     end if;
+
+    userinfo(3, 'LMS',
+        printf("    dom-spec        : %a\n"
+               "    dom-var         : %a\n"
+         , dom_spec, var ));
+
     e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
                          Indicator(op(2,a))
                        end proc,
                        dom_spec)));
 
+    userinfo(3, 'LMS',
+        printf("    expr-ind        : %a\n"
+         , e ));
+
     elim := elim_intsum(make(e, var=new_rng), h, kb0);
+
+    userinfo(3, 'LMS',
+        printf("    expr-elimed     : %a\n"
+         , elim ));
 
     if elim = FAIL then
       e, w := selectremove(depends, list_of_mul(e), var);
+
+      userinfo(3, 'LMS',
+          printf("    expr-pull-mull : %a\n"
+           , e ));
+
       DONE( reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0))
         * make(`*`(op(e)), var=new_rng) );
     else
@@ -145,7 +164,7 @@
     dom_spec := kb_subtract(kb2, kb0);
 
     userinfo(3, 'LMS',
-        printf("    LMS     : %a\n"
+         printf("    LMS     : %a\n"
                 "    kb Big  : %a\n"
                 "    kb small: %a\n"
                 "    domain  : %a\n"
@@ -156,10 +175,19 @@
     #   x       - more work to be done
     elim := app_dom_spec_IntSum(mk, e, h, kb0, dom_spec);
 
+    userinfo(3, 'LMS',
+        printf("    expr            : %a\n"
+               "    expr after dom  : %a\n"
+         , e, elim ));
+
     if elim :: specfunc('DONE') then
       op(1,elim);
     else
-      reduce(elim, h, kb0);
+      elim := reduce(elim, h, kb0);
+      userinfo(3, 'LMS',
+        printf("    expr-reduced    : %a\n"
+         , elim ));
+      elim;
     end if;
   end proc;
 
