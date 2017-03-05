@@ -689,6 +689,10 @@ KB := module ()
         catch "the system must be linear in %1":
           ret := NoSol(sprintf("The system (%a) must be linear in %a."
                               , cs, vs ));
+        catch "inequality must be linear in %1":
+            ret := NoSol(sprintf("The system (%a) contains nonlinear inequality in "
+                                 "one of %a."
+                              , cs, vs ));
         end try;
 
       end if;
