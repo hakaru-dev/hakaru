@@ -43,7 +43,7 @@
 module Language.Hakaru.Syntax.Hoist (hoist) where
 
 import           Control.Monad.RWS
-import           Data.Foldable                   (foldrM)
+import qualified Data.Foldable                   as F
 import qualified Data.Graph                      as G
 import qualified Data.IntMap                     as IM
 import qualified Data.List                       as L
@@ -51,6 +51,7 @@ import           Data.Maybe                      (mapMaybe)
 import           Data.Number.Nat
 import           Data.Proxy                      (KProxy (..))
 import qualified Data.Vector                     as V
+import qualified Data.Sequence as S
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.ANF      (isValue)
@@ -71,11 +72,12 @@ data Entry (abt :: Hakaru -> *)
   = forall (a :: Hakaru) . Entry
   { varDependencies :: !(VarSet (KindOf a))
   , expression      :: !(abt a)
+  , sing            :: !(Sing a)
   , bindings        :: ![Variable a]
   }
 
 instance Show (Entry abt) where
-  show (Entry d _ b) = "Entry (" ++ show d ++ ") (" ++ show b ++ ")"
+  show (Entry d _ _ b) = "Entry (" ++ show d ++ ") (" ++ show b ++ ")"
 
 type VarState    = Assocs Entry
 type HakaruProxy = ('KProxy :: KProxy Hakaru)
@@ -98,47 +100,47 @@ type HakaruVar   = SomeVariable HakaruProxy
 -- variable identifiers. To do so, all original variable names are preserved and
 -- new variables are added outside the range of existing variables.
 newtype HoistM (abt :: [Hakaru] -> Hakaru -> *) a
-  = HoistM { runHoistM :: RWS LiveSet (EntrySet abt) Nat a }
+  = HoistM { runHoistM :: RWS LiveSet (ExpressionSet abt) Nat a }
 
 deriving instance                   Functor (HoistM abt)
 deriving instance (ABT Term abt) => Applicative (HoistM abt)
 deriving instance (ABT Term abt) => Monad (HoistM abt)
 deriving instance (ABT Term abt) => MonadState Nat (HoistM abt)
-deriving instance (ABT Term abt) => MonadWriter (EntrySet abt) (HoistM abt)
+deriving instance (ABT Term abt) => MonadWriter (ExpressionSet abt) (HoistM abt)
 deriving instance (ABT Term abt) => MonadReader LiveSet (HoistM abt)
 
-newtype EntrySet (abt :: [Hakaru] -> Hakaru -> *)
-  = EntrySet [Entry (abt '[])]
+newtype ExpressionSet (abt :: [Hakaru] -> Hakaru -> *)
+  = ExpressionSet [Entry (abt '[])]
 
 unionEntrySet
   :: forall abt
   .  (ABT Term abt)
-  => EntrySet abt
-  -> EntrySet abt
-  -> EntrySet abt
-unionEntrySet (EntrySet xs) (EntrySet ys) =
-  EntrySet . mapMaybe uniquify $ L.groupBy equal (xs ++ ys)
+  => ExpressionSet abt
+  -> ExpressionSet abt
+  -> ExpressionSet abt
+unionEntrySet (ExpressionSet xs) (ExpressionSet ys) =
+  ExpressionSet . mapMaybe uniquify $ L.groupBy equal (xs ++ ys)
   where
     uniquify :: [Entry (abt '[])] -> Maybe (Entry (abt '[]))
     uniquify [] = Nothing
     uniquify zs = Just $ L.foldl1' merge zs
 
     merge :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
-    merge (Entry d e b1) (Entry _ e' b2) =
-      case jmEq1 (typeOf e) (typeOf e') of
-        Just Refl -> Entry d e $ L.nub (b1 ++ b2)
+    merge (Entry d e s1 b1) (Entry _ e' s2 b2) =
+      case jmEq1 s1 s2 of
+        Just Refl -> Entry d e s1 $ L.nub (b1 ++ b2)
         Nothing   -> error "cannot union mismatched entries"
 
     equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
-    equal Entry{varDependencies=d1,expression=e1}
-          Entry{varDependencies=d2,expression=e2} =
-      case (d1 == d2, jmEq1 (typeOf e1) (typeOf e2)) of
+    equal Entry{varDependencies=d1,expression=e1,sing=s1}
+          Entry{varDependencies=d2,expression=e2,sing=s2} =
+      case (d1 == d2, jmEq1 s1 s2) of
         (True , Just Refl) -> alphaEq e1 e2
         _                  -> False
 
 
-instance (ABT Term abt) => Monoid (EntrySet abt) where
-  mempty  = EntrySet []
+instance (ABT Term abt) => Monoid (ExpressionSet abt) where
+  mempty  = ExpressionSet []
   mappend = unionEntrySet
 
 
@@ -187,8 +189,8 @@ singleEntry
   :: (ABT Term abt)
   => Variable a
   -> abt '[] a
-  -> EntrySet abt
-singleEntry v abt = EntrySet [Entry (freeVars abt) abt [v]]
+  -> ExpressionSet abt
+singleEntry v abt = ExpressionSet [Entry (freeVars abt) abt (typeOf abt) [v]]
 
 execHoistM :: Nat -> HoistM abt a -> a
 execHoistM counter act = a
@@ -206,7 +208,7 @@ toplevelEntry Entry{varDependencies=d} = sizeVarSet d == 0
 captureEntries
   :: (ABT Term abt)
   => HoistM abt a
-  -> HoistM abt (a, EntrySet abt)
+  -> HoistM abt (a, ExpressionSet abt)
 captureEntries = censor (const mempty) . listen
 
 hoist
@@ -218,9 +220,9 @@ hoist abt = execHoistM (nextFreeOrBind abt) $
 
 partitionEntrySet
   :: (Entry (abt '[]) -> Bool)
-  -> EntrySet abt
-  -> (EntrySet abt, EntrySet abt)
-partitionEntrySet p (EntrySet xs) = (EntrySet true, EntrySet false)
+  -> ExpressionSet abt
+  -> (ExpressionSet abt, ExpressionSet abt)
+partitionEntrySet p (ExpressionSet xs) = (ExpressionSet true, ExpressionSet false)
   where
     (true, false) = L.partition p xs
 
@@ -228,13 +230,13 @@ introduceToplevel
   :: (ABT Term abt)
   => LiveSet
   -> abt '[] a
-  -> EntrySet abt
+  -> ExpressionSet abt
   -> HoistM abt (abt '[] a)
 introduceToplevel avail abt entries = do
   -- After transforming the given ast, we need to introduce all the toplevel
   -- bindings (i.e. bindings with no data dependencies), most of which should be
   -- eliminated by constant propagation.
-  let (EntrySet toplevel, rest) = partitionEntrySet toplevelEntry entries
+  let (ExpressionSet toplevel, rest) = partitionEntrySet toplevelEntry entries
       intro = concatMap getBoundVars toplevel ++ fromVarSet avail
   -- First we wrap the now AST in the all terms which depdend on top level
   -- definitions
@@ -253,7 +255,7 @@ isolateBinder
   :: (ABT Term abt)
   => Variable (a :: Hakaru)
   -> HoistM abt b
-  -> HoistM abt (b, EntrySet abt)
+  -> HoistM abt (b, ExpressionSet abt)
 isolateBinder v = censor (const mempty) . listen . bindVar v
 
 hoist'
@@ -268,7 +270,7 @@ hoist' = start
     start :: forall ys b . abt ys b -> HoistM abt (abt ys b)
     start = loop [] . viewABT
 
-    isolateBinders :: [HakaruVar] -> HoistM abt c -> HoistM abt (c, EntrySet abt)
+    isolateBinders :: [HakaruVar] -> HoistM abt c -> HoistM abt (c, ExpressionSet abt)
     isolateBinders xs = censor (const mempty) . listen . local (insertMany xs)
 
     -- @loop@ takes 2 parameters.
@@ -303,7 +305,7 @@ wrapExpr
   => abt '[] b
   -> [Entry (abt '[])]
   -> HoistM abt (abt '[] b)
-wrapExpr = foldrM wrap
+wrapExpr = F.foldrM wrap
   where
     mklet :: abt '[] a -> Variable a -> abt '[] b -> abt '[] b
     mklet e v b =
@@ -330,10 +332,10 @@ introduceBindings
   .  (ABT Term abt)
   => [HakaruVar]
   -> abt '[] a
-  -> EntrySet abt
+  -> ExpressionSet abt
   -> HoistM abt (abt '[] a)
-introduceBindings newVars body (EntrySet entries) = do
-  tell (EntrySet leftOver)
+introduceBindings newVars body (ExpressionSet entries) = do
+  tell (ExpressionSet leftOver)
   wrapExpr body (topSortEntries resultEntries)
   where
     resultEntries, leftOver :: [Entry (abt '[])]
