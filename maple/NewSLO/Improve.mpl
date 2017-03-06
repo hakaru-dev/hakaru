@@ -84,6 +84,23 @@
   #
   kb_bounds_of_var :=
     proc( kb::t_kb, x::name, $)
+      local v := getType(kb, x)
+         , lo, hi, lo_b, hi_b, k ;
+
+      if v :: 'AlmostEveryReal' then
+          k := nops(v);
+          if k = 0 then
+              return (-infinity..infinity);
+          elif k = 2 then
+              lo, hi := ops(v);
+              lo, lo_b := op(1,lo), op(2, lo);
+              hi, hi_b := op(1,hi), op(2, hi);
+
+              return (lo_b..hi_b);
+          end if;
+      end if;
+
+      error "kb_bounds_of_var: unknown type %a", v;
 
   end proc;
 
@@ -92,15 +109,16 @@
        , sol_, vs_
        , $)
 
-      local sol := sol_, vs := vs_;
+      local sol := sol_, vs := vs_, e := ee;
 
       if sol :: identical({}) then
           # an empty solution
-          DONE(0)
+          DONE(0);
 
       elif sol :: set(list) then
           # a disjunction of solutions. we need to pick one, or try them
           # all
+
 
       elif sol :: set({relation,boolean}) then
           # a single atomic solution, with (hopefully) at most two conjuncts
@@ -135,11 +153,16 @@
 
 
 
-      elif sol :: specfunc('piecewise') then
-          # we work with the piecewise for now as converting to partition
-          # doesn't exactly work sometimes (assume/ProcessTerm chokes on
-          # "Not(And(..))" with 'is an invalid property')
+      elif sol :: Partition then
 
+
+          # e := `+`( seq( _
+          #              , p=( seq( [ op(2*i, sol), op(2*i+1, sol) ]
+          #                       , i=1..iquo(nops(sol))
+          #                       ), `if`(nops(sol)::odd, [ {}, op(-1,sol) ], NULL)
+          #                  )
+          #              )
+          #         ) ;
 
 
 
@@ -222,7 +245,7 @@
 
   reduce_IntSum := proc(mk :: identical(Int, Sum),
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
-    local e, dom_spec, elim, kb2;
+    local e, dom_spec, elim, kb2, lmss, vs, e2, _;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
@@ -233,13 +256,30 @@
 
     dom_spec := kb_subtract(kb2, kb0);
 
+    lmss := kb_LMS(kb2);
+
     userinfo(3, 'LMS',
          printf("    LMS     : %a\n"
                 "    kb Big  : %a\n"
                 "    kb small: %a\n"
                 "    domain  : %a\n"
                 "    var     : %a\n"
-         , kb_LMS(kb2), kb2, kb0, dom_spec, h ));
+         , lmss, kb2, kb0, dom_spec, h ));
+
+
+    if not lmss :: specfunc('NoSol') then
+        lmss, vs, _ := op(lmss);
+
+        if lmss :: 'piecewise' then
+            lmss := PWToPartition(lmss) ;
+        end if;
+
+        e2 := app_dom_spec_IntSum_LMS( mk, ee, h, kb0, lmss, vs );
+
+        userinfo(3, 'LMS',
+                 printf("    LMS-sol  : %a\n"
+                , e2 ));
+    end if;
 
     # apply the domain restrictions, which can produce
     #   DONE(x) - produced something which can't be simplified further
