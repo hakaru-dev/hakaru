@@ -145,7 +145,8 @@ export
        # each clause evaluated under the context so far,
        # which is the conjunction of the negations of all clauses
        # so far
-       local ctx := empty, n := nops(x), cls := [], cnd,i, q;
+       local ctx := empty, n := nops(x), cls := [], cnd,i, q
+           , ctx1, ns, lo, hi;
 
        userinfo(5, PWToPartition
                , printf("PWToPartition: found %d ops in %a \n ", n, x) );
@@ -178,8 +179,43 @@ export
        # if there is an otherwise case, handle that.
        if n::odd and not kb_is_false(ctx) then
 
+           ctx1 := `and`(op(kb_to_assumptions(ctx)));
+
+           # try to improve this branches condition
+           if ctx1 :: '`and`(anything)' then
+               ns := indets(ctx,name);
+
+               if nops(ns) = 1 then
+                   ns := op(1,ns);
+                   ctx := solve(ctx1, ns);
+
+                   if ctx :: {relation,boolean} then
+                       ctx1 := ctx;
+
+                   elif ctx :: 'RealRange' then
+                       lo, hi := op(ctx);
+                       ctx1 := true;
+
+                       if lo :: algebraic and lo <> -infinity then
+                           ctx1 := ctx1 and (ns > lo);
+                       elif lo :: specfunc('Open') then
+                           lo := op(1,lo);
+                           ctx1 := ctx1 and (ns >= lo);
+                       end if;
+
+                       if hi :: algebraic and hi <> infinity then
+                           ctx1 := ctx1 and (ns < hi);
+                       elif hi :: specfunc('Open')  then
+                           hi := op(1, hi);
+                           ctx1 := ctx1 and (ns <= hi);
+                       end if;
+
+                   end if;
+               end if;
+           end if;
+
            cls := [ op(cls)
-                  , Record('cond' = And(op(kb_to_assumptions(ctx)))
+                  , Record('cond' = ctx1
                           , 'val' = op(n,x)
                           )
                   ];
