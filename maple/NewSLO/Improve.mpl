@@ -118,12 +118,13 @@
       elif sol :: set(list) then
           # a disjunction of solutions. we need to pick one, or try them
           # all
-
+          e
 
       elif sol :: set({relation,boolean}) then
           # a single atomic solution, with (hopefully) at most two conjuncts
           # one which becomes incorporated into the lower bound, and the other
           # into the upper bound
+          e
 
       elif sol :: list then
           # a (nonempty, hopefully) conjunction of constraints which
@@ -150,7 +151,7 @@
 
           # determine if this conj is an upper or lower bound for the
           # variable we are now integrating
-
+          e
 
 
       elif sol :: Partition then
@@ -164,7 +165,7 @@
           #              )
           #         ) ;
 
-
+          e
 
       else
           # can't deal with such solutions (what are they?)
