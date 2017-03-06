@@ -692,20 +692,13 @@ KB := module ()
         try
           ret := LinearMultivariateSystem( cs, vs );
         catch "the system must be linear in %1":
-
-          # try to solve for some arbitrary variable.. very hacky
-          try
-
-          catch "the system must be linear in %1":
-              ret := NoSol(sprintf("The system (%a) must be linear in %a."
+          ret := NoSol(sprintf("The system (%a) must be linear in %a."
                                , cs, vs ));
-          end try;
-
 
         catch "inequality must be linear in %1":
-            ret := NoSol(sprintf("The system (%a) contains nonlinear inequality in "
-                                 "one of %a."
-                              , cs, vs ));
+          ret := NoSol(sprintf("The system (%a) contains nonlinear inequality in "
+                               "one of %a."
+                               , cs, vs ));
         end try;
 
       end if;
@@ -772,10 +765,10 @@ KB := module ()
 
       # remove the otherwise clause if it is empty (outside the domain, which is
       # going to be reprsented in the kb and "cs" anyways)
-      ret := `if`(ret :: specfunc('piecewise') and nops(ret) :: odd and
-                  op(ret)[-1] :: identical({})
-                 ,piecewise(op(ret)[1..-2])
-                 ,ret);
+      # ret := `if`(ret :: specfunc('piecewise') and nops(ret) :: odd and
+      #             op(ret)[-1] :: identical({})
+      #            ,piecewise(op(ret)[1..-2])
+      #            ,ret);
 
       # TODO: postprocessing on the output
       #   in particular, if LMS produces a piecewise,
