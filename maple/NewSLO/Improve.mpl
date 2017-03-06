@@ -81,6 +81,76 @@
     end if;
   end proc;
 
+  #
+  kb_bounds_of_var :=
+    proc( kb::t_kb, x::name, $)
+
+  end proc;
+
+  app_dom_spec_IntSum_LMS :=
+   proc( mk :: identical(Int, Sum), ee, h, kb0 :: t_kb
+       , sol_, vs_
+       , $)
+
+      local sol := sol_, vs := vs_;
+
+      if sol :: identical({}) then
+          # an empty solution
+          DONE(0)
+
+      elif sol :: set(list) then
+          # a disjunction of solutions. we need to pick one, or try them
+          # all
+
+      elif sol :: set({relation,boolean}) then
+          # a single atomic solution, with (hopefully) at most two conjuncts
+          # one which becomes incorporated into the lower bound, and the other
+          # into the upper bound
+
+      elif sol :: list then
+          # a (nonempty, hopefully) conjunction of constraints which
+          # are hopefully in a nice form...
+
+          # if we have fewer conjuncts than variables, pad the conjunts
+          # with trivial solutions (for the recursive call)
+
+          # sort the conjs by the number of variables which they mention
+
+          # check that the `k'th (from 1) conjunct mentions at most `k'
+          # variables. we can (hopefully) integrate these things in
+          # a way that differentiation (due to disintegration) eliminates
+          # the integral, by making the body free of that integration variable
+
+          # get the list of variables in the order we hope to integrate
+
+          # assign to each variable the range of integration as given in the
+          # context. the range will be contracted as we apply the solution
+
+          # starting with the leftmost solution, apply them all
+          # hopefully this should only produce valid integrals (i.e. we've done
+          # enough checks to guarantee it)
+
+          # determine if this conj is an upper or lower bound for the
+          # variable we are now integrating
+
+
+
+      elif sol :: specfunc('piecewise') then
+          # we work with the piecewise for now as converting to partition
+          # doesn't exactly work sometimes (assume/ProcessTerm chokes on
+          # "Not(And(..))" with 'is an invalid property')
+
+
+
+
+      else
+          # can't deal with such solutions (what are they?)
+          FAIL
+
+      end if;
+
+  end proc;
+
   app_dom_spec_IntSum :=
     proc(mk :: identical(Int, Sum), ee, h, kb0 :: t_kb
         ,dom_spec_
@@ -168,7 +238,8 @@
                 "    kb Big  : %a\n"
                 "    kb small: %a\n"
                 "    domain  : %a\n"
-         , kb_LMS(kb2), kb2, kb0, dom_spec ));
+                "    var     : %a\n"
+         , kb_LMS(kb2), kb2, kb0, dom_spec, h ));
 
     # apply the domain restrictions, which can produce
     #   DONE(x) - produced something which can't be simplified further
