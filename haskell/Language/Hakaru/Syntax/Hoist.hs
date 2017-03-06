@@ -42,6 +42,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Hoist (hoist) where
 
+import           Control.Applicative             (liftA2)
 import           Control.Monad.RWS
 import qualified Data.Foldable                   as F
 import qualified Data.Graph                      as G
@@ -111,6 +112,19 @@ deriving instance (ABT Term abt) => MonadReader LiveSet (HoistM abt)
 newtype ExpressionSet (abt :: [Hakaru] -> Hakaru -> *)
   = ExpressionSet [Entry (abt '[])]
 
+mergeEntry :: (ABT Term abt) => Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
+mergeEntry (Entry d e s1 b1) (Entry _ e' s2 b2) =
+  case jmEq1 s1 s2 of
+    Just Refl -> Entry d e s1 $ L.nub (b1 ++ b2)
+    Nothing   -> error "cannot union mismatched entries"
+
+entryEqual :: (ABT Term abt) => Entry (abt '[]) -> Entry (abt '[]) -> Bool
+entryEqual Entry{varDependencies=d1,expression=e1,sing=s1}
+      Entry{varDependencies=d2,expression=e2,sing=s2} =
+  case (d1 == d2, jmEq1 s1 s2) of
+    (True , Just Refl) -> alphaEq e1 e2
+    _                  -> False
+
 unionEntrySet
   :: forall abt
   .  (ABT Term abt)
@@ -118,24 +132,11 @@ unionEntrySet
   -> ExpressionSet abt
   -> ExpressionSet abt
 unionEntrySet (ExpressionSet xs) (ExpressionSet ys) =
-  ExpressionSet . mapMaybe uniquify $ L.groupBy equal (xs ++ ys)
+  ExpressionSet . mapMaybe uniquify $ L.groupBy entryEqual (xs ++ ys)
   where
     uniquify :: [Entry (abt '[])] -> Maybe (Entry (abt '[]))
     uniquify [] = Nothing
-    uniquify zs = Just $ L.foldl1' merge zs
-
-    merge :: Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
-    merge (Entry d e s1 b1) (Entry _ e' s2 b2) =
-      case jmEq1 s1 s2 of
-        Just Refl -> Entry d e s1 $ L.nub (b1 ++ b2)
-        Nothing   -> error "cannot union mismatched entries"
-
-    equal :: Entry (abt '[]) -> Entry (abt '[]) -> Bool
-    equal Entry{varDependencies=d1,expression=e1,sing=s1}
-          Entry{varDependencies=d2,expression=e2,sing=s2} =
-      case (d1 == d2, jmEq1 s1 s2) of
-        (True , Just Refl) -> alphaEq e1 e2
-        _                  -> False
+    uniquify zs = Just $ L.foldl1' mergeEntry zs
 
 intersectEntrySet
   :: forall abt
@@ -143,8 +144,12 @@ intersectEntrySet
   => ExpressionSet abt
   -> ExpressionSet abt
   -> ExpressionSet abt
-intersectEntrySet (ExpressionSet xs) (ExpressionSet ys) = ExpressionSet undefined
-
+intersectEntrySet (ExpressionSet xs) (ExpressionSet ys) = ExpressionSet cross
+  where
+    cross :: [Entry (abt '[])]
+    cross = map (uncurry mergeEntry)
+          . filter (uncurry entryEqual)
+          $ liftA2 (,) xs ys
 
 instance (ABT Term abt) => Monoid (ExpressionSet abt) where
   mempty  = ExpressionSet []
