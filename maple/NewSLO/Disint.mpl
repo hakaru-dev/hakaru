@@ -151,6 +151,7 @@
     );
 
     userinfo(3, Disint, "Disint defn:", eval(mc));
+    userinfo(3, Disint, "Disint path:", path);
 
     mc:= improve(toLO(mc), _ctx= kb);
 

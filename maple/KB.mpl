@@ -620,7 +620,7 @@ KB := module ()
   # Extracts information about the KB in a format suitable for manipulation
   # with standard Maple library functions, which do not typically expect to
   # find Hakaru constructors in their input
-  kb_extract := proc(kb::t_kb, $)::[list(name), list(name), list(t_kb_atom)];
+  kb_extract := proc(kb::t_kb, $)::[anything, anything, list(t_kb_atom)];
     local vars, parms, constraints;
 
     # Select all of the relevant subparts
@@ -646,11 +646,6 @@ KB := module ()
     #  "x" .
     constraints := remove(type, kb_to_assumptions(kb), `::`);
 
-    # extract the data:
-    #  from inside of KB,
-    #  from inside of KB atom constructors (Constrain, Intro)
-    vars, parms := op(map(z -> map[2](op, 1, [op(z)]), [vars,parms]));
-
     [vars, parms, constraints];
 
   end proc;
@@ -668,13 +663,23 @@ KB := module ()
                "      cxts     : %a\n"
          , vs, ps, cs ));
 
+      # extract the data:
+      #  from inside of KB,
+      #  from inside of KB atom constructors (Constrain, Intro)
+      vs, ps := op(map(z -> map[2](op, 1, [op(z)]), [vs,ps]));
+
       cs := {op(cs)}:
+
+      userinfo(3, 'LMS',
+        printf("      vars2s   : %a\n"
+               "      cxts2s   : %a\n"
+         , vs, cs ));
 
       # there are variables to solve for, but no non-trivial
       # constraints which need to be solved.
       if cs = {} and not vs = [] then
-        # this matches the output format of LMS; [x,y] -> { [ {x}, {y} ] }
-        ret := { map(o->{o}, vs) };
+        # this matches the output format of LMS; [x,y] -> { [ {true}, {true} ] }
+        ret := { map(o->{true}, vs) };
 
       elif not cs = {} and vs = [] then
         ret := NoSol("There are no variables to solve for, but there are constraints."
@@ -687,8 +692,16 @@ KB := module ()
         try
           ret := LinearMultivariateSystem( cs, vs );
         catch "the system must be linear in %1":
-          ret := NoSol(sprintf("The system (%a) must be linear in %a."
-                              , cs, vs ));
+
+          # try to solve for some arbitrary variable.. very hacky
+          try
+
+          catch "the system must be linear in %1":
+              ret := NoSol(sprintf("The system (%a) must be linear in %a."
+                               , cs, vs ));
+          end try;
+
+
         catch "inequality must be linear in %1":
             ret := NoSol(sprintf("The system (%a) contains nonlinear inequality in "
                                  "one of %a."
@@ -696,6 +709,73 @@ KB := module ()
         end try;
 
       end if;
+
+      if ret::specfunc('NoSol') then return ret end if;
+
+      userinfo(3, 'LMS',
+        printf("      ret     : %a\n"
+         , ret ));
+
+      # get rid of any clauses which are already in the context.
+      # the result might be a piecewise (so conditions apply conditionally)
+      # but the given context applies unconditionally
+      # ret := subsindets(ret, set,
+      #   p -> remove(x->
+      #     (x::{boolean,relation} and evalb(x in cs)) or
+      #     (x::name and evalb(x in vs))
+      #     ,p)
+      #   );
+
+      # userinfo(3, 'LMS',
+      #   printf("      ret     : %a\n"
+      #    , ret ));
+
+      # the above might trivialize some solutions. simplify
+      #   - empty solutions
+      #   - singleton (sub)solutions
+      # ret := subsindets(ret, list, s->remove(c->c::identical({}),s));
+
+      # userinfo(3, 'LMS',
+      #   printf("      ret     : %a\n"
+      #    , ret ));
+
+      # ret := subsindets(ret, set, s->`if`(nops(s)=1,op(1,s),s));
+
+      # userinfo(3, 'LMS',
+      #   printf("      ret     : %a\n"
+      #    , ret ));
+
+      # try to get rid of some 'bad' solutions
+      # those which contain variables on both right and left hand sides
+      # hopefully this isn't too aggressive, that is, it does not delete
+      # a solution by reducing it to zero clauses, and hopefully it
+      # produces a single solution (for every branch of a potential piecewise)
+      # ret := subsindets(ret, set, proc(s)
+      #         local rem;
+      #         if nops(s)>1 then
+      #            rem :=
+      #             remove(z-> not(`or`(seq(
+      #              c :: relation and depends(lhs(c),vs)
+      #                            and depends(rhs(c),vs)
+      #             ,c=op(z)
+      #                               )
+      #                           ))
+      #                  , s );
+      #             if nops(rem) = 1 then op(1,rem) else s end if;
+      #         else s end if; end proc
+      #        );
+
+
+      # replace single variables in the 'solution' (which should be a boolean
+      # valued expression, which a name really is not) with 'true'
+      ret := subsindets(ret, set, s-> map(c->`if`(c::name,true,c),s));
+
+      # remove the otherwise clause if it is empty (outside the domain, which is
+      # going to be reprsented in the kb and "cs" anyways)
+      ret := `if`(ret :: specfunc('piecewise') and nops(ret) :: odd and
+                  op(ret)[-1] :: identical({})
+                 ,piecewise(op(ret)[1..-2])
+                 ,ret);
 
       # TODO: postprocessing on the output
       #   in particular, if LMS produces a piecewise,
@@ -705,7 +785,8 @@ KB := module ()
       #    - it may contain cases which are redundant, i.e.
       #        with pw(var=val, e0, ..), simplifying e0 under "var=val"
       #        produces an expression identical to another one of the pieces
-      ret;
+
+      [ ret, vs, ps ];
   end proc;
 
 
