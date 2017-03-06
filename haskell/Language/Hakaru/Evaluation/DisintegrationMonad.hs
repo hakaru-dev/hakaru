@@ -59,21 +59,21 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , getIndices
     , withIndices
     , extendIndices
-    , extendLocInds
+    , selectMore
     , statementInds
     , sizeInnermostInd
-    -- * Locs
-    , Loc(..)
-    , getLocs
-    , putLocs
-    , insertLoc
-    , adjustLoc
+    -- * Extras
+    , Extra(..)
+    , getExtras
+    , putExtras
+    , insertExtra
+    , adjustExtra
     , mkLoc
     , freeLocError
     , apply
 #ifdef __TRACE_DISINTEGRATE__
-    , prettyLoc
-    , prettyLocs
+    , prettyExtra
+    , prettyExtras
 #endif    
     ) where
 
@@ -119,8 +119,8 @@ getStatements = Dis $ \_ c h -> c (statements h) h
 
 putStatements :: [Statement abt 'Impure] -> Dis abt ()
 putStatements ss =
-    Dis $ \_ c (ListContext i _) loc ->
-        c () (ListContext i ss) loc
+    Dis $ \_ c (ListContext i _) extras ->
+        c () (ListContext i ss) extras
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -209,38 +209,38 @@ residualizeListContext ss rho e0 =
         SWeight body _ -> syn $ Superpose_ ((plugs rho $ fromLazy body, e) :| [])
 
 ----------------------------------------------------------------
--- A location is a variable *use* instantiated at some list of indices.
-data Loc :: (Hakaru -> *) -> Hakaru -> * where
+-- An extra is a variable *use* instantiated at some list of indices.
+data Extra :: (Hakaru -> *) -> Hakaru -> * where
      Loc :: Variable a 
          -> [Variable 'HNat]
-         -> Loc ast a
+         -> Extra ast a
      MultiLoc
          :: Variable a
          -> [Variable 'HNat]
-         -> Loc ast ('HArray a)
+         -> Extra ast ('HArray a)
 
-locIndices :: Loc ast a -> [Variable 'HNat]
-locIndices (Loc       _ inds) = inds
-locIndices (MultiLoc  _ inds) = inds
+extrasInds :: Extra ast a -> [Variable 'HNat]
+extrasInds (Loc       _ inds) = inds
+extrasInds (MultiLoc  _ inds) = inds
 
-extendLocInds :: Variable 'HNat -> [Variable 'HNat] -> [Variable 'HNat]
-extendLocInds = (:)
+selectMore :: [Variable 'HNat] -> Variable 'HNat -> [Variable 'HNat]
+selectMore = flip (:)
 
 #ifdef __TRACE_DISINTEGRATE__
       
-prettyLoc :: Loc ast (a :: Hakaru) -> PP.Doc
-prettyLoc (Loc l inds)      = PP.text "Loc" PP.<+> ppVariable l
-                              PP.<+> ppList (map ppVariable inds)
-prettyLoc (MultiLoc l inds) = PP.text "MultiLoc" PP.<+> ppVariable l
-                              PP.<+> ppList (map ppVariable inds)
+prettyExtra :: Extra ast (a :: Hakaru) -> PP.Doc
+prettyExtra (Loc l inds)      = PP.text "Loc" PP.<+> ppVariable l
+                                PP.<+> ppList (map ppVariable inds)
+prettyExtra (MultiLoc l inds) = PP.text "MultiLoc" PP.<+> ppVariable l
+                                PP.<+> ppList (map ppVariable inds)
 
-prettyLocs :: (ABT Term abt)
-           => Assocs (Loc (abt '[]))
+prettyExtras :: (ABT Term abt)
+           => Assocs (Extra (abt '[]))
            -> PP.Doc
-prettyLocs a = PP.vcat $ map go (fromAssocs a)
+prettyExtras a = PP.vcat $ map go (fromAssocs a)
   where go (Assoc x l) = ppVariable x PP.<+>
                          PP.text "->" PP.<+>
-                         prettyLoc l
+                         prettyExtra l
 
 #endif                           
 
@@ -254,7 +254,7 @@ prettyLocs a = PP.vcat $ map go (fromAssocs a)
 -- TODO: really we should use LogicT...
 type Ans abt a
   =  ListContext abt 'Impure
-  -> Assocs (Loc (abt '[]))
+  -> Assocs (Extra (abt '[]))
   -> [abt '[] ('HMeasure a)]
 
 
@@ -365,8 +365,8 @@ residualizeLocs e = do
 #ifdef __TRACE_DISINTEGRATE__
   trace ("residualizeLocs: old heap:\n" ++ show (pretty_Statements ss )) $ return ()
   trace ("residualizeLocs: new heap:\n" ++ show (pretty_Statements ss')) $ return ()
-  locs <- getLocs
-  traceM ("oldlocs:\n" ++ show (prettyLocs locs) ++ "\n")
+  extras <- getExtras
+  traceM ("oldlocs:\n" ++ show (prettyExtras extras) ++ "\n")
   traceM ("new assoc for renaming:\n" ++ show (prettyAssocs rho))
 #endif
   return (e, rho)
@@ -445,16 +445,16 @@ fromLoc name typ (i:is) = fromLoc name (SArray typ) is P.! var i
 convertLocs :: (ABT Term abt)
             => Assocs Name
             -> Dis abt (Assocs (abt '[]))
-convertLocs newlocs = F.foldr step emptyAssocs . fromAssocs <$> getLocs
+convertLocs newlocs = F.foldr step emptyAssocs . fromAssocs <$> getExtras
     where
       build :: (ABT Term abt)
-            => Assoc (Loc (abt '[]))
+            => Assoc (Extra (abt '[]))
             -> Name a
             -> Assoc (abt '[])
-      build (Assoc x loc) name =
-          Assoc x (fromLoc name (varType x) (locIndices loc))
-      step assoc@(Assoc _ loc) = insertAssoc $
-          case loc of
+      build (Assoc x extra) name =
+          Assoc x (fromLoc name (varType x) (extrasInds extra))
+      step assoc@(Assoc _ extra) = insertAssoc $
+          case extra of
                  Loc      l _ -> maybe (freeLocError l)
                                        (build assoc)
                                        (lookupAssoc l newlocs)
@@ -469,17 +469,17 @@ apply :: (ABT Term abt)
       => [(Index (abt '[]), Index (abt '[]))]
       -> abt '[] a
       -> Dis abt (abt '[] a)
-apply ijs e = do locs <- fromAssocs <$> getLocs
-                 rho' <- foldM step rho locs
+apply ijs e = do extras <- fromAssocs <$> getExtras
+                 rho' <- foldM step rho extras
                  return (renames rho' e)
     where
       rho = toAssocs $ map (\(i,j) -> Assoc (indVar i) (indVar j)) ijs
-      step r (Assoc x loc) =
-            let inds  = locIndices loc
+      step r (Assoc x extra) =
+            let inds  = extrasInds extra
                 check i = lookupAssoc i rho
                 inds' = map (\i -> fromMaybe i (check i)) inds
             in if (any isJust (map check inds))
-               then do x' <- case loc of
+               then do x' <- case extra of
                                Loc      l _ -> mkLoc      Text.empty l inds'
                                MultiLoc l _ -> mkMultiLoc Text.empty l inds'
                        return (insertAssoc (Assoc x x') r)
@@ -507,30 +507,30 @@ statementInds (SGuard  _ _ _ i) = i
 statementInds (SStuff0 _     i) = i
 statementInds (SStuff1 _ _   i) = i
 
-getLocs :: (ABT Term abt)
-        => Dis abt (Assocs (Loc (abt '[])))
-getLocs = Dis $ \_ c h l -> c l h l
+getExtras :: (ABT Term abt)
+          => Dis abt (Assocs (Extra (abt '[])))
+getExtras = Dis $ \_ c h l -> c l h l
 
-putLocs :: (ABT Term abt)
-        => Assocs (Loc (abt '[]))
-        -> Dis abt ()
-putLocs l = Dis $ \_ c h _ -> c () h l
-
-insertLoc :: (ABT Term abt)
-          => Variable a
-          -> Loc (abt '[]) a
+putExtras :: (ABT Term abt)
+          => Assocs (Extra (abt '[]))
           -> Dis abt ()
-insertLoc v loc = 
+putExtras l = Dis $ \_ c h _ -> c () h l
+
+insertExtra :: (ABT Term abt)
+            => Variable a
+            -> Extra (abt '[]) a
+            -> Dis abt ()
+insertExtra v extra = 
   Dis $ \_ c h l -> c () h $
-    insertAssoc (Assoc v loc) l
+    insertAssoc (Assoc v extra) l
 
-adjustLoc :: (ABT Term abt)
-          => Variable (a :: Hakaru)
-          -> (Assoc (Loc (abt '[])) -> Assoc (Loc (abt '[])))
-          -> Dis abt ()
-adjustLoc x f = do
-    locs <- getLocs
-    putLocs $ adjustAssoc x f locs
+adjustExtra :: (ABT Term abt)
+            => Variable (a :: Hakaru)
+            -> (Assoc (Extra (abt '[])) -> Assoc (Extra (abt '[])))
+            -> Dis abt ()
+adjustExtra x f = do
+    extras <- getExtras
+    putExtras $ adjustAssoc x f extras
 
 mkLoc
     :: (ABT Term abt)
@@ -540,7 +540,7 @@ mkLoc
     -> Dis abt (Variable a)
 mkLoc hint s inds = do
   x <- freshVar hint (varType s)
-  insertLoc x (Loc s inds)
+  insertExtra x (Loc s inds)
   return x
 
 mkLocs
@@ -561,7 +561,7 @@ mkMultiLoc
     -> Dis abt (Variable ('HArray a))
 mkMultiLoc hint s inds = do
   x' <- freshVar hint (SArray $ varType s)
-  insertLoc x' (MultiLoc s inds)
+  insertExtra x' (MultiLoc s inds)
   return x'
 
 instance Functor (Dis abt) where
@@ -642,10 +642,10 @@ withIndices inds (Dis m) = Dis $ \_ c -> m inds c
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
 unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
 unsafePop =
-    Dis $ \_ c h@(ListContext i ss) loc ->
+    Dis $ \_ c h@(ListContext i ss) extras ->
         case ss of
-        []    -> c Nothing  h loc
-        s:ss' -> c (Just s) (ListContext i ss') loc
+        []    -> c Nothing  h extras
+        s:ss' -> c (Just s) (ListContext i ss') extras
 
 pushPlate
     :: (ABT Term abt)

@@ -489,6 +489,9 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
+-- | A type for tracking the arrays under which the term resides
+-- This is used as a binding form when we "lift" transformations
+-- (currently only Disintegrate) to work on arrays
 data Index ast = Ind (Variable 'HNat) (ast 'HNat)
 
 instance (ABT Term abt) => Eq (Index (abt '[])) where
@@ -502,6 +505,7 @@ indVar (Ind v _ ) = v
 
 indSize :: Index ast -> ast 'HNat
 indSize (Ind _ a) = a
+
 
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to

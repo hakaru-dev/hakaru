@@ -218,10 +218,10 @@ disintegrateWithVar hint typ m =
         constrainValue (var x) a
 #ifdef __TRACE_DISINTEGRATE__
         ss <- getStatements
-        locs <- getLocs
+        extras <- getExtras
         traceM ("-- disintegrate: finished constrainValue\n"
                 ++ show (pretty_Statements ss) ++ "\n"
-                ++ show (prettyLocs locs)
+                ++ show (prettyExtras extras)
                )
 #endif
         return b
@@ -537,12 +537,12 @@ indexArrayOp o@(Index _) (e1 :* e2 :* End) kInd kArr kSyn kFree kMultiLoc = do
     Head_ (WArrayLiteral _) -> error "TODO: indexArrayOp o (ArrayLiteral_ :* _ :* End)"
     Head_ _          -> error "indexArrayOp: unknown whnf of array type"
     Neutral e1' -> flip (caseVarSyn e1') kSyn $ \x ->
-      do locs <- getLocs
-         case (lookupAssoc x locs) of
+      do extras <- getExtras
+         case (lookupAssoc x extras) of
            Nothing              -> kFree e1'
            Just (Loc _ _)       -> error "indexArrayOp: impossible, we have a Neutral term"
            Just (MultiLoc l js) ->
-             evalIndex ((kInd . var =<<) . mkLoc Text.empty l . flip extendLocInds js)
+             evalIndex ((kInd . var =<<) . mkLoc Text.empty l . selectMore js)
                        (kMultiLoc e1')
     where
       evalIndex :: (ABT Term abt)
@@ -871,9 +871,9 @@ update
     -> TermEvaluator     abt (Dis abt)
     -> VariableEvaluator abt (Dis abt)
 update perform evaluate_ x =
-    do locs <- getLocs
+    do extras <- getExtras
     -- If we get 'Nothing', then it turns out @x@ is a free variable
-       maybe (return $ Neutral (var x)) lookForLoc (lookupAssoc x locs)
+       maybe (return $ Neutral (var x)) lookForLoc (lookupAssoc x extras)
     where lookForLoc (Loc      l jxs) =
             (maybe (freeLocError l) return =<<) . select l $ \s ->
                 case s of
@@ -956,11 +956,11 @@ perform :: forall abt. (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform = \e0 ->
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
-    getLocs >>= \locs ->
+    getExtras >>= \extras ->
     getIndices >>= \inds ->
     trace ("\n-- perform --\n"
         ++ "at " ++ show (ppInds inds) ++ "\n"
-        ++ show (prettyLocs locs) ++ "\n"
+        ++ show (prettyExtras extras) ++ "\n"
         ++ show (pretty_Statements_withTerm ss e0)
         ++ "\n") $
 #endif
@@ -1150,12 +1150,12 @@ constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
-    getLocs >>= \locs ->
+    getExtras >>= \extras ->
     getIndices >>= \inds ->
     trace ("\n-- constrainValue: " ++ show (pretty v0) ++ "\n"           
         ++ show (pretty_Statements_withTerm ss e0) ++ "\n"
         ++ "at " ++ show (ppInds inds) ++ "\n"
-        ++ show (prettyLocs locs) ++ "\n"
+        ++ show (prettyExtras extras) ++ "\n"
           ) $
 #endif
     caseVarSyn e0 (constrainVariable v0) $ \t ->
@@ -1369,18 +1369,18 @@ patternOfDatum =
 constrainVariable
     :: (ABT Term abt) => abt '[] a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
-    do locs <- getLocs
+    do extras <- getExtras
     -- If we get 'Nothing', then it turns out @x@ is a free variable.
     -- If @x@ is a free variable, then it's a neutral term; and we
     -- return 'bot' for neutral terms
-       maybe bot lookForLoc (lookupAssoc x locs)
+       maybe bot lookForLoc (lookupAssoc x extras)
     where lookForLoc (Loc      l jxs) =
               let -- Assumption: js has no duplicates
                   permutes is js = length is == length js && 
                                    Set.fromList is == Set.fromList (map indVar js)
               -- If we get 'Nothing', then it turns out @l@ is a free location.
               -- This is an error because of the invariant:
-              --   if there exists an 'Assoc x ({Multi}Loc l _)' inside @locs@
+              --   if there exists an 'Assoc x ({Multi}Loc l _)' inside @extras@
               --   then there must be a statement on the 'ListContext' that binds @l@
               in (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
@@ -1407,11 +1407,11 @@ constrainVariable v0 x =
           -- Case for MultiLoc
           lookForLoc (MultiLoc l jxs) = do
 #ifdef __TRACE_DISINTEGRATE__
-              traceM $ "looking for MultiLoc: " ++ show (prettyLoc (MultiLoc l jxs))
+              traceM $ "looking for MultiLoc: " ++ show (prettyExtra (MultiLoc l jxs))
 #endif       
               n    <- sizeInnermostInd l
               j    <- freshInd n
-              x'   <- mkLoc Text.empty l (extendLocInds (indVar j) jxs)
+              x'   <- mkLoc Text.empty l (selectMore jxs (indVar j))
               inds <- getIndices
               withIndices (extendIndices j inds) $
                           constrainValue (v0 P.! (var $ indVar j)) (var x')
@@ -1776,7 +1776,7 @@ constrainOutcome
     -> Dis abt ()
 constrainOutcome v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
-    getLocs >>= \locs ->
+    getExtras >>= \extras ->
     getIndices >>= \inds ->
     trace (
         let s = "-- constrainOutcome"
@@ -1785,7 +1785,7 @@ constrainOutcome v0 e0 =
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
             ++ show (pretty e0) ++ "\n"
             ++ "at " ++  show (ppInds inds) ++ "\n"
-            ++ show (prettyLocs locs)
+            ++ show (prettyExtras extras)
           ) $
 #endif
     do  w0 <- evaluate_ e0
