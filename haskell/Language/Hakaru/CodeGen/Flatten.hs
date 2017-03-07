@@ -110,7 +110,7 @@ flattenTerm (Case_ c bs)      = flattenCase c bs
 flattenTerm (Bucket _ _ _)    = error "TODO: flattenTerm{Bucket}"
 
 flattenTerm (Array_ s e)      = flattenArray s e
-flattenTerm (ArrayLiteral_ _) = error "TODO: flattenTerm{ArrayLiteral}"
+flattenTerm (ArrayLiteral_ s) = flattenArrayLiteral s
 
 
 ---------------------
@@ -589,6 +589,40 @@ flattenArray arity body =
             (CUnary CPostIncOp itE)
             (flattenABT body' currInd)
 
+flattenArrayLiteral
+  :: ( ABT Term abt )
+  => [abt '[] a]
+  -> (CExpr -> CodeGen ())
+flattenArrayLiteral es =
+  \loc -> do
+    arrId <- genIdent
+    isManagedMem <- managedMem <$> get
+    let arity = fromIntegral . length $ es
+        typ   = typeOf . head $ es
+        arrE = CVar arrId
+        malloc' = if isManagedMem then gc_mallocE else mallocE
+
+    declare (SArray typ) arrId
+    putExprStat $   (arrayData arrE)
+                .=. (CCast (CTypeName (buildType typ) True)
+                           (malloc' ((intE arity) .*. (CSizeOfType (CTypeName (buildType typ) False)))))
+
+    putExprStat $ arraySize arrE .=. (intE arity)
+    sequence_ . snd $ foldl (\(i,acc) e -> (succ i,(assignIndex e i arrE):acc))
+                            (0,[])
+                            es
+    putExprStat $ loc .=. arrE
+  where assignIndex
+          :: ( ABT Term abt )
+          => abt '[] a
+          -> Integer
+          -> (CExpr -> CodeGen ())
+        assignIndex e index loc = do
+          eId <- genIdent
+          declare (typeOf e) eId
+          let eE = CVar eId
+          flattenABT e eE
+          putExprStat $ indirect ((arrayData loc) .+. (intE index)) .=. eE
 
 --------------
 -- ArrayOps --
