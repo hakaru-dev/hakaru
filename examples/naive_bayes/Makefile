@@ -9,7 +9,7 @@ run:
 clean:
 	rm naive_bayes_gibbs_simp.hk NaiveBayes.hs *.o *.hi *.core
 
-naive_bayes_gibbs_simp.hk:
+naive_bayes_gibbs_simp.hk: naive_bayes_gibbs.hk
 	simplify naive_bayes_gibbs.hk > naive_bayes_gibbs_simp.hk
 
 NaiveBayes.hs: naive_bayes_gibbs_simp.hk
