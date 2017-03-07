@@ -110,7 +110,7 @@
   extract_bound_lo := v -> extract_bound( [rhs,lhs]
                                         , [ {`<`, `<=`}, {`>`, `>=`} ]
                                         , v
-                                        )
+                                        );
 
 
   app_dom_spec_IntSum_LMS :=
