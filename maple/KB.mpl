@@ -85,8 +85,8 @@ KB := module ()
      simplify_assuming, simplify_assuming_mb, simplify_assuming_f,
 
      # Gets the most refined (see refine_given) type of a given name under the
-     # assumptions of the KB
-     getType,
+     # assumptions of the KB; & convert such a type to a range.
+     getType, kb_range_of_var,
 
      # Various 'views' of the KB, in that they take a KB and produce something
      # which is somehow 'representative' of the KB
@@ -553,6 +553,43 @@ KB := module ()
       end if;
   end proc;
 
+  # the range ("x..y") of a type as produced by `getType'
+  # very much partial, but should probably at some point be unified
+  # with getType (in the form of an optional param to getType?)
+  kb_range_of_var :=
+    proc( v, $)
+      local lo, hi, lo_b, hi_b, k ;
+
+      if v :: 'specfunc(AlmostEveryReal)' then
+          k := nops(v);
+          lo_b, hi_b := -infinity, infinity;
+
+          if k = 0 then
+              # do nothing
+
+          elif k = 2 then
+              lo, hi := ops(v);
+              lo, lo_b := op(1,lo), op(2, lo);
+              hi, hi_b := op(1,hi), op(2, hi);
+
+          elif k = 1 then
+              if op([1,1],v) in {`<`, `<=`} then
+                  hi_b := op([1,2], v);
+              elif op([1,1],v) in {`>`, `>=`} then
+                  lo_b := op([1,2], v);
+              else
+                  error "kb_bounds_of_var: unknown bound %a", op([1,1],v);
+              end if;
+
+          end if;
+
+          return lo_b .. hi_b;
+      end if;
+
+      error "kb_bounds_of_var: unknown type %a", v;
+
+  end proc;
+
   # This essentially extracts all of the `Bound`s from a
   # KB and then re-inserts them 'directly' by applying their
   # knowledge to the rest of the KB. This may (?) produce
@@ -652,21 +689,21 @@ KB := module ()
 
   # linear multivariate system solver for KB
   kb_LMS := proc(kb::t_kb, $)
-      local vs, ps, cs, ret;
+      local vs, vsr, ps, cs, ret;
 
-      vs, ps, cs := op(kb_extract(kb));
+      vsr, ps, cs := op(kb_extract(kb));
 
       userinfo(3, 'LMS',
         printf("    LMS extract:\n"
                "      vars     : %a\n"
                "      parms    : %a\n"
                "      cxts     : %a\n"
-         , vs, ps, cs ));
+         , vsr, ps, cs ));
 
       # extract the data:
       #  from inside of KB,
       #  from inside of KB atom constructors (Constrain, Intro)
-      vs, ps := op(map(z -> map[2](op, 1, [op(z)]), [vs,ps]));
+      vs, ps := op(map(z -> map[2](op, 1, [op(z)]), [vsr,ps]));
 
       cs := {op(cs)}:
 
@@ -779,7 +816,7 @@ KB := module ()
       #        with pw(var=val, e0, ..), simplifying e0 under "var=val"
       #        produces an expression identical to another one of the pieces
 
-      [ ret, vs, ps ];
+      [ ret, vsr, ps ];
   end proc;
 
 
