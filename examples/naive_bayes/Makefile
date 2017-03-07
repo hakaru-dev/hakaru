@@ -9,13 +9,13 @@ run:
 clean:
 	rm naive_bayes_gibbs_simp.hk NaiveBayes.hs *.o *.hi *.core
 
-simplify:
+naive_bayes_gibbs_simp.hk:
 	simplify naive_bayes_gibbs.hk > naive_bayes_gibbs_simp.hk
 
-compile: simplify
+NaiveBayes.hs: naive_bayes_gibbs_simp.hk
 	compile naive_bayes_gibbs_simp.hk -o NaiveBayes.hs -M NaiveBayes
 
-build: compile data-file
+build: NaiveBayes.hs data-file
 	ghc -O2 --make Scaffold -o NaiveBayes
 
 # %.hs : %.hk
