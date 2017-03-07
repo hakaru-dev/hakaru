@@ -81,6 +81,38 @@
     end if;
   end proc;
 
+  extract_bound :=
+    proc( side, rels, v, $ )
+      local lhs_f, rhs_f, lhs_r, rhs_r;
+
+      lhs_f, rhs_f := op(side);
+      lhs_r, rhs_r := op(rels);
+
+      proc(x,$)
+          if x :: relation then
+              if lhs_f(x) = evaln(v) and
+                 op(0,x) in lhs_r then
+                  rhs_f(x);
+              elif rhs_f(x) = evaln(v) and
+                 op(0,x) in rhs_r then
+                  lhs_f(x);
+              else
+                  NULL
+              end if;
+          else NULL end if;
+      end proc;
+  end proc;
+
+  extract_bound_hi := v -> extract_bound( [lhs,rhs]
+                                        , [ {`<`, `<=`}, {`>`, `>=`} ]
+                                        , v
+                                        );
+  extract_bound_lo := v -> extract_bound( [rhs,lhs]
+                                        , [ {`<`, `<=`}, {`>`, `>=`} ]
+                                        , v
+                                        )
+
+
   app_dom_spec_IntSum_LMS :=
    proc( mk :: identical(Int, Sum), ee, h
        , sol_, vs_
@@ -88,14 +120,14 @@
 
       local sol := sol_, vs := vs_, e := ee, kb1, i
           , sol1, op_rng
-          , v, v_t
-          , vnms, countVs, solOrder ;
+          , v, v_t, lo, hi, lo_s, hi_s
+          , vnms, countVs, countVsInRels, solOrder ;
 
       # vnms := map(x->op(1,x), indets(vs, 'Introduce(name, anything)'));
-      vnms    := {op(map(i->op(1,i), op(1, kb_extract(vs))))};
-      countVs := (c-> nops(indets(c, name) intersect vnms));
+      vnms    := [op(map(i->op(1,i), op(1, kb_extract(vs))))] ;
+      countVs := (c-> nops(indets(c, name) intersect {op(vnms)} ));
       countVsInRels :=
-        (c->indets(map(o-> op(1..2,o), indets(c, relation)), name));
+        (c-> nops(indets(map(o-> op(1..2,o), indets(c, relation)), name)));
 
       if sol :: identical({}) then
           # an empty solution
@@ -104,6 +136,7 @@
       elif sol :: set(list) then
           # a disjunction of solutions. we need to pick one, or try them
           # all
+          ASSERT(nops(sol)>0);
           sol := [ op(sol) ];
 
           # just pick the solution which mentions 'fewest' integration
@@ -129,12 +162,25 @@
                       ,op(sol)
                       );
 
+          hi := subsindets( sol , {relation,boolean} , extract_bound_hi(v) );
+          lo := subsindets( sol , {relation,boolean} , extract_bound_lo(v) );
 
-          # TODO: should probably check that `mk` matches the type,
-          # otherwise we are solving something we weren't asked to solve (?)
-          v_t := getType(kb1, v);
+          # this logic should really be inside KB
+          if `and`(nops(sol) = 2
+                  ,nops(hi) = 1
+                  ,nops(lo) = 1
+                  ) then
+              v_t := op(1,lo) .. op(1,hi) ;
 
-          reduce_on_prod( p -> mk(p, v=kb_range_of_var(v_t))
+          else
+              # TODO: should probably check that `mk` matches the type,
+              # otherwise we are solving something we weren't asked to solve (?)
+              v_t := getType(kb1, v);
+              v_t := kb_range_of_var(v_t);
+
+          end if;
+
+          reduce_on_prod( p -> mk(p, v=v_t)
                         , e, v, kb1 );
 
       elif sol :: list then
@@ -151,7 +197,7 @@
 
           # sort the conjs by the number of variables which they mention
           sol, solOrder :=
-              sort( sol, key=countVs
+              sort( sol, key= (x-> -(countVs(x)))
                        , output=[sorted,permutation]
                   );
 
@@ -163,11 +209,10 @@
           # when nops(sol) is 1, then "i in 1..1" gives us "1,1". but "seq(1,1)"
           # is "1".
           for i in op_rng do
-              ASSERT(countVs(op(i,sol)) <= i);
+              ASSERT(countVs(op(-i,sol)) <= i);
           end do;
 
           # get the list of variables in the order we hope to integrate
-          vnms := [ op(vnms) ] ;
           vnms := vnms[solOrder];
 
           # to each variable, the range of integration is given in the

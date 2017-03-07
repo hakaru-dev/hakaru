@@ -582,8 +582,8 @@ KB := module ()
               end if;
 
           end if;
-
           return lo_b .. hi_b;
+
       end if;
 
       error "kb_bounds_of_var: unknown type %a", v;
