@@ -81,50 +81,59 @@
     end if;
   end proc;
 
-  #
-  kb_bounds_of_var :=
-    proc( kb::t_kb, x::name, $)
-      local v := getType(kb, x)
-         , lo, hi, lo_b, hi_b, k ;
-
-      if v :: 'AlmostEveryReal' then
-          k := nops(v);
-          if k = 0 then
-              return (-infinity..infinity);
-          elif k = 2 then
-              lo, hi := ops(v);
-              lo, lo_b := op(1,lo), op(2, lo);
-              hi, hi_b := op(1,hi), op(2, hi);
-
-              return (lo_b..hi_b);
-          end if;
-      end if;
-
-      error "kb_bounds_of_var: unknown type %a", v;
-
-  end proc;
-
   app_dom_spec_IntSum_LMS :=
-   proc( mk :: identical(Int, Sum), ee, h, kb0 :: t_kb
+   proc( mk :: identical(Int, Sum), ee, h
        , sol_, vs_
        , $)
 
-      local sol := sol_, vs := vs_, e := ee;
+      local sol := sol_, vs := vs_, e := ee, kb1, i
+          , sol1, op_rng
+          , v, v_t
+          , vnms, countVs, solOrder ;
+
+      # vnms := map(x->op(1,x), indets(vs, 'Introduce(name, anything)'));
+      vnms    := {op(map(i->op(1,i), op(1, kb_extract(vs))))};
+      countVs := (c-> nops(indets(c, name) intersect vnms));
 
       if sol :: identical({}) then
           # an empty solution
-          DONE(0);
+          0;
 
       elif sol :: set(list) then
           # a disjunction of solutions. we need to pick one, or try them
           # all
-          e
+          sol := [ op(sol) ];
+
+          # just pick the solution which mentions 'fewest' integration
+          # variables (fewest as in the sum of counts for each solution is
+          # smallest). not a great heuristic, but it maximizes the chances
+          # of the assert in `::list` case matching.
+          sol :=
+              op(1, sort( sol, key=(z-> `+`(map(countVs,z)))
+                        ));
+
+          app_dom_spec_IntSum_LMS(mk, e, h, sol, vs);
 
       elif sol :: set({relation,boolean}) then
           # a single atomic solution, with (hopefully) at most two conjuncts
           # one which becomes incorporated into the lower bound, and the other
           # into the upper bound
-          e
+
+          ASSERT(nops(vs)=1);
+          v := op([1,1],vs); # KB(Introduce(v,..))
+
+          kb1 := foldl(proc(a,b) assert(b,a) end proc
+                      ,vs
+                      ,op(sol)
+                      );
+
+
+          # TODO: should probably check that `mk` matches the type,
+          # otherwise we are solving something we weren't asked to solve (?)
+          v_t := getType(kb1, v);
+
+          reduce_on_prod( p -> mk(p, v=kb_range_of_var(v_t))
+                        , e, v, kb1 );
 
       elif sol :: list then
           # a (nonempty, hopefully) conjunction of constraints which
@@ -132,40 +141,68 @@
 
           # if we have fewer conjuncts than variables, pad the conjunts
           # with trivial solutions (for the recursive call)
+          if nops(sol) < nops(vs) then
+              sol := [ seq( {true} , _=1..(nops(vs) - nops(sol)) )  , sol ];
+          end if;
+
+          op_rng := seq(1..nops(sol));
 
           # sort the conjs by the number of variables which they mention
+          sol, solOrder :=
+              sort( sol, key=countVs
+                       , output=[sorted,permutation]
+                  );
 
           # check that the `k'th (from 1) conjunct mentions at most `k'
           # variables. we can (hopefully) integrate these things in
           # a way that differentiation (due to disintegration) eliminates
           # the integral, by making the body free of that integration variable
 
+          # when nops(sol) is 1, then "i in 1..1" gives us "1,1". but "seq(1,1)"
+          # is "1".
+          for i in op_rng do
+              ASSERT(countVs(op(i,sol)) <= i);
+          end do;
+
           # get the list of variables in the order we hope to integrate
+          vnms := [ op(vnms) ] ;
+          if nops(sol) > 1 then
+              vnms := vnms[op(solOrder)];
+          end if;
 
-          # assign to each variable the range of integration as given in the
+          # to each variable, the range of integration is given in the
           # context. the range will be contracted as we apply the solution
-
           # starting with the leftmost solution, apply them all
           # hopefully this should only produce valid integrals (i.e. we've done
           # enough checks to guarantee it)
+          for i in op_rng do
+              sol1 := op(i, sol);
 
-          # determine if this conj is an upper or lower bound for the
-          # variable we are now integrating
+              e := app_dom_spec_IntSum_LMS
+                     ( mk, e, h
+                     , sol1
+                     , select(c->depends(c, vnms[i]), vs)
+                     ) ;
+
+          end do;
+
+          # maybe simplify here...
           e
-
 
       elif sol :: Partition then
 
+          e := `+`(op(
+            map(cl->
+                Indicator(cl:-cond) *
+                app_dom_spec_IntSum_LMS
+                  ( mk, e, h
+                  , cl:-val
+                  , vs # assert(cl:-cond, vs)
+                  )
+                , op(1,sol) )
+              ));
 
-          # e := `+`( seq( _
-          #              , p=( seq( [ op(2*i, sol), op(2*i+1, sol) ]
-          #                       , i=1..iquo(nops(sol))
-          #                       ), `if`(nops(sol)::odd, [ {}, op(-1,sol) ], NULL)
-          #                  )
-          #              )
-          #         ) ;
-
-          e
+          e;
 
       else
           # can't deal with such solutions (what are they?)
@@ -230,28 +267,33 @@
          , elim ));
 
     if elim = FAIL then
-      e, w := selectremove(depends, list_of_mul(e), var);
-
-      userinfo(3, 'LMS',
-          printf("    expr-pull-mull : %a\n"
-           , e ));
-
-      DONE( reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0))
-        * make(`*`(op(e)), var=new_rng) );
+      DONE( reduce_on_prod(p->make(p,var=new_rng), e, var, kb0) );
     else
       elim
     end if;
 
   end proc;
 
+  # Helper function for performing reductions
+  # given an "ee" and a "var", pulls the portion
+  # of "ee" not depending on "var" out, and applies "f"
+  # to the portion depending on "var".
+  # the 'weights' (factors not depending on "var") are simplified
+  # under the given assumption context, "kb0"
+  reduce_on_prod := proc(f,ee,var::name,kb0::t_kb,$)
+      local e := ee, w;
+      e, w := selectremove(depends, list_of_mul(e), var);
+      reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
+  end proc;
+
   reduce_IntSum := proc(mk :: identical(Int, Sum),
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
-    local e, dom_spec, elim, kb2, lmss, vs, e2, _;
+    local e, dom_spec, elim, kb2, lmss, vs, e2, _, dom_specw;
 
     # if there are domain restrictions, try to apply them
-    (dom_spec, e) := get_indicators(ee);
+    (dom_specw, e) := get_indicators(ee);
 
-    kb2 := foldr(assert, kb1, op(dom_spec));
+    kb2 := foldr(assert, kb1, op(dom_specw));
 
     ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
 
@@ -267,20 +309,40 @@
                 "    var     : %a\n"
          , lmss, kb2, kb0, dom_spec, h ));
 
+    try
+          if not lmss :: specfunc('NoSol') then
+              lmss, vs, _ := op(lmss);
 
-    if not lmss :: specfunc('NoSol') then
-        lmss, vs, _ := op(lmss);
+              if lmss :: 'piecewise' then
+                  lmss := PWToPartition(lmss) ;
+              end if;
 
-        if lmss :: 'piecewise' then
-            lmss := PWToPartition(lmss) ;
-        end if;
+              userinfo(3, 'LMS',
+                       printf("    LMS-pp   : %a\n"
+                              "    LMS-vs   : %a\n"
+                              , lmss, vs ));
 
-        e2 := app_dom_spec_IntSum_LMS( mk, ee, h, kb0, lmss, vs );
+              e2 := app_dom_spec_IntSum_LMS( mk, e, h, lmss, vs );
 
-        userinfo(3, 'LMS',
-                 printf("    LMS-sol  : %a\n"
-                , e2 ));
-    end if;
+              userinfo(3, 'LMS',
+                       printf("    expr LMS     : %a\n"
+                              "    expr LMS - s : %a\n"
+                              , e2, simplify(e2) ));
+
+              # e2 := `*`(op(map(Indicator,dom_specw)), e2);
+
+              # userinfo(3, 'LMS',
+              #          printf("    ind-prev  : %a\n"
+              #                 "    LMS-sol-i : %a\n"
+              #                 , dom_specw, e2 ));
+
+          end if;
+    catch:
+          userinfo(3, 'LMS',
+                   printf("    LMS threw an error: %a\n"
+                          , lastexception ));
+
+    end try;
 
     # apply the domain restrictions, which can produce
     #   DONE(x) - produced something which can't be simplified further
@@ -293,14 +355,27 @@
          , e, elim ));
 
     if elim :: specfunc('DONE') then
-      op(1,elim);
+      elim := op(1,elim);
     else
       elim := reduce(elim, h, kb0);
       userinfo(3, 'LMS',
         printf("    expr-reduced    : %a\n"
          , elim ));
-      elim;
     end if;
+
+    userinfo(3, 'LMS', (proc($) # there has to be a better way...
+        if assigned(e2) and evalb(elim = e2) then
+            printf("    == LMS succeeded ==\n");
+        elif assigned(e2) then
+            printf("    == LMS failed ==\n"
+                   "      e0 : %a\n"
+                   "      e1 : %a\n"
+                  , elim, e2 );
+        end if
+      end proc)());
+
+    elim;
+
   end proc;
 
   reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, $)
