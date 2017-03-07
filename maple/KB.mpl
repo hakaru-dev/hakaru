@@ -568,7 +568,7 @@ KB := module ()
               # do nothing
 
           elif k = 2 then
-              lo, hi := ops(v);
+              lo, hi := op(v);
               lo, lo_b := op(1,lo), op(2, lo);
               hi, hi_b := op(1,hi), op(2, hi);
 

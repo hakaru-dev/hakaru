@@ -94,6 +94,8 @@
       # vnms := map(x->op(1,x), indets(vs, 'Introduce(name, anything)'));
       vnms    := {op(map(i->op(1,i), op(1, kb_extract(vs))))};
       countVs := (c-> nops(indets(c, name) intersect vnms));
+      countVsInRels :=
+        (c->indets(map(o-> op(1..2,o), indets(c, relation)), name));
 
       if sol :: identical({}) then
           # an empty solution
@@ -109,7 +111,7 @@
           # smallest). not a great heuristic, but it maximizes the chances
           # of the assert in `::list` case matching.
           sol :=
-              op(1, sort( sol, key=(z-> `+`(map(countVs,z)))
+              op(1, sort( sol, key=(z-> `+`(map(countVsInRels,z)))
                         ));
 
           app_dom_spec_IntSum_LMS(mk, e, h, sol, vs);
@@ -166,9 +168,7 @@
 
           # get the list of variables in the order we hope to integrate
           vnms := [ op(vnms) ] ;
-          if nops(sol) > 1 then
-              vnms := vnms[op(solOrder)];
-          end if;
+          vnms := vnms[solOrder];
 
           # to each variable, the range of integration is given in the
           # context. the range will be contracted as we apply the solution
