@@ -127,7 +127,7 @@ script:
 - |
   case "$BUILD" in
     stack)
-      travis_wait 30 stack --no-terminal $ARGS test --haddock --no-haddock-deps
+      travis_wait 30 stack --no-terminal $ARGS test hakaru:system-testsuite --haddock --no-haddock-deps
       ;;
     cabal)
       cabal configure --enable-tests --enable-benchmarks -v2 --ghc-options="-O0" # removed -Werror
