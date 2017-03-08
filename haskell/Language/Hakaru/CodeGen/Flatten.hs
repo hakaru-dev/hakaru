@@ -91,7 +91,7 @@ flattenVar
   -> (CExpr -> CodeGen ())
 flattenVar v = \loc ->
   do v' <- CVar <$> lookupIdent v
-     putStat . CExpr . Just $ loc .=. v'
+     putExprStat $ loc .=. v'
 
 flattenTerm
   :: ABT Term abt
@@ -435,6 +435,7 @@ flattenSCon MBind           =
            mId <- genIdent' "m"
            declare (typeOf ma) mId
            let mE = CVar mId
+           -- flattenABT ma mE
            flattenABT ma (address mE)
 
            -- assign that sample to var
@@ -1167,6 +1168,10 @@ flattenMeasureOp Beta =
   \(a :* b :* End) -> flattenABT (HKP.beta'' a b)
 
 
+-- I ran into a bug here where sometime I recieved a location by reference and
+-- others by value. Since measureOps assign a sample to mdata that they have a
+-- reference to, we should enforce that when passing around mdata it is by
+-- reference
 flattenMeasureOp Categorical = \(arr :* End) ->
   \loc ->
     do arrId <- genIdent
