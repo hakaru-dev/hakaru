@@ -255,7 +255,7 @@ Hakaru := module ()
                         j=1..k), i=1..k)}))[1]);
     elif andmap(type, [m,n], 'specfunc(piecewise)') and nops(m) = nops(n) then
       k := nops(m);
-      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, v), i=1..k)))
+      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, boolean), i=1..k)));
     elif m :: specfunc('case') and
         verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
       # This code unfortunately only handles alpha-equivalence for 'case' along
