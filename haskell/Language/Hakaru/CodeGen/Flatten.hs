@@ -91,7 +91,7 @@ flattenVar
   -> (CExpr -> CodeGen ())
 flattenVar v = \loc ->
   do v' <- CVar <$> lookupIdent v
-     putStat . CExpr . Just $ loc .=. v'
+     putExprStat $ loc .=. v'
 
 flattenTerm
   :: ABT Term abt
@@ -110,7 +110,7 @@ flattenTerm (Case_ c bs)      = flattenCase c bs
 flattenTerm (Bucket _ _ _)    = error "TODO: flattenTerm{Bucket}"
 
 flattenTerm (Array_ s e)      = flattenArray s e
-flattenTerm (ArrayLiteral_ _) = error "TODO: flattenTerm{ArrayLiteral}"
+flattenTerm (ArrayLiteral_ s) = flattenArrayLiteral s
 
 
 ---------------------
@@ -435,6 +435,7 @@ flattenSCon MBind           =
            mId <- genIdent' "m"
            declare (typeOf ma) mId
            let mE = CVar mId
+           -- flattenABT ma mE
            flattenABT ma (address mE)
 
            -- assign that sample to var
@@ -589,6 +590,40 @@ flattenArray arity body =
             (CUnary CPostIncOp itE)
             (flattenABT body' currInd)
 
+flattenArrayLiteral
+  :: ( ABT Term abt )
+  => [abt '[] a]
+  -> (CExpr -> CodeGen ())
+flattenArrayLiteral es =
+  \loc -> do
+    arrId <- genIdent
+    isManagedMem <- managedMem <$> get
+    let arity = fromIntegral . length $ es
+        typ   = typeOf . head $ es
+        arrE = CVar arrId
+        malloc' = if isManagedMem then gc_mallocE else mallocE
+
+    declare (SArray typ) arrId
+    putExprStat $   (arrayData arrE)
+                .=. (CCast (CTypeName (buildType typ) True)
+                           (malloc' ((intE arity) .*. (CSizeOfType (CTypeName (buildType typ) False)))))
+
+    putExprStat $ arraySize arrE .=. (intE arity)
+    sequence_ . snd $ foldl (\(i,acc) e -> (succ i,(assignIndex e i arrE):acc))
+                            (0,[])
+                            es
+    putExprStat $ loc .=. arrE
+  where assignIndex
+          :: ( ABT Term abt )
+          => abt '[] a
+          -> Integer
+          -> (CExpr -> CodeGen ())
+        assignIndex e index loc = do
+          eId <- genIdent
+          declare (typeOf e) eId
+          let eE = CVar eId
+          flattenABT e eE
+          putExprStat $ indirect ((arrayData loc) .+. (intE index)) .=. eE
 
 --------------
 -- ArrayOps --
@@ -1133,6 +1168,10 @@ flattenMeasureOp Beta =
   \(a :* b :* End) -> flattenABT (HKP.beta'' a b)
 
 
+-- I ran into a bug here where sometime I recieved a location by reference and
+-- others by value. Since measureOps assign a sample to mdata that they have a
+-- reference to, we should enforce that when passing around mdata it is by
+-- reference
 flattenMeasureOp Categorical = \(arr :* End) ->
   \loc ->
     do arrId <- genIdent
