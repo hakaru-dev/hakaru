@@ -181,14 +181,14 @@ residualizeListContext =
         :: Statement abt p
         -> P p abt '[] a
         -> P p abt '[] a
-    step (SLet  x body _)  = mapP $ residualizeLet x body
-    step (SBind x body _) = mapPImpure $ \e ->
+    step (SLet  (Location x) body _)  = mapP $ residualizeLet x body
+    step (SBind (Location x) body _) = mapPImpure $ \e ->
         -- TODO: if @body@ is dirac, then treat as 'SLet'
         syn (MBind :$ fromLazy body :* bind x e :* End)
     step (SGuard xs pat scrutinee _) = mapPImpure $ \e ->
         -- TODO: avoid adding the 'PWild' branch if we know @pat@ covers the type
         syn $ Case_ (fromLazy scrutinee)
-            [ Branch pat   $ binds_ xs e
+            [ Branch pat   $ binds_ (fromLocations1 xs) e
             , Branch PWild $ P.reject (typeOf e)
             ]
     step (SWeight body _) = mapPImpure $ P.withWeight (fromLazy body)

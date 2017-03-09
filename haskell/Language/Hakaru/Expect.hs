@@ -98,7 +98,7 @@ residualizeExpect
 residualizeExpect e = do
     -- BUG: is this what we really mean? or do we actually mean the old 'emit' version?
     x <- freshVar Text.empty (sUnMeasure $ typeOf e)
-    unsafePush (SStuff1 x (\c ->
+    unsafePush (SStuff1 (Location x) (\c ->
         syn (AST.Expect :$ e :* bind x c :* End)) [])
     return $ var x
 {-
@@ -235,10 +235,10 @@ emitExpectListContext = do
         trace ("\n-- emitExpectListContext: " ++ show (ppStatement 0 s)) $
 #endif
         case s of
-        SLet x body _ ->
+        SLet l body _ ->
             -- TODO: be smart about dropping unused let-bindings and inlining trivial let-bindings
             Expect $ \c h ->
-                syn (Let_ :$ fromLazy body :* bind x (c () h) :* End)
+                syn (Let_ :$ fromLazy body :* bind (fromLocation l) (c () h) :* End)
         SStuff0   f _ -> Expect $ \c h -> f (c () h)
         SStuff1 _ f _ -> Expect $ \c h -> f (c () h)
 
@@ -250,7 +250,7 @@ pushIntegrate
     -> Expect abt (Variable 'HReal)
 pushIntegrate lo hi = do
     x <- freshVar Text.empty SReal
-    unsafePush (SStuff1 x (\c ->
+    unsafePush (SStuff1 (Location x) (\c ->
         syn (Integrate :$ lo :* hi :* bind x c :* End)) [])
     return x
 {-
@@ -268,7 +268,7 @@ pushSummate
     -> Expect abt (Variable a)
 pushSummate lo hi = do
     x <- freshVar Text.empty sing
-    unsafePush (SStuff1 x (\c ->
+    unsafePush (SStuff1 (Location x) (\c ->
         syn (Summate hDiscrete hSemiring
              :$ lo :* hi :* bind x c :* End)) [])
     return x
@@ -285,7 +285,7 @@ pushLet :: (ABT Term abt) => abt '[] a -> Expect abt (Variable a)
 pushLet e =
     caseVarSyn e return $ \_ -> do
         x <- freshVar Text.empty (typeOf e)
-        unsafePush (SStuff1 x (\c ->
+        unsafePush (SStuff1 (Location x) (\c ->
             syn (Let_ :$ e :* bind x c :* End)) [])
         return x
 {-

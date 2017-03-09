@@ -82,7 +82,7 @@ residualizeExpectListContext e0 =
     step :: abt '[] 'HProb -> Statement abt 'ExpectP -> abt '[] 'HProb
     step e s =
         case s of
-        SLet x body _
+        SLet (Location x) body _
             -- BUG: this trick for dropping unused let-bindings doesn't seem to work anymore... (cf., 'Tests.Expect.test4')
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.

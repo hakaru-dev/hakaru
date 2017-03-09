@@ -127,7 +127,7 @@ residualizePureListContext e0 =
     step :: abt '[] a -> Statement abt 'Pure -> abt '[] a
     step e s =
         case s of
-        SLet x body _
+        SLet (Location x) body _
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->

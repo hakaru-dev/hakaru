@@ -173,13 +173,13 @@ evaluate perform evaluateCase = evaluate_
                 -- call-by-name:
                 caseBind f $ \x f' -> do
                     i <- getIndices
-                    push (SLet x (Thunk e2) i) f' evaluate_
+                    push (SLet (Location x) (Thunk e2) i) f' evaluate_
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End -> do
             i <- getIndices
             caseBind e2 $ \x e2' ->
-                push (SLet x (Thunk e1) i) e2' evaluate_
+                push (SLet (Location x) (Thunk e1) i) e2' evaluate_
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
         UnsafeFrom_ c :$ e1 :* End -> coerceFrom c <$> evaluate_ e1
@@ -251,7 +251,8 @@ defaultCaseEvaluator evaluate_ = evaluateCase_
 
 
 toStatements :: Assocs (abt '[]) -> [Statement abt p]
-toStatements = map (\(Assoc x e) -> SLet x (Thunk e) []) . fromAssocs
+toStatements = map (\(Assoc x e) -> SLet (Location x) (Thunk e) []) .
+               fromAssocs
 
 
 ----------------------------------------------------------------
@@ -272,26 +273,26 @@ update
     -> VariableEvaluator abt m
 update perform evaluate_ = \x ->
     -- If we get 'Nothing', then it turns out @x@ is a free variable
-    fmap (maybe (Neutral $ var x) id) . select x $ \s ->
+    fmap (maybe (Neutral $ var x) id) . select (Location x) $ \s ->
         case s of
         SBind y e i -> do
-            Refl <- varEq x y
+            Refl <- locEq (Location x) y
             Just $ do
                 w <- perform $ caseLazy e fromWhnf id
-                unsafePush (SLet x (Whnf_ w) i)
+                unsafePush (SLet (Location x) (Whnf_ w) i)
 #ifdef __TRACE_DISINTEGRATE__
                 trace ("-- updated "
                     ++ show (ppStatement 11 s)
                     ++ " to "
-                    ++ show (ppStatement 11 (SLet x (Whnf_ w) i))
+                    ++ show (ppStatement 11 (SLet (Location x) (Whnf_ w) i))
                     ) $ return ()
 #endif
                 return w
         SLet y e i -> do
-            Refl <- varEq x y
+            Refl <- locEq (Location x) y
             Just $ do
                 w <- caseLazy e return evaluate_
-                unsafePush (SLet x (Whnf_ w) i)
+                unsafePush (SLet (Location x) (Whnf_ w) i)
                 return w
         -- These two don't bind any variables, so they definitely can't match.
         SWeight   _ _ -> Nothing

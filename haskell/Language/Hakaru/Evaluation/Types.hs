@@ -2,6 +2,7 @@
            , GADTs
            , KindSignatures
            , DataKinds
+           , PolyKinds
            , TypeOperators
            , Rank2Types
            , BangPatterns
@@ -45,6 +46,10 @@ module Language.Hakaru.Evaluation.Types
     -- * The monad for partial evaluation
     , Purity(..), Statement(..), statementVars, isBoundBy
     , Index, indVar, indSize
+    , Location(..), locEq, locHint, locType, locations1
+    , fromLocation, fromLocations1, freshenLoc, freshenLocs
+    , LAssoc, LAssocs , emptyLAssocs, singletonLAssocs
+    , toLAssocs1, insertLAssocs, lookupLAssoc
 #ifdef __TRACE_DISINTEGRATE__
     , ppList
     , ppInds
@@ -506,7 +511,54 @@ indVar (Ind v _ ) = v
 indSize :: Index ast -> ast 'HNat
 indSize (Ind _ a) = a
 
+-- | Distinguish between variables and heap locations
+newtype Location (a :: k) = Location (Variable a)
 
+instance Show (Sing a) => Show (Location a) where
+    show (Location v) = show v
+
+locHint :: Location a -> Text
+locHint (Location x) = varHint x
+
+locType :: Location a -> Sing a
+locType (Location x) = varType x
+
+locEq :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+      => Location (a :: k)
+      -> Location (b :: k)
+      -> Maybe (TypeEq a b)
+locEq (Location a) (Location b) = varEq a b
+
+fromLocation :: Location a -> Variable a
+fromLocation (Location v) = v
+
+fromLocations1 :: List1 Location a -> List1 Variable a
+fromLocations1 = fmap11 fromLocation
+
+locations1 :: List1 Variable a -> List1 Location a
+locations1 = fmap11 Location
+
+newtype LAssoc ast = LAssoc (Assoc ast)
+newtype LAssocs ast = LAssocs (Assocs ast)
+
+emptyLAssocs :: LAssocs abt
+emptyLAssocs = LAssocs (emptyAssocs)
+    
+singletonLAssocs :: Location a -> f a -> LAssocs f
+singletonLAssocs (Location v) e = LAssocs (singletonAssocs v e)
+
+toLAssocs1 :: List1 Location xs -> List1 ast xs -> LAssocs ast
+toLAssocs1 ls es = LAssocs (toAssocs1 (fromLocations1 ls) es)
+
+insertLAssocs :: LAssocs ast -> LAssocs ast -> LAssocs ast
+insertLAssocs (LAssocs a) (LAssocs b) = LAssocs (insertAssocs a b)
+
+lookupLAssoc :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+             => Location (a :: k)
+             -> LAssocs ast
+             -> Maybe (ast a)
+lookupLAssoc (Location v) (LAssocs a) = lookupAssoc v a
+                                  
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
 -- 'MBind' (or 'Let_') together with the variable bound in the
@@ -531,7 +583,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- A variable bound by 'MBind' to a measure expression.
     SBind
         :: forall abt (a :: Hakaru)
-        .  {-# UNPACK #-} !(Variable a)
+        .  {-# UNPACK #-} !(Location a)
         -> !(Lazy abt ('HMeasure a))
         -> [Index (abt '[])]
         -> Statement abt 'Impure
@@ -539,7 +591,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- A variable bound by 'Let_' to an expression.
     SLet
         :: forall abt p (a :: Hakaru)
-        .  {-# UNPACK #-} !(Variable a)
+        .  {-# UNPACK #-} !(Location a)
         -> !(Lazy abt a)
         -> [Index (abt '[])]
         -> Statement abt p
@@ -562,7 +614,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- handle case analysis without putting anything onto the heap.
     SGuard
         :: forall abt (xs :: [Hakaru]) (a :: Hakaru)
-        .  !(List1 Variable xs)
+        .  !(List1 Location xs)
         -> !(Pattern xs a)
         -> !(Lazy abt a)
         -> [Index (abt '[])]
@@ -580,19 +632,18 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         -> Statement abt 'ExpectP
     SStuff1
         :: forall abt (a :: Hakaru)
-        . {-# UNPACK #-} !(Variable a)
+        . {-# UNPACK #-} !(Location a)
         -> (abt '[] 'HProb -> abt '[] 'HProb)
         -> [Index (abt '[])]
         -> Statement abt 'ExpectP
 
-
 statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
-statementVars (SBind x _ _)     = singletonVarSet x
-statementVars (SLet  x _ _)     = singletonVarSet x
+statementVars (SBind x _ _)     = singletonVarSet (fromLocation x)
+statementVars (SLet  x _ _)     = singletonVarSet (fromLocation x)
 statementVars (SWeight _ _)     = emptyVarSet
-statementVars (SGuard xs _ _ _) = toVarSet1 xs
+statementVars (SGuard xs _ _ _) = toVarSet1 (fromLocations1 xs)
 statementVars (SStuff0   _ _)   = emptyVarSet
-statementVars (SStuff1 x _ _)   = singletonVarSet x    
+statementVars (SStuff1 x _ _)   = singletonVarSet (fromLocation x)
 
 -- | Is the variable bound by the statement?
 --
@@ -602,16 +653,17 @@ statementVars (SStuff1 x _ _)   = singletonVarSet x
 -- really rather have the @Bool@, then we can easily change things
 -- and use some @boolToMaybe@ function to do the coercion wherever
 -- needed.
-isBoundBy :: Variable (a :: Hakaru) -> Statement abt p -> Maybe ()
-x `isBoundBy` SBind  y  _ _   = const () <$> varEq x y
-x `isBoundBy` SLet   y  _ _   = const () <$> varEq x y
+isBoundBy :: Location (a :: Hakaru) -> Statement abt p -> Maybe ()
+x `isBoundBy` SBind  y  _ _   = const () <$> locEq x y
+x `isBoundBy` SLet   y  _ _   = const () <$> locEq x y
 _ `isBoundBy` SWeight   _ _   = Nothing
 x `isBoundBy` SGuard ys _ _ _ =
-    if memberVarSet x (toVarSet1 ys) -- TODO: just check membership directly, rather than going through VarSet
+    -- TODO: just check membership directly, rather than going through VarSet
+    if memberVarSet (fromLocation x) (toVarSet1 (fmap11 fromLocation ys))
     then Just ()
     else Nothing
 _ `isBoundBy` SStuff0   _ _   = Nothing
-x `isBoundBy` SStuff1 y _ _   = const () <$> varEq x y
+x `isBoundBy` SStuff1 y _ _   = const () <$> locEq x y
 
 
 -- TODO: remove this CPP guard, provided we don't end up with a cyclic dependency...
@@ -647,13 +699,13 @@ ppInds = ppList . map (ppVariable . indVar)
 ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
 ppStatement p s =
     case s of
-    SBind x e inds ->
+    SBind (Location x) e inds ->
         PP.sep $ ppFun p "SBind"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
             , ppInds inds
             ]
-    SLet x e inds ->
+    SLet (Location x) e inds ->
         PP.sep $ ppFun p "SLet"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
@@ -666,7 +718,7 @@ ppStatement p s =
             ]
     SGuard xs pat e inds ->
         PP.sep $ ppFun p "SGuard"
-            [ PP.sep $ ppVariables xs
+            [ PP.sep $ ppVariables (fromLocations1 xs)
             , PP.sep $ prettyPrec_ 11 pat
             , PP.sep $ prettyPrec_ 11 e
             , ppInds inds
@@ -728,19 +780,21 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     freshenStatement s =
         case s of
           SWeight _ _    -> return (s, mempty)
-          SBind x body i -> do
+          SBind (Location x) body i -> do
                x' <- freshenVar x
-               return (SBind x' body i, singletonAssocs x x')
-          SLet  x body i -> do
+               return (SBind (Location x') body i, singletonAssocs x x')
+          SLet  (Location x) body i -> do
                x' <- freshenVar x
-               return (SLet x' body i, singletonAssocs x x')
-          SGuard xs pat scrutinee i -> do
+               return (SLet (Location x') body i, singletonAssocs x x')
+          SGuard ls pat scrutinee i -> do
+               let xs = fromLocations1 ls
                xs' <- freshenVars xs
-               return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
+               return (SGuard (fmap11 Location xs') pat scrutinee i,
+                       toAssocs1 xs xs')
           SStuff0   _ _ -> return (s, mempty)
-          SStuff1 x f i -> do
+          SStuff1 (Location x) f i -> do
                x' <- freshenVar x
-               return (SStuff1 x' f i, singletonAssocs x x')
+               return (SStuff1 (Location x') f i, singletonAssocs x x')
 
 
     -- | Returns the current Indices. Currently, this is only
@@ -794,7 +848,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- 'Statement'. Perhaps we should have an alternative statement
     -- type which exposes the existential?
     select
-        :: Variable (a :: Hakaru)
+        :: Location (a :: Hakaru)
         -> (Statement abt p -> Maybe (m r))
         -> m (Maybe r)
 
@@ -869,6 +923,21 @@ freshInd s = do
   x <- freshVar T.empty SNat
   return $ Ind x s
 
+
+-- | Given a location, return a new Location with the same hint
+-- and type but with a fresh ID
+freshenLoc :: (EvaluationMonad abt m p)
+           => Location (a :: Hakaru) -> m (Location a)
+freshenLoc (Location x) = Location <$> freshenVar x
+
+-- | Call `freshenLoc` repeatedly
+freshenLocs :: (EvaluationMonad abt m p)
+            => List1 Location (ls :: [Hakaru])
+            -> m (List1 Location ls)
+freshenLocs Nil1         = return Nil1
+freshenLocs (Cons1 l ls) = Cons1 <$> freshenLoc l <*> freshenLocs ls
+
+                           
 
 -- | Add a statement to the top of the context, renaming any variables
 -- the statement binds and returning the substitution mapping the
