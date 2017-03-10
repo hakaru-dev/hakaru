@@ -1643,7 +1643,6 @@ weibull b k =
     exponential (prob_ 1) >>= \x ->
     dirac $ b * x ** recip k
 
--- BUG: would it be better to 'observe' that @p <= 1@ before doing the superpose? At least that way things would be /defined/ for all inputs...
 bern :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure HBool)
 bern p = categorical (arrayLit [p, prob_ 1 `unsafeMinusProb` p]) >>= \i ->
          dirac (arrayLit [true, false] ! i)
