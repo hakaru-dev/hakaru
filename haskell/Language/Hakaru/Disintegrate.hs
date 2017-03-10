@@ -366,13 +366,13 @@ evaluate perform evaluateCase = goEvaluate
                 -- call-by-name:
                 caseBind f $ \x f' -> do
                     i <- getIndices
-                    push (SLet (Location x) (Thunk e2) i) f' goEvaluate
+                    push (SLet (Location x) (Thunk e2) i) f' >>= goEvaluate
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End -> do
             i <- getIndices
             caseBind e2 $ \x e2' ->
-                push (SLet (Location x) (Thunk e1) i) e2' goEvaluate
+                push (SLet (Location x) (Thunk e1) i) e2' >>= goEvaluate
 
         CoerceTo_   c :$ e1 :* End -> C.coerceTo   c <$> goEvaluate e1
         UnsafeFrom_ c :$ e1 :* End -> C.coerceFrom c <$> goEvaluate e1
@@ -942,8 +942,8 @@ evaluateCase evaluate_ = evaluateCase_
         evaluateBranch (Branch pat body) =
             let (vars,body') = caseBinds body
             in getIndices >>= \i ->
-                push (SGuard (locations1 vars) pat (Thunk e) i)
-                     body' evaluate_
+                push (SGuard (locations1 vars) pat (Thunk e) i) body'
+                   >>= evaluate_
 
 
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
@@ -973,7 +973,7 @@ perform = \e0 ->
     performTerm (MBind :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' -> do
             inds <- getIndices
-            push (SBind (Location x) (Thunk e1) inds) e2' perform
+            push (SBind (Location x) (Thunk e1) inds) e2' >>= perform
 
     performTerm (Plate :$ e1 :* e2 :* End) =  do
       x1 <- pushPlate e1 e2
@@ -983,14 +983,14 @@ perform = \e0 ->
         inds <- getIndices
         if not (null inds) && L.length pes > 1 then bot else
           emitFork_ (P.superpose . fmap ((,) P.one))
-                    (fmap (\(p,e) -> push (SWeight (Thunk p) inds) e perform)
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) inds) e >>= perform)
                           pes)
 
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' -> do
             inds <- getIndices
-            push (SLet (Location x) (Thunk e1) inds) e2' perform
+            push (SLet (Location x) (Thunk e1) inds) e2' >>= perform
 
     -- TODO: we could optimize this by calling some @evaluateTerm@
     -- directly, rather than calling 'syn' to rebuild @e0@ from
@@ -1226,7 +1226,7 @@ constrainValue v0 e0 =
         Reject_ _                -> bot -- giving up.
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push (SLet (Location x) (Thunk e1) []) e2' (constrainValue v0)
+                push (SLet (Location x) (Thunk e1) []) e2' >>= constrainValue v0
 
         CoerceTo_   c :$ e1 :* End ->
             -- TODO: we need to insert some kind of guard that says
@@ -1268,7 +1268,7 @@ constrainValue v0 e0 =
                     Just GotStuck ->
                         constrainBranches v0 e bs
                     Just (Matched rho body) ->
-                        pushes (toStatements rho) body (constrainValue v0)
+                        pushes (toStatements rho) body >>= constrainValue v0
             <|> constrainBranches v0 e bs
 
         _ :$ _ -> error "constrainValue: the impossible happened"
@@ -1295,8 +1295,8 @@ constrainBranches v0 e = choose . map constrainBranch
     where
     constrainBranch (Branch pat body) =
         let (vars,body') = caseBinds body
-        in push (SGuard (locations1 vars) pat (Thunk e) [])
-                body' (constrainValue v0)
+        in push (SGuard (locations1 vars) pat (Thunk e) []) body'
+               >>= constrainValue v0
 
 
 constrainDatum
@@ -1812,7 +1812,7 @@ constrainOutcome v0 e0 =
     go (WMBind e1 e2)        =
         caseBind e2 $ \x e2' -> do
             i <- getIndices
-            push (SBind (Location x) (Thunk e1) i) e2' (constrainOutcome v0)
+            push (SBind (Location x) (Thunk e1) i) e2' >>= constrainOutcome v0
     go (WPlate e1 e2)        = do
         x' <- pushPlate e1 e2
         constrainValue v0 (var x')
@@ -1823,7 +1823,7 @@ constrainOutcome v0 e0 =
         i <- getIndices
         if not (null i) && L.length pes > 1 then bot else
           emitFork_ (P.superpose . fmap ((,) P.one))
-                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e (constrainOutcome v0))
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e >>= constrainOutcome v0)
                           pes)
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?

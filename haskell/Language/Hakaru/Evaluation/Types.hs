@@ -970,11 +970,11 @@ push
     :: (ABT Term abt, EvaluationMonad abt m p)
     => Statement abt p   -- ^ the statement to push
     -> abt xs a          -- ^ the \"rest\" of the term
-    -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
-    -> m r               -- ^ the final result
-push s e k = do
+    -- -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
+    -> m (abt xs a)               -- ^ the final result
+push s e = do
     rho <- push_ s
-    k (renames rho e)
+    return (renames rho e)
 
 
 -- | Call 'push' repeatedly. (N.B., is more efficient than actually
@@ -985,12 +985,12 @@ pushes
     :: (ABT Term abt, EvaluationMonad abt m p)
     => [Statement abt p] -- ^ the statements to push
     -> abt xs a          -- ^ the \"rest\" of the term
-    -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
-    -> m r               -- ^ the final result
-pushes ss e k = do
+    -- -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
+    -> m (abt xs a)         -- ^ the final result
+pushes ss e = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
-    k (renames rho e)
+    return (renames rho e)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

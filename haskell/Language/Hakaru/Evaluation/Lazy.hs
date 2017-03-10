@@ -173,13 +173,13 @@ evaluate perform evaluateCase = evaluate_
                 -- call-by-name:
                 caseBind f $ \x f' -> do
                     i <- getIndices
-                    push (SLet (Location x) (Thunk e2) i) f' evaluate_
+                    push (SLet (Location x) (Thunk e2) i) f' >>= evaluate_
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End -> do
             i <- getIndices
             caseBind e2 $ \x e2' ->
-                push (SLet (Location x) (Thunk e1) i) e2' evaluate_
+                push (SLet (Location x) (Thunk e1) i) e2' >>= evaluate_
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
         UnsafeFrom_ c :$ e1 :* End -> coerceFrom c <$> evaluate_ e1
@@ -247,7 +247,7 @@ defaultCaseEvaluator evaluate_ = evaluateCase_
             Just GotStuck ->
                 return . Neutral . syn $ Case_ e bs
             Just (Matched ss body) ->
-                pushes (toStatements ss) body evaluate_
+                pushes (toStatements ss) body >>= evaluate_
 
 
 toStatements :: Assocs (abt '[]) -> [Statement abt p]
