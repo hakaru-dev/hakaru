@@ -504,7 +504,16 @@ allTests = test
     , assertAlphaEq "testCopy1" (head testCopy1) copy1'
     , testDis "testCopy2" copy2
     , assertAlphaEq "testCopy2" (head testCopy2) copy1'
+    , testDis "testPendulum" pendulum
+    , assertAlphaEq "testPendulumDisintegrate" (disintegrate pendulum Prelude.!! 2) pendulum'
     , testDis "testNaiveBayes" naiveBayes
+    , testDis "testClinicalTrial" clinicalTrial
+    , testDis "testCoinBias" coinBias
+    , testDis "testDigitRecognition" digitRecognition
+    , testDis "TestHIV" hiv
+    , testDis "testLinearRegression" linearRegression
+    , testDis "testSurveyUnbias" surveyUnbias
+    , testDis "testSurveyUnbias2" surveyUnbias2
     ]
 
 
