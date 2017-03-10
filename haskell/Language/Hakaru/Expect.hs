@@ -229,7 +229,7 @@ emitExpectListContext = do
     ss <- Expect $ \c h -> c (statements h) (h {statements = []})
     F.traverse_ step (reverse ss) -- TODO: use composition tricks to avoid reversing @ss@
     where
-    step :: Statement abt 'ExpectP -> Expect abt ()
+    step :: Statement abt Location 'ExpectP -> Expect abt ()
     step s =
 #ifdef __TRACE_DISINTEGRATE__
         trace ("\n-- emitExpectListContext: " ++ show (ppStatement 0 s)) $

@@ -117,7 +117,7 @@ import Debug.Trace (trace)
 data ListContext (abt :: [Hakaru] -> Hakaru -> *) (p :: Purity) =
     ListContext
     { nextFreshNat :: {-# UNPACK #-} !Nat
-    , statements   :: [Statement abt p]
+    , statements   :: [Statement abt Location p]
     }
 
 
@@ -178,7 +178,7 @@ residualizeListContext =
     \ss e0 -> foldl (flip step) e0 (statements ss)
     where
     step
-        :: Statement abt p
+        :: Statement abt Location p
         -> P p abt '[] a
         -> P p abt '[] a
     step (SLet  (Location x) body _)  = mapP $ residualizeLet x body
@@ -355,7 +355,7 @@ instance (ABT Term abt) => EvaluationMonad abt (PEval abt p m) p where
                         return (Just r)
 
 -- | Not exported because we only need it for defining 'select' on 'PEval'.
-unsafePop :: PEval abt p m (Maybe (Statement abt p))
+unsafePop :: PEval abt p m (Maybe (Statement abt Location p))
 unsafePop =
     PEval $ \c h@(ListContext i ss) ->
         case ss of

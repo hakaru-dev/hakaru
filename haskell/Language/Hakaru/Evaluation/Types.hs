@@ -567,8 +567,11 @@ lookupLAssoc (Location v) (LAssocs a) = lookupAssoc v a
 -- In addition to these binding constructs, we also include a few
 -- non-binding statements like 'SWeight'.
 --
+-- Statements are parameterized by the type of the bound element,
+-- which (if present) is either a Variable or a Location.
+-- 
 -- The semantics of this type are as follows. Let @ss :: [Statement
--- abt p]@ be a sequence of statements. We have @Γ@: the collection
+-- abt v p]@ be a sequence of statements. We have @Γ@: the collection
 -- of all free variables that occur in the term expressions in @ss@,
 -- viewed as a measureable space (namely the product of the measureable
 -- spaces for each variable). And we have @Δ@: the collection of
@@ -576,35 +579,35 @@ lookupLAssoc (Location v) (LAssocs a) = lookupAssoc v a
 -- measurable space. The semantic interpretation of @ss@ is a
 -- measurable function of type @Γ ':-> M Δ@ where @M@ is either
 -- @HMeasure@ (if @p ~ 'Impure@) or @Identity@ (if @p ~ 'Pure@).
-data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
+data Statement :: ([Hakaru] -> Hakaru -> *) -> (Hakaru -> *) -> Purity -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors. So we can't make the constructor descriptions below available to Haddock.
     -- <https://github.com/hakaru-dev/hakaru/issues/6>
     
     -- A variable bound by 'MBind' to a measure expression.
     SBind
-        :: forall abt (a :: Hakaru)
-        .  {-# UNPACK #-} !(Location a)
+        :: forall abt (v :: Hakaru -> *) (a :: Hakaru)
+        .  {-# UNPACK #-} !(v a)
         -> !(Lazy abt ('HMeasure a))
         -> [Index (abt '[])]
-        -> Statement abt 'Impure
+        -> Statement abt v 'Impure
 
     -- A variable bound by 'Let_' to an expression.
     SLet
-        :: forall abt p (a :: Hakaru)
-        .  {-# UNPACK #-} !(Location a)
+        :: forall abt p (v :: Hakaru -> *) (a :: Hakaru)
+        .  {-# UNPACK #-} !(v a)
         -> !(Lazy abt a)
         -> [Index (abt '[])]
-        -> Statement abt p
+        -> Statement abt v p
 
 
     -- A weight; i.e., the first component of each argument to
     -- 'Superpose_'. This is a statement just so that we can avoid
     -- needing to atomize the weight itself.
     SWeight
-        :: forall abt
+        :: forall abt (v :: Hakaru -> *)
         .  !(Lazy abt 'HProb)
         -> [Index (abt '[])]
-        -> Statement abt 'Impure
+        -> Statement abt v 'Impure
 
     -- A monadic guard statement. If the scrutinee matches the
     -- pattern, then we bind the variables as usual; otherwise, we
@@ -613,12 +616,12 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- /monadic context/. In pure contexts we should be able to
     -- handle case analysis without putting anything onto the heap.
     SGuard
-        :: forall abt (xs :: [Hakaru]) (a :: Hakaru)
-        .  !(List1 Location xs)
+        :: forall abt (v :: Hakaru -> *) (xs :: [Hakaru]) (a :: Hakaru)
+        .  !(List1 v xs)
         -> !(Pattern xs a)
         -> !(Lazy abt a)
         -> [Index (abt '[])]
-        -> Statement abt 'Impure
+        -> Statement abt v 'Impure
 
     -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
     --
@@ -626,18 +629,18 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- TODO: generalize to use a 'VarSet' so we can collapse these
     -- TODO: defunctionalize? These break pretty printing...
     SStuff0
-        :: forall abt
+        :: forall abt (v :: Hakaru -> *)
         .  (abt '[] 'HProb -> abt '[] 'HProb)
         -> [Index (abt '[])]
-        -> Statement abt 'ExpectP
+        -> Statement abt v 'ExpectP
     SStuff1
-        :: forall abt (a :: Hakaru)
-        . {-# UNPACK #-} !(Location a)
+        :: forall abt (v :: Hakaru -> *) (a :: Hakaru)
+        . {-# UNPACK #-} !(v a)
         -> (abt '[] 'HProb -> abt '[] 'HProb)
         -> [Index (abt '[])]
-        -> Statement abt 'ExpectP
+        -> Statement abt v 'ExpectP
 
-statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
+statementVars :: Statement abt Location p -> VarSet ('KProxy :: KProxy Hakaru)
 statementVars (SBind x _ _)     = singletonVarSet (fromLocation x)
 statementVars (SLet  x _ _)     = singletonVarSet (fromLocation x)
 statementVars (SWeight _ _)     = emptyVarSet
@@ -645,7 +648,7 @@ statementVars (SGuard xs _ _ _) = toVarSet1 (fromLocations1 xs)
 statementVars (SStuff0   _ _)   = emptyVarSet
 statementVars (SStuff1 x _ _)   = singletonVarSet (fromLocation x)
 
--- | Is the variable bound by the statement?
+-- | Is the Location bound by the statement?
 --
 -- We return @Maybe ()@ rather than @Bool@ because in our primary
 -- use case we're already in the @Maybe@ monad and so it's easier
@@ -653,7 +656,7 @@ statementVars (SStuff1 x _ _)   = singletonVarSet (fromLocation x)
 -- really rather have the @Bool@, then we can easily change things
 -- and use some @boolToMaybe@ function to do the coercion wherever
 -- needed.
-isBoundBy :: Location (a :: Hakaru) -> Statement abt p -> Maybe ()
+isBoundBy :: Location (a :: Hakaru) -> Statement abt Location p -> Maybe ()
 x `isBoundBy` SBind  y  _ _   = const () <$> locEq x y
 x `isBoundBy` SLet   y  _ _   = const () <$> locEq x y
 _ `isBoundBy` SWeight   _ _   = Nothing
@@ -696,7 +699,7 @@ ppList = PP.sep . (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.co
 ppInds :: (ABT Term abt) => [Index (abt '[])] -> PP.Doc
 ppInds = ppList . map (ppVariable . indVar)
 
-ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
+ppStatement :: (ABT Term abt) => Int -> Statement abt Location p -> PP.Doc
 ppStatement p s =
     case s of
     SBind (Location x) e inds ->
@@ -732,7 +735,7 @@ ppStatement p s =
             [ PP.text "TODO: ppStatement{SStuff1}"
             ]
 
-pretty_Statements :: (ABT Term abt) => [Statement abt p] -> PP.Doc
+pretty_Statements :: (ABT Term abt) => [Statement abt Location p] -> PP.Doc
 pretty_Statements []     = PP.text "[]"
 pretty_Statements (s:ss) =
     foldl
@@ -742,7 +745,7 @@ pretty_Statements (s:ss) =
     PP.$+$ PP.text "]"
 
 pretty_Statements_withTerm
-    :: (ABT Term abt) => [Statement abt p] -> abt '[] a -> PP.Doc
+    :: (ABT Term abt) => [Statement abt Location p] -> abt '[] a -> PP.Doc
 pretty_Statements_withTerm ss e =
     pretty_Statements ss PP.$+$ pretty e
 
@@ -775,24 +778,23 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- statement. We return the renamed statement along with a substitution
     -- for mapping the old variable names to their new variable names.
     freshenStatement
-        :: Statement abt p
-        -> m (Statement abt p, Assocs (Variable :: Hakaru -> *))
+        :: Statement abt Variable p
+        -> m (Statement abt Location p, Assocs (Variable :: Hakaru -> *))
     freshenStatement s =
         case s of
-          SWeight _ _    -> return (s, mempty)
-          SBind (Location x) body i -> do
+          SWeight w e    -> return (SWeight w e, mempty)
+          SBind x body i -> do
                x' <- freshenVar x
                return (SBind (Location x') body i, singletonAssocs x x')
-          SLet  (Location x) body i -> do
+          SLet x  body i -> do
                x' <- freshenVar x
                return (SLet (Location x') body i, singletonAssocs x x')
-          SGuard ls pat scrutinee i -> do
-               let xs = fromLocations1 ls
+          SGuard xs pat scrutinee i -> do
                xs' <- freshenVars xs
-               return (SGuard (fmap11 Location xs') pat scrutinee i,
+               return (SGuard (locations1 xs') pat scrutinee i,
                        toAssocs1 xs xs')
-          SStuff0   _ _ -> return (s, mempty)
-          SStuff1 (Location x) f i -> do
+          SStuff0   e e' -> return (SStuff0 e e', mempty)
+          SStuff1 x f i -> do
                x' <- freshenVar x
                return (SStuff1 (Location x') f i, singletonAssocs x x')
 
@@ -808,7 +810,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- because it may allow confusion between variables with the
     -- same name but different scopes (thus, may allow variable
     -- capture). Prefer using 'push_', 'push', or 'pushes'.
-    unsafePush :: Statement abt p -> m ()
+    unsafePush :: Statement abt Location p -> m ()
 
     -- | Call 'unsafePush' repeatedly. Is part of the class since
     -- we may be able to do this more efficiently than actually
@@ -816,7 +818,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     --
     -- N.B., this should push things in the same order as 'pushes'
     -- does.
-    unsafePushes :: [Statement abt p] -> m ()
+    unsafePushes :: [Statement abt Location p] -> m ()
     unsafePushes = mapM_ unsafePush
 
     -- | Look for the statement @s@ binding the variable. If found,
@@ -849,7 +851,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- type which exposes the existential?
     select
         :: Location (a :: Hakaru)
-        -> (Statement abt p -> Maybe (m r))
+        -> (Statement abt Location p -> Maybe (m r))
         -> m (Maybe r)
 
 
@@ -948,7 +950,7 @@ freshenLocs (Cons1 l ls) = Cons1 <$> freshenLoc l <*> freshenLocs ls
 -- 'pushes' instead.
 push_
     :: (ABT Term abt, EvaluationMonad abt m p)
-    => Statement abt p
+    => Statement abt Variable p
     -> m (Assocs (Variable :: Hakaru -> *))
 push_ s = do
     (s',rho) <- freshenStatement s
@@ -968,7 +970,7 @@ push_ s = do
 -- than applying it to the term before calling the continuation.
 push
     :: (ABT Term abt, EvaluationMonad abt m p)
-    => Statement abt p   -- ^ the statement to push
+    => Statement abt Variable p   -- ^ the statement to push
     -> abt xs a          -- ^ the \"rest\" of the term
     -- -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
     -> m (abt xs a)               -- ^ the final result
@@ -983,7 +985,7 @@ push s e = do
 -- pushed last and is the closest in the final context.
 pushes
     :: (ABT Term abt, EvaluationMonad abt m p)
-    => [Statement abt p] -- ^ the statements to push
+    => [Statement abt Variable p] -- ^ the statements to push
     -> abt xs a          -- ^ the \"rest\" of the term
     -- -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
     -> m (abt xs a)         -- ^ the final result

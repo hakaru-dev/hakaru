@@ -79,7 +79,7 @@ residualizeExpectListContext e0 =
     foldl step e0 . statements
     where
     -- TODO: make paremetric in the purity, so we can combine 'residualizeListContext' with this function.
-    step :: abt '[] 'HProb -> Statement abt 'ExpectP -> abt '[] 'HProb
+    step :: abt '[] 'HProb -> Statement abt Location 'ExpectP -> abt '[] 'HProb
     step e s =
         case s of
         SLet (Location x) body _
@@ -185,7 +185,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Expect abt) 'ExpectP where
 
 -- TODO: make paremetric in the purity
 -- | Not exported because we only need it for defining 'select' on 'Expect'.
-unsafePop :: Expect abt (Maybe (Statement abt 'ExpectP))
+unsafePop :: Expect abt (Maybe (Statement abt Location 'ExpectP))
 unsafePop =
     Expect $ \c h@(ListContext i ss) ->
         case ss of

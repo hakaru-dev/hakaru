@@ -124,7 +124,7 @@ residualizePureListContext e0 =
     foldl step e0 . statements
     where
     -- TODO: make paremetric in the purity, so we can combine 'residualizeListContext' with this function.
-    step :: abt '[] a -> Statement abt 'Pure -> abt '[] a
+    step :: abt '[] a -> Statement abt Location  'Pure -> abt '[] a
     step e s =
         case s of
         SLet (Location x) body _
@@ -189,7 +189,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Eval abt) 'Pure where
 
 -- TODO: make parametric in the purity
 -- | Not exported because we only need it for defining 'select' on 'Eval'.
-unsafePop :: Eval abt (Maybe (Statement abt 'Pure))
+unsafePop :: Eval abt (Maybe (Statement abt Location 'Pure))
 unsafePop =
     Eval $ \c h@(ListContext i ss) ->
         case ss of

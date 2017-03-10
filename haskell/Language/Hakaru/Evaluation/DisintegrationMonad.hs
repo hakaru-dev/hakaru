@@ -114,10 +114,10 @@ import qualified Text.PrettyPrint     as PP
 import Language.Hakaru.Pretty.Haskell (ppVariable, pretty)
 #endif
 
-getStatements :: Dis abt [Statement abt 'Impure]
+getStatements :: Dis abt [Statement abt Location 'Impure]
 getStatements = Dis $ \_ c h -> c (statements h) h
 
-putStatements :: [Statement abt 'Impure] -> Dis abt ()
+putStatements :: [Statement abt Location 'Impure] -> Dis abt ()
 putStatements ss =
     Dis $ \_ c (ListContext i _) extras ->
         c () (ListContext i ss) extras
@@ -173,7 +173,7 @@ residualizeListContext ss rho e0 =
     where    
     step
         :: abt '[] ('HMeasure a)
-        -> Statement abt 'Impure
+        -> Statement abt Location 'Impure
         -> abt '[] ('HMeasure a)
     step e s =        
 #ifdef __TRACE_DISINTEGRATE__
@@ -379,8 +379,8 @@ locName :: Location a -> Name b
 locName (Location x) = Name (varHint x) (varID x)
 
 residualizeLoc :: (ABT Term abt)
-               => Statement abt 'Impure
-               -> Dis abt (Statement abt 'Impure, LAssocs Name)
+               => Statement abt Location 'Impure
+               -> Dis abt (Statement abt Location 'Impure, LAssocs Name)
 residualizeLoc s =
     case s of
       SBind l _ _ -> do 
@@ -399,8 +399,8 @@ residualizeLoc s =
         | otherwise -> error "undefined: case statement under an array"
 
 reifyStatement :: (ABT Term abt)
-               => Statement abt 'Impure
-               -> Dis abt (Statement abt 'Impure, Name a)
+               => Statement abt Location 'Impure
+               -> Dis abt (Statement abt Location 'Impure, Name a)
 reifyStatement s =
     case s of
       SBind l _    []     -> return (s, locName l)
@@ -499,7 +499,7 @@ extendIndices j js | j `elem` js
                    = j : js
 
 -- give better name
-statementInds :: Statement abt p -> [Index (abt '[])]
+statementInds :: Statement abt Location p -> [Index (abt '[])]
 statementInds (SBind   _ _   i) = i
 statementInds (SLet    _ _   i) = i
 statementInds (SWeight _     i) = i
@@ -592,20 +592,22 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
     -- statement already on the heap (list context)
     freshenStatement s =
         case s of
-          SWeight _ _    -> return (s, mempty)
-          SBind l body i -> do
-               l' <- freshenLoc l
-               v  <- mkLoc (locHint l) l' (map indVar i)
-               return (SBind l' body i, singletonAssocs (fromLocation l) v)
-          SLet  l body i -> do
-               l' <- freshenLoc l
-               v  <- mkLoc (locHint l) l' (map indVar i)
-               return (SLet l' body i, singletonAssocs (fromLocation l) v)
-          SGuard ls pat scrutinee i -> do
-               ls'  <- freshenLocs ls
-               vs   <- mkLocs ls' (map indVar i)
-               return (SGuard ls' pat scrutinee i,
-                       toAssocs1 (fromLocations1 ls) vs)
+          SWeight w e    -> return (SWeight w e, mempty)
+          SBind x body i -> do
+               x' <- freshenVar x
+               let l = Location x'
+               v  <- mkLoc (locHint l) l (map indVar i)
+               return (SBind l body i, singletonAssocs x v)
+          SLet  x body i -> do
+               x' <- freshenVar x
+               let l = Location x'
+               v  <- mkLoc (locHint l) l (map indVar i)
+               return (SLet l body i, singletonAssocs x v)
+          SGuard xs pat scrutinee i -> do
+               xs'  <- freshenVars xs
+               let ls = locations1 xs'
+               vs   <- mkLocs ls (map indVar i)
+               return (SGuard ls pat scrutinee i, toAssocs1 xs vs)
 
     getIndices =  Dis $ \i c -> c i
 
@@ -643,7 +645,7 @@ withIndices :: [Index (abt '[])] -> Dis abt a -> Dis abt a
 withIndices inds (Dis m) = Dis $ \_ c -> m inds c
 
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
-unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
+unsafePop :: Dis abt (Maybe (Statement abt Location 'Impure))
 unsafePop =
     Dis $ \_ c h@(ListContext i ss) extras ->
         case ss of
