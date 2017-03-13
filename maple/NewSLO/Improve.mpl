@@ -359,7 +359,7 @@
 
   reduce_IntSum := proc(mk :: identical(Int, Sum),
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
-    local e, dom_spec, kb2, lmss, vs, e2, _, dom_specw;
+    local e, dom_spec, kb2, lmss, vs, e2, e3, _, dom_specw;
 
     # if there are domain restrictions, try to apply them
     (dom_specw, e) := get_indicators(ee);
@@ -401,6 +401,13 @@
               if e2 :: identical('FAIL') then
                   error "LMS: failed to apply (%a, %a)", lmss, vs
               end if;
+
+              e3 := elim_intsum(e2, h, kb0);
+
+              if e3 <> FAIL then
+                  e2 := reduce(e3, h, kb0);
+              end if;
+
           else
               error "LMS: no solution(%s)", op(1,lmss), ""
           end if;
