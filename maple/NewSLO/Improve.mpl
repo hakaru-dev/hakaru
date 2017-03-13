@@ -319,6 +319,32 @@
 
   end proc;
 
+  do_app_dom_spec := proc(mk, e, h, kb0, kb2)
+      local e2, dom_spec;
+
+      dom_spec := kb_subtract(kb2, kb0);
+
+      # apply the domain restrictions, which can produce
+      #   DONE(x) - produced something which can't be simplified further
+      #   x       - more work to be done
+      e2 := app_dom_spec_IntSum(mk, e, h, kb0, dom_spec);
+
+      userinfo(3, 'LMS',
+               printf("    expr            : %a\n"
+                      "    expr after dom  : %a\n"
+                      , e, e2 ));
+
+      if e2 :: specfunc('DONE') then
+          e2 := op(1,e2);
+      else
+          e2 := reduce(e2, h, kb0);
+          userinfo(3, 'LMS',
+                   printf("    expr-reduced    : %a\n"
+                          , e2 ));
+      end if;
+
+  end proc;
+
   # Helper function for performing reductions
   # given an "ee" and a "var", pulls the portion
   # of "ee" not depending on "var" out, and applies "f"
@@ -333,7 +359,7 @@
 
   reduce_IntSum := proc(mk :: identical(Int, Sum),
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
-    local e, dom_spec, elim, kb2, lmss, vs, e2, _, dom_specw;
+    local e, dom_spec, kb2, lmss, vs, e2, _, dom_specw;
 
     # if there are domain restrictions, try to apply them
     (dom_specw, e) := get_indicators(ee);
@@ -341,8 +367,6 @@
     kb2 := foldr(assert, kb1, op(dom_specw));
 
     ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
-
-    dom_spec := kb_subtract(kb2, kb0);
 
     lmss := kb_LMS(kb2);
 
@@ -381,45 +405,20 @@
               #                 "    LMS-sol-i : %a\n"
               #                 , dom_specw, e2 ));
 
+          else
+              e2 := do_app_dom_spec( mk, e, h, kb0, kb2 );
+
           end if;
     catch:
           userinfo(3, 'LMS',
                    printf("    LMS threw an error: %a\n"
                           , lastexception ));
 
+          e2 := do_app_dom_spec( mk, e, h, kb0, kb2 );
+
     end try;
 
-    # apply the domain restrictions, which can produce
-    #   DONE(x) - produced something which can't be simplified further
-    #   x       - more work to be done
-    elim := app_dom_spec_IntSum(mk, e, h, kb0, dom_spec);
-
-    userinfo(3, 'LMS',
-        printf("    expr            : %a\n"
-               "    expr after dom  : %a\n"
-         , e, elim ));
-
-    if elim :: specfunc('DONE') then
-      elim := op(1,elim);
-    else
-      elim := reduce(elim, h, kb0);
-      userinfo(3, 'LMS',
-        printf("    expr-reduced    : %a\n"
-         , elim ));
-    end if;
-
-    userinfo(3, 'LMS', (proc($) # there has to be a better way...
-        if assigned(e2) and evalb(elim = e2) then
-            printf("    == LMS succeeded ==\n");
-        elif assigned(e2) then
-            printf("    == LMS failed ==\n"
-                   "      e0 : %a\n"
-                   "      e1 : %a\n"
-                  , elim, e2 );
-        end if
-      end proc)());
-
-    elim;
+    e2;
 
   end proc;
 
