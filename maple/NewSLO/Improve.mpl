@@ -398,16 +398,11 @@
                               "    expr LMS - s : %a\n"
                               , e2, simplify(e2) ));
 
-              # e2 := `*`(op(map(Indicator,dom_specw)), e2);
-
-              # userinfo(3, 'LMS',
-              #          printf("    ind-prev  : %a\n"
-              #                 "    LMS-sol-i : %a\n"
-              #                 , dom_specw, e2 ));
-
+              if e2 :: identical('FAIL') then
+                  error "LMS: failed to apply (%a, %a)", lmss, vs
+              end if;
           else
-              e2 := do_app_dom_spec( mk, e, h, kb0, kb2 );
-
+              error "LMS: no solution(%s)", op(1,lmss), ""
           end if;
     catch:
           userinfo(3, 'LMS',
