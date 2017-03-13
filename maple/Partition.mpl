@@ -4,6 +4,7 @@
 #The outer data structure for a Partition is a function, PARTITION(...), (just like it
 #is for piecewise.
 
+
 Partition:= module()
 
 option package;
@@ -11,8 +12,18 @@ option package;
 #This module is essentially an object, but we decided, for now at least, to not
 #use Maple's "option object".
 local
+   diff_,
+
+   Umap := proc(f,x,$)
+       f(op(0,x))( map( p -> Record('cond'=f(p:-cond),'val'=f(p:-val))
+                      , op(1,x)
+                      )
+                 )
+   end proc,
 
    ModuleLoad::static:= proc()
+      local prev;
+
       :-`print/PARTITION`:= proc(SetOfRecords)
       local branch;
          `print/%piecewise`(
@@ -21,6 +32,96 @@ local
       end proc;
 
       TypeTools:-AddType(Partition, specfunc(PARTITION));
+
+      # global extensions to maple functionality
+
+      :-`eval/PARTITION` :=
+      proc(p, eqs, $)
+          Umap(x->eval(x,eqs), p);
+      end proc;
+
+      prev := kernelopts(opaquemodules=false);
+      unprotect(`depends`:-`ModuleApply`);
+
+      # this is bug fix in Maple (?)
+      # for some reason, `has(Record(..), ..)' is always false...
+      # The logic is changed from
+      #   `has(..) and depends:-Main(..)'  to
+      #   `has(..) or  depends:-Main(..)'
+      :-`depends`:-`ModuleApply` :=
+      proc(f, x::{name, list(name), set(name)}, $)
+           local z;
+           if type(x,'name') then
+               z := {x}
+           elif type(x,'list') then
+               z := {op(x)}
+           else
+               z := x
+           end if;
+
+           return has(f,map(a -> `if`(type(a,'indexed'),op(0,a),a),z)) or
+                  depends:-Main(f,z);
+
+      end proc;
+
+      protect(`depends`:-`ModuleApply`);
+      kernelopts(opaquemodules=prev);
+
+      # another bug fix... `diff(F(Record(..)), ..)' is always 0
+      # This seems to be related to the above, but the above doesn't fix it
+      # we don't want to change the behaviour for `Record' (in case something,
+      # somewhere actually uses this) but we do for `Partition'
+
+      diff_ := copy(diff);
+      unprotect(`diff`);
+
+      :-`diff` :=
+      proc(e, wrt, $)
+          if e :: specfunc('PARTITION') then
+              `diff/PARTITION`(op(1,e), wrt);
+          else
+              diff_(e,wrt);
+          end if;
+      end proc;
+
+      protect(`diff`);
+
+      :-`depends/PARTITION` :=
+      proc(parts, nms, $)
+         local dp := (x -> depends(x, nms));
+         `or`(op ( map(p-> dp(p:-cond) or dp(p:-val), parts) ));
+      end proc;
+
+      # This would work by itself if PARTITION didn't contain 'Record'
+      :-`diff/PARTITION` :=
+      proc(parts, wrt, $)
+          local pw  := PartitionToPW(PARTITION(parts))
+              , dpw := diff(pw, wrt)
+              , r   := PWToPartition(dpw)
+              , uc, oc
+            ;
+
+          # if the partition contains case of the form `x = t', where `t' is a
+          # constant (or term??) and `x' is a variable, and the value of that
+          # case is `undefined', then we may be able to eliminate it (if another
+          # case includes that point)
+          r := op(1,r);
+          uc, oc := selectremove(c -> c:-val :: identical('undefined') and c:-cond :: `=`
+                                  and (lhs(c:-cond) :: name or rhs(c:-cond) :: name)
+                                 , r);
+
+          uc := remove( c -> `or`( op( map(p -> not ( solve( { c:-cond, p:-cond } ) :: identical('NULL') )
+                                          , oc
+                                          )
+                                     )
+                                 )
+                      , uc
+                      );
+
+          r := PARTITION([op(oc),op(uc)]);
+
+          r;
+      end proc;
 
       NULL
    end proc,
@@ -51,6 +152,52 @@ local
          return err;
       end if;
       return pos;
+   end proc,
+
+   # this logic should be moved to KB at some point (probably into assert_deny,
+   # but maybe into kb_to_assumptions)
+   tryImproveCtx :=
+       proc (ctx_ :: t_kb,$)
+           local ctx := ctx_, ctx1 := `and`(op(kb_to_assumptions(ctx))), ns, lo, hi;
+
+           # try to improve this branches condition
+           if ctx1 :: '`and`(anything)' then
+               ns := indets(ctx,name);
+
+               if nops(ns) = 1 then
+                   ns := op(1,ns);
+                   ctx := solve(ctx1, ns);
+
+                   if ctx :: {relation,boolean} then
+                       ctx1 := ctx;
+
+                   elif ctx :: 'RealRange' then
+                       lo, hi := op(ctx);
+                       ctx1 := true;
+
+                       if lo :: realcons and lo <> -infinity then
+                           ctx1 := ctx1 and (ns > lo);
+                       elif lo :: specfunc('Open') then
+                           lo := op(1,lo);
+                           ctx1 := ctx1 and (ns >= lo);
+                       end if;
+
+                       if hi :: realcons and hi <> infinity then
+                           ctx1 := ctx1 and (ns < hi);
+                       elif hi :: specfunc('Open')  then
+                           hi := op(1, hi);
+                           ctx1 := ctx1 and (ns <= hi);
+                       end if;
+
+                   elif ctx :: identical('NULL') then
+                       ctx1 := false;
+
+                   elif ctx :: realcons then
+                       ctx1 := ns = ctx;
+                   end if;
+               end if;
+           end if;
+           ctx1;
    end proc
 ;
 export
@@ -122,6 +269,7 @@ export
        'piecewise'( op( ListTools[Flatten]( [ seq([p:-cond, p:-val], p= op(1,x)) ] ) ) );
    end proc,
 
+
    # convert a piecewise to a partition, which is straightforward except:
    # - if any of the branches are unreachable, they are removed
    # - if the last clause is (implicitly) `otherwise`, that clause is filled in
@@ -132,12 +280,6 @@ export
    #   will not cover the entire domain) - the 'correct' thing to do would
    #   probably be to add a new clause whose value is 'undefined'
 
-   # YT: TODO: the condition produced in place of an 'otherwise' is not currently
-   #   simplified. I think that KB should be used to try to simplify it;
-   #   Maple doesn't seem to be able to do much in the realm of simplifying
-   #   boolean valued expressions containing 'range' information on real
-   #   numbers.
-
    # the logic of this function is already essentially implemented, by KB
    # in fact, kb_piecewise does something extremely similar to this
    PWToPartition := proc(x::specfunc(piecewise))::Partition;
@@ -146,7 +288,8 @@ export
        # which is the conjunction of the negations of all clauses
        # so far
        local ctx := empty, n := nops(x), cls := [], cnd,i, q
-           , ctx1, ns, lo, hi;
+           , ctxC, ctxCi
+         ;
 
        userinfo(5, PWToPartition
                , printf("PWToPartition: found %d ops in %a \n ", n, x) );
@@ -160,63 +303,36 @@ export
            cnd := op(2*i-1,x); # the clause as given
 
            # if this clause is unreachable, then every subsequent clause will be as well
-           if kb_is_false( assert(cnd, ctx) ) then
+           if kb_is_false( ctx ) then
                return PARTITION( cls );
            else
+               ctxC := assert(cnd, ctx);
                ctx := assert(Not(cnd), ctx); # the context for the next clause
 
                userinfo(3, PWToPartition, printf("PWToPartition: ctx after %d clauses "
                                                  "is %a\n", i, ctx));
 
-               cls := [ op(cls)
-                      , Record('cond' = cnd
-                              ,'val'  = op(2*i ,x)
-                              )
-                      ];
+               if kb_is_false (ctxC) then # this clause is actually unreachable
+                   return(PARTITION(cls));
+               else
+                   ctxCi := tryImproveCtx(ctxC);
+                   cls := [ op(cls)
+                          , Record('cond' = ctxCi
+                                  ,'val'  = op(2*i ,x)
+                                  )
+                          ];
+
+               end if;
+
            end if;
        end do;
 
        # if there is an otherwise case, handle that.
        if n::odd and not kb_is_false(ctx) then
 
-           ctx1 := `and`(op(kb_to_assumptions(ctx)));
-
-           # try to improve this branches condition
-           if ctx1 :: '`and`(anything)' then
-               ns := indets(ctx,name);
-
-               if nops(ns) = 1 then
-                   ns := op(1,ns);
-                   ctx := solve(ctx1, ns);
-
-                   if ctx :: {relation,boolean} then
-                       ctx1 := ctx;
-
-                   elif ctx :: 'RealRange' then
-                       lo, hi := op(ctx);
-                       ctx1 := true;
-
-                       if lo :: complex and lo <> -infinity then
-                           ctx1 := ctx1 and (ns > lo);
-                       elif lo :: specfunc('Open') then
-                           lo := op(1,lo);
-                           ctx1 := ctx1 and (ns >= lo);
-                       end if;
-
-                       if hi :: complex and hi <> infinity then
-                           ctx1 := ctx1 and (ns < hi);
-                       elif hi :: specfunc('Open')  then
-                           hi := op(1, hi);
-                           ctx1 := ctx1 and (ns <= hi);
-                       end if;
-
-                   end if;
-               end if;
-           end if;
-
            cls := [ op(cls)
-                  , Record('cond' = ctx1
-                          , 'val' = op(n,x)
+                  , Record('cond' = tryImproveCtx(ctx)
+                          ,'val'  = op(n,x)
                           )
                   ];
        end if;
@@ -225,6 +341,14 @@ export
 
    end proc,
 
+   MbAppPartOrPw := proc(chk,f,x::Or(Partition,specfunc(piecewise)))
+       local isPr := evalb(x::Partition), pr := `if`(isPr, x, PWToPartition(x));
+       if chk(pr) then
+           (`if`(isPr, a->a, PartitionToPW))(f(pr));
+       else
+           FAIL
+       end if;
+   end proc,
 
    # applies a function to the arg if arg::Partition,
    # and if arg::piecewise, then converts the piecewise to a partition,
