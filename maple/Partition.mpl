@@ -176,17 +176,17 @@ local
                        ctx1 := true;
 
                        if lo :: realcons and lo <> -infinity then
-                           ctx1 := ctx1 and (ns > lo);
+                           ctx1 := ctx1 and (ns >= lo);
                        elif lo :: specfunc('Open') then
                            lo := op(1,lo);
-                           ctx1 := ctx1 and (ns >= lo);
+                           ctx1 := ctx1 and (ns > lo);
                        end if;
 
                        if hi :: realcons and hi <> infinity then
-                           ctx1 := ctx1 and (ns < hi);
+                           ctx1 := ctx1 and (ns <= hi);
                        elif hi :: specfunc('Open')  then
                            hi := op(1, hi);
-                           ctx1 := ctx1 and (ns <= hi);
+                           ctx1 := ctx1 and (ns < hi);
                        end if;
 
                    elif ctx :: identical('NULL') then
