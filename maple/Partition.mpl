@@ -72,19 +72,19 @@ local
       # we don't want to change the behaviour for `Record' (in case something,
       # somewhere actually uses this) but we do for `Partition'
 
-      diff_ := copy(diff);
-      unprotect(`diff`);
+      # diff_ := copy(diff);
+      # unprotect(`diff`);
 
-      :-`diff` :=
-      proc(e, wrt, $)
-          if e :: specfunc('PARTITION') then
-              `diff/PARTITION`(op(1,e), wrt);
-          else
-              diff_(e,wrt);
-          end if;
-      end proc;
+      # :-`diff` :=
+      # proc(e, wrt, $)
+      #     if e :: specfunc('PARTITION') then
+      #         `diff/PARTITION`(op(1,e), wrt);
+      #     else
+      #         diff_(e,wrt);
+      #     end if;
+      # end proc;
 
-      protect(`diff`);
+      # protect(`diff`);
 
       :-`depends/PARTITION` :=
       proc(parts, nms, $)
