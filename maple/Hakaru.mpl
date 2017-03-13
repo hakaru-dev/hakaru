@@ -52,6 +52,7 @@ end proc:
 end proc:
 `eval/Plate` := eval(`eval/ary`):
 
+
 #############################################################################
 
 Hakaru := module ()
@@ -60,7 +61,7 @@ Hakaru := module ()
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
-         case, app, ary, idx, fst, snd, size, Datum, PARTITION,
+         case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
@@ -72,7 +73,7 @@ Hakaru := module ()
   # used as global names, so document that here.
   global
      # Basic syntax for composing measures
-         Bind, Weight, Ret, Msum, Plate, Context, Pair, _Unit,
+         Bind, Weight, Ret, Msum, Plate, Context, Pair, _Unit, PARTITION,
      # Primitive (known) measures
          Lebesgue, Uniform, Gaussian, Cauchy, StudentT, BetaD,
          GammaD, ChiSquared,
@@ -566,21 +567,22 @@ Hakaru := module ()
    # If it lives in Partition, then `Partition:-Partition` (the type)
    # matches partitions, but the `t_partition` type in Hakaru does not.
    # clearly I'm missing something
-   PARTITION::static:= proc(
-      Pairs::list(
-         record(
-            #The type `anything` below should be some boolean type, but we'll
-            #need to write our own as neither Maple's 'boolean' nor
-            #'boolean &under (convert, boolean_operator)' is inclusive enough.
-            cond::anything,
-            val::anything
-             # TODO: t_Hakaru doesn't work here because sometimes there is an `applyintegrand`
-         )
-      ),
-      $ #no optional arguments, for now at least
-   )::t_partition;
-     'procname'(_passed)
-   end proc;
+
+   # PARTITION::static:= proc(
+   #    Pairs::list(
+   #       record(
+   #          #The type `anything` below should be some boolean type, but we'll
+   #          #need to write our own as neither Maple's 'boolean' nor
+   #          #'boolean &under (convert, boolean_operator)' is inclusive enough.
+   #          cond::anything,
+   #          val::anything
+   #           # TODO: t_Hakaru doesn't work here because sometimes there is an `applyintegrand`
+   #       )
+   #    ),
+   #    $ #no optional arguments, for now at least
+   # )::t_partition;
+   #   'procname'(_passed)
+   # end proc;
 
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
