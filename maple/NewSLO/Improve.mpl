@@ -343,6 +343,8 @@
                           , e2 ));
       end if;
 
+      e2;
+
   end proc;
 
   # Helper function for performing reductions
@@ -378,6 +380,7 @@
                 "    var     : %a\n"
          , lmss, kb2, kb0, dom_spec, h ));
 
+
     try
           if not lmss :: specfunc('NoSol') then
               lmss, vs, _ := op(lmss);
@@ -392,6 +395,9 @@
                               , lmss, vs ));
 
               e2 := app_dom_spec_IntSum_LMS( mk, e, h, lmss, vs );
+
+              e2 := eval(e2, [Int=`int`]); # ,Sum=`sum`
+              e2 := subs([`int`=Int], e2); # ,`sum`=Sum
 
               userinfo(3, 'LMS',
                        printf("    expr LMS     : %a\n"
@@ -417,7 +423,6 @@
                           , lastexception ));
 
           e2 := do_app_dom_spec( mk, e, h, kb0, kb2 );
-
     end try;
 
     e2;
