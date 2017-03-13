@@ -95,7 +95,7 @@
         ( proc(p)
               if not Partition:-ConditionsDepend(p, h) then
                   kb_Partition(p, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)))
-              end if;
+              end if; # todo: this just crashes if the condition is ever false...
           end proc
         , e);
     elif e :: t_case then
@@ -122,6 +122,10 @@
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,e), x), kb));
       (w, w0) := factorize(w, x, kb);
       weight(w0, bind(op(1,e), x, weight(w, m)))
+    # elif e :: identical('undefined') then
+      # an undefined term can become anything
+      # Msum()
+
     else
       # Failure: return residual LO
       LO(h, e)
