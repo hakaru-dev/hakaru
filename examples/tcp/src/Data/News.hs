@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module News (getNews) where
+module Data.News (getNews) where
 
 import qualified Data.HashMap.Strict as H
 import Data.HashMap.Strict (HashMap)
