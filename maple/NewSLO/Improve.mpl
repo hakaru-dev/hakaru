@@ -236,14 +236,26 @@
 
       elif sol :: Partition then
 
-          e := `+`(op(
+          # e := `+`(op(
+          #   map(cl->
+          #       Indicator(cl:-cond) *
+          #       app_dom_spec_IntSum_LMS
+          #         ( mk, e, h
+          #         , cl:-val
+          #         , vs # assert(cl:-cond, vs)
+          #         )
+          #       , op(1,sol) )
+          #     ));
+
+
+          e := PARTITION((
             map(cl->
-                Indicator(cl:-cond) *
-                app_dom_spec_IntSum_LMS
+                Record('cond'= cl:-cond
+                      ,'val' = app_dom_spec_IntSum_LMS
                   ( mk, e, h
                   , cl:-val
                   , vs # assert(cl:-cond, vs)
-                  )
+                  ) )
                 , op(1,sol) )
               ));
 
