@@ -76,4 +76,5 @@ asArrays groupList = (wordIndices, docIndices)
   docIndices = V.fromList . concat $ zipWith replicate (map length docList) [0..]
   wordIndices = V.fromList . concat $ docList
 
+getNews :: IO (Vector Int, Vector Int)
 getNews = fmap asArrays . run $ encodeDirs path
