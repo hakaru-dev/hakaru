@@ -129,6 +129,7 @@ getNews maxDocs topics = fmap (asArrays . removeSingletons) $ run enc
 isStopword :: B.ByteString -> Bool
 isStopword b = S.member b stopwords
 
+-- | stopwords copied from <https://github.com/brendano/bow/blob/master/stopwords.c>
 stopwords :: S.HashSet B.ByteString
 stopwords = S.fromList
   [ ""
