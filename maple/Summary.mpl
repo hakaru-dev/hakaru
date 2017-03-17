@@ -104,8 +104,8 @@ Summary := module ()
         mr, f := summarize(e1, kb, x, summary);
         if hasfun(mr, '{Fanout, Index}') then
           mr := SummarizeKB(mr, kb1);
-          return Eval(simplify_factor_assuming(f, kb),
-                      summary = Bucket(mr, x=rng));
+          return Let(simplify_factor_assuming(f, kb),
+                     summary = Bucket(mr, x=rng));
         end if;
       end if;
       e1 := SummarizeKB(e1, kb1);
