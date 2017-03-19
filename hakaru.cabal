@@ -73,6 +73,7 @@ Library
                        Language.Hakaru.Runtime.LogFloatPrelude,
                        Language.Hakaru.Observe,
                        Language.Hakaru.Simplify,
+                       Language.Hakaru.Summary,
                        Language.Hakaru.Sample,
                        Language.Hakaru.Evaluation.Types,
                        Language.Hakaru.Evaluation.Lazy,
