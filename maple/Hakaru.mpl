@@ -68,7 +68,7 @@ Hakaru := module ()
          flatten_piecewise,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
-         htype_patterns;
+         htype_patterns, extract_bound, extract_bound_lo, extract_bound_hi ;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global
@@ -524,6 +524,38 @@ Hakaru := module ()
   open_bounds := proc(r::range, $)
     Bound(`>`, lhs(r)), Bound(`<`, rhs(r))
   end proc;
+
+
+  extract_bound :=
+    proc( side, rels, v, $ )
+      local lhs_f, rhs_f, lhs_r, rhs_r;
+
+      lhs_f, rhs_f := op(side);
+      lhs_r, rhs_r := op(rels);
+
+      proc(x,$)
+          if x :: relation then
+              if lhs_f(x) = evaln(v) and
+                 op(0,x) in lhs_r then
+                  rhs_f(x);
+              elif rhs_f(x) = evaln(v) and
+                 op(0,x) in rhs_r then
+                  lhs_f(x);
+              else
+                  NULL
+              end if;
+          else NULL end if;
+      end proc;
+  end proc;
+
+  extract_bound_hi := v -> extract_bound( [lhs,rhs]
+                                        , [ {`<`, `<=`}, {`>`, `>=`} ]
+                                        , v
+                                        );
+  extract_bound_lo := v -> extract_bound( [rhs,lhs]
+                                        , [ {`<`, `<=`}, {`>`, `>=`} ]
+                                        , v
+                                        );
 
   # Enumerate patterns for a given Hakaru type
   htype_patterns := proc(t::t_type, $)

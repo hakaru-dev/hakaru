@@ -27,7 +27,7 @@ NewSLO := module ()
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, termize, bind, weight,
         app_dom_spec_IntSum, app_dom_spec_IntSum_LMS,
-        reduce_on_prod, extract_bound, extract_bound_lo, extract_bound_hi, do_app_dom_spec,
+        reduce_on_prod, do_app_dom_spec,
         reduce_IntSum, reduce_IntsSums, get_indicators,
         elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
         banish, banish_guard, banish_weight,

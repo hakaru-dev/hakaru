@@ -91,37 +91,6 @@
     end if;
   end proc;
 
-  extract_bound :=
-    proc( side, rels, v, $ )
-      local lhs_f, rhs_f, lhs_r, rhs_r;
-
-      lhs_f, rhs_f := op(side);
-      lhs_r, rhs_r := op(rels);
-
-      proc(x,$)
-          if x :: relation then
-              if lhs_f(x) = evaln(v) and
-                 op(0,x) in lhs_r then
-                  rhs_f(x);
-              elif rhs_f(x) = evaln(v) and
-                 op(0,x) in rhs_r then
-                  lhs_f(x);
-              else
-                  NULL
-              end if;
-          else NULL end if;
-      end proc;
-  end proc;
-
-  extract_bound_hi := v -> extract_bound( [lhs,rhs]
-                                        , [ {`<`, `<=`}, {`>`, `>=`} ]
-                                        , v
-                                        );
-  extract_bound_lo := v -> extract_bound( [rhs,lhs]
-                                        , [ {`<`, `<=`}, {`>`, `>=`} ]
-                                        , v
-                                        );
-
 
   app_dom_spec_IntSum_LMS :=
    proc( mk :: identical(Int, Sum), ee, h
