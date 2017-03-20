@@ -35,7 +35,7 @@
       end if;
       y, kb1 := `if`(op(0,g) in '{Int,int}',
         genLebesgue(op([2,1],g), lo, hi, kb, make),
-        genType(op([2,1],g), HInt(closed_bounds(lo..hi)), kb, make));
+        genSummation(op([2,1],g), lo, hi, kb, make));
       subintegral := subs(op([2,1],g)=y, op(1,g));
       op(0,g)(banish(subintegral, h, kb1, levels-1, x, m), y=lo..hi)
 
