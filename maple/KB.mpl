@@ -57,7 +57,7 @@ KB := module ()
      # Functions which build up KBs from KBs and other pieces
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
-      empty, genLebesgue, genType, genLet, assert, assert_deny, build_kb,
+      empty, genLebesgue, genType, genSummation, genIntVar, genLet, assert, assert_deny, build_kb,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -155,7 +155,7 @@ KB := module ()
   # variables.
   genIntVar := proc (kind,$) proc(xx::name, lo, hi, kb::t_kb)
       genType(xx, kind(Bound(`>`,lo), Bound(`<`, hi)), kb, _rest);
-  end proc; end proc
+  end proc; end proc;
 
   # A smart constructor for type introductions. ensures name binding
   # is done correctly.

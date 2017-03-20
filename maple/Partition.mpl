@@ -19,11 +19,11 @@ local
 
    condOf := proc(x::specfunc(`Piece`),$)
        op(1,x);
-   end proc;
+   end proc,
 
    valOf := proc(x::specfunc(`Piece`),$)
        op(2,x);
-   end proc;
+   end proc,
 
    Umap := proc(f,x,$)
        f(op(0,x))( map( p -> Piece(f(condOf(p)),f(valOf(p)))

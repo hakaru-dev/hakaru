@@ -19,7 +19,7 @@
     if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
       x, kb1 := `if`(op(0,e)=Int,
         genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
-        genSummation(op([2,1],e), op(op([2,2],e)), kb);
+        genSummation(op([2,1],e), op(op([2,2],e)), kb));
       reduce_IntSum(op(0,e),
         reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
     elif e :: 'And(specfunc({Ints,Sums}),
