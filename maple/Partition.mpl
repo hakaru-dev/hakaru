@@ -40,59 +40,12 @@ local
           Umap(x->eval(x,eqs), p);
       end proc;
 
-      # prev := kernelopts(opaquemodules=false);
-      # unprotect(`depends`:-`ModuleApply`);
-
-      # this is bug fix in Maple (?)
-      # for some reason, `has(Record(..), ..)' is always false...
-      # The logic is changed from
-      #   `has(..) and depends:-Main(..)'  to
-      #   `has(..) or  depends:-Main(..)'
-      # :-`depends`:-`ModuleApply` :=
-      # proc(f, x::{name, list(name), set(name)}, $)
-      #      local z;
-      #      if type(x,'name') then
-      #          z := {x}
-      #      elif type(x,'list') then
-      #          z := {op(x)}
-      #      else
-      #          z := x
-      #      end if;
-
-      #      return has(f,map(a -> `if`(type(a,'indexed'),op(0,a),a),z)) or
-      #             depends:-Main(f,z);
-
-      # end proc;
-
-      # protect(`depends`:-`ModuleApply`);
-      # kernelopts(opaquemodules=prev);
-
-      # another bug fix... `diff(F(Record(..)), ..)' is always 0
-      # This seems to be related to the above, but the above doesn't fix it
-      # we don't want to change the behaviour for `Record' (in case something,
-      # somewhere actually uses this) but we do for `Partition'
-
-      # diff_ := copy(diff);
-      # unprotect(`diff`);
-
-      # :-`diff` :=
-      # proc(e, wrt, $)
-      #     if e :: specfunc('PARTITION') then
-      #         `diff/PARTITION`(op(1,e), wrt);
-      #     else
-      #         diff_(e,wrt);
-      #     end if;
-      # end proc;
-
-      # protect(`diff`);
-
       :-`depends/PARTITION` :=
       proc(parts, nms, $)
          local dp := (x -> depends(x, nms));
          `or`(op ( map(p-> dp(p:-cond) or dp(p:-val), parts) ));
       end proc;
 
-      # This would work by itself if PARTITION didn't contain 'Record'
       :-`diff/PARTITION` :=
       proc(parts, wrt, $)
           local pw  := PartitionToPW(PARTITION(parts))
