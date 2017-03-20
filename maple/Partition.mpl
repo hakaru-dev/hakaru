@@ -17,14 +17,6 @@ global Piece;
 local
    diff_,
 
-   condOf := proc(x::specfunc(`Piece`),$)
-       op(1,x);
-   end proc,
-
-   valOf := proc(x::specfunc(`Piece`),$)
-       op(2,x);
-   end proc,
-
    Umap := proc(f,x,$)
        f(op(0,x))( map( p -> Piece(f(condOf(p)),f(valOf(p)))
                       , op(1,x)
@@ -74,13 +66,13 @@ local
                                   and (lhs(condOf(c)) :: name or rhs(condOf(c)) :: name)
                                  , r);
 
-          uc := remove( c -> `or`( op( map(p -> not ( solve( { condOf(c), valOf(p) } ) :: identical('NULL') )
-                                          , oc
-                                          )
-                                     )
-                                 )
-                      , uc
-                      );
+          # uc := remove( c -> `or`( op( map(p -> not ( solve( { condOf(c), valOf(p) } ) :: identical('NULL') )
+          #                                 , oc
+          #                                 )
+          #                            )
+          #                        )
+          #             , uc
+          #             );
 
           r := PARTITION([op(oc),op(uc)]);
 
@@ -165,6 +157,14 @@ local
    end proc
 ;
 export
+
+   condOf := proc(x::specfunc(`Piece`),$)
+       op(1,x);
+   end proc,
+
+   valOf := proc(x::specfunc(`Piece`),$)
+       op(2,x);
+   end proc,
 
    #This is the exported lazy-syntax constructor. The syntax is like piecewise except
    #that there can be no 'otherwise'.
