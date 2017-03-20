@@ -16,7 +16,17 @@
   reduce := proc(ee, h :: name, kb :: t_kb, $)
     local e, subintegral, w, ww, x, c, kb1;
     e := ee;
+
     if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
+
+
+    userinfo(3, 'disint_trace',
+        printf("case Int/Sum \n"
+               "  expr : %a\n"
+               "  h    : %a\n"
+               "  ctx  : %a\n\n"
+         , ee, h, kb ));
+
       x, kb1 := `if`(op(0,e)=Int,
         genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
         genSummation(op([2,1],e), op(op([2,2],e)), kb));
@@ -118,8 +128,8 @@
        , sol_, vs_
        , $)
 
-      local sol := sol_, vs := vs_, e := ee, kb1, i
-          , sol1, op_rng
+      local sol := sol_, vs := vs_, e := ee, er, kb1, i
+          , sol1, sol2, op_rng
           , v, v_t, lo, hi, lo_s, hi_s
           , vnms, countVs, countVsInRels, solOrder ;
 
@@ -131,13 +141,21 @@
 
       if sol :: identical({}) then
           # an empty solution
-          0;
+          er := 0;
 
       elif sol :: set(list) then
           # a formal (algebraic?) sum of solutions.
-          `+`(seq( app_dom_spec_IntSum_LMS(mk, e, h, s, vs)
+          er := `+`(seq( app_dom_spec_IntSum_LMS(mk, e, h, s, vs)
                  , s=sol)
              );
+
+          if nops(sol)>1 then
+              userinfo(3, 'disint_trace',
+                       printf("sum of solutions\n"
+                          "  result: %a\n"
+                          "  sol  : %a\n\n"
+                          , er, sol_ ));
+          end if;
 
       elif sol :: set({relation,boolean}) then
           # a single atomic solution, with (hopefully) at most two conjuncts
@@ -170,8 +188,16 @@
 
           end if;
 
-          reduce_on_prod( p -> mk(p, v=v_t)
-                        , e, v, kb1 );
+          # er := reduce_on_prod( p -> mk(p, v=v_t)
+          #               , e, v, kb1 );
+
+          er := mk(e, v=v_t);
+
+          userinfo(3, 'disint_trace',
+                   printf("applied solution: %a\n"
+                          "  result    : %a\n"
+                          "  expr body : %a\n\n"
+                          , sol_, er, e ));
 
       elif sol :: list then
           # a (nonempty, hopefully) conjunction of constraints which
@@ -186,10 +212,21 @@
           op_rng := seq(1..nops(sol));
 
           # sort the conjs by the number of variables which they mention
-          sol, solOrder :=
+          sol2, solOrder :=
               sort( sol, key= (x-> -(countVs(x)))
                        , output=[sorted,permutation]
                   );
+
+          if nops(sol) > 1 then
+              userinfo(3, 'disint_trace',
+                   printf("rearranged solutions\n"
+                          "  sol   : %a\n"
+                          "  permuation: %a\n\n"
+                          , sol, solOrder ));
+          end if;
+
+          sol := sol2;
+
 
           # check that the `k'th (from 1) conjunct mentions at most `k'
           # variables. we can (hopefully) integrate these things in
@@ -222,28 +259,43 @@
           end do;
 
           # maybe simplify here...
-          e
+          er := e
+
+
 
       elif sol :: Partition then
 
           e := PARTITION((
-            map(cl->
+            map(proc (cl,$)
+
+
+                userinfo(3, 'disint_trace',
+                   printf("partition piece\n"
+                          "  sub sol: %a\n"
+                          "  ctx    : %a\n\n"
+                         , valOf(cl), condOf(cl) ));
+
                 Piece( condOf(cl)
                       , app_dom_spec_IntSum_LMS
                   ( mk, e, h
                   , valOf(cl)
-                  , vs # assert(cl:-cond, vs)
+                  , vs
                   ) )
+
+                    end proc
                 , op(1,sol) )
               ));
 
-          e;
+
+          er := e;
 
       else
           # can't deal with such solutions (what are they?)
-          FAIL
+          er := FAIL
 
       end if;
+
+      er;
 
   end proc;
 
@@ -353,6 +405,7 @@
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
     local e, dom_spec, kb2, lmss, vs, e2, e3, _, dom_specw;
 
+
     # if there are domain restrictions, try to apply them
     (dom_specw, e) := get_indicators(ee);
 
@@ -360,15 +413,30 @@
 
     ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
 
-    lmss := kb_LMS(kb2);
+    if kb1 <> kb2 then
 
-    userinfo(3, 'LMS',
-         printf("    LMS     : %a\n"
-                "    kb Big  : %a\n"
-                "    kb small: %a\n"
-                "    domain  : %a\n"
-                "    var     : %a\n"
-         , lmss, kb2, kb0, dom_spec, h ));
+    userinfo(3, 'disint_trace',
+        printf("input:\n"
+               "  integral type: %a\n"
+               "  expr : %a\n"
+               "  h    : %a\n"
+               "  ctx dom   : %a\n"
+               "  ctx above : %a\n"
+               "  ctx below : %a\n\n"
+         , mk, ee, h, kb2, kb1, kb0 ));
+
+        lmss := kb_LMS(kb2);
+    else
+        return ee;
+    end if;
+
+    # userinfo(3, 'LMS',
+    #      printf("    LMS     : %a\n"
+    #             "    kb Big  : %a\n"
+    #             "    kb small: %a\n"
+    #             "    domain  : %a\n"
+    #             "    var     : %a\n"
+    #      , lmss, kb2, kb0, dom_spec, h ));
 
 
     try
@@ -379,30 +447,31 @@
                   lmss := PWToPartition(lmss) ;
               end if;
 
-              userinfo(3, 'LMS',
-                       printf("    LMS-pp   : %a\n"
-                              "    LMS-vs   : %a\n"
-                              , lmss, vs ));
+              # userinfo(3, 'LMS',
+              #          printf("    LMS-pp   : %a\n"
+              #                 "    LMS-vs   : %a\n"
+              #                 , lmss, vs ));
 
               e2 := app_dom_spec_IntSum_LMS( mk, e, h, lmss, vs );
 
               e2 := eval(e2, [Int=`int`]); # ,Sum=`sum`
               e2 := subs([`int`=Int], e2); # ,`sum`=Sum
 
-              userinfo(3, 'LMS',
-                       printf("    expr LMS     : %a\n"
-                              "    expr LMS - s : %a\n"
-                              , e2, simplify(e2) ));
+              # userinfo(3, 'LMS',
+              #          printf("    expr LMS     : %a\n"
+              #                 "    expr LMS - s : %a\n"
+              #                 , e2, simplify(e2) ));
 
               if e2 :: identical('FAIL') then
                   error "LMS: failed to apply (%a, %a)", lmss, vs
               end if;
 
-              e3 := elim_intsum(e2, h, kb0);
+              # e3 := elim_intsum(e2, h, kb0);
 
-              if e3 <> FAIL then
-                  e2 := reduce(e3, h, kb0);
-              end if;
+              # if e3 <> FAIL then
+                  # e2 := e3;
+                  # e2 := reduce(e3, h, kb0);
+              # end if;
 
           else
               error "LMS: no solution(%s)", op(1,lmss), ""
@@ -412,7 +481,18 @@
                    printf("    LMS threw an error: %a\n"
                           , lastexception ));
 
-          e2 := do_app_dom_spec( mk, e, h, kb0, kb2 );
+    #       e2 := do_app_dom_spec( mk, e, h, kb0, kb2 );
+
+
+    # userinfo(3, 'disint_trace',
+    #     printf("In `reduce_IntSum': fallback on old solution\n"
+    #            "  expr :%a\n"
+    #            "  res  :%a\n"
+    #            "  ctx below :%a\n"
+    #            "  ctx above :%a\n"
+    #      , e, e2, kb0, kb2 ));
+
+
     end try;
 
     e2;
