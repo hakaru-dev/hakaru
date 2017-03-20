@@ -76,6 +76,10 @@ local
 
           r := PARTITION([op(oc),op(uc)]);
 
+          # probably a better way to do this; we really only want to simplify
+          # sums and products of integrals and summations
+          r := subsindets(r, algebraic, `simplify`);
+
           r;
       end proc;
 
@@ -110,50 +114,19 @@ local
       return pos;
    end proc,
 
-   # this logic should be moved to KB at some point (probably into assert_deny,
-   # but maybe into kb_to_assumptions)
-   tryImproveCtx :=
-       proc (ctx_ :: t_kb,$)
-           local ctx := ctx_, ctx1 := `and`(op(kb_to_assumptions(ctx))), ns, lo, hi;
-
-           # try to improve this branches condition
-           if ctx1 :: '`and`(anything)' then
-               ns := indets(ctx,name);
-
-               if nops(ns) = 1 then
-                   ns := op(1,ns);
-                   ctx := solve(ctx1, ns);
-
-                   if ctx :: {relation,boolean} then
-                       ctx1 := ctx;
-
-                   elif ctx :: 'RealRange' then
-                       lo, hi := op(ctx);
-                       ctx1 := true;
-
-                       if lo :: realcons and lo <> -infinity then
-                           ctx1 := ctx1 and (ns >= lo);
-                       elif lo :: specfunc('Open') then
-                           lo := op(1,lo);
-                           ctx1 := ctx1 and (ns > lo);
-                       end if;
-
-                       if hi :: realcons and hi <> infinity then
-                           ctx1 := ctx1 and (ns <= hi);
-                       elif hi :: specfunc('Open')  then
-                           hi := op(1, hi);
-                           ctx1 := ctx1 and (ns < hi);
-                       end if;
-
-                   elif ctx :: identical('NULL') then
-                       ctx1 := false;
-
-                   elif ctx :: realcons then
-                       ctx1 := ns = ctx;
-                   end if;
-               end if;
-           end if;
-           ctx1;
+   simplifyPartitionCtx := proc(ctx, $)
+       local ctxC := ctx;
+       ctxC := solve({ctxC});
+       if ctxC = NULL then
+           ctxC := false;
+       elif ctxC :: set then
+           ctxC := `and`(op(ctxC));
+       # elif nops([ctxC])> 1 then
+       #     ctxC := [ctxC];
+       else
+           error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
+       end if;
+       ctxC;
    end proc
 ;
 export
@@ -251,8 +224,8 @@ export
        # each clause evaluated under the context so far,
        # which is the conjunction of the negations of all clauses
        # so far
-       local ctx := empty, n := nops(x), cls := [], cnd,i, q
-           , ctxC, ctxCi
+       local ctx := true, n := nops(x), cls := [], cnd,i, q
+           , ctxC
          ;
 
        userinfo(5, PWToPartition
@@ -267,23 +240,24 @@ export
            cnd := op(2*i-1,x); # the clause as given
 
            # if this clause is unreachable, then every subsequent clause will be as well
-           if kb_is_false( ctx ) then
+           if ctx :: identical(false) then
                return PARTITION( cls );
            else
-               ctxC := assert(cnd, ctx);
-               ctx := assert(Not(cnd), ctx); # the context for the next clause
+               ctxC := `And`(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
+               ctxC := simplifyPartitionCtx(ctxC);
+
+               ctx  := `And`(Not(cnd), ctx); # the context for the next clause
 
                userinfo(3, PWToPartition, printf("PWToPartition: ctx after %d clauses "
                                                  "is %a\n", i, ctx));
 
-               if kb_is_false (ctxC) then # this clause is actually unreachable
+               if ctxC :: identical(false) then # this clause is actually unreachable
                    return(PARTITION(cls));
                else
-                   ctxCi := tryImproveCtx(ctxC);
                    cls := [ op(cls)
-                          , Piece(ctxCi
-                                  ,op(2*i ,x)
-                                  )
+                          , Piece(ctxC
+                                 ,op(2*i ,x)
+                                 )
                           ];
 
                end if;
@@ -292,13 +266,15 @@ export
        end do;
 
        # if there is an otherwise case, handle that.
-       if n::odd and not kb_is_false(ctx) then
-
-           cls := [ op(cls)
-                  , Piece(tryImproveCtx(ctx)
-                          ,op(n,x)
-                          )
-                  ];
+       if n::odd then
+           ctx := simplifyPartitionCtx(ctx);
+           if not ctx :: identical(false) then
+               cls := [ op(cls)
+                      , Piece(ctx
+                             ,op(n,x)
+                             )
+                      ];
+           end if;
        end if;
 
        PARTITION( cls );
@@ -337,7 +313,7 @@ export
    end proc
 ;
 
-uses Hakaru, KB;
+uses Hakaru;
 
    ModuleLoad()
 end module:
