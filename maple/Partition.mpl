@@ -11,11 +11,22 @@ option package;
 
 #This module is essentially an object, but we decided, for now at least, to not
 #use Maple's "option object".
+
+global Piece;
+
 local
    diff_,
 
+   condOf := proc(x::specfunc(`Piece`),$)
+       op(1,x);
+   end proc;
+
+   valOf := proc(x::specfunc(`Piece`),$)
+       op(2,x);
+   end proc;
+
    Umap := proc(f,x,$)
-       f(op(0,x))( map( p -> Record('cond'=f(p:-cond),'val'=f(p:-val))
+       f(op(0,x))( map( p -> Piece(f(condOf(p)),f(valOf(p)))
                       , op(1,x)
                       )
                  )
@@ -27,7 +38,7 @@ local
       :-`print/PARTITION`:= proc(SetOfRecords)
       local branch;
          `print/%piecewise`(
-            seq([eval(branch):-cond, eval(branch):-val][], branch= SetOfRecords)
+            seq([ condOf(eval(branch)), valOf(eval(branch))][], branch= SetOfRecords)
          )
       end proc;
 
@@ -43,7 +54,7 @@ local
       :-`depends/PARTITION` :=
       proc(parts, nms, $)
          local dp := (x -> depends(x, nms));
-         `or`(op ( map(p-> dp(p:-cond) or dp(p:-val), parts) ));
+         `or`(op ( map(p-> dp(condOf(p)) or dp(valOf(p)), parts) ));
       end proc;
 
       :-`diff/PARTITION` :=
@@ -59,11 +70,11 @@ local
           # case is `undefined', then we may be able to eliminate it (if another
           # case includes that point)
           r := op(1,r);
-          uc, oc := selectremove(c -> c:-val :: identical('undefined') and c:-cond :: `=`
-                                  and (lhs(c:-cond) :: name or rhs(c:-cond) :: name)
+          uc, oc := selectremove(c -> valOf(c) :: identical('undefined') and condOf(c) :: `=`
+                                  and (lhs(condOf(c)) :: name or rhs(condOf(c)) :: name)
                                  , r);
 
-          uc := remove( c -> `or`( op( map(p -> not ( solve( { c:-cond, p:-cond } ) :: identical('NULL') )
+          uc := remove( c -> `or`( op( map(p -> not ( solve( { condOf(c), valOf(p) } ) :: identical('NULL') )
                                           , oc
                                           )
                                      )
@@ -162,7 +173,7 @@ export
       if nargs::odd then
          error "Expected an even number of arguments"
       end if;
-      s:= [ seq(Record('cond'= Terms[k], 'val'= Terms[k+1]), k= 1..nargs-1, 2) ] ;
+      s:= [ seq(Piece( Terms[k], Terms[k+1]), k= 1..nargs-1, 2) ] ;
       userinfo(3, PARTITION, s);
       PARTITION(s)
    end proc,
@@ -170,13 +181,13 @@ export
    #Deconstructor that returns just the conditions as a set
    Conditions::static:= proc(P::Partition)::set;
    local p;
-      {seq(p:-cond, p= op(1,P))}
+      {seq(condOf(p), p= op(1,P))}
    end proc,
 
    #Deconstructor that returns a set of [cond, val] pairs
    Pairs:= proc(P::Partition)::set([anything, anything]);
    local p;
-      {seq([p:-cond, p:-val], p= op(1,P)) }
+      {seq([condOf(p), valOf(p)], p= op(1,P)) }
    end proc,
 
    #This is just `map` for Partitions.
@@ -189,9 +200,9 @@ export
       if res::string then error res else pos := res; end if;
       PARTITION(
          [seq(
-            Record(
-               'cond'= pair:-cond,
-               'val'= f(args[2..pos], pair:-val, args[pos+2..])
+            Piece(
+               condOf(pair),
+               f(args[2..pos], valOf(pair), args[pos+2..])
             ),
             pair= op(1, args[pos+1])
          )]
@@ -209,9 +220,9 @@ export
       (f,g,h) := op(funcs);
       #sigh, we don't have a decent 'let', need to use a local proc
       doIt := proc(pair)
-        local kb0 := h(pair:-cond);
-        Record('cond' = f(pair:-cond, kb0),
-               'val' = g(pair:-val, kb0));
+        local kb0 := h(condOf(pair));
+        Piece( f(condOf(pair), kb0),
+               g(valOf(pair), kb0));
       end proc;
       PARTITION(map(doIt,op(1,part)));
    end proc,
@@ -219,7 +230,7 @@ export
    PartitionToPW := proc(x::Partition)::specfunc(piecewise);
        # piecewise can reduce immediately to not-piecewise which makes the type
        # test fail
-       'piecewise'( op( ListTools[Flatten]( [ seq([p:-cond, p:-val], p= op(1,x)) ] ) ) );
+       'piecewise'( op( ListTools[Flatten]( [ seq([condOf(p), valOf(p)], p= op(1,x)) ] ) ) );
    end proc,
 
 
@@ -270,8 +281,8 @@ export
                else
                    ctxCi := tryImproveCtx(ctxC);
                    cls := [ op(cls)
-                          , Record('cond' = ctxCi
-                                  ,'val'  = op(2*i ,x)
+                          , Piece(ctxCi
+                                  ,op(2*i ,x)
                                   )
                           ];
 
@@ -284,8 +295,8 @@ export
        if n::odd and not kb_is_false(ctx) then
 
            cls := [ op(cls)
-                  , Record('cond' = tryImproveCtx(ctx)
-                          ,'val'  = op(n,x)
+                  , Piece(tryImproveCtx(ctx)
+                          ,op(n,x)
                           )
                   ];
        end if;
@@ -321,7 +332,7 @@ export
    #Check whether the conditions of a Partition depend on any of a set of names.
    ConditionsDepend:= proc(P::Partition, V::{name, list(name), set(name)}, $)
    local p;
-      for p in op(1,P) do if depends(p:-cond, V) then return true end if end do;
+      for p in op(1,P) do if depends(condOf(p), V) then return true end if end do;
       false
    end proc
 ;
