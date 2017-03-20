@@ -438,8 +438,8 @@ fromName :: (ABT Term abt)
          -> [Variable 'HNat]
          -> abt '[] a
 fromName name typ []     = var $ Variable { varHint = nameHint name
-                                         , varID   = nameID name
-                                         , varType = typ }
+                                          , varID   = nameID name
+                                          , varType = typ }
 fromName name typ (i:is) = fromName name (SArray typ) is P.! var i
                      
 convertLocs :: (ABT Term abt)

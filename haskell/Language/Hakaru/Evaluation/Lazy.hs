@@ -40,7 +40,8 @@ module Language.Hakaru.Evaluation.Lazy
     , update
     , defaultCaseEvaluator
     , toVarStatements
-
+    , evaluateNaryOp
+    , evaluatePrimOp
     -- ** Helpers that should really go away
     , Interp(..), reifyPair
     ) where

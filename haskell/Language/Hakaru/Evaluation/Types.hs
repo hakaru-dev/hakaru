@@ -854,8 +854,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
         -> (Statement abt Location p -> Maybe (m r))
         -> m (Maybe r)
 
-
-
+           
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?
 
 
