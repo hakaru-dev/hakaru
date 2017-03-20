@@ -65,7 +65,7 @@ module Language.Hakaru.Evaluation.Types
     , freshenVars
     , freshInd
     {- TODO: should we expose these?
-    , freshenStatement
+    , freshLocStatement
     , push_
     -}
     , push
@@ -777,10 +777,10 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- | Internal function for renaming the variables bound by a
     -- statement. We return the renamed statement along with a substitution
     -- for mapping the old variable names to their new variable names.
-    freshenStatement
+    freshLocStatement
         :: Statement abt Variable p
         -> m (Statement abt Location p, Assocs (Variable :: Hakaru -> *))
-    freshenStatement s =
+    freshLocStatement s =
         case s of
           SWeight w e    -> return (SWeight w e, mempty)
           SBind x body i -> do
@@ -854,8 +854,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
         -> (Statement abt Location p -> Maybe (m r))
         -> m (Maybe r)
 
-
-
+           
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?
 
 
@@ -953,7 +952,7 @@ push_
     => Statement abt Variable p
     -> m (Assocs (Variable :: Hakaru -> *))
 push_ s = do
-    (s',rho) <- freshenStatement s
+    (s',rho) <- freshLocStatement s
     unsafePush s'
     return rho
 

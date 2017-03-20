@@ -316,6 +316,10 @@ array
 array n f = G.generate (fromIntegral n) (f . fromIntegral)
 {-# INLINE array #-}
 
+arrayLit :: (G.Vector (MayBoxVec a) a) => [a] -> MayBoxVec a a
+arrayLit = G.fromList
+{-# INLINE arrayLit #-}
+
 (!) :: (G.Vector (MayBoxVec a) a) => MayBoxVec a a -> Int -> a
 a ! b = a G.! (fromIntegral b)
 {-# INLINE (!) #-}

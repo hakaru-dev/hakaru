@@ -438,8 +438,8 @@ fromName :: (ABT Term abt)
          -> [Variable 'HNat]
          -> abt '[] a
 fromName name typ []     = var $ Variable { varHint = nameHint name
-                                         , varID   = nameID name
-                                         , varType = typ }
+                                          , varID   = nameID name
+                                          , varType = typ }
 fromName name typ (i:is) = fromName name (SArray typ) is P.! var i
                      
 convertLocs :: (ABT Term abt)
@@ -588,9 +588,9 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         Dis $ \_ c (ListContext n ss) ->
             c n (ListContext (n+1) ss)
 
-    -- Note: we assume that freshenStatement is never called on a
+    -- Note: we assume that freshLocStatement is never called on a
     -- statement already on the heap (list context)
-    freshenStatement s =
+    freshLocStatement s =
         case s of
           SWeight w e    -> return (SWeight w e, mempty)
           SBind x body i -> do
