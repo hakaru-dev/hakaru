@@ -15,7 +15,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     News
+  exposed-modules:     Data.News
+                     , Scaffold
   build-depends:       base >= 4.7 && < 5
                      , unordered-containers
                      , containers
@@ -25,15 +26,18 @@ library
                      , directory
                      , filepath
                      , vector
+                     , mwc-random
   default-language:    Haskell2010
 
-executable tcp-exe
+executable tcp
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , tcp
                      , unordered-containers
+                     , bytestring
+                     , mwc-random
   default-language:    Haskell2010
 
 test-suite tcp-test

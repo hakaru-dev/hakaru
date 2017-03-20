@@ -82,7 +82,8 @@ encodeDirs path = do
     filterM doesDirectoryExist $ map (path </>) names
   traverse encodeDir dnames
 
-path = "/home/chad/git/iu/hakaru/examples/naive_bayes/20_newsgroups"
+-- path = "/home/chad/git/iu/hakaru/examples/naive_bayes/20_newsgroups"
+path = "20_newsgroups/"
 
 -- | Map 'Int's to a new set of contiguous values (remove the holes) 
 recode :: [[[Int]]] -> [[[Int]]]
@@ -97,7 +98,6 @@ removeSingletons xs = recode . map (map $ filter notSingle) $ xs
     where f m x = let  m' = IntMap.insertWith (+) x 1 m
                        Just v = IntMap.lookup x m'
                   in v `seq` m'
-
 
 asArrays :: [[[Int]]] -> (Vector Int, Vector Int)
 asArrays groupList = (wordIndices, docIndices)
@@ -115,8 +115,6 @@ asArrays groupList = (wordIndices, docIndices)
     | n == k    = x : go (n+1) xs ks
     | otherwise = go (n+1) xs kss
   go _ _ _ = []
-
-
 
 -- To retrieve everything, 'getNews Nothing [0..]'
 getNews :: Maybe Int -> [Int] -> IO (Vector Int, Vector Int)

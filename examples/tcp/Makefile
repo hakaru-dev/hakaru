@@ -7,19 +7,19 @@ run:
 	sh run.sh
 
 clean:
-	rm naive_bayes_gibbs_simp.hk NaiveBayes.hs *.o *.hi *.core
+	rm -f src/naive_bayes_gibbs_simp.hk src/NaiveBayes.hs *.o *.hi *.core
 
 distclean : clean
-	rm 20news-19997.tar.gz
+	rm -rf 20news-19997.tar.gz 20_newsgroups
 
-naive_bayes_gibbs_simp.hk: 
-	simplify naive_bayes_gibbs.hk > naive_bayes_gibbs_simp.hk
+src/naive_bayes_gibbs_simp.hk: 
+	simplify src/naive_bayes_gibbs.hk > src/naive_bayes_gibbs_simp.hk
 
-NaiveBayes.hs: naive_bayes_gibbs_simp.hk
-	compile naive_bayes_gibbs_simp.hk -o NaiveBayes.hs -M NaiveBayes
+src/NaiveBayes.hs: src/naive_bayes_gibbs_simp.hk
+	compile src/naive_bayes_gibbs_simp.hk -o src/NaiveBayes.hs -M NaiveBayes
 
-build: NaiveBayes.hs data
-	ghc -O2 --make Scaffold -o NaiveBayes
+build: src/NaiveBayes.hs data
+	stack build
 
 # %.hs : %.hk
 #       compile $<
