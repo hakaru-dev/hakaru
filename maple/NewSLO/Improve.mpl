@@ -134,20 +134,10 @@
           0;
 
       elif sol :: set(list) then
-          # a disjunction of solutions. we need to pick one, or try them
-          # all
-          ASSERT(nops(sol)>0);
-          sol := [ op(sol) ];
-
-          # just pick the solution which mentions 'fewest' integration
-          # variables (fewest as in the sum of counts for each solution is
-          # smallest). not a great heuristic, but it maximizes the chances
-          # of the assert in `::list` case matching.
-          sol :=
-              op(1, sort( sol, key=(z-> `+`(map(countVsInRels,z)))
-                        ));
-
-          app_dom_spec_IntSum_LMS(mk, e, h, sol, vs);
+          # a formal (algebraic?) sum of solutions.
+          `+`(seq( app_dom_spec_IntSum_LMS(mk, e, h, s, vs)
+                 , s=sol)
+             );
 
       elif sol :: set({relation,boolean}) then
           # a single atomic solution, with (hopefully) at most two conjuncts
