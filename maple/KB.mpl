@@ -119,7 +119,7 @@ KB := module ()
   # Some types
   # A particular form of Introduce, containing those types
   # about which Maple currently knows
-  t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
+  t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt,EveryInteger}))';
 
   # Low and high bounds (?)
   t_lo    := 'identical(`>`,`>=`)';
@@ -146,11 +146,16 @@ KB := module ()
   #   genLebesgue(var,lo,hi,kb) =
   #     "KB(Introduce(x::AlmostEveryReal(x>lo,x<hi))
   #        ,kb)"
-  genLebesgue := proc(xx::name, lo, hi, kb::t_kb)
-    # The value of a variable created using genLebesgue is respected only up to
-    # negligible changes
-    genType(xx, AlmostEveryReal(Bound(`>`,lo), Bound(`<`,hi)), kb, _rest)
-  end proc;
+  genLebesgue := genIntVar(`AlmostEveryReal`);
+
+  # Another type of integration variable
+  genSummation := genIntVar(`EveryInteger`);
+
+  # A smart constructor for 'integration' (of which summation is a variety)
+  # variables.
+  genIntVar := proc (kind,$) proc(xx::name, lo, hi, kb::t_kb)
+      genType(xx, kind(Bound(`>`,lo), Bound(`<`, hi)), kb, _rest);
+  end proc; end proc
 
   # A smart constructor for type introductions. ensures name binding
   # is done correctly.
@@ -661,7 +666,7 @@ KB := module ()
     local vars, parms, constraints;
 
     # Select all of the relevant subparts
-    vars        := select(type, kb, 'Introduce(name, specfunc(AlmostEveryReal))');
+    vars        := select(type, kb, 'Introduce(name, specfunc({AlmostEveryReal, EveryInteger}))');
     parms       := select(type, kb, 'Introduce(name, specfunc({HReal,HInt}))');
     # constraints := select(type, kb, 'Constrain(relation)');
 
@@ -915,7 +920,7 @@ KB := module ()
 
   htype_to_property := proc(t::t_type, $)
     if t :: 'specfunc({AlmostEveryReal, HReal})' then real
-    elif t :: 'specfunc(HInt)' then integer
+    elif t :: 'specfunc({HInt, EveryInteger})' then integer
     else TopProp end if
   end proc;
 
@@ -982,7 +987,7 @@ KB := module ()
 
   # Computes the range of (possible values of) a Hakaru Int,
   # given a Hakaru type for that Int
-  range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)
+  range_of_HInt := proc(t :: And(specfunc('{HInt, EveryInteger}'), t_type), $)
        op(1, [op(map((b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
                      select(type, t, Bound(t_lo,anything)))),
               -infinity])
