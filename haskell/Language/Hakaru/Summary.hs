@@ -79,7 +79,7 @@ summaryDebug
 summaryDebug debug e = do
     let typ = typeOf e
     let toMaple_ = "use Hakaru, Summary in timelimit(90, RoundTrip("
-                   ++ Maple.pretty e ++ ", " ++ Maple.mapleType typ ")) end use;"
+                   ++ Maple.pretty e ++ ")) end use;"
     when debug (hPutStrLn stderr ("Sent to Maple:\n" ++ toMaple_))
     fromMaple <- maple toMaple_
     case fromMaple of
