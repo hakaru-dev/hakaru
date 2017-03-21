@@ -770,10 +770,12 @@ subst x e =
 substM
     :: forall syn abt (a :: k) xs (b :: k) m
     .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *),
-        Traversable21 syn, ABT syn abt, Monad m)
+        Traversable21 syn, ABT syn abt,
+        Applicative m, Functor m, Monad m)
     => Variable a
     -> abt '[] a
-    -> (forall m b'. (Monad m) => Variable b' -> m (abt '[] b'))
+    -> (forall m b'.  (Applicative m, Functor m, Monad m)
+                   =>  Variable b' -> m (abt '[] b'))
     -> abt xs b
     -> m (abt xs b)
 substM x e vf =
@@ -783,11 +785,13 @@ substM x e vf =
     -- this (for MemoizedABT, but pessimizing for TrivialABT) by first
     -- checking whether @x@ is free in @f@; if so then recurse, if not
     -- then we're done.
-    start :: forall m xs' b'. (Monad m) => Nat -> abt xs' b' -> m (abt xs' b')
+    start :: forall m xs' b'. (Applicative m, Functor m, Monad m)
+          => Nat -> abt xs' b' -> m (abt xs' b')
     start n f = loop n f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
-    loop :: forall m xs' b'. (Monad m) => Nat -> abt xs' b' -> View (syn abt) xs' b' -> m (abt xs' b')
+    loop :: forall m xs' b'. (Applicative m, Functor m, Monad m)
+         => Nat -> abt xs' b' -> View (syn abt) xs' b' -> m (abt xs' b')
     loop n _ (Syn t) = syn <$> traverse21 (start n) t
     loop _ f (Var z) = vf z
     loop n f (Bind z b) =

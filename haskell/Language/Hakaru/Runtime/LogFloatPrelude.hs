@@ -53,7 +53,9 @@ instance M.MVector U.MVector LogFloat where
   {-# INLINE basicUnsafeSlice #-}
   {-# INLINE basicOverlaps #-}
   {-# INLINE basicUnsafeNew #-}
+#if __GLASGOW_HASKELL__ > 710
   {-# INLINE basicInitialize #-}
+#endif
   {-# INLINE basicUnsafeReplicate #-}
   {-# INLINE basicUnsafeRead #-}
   {-# INLINE basicUnsafeWrite #-}
@@ -65,7 +67,9 @@ instance M.MVector U.MVector LogFloat where
   basicUnsafeSlice i n (MV_LogFloat v) = MV_LogFloat $ M.basicUnsafeSlice i n v
   basicOverlaps (MV_LogFloat v1) (MV_LogFloat v2) = M.basicOverlaps v1 v2
   basicUnsafeNew n = MV_LogFloat `liftM` M.basicUnsafeNew n
+#if __GLASGOW_HASKELL__ > 710
   basicInitialize (MV_LogFloat v) = M.basicInitialize v
+#endif
   basicUnsafeReplicate n x = MV_LogFloat `liftM` M.basicUnsafeReplicate n (logFromLogFloat x)
   basicUnsafeRead (MV_LogFloat v) i = logToLogFloat `liftM` M.basicUnsafeRead v i
   basicUnsafeWrite (MV_LogFloat v) i x = M.basicUnsafeWrite v i (logFromLogFloat x)
