@@ -131,7 +131,18 @@ local
 
       :-`eval/PARTITION` :=
       proc(p, eqs, $)
-          Umap(x->eval(x,eqs), p);
+          local q, r;
+          q := Umap(x->eval(x,eqs), p);
+
+          r := eval( PartitionToPW(q), eqs );
+          if r :: specfunc('piecewise') then
+              q := PWToPartition( r );
+          else
+              q := r;
+          end if;
+
+          q;
+
       end proc;
 
       :-`depends/PARTITION` :=
@@ -193,12 +204,23 @@ local
        if ctxC = NULL then
            ctxC := false;
        elif ctxC :: set then
-           ctxC := `and`(op(ctxC));
+           ctxC := remove(x -> x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name, ctxC);
+           if ctxC :: identical('{}') then
+               ctxC := eval(ctx, [`And`=`and`, `Not`=`not`]);
+           else
+               ctxC := `and`(op(ctxC));
+           end if ;
+
        # elif nops([ctxC])> 1 then
        #     ctxC := [ctxC];
        else
            error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
        end if;
+
+       if ctx :: identical(true) then
+           error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
+       end if;
+
        ctxC;
    end proc
 ;
@@ -297,7 +319,7 @@ export
        # each clause evaluated under the context so far,
        # which is the conjunction of the negations of all clauses
        # so far
-       local ctx := true, n := nops(x), cls := [], cnd,i, q
+       local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q
            , ctxC
          ;
 
@@ -319,7 +341,13 @@ export
                ctxC := `And`(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
                ctxC := simplifyPartitionCtx(ctxC);
 
-               ctx  := `And`(Not(cnd), ctx); # the context for the next clause
+               if cnd :: `=` then
+                   ncnd := lhs(cnd) <> rhs(cnd);
+               else
+                   ncnd := Not(cnd);
+               end if;
+
+               ctx  := `And`(ncnd, ctx); # the context for the next clause
 
                userinfo(3, PWToPartition, printf("PWToPartition: ctx after %d clauses "
                                                  "is %a\n", i, ctx));
@@ -351,7 +379,6 @@ export
        end if;
 
        PARTITION( cls );
-
    end proc,
 
    MbAppPartOrPw := proc(chk,f,x::Or(Partition,specfunc(piecewise)))
