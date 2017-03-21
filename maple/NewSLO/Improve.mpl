@@ -110,7 +110,8 @@ end proc;
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      reduce_pw(e)
+      e := reduce_pw(e);
+      e;
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='reduce'(op(2,b),x,c),b),
@@ -470,9 +471,6 @@ end proc;
               #                 , lmss, vs ));
 
               e2 := app_dom_spec_IntSum_LMS( e, lmss, vs );
-
-              e2 := eval(e2, [Int=`int`]); # ,Sum=`sum`
-              e2 := subs([`int`=Int], e2); # ,`sum`=Sum
 
               # userinfo(3, 'LMS',
               #          printf("    expr LMS     : %a\n"
