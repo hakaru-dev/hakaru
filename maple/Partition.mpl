@@ -123,6 +123,32 @@ local
 
    end module,
 
+   simplifyPartitionCtx := proc(ctx, $)
+       local ctxC := ctx;
+       ctxC := solve({ctxC});
+       if ctxC = NULL then
+           ctxC := false;
+       elif ctxC :: set then
+           ctxC := remove(x -> x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name, ctxC);
+           if ctxC :: identical('{}') then
+               ctxC := eval(ctx, [`And`=`and`, `Not`=`not`]);
+           else
+               ctxC := `and`(op(ctxC));
+           end if ;
+
+       # elif nops([ctxC])> 1 then
+       #     ctxC := [ctxC];
+       else
+           error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
+       end if;
+
+       if ctx :: identical(true) then
+           error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
+       end if;
+
+       ctxC;
+   end proc,
+
    ModuleLoad::static:= proc()
       local prev;
 
@@ -211,32 +237,6 @@ local
          return err;
       end if;
       return pos;
-   end proc,
-
-   simplifyPartitionCtx := proc(ctx, $)
-       local ctxC := ctx;
-       ctxC := solve({ctxC});
-       if ctxC = NULL then
-           ctxC := false;
-       elif ctxC :: set then
-           ctxC := remove(x -> x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name, ctxC);
-           if ctxC :: identical('{}') then
-               ctxC := eval(ctx, [`And`=`and`, `Not`=`not`]);
-           else
-               ctxC := `and`(op(ctxC));
-           end if ;
-
-       # elif nops([ctxC])> 1 then
-       #     ctxC := [ctxC];
-       else
-           error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
-       end if;
-
-       if ctx :: identical(true) then
-           error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
-       end if;
-
-       ctxC;
    end proc
 ;
 export
