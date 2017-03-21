@@ -123,31 +123,71 @@ local
 
    end module,
 
-   simplifyPartitionCtx := proc(ctx, $)
+   simplifyPartitionCtx := module()
+
+       local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
+                               # or (x :: name);
+
+       local preproc_for_solve := proc(ctx, $)
+                 ctx;
+             end proc;
+
+       local postproc_for_solve := proc(ctx, ctxSlv, $)::{identical(false), list({boolean,relation})};
+                 local ctxC := ctxSlv;
+
+                 if ctxC = [] then
+                     ctxC := false ;
+
+                 elif nops(ctxC)> 1 then
+                     ctxC := map(x -> postproc_for_solve(ctx, [x])[], ctxC);
+
+                 elif nops(ctxC) = 1 then
+                     ctxC := op(1,ctxC);
+
+                     if ctxC :: set then
+                         ctxC := remove(is_extra_sol, ctxC);
+
+                         if ctxC :: identical('{}') then
+                             ctxC := eval(ctx, [`And`=`and`, `Not`=`not`]);
+                         else
+                             ctxC := `and`(op(ctxC));
+                         end if ;
+
+                         ctxC := [ctxC];
+
+                     elif ctxC :: specfunc('piecewise') then
+                         ctxC := PWToPartition(ctxC);
+
+                         ctxC := [ seq( map( o -> condOf(c) and o
+                                           , postproc_for_solve(ctx, valOf(c)))[]
+                                      , c=op(1, ctxC)
+                                      )
+                                 ] ;
+                     else
+                         error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
+                     end if;
+                 else
+                     error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
+
+                 end if;
+
+                 ctxC;
+
+             end proc;
+
+       export ModuleApply := proc(ctx, $)
        local ctxC := ctx;
-       ctxC := solve({ctxC});
-       if ctxC = NULL then
-           ctxC := false;
-       elif ctxC :: set then
-           ctxC := remove(x -> x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name, ctxC);
-           if ctxC :: identical('{}') then
-               ctxC := eval(ctx, [`And`=`and`, `Not`=`not`]);
-           else
-               ctxC := `and`(op(ctxC));
-           end if ;
 
-       # elif nops([ctxC])> 1 then
-       #     ctxC := [ctxC];
-       else
-           error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
-       end if;
+           if ctx :: identical(true) then
+               error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
+           end if;
 
-       if ctx :: identical(true) then
-           error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
-       end if;
+           ctxC := solve({ctxC});
+           postproc_for_solve(ctx, [ctxC]);
 
-       ctxC;
-   end proc,
+       end proc;
+
+   end module,
 
    ModuleLoad::static:= proc()
       local prev;
@@ -335,7 +375,7 @@ export
        # which is the conjunction of the negations of all clauses
        # so far
        local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q
-           , ctxC
+           , ctxC, cl
          ;
 
        userinfo(5, PWToPartition
@@ -371,9 +411,11 @@ export
                    return(PARTITION(cls));
                else
                    cls := [ op(cls)
-                          , Piece(ctxC
-                                 ,op(2*i ,x)
-                                 )
+                          , seq(Piece(cl
+                                     ,op(2*i ,x)
+                                     )
+                               ,cl=ctxC
+                               )
                           ];
 
                end if;
@@ -386,9 +428,11 @@ export
            ctx := simplifyPartitionCtx(ctx);
            if not ctx :: identical(false) then
                cls := [ op(cls)
-                      , Piece(ctx
-                             ,op(n,x)
-                             )
+                      , seq(Piece(cl
+                                 ,op(n,x)
+                                 )
+                           ,cl=ctx
+                           )
                       ];
            end if;
        end if;
