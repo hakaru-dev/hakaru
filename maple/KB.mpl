@@ -702,7 +702,7 @@ KB := module ()
         printf("    LMS extract:\n"
                "      vars     : %a\n"
                "      parms    : %a\n"
-               "      cxts     : %a\n"
+               "      cxts     : %a\n\n"
          , vsr, ps, cs ));
 
       # extract the data:
@@ -715,7 +715,7 @@ KB := module ()
 
       cs := {op(cs)}:
 
-      userinfo(3, 'LMS',
+      userinfo(5, 'LMS',
         printf("      vars2s   : %a\n"
                "      cxts2s   : %a\n"
          , vs, cs ));
