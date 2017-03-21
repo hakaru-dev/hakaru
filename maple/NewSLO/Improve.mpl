@@ -10,6 +10,38 @@
        r
   end proc;
 
+Domain_extract_bound[`Int`] := e -> kb -> genLebesgue(op([1],e), op([2,1],e), op([2,2],e), kb);
+Domain_extract_bound[`Sum`] := e -> kb -> genSummation(op([1],e), op(op([2],e)), kb);
+
+Domain_bound_type[`Int`] := 'And(specfunc({Int}), anyfunc(anything,name=range))';
+Domain_bound_type[`Sum`] := 'And(specfunc({Sum}), anyfunc(anything,name=range))';
+
+Domain_type_make[`AlmostEveryReal`] := `Int`;
+Domain_type_make[`HInt`] := `Sum`;
+Domain_type_make[`EveryInteger`] := eval(Domain_type_make[`HInt`]);
+
+
+has_Domain := proc(e,$)
+    assigned(Domain_bound_type[op(0,e)]) and evalb(e :: Domain_bound_type[op(0,e)]);
+end proc;
+
+  extract_Domain := proc(h, kb1_, kb, vars, kind, arg_, bound,$)
+      local kb1 := kb1_, x0, x, vars1, ty, arg := arg_;
+
+      x0 := op(1, bound);
+      x, kb1 := Domain_extract_bound[kind](bound)(kb1);
+
+      vars1 := [ x :: kind, op(vars) ];
+      arg := subs(x0=x, arg);
+
+      if has_Domain(arg) then
+          extract_Domain(h, kb1, kb, vars1, op(0,arg), op(arg));
+      else
+          arg, vars1, kb1
+      end if;
+  end proc;
+
+
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # kb - domain information
@@ -17,21 +49,35 @@
     local e, subintegral, w, ww, x, c, kb1;
     e := ee;
 
-    if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
+    if has_Domain(e) then
+        body, vars, kb1 := extract_Domain(h, kb, kb, [], op(0,e), op(e));
+
+        userinfo(3, 'domain',
+                 printf("domain extract:\n"
+                        "  body : %a\n"
+                        "  vars : %a\n"
+                        "  kb   : %a\n\n"
+                        , body, vars, kb1 ));
+
+        reduce_IntSum( vars, reduce(body, h, kb1), h, kb1, kb );
 
 
-    userinfo(3, 'disint_trace',
-        printf("case Int/Sum \n"
-               "  expr : %a\n"
-               "  h    : %a\n"
-               "  ctx  : %a\n\n"
-         , ee, h, kb ));
+    # end if;
 
-      x, kb1 := `if`(op(0,e)=Int,
-        genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
-        genSummation(op([2,1],e), op(op([2,2],e)), kb));
-      reduce_IntSum(op(0,e),
-        reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
+    # if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
+    # userinfo(3, 'disint_trace',
+    #     printf("case Int/Sum \n"
+    #            "  expr : %a\n"
+    #            "  h    : %a\n"
+    #            "  ctx  : %a\n\n"
+    #      , ee, h, kb ));
+
+    #   x, kb1 := `if`(op(0,e)=Int,
+    #     genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
+    #     genSummation(op([2,1],e), op(op([2,2],e)), kb));
+    #   reduce_IntSum(op(0,e),
+    #     reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
+
     elif e :: 'And(specfunc({Ints,Sums}),
                    anyfunc(anything, name, range, list(name=range)))' then
       x, kb1 := genType(op(2,e),
@@ -93,7 +139,7 @@
 
 
   app_dom_spec_IntSum_LMS :=
-   proc( mk :: identical(Int, Sum), ee, h
+   proc( ee
        , sol_, vs_
        , $)
 
@@ -103,7 +149,8 @@
           , vnms, countVs, countVsInRels, solOrder ;
 
       # vnms := map(x->op(1,x), indets(vs, 'Introduce(name, anything)'));
-      vnms    := [op(map(i->op(1,i), op(1, kb_extract(vs))))] ;
+      # vnms    := [op(map(i->op(1,i), op(1, kb_extract(vs))))] ;
+      vnms    := map(v->op(1,v), vs);
       countVs := (c-> nops(indets(c, name) intersect {op(vnms)} ));
       countVsInRels :=
         (c-> nops(indets(map(o-> op(1..2,o), indets(c, relation)), name)));
@@ -114,7 +161,7 @@
 
       elif sol :: set(list) then
           # a formal (algebraic?) sum of solutions.
-          er := `+`(seq( app_dom_spec_IntSum_LMS(mk, e, h, s, vs)
+          er := `+`(seq( app_dom_spec_IntSum_LMS(e, s, vs)
                  , s=sol)
              );
 
@@ -132,10 +179,16 @@
           # into the upper bound
 
           ASSERT(nops(vs)=1);
-          v := op([1,1],vs); # KB(Introduce(v,..))
+          v, v_t0 := op(op(1,vs));
+
+          mk := Domain_type_make[op(0,v_t0)];
+
+          # v := op([1,1],vs); # KB(Introduce(v,..))
+
+          v, kb1 := genType(v, v_t0, empty);
 
           kb1 := foldl(proc(a,b) assert(b,a) end proc
-                      ,vs
+                      ,kb1
                       ,op(sol)
                       );
 
@@ -220,7 +273,7 @@
               sol1 := op(i, sol);
 
               e := app_dom_spec_IntSum_LMS
-                     ( mk, e, h
+                     ( e
                      , sol1
                      , select(c->depends(c, vnms[i]), vs)
                      ) ;
@@ -246,7 +299,7 @@
 
                 Piece( condOf(cl)
                       , app_dom_spec_IntSum_LMS
-                  ( mk, e, h
+                  ( e
                   , valOf(cl)
                   , vs
                   ) )
@@ -370,7 +423,7 @@
       reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
   end proc;
 
-  reduce_IntSum := proc(mk :: identical(Int, Sum),
+  reduce_IntSum := proc(mks ,
                         ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
     local e, dom_spec, kb2, lmss, vs, e2, e3, _, dom_specw;
 
@@ -382,8 +435,6 @@
 
     ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
 
-    if kb1 <> kb2 then
-
     userinfo(3, 'disint_trace',
         printf("input:\n"
                "  integral type: %a\n"
@@ -394,10 +445,7 @@
                "  ctx below : %a\n\n"
          , mk, ee, h, kb2, kb1, kb0 ));
 
-        lmss := kb_LMS(kb2);
-    else
-        return ee;
-    end if;
+    lmss := kb_LMS(kb2, mks);
 
     # userinfo(3, 'LMS',
     #      printf("    LMS     : %a\n"
@@ -408,7 +456,7 @@
     #      , lmss, kb2, kb0, dom_spec, h ));
 
 
-    try
+    # try
           if not lmss :: specfunc('NoSol') then
               lmss, vs, _ := op(lmss);
 
@@ -421,7 +469,7 @@
               #                 "    LMS-vs   : %a\n"
               #                 , lmss, vs ));
 
-              e2 := app_dom_spec_IntSum_LMS( mk, e, h, lmss, vs );
+              e2 := app_dom_spec_IntSum_LMS( e, lmss, vs );
 
               e2 := eval(e2, [Int=`int`]); # ,Sum=`sum`
               e2 := subs([`int`=Int], e2); # ,`sum`=Sum
@@ -445,10 +493,10 @@
           else
               error "LMS: no solution(%s)", op(1,lmss), ""
           end if;
-    catch:
-          userinfo(3, 'LMS',
-                   printf("    LMS threw an error: %a\n"
-                          , lastexception ));
+    # catch:
+    #       userinfo(3, 'LMS',
+    #                printf("    LMS threw an error: %a\n"
+    #                       , lastexception ));
 
     #       e2 := do_app_dom_spec( mk, e, h, kb0, kb2 );
 
@@ -462,7 +510,7 @@
     #      , e, e2, kb0, kb2 ));
 
 
-    end try;
+    # end try;
 
     e2;
 

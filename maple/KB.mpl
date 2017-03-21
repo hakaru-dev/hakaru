@@ -693,8 +693,8 @@ KB := module ()
   end proc;
 
   # linear multivariate system solver for KB
-  kb_LMS := proc(kb::t_kb, $)
-      local vs, vsr, ps, cs, ret;
+  kb_LMS := proc(kb::t_kb, vs_, $)
+      local vs := vs_, vsr, ps, cs, ret;
 
       vsr, ps, cs := op(kb_extract(kb));
 
@@ -708,7 +708,10 @@ KB := module ()
       # extract the data:
       #  from inside of KB,
       #  from inside of KB atom constructors (Constrain, Intro)
-      vs, ps := op(map(z -> map[2](op, 1, [op(z)]), [vsr,ps]));
+      ps := op(map(z -> map[2](op, 1, [op(z)]), [ps]));
+
+      vs := map(v->op(1,v),vs);
+      vsr := map(v->v :: getType(kb,v), vs);
 
       cs := {op(cs)}:
 
