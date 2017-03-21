@@ -183,7 +183,17 @@ local
            end if;
 
            ctxC := solve({ctxC});
-           postproc_for_solve(ctx, [ctxC]);
+           ctxC := postproc_for_solve(ctx, [ctxC]);
+
+           if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
+               userinfo(10, 'simplifyPartitionCtx',
+                   printf("output: \n"
+                          "  %a\n\n"
+                          , ctxC )
+                  );
+           end if;
+
+           ctxC;
 
        end proc;
 
