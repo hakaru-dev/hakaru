@@ -57,7 +57,7 @@ module Language.Hakaru.Syntax.ABT
     , rename
     , renames
     , subst
-    , substF
+    , substM
     , substs
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
@@ -88,6 +88,7 @@ import           Data.Monoid                (Monoid(..))
 #endif
 
 import Control.Monad
+import Control.Monad.Identity    
 import Control.Monad.Fix
 import Data.Number.Nat
 import Language.Hakaru.Syntax.IClasses
@@ -746,7 +747,7 @@ rename x y =
 -- should have strict 'fmap21' definitions.
 subst
     :: forall syn abt (a :: k) xs (b :: k)
-    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Functor21 syn, ABT syn abt)
+    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Traversable21 syn, ABT syn abt)
     => Variable a
     -> abt '[]  a
     -> abt xs   b
@@ -755,58 +756,52 @@ subst x e =
 #ifdef __TRACE_DISINTEGRATE__
     trace ("about to subst " ++ show (varID x)) $
 #endif
-    substF x e varCase
+    runIdentity . substM x e varCase
     where
-      varCase :: forall b'. Variable b' -> abt '[] b'
+      varCase :: forall m b'. (Monad m) => Variable b' -> m (abt '[] b')
       varCase z =
 #ifdef __TRACE_DISINTEGRATE__
         trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
 #endif        
         case varEq x z of
-        Just Refl -> e
-        Nothing   -> var z
+        Just Refl -> return e
+        Nothing   -> return (var z)
                      
-substF
-    :: forall syn abt (a :: k) xs (b :: k)
-    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Functor21 syn, ABT syn abt)
+substM
+    :: forall syn abt (a :: k) xs (b :: k) m
+    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *),
+        Traversable21 syn, ABT syn abt, Monad m)
     => Variable a
     -> abt '[] a
-    -> (forall b'. Variable b' -> abt '[] b')
+    -> (forall m b'. (Monad m) => Variable b' -> m (abt '[] b'))
     -> abt xs b
-    -> abt xs b
-substF x e vf =
+    -> m (abt xs b)
+substM x e vf =
     start (maxNextFreeOrBind [Some2 (var x), Some2 e])
     where
     -- TODO: we could use the director-strings approach to optimize
     -- this (for MemoizedABT, but pessimizing for TrivialABT) by first
     -- checking whether @x@ is free in @f@; if so then recurse, if not
     -- then we're done.
-    start :: forall xs' b'. Nat -> abt xs' b' -> abt xs' b'
+    start :: forall m xs' b'. (Monad m) => Nat -> abt xs' b' -> m (abt xs' b')
     start n f = loop n f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
-    loop :: forall xs' b'. Nat -> abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
-    loop n _ (Syn t) = syn $! fmap21 (start n) t
+    loop :: forall m xs' b'. (Monad m) => Nat -> abt xs' b' -> View (syn abt) xs' b' -> m (abt xs' b')
+    loop n _ (Syn t) = syn <$> traverse21 (start n) t
     loop _ f (Var z) = vf z
-    loop n f (Bind z _)
-        | varID x == varID z = f
-        | otherwise = 
-            -- TODO: even if we don't come up with a smarter way
-            -- of freshening variables, it'd be better to just pass
-            -- both sets to 'freshen' directly and then check them
-            -- each; rather than paying for taking their union every
-            -- time we go under a binder like this.
-            let i  = 1 + max n (nextFreeOrBind f) -- (freeVars e `mappend` freeVars f)
-                z' = i `seq` z{varID = i}
-            -- HACK: the 'rename' function requires an ABT not a
-            -- View, so we have to use 'caseBind' to give its
-            -- input and then 'viewABT' to discard the topmost
-            -- annotation. We really should find a way to eliminate
-            -- that overhead.
-            in caseBind f $ \_ f' ->
-                   let f'' = rename z z' f' in
-                   bind z' (loop i f'' (viewABT f''))
-       
+    loop n f (Bind z b) =
+        if (varID x == varID z) then return f
+        else -- TODO: even if we don't come up with a smarter way
+             -- of freshening variables, it'd be better to just pass
+             -- both sets to 'freshen' directly and then check them
+             -- each; rather than paying for taking their union every
+             -- time we go under a binder like this.
+          let i  = 1 + max n (nextFreeOrBind f) -- (freeVars e `mappend` freeVars f)
+              z' = i `seq` z{varID = i}
+              f'' = rename z z' (unviewABT b)
+          in bind z' <$> loop i f'' (viewABT f'')
+               
 
 renames
     :: forall
@@ -855,7 +850,7 @@ substs
     .   ( ABT syn abt
         , JmEq1 (Sing :: k -> *)
         , Show1 (Sing :: k -> *)
-        , Functor21 syn
+        , Traversable21 syn
         )
     => Assocs (abt '[])
     -> abt xs a
