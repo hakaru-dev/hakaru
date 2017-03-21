@@ -27,6 +27,8 @@ library
                      , filepath
                      , vector
                      , mwc-random
+                     , hakaru
+                     , logfloat
   default-language:    Haskell2010
 
 executable tcp
