@@ -24,6 +24,81 @@ local
                  )
    end proc,
 
+   # could also be named
+   # simplifyPartition_by_the_removal_of_particular_singular_points
+   simplifyPartition_mergeSinglePts := module()
+       local canSimp := c -> valOf(c) :: identical('undefined') and condOf(c) :: `=`
+                                  and (lhs(condOf(c)) :: name or rhs(condOf(c)) :: name);
+
+       local mentions_t_hi :=
+                t -> bnd -> cl -> has(cl, t<bnd) or has(cl, bnd>t);
+
+       local mentions_t_lo :=
+                t -> bnd -> cl -> has(cl, bnd<t) or has(cl, t>bnd);
+
+       local replace_with := t -> bnd -> x ->
+                if mentions_t_hi(t)(bnd)(x) then
+                    t <= bnd
+                elif mentions_t_lo(t)(bnd)(x) then
+                    t >= bnd
+                else
+                    x
+                end if;
+
+       local set_xor := proc(a,b,$) (a union b) intersect (a minus b) end proc;
+
+       local tryReplacePieces :=
+               proc(replPieces, otherPieces)
+                 local rpp := replPieces, otp := otherPieces, nm, val, rp, rpv;
+
+                 for rp in rpp do
+                     rp, rpv := op(rp);
+
+                     nm   := `if`(lhs(rp)::name, lhs(rp), rhs(rp));
+                     val  := `if`(lhs(rp)::name, rhs(rp), lhs(rp));
+
+                     otp := tryReplacePiece( nm, val, rpv, otp )
+                 end do;
+
+                 otp;
+
+               end proc;
+
+       local tryReplacePiece :=
+               proc(vrNm, vrVal, pc0val, pcs)
+                 local pcs0 := pcs, pcs1, qs0, qs1, qs2;
+                 pcs1 := subsindets(pcs0, relation, replace_with(vrNm)(vrVal));
+
+                 qs0, qs1 := seq({op(qs)},qs=(pcs0,pcs1));
+
+                 qs2 := set_xor(qs1, qs0);
+
+                 if nops(qs2) = 2 then
+                     pcs1;
+                 else
+                     [ Piece(vrNm=vrVal, pc0val), op(pcs0) ] ;
+                 end if;
+
+               end proc;
+
+
+       export ModuleApply := proc(p,$)
+
+          local r := p, uc, oc;
+
+          # if the partition contains case of the form `x = t', where `t' is a
+          # constant (or term??) and `x' is a variable, and the value of that
+          # case is `undefined', then we may be able to eliminate it (if another
+          # case includes that point)
+          r := op(1,r);
+          uc, oc := selectremove(canSimp, r);
+
+          PARTITION(tryReplacePieces(uc, oc));
+
+       end proc;
+
+   end module,
+
    ModuleLoad::static:= proc()
       local prev;
 
@@ -54,27 +129,9 @@ local
           local pw  := PartitionToPW(PARTITION(parts))
               , dpw := diff(pw, wrt)
               , r   := PWToPartition(dpw)
-              , uc, oc
             ;
 
-          # if the partition contains case of the form `x = t', where `t' is a
-          # constant (or term??) and `x' is a variable, and the value of that
-          # case is `undefined', then we may be able to eliminate it (if another
-          # case includes that point)
-          r := op(1,r);
-          uc, oc := selectremove(c -> valOf(c) :: identical('undefined') and condOf(c) :: `=`
-                                  and (lhs(condOf(c)) :: name or rhs(condOf(c)) :: name)
-                                 , r);
-
-          # uc := remove( c -> `or`( op( map(p -> not ( solve( { condOf(c), valOf(p) } ) :: identical('NULL') )
-          #                                 , oc
-          #                                 )
-          #                            )
-          #                        )
-          #             , uc
-          #             );
-
-          r := PARTITION([op(oc),op(uc)]);
+          r := simplifyPartition_mergeSinglePts(r);
 
           # probably a better way to do this; we really only want to simplify
           # sums and products of integrals and summations
