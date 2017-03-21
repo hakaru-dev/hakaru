@@ -48,7 +48,7 @@ local
        local set_xor := proc(a,b,$) (a union b) intersect (a minus b) end proc;
 
        local tryReplacePieces :=
-               proc(replPieces, otherPieces)
+               proc(replPieces, otherPieces,cmp,$)
                  local rpp := replPieces, otp := otherPieces, nm, val, rp, rpv;
 
                  for rp in rpp do
@@ -57,16 +57,20 @@ local
                      nm   := `if`(lhs(rp)::name, lhs(rp), rhs(rp));
                      val  := `if`(lhs(rp)::name, rhs(rp), lhs(rp));
 
-                     otp := tryReplacePiece( nm, val, rpv, otp )
+                     otp := tryReplacePiece( nm, val, rpv, otp, cmp )
                  end do;
 
                  otp;
 
                end proc;
 
+       local the_val := cmp -> xs ->
+                evalb( foldl( proc(x,y) if cmp(x,y) then x else NULL end if; end proc, op(xs)) = NULL ) ;
+
+
        local tryReplacePiece :=
-               proc(vrNm, vrVal, pc0val, pcs)
-                 local pcs0 := pcs, pcs1, qs0, qs1, qs2;
+               proc(vrNm, vrVal, pc0val, pcs, cmp,$)
+                 local pcs0 := pcs, pcs1, qs0, qs1, qs2, vrEq := vrNm=vrVal ;
                  pcs1 := subsindets(pcs0, relation, replace_with(vrNm)(vrVal));
 
                  qs0, qs1 := seq({op(qs)},qs=(pcs0,pcs1));
@@ -74,15 +78,27 @@ local
                  qs2 := set_xor(qs1, qs0);
 
                  if nops(qs2) = 2 then
-                     pcs1;
+                     qs2 := map(condOf, qs2);
+
+                     if not pc0val :: identical('undefined') then
+                         qs2 := { pc0val, op(qs2) };
+                     end if;
+
+                     qs2 := map(q -> subs(vrEq, q), qs2);
+
+                     if the_val(cmp)(qs2) then
+                         pcs1;
+                     else
+                         [ Piece(vrEq, pc0val), op(pcs0) ] ;
+                     end if
                  else
-                     [ Piece(vrNm=vrVal, pc0val), op(pcs0) ] ;
+                     [ Piece(vrEq, pc0val), op(pcs0) ] ;
                  end if;
 
                end proc;
 
 
-       export ModuleApply := proc(p,$)
+       export ModuleApply := proc(p,{cmp:=`=`},$)
 
           local r := p, uc, oc;
 
@@ -93,7 +109,7 @@ local
           r := op(1,r);
           uc, oc := selectremove(canSimp, r);
 
-          PARTITION(tryReplacePieces(uc, oc));
+          PARTITION(tryReplacePieces(uc, oc, cmp));
 
        end proc;
 
