@@ -149,7 +149,7 @@ KB := module ()
   genLebesgue := genIntVar(`AlmostEveryReal`);
 
   # Another type of integration variable
-  genSummation := genIntVar(`EveryInteger`);
+  genSummation := genIntVar(`HInt`);
 
   # A smart constructor for 'integration' (of which summation is a variety)
   # variables.
