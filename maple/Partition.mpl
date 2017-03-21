@@ -172,7 +172,7 @@ local
           # sums and products of integrals and summations
           r1 := subsindets(r0, algebraic, `simplify`);
 
-          userinfo(3, 'disint_trace',
+          userinfo(10, 'disint_trace',
                    printf("  input        : \n\t%a\n\n"
                           "  diff         : \n\t%a\n\n"
                           "  singular pts : \n\t%a\n\n"
