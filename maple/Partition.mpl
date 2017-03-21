@@ -98,9 +98,9 @@ local
                end proc;
 
 
-       export ModuleApply := proc(p,{cmp:=`=`},$)
+       export ModuleApply := proc(p_,{cmp:=`=`},$)
 
-          local r := p, uc, oc;
+          local p := p_, r := p, uc, oc;
 
           # if the partition contains case of the form `x = t', where `t' is a
           # constant (or term??) and `x' is a variable, and the value of that
@@ -109,7 +109,15 @@ local
           r := op(1,r);
           uc, oc := selectremove(canSimp, r);
 
-          PARTITION(tryReplacePieces(uc, oc, cmp));
+          # special case: if there is exactly one `undefined' case, and one
+          # other case, just get rid of the `undefined' piece
+          if nops(uc)=1 and nops(oc)=1 then
+              p := PARTITION(oc);
+          else
+              p := PARTITION(tryReplacePieces(uc, oc, cmp));
+          end if;
+
+          return p;
 
        end proc;
 
