@@ -164,15 +164,22 @@ local
           local pw  := PartitionToPW(PARTITION(parts))
               , dpw := diff(pw, wrt)
               , r   := PWToPartition(dpw)
+              , r0, r1;
             ;
-
-          r := simplifyPartition_mergeSinglePts(r);
+          r0 := simplifyPartition_mergeSinglePts(r);
 
           # probably a better way to do this; we really only want to simplify
           # sums and products of integrals and summations
-          r := subsindets(r, algebraic, `simplify`);
+          r1 := subsindets(r0, algebraic, `simplify`);
 
-          r;
+          userinfo(3, 'disint_trace',
+                   printf("  input        : \n\t%a\n\n"
+                          "  diff         : \n\t%a\n\n"
+                          "  singular pts : \n\t%a\n\n"
+                          "  simplified   : \n\t%a\n\n\n"
+                          , parts, r, r0, r1 ));
+
+          r1;
       end proc;
 
       NULL

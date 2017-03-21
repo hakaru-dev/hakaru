@@ -52,7 +52,7 @@ end proc;
     if has_Domain(e) then
         body, vars, kb1 := extract_Domain(h, kb, kb, [], op(0,e), op(e));
 
-        userinfo(3, 'domain',
+        userinfo(3, 'disint_trace',
                  printf("domain extract:\n"
                         "  body : %a\n"
                         "  vars : %a\n"
