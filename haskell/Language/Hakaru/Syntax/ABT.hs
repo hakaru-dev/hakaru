@@ -57,6 +57,7 @@ module Language.Hakaru.Syntax.ABT
     , rename
     , renames
     , subst
+    , substF
     , substs
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
@@ -86,6 +87,7 @@ import           Control.Applicative hiding (empty)
 import           Data.Monoid                (Monoid(..))
 #endif
 
+import Control.Monad
 import Control.Monad.Fix
 import Data.Number.Nat
 import Language.Hakaru.Syntax.IClasses
@@ -752,23 +754,40 @@ subst
 subst x e =
 #ifdef __TRACE_DISINTEGRATE__
     trace ("about to subst " ++ show (varID x)) $
-#endif            
+#endif
+    substF x e varCase
+    where
+      varCase :: forall b'. Variable b' -> abt '[] b'
+      varCase z =
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
+#endif        
+        case varEq x z of
+        Just Refl -> e
+        Nothing   -> var z
+                     
+substF
+    :: forall syn abt (a :: k) xs (b :: k)
+    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Functor21 syn, ABT syn abt)
+    => Variable a
+    -> abt '[] a
+    -> (forall b'. Variable b' -> abt '[] b')
+    -> abt xs b
+    -> abt xs b
+substF x e vf =
     start (maxNextFreeOrBind [Some2 (var x), Some2 e])
     where
-    -- TODO: we could use the director-strings approach to optimize this (for MemoizedABT, but pessimizing for TrivialABT) by first checking whether @x@ is free in @f@; if so then recurse, if not then we're done.
+    -- TODO: we could use the director-strings approach to optimize
+    -- this (for MemoizedABT, but pessimizing for TrivialABT) by first
+    -- checking whether @x@ is free in @f@; if so then recurse, if not
+    -- then we're done.
     start :: forall xs' b'. Nat -> abt xs' b' -> abt xs' b'
     start n f = loop n f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
     loop :: forall xs' b'. Nat -> abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
     loop n _ (Syn t) = syn $! fmap21 (start n) t
-    loop _ f (Var z) =
-#ifdef __TRACE_DISINTEGRATE__
-        trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
-#endif        
-        case varEq x z of
-        Just Refl -> e
-        Nothing   -> f
+    loop _ f (Var z) = vf z
     loop n f (Bind z _)
         | varID x == varID z = f
         | otherwise = 
@@ -787,6 +806,7 @@ subst x e =
             in caseBind f $ \_ f' ->
                    let f'' = rename z z' f' in
                    bind z' (loop i f'' (viewABT f''))
+       
 
 renames
     :: forall
