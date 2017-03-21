@@ -3,10 +3,9 @@
 
   improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
   local r, `&context`;
-       userinfo(3, improve, "input: ", print(lo &context _ctx));
-       userinfo(3, improve, NoName, fflush(terminal));
+       userinfo(5, improve, "input: ", print(lo &context _ctx));
        r:= LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx));
-       userinfo(3, improve, "output: ", print(r));
+       userinfo(5, improve, "output: ", print(r));
        r
   end proc;
 
@@ -216,7 +215,7 @@ end proc;
 
           er := mk(e, v=v_t);
 
-          userinfo(3, 'disint_trace',
+          userinfo(5, 'disint_trace',
                    printf("applied solution: %a\n"
                           "  result    : %a\n"
                           "  expr body : %a\n\n"
@@ -241,7 +240,7 @@ end proc;
                   );
 
           if nops(sol) > 1 then
-              userinfo(3, 'disint_trace',
+              userinfo(5, 'disint_trace',
                    printf("rearranged solutions\n"
                           "  sol   : %a\n"
                           "  permuation: %a\n\n"
@@ -292,7 +291,7 @@ end proc;
             map(proc (cl,$)
 
 
-                userinfo(3, 'disint_trace',
+                userinfo(5, 'disint_trace',
                    printf("partition piece\n"
                           "  sub sol: %a\n"
                           "  ctx    : %a\n\n"
@@ -437,14 +436,14 @@ end proc;
     ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
 
     userinfo(3, 'disint_trace',
-        printf("input:\n"
+        printf("reduce_IntSum input:\n"
                "  integral type: %a\n"
                "  expr : %a\n"
                "  h    : %a\n"
-               "  ctx dom   : %a\n"
+               "  ctx expr  : %a\n"
                "  ctx above : %a\n"
                "  ctx below : %a\n\n"
-         , mk, ee, h, kb2, kb1, kb0 ));
+         , mks, ee, h, kb2, kb1, kb0 ));
 
     lmss := kb_LMS(kb2, mks);
 
