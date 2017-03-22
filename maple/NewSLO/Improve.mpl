@@ -429,7 +429,7 @@ end proc;
 
 
     # if there are domain restrictions, try to apply them
-    (dom_specw, e) := get_indicators(ee);
+    (dom_specw, e) := getDomainSpec(ee);
 
     kb2 := foldr(assert, kb1, op(dom_specw));
 
@@ -521,7 +521,7 @@ end proc;
     if elim = FAIL then e else reduce(elim, h, kb) end if
   end proc;
 
-  getDomainSpec := module
+  getDomainSpec := module()
      local get_indicators := proc(e, $)
        local sub, inds, rest;
        if e::`*` then
@@ -598,7 +598,7 @@ end proc;
 
   do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
     local w, e, x, g, t, r;
-    w, e := get_indicators(ee);
+    w, e := getDomainSpec(ee);
     e := piecewise_And(w, e, 0);
     e := f(e,v,_rest,kb);
     x := `if`(v::name, v, lhs(v));
