@@ -296,6 +296,10 @@ maple2AST (InertArgs Float [InertNum Neg a, InertNum _ b]) =
     ULiteral . Real $ fromInteger a * (10 ^ b)
 
 maple2AST (InertArgs Func
+        [InertName "Let", InertArgs ExpSeq [e1, InertName x, e2]]) =
+    Let x (maple2AST e1) (maple2AST e2)
+
+maple2AST (InertArgs Func
         [InertName "Bind", InertArgs ExpSeq [e1, InertName x, e2]]) =
     Bind x (maple2AST e1) (maple2AST e2)
 
