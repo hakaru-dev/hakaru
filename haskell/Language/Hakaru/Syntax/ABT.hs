@@ -795,15 +795,15 @@ substM x e vf =
           Nothing   -> vf z
     loop n f (Bind z b) =
         if (varID x == varID z) then return f
-        else -- TODO: even if we don't come up with a smarter way
-             -- of freshening variables, it'd be better to just pass
-             -- both sets to 'freshen' directly and then check them
-             -- each; rather than paying for taking their union every
-             -- time we go under a binder like this.
+        else do -- TODO: even if we don't come up with a smarter way
+                -- of freshening variables, it'd be better to just pass
+                -- both sets to 'freshen' directly and then check them
+                -- each; rather than paying for taking their union every
+                -- time we go under a binder like this.
           let i  = 1 + max n (nextFreeOrBind f) -- (freeVars e `mappend` freeVars f)
               z' = i `seq` z{varID = i}
-              f'' = rename z z' (unviewABT b)
-          in bind z' <$> loop i f'' (viewABT f'')
+          f'' <- substM z (var z') vf (unviewABT b)
+          bind z' <$> loop i f'' (viewABT f'')
                
 
 renames
