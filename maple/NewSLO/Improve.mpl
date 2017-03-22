@@ -521,20 +521,49 @@ end proc;
     if elim = FAIL then e else reduce(elim, h, kb) end if
   end proc;
 
-  get_indicators := proc(e, $)
-    local sub, inds, rest;
-    if e::`*` then
-      sub := map((s -> [get_indicators(s)]), [op(e)]);
-      `union`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub)))
-    elif e::`^` then
-      inds, rest := get_indicators(op(1,e));
-      inds, subsop(1=rest, e)
-    elif e::'Indicator(anything)' then
-      {op(1,e)}, 1
-    else
-      {}, e
-    end if
-  end proc;
+  getDomainSpec := module
+     local get_indicators := proc(e, $)
+       local sub, inds, rest;
+       if e::`*` then
+         sub := map((s -> [get_indicators(s)]), [op(e)]);
+         `union`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub)))
+       elif e::`^` then
+         inds, rest := get_indicators(op(1,e));
+         inds, subsop(1=rest, e)
+       elif e::'Indicator(anything)' then
+         {op(1,e)}, 1
+       else
+         {}, e
+       end if
+     end proc;
+
+     local getPartitionDom := proc(e, $)
+               local zs, nzs, nz;
+               if e :: Partition then
+                   zs, nzs := selectremove(p -> Testzero(valOf(p)), op(1, e));
+
+                   if nops(nzs) = 1 then
+                       nz := op(1,nzs);
+                       {condOf(nz), valOf(nz)}
+                   else
+                       {}, e
+                   end if;
+               else
+                   {}, e
+               end if;
+     end proc;
+
+     export ModuleApply :=
+      proc(e, $)
+            local e1 := e, inds0, inds1;
+
+            inds0, e1 := get_indicators(e1);
+            inds1, e1 := getPartitionDom(e1);
+
+            inds0 union inds1, e1;
+     end proc;
+
+  end module;
 
   elim_intsum := proc(e, h :: name, kb :: t_kb, $)
     local t, var, f, elim;
