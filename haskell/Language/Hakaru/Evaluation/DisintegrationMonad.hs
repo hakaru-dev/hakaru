@@ -641,8 +641,13 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                         unsafePushes ss
                         return (Just r)
 
-    substVar = error "TODO substVar for DisintegrationMonad"
-
+    substFreeVar x e z = do
+      extras <- getExtras
+      case (lookupAssoc z extras) of
+        Nothing                -> return (var z)
+        Just (Loc _ inds)      -> error "TODO substFreeVar Dis.Loc"
+        Just (MultiLoc _ inds) -> error "TODO substFreeVar Dis.MultiLoc"
+        
 withIndices :: [Index (abt '[])] -> Dis abt a -> Dis abt a
 withIndices inds (Dis m) = Dis $ \_ c -> m inds c
 

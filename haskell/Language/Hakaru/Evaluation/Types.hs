@@ -856,13 +856,9 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
         -> (Statement abt Location p -> Maybe (m r))
         -> m (Maybe r)
 
-    substVar :: Variable a
-              -> abt '[] a
-              -> (forall b'. Variable b' -> m (abt '[] b'))
-    substVar x e =
-        \z -> case varEq x z of
-                Just Refl -> return e
-                Nothing   -> return (var z)
+    substFreeVar :: Variable a -> abt '[] a
+                 -> (forall b'. Variable b' -> m (abt '[] b'))
+    substFreeVar x e = return . var
 
 substExt
     :: forall abt a xs b m p. (EvaluationMonad abt m p)
@@ -873,7 +869,7 @@ substExt
 substExt x e = substM x e varCase
     where
       varCase :: forall b'. Variable b' -> m (abt '[] b')
-      varCase = substVar x e
+      varCase = substFreeVar x e
 
            
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?

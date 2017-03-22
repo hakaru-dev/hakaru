@@ -760,13 +760,7 @@ subst x e =
     where
       varCase :: forall m b'. (Applicative m, Functor m, Monad m)
               => Variable b' -> m (abt '[] b')
-      varCase z =
-#ifdef __TRACE_DISINTEGRATE__
-        trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
-#endif        
-        case varEq x z of
-        Just Refl -> return e
-        Nothing   -> return (var z)
+      varCase = return . var
                      
 substM
     :: forall syn abt (a :: k) xs (b :: k) m
@@ -792,7 +786,13 @@ substM x e vf =
     loop :: forall xs' b'
          .  Nat -> abt xs' b' -> View (syn abt) xs' b' -> m (abt xs' b')
     loop n _ (Syn t) = syn <$> traverse21 (start n) t
-    loop _ f (Var z) = vf z
+    loop _ f (Var z) =
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
+#endif        
+        case varEq x z of
+          Just Refl -> return e
+          Nothing   -> vf z
     loop n f (Bind z b) =
         if (varID x == varID z) then return f
         else -- TODO: even if we don't come up with a smarter way
