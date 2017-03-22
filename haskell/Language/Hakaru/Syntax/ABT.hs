@@ -752,13 +752,14 @@ subst
     -> abt '[]  a
     -> abt xs   b
     -> abt xs   b
-subst x e =
+subst x e = 
 #ifdef __TRACE_DISINTEGRATE__
     trace ("about to subst " ++ show (varID x)) $
 #endif
     runIdentity . substM x e varCase
     where
-      varCase :: forall m b'. (Monad m) => Variable b' -> m (abt '[] b')
+      varCase :: forall m b'. (Applicative m, Functor m, Monad m)
+              => Variable b' -> m (abt '[] b')
       varCase z =
 #ifdef __TRACE_DISINTEGRATE__
         trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
@@ -774,8 +775,7 @@ substM
         Applicative m, Functor m, Monad m)
     => Variable a
     -> abt '[] a
-    -> (forall m b'.  (Applicative m, Functor m, Monad m)
-                   =>  Variable b' -> m (abt '[] b'))
+    -> (forall b'. Variable b' -> m (abt '[] b'))
     -> abt xs b
     -> m (abt xs b)
 substM x e vf =
@@ -785,13 +785,12 @@ substM x e vf =
     -- this (for MemoizedABT, but pessimizing for TrivialABT) by first
     -- checking whether @x@ is free in @f@; if so then recurse, if not
     -- then we're done.
-    start :: forall m xs' b'. (Applicative m, Functor m, Monad m)
-          => Nat -> abt xs' b' -> m (abt xs' b')
+    start :: forall xs' b'. Nat -> abt xs' b' -> m (abt xs' b')
     start n f = loop n f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
-    loop :: forall m xs' b'. (Applicative m, Functor m, Monad m)
-         => Nat -> abt xs' b' -> View (syn abt) xs' b' -> m (abt xs' b')
+    loop :: forall xs' b'
+         .  Nat -> abt xs' b' -> View (syn abt) xs' b' -> m (abt xs' b')
     loop n _ (Syn t) = syn <$> traverse21 (start n) t
     loop _ f (Var z) = vf z
     loop n f (Bind z b) =

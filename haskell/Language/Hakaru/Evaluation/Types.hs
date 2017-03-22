@@ -12,6 +12,7 @@
            , FlexibleInstances
            , UndecidableInstances
            , EmptyCase
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -59,6 +60,7 @@ module Language.Hakaru.Evaluation.Types
     , prettyAssocs
 #endif
     , EvaluationMonad(..)
+    , substExt
     , freshVar
     , freshenVar
     , Hint(..), freshVars
@@ -853,6 +855,25 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
         :: Location (a :: Hakaru)
         -> (Statement abt Location p -> Maybe (m r))
         -> m (Maybe r)
+
+    substVar :: Variable a
+              -> abt '[] a
+              -> (forall b'. Variable b' -> m (abt '[] b'))
+    substVar x e =
+        \z -> case varEq x z of
+                Just Refl -> return e
+                Nothing   -> return (var z)
+
+substExt
+    :: forall abt a xs b m p. (EvaluationMonad abt m p)
+    => Variable a
+    -> abt '[] a
+    -> abt xs b
+    -> m (abt xs b)
+substExt x e = substM x e varCase
+    where
+      varCase :: forall b'. Variable b' -> m (abt '[] b')
+      varCase = substVar x e
 
            
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?

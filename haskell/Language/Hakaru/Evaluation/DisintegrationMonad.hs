@@ -641,6 +641,8 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                         unsafePushes ss
                         return (Just r)
 
+    substVar = error "TODO substVar for DisintegrationMonad"
+
 withIndices :: [Index (abt '[])] -> Dis abt a -> Dis abt a
 withIndices inds (Dis m) = Dis $ \_ c -> m inds c
 
