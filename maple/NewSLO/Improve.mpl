@@ -522,36 +522,29 @@ end proc;
   end proc;
 
   getDomainSpec := module()
-     local get_indicators := proc(e, $)
+     local do_get := proc(f, f_ty, $) proc(e, $)
+
        local sub, inds, rest;
        if e::`*` then
-         sub := map((s -> [get_indicators(s)]), [op(e)]);
+         sub := map((s -> [do_get(f, f_ty)(s)]), [op(e)]);
          `union`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub)))
        elif e::`^` then
-         inds, rest := get_indicators(op(1,e));
+         inds, rest := do_get(f, f_ty)(op(1,e));
          inds, subsop(1=rest, e)
-       elif e::'Indicator(anything)' then
-         {op(1,e)}, 1
+       elif e:: f_ty then
+         f(e)
        else
          {}, e
        end if
-     end proc;
+     end proc; end proc;
 
-     local getPartitionDom := proc(e, $)
-               local zs, nzs, nz;
-               if e :: Partition then
-                   zs, nzs := selectremove(p -> Testzero(valOf(p)), op(1, e));
+     local get_indicators := do_get( e -> ( {op(1,e)}, 1 )
+                                   , 'Indicator(anything)'
+                                   );
 
-                   if nops(nzs) = 1 then
-                       nz := op(1,nzs);
-                       {condOf(nz), valOf(nz)}
-                   else
-                       {}, e
-                   end if;
-               else
-                   {}, e
-               end if;
-     end proc;
+     local getPartitionDom := do_get( Partition:-Simpl:-single_nonzero_piece
+                                    , 'Partition'
+                                    );
 
      export ModuleApply :=
       proc(e, $)

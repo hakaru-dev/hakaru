@@ -479,7 +479,27 @@ export
    local p;
       for p in op(1,P) do if depends(condOf(p), V) then return true end if end do;
       false
-   end proc
+   end proc,
+
+   Simpl := module()
+       export single_nonzero_piece := proc(e, $)
+               local zs, nzs, nz;
+               if e :: Partition then
+                   zs, nzs := selectremove(p -> Testzero(valOf(p)), op(1, e));
+
+                   if nops(nzs) = 1 then
+                       nz := op(1,nzs);
+                       {condOf(nz)} , valOf(nz)
+                   else
+                       {}, e
+                   end if;
+               else
+                   {}, e
+               end if;
+       end proc;
+
+   end module
+
 ;
 
 uses Hakaru;
