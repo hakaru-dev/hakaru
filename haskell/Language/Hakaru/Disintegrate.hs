@@ -396,10 +396,6 @@ evaluate perform evaluateCase = goEvaluate
         _ :$ _ -> error "evaluate: the impossible happened"
 
 
-isIndex :: (ABT Term abt) => Variable 'HNat -> Dis abt Bool
-isIndex v = do inds <- getIndices
-               return $ v `elem` map indVar inds
-
 -- | For {evaluate, constrainValue v0} ArrayOp_ (Index _) :$ e1 :* e2 :* End
 indexArrayOp :: forall abt typs args a r
              .  ( ABT Term abt
