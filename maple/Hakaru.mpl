@@ -257,6 +257,10 @@ Hakaru := module ()
     elif andmap(type, [m,n], 'specfunc(piecewise)') and nops(m) = nops(n) then
       k := nops(m);
       verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, boolean), i=1..k)));
+
+    elif andmap(type, [m,n], 'specfunc(PARTITION)') then
+      Partition:-SamePartition(verify_measure, verify_measure)(m, n);
+
     elif m :: specfunc('case') and
         verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
       # This code unfortunately only handles alpha-equivalence for 'case' along

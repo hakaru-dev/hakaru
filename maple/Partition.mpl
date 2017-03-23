@@ -498,7 +498,28 @@ export
                end if;
        end proc;
 
-   end module
+   end module,
+
+   SamePartition := proc(eqCond, eqPart, $) proc(p0 :: Partition, p1 :: Partition, $)
+     local ps0, ps1, pc0, the;
+     ps0, ps1 := seq(op(1,p),p=(p0,p1));
+
+     if nops(ps0) <> nops(ps1) then
+         return false;
+     end if;
+
+     for pc0 in ps0 do
+         the, ps1 :=
+           selectremove(pc1 -> eqCond( condOf(pc1), condOf(pc0) ) and
+                               eqPart( valOf(pc1) , valOf(pc0)  )
+                       ,ps1);
+         if nops(the) <> 1 then
+             return false;
+         end if;
+     end do;
+
+     true;
+   end proc; end proc
 
 ;
 
