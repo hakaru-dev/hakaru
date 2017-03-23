@@ -124,6 +124,8 @@ local
                  ctx;
              end proc;
 
+       local eval_ctrs := ctx -> eval(ctx, [`And`=`and`, `Not`=`not`]);
+
        local postproc_for_solve := proc(ctx, ctxSlv, $)::{identical(false), list({boolean,relation})};
                  local ctxC := ctxSlv;
 
@@ -140,7 +142,7 @@ local
                          ctxC := remove(is_extra_sol, ctxC);
 
                          if ctxC :: identical('{}') then
-                             ctxC := eval(ctx, [`And`=`and`, `Not`=`not`]);
+                             ctxC := eval_ctrs(ctx);
                          else
                              ctxC := `and`(op(ctxC));
                          end if ;
@@ -167,7 +169,7 @@ local
 
              end proc;
 
-       export ModuleApply := proc(ctx, $)
+       export ModuleApply := proc(ctx, $)::list;
        local ctxC := ctx;
 
            if ctx :: identical(true) then
@@ -175,6 +177,8 @@ local
            end if;
 
            ctxC := solve({ctxC});
+           if ctxC = NULL then return [ctx] end if;
+
            ctxC := postproc_for_solve(ctx, [ctxC]);
 
            if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
@@ -448,6 +452,10 @@ export
            end if;
        end if;
 
+       if nops(cls) = 0 then
+           error "PWToPartition: the piecewise  %1  produced an empty partition\n", x;
+       end if;
+
        PARTITION( cls );
    end proc,
 
@@ -500,9 +508,14 @@ export
        end proc;
 
        export remove_false_pieces := proc(e::Partition, $)
-                  local ps := op(1, e), rs;
+                  local ps0 := op(1, e); local rs;
 
-                  rs, ps := selectremove(p -> coulditbe(condOf(p)), ps);
+                  ps, rs := selectremove(p -> coulditbe(condOf(p)), ps0);
+
+
+                  if nops(ps) = 0 then
+                      error "remove_false_pieces: the partition  %1  reduced to an empty partition\n", e;
+                  end if;
 
                   PARTITION(ps);
        end proc;
