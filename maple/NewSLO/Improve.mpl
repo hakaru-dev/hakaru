@@ -194,12 +194,11 @@ end proc;
           # into the upper bound
 
           ASSERT(nops(vs)=1);
-          v, v_t0 := op(op(1,vs));
+          v, v_t0 := op(op(1,vs)); # var name, var type
 
-          mk := Domain_type_make[op(0,v_t0)];
+          mk := Domain_type_make[op(0,v_t0)]; # type of domain
 
-          # v := op([1,1],vs); # KB(Introduce(v,..))
-
+          # build a KB containing the solution
           v, kb1 := genType(v, v_t0, empty);
 
           kb1 := foldl(proc(a,b) assert(b,a) end proc
@@ -207,26 +206,23 @@ end proc;
                       ,op(sol)
                       );
 
+          # try to check if we can extract upper and lower bounds from the
+          # solution directly
           hi := subsindets( sol , {relation,boolean} , extract_bound_hi(v) );
           lo := subsindets( sol , {relation,boolean} , extract_bound_lo(v) );
 
-          # this logic should really be inside KB
           if `and`(nops(sol) = 2
                   ,nops(hi) = 1
                   ,nops(lo) = 1
                   ) then
               v_t := op(1,lo) .. op(1,hi) ;
 
+          # if that isn't possible, just ask for the type from the KB
           else
-              # TODO: should probably check that `mk` matches the type,
-              # otherwise we are solving something we weren't asked to solve (?)
               v_t := getType(kb1, v);
               v_t := kb_range_of_var(v_t);
 
           end if;
-
-          # er := reduce_on_prod( p -> mk(p, v=v_t)
-          #               , e, v, kb1 );
 
           er := mk(e, v=v_t);
 
