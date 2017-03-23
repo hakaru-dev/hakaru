@@ -45,7 +45,7 @@ end proc;
   # h - name of the linear operator above us
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb, $)
-    local e, subintegral, w, ww, x, c, kb1;
+    local e, elim, subintegral, w, ww, x, c, kb1;
     e := ee;
 
     if has_Domain(e) then
@@ -58,8 +58,17 @@ end proc;
                         "  kb   : %a\n\n"
                         , body, vars, kb1 ));
 
-        reduce_IntSum( vars, reduce(body, h, kb1), h, kb1, kb );
+        e := reduce(body, h, kb1);
 
+        mkDom := reduce_IntSum( vars, h, kb1, kb );
+
+        elim := elim_intsum( mkDom(e), h, kb0 );
+
+        if elim = FAIL then
+            e := reduce_on_prod( mkDom, e, var, kb0);
+        else
+            e2 := reduce(elim, h, kb0);
+        end if;
 
     # end if;
 
