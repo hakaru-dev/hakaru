@@ -70,7 +70,8 @@ end proc;
 
         if elim = FAIL then
             e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
-            simplify(e);
+            # simplify(e);
+            `simplify/PARTITION`(e);
         else
             reduce(elim, h, kb);
         end if;
