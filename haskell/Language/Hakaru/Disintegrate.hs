@@ -445,68 +445,6 @@ isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
 isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
 isLitFalse _                                      = False
 
-evaluateArrayOp
-    :: ( ABT Term abt
-       , typs ~ UnLCs args, args ~ LCs typs)
-    => TermEvaluator abt (Dis abt)
-    -> ArrayOp typs a
-    -> SArgs abt args
-    -> Dis abt (Whnf abt a)
-evaluateArrayOp evaluate_ = go
-    where
-    go o@(Index _) = \args@(e1 :* e2 :* End) ->
-      let returnIndex = return . Neutral . syn
-          generalCase = indexArrayOp o args
-                          evaluate_
-                          (\arr v -> returnIndex (ArrayOp_ o :$ fromHead arr :* var v :* End))
-                          (\s     -> returnIndex (ArrayOp_ o :$ syn s        :* e2    :* End))
-                          (\e1'   -> returnIndex (ArrayOp_ o :$ e1'          :* e2    :* End))
-                          (\e1' v -> returnIndex (ArrayOp_ o :$ e1'          :* var v :* End))
-      in caseVarSyn e1 (const generalCase) $ \t ->
-          case t of
-            -- Special case for [true,false] ! i, and [false, true] ! i
-            -- This helps us disintegrate bern
-            arr@(ArrayLiteral_ [a1,a2]) ->
-                 case (isLitBool a1, isLitBool a2) of
-                   (Just b1, Just b2)
-                       | (isLitTrue b1 && isLitFalse b2) ||
-                         (isLitTrue b2 && isLitFalse b1) ->
-                             fromWhnf <$> evaluate_ e2 >>= \i ->
-                             returnIndex (ArrayOp_ o :$ syn arr :* i :* End)
-                       | otherwise -> error "evaluateArrayOp: Cannot invert (Index [b,b] i)"
-                   _ -> error "TODO: evaluateArrayOp (Index [a1,a2] i)"
-            -- All other cases of array indexing
-            _ -> generalCase
-                   
-    go o@(Size _) = \(e1 :* End) -> do
-        w1 <- evaluate_ e1
-        case w1 of
-            Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
-            Head_   v1  ->
-                case head2array v1 of
-                WAEmpty           -> return . Head_ $ WLiteral (LNat 0)
-                WAArray e3 _      -> evaluate_ e3
-                WAArrayLiteral es -> return . Head_ . WLiteral $ listLengthNat es
-
-    go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
-        error "TODO: evaluateArrayOp{Reduce}"
-
-listLengthNat :: [a] -> Literal 'HNat
-listLengthNat = C.primCoerceFrom (C.Signed HRing_Int) . LInt . toInteger . length
-
-data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    WAEmpty :: ArrayHead abt a
-    WAArray
-        :: !(abt '[] 'HNat)
-        -> !(abt '[ 'HNat] a)
-        -> ArrayHead abt a
-    WAArrayLiteral :: [abt '[] a] -> ArrayHead abt a           
-
-head2array :: Head abt ('HArray a) -> ArrayHead abt a
-head2array (WEmpty _)     = WAEmpty
-head2array (WArray e1 e2) = WAArray e1 e2
-head2array (WArrayLiteral es) = WAArrayLiteral es
-
 impl, diff, nand, nor :: Bool -> Bool -> Bool
 impl x y = not x || y
 diff x y = x && not y

@@ -42,6 +42,7 @@ module Language.Hakaru.Evaluation.Lazy
     , toVarStatements
     , evaluateNaryOp
     , evaluatePrimOp
+    , evaluateArrayOp
     -- ** Helpers that should really go away
     , Interp(..), reifyPair
     ) where
@@ -549,10 +550,23 @@ evaluateArrayOp
 evaluateArrayOp evaluate_ = go
     where
     go o@(Index _) = \(e1 :* e2 :* End) -> do
+        let -- idxCode :: abt '[] ('HArray a) -> abt '[] 'HNat -> abt '[] a
+            -- idxCode a i = Neutral $ syn (ArrayOp_ o :$ a :* i :* End)
         w1 <- evaluate_ e1
         case w1 of
-            Neutral e1' ->
+            Neutral e1' -> 
                 return . Neutral $ syn (ArrayOp_ o :$ e1' :* e2 :* End)
+            Head_ (WArray _ b) ->
+                caseBind b $ \x body -> extSubst x e2 body >>= evaluate_
+            Head_ (WEmpty _)   ->
+                error "TODO: evaluateArrayOp{Index}{Head_ (WEmpty _)}"
+            Head_ (WArrayLiteral arr) ->
+                do w2 <- evaluate_ e2
+                   case w2 of
+                     Head_ (WLiteral (LNat n)) -> return . Neutral $ 
+                                                  arr !! fromInteger (fromNatural n)
+                     _  -> return . Neutral $
+                           syn (ArrayOp_ o :$ fromWhnf w1 :* fromWhnf w2 :* End)
             Head_   v1  ->
                 error "TODO: evaluateArrayOp{Index}{Head_}"
 
