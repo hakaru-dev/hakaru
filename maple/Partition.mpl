@@ -177,7 +177,9 @@ local
            end if;
 
            ctxC := solve({ctxC});
-           if ctxC = NULL then return [ctx] end if;
+           if ctxC = NULL and indets(ctxC, specfunc(`exp`)) <> {} then
+               return [ctx];
+           end if;
 
            ctxC := postproc_for_solve(ctx, [ctxC]);
 
