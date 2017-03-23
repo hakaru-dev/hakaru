@@ -60,6 +60,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , withIndices
     , extendIndices
     , selectMore
+    , permutes
     , statementInds
     , sizeInnermostInd
     -- * Extras
@@ -84,6 +85,7 @@ import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
+import qualified Data.Set             as Set (fromList)
 import           Data.Maybe
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
@@ -212,23 +214,34 @@ residualizeListContext ss rho e0 =
 -- An extra is a variable *use* instantiated at some list of indices.
 data Extra :: (Hakaru -> *) -> Hakaru -> * where
      Loc :: Location a 
-         -> [Variable 'HNat]
+         -> [ast 'HNat]
          -> Extra ast a
      MultiLoc
          :: Location a
-         -> [Variable 'HNat]
+         -> [ast 'HNat]
          -> Extra ast ('HArray a)
 
-extrasInds :: Extra ast a -> [Variable 'HNat]
+extrasInds :: Extra ast a -> [ast 'HNat]
 extrasInds (Loc       _ inds) = inds
 extrasInds (MultiLoc  _ inds) = inds
 
-selectMore :: [Variable 'HNat] -> Variable 'HNat -> [Variable 'HNat]
+selectMore :: [ast 'HNat] -> ast 'HNat -> [ast 'HNat]
 selectMore = flip (:)
+
+-- Assumption: inds has no duplicates
+permutes :: (ABT Term abt)
+         => [abt '[] 'HNat]
+         -> [Index (abt '[])]
+         -> Bool
+permutes ts inds =
+    all isJust ts' &&
+    length ts' == length inds &&
+    Set.fromList (map fromJust ts') == Set.fromList (map indVar inds)
+    where ts' = map (\t -> caseVarSyn t Just (const Nothing)) ts
 
 #ifdef __TRACE_DISINTEGRATE__
       
-prettyExtra :: Extra ast (a :: Hakaru) -> PP.Doc
+prettyExtra :: Extra ast a -> PP.Doc
 prettyExtra (Loc (Location x) inds)      = PP.text "Loc" PP.<+> ppVariable x
                                            PP.<+> ppList (map ppVariable inds)
 prettyExtra (MultiLoc (Location x) inds) = PP.text "MultiLoc" PP.<+> ppVariable x
@@ -435,12 +448,12 @@ sizeInnermostInd l =
 fromName :: (ABT Term abt)
          => Name b
          -> Sing a
-         -> [Variable 'HNat]
+         -> [abt '[] 'HNat]
          -> abt '[] a
 fromName name typ []     = var $ Variable { varHint = nameHint name
                                           , varID   = nameID name
                                           , varType = typ }
-fromName name typ (i:is) = fromName name (SArray typ) is P.! var i
+fromName name typ (i:is) = fromName name (SArray typ) is P.! i
                      
 convertLocs :: (ABT Term abt)
             => LAssocs Name
@@ -469,21 +482,8 @@ apply :: (ABT Term abt)
       => [(Index (abt '[]), Index (abt '[]))]
       -> abt '[] a
       -> Dis abt (abt '[] a)
-apply ijs e = do extras <- fromAssocs <$> getExtras
-                 rho' <- foldM step rho extras
-                 return (renames rho' e)
-    where
-      rho = toAssocs $ map (\(i,j) -> Assoc (indVar i) (indVar j)) ijs
-      step r (Assoc x extra) =
-            let inds  = extrasInds extra
-                check i = lookupAssoc i rho
-                inds' = map (\i -> fromMaybe i (check i)) inds
-            in if (any isJust (map check inds))
-               then do x' <- case extra of
-                               Loc      l _ -> mkLoc      Text.empty l inds'
-                               MultiLoc l _ -> mkMultiLoc Text.empty l inds'
-                       return (insertAssoc (Assoc x x') r)
-               else return r
+apply ijs e = foldM step e ijs
+    where step t (i,j) = substExt (indVar i) (fromIndex j) t
                            
 extendIndices
     :: (ABT Term abt)
@@ -536,7 +536,7 @@ mkLoc
     :: (ABT Term abt)
     => Text
     -> Location (a :: Hakaru)
-    -> [Variable 'HNat]
+    -> [abt '[] 'HNat]
     -> Dis abt (Variable a)
 mkLoc hint l inds = do
   x <- freshVar hint (locType l)
@@ -546,7 +546,7 @@ mkLoc hint l inds = do
 mkLocs
     :: (ABT Term abt)
     => List1 Location (xs :: [Hakaru])
-    -> [Variable 'HNat]
+    -> [abt '[] 'HNat]
     -> Dis abt (List1 Variable xs)
 mkLocs Nil1         _    = return Nil1
 mkLocs (Cons1 l ls) inds = Cons1
@@ -557,7 +557,7 @@ mkMultiLoc
     :: (ABT Term abt)
     => Text
     -> Location a
-    -> [Variable 'HNat]
+    -> [abt '[] 'HNat]
     -> Dis abt (Variable ('HArray a))
 mkMultiLoc hint l inds = do
   x' <- freshVar hint (SArray $ locType l)
@@ -596,17 +596,17 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
           SBind x body i -> do
                x' <- freshenVar x
                let l = Location x'
-               v  <- mkLoc (locHint l) l (map indVar i)
+               v  <- mkLoc (locHint l) l (map fromIndex i)
                return (SBind l body i, singletonAssocs x v)
           SLet  x body i -> do
                x' <- freshenVar x
                let l = Location x'
-               v  <- mkLoc (locHint l) l (map indVar i)
+               v  <- mkLoc (locHint l) l (map fromIndex i)
                return (SLet l body i, singletonAssocs x v)
           SGuard xs pat scrutinee i -> do
                xs'  <- freshenVars xs
                let ls = locations1 xs'
-               vs   <- mkLocs ls (map indVar i)
+               vs   <- mkLocs ls (map fromIndex i)
                return (SGuard ls pat scrutinee i, toAssocs1 xs vs)
 
     getIndices =  Dis $ \i c -> c i
@@ -641,12 +641,22 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                         unsafePushes ss
                         return (Just r)
 
-    substFreeVar x e z = do
+    substVar x e z = do
       extras <- getExtras
+      let defaultResult = return (var z)
       case (lookupAssoc z extras) of
-        Nothing                -> return (var z)
-        Just (Loc _ inds)      -> error "TODO substFreeVar Dis.Loc"
-        Just (MultiLoc _ inds) -> error "TODO substFreeVar Dis.MultiLoc"
+        Nothing                -> defaultResult
+        Just (Loc l inds)      ->
+            if any (memberVarSet x . freeVars) inds
+            then do inds' <- mapM (substExt x e) inds
+                    var <$> mkLoc Text.empty l inds'
+            else defaultResult
+        Just (MultiLoc l inds) ->
+            if any (memberVarSet x . freeVars) inds
+            then do inds' <- mapM (substExt x e) inds
+                    var <$> mkMultiLoc Text.empty l inds'
+            else defaultResult
+                 
         
 withIndices :: [Index (abt '[])] -> Dis abt a -> Dis abt a
 withIndices inds (Dis m) = Dis $ \_ c -> m inds c
@@ -671,7 +681,7 @@ pushPlate n e =
     p    <- Location <$> freshVar Text.empty (sUnMeasure $ typeOf body)
     unsafePush (SBind p (Thunk $ rename x (indVar i) body)
                 (extendIndices i inds))
-    mkMultiLoc Text.empty p (map indVar inds)
+    mkMultiLoc Text.empty p (map fromIndex inds)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -723,7 +733,7 @@ emitMBind2 m = do
       typ = sUnMeasure $ typeOf m
   l <- Location <$> freshVar Text.empty typ
   (SBind l' b' _, name) <- reifyStatement (SBind l b inds)
-  let (idx, p) = (fromName name typ (map indVar inds), fromLazy b')
+  let (idx, p) = (fromName name typ (map fromIndex inds), fromLazy b')
   Dis $ \_ c h ex ->
       c idx h ex >>= \e ->
       return $ syn (MBind :$ p :* bind (fromLocation l') e :* End)

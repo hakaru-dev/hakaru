@@ -115,7 +115,6 @@ import qualified Data.IntMap          as IM
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as S
 import           Data.Proxy           (KProxy(..))
-import qualified Data.Set             as Set (fromList)
 import           Data.Maybe           (fromMaybe)
 
 import Language.Hakaru.Syntax.IClasses
@@ -423,7 +422,7 @@ indexArrayOp o@(Index _) (e1 :* e2 :* End) kInd kArr kSyn kFree kMultiLoc = do
   w1 <- evaluate_ e1
   case w1 of
     Head_ arr@(WArray _ b)  -> caseBind b $ \x body ->
-      evalIndex (kInd . flip (rename x) body) (kArr arr)
+      evalIndex (kInd . flip (subst x) body . var) (kArr arr)
     Head_ (WEmpty _)        -> error "TODO: indexArrayOp o (Empty_ :* _ :* End)"
     Head_ (WArrayLiteral _) -> error "TODO: indexArrayOp o (ArrayLiteral_ :* _ :* End)"
     Head_ _          -> error "indexArrayOp: unknown whnf of array type"
@@ -433,7 +432,7 @@ indexArrayOp o@(Index _) (e1 :* e2 :* End) kInd kArr kSyn kFree kMultiLoc = do
            Nothing              -> kFree e1'
            Just (Loc _ _)       -> error "indexArrayOp: impossible, we have a Neutral term"
            Just (MultiLoc l js) ->
-             evalIndex ((kInd . var =<<) . mkLoc Text.empty l . selectMore js)
+             evalIndex ((kInd . var =<<) . mkLoc Text.empty l . selectMore js . var)
                        (kMultiLoc e1')
     where
       evalIndex :: (ABT Term abt)
@@ -558,7 +557,7 @@ update perform evaluate_ x =
                           ) $ return ()
 #endif
                     let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
-                        w' = renames as (fromWhnf w)
+                        w' = substs as (fromWhnf w)
                     inds <- getIndices
                     withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
                 SLet  l' e ixs -> do
@@ -567,7 +566,7 @@ update perform evaluate_ x =
                     w <- withIndices ixs $ caseLazy e return evaluate_
                     unsafePush (SLet l (Whnf_ w) ixs)
                     let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
-                        w' = renames as (fromWhnf w)
+                        w' = substs as (fromWhnf w)
                     inds <- getIndices
                     withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
                 -- This does not bind any variables, so it definitely can't match.
@@ -1045,14 +1044,11 @@ constrainVariable v0 x =
     -- return 'bot' for neutral terms
        maybe bot lookForLoc (lookupAssoc x extras)
     where lookForLoc (Loc      l jxs) =
-              let -- Assumption: js has no duplicates
-                  permutes is js = length is == length js && 
-                                   Set.fromList is == Set.fromList (map indVar js)
               -- If we get 'Nothing', then it turns out @l@ is a free location.
               -- This is an error because of the invariant:
               --   if there exists an 'Assoc x ({Multi}Loc l _)' inside @extras@
               --   then there must be a statement on the 'ListContext' that binds @l@
-              in (maybe (freeLocError l) return =<<) . select l $ \s ->
+              (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
                     SBind l' e ixs -> do
                            Refl <- locEq l l'
@@ -1081,10 +1077,10 @@ constrainVariable v0 x =
 #endif       
               n    <- sizeInnermostInd l
               j    <- freshInd n
-              x'   <- mkLoc Text.empty l (selectMore jxs (indVar j))
+              x'   <- mkLoc Text.empty l (selectMore jxs (fromIndex j))
               inds <- getIndices
               withIndices (extendIndices j inds) $
-                          constrainValue (v0 P.! (var $ indVar j)) (var x')
+                          constrainValue (v0 P.! fromIndex j) (var x')
                                             -- TODO use meta-index
 
 ----------------------------------------------------------------

@@ -46,7 +46,7 @@ module Language.Hakaru.Evaluation.Types
 
     -- * The monad for partial evaluation
     , Purity(..), Statement(..), statementVars, isBoundBy
-    , Index, indVar, indSize
+    , Index, indVar, indSize, fromIndex
     , Location(..), locEq, locHint, locType, locations1
     , fromLocation, fromLocations1, freshenLoc, freshenLocs
     , LAssoc, LAssocs , emptyLAssocs, singletonLAssocs
@@ -507,11 +507,14 @@ instance (ABT Term abt) => Eq (Index (abt '[])) where
 instance (ABT Term abt) => Ord (Index (abt '[])) where
     compare (Ind i _) (Ind j _) = compare i j -- TODO check this
 
-indVar :: Index ast -> Variable 'HNat
+indVar :: Index ast -> Variable 'HNat                                 
 indVar (Ind v _ ) = v
-
+          
 indSize :: Index ast -> ast 'HNat
 indSize (Ind _ a) = a
+
+fromIndex :: (ABT Term abt) => Index (abt '[]) -> abt '[] 'HNat
+fromIndex (Ind v _) = var v
 
 -- | Distinguish between variables and heap locations
 newtype Location (a :: k) = Location (Variable a)
@@ -856,9 +859,9 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
         -> (Statement abt Location p -> Maybe (m r))
         -> m (Maybe r)
 
-    substFreeVar :: Variable a -> abt '[] a
-                 -> (forall b'. Variable b' -> m (abt '[] b'))
-    substFreeVar x e = return . var
+    substVar :: Variable a -> abt '[] a
+             -> (forall b'. Variable b' -> m (abt '[] b'))
+    substVar x e = return . var
 
 substExt
     :: forall abt a xs b m p. (EvaluationMonad abt m p)
@@ -869,7 +872,7 @@ substExt
 substExt x e = substM x e varCase
     where
       varCase :: forall b'. Variable b' -> m (abt '[] b')
-      varCase = substFreeVar x e
+      varCase = substVar x e
 
            
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?
