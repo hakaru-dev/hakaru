@@ -51,7 +51,16 @@ d3r := {
   Bind(Uniform(0, 1), x丅,
     piecewise(And(x丅 < t+1, t < x丅), Ret(f(x丅, x丅-t)), Msum())),
   Bind(Uniform(0, 1), y七,
-    piecewise(And(-t < y七, y七 < 1-t), Ret(f(y七+t, y七)), Msum()))
+    piecewise(And(-t < y七, y七 < 1-t), Ret(f(y七+t, y七)), Msum())),
+  PARTITION([Piece(t <= -1
+                  ,Msum())
+            ,Piece(t <= 0 and -1 < t
+                  ,Weight(t+1,Bind(Uniform(-t,1),`y`,Ret(f(t+`y`,`y`)))))
+            ,Piece(t <= 1 and 0 < t
+                  ,Weight(1-t,Bind(Uniform(0,1-t),`y`,Ret(f(t+`y`,`y`)))))
+            ,Piece(1 < t
+                  ,Msum())
+            ])
 }:
 
 d4 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x/y,x)))):
