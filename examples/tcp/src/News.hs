@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.News where
+module News where
 
 import qualified Data.HashMap.Strict as H
 import Data.HashMap.Strict (HashMap)
@@ -99,12 +99,13 @@ removeSingletons xs = recode . map (map $ filter notSingle) $ xs
                        Just v = IntMap.lookup x m'
                   in v `seq` m'
 
-asArrays :: [[[Int]]] -> (Vector Int, Vector Int)
-asArrays groupList = (wordIndices, docIndices)
+asArrays :: [[[Int]]] -> (Vector Int, Vector Int, Vector Int)
+asArrays groupList = (wordIndices, docIndices, topicIndices)
   where
   docList = concat groupList
   docIndices = V.fromList . concat $ zipWith replicate (map length docList) [0..]
   wordIndices = V.fromList . concat $ docList
+  topicIndices = V.fromList . map (sum . map length) $ groupList
 
 -- | 'xs !!! ks == [xs !! k | k <- ks]', but avoids multiple traversals
 -- 'ks' is assumed to be increasing
@@ -117,7 +118,7 @@ asArrays groupList = (wordIndices, docIndices)
   go _ _ _ = []
 
 -- To retrieve everything, 'getNews Nothing [0..]'
-getNews :: Maybe Int -> [Int] -> IO (Vector Int, Vector Int)
+getNews :: Maybe Int -> [Int] -> IO (Vector Int, Vector Int, Vector Int)
 getNews maxDocs topics = fmap (asArrays . removeSingletons) $ run enc
   where
   enc = case maxDocs of

@@ -7,7 +7,7 @@ run:
 	sh run.sh
 
 clean:
-	cabal clean
+	stack clean
 
 distclean : clean
 	rm -f src/naive_bayes_gibbs_simp.hk src/NaiveBayes.hs *.o *.hi *.core
@@ -20,7 +20,7 @@ src/NaiveBayes.hs: src/naive_bayes_gibbs_simp.hk
 	compile src/naive_bayes_gibbs_simp.hk -o src/NaiveBayes.hs -M NaiveBayes
 
 build: src/NaiveBayes.hs data
-	cabal install -v
+	stack build
 
 # %.hs : %.hk
 #       compile $<
