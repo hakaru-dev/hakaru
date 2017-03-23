@@ -109,15 +109,7 @@ local
           r := op(1,r);
           uc, oc := selectremove(canSimp, r);
 
-          # special case: if there is exactly one `undefined' case, and one
-          # other case, just get rid of the `undefined' piece
-          if nops(uc)=1 and nops(oc)=1 then
-              p := PARTITION(oc);
-          else
-              p := PARTITION(tryReplacePieces(uc, oc, cmp));
-          end if;
-
-          return p;
+          PARTITION(tryReplacePieces(uc, oc, cmp));
 
        end proc;
 
@@ -257,6 +249,15 @@ local
 
           r1;
       end proc;
+
+      :-`simplify/PARTITION` :=
+       proc(e,$)
+           subsindets(e
+                     , specfunc('PARTITION')
+                     , x -> Simpl:-single_branch
+                             (Simpl:-remove_false_pieces(x))
+                     );
+       end proc;
 
       NULL
    end proc,
@@ -496,6 +497,22 @@ export
                else
                    {}, e
                end if;
+       end proc;
+
+       export remove_false_pieces := proc(e::Partition, $)
+                  local ps := op(1, e), rs;
+
+                  rs, ps := selectremove(p -> coulditbe(condOf(p)), ps);
+
+                  PARTITION(ps);
+       end proc;
+
+       export single_branch := proc(e::Partition, $)
+                  if nops(op(1,e)) = 1 then
+                      op([1,1,2], e)
+                  else
+                      e
+                  end if;
        end proc;
 
    end module,
