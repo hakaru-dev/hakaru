@@ -538,8 +538,7 @@ update perform evaluate_ x =
                            ++ show (ppStatement 11 (SLet l (Whnf_ w) ixs))
                           ) $ return ()
 #endif
-                    let as = zipInds ixs jxs
-                        w' = substs as (fromWhnf w)
+                    w'   <- extSubsts (zipInds ixs jxs) (fromWhnf w)
                     inds <- getIndices
                     withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
                 SLet  l' e ixs -> do
@@ -547,8 +546,7 @@ update perform evaluate_ x =
                   Just $ do
                     w <- withIndices ixs $ caseLazy e return evaluate_
                     unsafePush (SLet l (Whnf_ w) ixs)
-                    let as = zipInds ixs jxs
-                        w' = substs as (fromWhnf w)
+                    w'   <- extSubsts (zipInds ixs jxs) (fromWhnf w)
                     inds <- getIndices
                     withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
                 -- This does not bind any variables, so it definitely can't match.
