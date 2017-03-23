@@ -71,7 +71,8 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , adjustExtra
     , mkLoc
     , freeLocError
-    , apply
+    , zipInds
+    , apply  
 #ifdef __TRACE_DISINTEGRATE__
     , prettyExtra
     , prettyExtras
@@ -213,17 +214,10 @@ residualizeListContext ss rho e0 =
 ----------------------------------------------------------------
 -- An extra is a variable *use* instantiated at some list of indices.
 data Extra :: (Hakaru -> *) -> Hakaru -> * where
-     Loc :: Location a 
-         -> [ast 'HNat]
-         -> Extra ast a
-     MultiLoc
-         :: Location a
-         -> [ast 'HNat]
-         -> Extra ast ('HArray a)
+     Loc :: Location a -> [ast 'HNat] -> Extra ast a
 
 extrasInds :: Extra ast a -> [ast 'HNat]
 extrasInds (Loc       _ inds) = inds
-extrasInds (MultiLoc  _ inds) = inds
 
 selectMore :: [ast 'HNat] -> ast 'HNat -> [ast 'HNat]
 selectMore = flip (:)
@@ -241,11 +235,9 @@ permutes ts inds =
 
 #ifdef __TRACE_DISINTEGRATE__
       
-prettyExtra :: Extra ast a -> PP.Doc
+prettyExtra :: (ABT Term abt) => Extra (abt '[]) a -> PP.Doc
 prettyExtra (Loc (Location x) inds)      = PP.text "Loc" PP.<+> ppVariable x
-                                           PP.<+> ppList (map ppVariable inds)
-prettyExtra (MultiLoc (Location x) inds) = PP.text "MultiLoc" PP.<+> ppVariable x
-                                           PP.<+> ppList (map ppVariable inds)
+                                           PP.<+> ppList (map pretty inds)
 
 prettyExtras :: (ABT Term abt)
            => Assocs (Extra (abt '[]))
@@ -471,19 +463,23 @@ convertLocs newlocs = F.foldr step emptyAssocs . fromAssocs <$> getExtras
                  Loc      l _ -> maybe (freeLocError l)
                                        (build assoc)
                                        (lookupLAssoc l newlocs)
-                 MultiLoc l _ -> maybe (freeLocError l)
-                                       (build assoc)
-                                       (lookupLAssoc l newlocs)
 
 freeLocError :: Location (a :: Hakaru) -> b
 freeLocError l = error $ "Found a free location " ++ show l
 
+zipInds :: (ABT Term abt)
+        => [Index (abt '[])] -> [abt '[] 'HNat] -> Assocs (abt '[])
+zipInds inds ts
+    | length inds /= length ts
+        = error "zipInds: argument lists must have the same length"
+    | otherwise = toAssocs $ zipWith Assoc (map indVar inds) ts
+
 apply :: (ABT Term abt)
-      => [(Index (abt '[]), Index (abt '[]))]
+      => [Index (abt '[])]
+      -> [Index (abt '[])]
       -> abt '[] a
       -> Dis abt (abt '[] a)
-apply ijs e = foldM step e ijs
-    where step t (i,j) = substExt (indVar i) (fromIndex j) t
+apply is js e = extSubsts (zipInds is (map fromIndex js)) e
                            
 extendIndices
     :: (ABT Term abt)
@@ -552,17 +548,6 @@ mkLocs Nil1         _    = return Nil1
 mkLocs (Cons1 l ls) inds = Cons1
                            <$> mkLoc Text.empty l inds
                            <*> mkLocs ls inds
-
-mkMultiLoc
-    :: (ABT Term abt)
-    => Text
-    -> Location a
-    -> [abt '[] 'HNat]
-    -> Dis abt (Variable ('HArray a))
-mkMultiLoc hint l inds = do
-  x' <- freshVar hint (SArray $ locType l)
-  insertExtra x' (MultiLoc l inds)
-  return x'
 
 instance Functor (Dis abt) where
     fmap f (Dis m)  = Dis $ \i c -> m i (c . f)
@@ -648,13 +633,8 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         Nothing                -> defaultResult
         Just (Loc l inds)      ->
             if any (memberVarSet x . freeVars) inds
-            then do inds' <- mapM (substExt x e) inds
+            then do inds' <- mapM (extSubst x e) inds
                     var <$> mkLoc Text.empty l inds'
-            else defaultResult
-        Just (MultiLoc l inds) ->
-            if any (memberVarSet x . freeVars) inds
-            then do inds' <- mapM (substExt x e) inds
-                    var <$> mkMultiLoc Text.empty l inds'
             else defaultResult
                  
         
@@ -673,15 +653,16 @@ pushPlate
     :: (ABT Term abt)
     => abt '[] 'HNat
     -> abt '[ 'HNat ] ('HMeasure a)
-    -> Dis abt (Variable ('HArray a))
+    -> Dis abt (abt '[] ('HArray a))
 pushPlate n e =
   caseBind e $ \x body -> do
     inds <- getIndices
     i    <- freshInd n
     p    <- Location <$> freshVar Text.empty (sUnMeasure $ typeOf body)
-    unsafePush (SBind p (Thunk $ rename x (indVar i) body)
-                (extendIndices i inds))
-    mkMultiLoc Text.empty p (map fromIndex inds)
+    let inds' = extendIndices i inds
+    unsafePush (SBind p (Thunk $ rename x (indVar i) body) inds')
+    v <- mkLoc Text.empty p $ map fromIndex inds'
+    return $ P.arrayWithVar n (indVar i) (var v)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

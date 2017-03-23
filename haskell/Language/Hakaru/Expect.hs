@@ -165,7 +165,7 @@ expectCase scrutinee bs = do
 -- TODO: do we want to move this to the public API of
 -- "Language.Hakaru.Evaluation.DisintegrationMonad"?
 #ifdef __TRACE_DISINTEGRATE__
-getStatements :: Expect abt [Statement abt 'ExpectP]
+getStatements :: Expect abt [Statement abt Location 'ExpectP]
 getStatements = Expect $ \c h -> c (statements h) h
 #endif
 

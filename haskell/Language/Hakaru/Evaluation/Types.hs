@@ -60,7 +60,8 @@ module Language.Hakaru.Evaluation.Types
     , prettyAssocs
 #endif
     , EvaluationMonad(..)
-    , substExt
+    , extSubst
+    , extSubsts
     , freshVar
     , freshenVar
     , Hint(..), freshVars
@@ -863,16 +864,24 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
              -> (forall b'. Variable b' -> m (abt '[] b'))
     substVar x e = return . var
 
-substExt
+extSubst
     :: forall abt a xs b m p. (EvaluationMonad abt m p)
     => Variable a
     -> abt '[] a
     -> abt xs b
     -> m (abt xs b)
-substExt x e = substM x e varCase
+extSubst x e = substM x e varCase
     where
       varCase :: forall b'. Variable b' -> m (abt '[] b')
       varCase = substVar x e
+
+extSubsts
+    :: forall abt a xs m p. (EvaluationMonad abt m p)
+    => Assocs (abt '[])
+    -> abt xs a
+    -> m (abt xs a)
+extSubsts rho0 e0 =
+    F.foldlM (\e (Assoc x v) -> extSubst x v e) e0 (unAssocs rho0)
 
            
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?

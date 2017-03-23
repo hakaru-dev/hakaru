@@ -115,7 +115,7 @@ import qualified Data.IntMap          as IM
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as S
 import           Data.Proxy           (KProxy(..))
-import           Data.Maybe           (fromMaybe)
+import           Data.Maybe           (fromMaybe, fromJust)
 
 import Language.Hakaru.Syntax.IClasses
 import Data.Number.Natural
@@ -398,7 +398,7 @@ evaluate perform evaluateCase = goEvaluate
 
 isIndex :: (ABT Term abt) => Variable 'HNat -> Dis abt Bool
 isIndex v = do inds <- getIndices
-               return $ v `elem` map indVar inds                              
+               return $ v `elem` map indVar inds
 
 -- | For {evaluate, constrainValue v0} ArrayOp_ (Index _) :$ e1 :* e2 :* End
 indexArrayOp :: forall abt typs args a r
@@ -422,7 +422,7 @@ indexArrayOp o@(Index _) (e1 :* e2 :* End) kInd kArr kSyn kFree kMultiLoc = do
   w1 <- evaluate_ e1
   case w1 of
     Head_ arr@(WArray _ b)  -> caseBind b $ \x body ->
-      evalIndex (kInd . flip (subst x) body . var) (kArr arr)
+          extSubst x e2 body >>= kInd -- (kArr arr)
     Head_ (WEmpty _)        -> error "TODO: indexArrayOp o (Empty_ :* _ :* End)"
     Head_ (WArrayLiteral _) -> error "TODO: indexArrayOp o (ArrayLiteral_ :* _ :* End)"
     Head_ _          -> error "indexArrayOp: unknown whnf of array type"
@@ -431,20 +431,6 @@ indexArrayOp o@(Index _) (e1 :* e2 :* End) kInd kArr kSyn kFree kMultiLoc = do
          case (lookupAssoc x extras) of
            Nothing              -> kFree e1'
            Just (Loc _ _)       -> error "indexArrayOp: impossible, we have a Neutral term"
-           Just (MultiLoc l js) ->
-             evalIndex ((kInd . var =<<) . mkLoc Text.empty l . selectMore js . var)
-                       (kMultiLoc e1')
-    where
-      evalIndex :: (ABT Term abt)
-                => (Variable 'HNat -> Dis abt r)
-                -> (Variable 'HNat -> Dis abt r)
-                -> Dis abt r
-      evalIndex thenCase elseCase = do
-            w2 <- evaluate_ e2
-            caseWhnf w2 (const bot) $ \term -> -- bot if index is in whnf (eg. a literal num)
-              flip (caseVarSyn term) (const bot) $ \v -> -- bot if index is neutral syntax
-                do isInd <- isIndex v
-                   if isInd then thenCase v else elseCase v
 indexArrayOp _ _ _ _ _ _ _ = error "indexArrayOp called on incorrect ArrayOp"
 
 isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
@@ -556,7 +542,7 @@ update perform evaluate_ x =
                            ++ show (ppStatement 11 (SLet l (Whnf_ w) ixs))
                           ) $ return ()
 #endif
-                    let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
+                    let as = zipInds ixs jxs
                         w' = substs as (fromWhnf w)
                     inds <- getIndices
                     withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
@@ -565,7 +551,7 @@ update perform evaluate_ x =
                   Just $ do
                     w <- withIndices ixs $ caseLazy e return evaluate_
                     unsafePush (SLet l (Whnf_ w) ixs)
-                    let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
+                    let as = zipInds ixs jxs
                         w' = substs as (fromWhnf w)
                     inds <- getIndices
                     withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
@@ -575,9 +561,6 @@ update perform evaluate_ x =
                 -- but there's no expression we can return for it
                 -- because the variables are untouchable\/abstract.
                 SGuard ls pat scrutinee i -> Just . return . Neutral $ var x
-
-          -- Case for MultiLocs
-          lookForLoc (MultiLoc l jxs) = return (Neutral $ var x)
                       
 ---------------------------------------------------------- End of copied code --
                  
@@ -644,7 +627,7 @@ perform = \e0 ->
 
     performTerm (Plate :$ e1 :* e2 :* End) =  do
       x1 <- pushPlate e1 e2
-      return (Neutral (var x1))
+      return $ fromJust (toWhnf x1)
 
     performTerm (Superpose_ pes) = do
         inds <- getIndices
@@ -833,8 +816,8 @@ constrainValue v0 e0 =
         Array_   n e             ->
             caseBind e $ \x body -> do j <- freshInd n
                                        let x'    = indVar j
-                                           body' = rename x x' body
-                                       inds <- getIndices
+                                       body' <- extSubst x (var x') body
+                                       inds  <- getIndices
                                        withIndices (extendIndices j inds) $
                                                    constrainValue (v0 P.! (var x')) body'
                                                    -- TODO use meta-index
@@ -1056,7 +1039,7 @@ constrainVariable v0 x =
                            Just $ do
                              inds <- getIndices
                              guard (jxs `permutes` inds) -- will bot otherwise
-                             e' <- apply (zip ixs inds) (fromLazy e)
+                             e' <- apply ixs inds (fromLazy e)
                              constrainOutcome v0 e'
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SLet  l' e ixs -> do
@@ -1065,23 +1048,11 @@ constrainVariable v0 x =
                            Just $ do
                              inds <- getIndices
                              guard (jxs `permutes` inds) -- will bot otherwise
-                             e' <- apply (zip ixs inds) (fromLazy e)
+                             e' <- apply ixs inds (fromLazy e)
                              constrainValue v0 e'
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SWeight _ _ -> Nothing
                     SGuard ls' pat scrutinee i -> error "TODO: constrainVariable{SGuard}"
-          -- Case for MultiLoc
-          lookForLoc (MultiLoc l jxs) = do
-#ifdef __TRACE_DISINTEGRATE__
-              traceM $ "looking for MultiLoc: " ++ show (prettyExtra (MultiLoc l jxs))
-#endif       
-              n    <- sizeInnermostInd l
-              j    <- freshInd n
-              x'   <- mkLoc Text.empty l (selectMore jxs (fromIndex j))
-              inds <- getIndices
-              withIndices (extendIndices j inds) $
-                          constrainValue (v0 P.! fromIndex j) (var x')
-                                            -- TODO use meta-index
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
@@ -1479,7 +1450,7 @@ constrainOutcome v0 e0 =
             push (SBind x (Thunk e1) i) e2' >>= constrainOutcome v0
     go (WPlate e1 e2)        = do
         x' <- pushPlate e1 e2
-        constrainValue v0 (var x')
+        constrainValue v0 x'
 
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
     go (WReject typ)         = emit_ $ \m -> P.reject (typeOf m)
