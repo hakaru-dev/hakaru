@@ -130,6 +130,15 @@ name =
     InertName
     <$> (text "_Inert_NAME" *> parens stringLiteral)
 
+localname :: Parser InertExpr
+localname =
+    InertName
+    <$> (text "_Inert_LOCALNAME"
+        *> parens
+            (  stringLiteral
+            <* comma
+            <* integer))
+
 assignedname :: Parser InertExpr
 assignedname =
     InertName
@@ -259,6 +268,7 @@ expr =  try func
     <|> try noteq
     <|> try assignedname
     <|> try assignedlocalname
+    <|> try localname
     <|> try expseq
     <|> try intpos
     <|> try intneg
