@@ -45,7 +45,7 @@ end proc;
   # h - name of the linear operator above us
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb, $)
-    local e, elim, subintegral, w, ww, x, c, kb1;
+    local e, elim, subintegral, w, ww, x, c, kb1, dom_specw;
     e := ee;
 
     if has_Domain(e) then
@@ -60,14 +60,18 @@ end proc;
 
         e := reduce(body, h, kb1);
 
-        mkDom := reduce_IntSum( vars, h, kb1, kb );
+        (dom_specw, e) := getDomainSpec(e);
 
-        elim := elim_intsum( mkDom(e), h, kb0 );
+        mkDom := reduce_IntSum( vars, h, dom_specw, kb1, kb );
+
+        ed := mkDom(e);
+
+        elim := elim_intsum( ed, h, kb );
 
         if elim = FAIL then
-            e := reduce_on_prod( mkDom, e, var, kb0);
+            e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
         else
-            e2 := reduce(elim, h, kb0);
+            e2 := reduce(elim, h, kb);
         end if;
 
     # end if;
@@ -426,33 +430,32 @@ end proc;
   # to the portion depending on "var".
   # the 'weights' (factors not depending on "var") are simplified
   # under the given assumption context, "kb0"
-  reduce_on_prod := proc(f,ee,var::name,kb0::t_kb,$)
+  reduce_on_prod := proc(f,ee, var:: {name, list(name), set(name)} ,kb0::t_kb,$)
       local e := ee, w;
       e, w := selectremove(depends, list_of_mul(e), var);
       reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
   end proc;
 
-  reduce_IntSum := proc(mks ,
-                        ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
-    local e, dom_spec, kb2, lmss, vs, e2, e3, _, dom_specw;
+  reduce_IntSum := proc(mks, h :: name, dom_specw, kb1 :: t_kb, kb0 :: t_kb, $)
+    local dom_spec, kb2, lmss, vs; # , e2, e3, _;
 
 
     # if there are domain restrictions, try to apply them
-    (dom_specw, e) := getDomainSpec(ee);
+    # (dom_specw, e) := getDomainSpec(ee);
 
     kb2 := foldr(assert, kb1, op(dom_specw));
 
     ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
 
-    userinfo(3, 'disint_trace',
-        printf("reduce_IntSum input:\n"
-               "  integral type: %a\n"
-               "  expr : %a\n"
-               "  h    : %a\n"
-               "  ctx expr  : %a\n"
-               "  ctx above : %a\n"
-               "  ctx below : %a\n\n"
-         , mks, ee, h, kb2, kb1, kb0 ));
+    # userinfo(3, 'disint_trace',
+    #     printf("reduce_IntSum input:\n"
+    #            "  integral type: %a\n"
+    #            "  expr : %a\n"
+    #            "  h    : %a\n"
+    #            "  ctx expr  : %a\n"
+    #            "  ctx above : %a\n"
+    #            "  ctx below : %a\n\n"
+    #      , mks, ee, h, kb2, kb1, kb0 ));
 
     lmss := kb_LMS(kb2, mks);
 
@@ -473,50 +476,20 @@ end proc;
                   lmss := PWToPartition(lmss) ;
               end if;
 
-              # userinfo(3, 'LMS',
-              #          printf("    LMS-pp   : %a\n"
-              #                 "    LMS-vs   : %a\n"
-              #                 , lmss, vs ));
 
-              e2 := app_dom_spec_IntSum_LMS( e, lmss, vs );
+              e2 := proc(e,$)
+                  local er := app_dom_spec_IntSum_LMS( e, lmss, vs );
 
-              # userinfo(3, 'LMS',
-              #          printf("    expr LMS     : %a\n"
-              #                 "    expr LMS - s : %a\n"
-              #                 , e2, simplify(e2) ));
-
-              if e2 :: identical('FAIL') then
-                  error "LMS: failed to apply (%a, %a)", lmss, vs
-              end if;
-
-              # e3 := elim_intsum(e2, h, kb0);
-
-              # if e3 <> FAIL then
-                  # e2 := e3;
-                  # e2 := reduce(e3, h, kb0);
-              # end if;
+                  if er :: identical('FAIL') then
+                      error "LMS: failed to apply (%a, %a)", lmss, vs
+                  else
+                      er
+                  end if;
+              end proc;
 
           else
               error "LMS: no solution(%s)", op(1,lmss), ""
           end if;
-    # catch:
-    #       userinfo(3, 'LMS',
-    #                printf("    LMS threw an error: %a\n"
-    #                       , lastexception ));
-
-    #       e2 := do_app_dom_spec( mk, e, h, kb0, kb2 );
-
-
-    # userinfo(3, 'disint_trace',
-    #     printf("In `reduce_IntSum': fallback on old solution\n"
-    #            "  expr :%a\n"
-    #            "  res  :%a\n"
-    #            "  ctx below :%a\n"
-    #            "  ctx above :%a\n"
-    #      , e, e2, kb0, kb2 ));
-
-
-    # end try;
 
     e2;
 
