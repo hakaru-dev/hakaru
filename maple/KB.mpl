@@ -583,15 +583,19 @@ KB := module ()
               elif op([1,1],v) in {`>`, `>=`} then
                   lo_b := op([1,2], v);
               else
-                  error "kb_bounds_of_var: unknown bound %a", op([1,1],v);
+                  error "unknown bound %1", op([1,1],v);
               end if;
 
           end if;
           return lo_b .. hi_b;
 
-      end if;
+      elif v :: 'specfunc(HInt)' then
+          return range_of_HInt(v);
 
-      error "kb_bounds_of_var: unknown type %a", v;
+      else
+          error "unknown type %1", v;
+
+      end if;
 
   end proc;
 
@@ -990,7 +994,7 @@ KB := module ()
 
   # Computes the range of (possible values of) a Hakaru Int,
   # given a Hakaru type for that Int
-  range_of_HInt := proc(t :: And(specfunc('{HInt, EveryInteger}'), t_type), $)
+  range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)
        op(1, [op(map((b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
                      select(type, t, Bound(t_lo,anything)))),
               -infinity])
