@@ -6,6 +6,11 @@ end proc:
   depends({n,e}, x) or depends(mr, x minus {o})
 end proc:
 
+# note that v _can_ occur in m1.
+`depends/Let` := proc(m1, v::name, m2, x, $)
+  depends(m1, x) or depends(m2, x minus {v})
+end proc:
+
 `eval/Bucket` := proc(e::anyfunc(anything,name=range), eqs, $)
   local bvar, body;
   bvar, body := BindingTools:-generic_evalat(op([2,1],e), op(1,e), eqs);
@@ -18,10 +23,16 @@ end proc:
   eval(op(0,e), eqs)(eval(op(1,e), eqs), o, eval(op(3,e), eqs), mr)
 end proc:
 
+`eval/Let` := proc(e, eqs, $)
+  local m1, v, m2;
+  m1, v, m2 := op(e);
+  eval(op(0,e), eqs)(eval(m1, eqs), BindingTools:-generic_evalat(v, m2, eqs))
+end proc:
+
 Summary := module ()
   option package;
   export RoundTrip, Summarize, SummarizeKB, bucket, summarize;
-  global Bucket, Fanout, Index, Split, Nop, Add,
+  global Bucket, Fanout, Index, Split, Nop, Add, Let,
          SumIE, ProductIE, BucketIE;
   uses Hakaru, KB;
 
