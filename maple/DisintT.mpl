@@ -35,31 +35,6 @@ TestDisint := MakeTest(
 end proc
  , testGroup = "Disint" ):
 
-#This first block of tests is to test the basic functionality of disint, and,
-#to some extent, the system as a whole. These tests may be meaningless to you,
-#the statistician and end user of this Hakaru product; they aren't meant to
-#have any statistical meaning.--Carl 2016Oct04
-
-TestDisint(
-     [Ret(Pair(sqrt(Pi), x)), t &M Ret(7)],
-     {Msum()},
-     label= "(d0_2) `Dirac` test 1"
-);
-
-TestDisint(
-     [Ret(Pair(sqrt(Pi), x^2)), t &M Ret(sqrt(Pi))],
-     {Ret(x^2)},
-     label= "(d0_3) `Dirac` test 2"
-);
-
-TestDisint(
-     [Bind(Lebesgue((-1,1)*~infinity), x, Ret(Pair(sqrt(Pi), x^2))),
-      t &M Ret(sqrt(Pi))
-     ],
-     {Bind(Lebesgue((-1,1)*~infinity), x1, Ret(x1^2))},
-     label= "(d0_4) `Dirac` test with `Bind`"
-);
-
 # End of the possibly statistically meaningless tests.
 
 d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
@@ -188,6 +163,32 @@ helloWorldr:= {
   )
 }:
 
+
+#This first block of tests is to test the basic functionality of disint, and,
+#to some extent, the system as a whole. These tests may be meaningless to you,
+#the statistician and end user of this Hakaru product; they aren't meant to
+#have any statistical meaning.--Carl 2016Oct04
+
+TestDisint(
+     [Ret(Pair(sqrt(Pi), x)), t &M Ret(7)],
+     {Msum()},
+     label= "(d0_2) `Dirac` test 1"
+);
+
+TestDisint(
+     [Ret(Pair(sqrt(Pi), x^2)), t &M Ret(sqrt(Pi))],
+     {Ret(x^2)},
+     label= "(d0_3) `Dirac` test 2"
+);
+
+TestDisint(
+     [Bind(Lebesgue((-1,1)*~infinity), x, Ret(Pair(sqrt(Pi), x^2))),
+      t &M Ret(sqrt(Pi))
+     ],
+     {Bind(Lebesgue((-1,1)*~infinity), x1, Ret(x1^2))},
+     label= "(d0_4) `Dirac` test with `Bind`"
+);
+
 TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
 TestDisint(d2, d2r, label = "(d2) Disintegrate linear function II");
 TestDisint(d5, d5r, label = "(d5) Disintegrate N(0,1)*N(x,1), over y");
@@ -198,7 +199,7 @@ TestDisint(norm0a, norm0r,
 
 ######################################################################
 #
-# These tests fail, and are expected to.  Move them up when they 
+# These tests fail, and are expected to.  Move them up when they
 # start passing (and are expected to).
 #
 # They are, however, roughly in order of what we'd like to have work.
