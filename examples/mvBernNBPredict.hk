@@ -1,0 +1,24 @@
+# PREDICT a category with a multivariate bernoulli naive bayes model
+# input: an array of pairs for each category containing a prior probability
+#        of that category and an array of probabilities of each feature given
+#        that category, as well as a new data point
+# output: an integer category
+def mvBernNBPredict(categories nat,
+                    features nat,
+                    params array(pair(prob,array(prob))),
+                    x array(bool)):
+  pCat = array c of categories:
+       	   match (params[c]):
+	     (pc,pfs):
+               product i from 0 to features:
+                 match (x[i]):
+		   false: pfs[i]
+	           true:  pfs[i]
+  pMax = fn c1 nat:
+           fn c2 nat:
+	     match (pCat[c1] > pCat[c2]):
+	       false: c2
+	       true:  c1
+  reduce(pMax, 0, array i of categories: i)
+
+mvBernNBPredict

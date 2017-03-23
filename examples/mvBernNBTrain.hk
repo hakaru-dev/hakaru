@@ -1,0 +1,30 @@
+# TRAIN a multivariate bernoulli naive bayes model
+# input: number of categories, number of features, and a training set of pairs
+#        containing boolean features and their category
+# output: an array of pairs for each category, containing a prior probability
+#         of that category and an array of probabilities of each feature given
+#         that category
+def mvBernNBTrain(categories nat,
+                  features nat,
+                  train_set array(pair(array(bool),nat))):
+  array c of categories:
+    ccount = summate i from 0 to size(train_set):
+               match (train_set[i]):
+                 (fs,ic):
+                   match (ic == c):
+                     false: 0
+                     true: 1
+    condps = array i of features:
+               fcount = summate i from 0 to size(train_set):
+	                  match (train_set[i]):
+			    (fs,ic):
+			      match (ic == c):
+			        false: 0
+				true:
+				  match (fs[i]):
+				    false: 0
+				    true: 1
+               (fcount + 1) / (ccount + 2)
+    (ccount/categories, condps)
+
+mvBernNBTrain
