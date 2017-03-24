@@ -195,7 +195,11 @@ end proc;
           # one which becomes incorporated into the lower bound, and the other
           # into the upper bound
 
-          ASSERT(nops(vs)=1);
+          if nops(vs) <> 1 then
+              error "asked to apply the single solution %1 but for multiple variables %2",
+                    sol , vs;
+          end if;
+
           v, v_t0 := op(op(1,vs)); # var name, var type
 
           mk := Domain_type_make[op(0,v_t0)]; # type of domain
@@ -278,7 +282,12 @@ end proc;
           # when nops(sol) is 1, then "i in 1..1" gives us "1,1". but "seq(1,1)"
           # is "1".
           for i in op_rng do
-              ASSERT(countVs(op(-i,sol)) <= i);
+              if not (countVs(op(-i,sol)) <= i) then
+
+                  error "asked to apply the solution %1"
+                        "but solution is not free in at least %2 vars",
+                    op(-i,sol) , i;
+              end if;
           end do;
 
           # get the list of variables in the order we hope to integrate
