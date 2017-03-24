@@ -134,6 +134,7 @@ data AST' a
     | Integrate a (AST' a) (AST' a) (AST' a)
     | Summate   a (AST' a) (AST' a) (AST' a)
     | Product   a (AST' a) (AST' a) (AST' a)
+    | Bucket    a (AST' a) (AST' a) (AST' a)
     | Expect a (AST' a) (AST' a)
     | Observe  (AST' a) (AST' a)
     | Msum  [AST' a]

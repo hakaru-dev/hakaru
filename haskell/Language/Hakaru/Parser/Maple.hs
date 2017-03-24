@@ -434,6 +434,15 @@ maple2AST (InertArgs Func
     Product x (maple2AST lo) (maple2AST hi) (maple2AST f)
 
 maple2AST (InertArgs Func
+        [ InertName "BucketIE"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Bucket x (maple2AST lo) (maple2AST hi) (maple2AST f)
+
+maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
 
