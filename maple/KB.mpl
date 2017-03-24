@@ -401,6 +401,12 @@ KB := module ()
      warm(b);
    end proc;
 
+   expr_indp_errMsg := proc($)
+       sprintf("Something strange happened(%s)\n"
+               "assert_deny(%%1, %%2, %%3)"
+              ,StringTools[FormatMessage](lastexception[2..-1]))
+   end proc;
+
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
@@ -424,11 +430,9 @@ KB := module ()
         # just didn't know?
         return NotAKB();
     catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
-        error "Something strange happenened('expression independant of')\n"
-              "assert_deny(%1, %2, %3)", bb, pol, kb;
+        error expr_indp_errMsg() , bb, pol, kb;
     catch "when calling '%2'. Received: 'expression independent of, %0'":
-        error "Something strange happenened('expression independant of')\n"
-              "assert_deny(%1, %2, %3)", bb, pol, kb;
+        error expr_indp_errMsg() , bb, pol, kb;
     end try;
 
     if bb = pol then
