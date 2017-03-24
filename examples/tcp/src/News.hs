@@ -105,7 +105,7 @@ asArrays groupList = (wordIndices, docIndices, topicIndices)
   docList = concat groupList
   docIndices = V.fromList . concat $ zipWith replicate (map length docList) [0..]
   wordIndices = V.fromList . concat $ docList
-  topicIndices = V.fromList . map (sum . map length) $ groupList
+  topicIndices = V.fromList . concat $ zipWith replicate (map length groupList) [0..]
 
 -- | 'xs !!! ks == [xs !! k | k <- ks]', but avoids multiple traversals
 -- 'ks' is assumed to be increasing
