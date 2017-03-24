@@ -176,7 +176,7 @@ local
                error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
            end if;
 
-           ctxC := solve({ctxC});
+           ctxC := solve({ctxC}, 'useassumptions'=true);
            if ctxC = NULL and indets(ctxC, specfunc(`exp`)) <> {} then
                return [ctx];
            end if;
