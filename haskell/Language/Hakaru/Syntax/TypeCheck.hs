@@ -406,6 +406,29 @@ makeVar :: forall (a :: Hakaru). Variable 'U.U -> Sing a -> Variable a
 makeVar (Variable hintID nameID _) typ =
     Variable hintID nameID typ
 
+data SomeVariables = forall (vars :: [Hakaru]).
+     SV (List1 Variable vars)
+
+makeVars :: forall (a :: Hakaru) (xs :: [ U.Untyped ])
+         .  List1 Variable xs
+         -> Sing a
+         -> SomeVariables
+makeVars Nil1         _    = SV Nil1
+makeVars (Cons1 x xs) typ  =
+    case jmEq1 (varType x) U.SU of
+      Just Refl -> case makeVars xs typ of
+                     SV xs' -> SV (Cons1 (makeVar x typ) xs')
+      Nothing   -> error "the impossible happened"
+
+uvarsToList :: forall (xs :: [ U.Untyped ])
+            .  List1 Variable xs
+            -> [ Variable 'U.U ]
+uvarsToList Nil1         = []
+uvarsToList (Cons1 x xs) =
+    case jmEq1 (varType x) U.SU of
+      Just Refl -> x : (uvarsToList xs)
+      Nothing   -> error "the impossible happened"
+
 
 inferBinder
     :: (ABT Term abt)
@@ -975,7 +998,14 @@ inferType = inferType_
   inferReducer :: U.Reducer xs U.U_ABT 'U.U
                -> TypeCheckMonad (TypedReducer abt xs1)
 
-  inferReducer U.R_Nop_ = return (TypedReducer sUnit Red_Nop)
+  inferReducer U.R_Nop_     = return (TypedReducer sUnit Red_Nop)
+
+  -- inferReducer (U.R_Add_ e) = let (xs, e') = caseBinds e
+  --                                 xs' = makeVars xs SNat in do
+  --                             TypedAST typ e'' <- inferType_ e'
+  --                             h <- getHSemiring typ
+  --                             return . TypedReducer typ $
+  --                                    Red_Add h (binds_ xs' e'')
 
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And  = isBool a >>= \Refl -> return And
