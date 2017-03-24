@@ -293,6 +293,9 @@ end proc;
           # get the list of variables in the order we hope to integrate
           vnms := vnms[solOrder];
 
+          vsk  := op(0,vs);
+          vs   := [op(vs)][solOrder];
+
           # to each variable, the range of integration is given in the
           # context. the range will be contracted as we apply the solution
           # starting with the leftmost solution, apply them all
@@ -300,11 +303,12 @@ end proc;
           # enough checks to guarantee it)
           for i in op_rng do
               sol1 := op(i, sol);
+              vs1  := vsk(op(i, vs));
 
               e := app_dom_spec_IntSum_LMS
                      ( e
                      , sol1
-                     , select(c->depends(c, vnms[i]), vs)
+                     , vs1
                      ) ;
 
           end do;
@@ -496,10 +500,21 @@ end proc;
 
 
               e2 := proc(e,$)
-                  local er := app_dom_spec_IntSum_LMS( e, lmss, vs );
+                  local er;
+
+                  try
+                      er := app_dom_spec_IntSum_LMS( e, lmss, vs );
+                  catch:
+                      error "LMS threw an exception for\n"
+                            "\texpr: %1\n"
+                            "\tsol : %2\n"
+                            "The error was\n"
+                            "\t%3", e, [lmss, vs]
+                                  , sprintf(StringTools:-FormatMessage(lastexception[2..-1]));
+                  end try;
 
                   if er :: identical('FAIL') then
-                      error "LMS: failed to apply (%a, %a)", lmss, vs
+                      error "LMS: failed to apply %1 to %2", [lmss, vs], e
                   else
                       er
                   end if;
