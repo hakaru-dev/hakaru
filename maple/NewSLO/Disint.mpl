@@ -225,7 +225,9 @@
         userinfo(3, Disint, "Disint diff:", eval(mc));
     end do;
 
-    mc := fromLO(mc, _ctx= kb);
+    # mc := fromLO(mc, _ctx= kb);
+    mc := kb_assuming_mb( _mc -> fromLO(_mc, _ctx= kb)
+                        )(mc, kb, _-> fromLO(mc, _ctx= kb) );
 
     userinfo(3, Disint, "Disint hakaru:", eval(mc));
 
