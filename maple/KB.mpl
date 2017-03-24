@@ -205,9 +205,11 @@ KB := module ()
 
   # Builds a kb from a list of atoms - simply foldr(assert,empty,as) except
   # and extra check is (optionally) done for the resulting KB to be valid.
-  build_kb := proc(as::t_kb_atoms, shouldBeValid::{identical(false),string} := false, $)
+  build_kb := proc(as::t_kb_atoms, shouldBeValid::{identical(false),string} := false, initKb::t_kb := empty, $)
       local
-      kb := foldr(assert,empty, op(as));
+      kb := initKb;
+
+      kb := foldr(assert,kb, op(as));
       if shouldBeValid :: string then
           ASSERT(type(kb,t_kb), sprintf("%s (in build_kb): KB contains a contradiction.", shouldBeValid));
       end if;

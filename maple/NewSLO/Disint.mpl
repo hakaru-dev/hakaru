@@ -118,7 +118,21 @@
               for pp in [fst, snd] do path:= pp(path); thisproc(pp(T)) end do
          end if;
          NULL
-    end proc #disint:-traverse_var_tree
+    end proc, #disint:-traverse_var_tree
+
+    subs_disint_data := proc(sub_vars, expr, $)
+        local V:= [indices(DV, 'nolist')], v
+            , vars := [indices(sub_vars, 'nolist')]
+            , eqns := [seq(v=sub_vars[v], v=vars)]
+            , sb := (x->subs(eqns,x));
+
+        for v in V do
+            DV[v]:-disintegrator_arg := sb(DV[v]:-disintegrator_arg);
+        end do;
+
+        sb(expr);
+    end proc;
+
   ;
    ModuleApply := proc(
     m::t_Hakaru,
@@ -130,9 +144,7 @@
    local
     mc,  #final integral to be passed to improve @ toLO; then result
          #of each disintegration step
-    kb0 := build_kb(ctx,"disint"),
-    kb,
-    kbs_vars := table(), var_rn,
+    kb, var_rn := table(),
     V, #wrt vars
     v::name #iterator over V
    ;
@@ -152,28 +164,23 @@
          #The piecewise condition is a conjunction of conditions, each
          #condition formed from a (var,path) pair from DV.
          piecewise(
-    	  And(seq(
-    	       Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-
-    		    cond_constructor(DV[v]:-path, v),
-    	       v= V
-    	  )),
-    	  Ret(snd(p)),
-    	  Msum()
+          And(seq(
+               Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-
+                cond_constructor(DV[v]:-path, v),
+               v= V
+          )),
+          Ret(snd(p)),
+          Msum()
          )
     );
 
-
-    kb := kb0;
+    kb := empty;
     for v in ListTools[Reverse](V) do
         var_rn[v], kb := DV[v]:-disintegrator_mktype(kb);
-        kbs_vars[v] := kb;
-
-        mc, DV[v]:-disintegrator_arg :=
-          op( subs( v=var_rn[v]
-                  , [mc,DV[v]:-disintegrator_arg]
-                  ));
-
     end do;
+    kb := build_kb(ctx,"disint",kb);
+
+    mc := subs_disint_data(var_rn, mc);
 
     userinfo(3, Disint, "Disint defn:", eval(mc), kb);
     userinfo(3, Disint, "Disint path:", path);
@@ -187,8 +194,8 @@
     #as Maple's ability to do the computation, maybe it matters.
     for v in V do
          mc:= applyop(
-    	  Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator,
-    	  2, mc, DV[v]:-disintegrator_arg
+          Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator,
+          2, mc, DV[v]:-disintegrator_arg
         );
 
          # simplify integrals which do not mention the LO var (i.e. integrals in
@@ -207,7 +214,7 @@
          mc :=
           kb_assuming_mb( _mc ->
             subsindets( _mc, And(specfunc(`Int`),freeof(op(1, _mc))), x-> simplify( int(op(x)) ) )
-                        )(mc, kbs_vars[v], x->x);
+                        )(mc, kb, x->x);
 
          # all of the below achieve the same as the above, but in a different
          # way.
@@ -216,17 +223,13 @@
          # mc := kb_assuming_mb(x-> subs(`int`=`Int`,simplify(eval(x, `Int`=`int`))) )(mc, kb, x->x);
 
         userinfo(3, Disint, "Disint diff:", eval(mc));
-
-
-        mc, DV[v]:-disintegrator_arg :=
-          op( subs( var_rn[v]=v
-                  , [mc,DV[v]:-disintegrator_arg]
-                  ));
     end do;
 
-    mc := fromLO(mc, _ctx= kb0);
+    mc := fromLO(mc, _ctx= kb);
 
     userinfo(3, Disint, "Disint hakaru:", eval(mc));
+
+    mc := subs_disint_data( table([seq(var_rn[v]=v, v=V)]), mc );
 
     mc
 
