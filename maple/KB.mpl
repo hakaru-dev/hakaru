@@ -635,9 +635,9 @@ KB := module ()
         end if;
       end if;
       if mode = `*` then
+        i := map2(op,[2,1],loops);
         if e :: '`^`' then
           # Transform product(a(i)^b,i=...) to product(a(i),i=...)^b
-          i := map2(op,[2,1],loops);
           if not depends(op(2,e), i) then
             return eval_factor(op(1,e), kb, `*`, loops)
                  ^ eval_factor(op(2,e), kb, `+`, []);
