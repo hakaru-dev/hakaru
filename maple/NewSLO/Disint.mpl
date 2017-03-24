@@ -166,6 +166,30 @@
     	  2, mc, DV[v]:-disintegrator_arg
         );
 
+         # simplify integrals which do not mention the LO var (i.e. integrals in
+         # weights). this is a hack, we should do this inside of `improve'* in
+         # the correct place.  It is required to see the correct output for
+         # d7_normalFB1.
+
+         # * Or, some other simplifier, which does only specific things - note
+         # the simplification we hope to see here (in d7) can only be done after
+         # the application of the `diff'. So just chucking it into `improve'
+         # might not be the correct thing to do. Calling `improve' at all might
+         # be wrong since we roundtrip through pulling off domains and replacing
+         # them (this is sort of expensive..), although we may also want such
+         # simplifications here - the application of the `diff' might give a new
+         # domain problem that can be improved significanly.
+         mc :=
+          kb_assuming_mb( _mc ->
+            subsindets( _mc, And(specfunc(`Int`),freeof(op(1, _mc))), x-> simplify( int(op(x)) ) )
+                        )(mc, kb, x->x);
+
+         # all of the below achieve the same as the above, but in a different
+         # way.
+         # mc :=  subs( `int`=`Int`, improve( eval(mc, `Int`=`int`), _ctx=kb ) );
+         # mc := subs( `int`=`Int`, improve( eval(mc, `Int`=`int`) , _ctx=kb) );
+         # mc := kb_assuming_mb(x-> subs(`int`=`Int`,simplify(eval(x, `Int`=`int`))) )(mc, kb, x->x);
+
         userinfo(3, Disint, "Disint diff:", eval(mc));
     end do;
 
