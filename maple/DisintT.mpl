@@ -17,7 +17,8 @@ with(Partition):
 #####################################################################
 
 # this uses a *global* name 't'.
-assume(t::real);
+# assume(t::real);
+`t`:
 
 TestDisint := MakeTest(
  proc(
