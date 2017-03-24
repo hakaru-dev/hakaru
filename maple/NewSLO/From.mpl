@@ -108,7 +108,7 @@
     elif e :: 'Context(anything, anything)' then
       kb1 := assert(op(1,e),kb);
       if kb1 :: t_kb then
-          subsop(2=unintegrate(h, op(2,e), kb1, e));
+          subsop(2=unintegrate(h, op(2,e), kb1), e);
       else# A contradictory `Context' implies anything, so produce 'anything'
           # In particular, 42 :: t_Hakaru = false, so a term under a false
           # assumption should never be inspected in any way.
