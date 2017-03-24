@@ -31,12 +31,14 @@
          Lebesgue= Record(
               cond_constructor= `<=`,
               disintegrator= diff,
-              disintegrator_arg_extractor= (A-> op(1,A))
+              disintegrator_arg_extractor= (A-> op(1,A)),
+              disintegrator_type_extractor= (ll-> kb-> KB:-genLebesgue(op(1,ll), op(op(2,ll)), kb))
          ),
          Counting= Record(
               cond_constructor= `<=`,
               disintegrator= LREtools[delta],
-              disintegrator_arg_extractor= (A-> op(1,A))
+              disintegrator_arg_extractor= (A-> op(1,A)),
+              disintegrator_type_extractor= (ll-> kb-> KB:-genSummation(op(1,ll), op(op(2,ll)), kb))
          ),
          #Ret is aka Dirac.
          Ret= Record(
@@ -52,8 +54,9 @@
                         Indicator= (r-> `if`(r::`=` and r, 1, 'Indicator'(r)))
                    )
               ),
-              disintegrator_arg_extractor= (A-> op(1,A)= op([2,1], A))
+              disintegrator_arg_extractor= (A-> op(1,A)= op([2,1], A)),
               #E.g., (x &M Ret(3)) --> (x= 3).
+              disintegrator_type_extractor= (ll-> kb-> KB:-genLet(op(1,ll), op([2,1],ll), kb))
          )
     ]),
 
@@ -92,18 +95,21 @@
     local
          v::name, #the wrt var
          M::NewSLO:-disint:-t_wrt_var_type,
-         pp #iterator over [fst, snd]---the deconstructors of Pair
+         pp, #iterator over [fst, snd]---the deconstructors of Pair
+         vM, vK
     ;
          if T::t_disint_var then
               #Add a default wrt-var type if none appears.
               (v,M):= op(`if`(T::name, T &M 'Lebesgue'((-1,1)*~infinity), T));
+              vK   := op(0,M);
+              vM   := v &M M;
               DV[v]:= Record(
                    'wrt_var_type'= M,
                    'path'= path,
                    'disintegrator_arg'=
-                        Wrt_var_types[op(0,M)]:-disintegrator_arg_extractor(
-                             v &M M
-                        )
+                        Wrt_var_types[vK]:-disintegrator_arg_extractor(vM),
+                   'disintegrator_mktype'=
+                        Wrt_var_types[vK]:-disintegrator_type_extractor(vM)
               );
               path:= op(path) #Peel off outer layer: fst or snd.
          else #T::Pair(..., ...)---deconstruct recursively.
@@ -122,7 +128,9 @@
    local
     mc,  #final integral to be passed to improve @ toLO; then result
          #of each disintegration step
-    kb:= build_kb(ctx,"disint"),
+    kb0 := build_kb(ctx,"disint"),
+    kb,
+    kbs_vars := table(), var_rn,
     V, #wrt vars
     v::name #iterator over V
    ;
@@ -134,7 +142,9 @@
 
     traverse_var_tree(A); # collect information about A in DV
     userinfo(3, Disint, "DV:", eval(DV));
-    V:= indices(DV, 'nolist');
+    V:= [indices(DV, 'nolist')];
+
+
     mc:= Bind(
          m, p,
          #The piecewise condition is a conjunction of conditions, each
@@ -150,7 +160,20 @@
          )
     );
 
-    userinfo(3, Disint, "Disint defn:", eval(mc));
+
+    kb := kb0;
+    for v in ListTools[Reverse](V) do
+        var_rn[v], kb := DV[v]:-disintegrator_mktype(kb);
+        kbs_vars[v] := kb;
+
+        mc, DV[v]:-disintegrator_arg :=
+          op( subs( v=var_rn[v]
+                  , [mc,DV[v]:-disintegrator_arg]
+                  ));
+
+    end do;
+
+    userinfo(3, Disint, "Disint defn:", eval(mc), kb);
     userinfo(3, Disint, "Disint path:", path);
 
     mc:= improve(toLO(mc), _ctx= kb);
@@ -182,7 +205,7 @@
          mc :=
           kb_assuming_mb( _mc ->
             subsindets( _mc, And(specfunc(`Int`),freeof(op(1, _mc))), x-> simplify( int(op(x)) ) )
-                        )(mc, kb, x->x);
+                        )(mc, kbs_vars[v], x->x);
 
          # all of the below achieve the same as the above, but in a different
          # way.
@@ -191,9 +214,15 @@
          # mc := kb_assuming_mb(x-> subs(`int`=`Int`,simplify(eval(x, `Int`=`int`))) )(mc, kb, x->x);
 
         userinfo(3, Disint, "Disint diff:", eval(mc));
+
+
+        mc, DV[v]:-disintegrator_arg :=
+          op( subs( var_rn[v]=v
+                  , [mc,DV[v]:-disintegrator_arg]
+                  ));
     end do;
 
-    mc := fromLO(mc, _ctx= kb);
+    mc := fromLO(mc, _ctx= kb0);
 
     userinfo(3, Disint, "Disint hakaru:", eval(mc));
 
