@@ -63,7 +63,7 @@ Summary := module ()
       e;
     elif e :: '{known_continuous, known_discrete,
                 specfunc({Weight, Fanout, Split, Nop, Add,
-                          exp, log, idx, And, Or, Not}),
+                          exp, log, GAMMA, Beta, idx, And, Or, Not}),
                 `+`, `*`, `^`, `..`, boolean, indexed, list}' then
       map(procname, _passed);
     elif e :: 'Context(anything, anything)' then
