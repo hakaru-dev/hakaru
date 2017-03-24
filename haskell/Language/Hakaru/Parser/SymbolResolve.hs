@@ -544,8 +544,24 @@ makeFalse e =
 makeReducerAST
     :: Variable 'U.U
     -> U.Reducer' (Symbol U.AST)
-    -> U.Reducer abt 'U.U
-makeReducerAST x r1 = undefined
+    -> List1 Variable xs
+    -> U.Reducer xs U.U_ABT 'U.U
+makeReducerAST i r1 bs =
+    case r1 of
+    U.R_Fanout r2 r3       -> U.R_Fanout_
+                              (makeReducerAST i r2 bs)
+                              (makeReducerAST i r3 bs)
+    U.R_Index  b  e1 e2 r1 -> withName "U.R_Index" b $ \b' ->
+                                U.R_Index_
+                                (binds_ bs (makeAST e1))
+                                (bind i (binds_ bs (makeAST e2)))
+                                (makeReducerAST i r1 (Cons1 b' bs))
+    U.R_Split  e1 r2 r3    -> U.R_Split_
+                              (bind i (binds_ bs (makeAST e1)))
+                              (makeReducerAST i r2 bs)
+                              (makeReducerAST i r3 bs)
+    U.R_Nop                -> U.R_Nop_
+    U.R_Add e1             -> U.R_Add_ (bind i (binds_ bs (makeAST e1)))
 
 makeAST :: U.AST' (Symbol U.AST) -> U.AST
 makeAST ast =
@@ -599,7 +615,7 @@ makeAST ast =
             syn $ U.Product_ (makeAST e1) (makeAST e2) (bind name $ makeAST e3)
     U.Bucket s e1 e2 e3 ->
         withName "U.Bucket"  s $ \name ->
-            syn $ U.Bucket_ (makeAST e1) (makeAST e2) (makeReducerAST name e3)
+            syn $ U.Bucket_ (makeAST e1) (makeAST e2) (makeReducerAST name e3 Nil1)
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)
@@ -609,12 +625,11 @@ makeAST ast =
     U.Data name tvars typs e -> error "TODO: makeAST{U.Data}" 
     U.WithMeta a meta -> withMetadata meta (makeAST a)
 
-    where
-    withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r
-    withName fun s k =
-        case s of
-        TNeu e -> caseVarSyn e k (error $ "makeAST: bad " ++ fun)
-        _      -> error $ "makeAST: bad " ++ fun
+withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r
+withName fun s k =
+    case s of
+    TNeu e -> caseVarSyn e k (error $ "makeAST: bad " ++ fun)
+    _      -> error $ "makeAST: bad " ++ fun
 
 resolveAST :: U.AST' Text -> U.AST
 resolveAST ast =

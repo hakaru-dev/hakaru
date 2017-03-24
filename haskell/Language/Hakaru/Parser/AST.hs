@@ -5,6 +5,7 @@
            , ExistentialQuantification
            , StandaloneDeriving
            , TypeFamilies
+           , TypeOperators
            , OverloadedStrings
            #-}
 
@@ -335,21 +336,32 @@ foldDatum f (Datum _ dcode) = fdcode f dcode
          fdfun    f' (Ident e)  = f' e
 
 
-data Reducer :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
-    R_Fanout_ :: Reducer abt 'U -> Reducer abt 'U -> Reducer abt 'U
-    R_Index_  :: abt '[] 'U     -> abt '[] 'U     -> Reducer abt 'U -> Reducer abt 'U
-    R_Split_  :: abt '[] 'U     -> Reducer abt 'U -> Reducer abt 'U -> Reducer abt 'U
-    R_Nop_    :: Reducer abt 'U
-    R_Add_    :: abt '[] 'U     -> Reducer abt 'U
+data Reducer (xs  :: [Untyped])
+             (abt :: [Untyped] -> Untyped -> *)
+             (a   :: Untyped) where
+    R_Fanout_ :: Reducer xs abt 'U
+              -> Reducer xs abt 'U
+              -> Reducer xs abt 'U
+    R_Index_  :: abt xs 'U
+              -> abt ( 'U ': xs) 'U
+              -> Reducer ( 'U ': xs) abt 'U
+              -> Reducer xs abt 'U
+    R_Split_  :: abt ( 'U ': xs) 'U
+              -> Reducer xs abt 'U
+              -> Reducer xs abt 'U
+              -> Reducer xs abt 'U
+    R_Nop_    :: Reducer xs abt 'U
+    R_Add_    :: abt ( 'U ': xs) 'U
+              -> Reducer xs abt 'U
 
-instance Functor21 Reducer where
+instance Functor21 (Reducer xs) where
     fmap21 f (R_Fanout_ r1 r2)    = R_Fanout_ (fmap21 f r1) (fmap21 f r2)
     fmap21 f (R_Index_  e1 e2 r1) = R_Index_ (f e1) (f e2) (fmap21 f r1)
     fmap21 f (R_Split_  e1 r1 r2) = R_Split_ (f e1) (fmap21 f r1) (fmap21 f r2)
     fmap21 _ R_Nop_               = R_Nop_
     fmap21 f (R_Add_    e1)       = R_Add_ (f e1)
 
-instance Foldable21 Reducer where
+instance Foldable21 (Reducer xs) where
     foldMap21 f (R_Fanout_ r1 r2)    = foldMap21 f r1 `mappend` foldMap21 f r2
     foldMap21 f (R_Index_  e1 e2 r1) =
         f e1 `mappend` f e2 `mappend` foldMap21 f r1
@@ -412,7 +424,7 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Integrate_    :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
     Summate_      :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
     Product_      :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
-    Bucket_       :: abt '[] 'U       -> abt '[]     'U  -> Reducer abt 'U -> Term abt 'U
+    Bucket_       :: abt '[] 'U       -> abt '[]     'U  -> Reducer xs abt 'U -> Term abt 'U
     Expect_       :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
     Observe_      :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
     Superpose_    :: L.NonEmpty (abt '[] 'U, abt '[] 'U) -> Term abt 'U
@@ -482,13 +494,14 @@ instance Foldable21 Term where
     foldMap21 f (Superpose_ es)       = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) es
     foldMap21 _ Reject_               = mempty
 
-type AST      = MetaABT SourceSpan Term '[] 'U
-type MetaTerm = Term (MetaABT SourceSpan Term) 'U
-type Branch   = Branch_ (MetaABT SourceSpan Term)
+type U_ABT    = MetaABT SourceSpan Term
+type AST      = U_ABT '[] 'U
+type MetaTerm = Term U_ABT 'U
+type Branch   = Branch_ U_ABT
 
-type DFun_    = DFun    (MetaABT SourceSpan Term)
-type DStruct_ = DStruct (MetaABT SourceSpan Term)
-type DCode_   = DCode   (MetaABT SourceSpan Term)
+type DFun_    = DFun    U_ABT
+type DStruct_ = DStruct U_ABT
+type DCode_   = DCode   U_ABT
 
 ----------------------------------------------------------------
 ---------------------------------------------------------- fin.

@@ -462,6 +462,10 @@ checkBinders xs eTyp e =
     Cons1 x xs' -> pushCtx x (bind x <$> checkBinders xs' eTyp e)
 
 
+data TypedReducer (abt :: [Hakaru] -> Hakaru -> *)
+                  (xs  :: [Hakaru])
+    = forall b. TypedReducer !(Sing b) (Reducer abt xs b)
+
 ----------------------------------------------------------------
 -- | Given a typing environment and a term, synthesize the term's
 -- type (and produce an elaborated term):
@@ -701,12 +705,12 @@ inferType = inferType_
                             syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
                  _                  -> failwith_ "Product given bounds which are not discrete"
 
-       -- TODO: Actually handle Bucket_
-       U.Bucket_ e1 e2 _ -> do
+       U.Bucket_ e1 e2 r1 -> do
            e1' <- checkType_ SNat e1
            e2' <- checkType_ SNat e2
-           return . TypedAST sUnit $
-                  syn (Bucket e1' e2' Red_Nop)
+           TypedReducer typ1 r1' <- inferReducer r1
+           return . TypedAST typ1 $
+                  syn (Bucket e1' e2' r1')
 
        U.Expect_ e1 e2 -> do
            TypedAST typ1 e1' <- inferType_ e1
@@ -968,6 +972,11 @@ inferType = inferType_
              _ -> typeMismatch Nothing (Right typ) (Left "HFun")
         _            -> argumentNumberError
 
+  inferReducer :: U.Reducer xs U.U_ABT 'U.U
+               -> TypeCheckMonad (TypedReducer abt xs1)
+
+  inferReducer U.R_Nop_ = return (TypedReducer sUnit Red_Nop)
+
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And  = isBool a >>= \Refl -> return And
 make_NaryOp a U.Or   = isBool a >>= \Refl -> return Or
@@ -1048,7 +1057,6 @@ instance Show2 abt => Show (TypedASTs abt) where
     showsPrec p (TypedASTs typ es) =
         showParen_1x p "TypedASTs" typ es
 -}
-
 
 -- TODO: can we make this lazier in the second component of 'TypedASTs'
 -- so that we can perform case analysis on the type component before
