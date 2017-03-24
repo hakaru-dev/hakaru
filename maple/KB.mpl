@@ -423,6 +423,12 @@ KB := module ()
         # technically this means the KB was already contradictory, we
         # just didn't know?
         return NotAKB();
+    catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
+        error "Something strange happenened('expression independant of')\n"
+              "assert_deny(%1, %2, %3)", bb, pol, kb;
+    catch "when calling '%2'. Received: 'expression independent of, %0'":
+        error "Something strange happenened('expression independant of')\n"
+              "assert_deny(%1, %2, %3)", bb, pol, kb;
     end try;
 
     if bb = pol then
