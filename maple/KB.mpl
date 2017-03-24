@@ -83,7 +83,7 @@ KB := module ()
      # Simplify a Hakaru term assuming the knowledge of the kb
      # variants do different things in case of simplification error
      # (which should really only occur when the KB contains a contradicition)
-     simplify_assuming, simplify_assuming_mb, simplify_assuming_f,
+     kb_assuming_mb, simplify_assuming, simplify_assuming_mb, simplify_assuming_f,
 
      # Gets the most refined (see refine_given) type of a given name under the
      # assumptions of the KB; & convert such a type to a range.
@@ -852,16 +852,10 @@ KB := module ()
     foldl(eval, e, op(kb_to_equations(kb)));
   end proc;
 
-  # Simplfies a given Hakaru term under knowledge of the
-  # given KB. Does some magic to appease the Maple simplifier.
-  # simplification might fail, in which case `failure(e)` where `e`
-  # is the un-simplified (and chilled) expression is taken to be the result of
-  # simplification. 'mb' for 'maybe'
-  simplify_assuming_mb := proc(ee, kb::t_kb, failure, $)
+
+  kb_assuming_mb := simpl -> proc(ee, kb::t_kb, failure, $)
     local e, as, e0;                                                         # for debugging
-    if not (indets(ee,'specfunc(applyintegrand)') = {}) then
-      WARNING("simplify_assuming called on an expression containing 'applyintegrand' -- this is probably a mistake, and could result in incorrect results");
-    end if;
+
     e := eval_kb(ee,kb);                                                  `eval`;
     as := kb_to_assumptions(kb, e);
     e := chill(e);                                                        `chill`;
@@ -872,11 +866,18 @@ KB := module ()
     # anything - hence exception - so who calls this function under which
     # contexts that they expect `false` to mean something other than `false`?
     e0 := e;
-    try e := simplify(e) assuming op(as); catch: e := failure(e0); end try;
+    try e := simpl(e) assuming op(as); catch: e := failure(e0); end try;
 
     e := warm(e);                                            `warm (then expand@exp)`;
     eval(e, exp = expand @ exp);
   end proc;
+
+  # Simplfies a given Hakaru term under knowledge of the
+  # given KB. Does some magic to appease the Maple simplifier.
+  # simplification might fail, in which case `failure(e)` where `e`
+  # is the un-simplified (and chilled) expression is taken to be the result of
+  # simplification. 'mb' for 'maybe'
+  simplify_assuming_mb := kb_assuming_mb(simplify);
 
   simplify_assuming := proc(ee, kb::t_kb, $)
     simplify_assuming_mb(ee,kb,e->e);

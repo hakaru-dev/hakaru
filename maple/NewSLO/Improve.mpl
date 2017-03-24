@@ -71,7 +71,9 @@ end proc;
         if elim = FAIL then
             e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
             # simplify(e);
-            `simplify/PARTITION`(e) assuming (op(kb_to_assumptions(kb))) ;
+            # `simplify/PARTITION`(e) assuming (op(kb_to_assumptions(kb))) ;
+            kb_assuming_mb(`simplify/PARTITION`)(e, kb, x->x);
+
         else
             reduce(elim, h, kb);
         end if;
@@ -450,7 +452,9 @@ end proc;
 
     kb2 := foldr(assert, kb1, op(dom_specw));
 
-    ASSERT(type(kb2,t_kb), "reduce_IntSum : domain spec KB contains a contradiction.");
+    if kb2 :: t_not_a_kb then
+        error "not a kb: %1 + %2", dom_specw, kb1;
+    end if;
 
     # userinfo(3, 'disint_trace',
     #     printf("reduce_IntSum input:\n"
