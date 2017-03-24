@@ -440,7 +440,7 @@ maple2AST (InertArgs Func
            , InertArgs Equal
              [ InertName x
              , InertArgs Range [lo, hi]]]]) =
-    Bucket x (maple2AST lo) (maple2AST hi) (maple2AST f)
+    Bucket x (maple2AST lo) (maple2AST hi) (maple2ReducerAST f)
 
 maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
@@ -489,6 +489,35 @@ maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
 maple2AST x = error $ "Can't handle: " ++ show x
 
 ----------------------------------------------------------------
+
+maple2ReducerAST :: InertExpr -> Reducer' Text
+maple2ReducerAST
+ (InertArgs Func
+  [ InertName "Fanout"
+  , InertArgs ExpSeq [ e1, e2 ]]) =
+  R_Fanout (maple2ReducerAST e1) (maple2ReducerAST e2)
+
+maple2ReducerAST
+ (InertArgs Func
+  [ InertName "Index"
+  , InertArgs ExpSeq [ e1, InertName x, e2, e3]]) =
+  R_Index x (maple2AST e1) (maple2AST e2) (maple2ReducerAST e3)
+
+maple2ReducerAST
+ (InertArgs Func
+  [ InertName "Split"
+  , InertArgs ExpSeq [ e1, e2, e3]]) =
+  R_Split (maple2AST e1) (maple2ReducerAST e2) (maple2ReducerAST e3)
+
+maple2ReducerAST
+ (InertArgs Func
+  [ InertName "Nop"
+  , InertArgs ExpSeq []]) = R_Nop
+
+maple2ReducerAST
+ (InertArgs Func
+  [ InertName "Add"
+  , InertArgs ExpSeq [e1]]) = R_Add (maple2AST e1)
 
 mapleDatum2AST :: Text -> InertExpr -> AST' Text
 mapleDatum2AST h d = case (h, maple2DCode d) of

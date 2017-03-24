@@ -327,6 +327,13 @@ symbolResolution symbols ast =
             <*> symbolResolution symbols e2
             <*> symbolResolution (insertSymbol name' symbols) e3
 
+    U.Bucket     name e1 e2 e3 -> do
+        name' <- gensym name
+        U.Bucket (mkSym name')
+            <$> symbolResolution symbols e1
+            <*> symbolResolution symbols e2
+            <*> symbolResolutionReducer (insertSymbol name' symbols) e3
+
     U.NaryOp op es      -> U.NaryOp op
         <$> mapM (symbolResolution symbols) es
 
@@ -364,10 +371,35 @@ symbolResolution symbols ast =
 
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
-    U.Data name tvars typ e -> error $ "TODO: symbolResolution{U.Data} " ++ show name ++ " with " ++ show tvars ++ ":" ++ show typ
+    U.Data name tvars typ e -> error $ ("TODO: symbolResolution{U.Data} " ++
+                                        show name  ++ " with " ++
+                                        show tvars ++ ":" ++ show typ)
     U.WithMeta a meta -> U.WithMeta
         <$> symbolResolution symbols a
         <*> return meta
+
+symbolResolutionReducer
+    :: SymbolTable
+    -> U.Reducer' Text
+    -> State Int (U.Reducer' (Symbol U.AST))
+symbolResolutionReducer symbols ast =
+    case ast of
+    U.R_Fanout e1 e2        -> U.R_Fanout
+                               <$> symbolResolutionReducer symbols e1
+                               <*> symbolResolutionReducer symbols e2
+
+    U.R_Index name e1 e2 e3 -> do
+      name' <- gensym name
+      U.R_Index (mkSym name')
+           <$> symbolResolution symbols e1
+           <*> symbolResolution symbols e2
+           <*> symbolResolutionReducer (insertSymbol name' symbols) e3
+    U.R_Split e1 e2 e3      -> U.R_Split
+                               <$> symbolResolution symbols e1
+                               <*> symbolResolutionReducer symbols e2
+                               <*> symbolResolutionReducer symbols e3
+    U.R_Nop                 -> return U.R_Nop
+    U.R_Add   e1            -> U.R_Add <$> symbolResolution symbols e1
 
 
 symbolResolveBranch
@@ -423,6 +455,7 @@ normAST ast =
     U.Integrate name e1 e2 e3 -> U.Integrate name (normAST e1) (normAST e2) (normAST e3)
     U.Summate   name e1 e2 e3 -> U.Summate   name (normAST e1) (normAST e2) (normAST e3)
     U.Product   name e1 e2 e3 -> U.Product   name (normAST e1) (normAST e2) (normAST e3)
+    U.Bucket    name e1 e2 e3 -> U.Bucket    name (normAST e1) (normAST e2) (redNorm e3)
     U.ULiteral v              -> U.ULiteral v
     U.NaryOp op es            -> U.NaryOp op (map normAST es)
     U.Unit                    -> U.Unit
@@ -446,6 +479,18 @@ normAST ast =
 branchNorm :: U.Branch' (Symbol U.AST) -> U.Branch' (Symbol U.AST)
 branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
 branchNorm (U.Branch'' pat e2') = U.Branch'' pat (normAST e2')
+
+redNorm :: U.Reducer' (Symbol U.AST) -> U.Reducer' (Symbol U.AST)
+redNorm ast =
+    case ast of
+     U.R_Fanout e1 e2         ->
+         U.R_Fanout (redNorm e1) (redNorm e2)
+     U.R_Index  name e1 e2 e3 ->
+         U.R_Index name (normAST e1) (normAST e2) (redNorm e3)
+     U.R_Split e1 e2 e3       ->
+         U.R_Split (normAST e1) (redNorm e2) (redNorm e3)
+     U.R_Nop                  -> U.R_Nop
+     U.R_Add   e1             -> U.R_Add (normAST e1)
 
 collapseSuperposes :: [U.AST] -> U.AST
 collapseSuperposes es = syn $ U.Superpose_ (fromList $ F.concatMap go es)
@@ -496,6 +541,11 @@ makeTrue  e =
 makeFalse e =
     U.Branch_ (makePattern (U.PData' (U.DV "false" []))) (makeAST e)
 
+makeReducerAST
+    :: Variable 'U.U
+    -> U.Reducer' (Symbol U.AST)
+    -> U.Reducer abt 'U.U
+makeReducerAST x r1 = undefined
 
 makeAST :: U.AST' (Symbol U.AST) -> U.AST
 makeAST ast =
@@ -547,6 +597,9 @@ makeAST ast =
     U.Product s e1 e2 e3 ->
         withName "U.Product" s $ \name ->
             syn $ U.Product_ (makeAST e1) (makeAST e2) (bind name $ makeAST e3)
+    U.Bucket s e1 e2 e3 ->
+        withName "U.Bucket"  s $ \name ->
+            syn $ U.Bucket_ (makeAST e1) (makeAST e2) (makeReducerAST name e3)
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)

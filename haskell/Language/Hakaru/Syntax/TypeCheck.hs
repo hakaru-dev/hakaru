@@ -68,6 +68,7 @@ import Language.Hakaru.Types.HClasses
     , HRadical(..), HContinuous(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Sing
     (sing_Literal, sing_MeasureOp)
@@ -185,6 +186,7 @@ mustCheck e = caseVarSyn e (const False) go
     go (U.Integrate_  _ _ _) = False
     go (U.Summate_    _ _ _) = False
     go (U.Product_    _ _ _) = False
+    go (U.Bucket_     _ _ _) = False
     go U.Reject_             = True
     go (U.Expect_ _ e2)      = mustCheck' e2
     go (U.Observe_  e1  _)   = mustCheck  e1
@@ -698,6 +700,13 @@ inferType = inferType_
                      return . TypedAST typ2 $
                             syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
                  _                  -> failwith_ "Product given bounds which are not discrete"
+
+       -- TODO: Actually handle Bucket_
+       U.Bucket_ e1 e2 _ -> do
+           e1' <- checkType_ SNat e1
+           e2' <- checkType_ SNat e2
+           return . TypedAST sUnit $
+                  syn (Bucket e1' e2' Red_Nop)
 
        U.Expect_ e1 e2 -> do
            TypedAST typ1 e1' <- inferType_ e1
