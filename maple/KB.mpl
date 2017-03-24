@@ -147,15 +147,15 @@ KB := module ()
   #   genLebesgue(var,lo,hi,kb) =
   #     "KB(Introduce(x::AlmostEveryReal(x>lo,x<hi))
   #        ,kb)"
-  genLebesgue := genIntVar(`AlmostEveryReal`);
+  genLebesgue := genIntVar(proc(lo,hi,$) `AlmostEveryReal`(Bound(`>`,lo), Bound(`<`, hi)) end proc);
 
   # Another type of integration variable
-  genSummation := genIntVar(`HInt`);
+  genSummation := genIntVar(proc(lo,hi,$) `HInt`(Bound(`>=`,lo), Bound(`<=`, hi)) end proc);
 
   # A smart constructor for 'integration' (of which summation is a variety)
   # variables.
   genIntVar := proc (kind,$) proc(xx::name, lo, hi, kb::t_kb)
-      genType(xx, kind(Bound(`>`,lo), Bound(`<`, hi)), kb, _rest);
+      genType(xx, kind(lo,hi), kb, _rest);
   end proc; end proc;
 
   # A smart constructor for type introductions. ensures name binding
