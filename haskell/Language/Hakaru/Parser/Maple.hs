@@ -442,6 +442,20 @@ maple2AST (InertArgs Func
              , InertArgs Range [lo, hi]]]]) =
     Bucket x (maple2AST lo) (maple2AST hi) (maple2ReducerAST f)
 
+-- TODO: This logic should be in SymbolResolve
+maple2AST (InertArgs Func
+        [ InertName "fst"
+        , InertArgs ExpSeq [ e1 ]]) =
+    Case (maple2AST e1)
+         [ Branch' (PData' (DV "pair" [PVar' "y",PVar' "z"])) (Var "y")]
+
+-- TODO: This logic should be in SymbolResolve
+maple2AST (InertArgs Func
+        [ InertName "snd"
+        , InertArgs ExpSeq [ e1 ]]) =
+    Case (maple2AST e1)
+         [ Branch' (PData' (DV "pair" [PVar' "y",PVar' "z"])) (Var "z")]
+
 maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
