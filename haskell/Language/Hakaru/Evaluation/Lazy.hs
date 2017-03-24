@@ -567,8 +567,7 @@ evaluateArrayOp evaluate_ = go
                                                   arr !! fromInteger (fromNatural n)
                      _  -> return . Neutral $
                            syn (ArrayOp_ o :$ fromWhnf w1 :* fromWhnf w2 :* End)
-            Head_   v1  ->
-                error "TODO: evaluateArrayOp{Index}{Head_}"
+            _ -> error "evaluateArrayOp{Index}: uknown whnf of array type"
 
     go o@(Size _) = \(e1 :* End) -> do
         w1 <- evaluate_ e1

@@ -395,40 +395,6 @@ evaluate perform evaluateCase = goEvaluate
 
         _ :$ _ -> error "evaluate: the impossible happened"
 
-
--- | For {evaluate, constrainValue v0} ArrayOp_ (Index _) :$ e1 :* e2 :* End
-indexArrayOp :: forall abt typs args a r
-             .  ( ABT Term abt
-                , typs ~ UnLCs args, args ~ LCs typs )
-             => ArrayOp typs a
-             -> SArgs abt args
-             -> (abt '[] a -> Dis abt r) -- evaluate or (constrainValue v0)
-             -> (Head abt ('HArray a)    -- e1 is in whnf, and
-                -> Variable 'HNat        -- e2 is a free under current indices
-                -> Dis abt r)
-             -> (Term abt ('HArray a)    -- e1 is neutral syntax
-                -> Dis abt r)
-             -> (abt '[] ('HArray a)     -- e1 is a free variable
-                -> Dis abt r) 
-             -> (abt '[] ('HArray a)     -- e1 is a multiloc, and
-                -> Variable 'HNat        -- e2 is a free under current indices
-                -> Dis abt r)
-             -> Dis abt r
-indexArrayOp o@(Index _) (e1 :* e2 :* End) kInd kArr kSyn kFree kMultiLoc = do
-  w1 <- evaluate_ e1
-  case w1 of
-    Head_ arr@(WArray _ b)  -> caseBind b $ \x body ->
-          extSubst x e2 body >>= kInd -- (kArr arr)
-    Head_ (WEmpty _)        -> error "TODO: indexArrayOp o (Empty_ :* _ :* End)"
-    Head_ (WArrayLiteral _) -> error "TODO: indexArrayOp o (ArrayLiteral_ :* _ :* End)"
-    Head_ _          -> error "indexArrayOp: unknown whnf of array type"
-    Neutral e1' -> flip (caseVarSyn e1') kSyn $ \x ->
-      do extras <- getExtras
-         case (lookupAssoc x extras) of
-           Nothing              -> kFree e1'
-           Just (Loc _ _)       -> error "indexArrayOp: impossible, we have a Neutral term"
-indexArrayOp _ _ _ _ _ _ _ = error "indexArrayOp called on incorrect ArrayOp"
-
 isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
 isLitBool e = caseVarSyn e (const Nothing) $ \b ->
                   case b of
@@ -754,31 +720,30 @@ constrainValue v0 e0 =
                                                    constrainValue (v0 P.! (var x')) body'
                                                    -- TODO use meta-index
         ArrayLiteral_ _          -> error "TODO: disintegrate literal arrays"
-        ArrayOp_ o@(Index _) :$ args@(e1 :* e2 :* End) ->
-            let generalCase = indexArrayOp o args
-                                             (constrainValue v0)
-                                             (const $ const bot)
-                                             (const bot)
-                                             (const bot)
-                                             (const $ const bot)
-            in caseVarSyn e1 (const generalCase) $ \t ->
-                case t of
-                  -- Special case for [true,false] ! i, and [false, true] ! i
-                  -- This helps us disintegrate bern
-                  arr@(ArrayLiteral_ [a1,a2]) ->
-                      case (jmEq1 (typeOf v0) sBool) of
-                        Just Refl ->
-                            let constrainInd = flip constrainValue e2
-                            in case (isLitBool a1, isLitBool a2) of
-                                 (Just b1, Just b2)
-                                     | isLitTrue b1 && isLitFalse b2 ->
-                                         constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
-                                     | isLitTrue b2 && isLitFalse b1 ->
-                                         constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
-                                     | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
-                                 _ -> error "TODO: constrainValue (Index [b1,b2] i)"
-                        Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
-                  _ -> generalCase
+        ArrayOp_ o@(Index _) :$ args@(e1 :* e2 :* End) -> do
+            w1 <- evaluate_ e1
+            case w1 of
+              Neutral e1' -> bot
+              Head_ (WArray _ b) -> caseBind b $ \x body ->
+                                    extSubst x e2 body >>= constrainValue v0
+              Head_ (WEmpty _) -> bot -- TODO: check this
+              -- Special case for [true,false] ! i, and [false, true] ! i
+              -- This helps us disintegrate bern
+              Head_ (WArrayLiteral [a1,a2]) ->
+                  case (jmEq1 (typeOf v0) sBool) of
+                    Just Refl ->
+                        let constrainInd = flip constrainValue e2
+                        in case (isLitBool a1, isLitBool a2) of
+                             (Just b1, Just b2)
+                                 | isLitTrue b1 && isLitFalse b2 ->
+                                     constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
+                                 | isLitTrue b2 && isLitFalse b1 ->
+                                     constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
+                                 | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
+                             _ -> error "TODO: constrainValue (Index [b1,b2] i)"
+                    Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
+              Head_ (WArrayLiteral _) -> bot
+              _ -> error "constrainValue {ArrayOp Index}: uknown whnf of array type"
                            
         ArrayOp_ _ :$ _          -> error "TODO: disintegrate non-Index arrayOps"
         Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"
