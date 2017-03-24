@@ -197,7 +197,7 @@ mapleSCon Integrate = \(e1 :* e2 :* e3 :* End) ->
         . showString "])"
 mapleSCon (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
-        showString "sum("
+        showString "Sum("
         . arg e3'
         . showString ", "
         . var1 x
@@ -208,7 +208,7 @@ mapleSCon (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
         . showString ")-1)"
 mapleSCon (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
-        showString "product("
+        showString "Product("
         . arg e3'
         . showString ", "
         . var1 x
