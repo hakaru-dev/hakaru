@@ -56,7 +56,9 @@
               ),
               disintegrator_arg_extractor= (A-> op(1,A)= op([2,1], A)),
               #E.g., (x &M Ret(3)) --> (x= 3).
-              disintegrator_type_extractor= (ll-> kb-> KB:-genLet(op(1,ll), op([2,1],ll), kb))
+
+              disintegrator_type_extractor=(ll -> kb -> (op(1,ll), kb))
+              # disintegrator_type_extractor= (ll-> kb-> KB:-genLet(op(1,ll), op([2,1],ll), kb))
          )
     ]),
 
