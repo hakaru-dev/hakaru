@@ -57,7 +57,8 @@ KB := module ()
      # Functions which build up KBs from KBs and other pieces
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
-      empty, genLebesgue, genType, genSummation, genIntVar, genLet, assert, assert_deny, build_kb,
+      empty, genLebesgue, genType, genSummation, genIntVar, genLet,
+      assert, assert_deny, assert_mb, build_kb,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -211,6 +212,14 @@ KB := module ()
           ASSERT(type(kb,t_kb), sprintf("%s (in build_kb): KB contains a contradiction.", shouldBeValid));
       end if;
       kb
+  end proc;
+
+  assert_mb := proc(b::t_kb_atom, mkb::t_kb_mb, $)
+      if mkb :: t_kb then
+          assert(b,mkb);
+      else
+          NotAKB();
+      end if;
   end proc;
 
   # Like assert_deny, except does not accept a boolean
@@ -405,9 +414,16 @@ KB := module ()
 
     # Check that the new clause would not cause a contradictory
     # KB. If it does, then produce NotAKB.
-    if not coulditbe(`if`(pol,bb,not(bb))) assuming op(as) then
+
+    try
+      if not coulditbe(`if`(pol,bb,not(bb))) assuming op(as) then
+          return NotAKB();
+      end if;
+    catch "when calling '%1'. Received: 'contradictory assumptions'" :
+        # technically this means the KB was already contradictory, we
+        # just didn't know?
         return NotAKB();
-    end if;
+    end try;
 
     if bb = pol then
       # Ignore literal true and Not(false).

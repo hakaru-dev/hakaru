@@ -201,7 +201,7 @@ end proc;
           # build a KB containing the solution
           v, kb1 := genType(v, v_t0, empty);
 
-          kb1 := foldl(proc(a,b) assert(b,a) end proc
+          kb1 := foldl(proc(a,b) assert_mb(b,a) end proc
                       ,kb1
                       ,op(sol)
                       );
@@ -217,14 +217,21 @@ end proc;
                   ) then
               v_t := op(1,lo) .. op(1,hi) ;
 
+              er := mk(e, v=v_t);
+
           # if that isn't possible, just ask for the type from the KB
           else
-              v_t := getType(kb1, v);
-              v_t := kb_range_of_var(v_t);
+
+              if kb1 :: t_kb then
+                  v_t := getType(kb1, v);
+                  v_t := kb_range_of_var(v_t);
+                  er := mk(e, v=v_t);
+              else
+                  er := 0;
+              end if;
 
           end if;
 
-          er := mk(e, v=v_t);
 
           userinfo(5, 'disint_trace',
                    printf("applied solution: %a\n"
