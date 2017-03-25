@@ -129,7 +129,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy hiding (evaluate)
+import Language.Hakaru.Evaluation.Lazy
 import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
@@ -306,117 +306,6 @@ firstM f (x,y) = (\z -> (z, y)) <$> f x
 -- where we call 'emitMBind'
 evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 evaluate_ = evaluate perform
-
-
--- Copying `evaluate` from LH.Evaluation.Lazy for now (2016-06-28)
--- Beginning of copied code -------------------------------------------------
-
-evaluate
-    :: forall abt m p
-    .  (ABT Term abt)
-    => MeasureEvaluator abt (Dis abt)
-    -> TermEvaluator  abt (Dis abt)
-{-# INLINE evaluate #-}
-evaluate perform = goEvaluate
-    where
-    evaluateCase_ :: CaseEvaluator abt (Dis abt)
-    evaluateCase_ = evaluateCase goEvaluate
-
-    goEvaluate :: TermEvaluator abt (Dis abt)
-    goEvaluate e0 =
-#ifdef __TRACE_DISINTEGRATE__
-      getIndices >>= \inds ->
-      trace ("-- goEvaluate: " ++ show (pretty e0)
-                               ++ "at " ++ show (ppInds inds)) $
-#endif
-      caseVarSyn e0 (evaluateVar perform goEvaluate) $ \t ->
-        case t of
-        -- Things which are already WHNFs
-        Literal_ v               -> return . Head_ $ WLiteral v
-        Datum_   d               -> return . Head_ $ WDatum   d
-        Empty_   typ             -> return . Head_ $ WEmpty   typ
-        Array_   e1 e2           -> return . Head_ $ WArray e1 e2
-        ArrayLiteral_ es         -> return . Head_ $ WArrayLiteral es
-        Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
-        Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
-        MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
-        Plate :$ e1 :* e2 :* End -> return . Head_ $ WPlate e1 e2
-        MeasureOp_ o :$ es       -> return . Head_ $ WMeasureOp o es
-        Superpose_ pes           -> return . Head_ $ WSuperpose pes
-        Reject_ typ              -> return . Head_ $ WReject typ
-        -- We don't bother evaluating these, even though we could...
-        Integrate :$ e1 :* e2 :* e3 :* End ->
-            return . Head_ $ WIntegrate e1 e2 e3
-        Summate h1 h2 :$ e1 :* e2 :* e3 :* End ->
-            return . Neutral $ syn t
-            --return . Head_ $ WSummate   e1 e2 e3
-
-
-        -- Everything else needs some evaluation
-
-        App_ :$ e1 :* e2 :* End -> do
-            w1 <- goEvaluate e1
-            case w1 of
-                Neutral e1' -> return . Neutral $ P.app e1' e2
-                Head_   v1  -> evaluateApp v1
-            where
-            evaluateApp (WLam f)   =
-                -- call-by-name:
-                caseBind f $ \x f' -> do
-                    i <- getIndices
-                    push (SLet x (Thunk e2) i) f' >>= goEvaluate
-            evaluateApp _ = error "evaluate{App_}: the impossible happened"
-
-        Let_ :$ e1 :* e2 :* End -> do
-            i <- getIndices
-            caseBind e2 $ \x e2' ->
-                push (SLet x (Thunk e1) i) e2' >>= goEvaluate
-
-        CoerceTo_   c :$ e1 :* End -> C.coerceTo   c <$> goEvaluate e1
-        UnsafeFrom_ c :$ e1 :* End -> C.coerceFrom c <$> goEvaluate e1
-
-        -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
-        NaryOp_  o    es -> evaluateNaryOp  goEvaluate o es
-        ArrayOp_ o :$ es -> evaluateArrayOp goEvaluate o es
-        PrimOp_  o :$ es -> evaluatePrimOp  goEvaluate o es
-
-        -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
-        -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
-        Expect :$ e1 :* e2 :* End ->
-            error "TODO: evaluate{Expect}: unclear how to handle this without cyclic dependencies"
-        {-
-        -- BUG: can't call E.expect because of cyclic dependency
-            goEvaluate . E.expect e1 $ \e3 ->
-                syn (Let_ :$ e3 :* e2 :* End)
-        -}
-
-        Case_ e bs -> evaluateCase_ e bs
-
-        _ :$ _ -> error "evaluate: the impossible happened"
-
-isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
-isLitBool e = caseVarSyn e (const Nothing) $ \b ->
-                  case b of
-                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
-                                                  Just Refl -> Just d
-                                                  Nothing   -> Nothing
-                    _ -> Nothing
-
-isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
-isLitTrue (Datum tdTrue sBool (Inl Done)) = True
-isLitTrue _                               = False
-
-isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
-isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
-isLitFalse _                                      = False
-
-impl, diff, nand, nor :: Bool -> Bool -> Bool
-impl x y = not x || y
-diff x y = x && not y
-nand x y = not (x && y)
-nor  x y = not (x || y)
-           
----------------------------------------------------------- End of copied code --                 
 
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
@@ -605,6 +494,21 @@ getHeapVars =
     Dis $ \_ c h -> c (foldMap statementVars (statements h)) h
 
 ----------------------------------------------------------------
+isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
+isLitBool e = caseVarSyn e (const Nothing) $ \b ->
+                  case b of
+                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
+                                                  Just Refl -> Just d
+                                                  Nothing   -> Nothing
+                    _ -> Nothing
+
+isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitTrue (Datum tdTrue sBool (Inl Done)) = True
+isLitTrue _                               = False
+
+isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
+isLitFalse _                                      = False
 ----------------------------------------------------------------
 -- | Given an emissible term @v0@ (the first argument) and another
 -- term @e0@ (the second argument), compute the constraints such
