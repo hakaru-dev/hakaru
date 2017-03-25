@@ -19,13 +19,13 @@ Domain := module()
     export Has := module ()
 
        export Bound := proc(e, $)
-               assigned(Extract:-ExtractBound[op(0,e)]) and
-               evalb(e :: Extract:-ExtractBound[op(0,e)]);
+               assigned(Domain:-ExtBound[op(0,e)]) and
+               evalb(e :: Domain:-ExtBound[op(0,e)]:-MapleType);
        end proc;
 
        export Shape := proc(e, $)
-               assigned(Extract:-ExtShape[op(0,e)]) and
-               evalb(e :: Extract:-ExtShape[op(0,e)]);
+               assigned(Domain:-ExtShape[op(0,e)]) and
+               evalb(e :: Domain:-ExtShape[op(0,e)]:-MapleType);
        end proc;
 
        export ModuleApply := proc(e, $)
@@ -61,7 +61,6 @@ Domain := module()
 
 
     local ModuleLoad := proc($)
-
            ExtBound[`Int`] :=
                Record('MakeKB'=(e -> kb -> genLebesgue(op([1],e), op([2,1],e), op([2,2],e), kb))
                      ,'MakeEqn'=`=`
