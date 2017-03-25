@@ -354,6 +354,15 @@ Domain := module()
                              v_t := op(1,lo) .. op(1,hi) ;
 
                              DInto(v, v_t, ctx);
+
+                         elif nops(sol) = 1 and (nops(hi) = 1 or nops(lo) = 1) then
+                             lo := `if`( nops(lo) = 1 , op(1,lo), -infinity );
+                             hi := `if`( nops(hi) = 1 , op(1,hi),  infinity );
+
+                             v_t := lo .. hi;
+
+                             DInto(v, v_t, ctx);
+
                          else
                              subsindets( ctx, specfunc(`DConstrain`)
                                        , x-> DConstrain(op(x), op(sol))
@@ -376,9 +385,20 @@ Domain := module()
                     ctx;
                  end proc; end proc;
 
-                 local classifyAtom := proc(c, vs_ty, $)
+                 local classifyAtom := proc(c, vs_ty, v, $)
                     local ty, mk, bnd, lo, hi;
-                    if c :: name then
+
+                    if c :: identical(true) then
+                        ty := getType(vs_ty, v);
+
+                        mk   := Extract:-MakeOfType(ty);
+                        bnd  := ExtBound[mk]:-RangeOf(ty);
+
+                        lo, hi := op(bnd);
+
+                        lo <= v, v <= hi;
+
+                    elif c :: name and depends(vs_ty, c) then
                         ty := getType(vs_ty, c);
 
                         mk   := Extract:-MakeOfType(ty);
@@ -395,9 +415,9 @@ Domain := module()
                  local postproc := proc(sol, vs, vs_ty, $)
                    local ret := sol;
 
-                   ret := subsindets(ret, set
-                                    , s-> map(a-> classifyAtom(a, vs_ty) ,s)
-                                    );
+                   # ret := subsindets(ret, set
+                   #                  , s-> map(a-> classifyAtom(a, vs_ty) ,s)
+                   #                  );
 
                    ret := subsindets(ret, specfunc('piecewise')
                                     , x-> DSplit(Partition:-PWToPartition(x)));
@@ -406,8 +426,12 @@ Domain := module()
                                     , Or(identical({}), set(list))
                                     , x -> DSum(op(x)) );
 
-                   ret := subsindets(ret, list(set({relation,boolean}))
-                                    , classifySols(vs, vs_ty) );
+                   ret := subsindets(ret, list(set({relation,boolean, name}))
+                                    , classifySols(vs, vs_ty) @
+                                      ( ls -> [ seq( map(a->classifyAtom(a, vs_ty, vs[si]), op(si, ls)) , si=1..nops(ls) ) ] )
+
+# map(a->classifyAtom(a, vs_ty),    classifySols(vs, vs_ty)(ls)
+                                     );
 
                    ret;
                  end proc;

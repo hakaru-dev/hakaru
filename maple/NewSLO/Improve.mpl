@@ -38,7 +38,7 @@
         dom_spec := Domain:-Improve(dom_spec);
 
         # Apply the domain back to the expression
-        mkDom := (x->Domain:-Apply(dom_spec, x, kb));
+        mkDom := (x->Domain:-Apply(dom_spec, x, kb)); mkDom_expr := mkDom(expr);
         ed := mkDom(e);
 
         # Some extra simplification may be needed
@@ -217,7 +217,8 @@
 
     local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
       local w, e, x, g, t, r;
-      w, e := getDomainSpec(ee);
+      w, e := Domain:-Extract:-Shape(ee);
+      w := Domain:-ToKB:-Shape:-AsConstraints(w);
       e := piecewise_And(w, e, 0);
       e := f(e,v,_rest,kb);
       x := `if`(v::name, v, lhs(v));
