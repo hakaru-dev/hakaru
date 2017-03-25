@@ -9,47 +9,21 @@
        r
   end proc;
 
-Domain_extract_bound[`Int`] := e -> kb -> genLebesgue(op([1],e), op([2,1],e), op([2,2],e), kb);
-Domain_extract_bound[`Sum`] := e -> kb -> genSummation(op([1],e), op(op([2],e)), kb);
-
-Domain_bound_type[`Int`] := 'And(specfunc({Int}), anyfunc(anything,name=range))';
-Domain_bound_type[`Sum`] := 'And(specfunc({Sum}), anyfunc(anything,name=range))';
-
-Domain_type_make[`AlmostEveryReal`] := `Int`;
-Domain_type_make[`HInt`] := `Sum`;
-Domain_type_make[`EveryInteger`] := eval(Domain_type_make[`HInt`]);
-
-
-has_Domain := proc(e,$)
-    assigned(Domain_bound_type[op(0,e)]) and evalb(e :: Domain_bound_type[op(0,e)]);
-end proc;
-
-  extract_Domain := proc(h, kb1_, kb, vars, kind, arg_, bound,$)
-      local kb1 := kb1_, x0, x, vars1, ty, arg := arg_;
-
-      x0 := op(1, bound);
-      x, kb1 := Domain_extract_bound[kind](bound)(kb1);
-
-      vars1 := [ x :: kind, op(vars) ];
-      arg := subs(x0=x, arg);
-
-      if has_Domain(arg) then
-          extract_Domain(h, kb1, kb, vars1, op(0,arg), op(arg));
-      else
-          arg, vars1, kb1
-      end if;
-  end proc;
-
-
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb, $)
-    local e, elim, subintegral, w, ww, x, c, kb1, dom_specw;
+    local e, elim, subintegral, w, ww, x, c, kb1, dom_specw, dom_specb
+         , body, dom_spec, ed;
     e := ee;
 
-    if has_Domain(e) then
-        body, vars, kb1 := extract_Domain(h, kb, kb, [], op(0,e), op(e));
+    if Domain:-Has(e) then
+        # First extract only the bounds, then simplify the body
+        # This may discover other nested domains, simplify them,
+        # and allow a further simplification to occur in this
+        # step of domain improvement
+        body, dom_specb := Domain:-Extract['Bounds'](e, kb);
+        kb1 := Domain:-ToKB['Bounds'](dom_spec1);
 
         userinfo(3, 'disint_trace',
                  printf("domain extract:\n"
@@ -60,12 +34,19 @@ end proc;
 
         e := reduce(body, h, kb1);
 
-        (dom_specw, e) := getDomainSpec(e);
+        # Extract the shape of the domain
+        (dom_specw, e) := Domain:-Extract['Shape'](e);
 
-        mkDom := reduce_IntSum( vars, h, dom_specw, kb1, kb );
+        # Construct the domain from the bounds and the shape
+        dom_spec := Domain:-DOMAIN(dom_specb, dom_specw);
 
-        ed := mkDom(e);
+        # Improve the domain
+        dom_spec := Domain:-Improve(dom_spec);
 
+        # Apply the domain back to the expression
+        ed := Domain:-Apply(dom_spec, e, kb);
+
+        # Some extra simplification may be needed
         elim := elim_intsum( ed, h, kb );
 
         if elim = FAIL then
@@ -77,22 +58,6 @@ end proc;
         else
             reduce(elim, h, kb);
         end if;
-
-    # end if;
-
-    # if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
-    # userinfo(3, 'disint_trace',
-    #     printf("case Int/Sum \n"
-    #            "  expr : %a\n"
-    #            "  h    : %a\n"
-    #            "  ctx  : %a\n\n"
-    #      , ee, h, kb ));
-
-    #   x, kb1 := `if`(op(0,e)=Int,
-    #     genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
-    #     genSummation(op([2,1],e), op(op([2,2],e)), kb));
-    #   reduce_IntSum(op(0,e),
-    #     reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
 
     elif e :: 'And(specfunc({Ints,Sums}),
                    anyfunc(anything, name, range, list(name=range)))' then
@@ -154,296 +119,6 @@ end proc;
     end if;
   end proc;
 
-
-  app_dom_spec_IntSum_LMS :=
-   proc( ee
-       , sol_, vs_
-       , $)
-
-      local sol := sol_, vs := vs_, e := ee, er, kb1, i
-          , sol1, sol2, op_rng
-          , v, v_t, lo, hi, lo_s, hi_s
-          , vnms, countVs, countVsInRels, solOrder ;
-
-      # vnms := map(x->op(1,x), indets(vs, 'Introduce(name, anything)'));
-      # vnms    := [op(map(i->op(1,i), op(1, kb_extract(vs))))] ;
-      vnms    := map(v->op(1,v), vs);
-      countVs := (c-> nops(indets(c, name) intersect {op(vnms)} ));
-      countVsInRels :=
-        (c-> nops(indets(map(o-> op(1..2,o), indets(c, relation)), name)));
-
-      if sol :: identical({}) then
-          # an empty solution
-          er := 0;
-
-      elif sol :: set(list) then
-          # a formal (algebraic?) sum of solutions.
-          er := `+`(seq( app_dom_spec_IntSum_LMS(e, s, vs)
-                 , s=sol)
-             );
-
-          if nops(sol)>1 then
-              userinfo(3, 'disint_trace',
-                       printf("sum of solutions\n"
-                          "  result: %a\n"
-                          "  sol  : %a\n\n"
-                          , er, sol_ ));
-          end if;
-
-      elif sol :: set({relation,boolean}) then
-          # a single atomic solution, with (hopefully) at most two conjuncts
-          # one which becomes incorporated into the lower bound, and the other
-          # into the upper bound
-
-          if nops(vs) <> 1 then
-              error "asked to apply the single solution %1 but for multiple variables %2",
-                    sol , vs;
-          end if;
-
-          v, v_t0 := op(op(1,vs)); # var name, var type
-
-          mk := Domain_type_make[op(0,v_t0)]; # type of domain
-
-          # build a KB containing the solution
-          v, kb1 := genType(v, v_t0, empty);
-
-          kb1 := foldl(proc(a,b) assert_mb(b,a) end proc
-                      ,kb1
-                      ,op(sol)
-                      );
-
-          # try to check if we can extract upper and lower bounds from the
-          # solution directly
-          hi := subsindets( sol , {relation,boolean} , extract_bound_hi(v) );
-          lo := subsindets( sol , {relation,boolean} , extract_bound_lo(v) );
-
-          if `and`(nops(sol) = 2
-                  ,nops(hi) = 1
-                  ,nops(lo) = 1
-                  ) then
-              v_t := op(1,lo) .. op(1,hi) ;
-
-              er := mk(e, v=v_t);
-
-          # if that isn't possible, just ask for the type from the KB
-          else
-
-              if kb1 :: t_kb then
-                  v_t := getType(kb1, v);
-                  v_t := kb_range_of_var(v_t);
-                  er := mk(e, v=v_t);
-              else
-                  er := 0;
-              end if;
-
-          end if;
-
-
-          userinfo(5, 'disint_trace',
-                   printf("applied solution: %a\n"
-                          "  result    : %a\n"
-                          "  expr body : %a\n\n"
-                          , sol_, er, e ));
-
-      elif sol :: list then
-          # a (nonempty, hopefully) conjunction of constraints which
-          # are hopefully in a nice form...
-
-          # if we have fewer conjuncts than variables, pad the conjunts
-          # with trivial solutions (for the recursive call)
-          if nops(sol) < nops(vs) then
-              sol := [ seq( {true} , _=1..(nops(vs) - nops(sol)) )  , sol ];
-          end if;
-
-          op_rng := seq(1..nops(sol));
-
-          # sort the conjs by the number of variables which they mention
-          sol2, solOrder :=
-              sort( sol, key= (x-> -(countVs(x)))
-                       , output=[sorted,permutation]
-                  );
-
-          if nops(sol) > 1 then
-              userinfo(5, 'disint_trace',
-                   printf("rearranged solutions\n"
-                          "  sol   : %a\n"
-                          "  permuation: %a\n\n"
-                          , sol, solOrder ));
-          end if;
-
-          sol := sol2;
-
-
-          # check that the `k'th (from 1) conjunct mentions at most `k'
-          # variables. we can (hopefully) integrate these things in
-          # a way that differentiation (due to disintegration) eliminates
-          # the integral, by making the body free of that integration variable
-
-          # when nops(sol) is 1, then "i in 1..1" gives us "1,1". but "seq(1,1)"
-          # is "1".
-          for i in op_rng do
-              if not (countVs(op(-i,sol)) <= i) then
-
-                  error "asked to apply the solution %1"
-                        "but solution is not free in at least %2 vars",
-                    op(-i,sol) , i;
-              end if;
-          end do;
-
-          # get the list of variables in the order we hope to integrate
-          vnms := vnms[solOrder];
-
-          vsk  := op(0,vs);
-          vs   := [op(vs)][solOrder];
-
-          # to each variable, the range of integration is given in the
-          # context. the range will be contracted as we apply the solution
-          # starting with the leftmost solution, apply them all
-          # hopefully this should only produce valid integrals (i.e. we've done
-          # enough checks to guarantee it)
-          for i in op_rng do
-              sol1 := op(i, sol);
-              vs1  := vsk(op(i, vs));
-
-              e := app_dom_spec_IntSum_LMS
-                     ( e
-                     , sol1
-                     , vs1
-                     ) ;
-
-          end do;
-
-          # maybe simplify here...
-          er := e
-
-
-
-      elif sol :: Partition then
-
-          e := PARTITION((
-            map(proc (cl,$)
-
-
-                userinfo(5, 'disint_trace',
-                   printf("partition piece\n"
-                          "  sub sol: %a\n"
-                          "  ctx    : %a\n\n"
-                         , valOf(cl), condOf(cl) ));
-
-                Piece( condOf(cl)
-                      , app_dom_spec_IntSum_LMS
-                  ( e
-                  , valOf(cl)
-                  , vs
-                  ) )
-
-                    end proc
-                , op(1,sol) )
-              ));
-
-
-          er := e;
-
-      else
-          # can't deal with such solutions (what are they?)
-          er := FAIL
-
-      end if;
-
-      er;
-
-  end proc;
-
-  app_dom_spec_IntSum :=
-    proc(mk :: identical(Int, Sum), ee, h, kb0 :: t_kb
-        ,dom_spec_
-        ,$)
-    local new_rng, make, var, elim, w,
-          dom_spec := dom_spec_, e := ee ;
-
-    new_rng, dom_spec := selectremove(type, dom_spec,
-      {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
-       `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
-       [identical(genLet), name, anything]});
-    if not (new_rng :: [list]) then
-      error "kb_subtract should return exactly one gen*"
-    end if;
-    make    := mk;
-    new_rng := op(new_rng);
-    var     := op(2,new_rng);
-    if op(1,new_rng) = genLebesgue then
-      new_rng := op(3,new_rng)..op(4,new_rng);
-    elif op(1,new_rng) = genType then
-      new_rng := range_of_HInt(op(3,new_rng));
-    else # op(1,new_rng) = genLet
-      if mk=Int then
-          # this was just a return, but now is in its own
-          # local function and the control flow must be handled
-          # up above. although calling 'reduce' on 0 will probably
-          # return immediately anyways(?)
-          return DONE(0)
-      else
-          make := eval;
-          new_rng := op(3,new_rng)
-      end if;
-    end if;
-
-    userinfo(3, 'LMS',
-        printf("    dom-spec        : %a\n"
-               "    dom-var         : %a\n"
-         , dom_spec, var ));
-
-    e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
-                         Indicator(op(2,a))
-                       end proc,
-                       dom_spec)));
-
-    userinfo(3, 'LMS',
-        printf("    expr-ind        : %a\n"
-         , e ));
-
-    elim := elim_intsum(make(e, var=new_rng), h, kb0);
-
-    userinfo(3, 'LMS',
-        printf("    expr-elimed     : %a\n"
-         , elim ));
-
-    if elim = FAIL then
-      DONE( reduce_on_prod(p->make(p,var=new_rng), e, var, kb0) );
-    else
-      elim
-    end if;
-
-  end proc;
-
-  do_app_dom_spec := proc(mk, e, h, kb0, kb2)
-      local e2, dom_spec;
-
-      dom_spec := kb_subtract(kb2, kb0);
-
-      # apply the domain restrictions, which can produce
-      #   DONE(x) - produced something which can't be simplified further
-      #   x       - more work to be done
-      e2 := app_dom_spec_IntSum(mk, e, h, kb0, dom_spec);
-
-      userinfo(3, 'LMS',
-               printf("    expr            : %a\n"
-                      "    expr after dom  : %a\n"
-                      , e, e2 ));
-
-      if e2 :: specfunc('DONE') then
-          e2 := op(1,e2);
-      else
-          e2 := reduce(e2, h, kb0);
-          userinfo(3, 'LMS',
-                   printf("    expr-reduced    : %a\n"
-                          , e2 ));
-      end if;
-
-      e2;
-
-  end proc;
-
   # Helper function for performing reductions
   # given an "ee" and a "var", pulls the portion
   # of "ee" not depending on "var" out, and applies "f"
@@ -454,176 +129,6 @@ end proc;
       local e := ee, w;
       e, w := selectremove(depends, list_of_mul(e), var);
       reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
-  end proc;
-
-  reduce_IntSum := proc(mks, h :: name, dom_specw, kb1 :: t_kb, kb0 :: t_kb, $)
-    local dom_spec, kb2, lmss, vs; # , e2, e3, _;
-
-
-    # if there are domain restrictions, try to apply them
-    # (dom_specw, e) := getDomainSpec(ee);
-
-    kb2 := foldr(assert, kb1, op(dom_specw));
-
-    if kb2 :: t_not_a_kb then
-        error "not a kb: %1 + %2", dom_specw, kb1;
-    end if;
-
-    # userinfo(3, 'disint_trace',
-    #     printf("reduce_IntSum input:\n"
-    #            "  integral type: %a\n"
-    #            "  expr : %a\n"
-    #            "  h    : %a\n"
-    #            "  ctx expr  : %a\n"
-    #            "  ctx above : %a\n"
-    #            "  ctx below : %a\n\n"
-    #      , mks, ee, h, kb2, kb1, kb0 ));
-
-    lmss := kb_LMS(kb2, mks);
-
-    # userinfo(3, 'LMS',
-    #      printf("    LMS     : %a\n"
-    #             "    kb Big  : %a\n"
-    #             "    kb small: %a\n"
-    #             "    domain  : %a\n"
-    #             "    var     : %a\n"
-    #      , lmss, kb2, kb0, dom_spec, h ));
-
-
-    # try
-          if not lmss :: specfunc('NoSol') then
-              lmss, vs, _ := op(lmss);
-
-              if lmss :: 'piecewise' then
-                  lmss := PWToPartition(lmss) ;
-              end if;
-
-
-              e2 := proc(e,$)
-                  local er;
-
-                  try
-                      er := app_dom_spec_IntSum_LMS( e, lmss, vs );
-                  catch:
-                      error "LMS threw an exception for\n"
-                            "\texpr: %1\n"
-                            "\tsol : %2\n"
-                            "The error was\n"
-                            "\t%3", e, [lmss, vs]
-                                  , sprintf(StringTools:-FormatMessage(lastexception[2..-1]));
-                  end try;
-
-                  if er :: identical('FAIL') then
-                      error "LMS: failed to apply %1 to %2", [lmss, vs], e
-                  else
-                      er
-                  end if;
-              end proc;
-
-          else
-              error "LMS: no solution(%s)", op(1,lmss), ""
-          end if;
-
-    e2;
-
-  end proc;
-
-  reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, $)
-    local e, elim;
-    # TODO we should apply domain restrictions like reduce_IntSum does.
-    e := makes(ee, var, rng, bds);
-    elim := elim_intsum(e, h, kb);
-    if elim = FAIL then e else reduce(elim, h, kb) end if
-  end proc;
-
-  getDomainSpec := module()
-     local do_get := proc(f, f_ty, $) proc(e, $)
-
-       local sub, inds, rest;
-       if e::`*` then
-         sub := map((s -> [do_get(f, f_ty)(s)]), [op(e)]);
-         `union`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub)))
-       elif e::`^` then
-         inds, rest := do_get(f, f_ty)(op(1,e));
-         inds, subsop(1=rest, e)
-       elif e:: f_ty then
-         f(e)
-       else
-         {}, e
-       end if
-     end proc; end proc;
-
-     local get_indicators := do_get( e -> ( {op(1,e)}, 1 )
-                                   , 'Indicator(anything)'
-                                   );
-
-     local getPartitionDom := do_get( Partition:-Simpl:-single_nonzero_piece
-                                    , 'Partition'
-                                    );
-
-     export ModuleApply :=
-      proc(e, $)
-            local e1 := e, inds0, inds1;
-
-            inds0, e1 := get_indicators(e1);
-            inds1, e1 := getPartitionDom(e1);
-
-            inds0 union inds1, e1;
-     end proc;
-
-  end module;
-
-  elim_intsum := proc(e, h :: name, kb :: t_kb, $)
-    local t, var, f, elim;
-    t := 'applyintegrand'('identical'(h), 'anything');
-    if e :: Int(anything, name=anything) and
-       not depends(indets(op(1,e), t), op([2,1],e)) then
-      var := op([2,1],e);
-      f := 'int_assuming';
-    elif e :: Sum(anything, name=anything) and
-       not depends(indets(op(1,e), t), op([2,1],e)) then
-      var := op([2,1],e);
-      f := 'sum_assuming';
-    elif e :: Ints(anything, name, range, list(name=range)) and
-         not depends(indets(op(1,e), t), op(2,e)) then
-      var := op(2,e);
-      f := 'ints';
-    elif e :: Sums(anything, name, range, list(name=range)) and
-         not depends(indets(op(1,e), t), op(2,e)) then
-      var := op(2,e);
-      f := 'sums';
-    else
-      return FAIL;
-    end if;
-    # try to eliminate unused var
-    elim := banish(op(1,e), h, kb, infinity, var,
-      proc (kb,g,$) do_elim_intsum(kb, f, g, op(2..-1,e)) end proc);
-    if has(elim, {MeijerG, undefined, FAIL}) or e = elim or elim :: SymbolicInfinity then
-      return FAIL;
-    end if;
-    elim
-  end proc;
-
-  do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
-    local w, e, x, g, t, r;
-    w, e := getDomainSpec(ee);
-    e := piecewise_And(w, e, 0);
-    e := f(e,v,_rest,kb);
-    x := `if`(v::name, v, lhs(v));
-    g := '{sum, sum_assuming, sums}';
-    if f in g then
-      t := {'identical'(x),
-            'identical'(x) = 'Not(range(Not({SymbolicInfinity, undefined})))'};
-    else
-      g := '{int, int_assuming, ints}';
-      t := {'identical'(x),
-            'identical'(x) = 'anything'};
-      if not f in g then g := {f} end if;
-    end if;
-    for r in indets(e, 'specfunc'(g)) do
-      if 1<nops(r) and op(2,r)::t then return FAIL end if
-    end do;
-    e
   end proc;
 
   int_assuming := proc(e, v::name=anything, kb::t_kb, $)
@@ -674,3 +179,67 @@ end proc;
       piecewise(cond, th, el)
     end if
   end proc;
+
+  reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, $)
+    local e, elim;
+    # TODO we should apply domain restrictions like reduce_IntSum does.
+    e := makes(ee, var, rng, bds);
+    elim := elim_intsum(e, h, kb);
+    if elim = FAIL then e else reduce(elim, h, kb) end if
+  end proc;
+
+  elim_intsum := module ()
+    export ModuleApply := proc(e, h :: name, kb :: t_kb, $)
+      local t, var, f, elim;
+      t := 'applyintegrand'('identical'(h), 'anything');
+      if e :: Int(anything, name=anything) and
+         not depends(indets(op(1,e), t), op([2,1],e)) then
+        var := op([2,1],e);
+        f := 'int_assuming';
+      elif e :: Sum(anything, name=anything) and
+         not depends(indets(op(1,e), t), op([2,1],e)) then
+        var := op([2,1],e);
+        f := 'sum_assuming';
+      elif e :: Ints(anything, name, range, list(name=range)) and
+           not depends(indets(op(1,e), t), op(2,e)) then
+        var := op(2,e);
+        f := 'ints';
+      elif e :: Sums(anything, name, range, list(name=range)) and
+           not depends(indets(op(1,e), t), op(2,e)) then
+        var := op(2,e);
+        f := 'sums';
+      else
+        return FAIL;
+      end if;
+      # try to eliminate unused var
+      elim := banish(op(1,e), h, kb, infinity, var,
+        proc (kb,g,$) do_elim_intsum(kb, f, g, op(2..-1,e)) end proc);
+      if has(elim, {MeijerG, undefined, FAIL}) or e = elim or elim :: SymbolicInfinity then
+        return FAIL;
+      end if;
+      elim
+    end proc;
+
+    local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
+      local w, e, x, g, t, r;
+      w, e := getDomainSpec(ee);
+      e := piecewise_And(w, e, 0);
+      e := f(e,v,_rest,kb);
+      x := `if`(v::name, v, lhs(v));
+      g := '{sum, sum_assuming, sums}';
+      if f in g then
+        t := {'identical'(x),
+              'identical'(x) = 'Not(range(Not({SymbolicInfinity, undefined})))'};
+      else
+        g := '{int, int_assuming, ints}';
+        t := {'identical'(x),
+              'identical'(x) = 'anything'};
+        if not f in g then g := {f} end if;
+      end if;
+      for r in indets(e, 'specfunc'(g)) do
+        if 1<nops(r) and op(2,r)::t then return FAIL end if
+      end do;
+      e
+    end proc;
+
+  end module;

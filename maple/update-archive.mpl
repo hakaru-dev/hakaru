@@ -8,6 +8,7 @@ read("./Hakaru.mpl"):
 read("./KB.mpl"):
 read("./Partition.mpl"):
 read("./Loop.mpl"):
+read("./Domain.mpl"):
 read("./NewSLO.mpl"):
 read("./Summary.mpl"):
 LibraryTools:-Save(`gensym`, lib):
