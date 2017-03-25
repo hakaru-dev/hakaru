@@ -680,17 +680,13 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                            ++ show (ppStatement 11 (SLet l (Whnf_ w) ixs))
                           ) $ return ()
 #endif
-                    w'   <- extSubsts (zipInds ixs jxs) (fromWhnf w)
-                    inds <- getIndices
-                    withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
+                    extSubsts (zipInds ixs jxs) (fromWhnf w) >>= evaluate_
                 SLet  l' e ixs -> do
                   Refl <- locEq l l'
                   Just $ do
                     w <- withIndices ixs $ caseLazy e return evaluate_
                     unsafePush (SLet l (Whnf_ w) ixs)
-                    w'   <- extSubsts (zipInds ixs jxs) (fromWhnf w)
-                    inds <- getIndices
-                    withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
+                    extSubsts (zipInds ixs jxs) (fromWhnf w) >>= evaluate_
                 -- This does not bind any variables, so it definitely can't match.
                 SWeight   _ _ -> Nothing
                 -- This does bind variables,
