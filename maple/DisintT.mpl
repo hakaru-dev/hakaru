@@ -95,7 +95,7 @@ norm0a :=
   Bind(Gaussian(x,1), y,
   Ret(Pair(y, x)))):
   # note that the answer below is much nicer than the one expected in Haskell
-norm0r := {Weight(1/2/Pi^(1/2)/exp(t^2)^(1/4),Gaussian(t/2,sqrt(2)/2))}:
+norm0r := {Weight(1/2*exp(-1/4*t^2)/Pi^(1/2),Gaussian(t/2,sqrt(2)/2))}:
 
 norm1a :=
   Bind(Gaussian(3,2), x,Ret(piecewise(x<0, Pair(-x, _Unit), Pair(x, _Unit)))):

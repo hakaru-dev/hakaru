@@ -213,7 +213,11 @@
          # domain problem that can be improved significanly.
          mc :=
           kb_assuming_mb( _mc ->
-            subsindets( _mc, And(specfunc(`Int`),freeof(op(1, _mc))), x-> simplify( int(op(x)) ) )
+            subsindets( _mc, And(specfunc(`Int`)
+                                ,freeof(op(1, _mc))
+                                ,satisfies(e->indets(e,specfunc(`exp`))<>{}))
+                                )
+                           , x-> simplify( int(op(x)) )
                         )(mc, kb, x->x);
 
          # all of the below achieve the same as the above, but in a different
