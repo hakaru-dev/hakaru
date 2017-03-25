@@ -8,13 +8,15 @@ Domain := module()
 #     | DSplit(Partition(DomShape))
 #     | DInto(name, BoundType, DomShape)
 
-    export DOMAIN := proc() 'procname'(_passed) end proc;
-    export DBound := proc() 'procname'(_passed) end proc;
+    global DOMAIN;
+    global DBound;
 
-    export DConstrain := proc() 'procname'(_passed) end proc;
-    export DSum := proc() 'procname'(_passed) end proc;
-    export DSplit := proc() 'procname'(_passed) end proc;
-    export DInto := proc() 'procname'(_passed) end proc;
+    global DConstrain;
+    global DSum;
+    global DSplit;
+    global DInto;
+
+    global DNoSol;
 
     export Has := module ()
 
@@ -42,7 +44,7 @@ Domain := module()
 
        export Shape := module ()
          export AsConstraints := proc(dom, $)
-           {} # TODO
+           [] # TODO
          end proc;
 
          export ModuleApply := proc(dom, $)
@@ -52,7 +54,7 @@ Domain := module()
        end module;
 
        export ModuleApply := proc(dom, $)
-          build_kb(AsConstraints(op(2,dom)), "Domain/ToKB", Bound(op(1,dom)));
+          build_kb( Domain:-ToKB:-Shape:-AsConstraints(op(2,dom)), "Domain/ToKB", Bound(op(1,dom)));
        end proc;
     end module;
 
@@ -142,21 +144,20 @@ Domain := module()
                do_extract(kb1, kb, vars1, arg);
              end proc;
 
-             local do_extract := proc(kb1_, kb, vars, arg, $)
-
+             local do_extract := proc(kb1, kb, vars, arg, $)
                if Domain:-Has:-Bound(arg) then
-                   do_extract_arg(kb1, kb, vars1, op(0,arg), op(arg));
+                   do_extract_arg(kb1, kb, vars, op(0,arg), op(arg));
                else
-                   arg, vars1, kb1
+                   arg, vars, kb1
                end if;
 
              end proc;
 
-             export ModuleApply := proc(e, {ctx := empty}, $)
+             export ModuleApply := proc(e, ctx := {empty}, $)
                         local arg, vars, kb;
                         arg, vars, kb := do_extract(ctx, ctx, [], e);
 
-                        arg, Domain:-DBound(vars, kb);
+                        arg, DBound(vars, kb);
              end proc;
            end module;
 
@@ -180,18 +181,19 @@ Domain := module()
 
              end proc; end proc;
 
-             local do_gets := proc(todo, w, e, $)
+             local do_gets := proc(todo::list, w, e, $)
                        local t0, ts, w1, e1;
                        if nops(todo) = 0 then
                            w, e
                        else
-                           t0, ts := op(todo);
+                           t0 := op(1, todo);
+                           ts := op(subsop(1=NULL, todo));
                            if indets(e, specfunc(t0)) <> {} then
                                w1, e1 :=
                                  do_get(ExtShape[t0]:-MakeCtx
                                        ,ExtShape[t0]:-MapleType
                                        )(e);
-                               do_gets( [ ts, t0 ], w, e1 );
+                               do_gets( [ ts, t0 ], w1 union w, e1 );
                            else
                                do_gets( [ ts ], w, e );
                            end if;
@@ -202,10 +204,10 @@ Domain := module()
 
              export ModuleApply := proc(e, $)
                         local ixs, w, e1;
-                        ixs := indices(ExtShape, 'nolist');
-                        w, e1 := do_gets(ixs, e);
+                        ixs := [indices(ExtShape, 'nolist')];
+                        w, e1 := do_gets(ixs, {}, e);
 
-                        w := Domain:-DConstrain(op(w));
+                        w := DConstrain(op(w));
                         w := simpl_shape(w);
 
                         w, e1
@@ -243,17 +245,17 @@ Domain := module()
 
            local do_apply := proc(e, vs, vs_ty, sh_, kb, $)
               local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1;
-              if sh :: specfunc('DConstrain') then
+              if sh :: specfunc(`DConstrain`) then
                   foldr(`*`, e, op( map(c->Indicator(c), sh) ));
 
-              elif sh :: specfunc('DSum') then
+              elif sh :: specfunc(`DSum`) then
                   `+`(seq(do_apply(e, vs, vs_ty, s, kb), s=op(sh)))
 
-              elif sh :: specfunc('DSplit') then
+              elif sh :: specfunc(`DSplit`) then
                   sh := op(1, sh);
                   Partition:-Pmap(p-> do_apply(e, vs, vs_ty, p, kb), sh);
 
-              elif sh :: specfunc('DInto') then
+              elif sh :: specfunc(`DInto`) then
                   # deconstruction
                   vn, vt, shv := op(sh);
                   ty, vn_ty := get_subdom(vn, vs_ty);
@@ -271,7 +273,7 @@ Domain := module()
               end if;
            end proc;
 
-           export ModuleApply := proc(e, dom, kb, $)
+           export ModuleApply := proc(dom, e, kb :: t_kb, $)
              local vs, sh, vs_ty, vn, e1, ty, _;
              vs, sh := op(dom);
              vs, vs_ty := op(vs);
@@ -310,7 +312,7 @@ Domain := module()
                    end proc;
 
                    local classifySol1 :=
-                     proc(v0, vs_ty, sol :: set({relation,boolean}), $)
+                     proc(v, vs_ty, sol :: set({relation,boolean}), ctx, $)
                          local hi, lo, v_t;
 
                          # try to check if we can extract upper and lower bounds from the
@@ -324,41 +326,41 @@ Domain := module()
                                  ) then
                              v_t := op(1,lo) .. op(1,hi) ;
 
-                             {}, (ctx-> Domain:-DInto(v, v_t, ctx));
+                             DInto(v, v_t, ctx);
                          else
-                             sol, (x->x);
+                             subsindets( ctx, specfunc(`DConstrain`)
+                                       , x-> DConstrain(op(x), op(sol))
+                                       );
                          end if;
                  end proc;
 
                  local classifySols := proc(vs, vs_ty, $) proc( sol :: list(set({relation,boolean})), $ )
-                    local sol1, ctx, dmk, s, solOrd, vso;
-                    sol1, solOrd := orderSols(sol);
+                    local sol1, ctx, dmk, s, solOrd, vso, v;
+                    sol1, solOrd := orderSols(sol, vs);
                     vso := vs[solOrd];
 
-                    sol1 := zip(proc(s,v,$) classifySol1(v, vs_ty, s) end proc, sol1, vso);
+                    sol1 := zip(proc() [_passed] end proc, sol1, vso);
 
-                    ctx := {}; dmk := (x->x);
-                    for s in sol1 do
-                        ctx := ctx union op(1,s);
-                        dmk := op(2,s) @ dmk;
+                    ctx := DConstrain();
+                    for v in sol1 do
+                        ctx := classifySol1(op(2,v), vs_ty, op(1, v), ctx);
                     end do;
 
-                    dmk(Domain:-DConstrain(op(ctx)));
+                    ctx;
                  end proc; end proc;
 
                  local postproc := proc(sol, vs, vs_ty, $)
                    local ret := sol;
 
                    ret := subsindets(ret, specfunc('piecewise')
-                                    , x-> Domain:-DSplit(Partition:-PWToPartition(x)));
-
-                   ret := subsindets(ret, list(set({relation,boolean}))
-                                    , classifySols(vs, vs_ty) );
+                                    , x-> DSplit(Partition:-PWToPartition(x)));
 
                    ret := subsindets(ret
                                     , Or(identical({}), set(list))
-                                    , x -> Domain:-DSum(op(x)) );
+                                    , x -> DSum(op(x)) );
 
+                   ret := subsindets(ret, list(set({relation,boolean}))
+                                    , classifySols(vs, vs_ty) );
 
                    ret;
                  end proc;
@@ -366,7 +368,7 @@ Domain := module()
                  local do_LMS := proc( ctx, vs_, $ )
                    local vs := vs_, cs, ret;
 
-                   cs := op(1, kb_extract(ctx));
+                   cs := op(3, kb_extract(ctx));
                    cs := {op(cs)};
 
                   # there are variables to solve for, but no non-trivial
@@ -376,21 +378,21 @@ Domain := module()
                      ret := { map(o->{true}, vs) };
 
                    elif not cs = {} and vs = [] then
-                       ret := NoSol("There are no variables to solve for, but there are constraints."
+                       ret := DNoSol("There are no variables to solve for, but there are constraints."
                                    " This means the variables have not been correctly identified.");
 
                    elif cs = {} and vs = [] then
-                       ret := NoSol("Something went very wrong");
+                       ret := DNoSol("Something went very wrong");
 
                    else
                        try
                            ret := LinearMultivariateSystem( cs, vs );
                        catch "the system must be linear in %1":
-                           ret := NoSol(sprintf("The system (%a) must be linear in %a."
+                           ret := DNoSol(sprintf("The system (%a) must be linear in %a."
                                                 , cs, vs ));
 
                        catch "inequality must be linear in %1":
-                           ret := NoSol(sprintf("The system (%a) contains nonlinear inequality in "
+                           ret := DNoSol(sprintf("The system (%a) contains nonlinear inequality in "
                                                 "one of %a."
                                                 , cs, vs ));
                        end try;
@@ -401,13 +403,14 @@ Domain := module()
                  end proc;
 
                  export ModuleApply := proc(dom, $)
-                    local dbnds, dshape, db_vars, db_ctx, sol;
+                    local dbnds, dshape, db_vars, db_ctx, sol, domKb, domCtx, res;
                     dbnds, dshape := op(dom);
                     db_vars, db_ctx := op(dbnds);
 
-                    sol := do_LMS( ToKB(dom), db_vars );
-                    postproc(sol, db_Vars, db_ctx);
+                    sol := do_LMS( ToKB(dom) , db_vars );
+                    sol := postproc(sol, db_vars, db_ctx);
 
+                    DOMAIN( dbnds, sol );
                  end proc;
 
                  end module);
@@ -416,7 +419,7 @@ Domain := module()
 
            local cmp_simp := proc(s0, s1, $) proc(dom, $)
               local dom1 := s0(dom);
-              if not dom1 :: DNoSol then
+              if not dom1 :: specfunc(`DNoSol`) then
                   s1(dom1);
               else
                   s1(dom);
@@ -424,11 +427,13 @@ Domain := module()
            end proc; end proc;
 
            export ModuleApply := proc(dom, $)
-               foldr(cmp_smpl, (x->x), entries(Simplifiers))(dom);
+               local es := entries(Simplifiers)
+                   , mk := foldr( cmp_simp , (x->x), op(es) );
+               mk(dom);
            end proc;
     end module;
 
-    uses Hakaru, KB, Partition;
+    uses Hakaru, KB, Partition, SolveTools[Inequality] ;
 
 end module;
 

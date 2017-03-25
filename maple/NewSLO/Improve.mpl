@@ -23,7 +23,7 @@
         # and allow a further simplification to occur in this
         # step of domain improvement
         body, dom_specb := Domain:-Extract:-Bound(e, kb);
-        kb1 := Domain:-ToKB:-Bound(dom_spec1);
+        kb1 := Domain:-ToKB:-Bound(dom_specb);
 
         userinfo(3, 'disint_trace',
                  printf("domain extract:\n"
@@ -38,7 +38,7 @@
         (dom_specw, e) := Domain:-Extract:-Shape(e);
 
         # Construct the domain from the bounds and the shape
-        dom_spec := Domain:-DOMAIN(dom_specb, dom_specw);
+        dom_spec := DOMAIN(dom_specb, dom_specw);
 
         # Improve the domain
         dom_spec := Domain:-Improve(dom_spec);
