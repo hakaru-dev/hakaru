@@ -47,7 +47,7 @@ import Language.Hakaru.Syntax.ABT      (ABT(..), subst, maxNextFree)
 import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy (evaluate, defaultCaseEvaluator)
+import Language.Hakaru.Evaluation.Lazy (evaluate)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 
@@ -83,7 +83,7 @@ runPureEvaluate e = runEval (fromWhnf <$> pureEvaluate e) [Some2 e]
 --
 -- | Call 'evaluate' on a term. This variant returns something in the 'Eval' monad so you can string multiple evaluation calls together. For the non-monadic version, see 'runPureEvaluate'.
 pureEvaluate :: (ABT Term abt) => TermEvaluator abt (Eval abt)
-pureEvaluate = evaluate (brokenInvariant "perform") defaultCaseEvaluator
+pureEvaluate = evaluate (brokenInvariant "perform")
 
 
 ----------------------------------------------------------------

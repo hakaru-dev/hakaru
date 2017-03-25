@@ -305,7 +305,7 @@ firstM f (x,y) = (\z -> (z, y)) <$> f x
 -- More specifically, we need to ensure emissibility in the places
 -- where we call 'emitMBind'
 evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
-evaluate_ = evaluate perform evaluateCase
+evaluate_ = evaluate perform
 
 
 -- Copying `evaluate` from LH.Evaluation.Lazy for now (2016-06-28)
@@ -315,10 +315,9 @@ evaluate
     :: forall abt m p
     .  (ABT Term abt)
     => MeasureEvaluator abt (Dis abt)
-    -> (TermEvaluator abt (Dis abt) -> CaseEvaluator abt (Dis abt))
     -> TermEvaluator  abt (Dis abt)
 {-# INLINE evaluate #-}
-evaluate perform evaluateCase = goEvaluate
+evaluate perform = goEvaluate
     where
     evaluateCase_ :: CaseEvaluator abt (Dis abt)
     evaluateCase_ = evaluateCase goEvaluate
@@ -417,39 +416,7 @@ diff x y = x && not y
 nand x y = not (x && y)
 nor  x y = not (x || y)
            
----------------------------------------------------------- End of copied code --
-                 
-
--- | The forward disintegrator's function for evaluating case
--- expressions. First we try calling 'defaultCaseEvaluator' which
--- will evaluate the scrutinee and select the matching branch (if
--- any). But that doesn't work out in general, since the scrutinee
--- may contain heap-bound variables. So our fallback definition
--- will push a 'SGuard' onto the heap and then continue evaluating
--- each branch (thereby duplicating the continuation, calling it
--- once on each branch).
-evaluateCase
-    :: forall abt
-    .  (ABT Term abt)
-    => TermEvaluator abt (Dis abt)
-    -> CaseEvaluator abt (Dis abt)
-{-# INLINE evaluateCase #-}
-evaluateCase evaluate_ = evaluateCase_
-    where
-    evaluateCase_ :: CaseEvaluator abt (Dis abt)
-    evaluateCase_ e bs =
-        defaultCaseEvaluator evaluate_ e bs
-        <|> evaluateBranches e bs
-
-    evaluateBranches :: CaseEvaluator abt (Dis abt)
-    evaluateBranches e = choose . map evaluateBranch
-        where
-        evaluateBranch (Branch pat body) =
-            let (vars,body') = caseBinds body
-            in getIndices >>= \i ->
-                push (SGuard vars pat (Thunk e) i) body'
-                   >>= evaluate_
-
+---------------------------------------------------------- End of copied code --                 
 
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e

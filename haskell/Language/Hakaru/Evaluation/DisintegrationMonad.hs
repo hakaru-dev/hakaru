@@ -637,6 +637,30 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                     var <$> mkLoc Text.empty l inds'
             else defaultResult
 
+    -- | The forward disintegrator's function for evaluating case
+    -- expressions. First we try calling 'defaultCaseEvaluator' which
+    -- will evaluate the scrutinee and select the matching branch (if
+    -- any). But that doesn't work out in general, since the scrutinee
+    -- may contain heap-bound variables. So our fallback definition
+    -- will push a 'SGuard' onto the heap and then continue evaluating
+    -- each branch (thereby duplicating the continuation, calling it
+    -- once on each branch).
+    evaluateCase evaluate_ = evaluateCase_
+        where
+          evaluateCase_ :: CaseEvaluator abt (Dis abt)
+          evaluateCase_ e bs =
+              defaultCaseEvaluator evaluate_ e bs
+              <|> evaluateBranches e bs
+
+          evaluateBranches :: CaseEvaluator abt (Dis abt)
+          evaluateBranches e = choose . map evaluateBranch
+              where
+                evaluateBranch (Branch pat body) =
+                    let (vars,body') = caseBinds body
+                    in getIndices >>= \i ->
+                        push (SGuard vars pat (Thunk e) i) body'
+                           >>= evaluate_
+
     evaluateVar perform evaluate_ x =
       do extras <- getExtras
          -- If we get 'Nothing', then it turns out @x@ is a free variable

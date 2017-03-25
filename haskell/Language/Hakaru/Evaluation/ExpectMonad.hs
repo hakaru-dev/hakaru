@@ -49,7 +49,7 @@ import Language.Hakaru.Syntax.ABT      (ABT(..), caseVarSyn, subst, maxNextFreeO
 import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.AST      hiding (Expect)
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy (evaluate, defaultCaseEvaluator)
+import Language.Hakaru.Evaluation.Lazy (evaluate)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 
@@ -99,7 +99,7 @@ residualizeExpectListContext e0 =
 
 
 pureEvaluate :: (ABT Term abt) => TermEvaluator abt (Expect abt)
-pureEvaluate = evaluate (brokenInvariant "perform") defaultCaseEvaluator
+pureEvaluate = evaluate (brokenInvariant "perform")
 
 brokenInvariant :: String -> a
 brokenInvariant loc = error (loc ++ ": Expect's invariant broken")

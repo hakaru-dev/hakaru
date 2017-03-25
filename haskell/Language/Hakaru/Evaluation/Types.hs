@@ -66,6 +66,8 @@ module Language.Hakaru.Evaluation.Types
     , prettyAssocs
 #endif
     , EvaluationMonad(..)
+    , defaultCaseEvaluator
+    , toVarStatements
     , extSubst
     , extSubsts
     , freshVar
@@ -103,6 +105,9 @@ import Language.Hakaru.Types.Sing    (Sing(..))
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumCase (DatumEvaluator,
+                                         MatchResult(..),
+                                         matchBranches)
 import Language.Hakaru.Syntax.AST.Eq (alphaEq)
 -- import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
@@ -893,6 +898,14 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
              -> (forall b'. Variable b' -> m (abt '[] b'))
     substVar x e = return . var
 
+
+    -- The first argument to @evaluateCase@ will be the
+    -- 'TermEvaluator' we're constructing (thus tying the knot).
+    evaluateCase :: TermEvaluator abt m -> CaseEvaluator abt m
+    {-# INLINE evaluateCase #-}
+    evaluateCase = defaultCaseEvaluator
+
+               
     -- TODO: figure out how to abstract this so it can be reused by
     -- 'constrainValue'. Especially the 'SBranch case of 'step'
     -- TODO: we could speed up the case for free variables by having
@@ -927,13 +940,66 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
                 w <- caseLazy e return evaluate_
                 unsafePush (SLet (Location x) (Whnf_ w) i)
                 return w
-        -- These two don't bind any variables, so they definitely can't match.
+        -- These two don't bind any variables, so they definitely
+        -- can't match.
         SWeight   _ _ -> Nothing
         SStuff0   _ _ -> Nothing
-        -- These two do bind variables, but there's no expression we can return for them because the variables are untouchable\/abstract.
+        -- These two do bind variables, but there's no expression we
+        -- can return for them because the variables are
+        -- untouchable\/abstract.
         SStuff1 _ _ _ -> Just . return . Neutral $ var x
         SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
-                  
+
+
+-- | A simple 'CaseEvaluator' which uses the 'DatumEvaluator' to
+-- force the scrutinee, and if 'matchBranches' succeeds then we
+-- call the 'TermEvaluator' to continue evaluating the body of the
+-- matched branch. If we 'GotStuck' then we return a 'Neutral' term
+-- of the case expression itself (n.b, any side effects from having
+-- called the 'DatumEvaluator' will still persist when returning
+-- this neutral term). If we didn't get stuck and yet none of the
+-- branches matches, then we throw an exception.
+defaultCaseEvaluator
+    :: forall abt m p
+    .  (ABT Term abt, EvaluationMonad abt m p)
+    => TermEvaluator abt m
+    -> CaseEvaluator abt m
+{-# INLINE defaultCaseEvaluator #-}
+defaultCaseEvaluator evaluate_ = evaluateCase_
+    where
+    -- TODO: At present, whenever we residualize a case expression we'll
+    -- generate a 'Neutral' term which will, when run, repeat the work
+    -- we're doing in the evaluation here. We could eliminate this
+    -- redundancy by introducing a new variable for @e@ each time this
+    -- function is called--- if only we had some way of getting those
+    -- variables put into the right place for when we residualize the
+    -- original scrutinee...
+    --
+    -- N.B., 'DatumEvaluator' is a rank-2 type so it requires a signature
+    evaluateDatum :: DatumEvaluator (abt '[]) m
+    evaluateDatum e = viewWhnfDatum <$> evaluate_ e
+
+    evaluateCase_ :: CaseEvaluator abt m
+    evaluateCase_ e bs = do
+        match <- matchBranches evaluateDatum e bs
+        case match of
+            Nothing ->
+                -- TODO: print more info about where this error
+                -- happened
+                --
+                -- TODO: rather than throwing a Haskell error,
+                -- instead capture the possibility of failure in
+                -- the 'EvaluationMonad' monad.
+                error "defaultCaseEvaluator: non-exhaustive patterns in case!"
+            Just GotStuck ->
+                return . Neutral . syn $ Case_ e bs
+            Just (Matched ss body) ->
+                pushes (toVarStatements ss) body >>= evaluate_
+
+
+toVarStatements :: Assocs (abt '[]) -> [Statement abt Variable p]
+toVarStatements = map (\(Assoc x e) -> SLet x (Thunk e) []) .
+                  fromAssocs 
  
 extSubst
     :: forall abt a xs b m p. (EvaluationMonad abt m p)
