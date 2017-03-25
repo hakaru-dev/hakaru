@@ -123,7 +123,7 @@ Domain := module()
 
            export MakeOfType := module()
               local makeTable := proc()
-                 table([seq(apply(rhs=lhs,e),e=indices(ExtBound,'nolist'))]);
+                 table([seq( ExtBound[e]:-HType=e,e=[indices(ExtBound,'nolist')])]);
               end proc;
 
               export ModuleApply := proc(t, $)
@@ -229,42 +229,47 @@ Domain := module()
               local mk, rng;
 
               mk := Extract:-MakeOfType(ty);
-              rng := Extract:-ExtBound[mk]:-RangeOf(ty);
-              rng := Extract:-ExtBound[mk]:-MakeEqn(vn, rng);
+
+              rng := Domain:-ExtBound[mk]:-RangeOf(ty);
+              rng := Domain:-ExtBound[mk]:-MakeEqn(vn, rng);
 
               mk(e, rng);
            end proc;
 
-           local get_subdom := proc(vn, vs_ty)
-                  local vn_ty, ty;
-                  vn_ty := op(0, vs_ty)( KB:-getType(vs_ty, vn) );
-                  ty := op([1,2], vn_ty);
+           # local get_subdom := proc(vn, vs_ty)
+           #        local ty, vn_ty;
 
-                  ty, vn_ty
-           end proc;
+           #        ty := KB:-getType(vs_ty, vn);
+           #        vn_ty := select(cl -> depends(cl, vn), vs_ty);
 
-           local do_apply := proc(e, vs, vs_ty, sh_, kb, $)
+           #        # local vn_ty, ty, _;
+           #        # _, vn_ty := KB:-genType( vn, KB:-getType(vs_ty, vn) , empty );
+           #        # ty := op([1,2], vn_ty);
+
+           #        ty, vn_ty
+           # end proc;
+
+           local do_apply := proc(e, vs, vs_ty, sh_, $)
               local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1;
               if sh :: specfunc(`DConstrain`) then
                   foldr(`*`, e, op( map(c->Indicator(c), sh) ));
 
               elif sh :: specfunc(`DSum`) then
-                  `+`(seq(do_apply(e, vs, vs_ty, s, kb), s=op(sh)))
+                  `+`(seq(do_apply(e, vs, vs_ty, s), s=sh))
 
               elif sh :: specfunc(`DSplit`) then
                   sh := op(1, sh);
-                  Partition:-Pmap(p-> do_apply(e, vs, vs_ty, p, kb), sh);
+                  Partition:-Pmap(p-> do_apply(e, vs, vs_ty, p), sh);
 
               elif sh :: specfunc(`DInto`) then
                   # deconstruction
                   vn, vt, shv := op(sh);
-                  ty, vn_ty := get_subdom(vn, vs_ty);
+                  ty := KB:-getType(vs_ty, vn);
 
-                  # this solution is added to the recursive call
-                  kb1 := KB:-assert(vn :: vt, kb);
+                  # ty, vn_ty := get_subdom(vn, vs_ty);
 
                   # recursively apply
-                  e1 := do_apply(e, [vn], vn_ty, shv, kb1);
+                  e1 := do_apply(e, [vn], vs_ty, shv);
 
                   # build this integral
                   do_mk(e1, vn, ty);
@@ -274,14 +279,19 @@ Domain := module()
            end proc;
 
            export ModuleApply := proc(dom, e, kb :: t_kb, $)
-             local vs, sh, vs_ty, vn, e1, ty, _;
+             local vs, sh, vs_ty, vn, e1, ty, _, kb_as;
              vs, sh := op(dom);
              vs, vs_ty := op(vs);
 
-             e1 := do_apply(e, vs, vs_ty, sh, kb);
+             kb_as := kb_to_assumptions(kb);
+             vs_ty := build_kb( kb_as, "Domain/Apply", vs_ty );
+
+             e1 := do_apply(e, vs, vs_ty, sh);
 
              for vn in vs do
-                 ty, _ := get_subdom(vn, vs_ty);
+                 # ty, _ := get_subdom(vn, vs_ty);
+                 ty := KB:-getType(vs_ty, vn);
+
                  e1 := subsindets(e1, Not(freeof(vn))
                                  ,x -> do_mk(x, vn, ty));
              end do;
