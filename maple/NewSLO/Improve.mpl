@@ -22,8 +22,8 @@
         # This may discover other nested domains, simplify them,
         # and allow a further simplification to occur in this
         # step of domain improvement
-        body, dom_specb := Domain:-Extract['Bounds'](e, kb);
-        kb1 := Domain:-ToKB['Bounds'](dom_spec1);
+        body, dom_specb := Domain:-Extract:-Bound(e, kb);
+        kb1 := Domain:-ToKB:-Bound(dom_spec1);
 
         userinfo(3, 'disint_trace',
                  printf("domain extract:\n"
@@ -35,7 +35,7 @@
         e := reduce(body, h, kb1);
 
         # Extract the shape of the domain
-        (dom_specw, e) := Domain:-Extract['Shape'](e);
+        (dom_specw, e) := Domain:-Extract:-Shape(e);
 
         # Construct the domain from the bounds and the shape
         dom_spec := Domain:-DOMAIN(dom_specb, dom_specw);
