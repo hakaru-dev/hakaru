@@ -44,6 +44,12 @@ module Language.Hakaru.Evaluation.Types
     , getLazyVariable, isLazyVariable
     , getLazyLiteral,  isLazyLiteral
 
+    -- * Lazy partial evaluation
+    , TermEvaluator
+    , MeasureEvaluator
+    , CaseEvaluator
+    , VariableEvaluator
+    
     -- * The monad for partial evaluation
     , Purity(..), Statement(..), statementVars, isBoundBy
     , Index, indVar, indSize, fromIndex
@@ -766,6 +772,29 @@ prettyAssocs a = PP.vcat $ map go (fromAssocs a)
                                 
 #endif
 
+
+-----------------------------------------------------------------
+-- | A function for evaluating any term to weak-head normal form.
+type TermEvaluator abt m =
+    forall a. abt '[] a -> m (Whnf abt a)
+
+-- | A function for \"performing\" an 'HMeasure' monadic action.
+-- This could mean actual random sampling, or simulated sampling
+-- by generating a new term and returning the newly bound variable,
+-- or anything else.
+type MeasureEvaluator abt m =
+    forall a. abt '[] ('HMeasure a) -> m (Whnf abt a)
+
+-- | A function for evaluating any case-expression to weak-head
+-- normal form.
+type CaseEvaluator abt m =
+    forall a b. abt '[] a -> [Branch a abt b] -> m (Whnf abt b)
+
+-- | A function for evaluating any variable to weak-head normal form.
+type VariableEvaluator abt m =
+    forall a. Variable a -> m (Whnf abt a)
+                            
+
 ----------------------------------------------------------------
 -- | This class captures the monadic operations needed by the
 -- 'evaluate' function in "Language.Hakaru.Lazy".
@@ -864,16 +893,55 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
              -> (forall b'. Variable b' -> m (abt '[] b'))
     substVar x e = return . var
 
+    -- TODO: figure out how to abstract this so it can be reused by
+    -- 'constrainValue'. Especially the 'SBranch case of 'step'
+    -- TODO: we could speed up the case for free variables by having
+    -- the 'Context' also keep track of the largest free var. That way,
+    -- we can just check up front whether @varID x < nextFreeVarID@.
+    -- Of course, we'd have to make sure we've sufficiently renamed all
+    -- bound variables to be above @nextFreeVarID@; but then we have to
+    -- do that anyways.
+    evaluateVar :: MeasureEvaluator  abt m
+                -> TermEvaluator     abt m
+                -> VariableEvaluator abt m
+    evaluateVar perform evaluate_ = \x ->
+    -- If we get 'Nothing', then it turns out @x@ is a free variable
+      fmap (maybe (Neutral $ var x) id) . select (Location x) $ \s ->
+        case s of
+        SBind y e i -> do
+            Refl <- locEq (Location x) y
+            Just $ do
+                w <- perform $ caseLazy e fromWhnf id
+                unsafePush (SLet (Location x) (Whnf_ w) i)
+#ifdef __TRACE_DISINTEGRATE__
+                trace ("-- updated "
+                    ++ show (ppStatement 11 s)
+                    ++ " to "
+                    ++ show (ppStatement 11 (SLet (Location x) (Whnf_ w) i))
+                    ) $ return ()
+#endif
+                return w
+        SLet y e i -> do
+            Refl <- locEq (Location x) y
+            Just $ do
+                w <- caseLazy e return evaluate_
+                unsafePush (SLet (Location x) (Whnf_ w) i)
+                return w
+        -- These two don't bind any variables, so they definitely can't match.
+        SWeight   _ _ -> Nothing
+        SStuff0   _ _ -> Nothing
+        -- These two do bind variables, but there's no expression we can return for them because the variables are untouchable\/abstract.
+        SStuff1 _ _ _ -> Just . return . Neutral $ var x
+        SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
+                  
+ 
 extSubst
     :: forall abt a xs b m p. (EvaluationMonad abt m p)
     => Variable a
     -> abt '[] a
     -> abt xs b
     -> m (abt xs b)
-extSubst x e = substM x e varCase
-    where
-      varCase :: forall b'. Variable b' -> m (abt '[] b')
-      varCase = substVar x e
+extSubst x e = substM x e (substVar x e)
 
 extSubsts
     :: forall abt a xs m p. (EvaluationMonad abt m p)

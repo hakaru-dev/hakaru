@@ -49,7 +49,7 @@ import Language.Hakaru.Syntax.ABT      (ABT(..), caseVarSyn, subst, maxNextFreeO
 import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.AST      hiding (Expect)
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
+import Language.Hakaru.Evaluation.Lazy (evaluate, defaultCaseEvaluator)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 

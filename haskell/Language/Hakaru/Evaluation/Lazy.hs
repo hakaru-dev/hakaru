@@ -29,15 +29,8 @@
 -- like my old one.
 ----------------------------------------------------------------
 module Language.Hakaru.Evaluation.Lazy
-    (
-    -- * Lazy partial evaluation
-      TermEvaluator
-    , MeasureEvaluator
-    , CaseEvaluator
-    , VariableEvaluator
-    , evaluate
+    ( evaluate
     -- ** Helper functions
-    , update
     , defaultCaseEvaluator
     , toVarStatements
     , evaluateNaryOp
@@ -93,27 +86,6 @@ import Debug.Trace (trace)
 -- to select out subtypes of the generic versions.
 
 
--- | A function for evaluating any term to weak-head normal form.
-type TermEvaluator abt m =
-    forall a. abt '[] a -> m (Whnf abt a)
-
--- | A function for \"performing\" an 'HMeasure' monadic action.
--- This could mean actual random sampling, or simulated sampling
--- by generating a new term and returning the newly bound variable,
--- or anything else.
-type MeasureEvaluator abt m =
-    forall a. abt '[] ('HMeasure a) -> m (Whnf abt a)
-
--- | A function for evaluating any case-expression to weak-head
--- normal form.
-type CaseEvaluator abt m =
-    forall a b. abt '[] a -> [Branch a abt b] -> m (Whnf abt b)
-
--- | A function for evaluating any variable to weak-head normal form.
-type VariableEvaluator abt m =
-    forall a. Variable a -> m (Whnf abt a)
-
-
 -- | Lazy partial evaluation with some given \"perform\" and
 -- \"evaluateCase\" functions. The first argument to @evaluateCase@
 -- will be the 'TermEvaluator' we're constructing (thus tying the
@@ -140,7 +112,7 @@ evaluate perform evaluateCase = evaluate_
 #ifdef __TRACE_DISINTEGRATE__
       trace ("-- evaluate_: " ++ show (pretty e0)) $
 #endif
-      caseVarSyn e0 (update perform evaluate_) $ \t ->
+      caseVarSyn e0 (evaluateVar perform evaluate_) $ \t ->
         case t of
         -- Things which are already WHNFs
         Literal_ v               -> return . Head_ $ WLiteral v
@@ -255,53 +227,6 @@ defaultCaseEvaluator evaluate_ = evaluateCase_
 toVarStatements :: Assocs (abt '[]) -> [Statement abt Variable p]
 toVarStatements = map (\(Assoc x e) -> SLet x (Thunk e) []) .
                   fromAssocs
-
-
-----------------------------------------------------------------
--- TODO: figure out how to abstract this so it can be reused by
--- 'constrainValue'. Especially the 'SBranch case of 'step'
---
--- TODO: we could speed up the case for free variables by having
--- the 'Context' also keep track of the largest free var. That way,
--- we can just check up front whether @varID x < nextFreeVarID@.
--- Of course, we'd have to make sure we've sufficiently renamed all
--- bound variables to be above @nextFreeVarID@; but then we have to
--- do that anyways.
-update
-    :: forall abt m p
-    .  (ABT Term abt, EvaluationMonad abt m p)
-    => MeasureEvaluator  abt m
-    -> TermEvaluator     abt m
-    -> VariableEvaluator abt m
-update perform evaluate_ = \x ->
-    -- If we get 'Nothing', then it turns out @x@ is a free variable
-    fmap (maybe (Neutral $ var x) id) . select (Location x) $ \s ->
-        case s of
-        SBind y e i -> do
-            Refl <- locEq (Location x) y
-            Just $ do
-                w <- perform $ caseLazy e fromWhnf id
-                unsafePush (SLet (Location x) (Whnf_ w) i)
-#ifdef __TRACE_DISINTEGRATE__
-                trace ("-- updated "
-                    ++ show (ppStatement 11 s)
-                    ++ " to "
-                    ++ show (ppStatement 11 (SLet (Location x) (Whnf_ w) i))
-                    ) $ return ()
-#endif
-                return w
-        SLet y e i -> do
-            Refl <- locEq (Location x) y
-            Just $ do
-                w <- caseLazy e return evaluate_
-                unsafePush (SLet (Location x) (Whnf_ w) i)
-                return w
-        -- These two don't bind any variables, so they definitely can't match.
-        SWeight   _ _ -> Nothing
-        SStuff0   _ _ -> Nothing
-        -- These two do bind variables, but there's no expression we can return for them because the variables are untouchable\/abstract.
-        SStuff1 _ _ _ -> Just . return . Neutral $ var x
-        SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
 
 
 ----------------------------------------------------------------

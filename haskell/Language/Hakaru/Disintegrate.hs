@@ -129,7 +129,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy hiding (evaluate,update)
+import Language.Hakaru.Evaluation.Lazy hiding (evaluate)
 import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
@@ -308,7 +308,7 @@ evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 evaluate_ = evaluate perform evaluateCase
 
 
--- Copying `evaluate` and `update` from LH.Evaluation.Lazy for now (2016-06-28)
+-- Copying `evaluate` from LH.Evaluation.Lazy for now (2016-06-28)
 -- Beginning of copied code -------------------------------------------------
 
 evaluate
@@ -330,7 +330,7 @@ evaluate perform evaluateCase = goEvaluate
       trace ("-- goEvaluate: " ++ show (pretty e0)
                                ++ "at " ++ show (ppInds inds)) $
 #endif
-      caseVarSyn e0 (update perform goEvaluate) $ \t ->
+      caseVarSyn e0 (evaluateVar perform goEvaluate) $ \t ->
         case t of
         -- Things which are already WHNFs
         Literal_ v               -> return . Head_ $ WLiteral v
@@ -416,50 +416,7 @@ impl x y = not x || y
 diff x y = x && not y
 nand x y = not (x && y)
 nor  x y = not (x || y)
-                  
-update
-    :: forall abt
-    .  (ABT Term abt)
-    => MeasureEvaluator  abt (Dis abt)
-    -> TermEvaluator     abt (Dis abt)
-    -> VariableEvaluator abt (Dis abt)
-update perform evaluate_ x =
-    do extras <- getExtras
-    -- If we get 'Nothing', then it turns out @x@ is a free variable
-       maybe (return $ Neutral (var x)) lookForLoc (lookupAssoc x extras)
-    where lookForLoc (Loc      l jxs) =
-            (maybe (freeLocError l) return =<<) . select l $ \s ->
-                case s of
-                SBind l' e ixs -> do
-                  Refl <- locEq l l'
-                  Just $ do
-                    w <- withIndices ixs $ perform (caseLazy e fromWhnf id)
-                    unsafePush (SLet l (Whnf_ w) ixs)
-#ifdef __TRACE_DISINTEGRATE__
-                    trace ("-- updated "
-                           ++ show (ppStatement 11 s)
-                           ++ " to "
-                           ++ show (ppStatement 11 (SLet l (Whnf_ w) ixs))
-                          ) $ return ()
-#endif
-                    w'   <- extSubsts (zipInds ixs jxs) (fromWhnf w)
-                    inds <- getIndices
-                    withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
-                SLet  l' e ixs -> do
-                  Refl <- locEq l l'
-                  Just $ do
-                    w <- withIndices ixs $ caseLazy e return evaluate_
-                    unsafePush (SLet l (Whnf_ w) ixs)
-                    w'   <- extSubsts (zipInds ixs jxs) (fromWhnf w)
-                    inds <- getIndices
-                    withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
-                -- This does not bind any variables, so it definitely can't match.
-                SWeight   _ _ -> Nothing
-                -- This does bind variables,
-                -- but there's no expression we can return for it
-                -- because the variables are untouchable\/abstract.
-                SGuard ls pat scrutinee i -> Just . return . Neutral $ var x
-                      
+           
 ---------------------------------------------------------- End of copied code --
                  
 
@@ -559,7 +516,7 @@ perform = \e0 ->
 
 
     performVar :: forall a. Variable ('HMeasure a) -> Dis abt (Whnf abt a)
-    performVar = performWhnf <=< update perform evaluate_
+    performVar = performWhnf <=< evaluateVar perform evaluate_
 
     -- BUG: it's not clear this is actually doing the right thing for its call-sites. In particular, we should handle 'Case_' specially, to deal with the hygiene bug in 'testPerform1b'...
     --

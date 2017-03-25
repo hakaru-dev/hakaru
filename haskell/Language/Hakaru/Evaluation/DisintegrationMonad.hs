@@ -636,6 +636,43 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
             then do inds' <- mapM (extSubst x e) inds
                     var <$> mkLoc Text.empty l inds'
             else defaultResult
+
+    evaluateVar perform evaluate_ x =
+      do extras <- getExtras
+         -- If we get 'Nothing', then it turns out @x@ is a free variable
+         maybe (return $ Neutral (var x)) lookForLoc (lookupAssoc x extras)
+      where lookForLoc (Loc      l jxs) =
+              (maybe (freeLocError l) return =<<) . select l $ \s ->
+                case s of
+                SBind l' e ixs -> do
+                  Refl <- locEq l l'
+                  Just $ do
+                    w <- withIndices ixs $ perform (caseLazy e fromWhnf id)
+                    unsafePush (SLet l (Whnf_ w) ixs)
+#ifdef __TRACE_DISINTEGRATE__
+                    trace ("-- updated "
+                           ++ show (ppStatement 11 s)
+                           ++ " to "
+                           ++ show (ppStatement 11 (SLet l (Whnf_ w) ixs))
+                          ) $ return ()
+#endif
+                    w'   <- extSubsts (zipInds ixs jxs) (fromWhnf w)
+                    inds <- getIndices
+                    withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
+                SLet  l' e ixs -> do
+                  Refl <- locEq l l'
+                  Just $ do
+                    w <- withIndices ixs $ caseLazy e return evaluate_
+                    unsafePush (SLet l (Whnf_ w) ixs)
+                    w'   <- extSubsts (zipInds ixs jxs) (fromWhnf w)
+                    inds <- getIndices
+                    withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
+                -- This does not bind any variables, so it definitely can't match.
+                SWeight   _ _ -> Nothing
+                -- This does bind variables,
+                -- but there's no expression we can return for it
+                -- because the variables are untouchable\/abstract.
+                SGuard ls pat scrutinee i -> Just . return . Neutral $ var x  
                  
         
 withIndices :: [Index (abt '[])] -> Dis abt a -> Dis abt a

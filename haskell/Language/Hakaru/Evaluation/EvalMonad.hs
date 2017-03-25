@@ -47,7 +47,7 @@ import Language.Hakaru.Syntax.ABT      (ABT(..), subst, maxNextFree)
 import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
+import Language.Hakaru.Evaluation.Lazy (evaluate, defaultCaseEvaluator)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 
