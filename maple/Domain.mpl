@@ -43,8 +43,21 @@ Domain := module()
        end proc;
 
        export Shape := module ()
-         export AsConstraints := proc(dom, $)
-           [] # TODO
+         export AsConstraints := proc(sh_, $)
+           local sh := sh_;
+
+           if sh :: specfunc(`DConstrain`) then
+               [ op(sh) ];
+
+           # elif sh :: specfunc(`DSum`) then
+           # elif sh :: specfunc(`DSplit`) then
+
+           elif sh :: specfunc(`DInto`) then
+               AsConstraints(op(3, sh));
+           else
+               error "don't know how to apply %1", sh
+           end if;
+
          end proc;
 
          export ModuleApply := proc(dom, $)
@@ -193,7 +206,9 @@ Domain := module()
                                  do_get(ExtShape[t0]:-MakeCtx
                                        ,ExtShape[t0]:-MapleType
                                        )(e);
-                               do_gets( [ ts, t0 ], w1 union w, e1 );
+                               ts := `if`(w1={}, [ts], [ts, t0]);
+
+                               do_gets( ts, w1 union w, e1 );
                            else
                                do_gets( [ ts ], w, e );
                            end if;
@@ -225,29 +240,26 @@ Domain := module()
 
 
     export Apply := module ()
-           local do_mk := proc(e, vn, ty, $)
-              local mk, rng;
+           local do_mk := proc(e, vs_ty, vn, ty_, $)
+              local mk, rng, ty := ty_;
 
-              mk := Extract:-MakeOfType(ty);
+              if ty :: t_type then
+                  mk := Extract:-MakeOfType(ty);
+                  rng := Domain:-ExtBound[mk]:-RangeOf(ty);
 
-              rng := Domain:-ExtBound[mk]:-RangeOf(ty);
+              elif ty :: `..` then
+                  mk := Extract:-MakeOfType( getType(vs_ty, vn) );
+                  rng := ty;
+
+              else
+                  error "don't know how to make %1", ty
+              end if;
+
               rng := Domain:-ExtBound[mk]:-MakeEqn(vn, rng);
 
               mk(e, rng);
+
            end proc;
-
-           # local get_subdom := proc(vn, vs_ty)
-           #        local ty, vn_ty;
-
-           #        ty := KB:-getType(vs_ty, vn);
-           #        vn_ty := select(cl -> depends(cl, vn), vs_ty);
-
-           #        # local vn_ty, ty, _;
-           #        # _, vn_ty := KB:-genType( vn, KB:-getType(vs_ty, vn) , empty );
-           #        # ty := op([1,2], vn_ty);
-
-           #        ty, vn_ty
-           # end proc;
 
            local do_apply := proc(e, vs, vs_ty, sh_, $)
               local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1;
@@ -264,15 +276,12 @@ Domain := module()
               elif sh :: specfunc(`DInto`) then
                   # deconstruction
                   vn, vt, shv := op(sh);
-                  ty := KB:-getType(vs_ty, vn);
-
-                  # ty, vn_ty := get_subdom(vn, vs_ty);
 
                   # recursively apply
                   e1 := do_apply(e, [vn], vs_ty, shv);
 
                   # build this integral
-                  do_mk(e1, vn, ty);
+                  do_mk(e1, vs_ty, vn, vt);
               else
                   error "don't know how to apply %1", sh
               end if;
@@ -289,11 +298,13 @@ Domain := module()
              e1 := do_apply(e, vs, vs_ty, sh);
 
              for vn in vs do
-                 # ty, _ := get_subdom(vn, vs_ty);
-                 ty := KB:-getType(vs_ty, vn);
+                 if not (e1 :: freeof(vn)) then
+                   ty := KB:-getType(vs_ty, vn);
 
-                 e1 := subsindets(e1, Not(freeof(vn))
-                                 ,x -> do_mk(x, vn, ty));
+                   e1 := subsindets(e1, Not(freeof(vn))
+                                   ,x -> do_mk(x, vs_ty, vn, ty));
+
+                 end if;
              end do;
 
              e1;
@@ -409,6 +420,7 @@ Domain := module()
 
                    end if;
 
+                   lprint(ret);
                    ret;
                  end proc;
 

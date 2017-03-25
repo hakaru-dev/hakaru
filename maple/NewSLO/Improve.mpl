@@ -14,7 +14,7 @@
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb, $)
     local e, elim, subintegral, w, ww, x, c, kb1, dom_specw, dom_specb
-         , body, dom_spec, ed;
+         , body, dom_spec, ed, mkDom, vars;
     e := ee;
 
     if Domain:-Has(e) then
@@ -24,13 +24,7 @@
         # step of domain improvement
         body, dom_specb := Domain:-Extract:-Bound(e, kb);
         kb1 := Domain:-ToKB:-Bound(dom_specb);
-
-        userinfo(3, 'disint_trace',
-                 printf("domain extract:\n"
-                        "  body : %a\n"
-                        "  vars : %a\n"
-                        "  kb   : %a\n\n"
-                        , body, vars, kb1 ));
+        vars := op(1, dom_specb);
 
         e := reduce(body, h, kb1);
 
@@ -44,7 +38,8 @@
         dom_spec := Domain:-Improve(dom_spec);
 
         # Apply the domain back to the expression
-        ed := Domain:-Apply(dom_spec, e, kb);
+        mkDom := (x->Domain:-Apply(dom_spec, x, kb));
+        ed := mkDom(e);
 
         # Some extra simplification may be needed
         elim := elim_intsum( ed, h, kb );
