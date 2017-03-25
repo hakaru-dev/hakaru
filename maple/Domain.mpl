@@ -1,6 +1,20 @@
 Domain := module()
 
+#   Domain = DOMAIN(DomBound, DomShape)
+#   DomBound = DOMBOUND(list(name), KB)
+#   DomShape =
+#     | DConstrain(relation*)
+#     | DSum (DomShape*)
+#     | DSplit(Partition(DomShape))
+#     | DInto(name, BoundType, DomShape)
+
     export DOMAIN := proc() 'procname'(_passed) end proc;
+    export DBound := proc() 'procname'(_passed) end proc;
+
+    export DConstrain := proc() 'procname'(_passed) end proc;
+    export DSum := proc() 'procname'(_passed) end proc;
+    export DSplit := proc() 'procname'(_passed) end proc;
+    export DInto := proc() 'procname'(_passed) end proc;
 
     export Has := module ()
 
@@ -23,15 +37,22 @@ Domain := module()
     export ToKB := module ()
 
        export Bound := proc(dom, $)
-
+         op(2, dom);
        end proc;
 
-       export Shape := proc(dom, $)
-       end proc;
+       export Shape := module ()
+         export AsConstraints := proc(dom, $)
+           {} # TODO
+         end proc;
+
+         export ModuleApply := proc(dom, $)
+           build_kb(AsConstraints(dom), "Domain/ToKB/Shape");
+         end proc;
+
+       end module;
 
        export ModuleApply := proc(dom, $)
-
-           # DOMAIN( Bound(op(1,dom)), Shape(op(2,dom)) );
+          build_kb(AsConstraints(op(2,dom)), "Domain/ToKB", Bound(op(1,dom)));
        end proc;
     end module;
 
@@ -185,7 +206,7 @@ Domain := module()
                         ixs := indices(ExtShape, 'nolist');
                         w, e1 := do_gets(ixs, e);
 
-                        w := DConstrain(op(w));
+                        w := Domain:-DConstrain(op(w));
                         w := simpl_shape(w);
 
                         w, e1
@@ -200,14 +221,6 @@ Domain := module()
            end proc;
     end module;
 
-#
-#   Domain = DOMAIN(DomBound, DomShape)
-#   DomBound = DOMBOUND(list(name), KB)
-#   DomShape =
-#     | DConstrain(relation*)
-#     | DSum (DomShape*)
-#     | DSplit(Partition(DomShape))
-#     | DInto(name, BoundType, DomShape)
 
 
     export Apply := module ()
@@ -276,92 +289,6 @@ Domain := module()
            end proc;
     end module;
 
-
-
-  # app_dom_spec_IntSum_LMS :=
-  #  proc( ee
-  #      , sol_, vs_
-  #      , $)
-
-  #     local sol := sol_, vs := vs_, e := ee, er, kb1, i
-  #         , sol1, sol2, op_rng
-  #         , v, v_t, lo, hi, lo_s, hi_s
-  #         , vnms, countVs, countVsInRels, solOrder ;
-
-  #     # vnms := map(x->op(1,x), indets(vs, 'Introduce(name, anything)'));
-  #     # vnms    := [op(map(i->op(1,i), op(1, kb_extract(vs))))] ;
-  #     vnms    := map(v->op(1,v), vs);
-  #     countVsInRels :=
-  #       (c-> nops(indets(map(o-> op(1..2,o), indets(c, relation)), name)));
-
-  #     elif sol :: set({relation,boolean}) then
-  #         # a single atomic solution, with (hopefully) at most two conjuncts
-  #         # one which becomes incorporated into the lower bound, and the other
-  #         # into the upper bound
-
-  #         if nops(vs) <> 1 then
-  #             error "asked to apply the single solution %1 but for multiple variables %2",
-  #                   sol , vs;
-  #         end if;
-
-  #         v, v_t0 := op(op(1,vs)); # var name, var type
-
-  #         mk := Domain_type_make[op(0,v_t0)]; # type of domain
-
-
-
-  #         userinfo(5, 'disint_trace',
-  #                  printf("applied solution: %a\n"
-  #                         "  result    : %a\n"
-  #                         "  expr body : %a\n\n"
-  #                         , sol_, er, e ));
-
-  #     elif sol :: list then
-  #         # a (nonempty, hopefully) conjunction of constraints which
-  #         # are hopefully in a nice form...
-
-  #         # if we have fewer conjuncts than variables, pad the conjunts
-  #         # with trivial solutions (for the recursive call)
-  #         if nops(sol) < nops(vs) then
-  #             sol := [ seq( {true} , _=1..(nops(vs) - nops(sol)) )  , sol ];
-  #         end if;
-
-  #         op_rng := seq(1..nops(sol));
-
-  #         if nops(sol) > 1 then
-  #             userinfo(5, 'disint_trace',
-  #                  printf("rearranged solutions\n"
-  #                         "  sol   : %a\n"
-  #                         "  permuation: %a\n\n"
-  #                         , sol, solOrder ));
-  #         end if;
-
-  #         sol := sol2;
-
-
-  #         # check that the `k'th (from 1) conjunct mentions at most `k'
-  #         # variables. we can (hopefully) integrate these things in
-  #         # a way that differentiation (due to disintegration) eliminates
-  #         # the integral, by making the body free of that integration variable
-
-  #         # when nops(sol) is 1, then "i in 1..1" gives us "1,1". but "seq(1,1)"
-  #         # is "1".
-  #         for i in op_rng do
-  #             if not (countVs(op(-i,sol)) <= i) then
-
-  #                 error "asked to apply the solution %1"
-  #                       "but solution is not free in at least %2 vars",
-  #                   op(-i,sol) , i;
-  #             end if;
-  #         end do;
-
-  #         # get the list of variables in the order we hope to integrate
-  #         vnms := vnms[solOrder];
-
-  #         vsk  := op(0,vs);
-  #         vs   := [op(vs)][solOrder];
-
-
     export Improve := module ()
            export Simplifiers := table();
 
@@ -398,7 +325,7 @@ Domain := module()
                                  ) then
                              v_t := op(1,lo) .. op(1,hi) ;
 
-                             {}, (ctx-> DInto(v, v_t, ctx));
+                             {}, (ctx-> Domain:-DInto(v, v_t, ctx));
                          else
                              sol, (x->x);
                          end if;
@@ -417,7 +344,7 @@ Domain := module()
                         dmk := op(2,s) @ dmk;
                     end do;
 
-                    dmk(DConstrain(op(ctx)));
+                    dmk(Domain:-DConstrain(op(ctx)));
                  end proc; end proc;
 
                  local postproc := proc(sol, vs, vs_ty, $)
