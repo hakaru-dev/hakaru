@@ -215,10 +215,10 @@
           kb_assuming_mb( _mc ->
             subsindets( _mc, And(specfunc(`Int`)
                                 ,freeof(op(1, _mc))
-                                ,satisfies(e->indets(e,specfunc(`exp`))<>{}))
+                                ,satisfies(e->indets(e,specfunc(`exp`))<>{})
                                 )
                            , x-> simplify( int(op(x)) )
-                        )(mc, kb, x->x);
+                      ) )(mc, kb, x->x);
 
          # all of the below achieve the same as the above, but in a different
          # way.
@@ -230,8 +230,6 @@
     end do;
 
     mc := fromLO(mc, _ctx= kb);
-    # mc := kb_assuming_mb( _mc -> fromLO(_mc, _ctx= kb)
-    #                     )(mc, kb, _-> fromLO(mc, _ctx= kb) );
 
     userinfo(3, Disint, "Disint hakaru:", eval(mc));
 
