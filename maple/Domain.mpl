@@ -1,5 +1,28 @@
+### Domain abstraction
+
+# A domain is abstractly a pair of a "square" domain (a product of square
+# domains, or an interval), the domain "bounds", and a domain "shape". The
+# domain "bounds" are essentially the variables, each with the type of domain
+# (Int,Sum, etc) ; the domains "shape" is sums of products of constraints
+# (relations) on the domain, interspersed with 'makes' (DInto) which parametrize
+# a subdomain by one of the domain variables ('picking' a particular
+# parametrization of the domain, in which one variable is fixed in subsequent
+# "shape" constructors).
+
+# the seperation between the two 'stages' of domain exists mainly because
+# certain simplifications need to happen after extracting the domain
+# bounds but before extracting the domain shape, as the shape ends up
+# becoming part of the bounds of an inner simplification.
+
+# Note that large parts of this are not very nice. It is a very literal
+# translation of the code which it replaced, which a very thin amount
+# of abstraction on top. But it does the hard work of factoring
+# out all of the domain-related code into a single module.
+# At some point, the interface should be improved, and the implementation
+# should get rid of all sorts of unnecessary conversions.
 Domain := module()
 
+# TODO: formalize this with maple types (I don't actually know how...)
 #   Domain = DOMAIN(DomBound, DomShape)
 #   DomBound = DOMBOUND(list(name), KB)
 #   DomShape =
@@ -7,6 +30,17 @@ Domain := module()
 #     | DSum (DomShape*)
 #     | DSplit(Partition(DomShape))
 #     | DInto(name, BoundType, DomShape)
+
+    # todo: DOMAIN should perform certain 'simplifications' to make sure the
+    # domain is well-formed. e.g.,
+    #   DOMAIN( DBound( [x,y], [xt,yt] ), DConstrain(..) )
+    #      should  become
+    #                                     DInto(x,xt,DInto(y,yt,DConstrain(..)))
+    # basically, when we see an 'unbound' variable in the 'RHS' , we should bind
+    # it with the default 'DInto'.
+    # The two-part nature of Domain requires that this be done by the DOMAIN
+    # constructor itself. Alternatively, it can be part of the logic of
+    # 'Apply'. It is probably cheaper to put it there, since it duplicates less information.
 
     global DOMAIN;
     global DBound;
@@ -18,6 +52,7 @@ Domain := module()
 
     global DNoSol;
 
+    # Checks if an expression has domain bounds/shape, and check for either one.
     export Has := module ()
 
        export Bound := proc(e, $)
@@ -36,6 +71,8 @@ Domain := module()
 
     end module;
 
+    # Convert Domain to a KB. Very partial, mainly for backwards compatibility
+    # for parts of the code which still work with KB.
     export ToKB := module ()
 
        export Bound := proc(dom, $)
@@ -71,9 +108,9 @@ Domain := module()
        end proc;
     end module;
 
+    # Extending domain extraction and replacement.
     export ExtBound := table();
     export ExtShape := table();
-
 
     local ModuleLoad := proc($)
            ExtBound[`Int`] :=
@@ -81,7 +118,7 @@ Domain := module()
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
                      ,'HType'=AlmostEveryReal
-                     ,'RangeOf'=
+                     ,'RangeOf'= # extracts a range (`..`) from a hakaru type
                       (proc(v,$)
                          local lo, hi, lo_b, hi_b, k ;
 
@@ -118,7 +155,6 @@ Domain := module()
                      ,'RangeOf'=KB:-range_of_HInt
                      );
 
-
            ExtShape[`Indicator`] :=
                Record('MakeCtx'=(e -> ( {op(1,e)}, 1 ))
                      ,'MapleType'='Indicator(anything)'
@@ -131,9 +167,10 @@ Domain := module()
 
     end proc;
 
-
+    # Extract a domain from an expression
     export Extract := module ()
 
+           # Map from hakaru types to types of domain bounds
            export MakeOfType := module()
               local makeTable := proc()
                  table([seq( ExtBound[e]:-HType=e,e=[indices(ExtBound,'nolist')])]);
@@ -144,6 +181,9 @@ Domain := module()
               end proc;
            end module;
 
+           # Extract a domain bound from an expression
+           # This pops off the integration constructors recursively, keeping
+           # track of the bounds in a KB (which literally become the DBound).
            export Bound := module ()
              local do_extract_arg := proc(kb1_, kb, vars, kind, arg_, bound, $)
                local kb1 := kb1_, x0, x, vars1, ty, arg := arg_;
@@ -175,7 +215,11 @@ Domain := module()
            end module;
 
 
-
+           # Extract a domain shape from an expression
+           # This extracts the domain shape from individual multiplicands of
+           # expressions, and multiplies the subexpressions back together.
+           # essentially this assumes a distributive law (of domain shapes over
+           # products)
            export Shape := module ()
 
              local do_get := proc(f, f_ty, $) proc(e, $)
@@ -194,6 +238,8 @@ Domain := module()
 
              end proc; end proc;
 
+             # apply a list of extractors, in order, until all fail to produce
+             # any output .
              local do_gets := proc(todo::list, w, e, $)
                        local t0, ts, w1, e1;
                        if nops(todo) = 0 then
@@ -215,6 +261,7 @@ Domain := module()
                        end if;
              end proc;
 
+             # todo: simplify the shape
              local simpl_shape := (x->x);
 
              export ModuleApply := proc(e, $)
@@ -238,11 +285,13 @@ Domain := module()
     end module;
 
 
-
+    # Apply a domain to an expression.
     export Apply := module ()
            local do_mk := proc(e, vs_ty, vn, ty_, $)
               local mk, rng, ty := ty_;
 
+              # somewhat of a hack to get around inconsistent representations
+              # of domain intervals.
               if ty :: t_type then
                   mk := Extract:-MakeOfType(ty);
                   rng := Domain:-ExtBound[mk]:-RangeOf(ty);
@@ -261,10 +310,19 @@ Domain := module()
 
            end proc;
 
+           # main loop of the apply function
+           # e     := expr
+           # vs    := variables
+           # vs_ty := domain bounds (as a kb)
+           # sh    := domain shape
            local do_apply := proc(e, vs, vs_ty, sh_, $)
               local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1, cond;
+
+              # If the solution is a constraint, and the constraint is true,
+              # then just produce the expression. If it isn't necessarily true
+              # (i.e. trivial) then produce a Partition with the constraint as a
+              # guard.
               if sh :: specfunc(`DConstrain`) then
-                  # foldr(`*`, e, op( map(c->Indicator(c), sh) ));
                   cond := `and`(op(sh));
                   if is(cond) then
                       e
@@ -272,13 +330,19 @@ Domain := module()
                       PWToPartition(piecewise(cond, e, 0));
                   end if;
 
+              # if the solution is a sum of solutions, produce the algebraic sum
+              # of each summand of the solution applied to the expression.
               elif sh :: specfunc(`DSum`) then
                   `+`(seq(do_apply(e, vs, vs_ty, s), s=sh))
 
+              # if the solution is a split solution, just make `do_apply' over
+              # the values of the Partition (the subsolutions)
               elif sh :: specfunc(`DSplit`) then
                   sh := op(1, sh);
                   Partition:-Pmap(p-> do_apply(e, vs, vs_ty, p), sh);
 
+              # performs the 'make' on the expression after recursively
+              # applying the solution
               elif sh :: specfunc(`DInto`) then
                   # deconstruction
                   vn, vt, shv := op(sh);
@@ -301,19 +365,7 @@ Domain := module()
              kb_as := kb_to_assumptions(kb);
              vs_ty := build_kb( kb_as, "Domain/Apply", vs_ty );
 
-             e1 := do_apply(e, vs, vs_ty, sh);
-
-             # for vn in vs do
-             #     if not (e1 :: freeof(vn)) then
-             #       ty := KB:-getType(vs_ty, vn);
-
-             #       e1 := subsindets(e1, Not(freeof(vn))
-             #                       ,x -> do_mk(x, vs_ty, vn, ty));
-
-             #     end if;
-             # end do;
-
-             e1;
+             do_apply(e, vs, vs_ty, sh);
            end proc;
     end module;
 
@@ -327,6 +379,8 @@ Domain := module()
 
                    local countVs := vs -> (c-> nops(indets(c, name) intersect {op(vs)} ));
 
+                   # Sorts the solutions so that resulting integrals are
+                   # well-scoped
                    local orderSols := proc(sol,vs,$)
                      local sol2, solOrder ;
 
@@ -338,6 +392,9 @@ Domain := module()
 
                    end proc;
 
+                   # given a solution for a single variable,
+                   # either extracts upper and/or lower bounds from the solution
+                   # or leaves that solution as a constraint.
                    local classifySol1 :=
                      proc(v, vs_ty, sol :: set({relation,boolean}), ctx, $)
                          local hi, lo, v_t;
@@ -370,6 +427,8 @@ Domain := module()
                          end if;
                  end proc;
 
+                 # Orders the solution, then classifies each solution, and
+                 # builds the single solution with the correct variable order.
                  local classifySols := proc(vs, vs_ty, $) proc( sol :: list(set({relation,boolean})), $ )
                     local sol1, ctx, dmk, s, solOrd, vso, v;
                     sol1, solOrd := orderSols(sol, vs);
@@ -385,6 +444,12 @@ Domain := module()
                     ctx;
                  end proc; end proc;
 
+                 # classifyAtom maps
+                 # `true' (produced by LMS for trivial systems) - to the
+                 #    interval for the variable corresponding to this index in
+                 #    the sequence.
+                 # `c : name' - to the interval for `v'
+                 # everything else - to itself
                  local classifyAtom := proc(c, vs_ty, v, $)
                     local ty, mk, bnd, lo, hi;
 
@@ -412,12 +477,14 @@ Domain := module()
                     end if;
                  end proc;
 
+                 # transforms the solution to the form required by Domain
+                 # this would be a straightforward syntactic manipulation,
+                 # but for the facts that we have to:
+                 #  decide the order of integration
+                 #  decide which solutions become integrations and which
+                 #     become constrains
                  local postproc := proc(sol, vs, vs_ty, $)
                    local ret := sol;
-
-                   # ret := subsindets(ret, set
-                   #                  , s-> map(a-> classifyAtom(a, vs_ty) ,s)
-                   #                  );
 
                    ret := subsindets(ret, specfunc('piecewise')
                                     , x-> DSplit(Partition:-PWToPartition(x)));
@@ -429,13 +496,12 @@ Domain := module()
                    ret := subsindets(ret, list(set({relation,boolean, name}))
                                     , classifySols(vs, vs_ty) @
                                       ( ls -> [ seq( map(a->classifyAtom(a, vs_ty, vs[si]), op(si, ls)) , si=1..nops(ls) ) ] )
-
-# map(a->classifyAtom(a, vs_ty),    classifySols(vs, vs_ty)(ls)
                                      );
 
                    ret;
                  end proc;
 
+                 # ask Maple for a solution to our system
                  local do_LMS := proc( ctx, vs_, $ )
                    local vs := vs_, cs, ret;
 
@@ -488,6 +554,8 @@ Domain := module()
 
            end proc;
 
+           # TODO: this should keep errors (esp. if everything fails to
+           # simplify), or print them as a warning(?)
            local cmp_simp := proc(s0, s1, $) proc(dom, $)
               local dom1 := s0(dom);
               if not dom1 :: specfunc(`DNoSol`) then
@@ -507,157 +575,3 @@ Domain := module()
     uses Hakaru, KB, Partition, SolveTools[Inequality] ;
 
 end module;
-
-
-
-  # app_dom_spec_IntSum :=
-  #   proc(mk :: identical(Int, Sum), ee, h, kb0 :: t_kb
-  #       ,dom_spec_
-  #       ,$)
-  #   local new_rng, make, var, elim, w,
-  #         dom_spec := dom_spec_, e := ee ;
-
-  #   new_rng, dom_spec := selectremove(type, dom_spec,
-  #     {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
-  #      `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
-  #      [identical(genLet), name, anything]});
-  #   if not (new_rng :: [list]) then
-  #     error "kb_subtract should return exactly one gen*"
-  #   end if;
-  #   make    := mk;
-  #   new_rng := op(new_rng);
-  #   var     := op(2,new_rng);
-  #   if op(1,new_rng) = genLebesgue then
-  #     new_rng := op(3,new_rng)..op(4,new_rng);
-  #   elif op(1,new_rng) = genType then
-  #     new_rng := range_of_HInt(op(3,new_rng));
-  #   else # op(1,new_rng) = genLet
-  #     if mk=Int then
-  #         # this was just a return, but now is in its own
-  #         # local function and the control flow must be handled
-  #         # up above. although calling 'reduce' on 0 will probably
-  #         # return immediately anyways(?)
-  #         return DONE(0)
-  #     else
-  #         make := eval;
-  #         new_rng := op(3,new_rng)
-  #     end if;
-  #   end if;
-
-  #   userinfo(3, 'LMS',
-  #       printf("    dom-spec        : %a\n"
-  #              "    dom-var         : %a\n"
-  #        , dom_spec, var ));
-
-  #   e := `*`(e, op(map(proc(a::[identical(assert),anything], $)
-  #                        Indicator(op(2,a))
-  #                      end proc,
-  #                      dom_spec)));
-
-  #   userinfo(3, 'LMS',
-  #       printf("    expr-ind        : %a\n"
-  #        , e ));
-
-  #   elim := elim_intsum(make(e, var=new_rng), h, kb0);
-
-  #   userinfo(3, 'LMS',
-  #       printf("    expr-elimed     : %a\n"
-  #        , elim ));
-
-  #   if elim = FAIL then
-  #     DONE( reduce_on_prod(p->make(p,var=new_rng), e, var, kb0) );
-  #   else
-  #     elim
-  #   end if;
-
-  # end proc;
-
-  # do_app_dom_spec := proc(mk, e, h, kb0, kb2)
-  #     local e2, dom_spec;
-
-  #     dom_spec := kb_subtract(kb2, kb0);
-
-  #     # apply the domain restrictions, which can produce
-  #     #   DONE(x) - produced something which can't be simplified further
-  #     #   x       - more work to be done
-  #     e2 := app_dom_spec_IntSum(mk, e, h, kb0, dom_spec);
-
-  #     userinfo(3, 'LMS',
-  #              printf("    expr            : %a\n"
-  #                     "    expr after dom  : %a\n"
-  #                     , e, e2 ));
-
-  #     if e2 :: specfunc('DONE') then
-  #         e2 := op(1,e2);
-  #     else
-  #         e2 := reduce(e2, h, kb0);
-  #         userinfo(3, 'LMS',
-  #                  printf("    expr-reduced    : %a\n"
-  #                         , e2 ));
-  #     end if;
-
-  #     e2;
-
-  # end proc;
-
-
-
-
-
-
-    # end if;
-
-    # if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
-    # userinfo(3, 'disint_trace',
-    #     printf("case Int/Sum \n"
-    #            "  expr : %a\n"
-    #            "  h    : %a\n"
-    #            "  ctx  : %a\n\n"
-    #      , ee, h, kb ));
-
-    #   x, kb1 := `if`(op(0,e)=Int,
-    #     genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
-    #     genSummation(op([2,1],e), op(op([2,2],e)), kb));
-    #   reduce_IntSum(op(0,e),
-    #     reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
-
-
-
-
-
-
-
-
-  # reduce_IntSum := proc(mks, h :: name, dom_specw, kb1 :: t_kb, kb0 :: t_kb, $)
-  #   local dom_spec, kb2, lmss, vs; # , e2, e3, _;
-
-
-  #   # if there are domain restrictions, try to apply them
-  #   # (dom_specw, e) := getDomainSpec(ee);
-
-  #   kb2 := foldr(assert, kb1, op(dom_specw));
-
-  #   if kb2 :: t_not_a_kb then
-  #       error "not a kb: %1 + %2", dom_specw, kb1;
-  #   end if;
-
-  #   # userinfo(3, 'disint_trace',
-  #   #     printf("reduce_IntSum input:\n"
-  #   #            "  integral type: %a\n"
-  #   #            "  expr : %a\n"
-  #   #            "  h    : %a\n"
-  #   #            "  ctx expr  : %a\n"
-  #   #            "  ctx above : %a\n"
-  #   #            "  ctx below : %a\n\n"
-  #   #      , mks, ee, h, kb2, kb1, kb0 ));
-
-  #   lmss := kb_LMS(kb2, mks);
-
-  #   # userinfo(3, 'LMS',
-  #   #      printf("    LMS     : %a\n"
-  #   #             "    kb Big  : %a\n"
-  #   #             "    kb small: %a\n"
-  #   #             "    domain  : %a\n"
-  #   #             "    var     : %a\n"
-  #   #      , lmss, kb2, kb0, dom_spec, h ));
-

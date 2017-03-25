@@ -38,7 +38,7 @@
         dom_spec := Domain:-Improve(dom_spec);
 
         # Apply the domain back to the expression
-        mkDom := (x->Domain:-Apply(dom_spec, x, kb)); mkDom_expr := mkDom(expr);
+        mkDom := (x->Domain:-Apply(dom_spec, x, kb));
         ed := mkDom(e);
 
         # Some extra simplification may be needed
