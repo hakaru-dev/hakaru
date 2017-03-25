@@ -84,7 +84,7 @@ KB := module ()
 
      # Gets the most refined (see refine_given) type of a given name under the
      # assumptions of the KB; & convert such a type to a range.
-     getType, kb_range_of_var,
+     getType,
 
      # Various 'views' of the KB, in that they take a KB and produce something
      # which is somehow 'representative' of the KB
@@ -581,47 +581,6 @@ KB := module ()
               false
           end if;
       end if;
-  end proc;
-
-  # the range ("x..y") of a type as produced by `getType'
-  # very much partial, but should probably at some point be unified
-  # with getType (in the form of an optional param to getType?)
-  kb_range_of_var :=
-    proc( v, $)
-      local lo, hi, lo_b, hi_b, k ;
-
-      if v :: 'specfunc(AlmostEveryReal)' then
-          k := nops(v);
-          lo_b, hi_b := -infinity, infinity;
-
-          if k = 0 then
-              # do nothing
-
-          elif k = 2 then
-              lo, hi := op(v);
-              lo, lo_b := op(1,lo), op(2, lo);
-              hi, hi_b := op(1,hi), op(2, hi);
-
-          elif k = 1 then
-              if op([1,1],v) in {`<`, `<=`} then
-                  hi_b := op([1,2], v);
-              elif op([1,1],v) in {`>`, `>=`} then
-                  lo_b := op([1,2], v);
-              else
-                  error "unknown bound %1", op([1,1],v);
-              end if;
-
-          end if;
-          return lo_b .. hi_b;
-
-      elif v :: 'specfunc(HInt)' then
-          return range_of_HInt(v);
-
-      else
-          error "unknown type %1", v;
-
-      end if;
-
   end proc;
 
   # This essentially extracts all of the `Bound`s from a
