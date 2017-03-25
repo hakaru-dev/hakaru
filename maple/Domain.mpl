@@ -262,9 +262,15 @@ Domain := module()
            end proc;
 
            local do_apply := proc(e, vs, vs_ty, sh_, $)
-              local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1;
+              local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1, cond;
               if sh :: specfunc(`DConstrain`) then
-                  foldr(`*`, e, op( map(c->Indicator(c), sh) ));
+                  # foldr(`*`, e, op( map(c->Indicator(c), sh) ));
+                  cond := `and`(op(sh));
+                  if is(cond) then
+                      e
+                  else
+                      PWToPartition(piecewise(cond, e, 0));
+                  end if;
 
               elif sh :: specfunc(`DSum`) then
                   `+`(seq(do_apply(e, vs, vs_ty, s), s=sh))
@@ -297,15 +303,15 @@ Domain := module()
 
              e1 := do_apply(e, vs, vs_ty, sh);
 
-             for vn in vs do
-                 if not (e1 :: freeof(vn)) then
-                   ty := KB:-getType(vs_ty, vn);
+             # for vn in vs do
+             #     if not (e1 :: freeof(vn)) then
+             #       ty := KB:-getType(vs_ty, vn);
 
-                   e1 := subsindets(e1, Not(freeof(vn))
-                                   ,x -> do_mk(x, vs_ty, vn, ty));
+             #       e1 := subsindets(e1, Not(freeof(vn))
+             #                       ,x -> do_mk(x, vs_ty, vn, ty));
 
-                 end if;
-             end do;
+             #     end if;
+             # end do;
 
              e1;
            end proc;
@@ -370,8 +376,28 @@ Domain := module()
                     ctx;
                  end proc; end proc;
 
+                 local classifyAtom := proc(c, vs_ty, $)
+                    local ty, mk, bnd, lo, hi;
+                    if c :: name then
+                        ty := getType(vs_ty, c);
+
+                        mk   := Extract:-MakeOfType(ty);
+                        bnd  := ExtBound[mk]:-RangeOf(ty);
+
+                        lo, hi := op(bnd);
+
+                        lo <= c, c <= hi;
+                    else
+                        c
+                    end if;
+                 end proc;
+
                  local postproc := proc(sol, vs, vs_ty, $)
                    local ret := sol;
+
+                   ret := subsindets(ret, set
+                                    , s-> map(a-> classifyAtom(a, vs_ty) ,s)
+                                    );
 
                    ret := subsindets(ret, specfunc('piecewise')
                                     , x-> DSplit(Partition:-PWToPartition(x)));
@@ -420,7 +446,6 @@ Domain := module()
 
                    end if;
 
-                   lprint(ret);
                    ret;
                  end proc;
 
