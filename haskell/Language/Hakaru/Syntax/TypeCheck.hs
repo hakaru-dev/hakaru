@@ -985,14 +985,15 @@ inferType = inferType_
 
   inferReducer (U.R_Index_ x n ix r1) xs = do
       let (_, n') = caseBinds n
-      n'' <- checkType_ SNat n'
-      TypedReducer t1 _ r1' <- inferReducer r1 (Cons1 (makeVar x SNat) xs)
+      let b = makeVar x SNat
+      TypedReducer t1 _ r1' <- inferReducer r1 (Cons1 b xs)
+      n'' <- checkBinders xs SNat n'
       caseBind ix $ \i ix1 ->
           let i' = makeVar i SNat
               (_, ix2) = caseBinds ix1 in do
-          ix3 <- checkType_ SNat ix2
+          ix3 <- pushCtx i' (checkBinders xs SNat ix2)
           return . TypedReducer (SArray t1) xs $
-                 Red_Index (binds_ xs n'') (bind i' (binds_ xs ix3)) r1'
+                 Red_Index n'' (bind i' ix3) r1'
 
   inferReducer (U.R_Split_ b r1 r2) xs = do
       TypedReducer t1 _ r1' <- inferReducer r1 xs
@@ -1000,20 +1001,20 @@ inferType = inferType_
       caseBind b $ \x b1 ->
        let (_, b2) = caseBinds b1
            x'  = makeVar x SNat in do
-               b3 <- checkType_ sBool b2
-               return . TypedReducer (sPair t1 t2) xs $
-                      (Red_Split (bind x' (binds_ xs b3)) r1' r2')
+           b3 <- pushCtx x' (checkBinders xs sBool b2)
+           return . TypedReducer (sPair t1 t2) xs $
+                  (Red_Split (bind x' b3) r1' r2')
 
   inferReducer U.R_Nop_ xs = return (TypedReducer sUnit xs Red_Nop)
 
   inferReducer (U.R_Add_ e) xs =
       caseBind e $ \x e1 ->
       let (_, e2) = caseBinds e1
-          x'  = makeVar x SNat in do
-              TypedAST typ e3 <- inferType_ e2
+          x'  = makeVar x SNat in
+          pushCtx x' $
+            inferBinders xs e2 $ \typ e3 -> do
               h <- getHSemiring typ
-              return $ TypedReducer typ xs (Red_Add h (bind x' (binds_ xs e3)))
-
+              return $ TypedReducer typ xs (Red_Add h (bind x' e3))
 
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And  = isBool a >>= \Refl -> return And
