@@ -462,9 +462,11 @@ checkBinders xs eTyp e =
     Cons1 x xs' -> pushCtx x (bind x <$> checkBinders xs' eTyp e)
 
 
+-- HACK: Passing this list of variables feels like a hack
+-- it would be nice if it could be removed from this datatype
 data TypedReducer (abt :: [Hakaru] -> Hakaru -> *)
                   (xs  :: [Hakaru])
-    = forall b. TypedReducer !(Sing b) (Reducer abt xs b)
+    = forall b. TypedReducer !(Sing b) (List1 Variable xs) (Reducer abt xs b)
 
 ----------------------------------------------------------------
 -- | Given a typing environment and a term, synthesize the term's
@@ -708,7 +710,7 @@ inferType = inferType_
        U.Bucket_ e1 e2 r1 -> do
            e1' <- checkType_ SNat e1
            e2' <- checkType_ SNat e2
-           TypedReducer typ1 r1' <- inferReducer r1
+           TypedReducer typ1 Nil1 r1' <- inferReducer r1 Nil1
            return . TypedAST typ1 $
                   syn (Bucket e1' e2' r1')
 
@@ -973,31 +975,45 @@ inferType = inferType_
         _            -> argumentNumberError
 
   inferReducer :: U.Reducer xs U.U_ABT 'U.U
+               -> List1 Variable xs1
                -> TypeCheckMonad (TypedReducer abt xs1)
 
-  inferReducer (U.R_Fanout_ r1 r2) = do
-      TypedReducer t1 r1' <- inferReducer r1
-      TypedReducer t2 r2' <- inferReducer r2
-      return (TypedReducer (sPair t1 t2) (Red_Fanout r1' r2'))
+  inferReducer (U.R_Fanout_ r1 r2) xs = do
+      TypedReducer t1 _ r1' <- inferReducer r1 xs
+      TypedReducer t2 _ r2' <- inferReducer r2 xs
+      return (TypedReducer (sPair t1 t2) xs (Red_Fanout r1' r2'))
 
-  inferReducer U.R_Nop_     = return (TypedReducer sUnit Red_Nop)
+  inferReducer (U.R_Index_ x n ix r1) xs = do
+      let (_, n') = caseBinds n
+      n'' <- checkType_ SNat n'
+      TypedReducer t1 _ r1' <- inferReducer r1 (Cons1 (makeVar x SNat) xs)
+      caseBind ix $ \i ix1 ->
+          let i' = makeVar i SNat
+              (_, ix2) = caseBinds ix1 in do
+          ix3 <- checkType_ SNat ix2
+          return . TypedReducer (SArray t1) xs $
+                 Red_Index (binds_ xs n'') (bind i' (binds_ xs ix3)) r1'
 
-  inferReducer (U.R_Add_ e) =
-      let (xs, e') = caseBinds e
-          xs'  = uvarsToList xs
-          xs'' = map (flip makeVar SNat) xs' in do
-          TypedAST typ e'' <- inferType_ e'
-          h <- getHSemiring typ
-          return $ TypedReducer typ (Red_Add h undefined)
+  inferReducer (U.R_Split_ b r1 r2) xs = do
+      TypedReducer t1 _ r1' <- inferReducer r1 xs
+      TypedReducer t2 _ r2' <- inferReducer r2 xs
+      caseBind b $ \x b1 ->
+       let (_, b2) = caseBinds b1
+           x'  = makeVar x SNat in do
+               b3 <- checkType_ sBool b2
+               return . TypedReducer (sPair t1 t2) xs $
+                      (Red_Split (bind x' (binds_ xs b3)) r1' r2')
 
-uvarsToList :: forall (xs :: [ U.Untyped ])
-            .  List1 Variable xs
-            -> [ Variable 'U.U ]
-uvarsToList Nil1         = []
-uvarsToList (Cons1 x xs) =
-    case jmEq1 (varType x) U.SU of
-      Just Refl -> x : (uvarsToList xs)
-      Nothing   -> error "the impossible happened"
+  inferReducer U.R_Nop_ xs = return (TypedReducer sUnit xs Red_Nop)
+
+  inferReducer (U.R_Add_ e) xs =
+      caseBind e $ \x e1 ->
+      let (_, e2) = caseBinds e1
+          x'  = makeVar x SNat in do
+              TypedAST typ e3 <- inferType_ e2
+              h <- getHSemiring typ
+              return $ TypedReducer typ xs (Red_Add h (bind x' (binds_ xs e3)))
+
 
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And  = isBool a >>= \Refl -> return And

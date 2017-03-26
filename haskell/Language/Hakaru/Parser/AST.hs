@@ -342,7 +342,8 @@ data Reducer (xs  :: [Untyped])
     R_Fanout_ :: Reducer xs abt 'U
               -> Reducer xs abt 'U
               -> Reducer xs abt 'U
-    R_Index_  :: abt xs 'U
+    R_Index_  :: Variable 'U -- HACK: Shouldn't need to pass this argument
+              -> abt xs 'U
               -> abt ( 'U ': xs) 'U
               -> Reducer ( 'U ': xs) abt 'U
               -> Reducer xs abt 'U
@@ -355,20 +356,20 @@ data Reducer (xs  :: [Untyped])
               -> Reducer xs abt 'U
 
 instance Functor21 (Reducer xs) where
-    fmap21 f (R_Fanout_ r1 r2)    = R_Fanout_ (fmap21 f r1) (fmap21 f r2)
-    fmap21 f (R_Index_  e1 e2 r1) = R_Index_ (f e1) (f e2) (fmap21 f r1)
-    fmap21 f (R_Split_  e1 r1 r2) = R_Split_ (f e1) (fmap21 f r1) (fmap21 f r2)
-    fmap21 _ R_Nop_               = R_Nop_
-    fmap21 f (R_Add_    e1)       = R_Add_ (f e1)
+    fmap21 f (R_Fanout_ r1 r2)       = R_Fanout_ (fmap21 f r1) (fmap21 f r2)
+    fmap21 f (R_Index_  bv e1 e2 r1) = R_Index_ bv (f e1) (f e2) (fmap21 f r1)
+    fmap21 f (R_Split_  e1 r1 r2)    = R_Split_ (f e1) (fmap21 f r1) (fmap21 f r2)
+    fmap21 _ R_Nop_                  = R_Nop_
+    fmap21 f (R_Add_    e1)          = R_Add_ (f e1)
 
 instance Foldable21 (Reducer xs) where
-    foldMap21 f (R_Fanout_ r1 r2)    = foldMap21 f r1 `mappend` foldMap21 f r2
-    foldMap21 f (R_Index_  e1 e2 r1) =
+    foldMap21 f (R_Fanout_ r1 r2)       = foldMap21 f r1 `mappend` foldMap21 f r2
+    foldMap21 f (R_Index_  _  e1 e2 r1) =
         f e1 `mappend` f e2 `mappend` foldMap21 f r1
-    foldMap21 f (R_Split_  e1 r1 r2) =
+    foldMap21 f (R_Split_  e1 r1 r2)    =
         f e1 `mappend` foldMap21 f r1 `mappend` foldMap21 f r2
-    foldMap21 _ R_Nop_               = mempty
-    foldMap21 f (R_Add_    e1)       = f e1
+    foldMap21 _ R_Nop_                  = mempty
+    foldMap21 f (R_Add_    e1)          = f e1
 
 -- | The kind containing exactly one type.
 data Untyped = U

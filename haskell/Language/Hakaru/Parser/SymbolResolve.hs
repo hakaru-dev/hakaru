@@ -553,6 +553,7 @@ makeReducerAST i r1 bs =
                               (makeReducerAST i r3 bs)
     U.R_Index  b  e1 e2 r1 -> withName "U.R_Index" b $ \b' ->
                                 U.R_Index_
+                                b' -- HACK: This shouldn't be needed here
                                 (binds_ bs (makeAST e1))
                                 (bind i (binds_ bs (makeAST e2)))
                                 (makeReducerAST i r1 (Cons1 b' bs))
