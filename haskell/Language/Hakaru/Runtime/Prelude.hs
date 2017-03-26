@@ -147,15 +147,15 @@ r_index n f Reducer{init=initR,accum=accumR,done=doneR} = Reducer
    }
 {-# INLINE r_index #-}
 
-r_split :: Bool
+r_split :: ((Int, xs) -> Bool)
         -> Reducer xs s a
-         -> Reducer xs s b
-         -> Reducer xs s (a,b)
+        -> Reducer xs s b
+        -> Reducer xs s (a,b)
 r_split b Reducer{init=initA,accum=accumA,done=doneA}
           Reducer{init=initB,accum=accumB,done=doneB} = Reducer
    { init  = \xs -> liftM2 (,) (initA xs) (initB xs)
    , accum = \bs i (s1, s2) ->
-             if b then accumA bs i s1 else accumB bs i s2
+             if (b (i,bs)) then accumA bs i s1 else accumB bs i s2
    , done  = \(s1, s2) -> liftM2 (,) (doneA s1) (doneB s2)
    }
 {-# INLINE r_split #-}
