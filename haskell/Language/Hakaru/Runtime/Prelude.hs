@@ -344,6 +344,15 @@ size :: (G.Vector (MayBoxVec a) a) => MayBoxVec a a -> Int
 size v = fromIntegral (G.length v)
 {-# INLINE size #-}
 
+reduce
+    :: (G.Vector (MayBoxVec a) a)
+    => (a -> a -> a)
+    -> a
+    -> MayBoxVec a a
+    -> a
+reduce f n v = G.foldr f n v
+{-# INLINE reduce #-}
+
 product
     :: Num a
     => Int
