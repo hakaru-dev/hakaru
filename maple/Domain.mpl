@@ -76,8 +76,8 @@ Domain := module()
     export Bound := module ()
 
        export toKB := proc(dom :: specfunc(`DBound`), kb0, $)
-
-         local kb := kb0, vs := op(1, dom), rn := [];
+         local kb := kb0, vs := op(1, dom), rn := []
+             , vn, vt, make, lo, hi, vn_rn, rn_t, v ;
 
          for v in vs do
              vn, vt, make := op(v);
@@ -101,6 +101,7 @@ Domain := module()
        end proc;
 
        export get := proc(dom :: specfunc(`DBound`), var :: name, $)
+         local th;
          th := select(x->op(1,x)=var, op(1,dom));
          if nops(th) = 1 then
              op([1,2], th), op([1,3], th)
@@ -178,7 +179,7 @@ Domain := module()
            # track of the bounds in a KB (which literally become the DBound).
            export Bound := module ()
              local do_extract_arg := proc(vars, kind, arg_, bound, $)
-               local x0, x, vars1, arg := arg_;
+               local x0, x, vars1, arg := arg_, rng;
 
                x0  := ExtBound[kind]:-ExtractVar(bound);   # variable name
                rng := ExtBound[kind]:-ExtractBound(bound); # variable range
@@ -288,7 +289,9 @@ Domain := module()
            # vs_ty := domain bounds (as a kb)
            # sh    := domain shape
            local do_apply := proc(done__, e, vs, sh_, $)
-              local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1, cond, done_ := done__ ;
+              local sh := sh_, done_ := done__
+                  , cond, r, vs_td, v_td, vn_td, vt_td, vt_mk, vn, vt, shv, vars, deps
+                  , e1, v, vvn, vvt, vmk,  with_kb1 ;
 
               # If the solution is a constraint, and the constraint is true,
               # then just produce the expression. If it isn't necessarily true
@@ -367,6 +370,7 @@ Domain := module()
              # state them.
              sh := subsindets( sh, specfunc(`DInto`)
                              , proc (x, $)
+                                   local x_vn, x_t0, x_rest, x_t, x_mk;
                                    x_vn, x_t0, x_rest := op(x);
                                    x_t, x_mk := Domain:-Bound:-get(vs, x_vn);
                                    if x_t = x_t0 then
@@ -488,7 +492,7 @@ Domain := module()
                  #  decide which solutions become integrations and which
                  #     become constrains
                  local postproc := proc(sol, ctx, $)
-                   local ret := sol;
+                   local ret := sol, vs;
 
                    ret := subsindets(ret, specfunc('piecewise')
                                     , x-> DSplit(Partition:-PWToPartition(x)));
@@ -574,7 +578,7 @@ Domain := module()
            # TODO: this should keep errors (esp. if everything fails to
            # simplify), or print them as a warning(?)
            local cmp_simp := proc(s0, s1, $) proc(dom, $)
-              local dom1 := s0(dom);
+              local dom1 := s0(dom), r;
               if not dom1 :: specfunc(`DNoSol`) then
                   s1(dom1);
               else

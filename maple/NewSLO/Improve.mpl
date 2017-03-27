@@ -13,7 +13,7 @@
   # h - name of the linear operator above us
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb, $)
-    local e, elim, subintegral, w, ww, x, c, kb1, dom_specw, dom_specb
+    local e, elim, subintegral, w, ww, x, c, kb1, with_kb1, dom_specw, dom_specb
          , body, dom_spec, ed, mkDom, vars;
     e := ee;
 
