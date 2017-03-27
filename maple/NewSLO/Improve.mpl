@@ -23,9 +23,9 @@
         # and allow a further simplification to occur in this
         # step of domain improvement
         body, dom_specb := Domain:-Extract:-Bound(e);
-        kb1 := Domain:-Bound:-toKB(dom_specb, kb);
+        kb1, with_kb1 := Domain:-Bound:-toKB(dom_specb, kb);
 
-        e := reduce(body, h, kb1);
+        e := with_kb1(_body->reduce(_body, h, kb1), body);
 
         # Extract the shape of the domain
         (dom_specw, e) := Domain:-Extract:-Shape(e);

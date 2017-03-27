@@ -80,16 +80,21 @@ Domain := module()
          #     , kb1 := op(0, kb0)( op(kb0), op(kb) ); # huge hack...
          # kb1;
 
-         local kb := kb0, vs := op(1, dom);
+         local kb := kb0, vs := op(1, dom), rn := [];
 
          for v in vs do
              vn, vt, make := op(v);
              vn_rn, kb := ExtBound[make]:-MakeKB( [ vn, vt ] )(kb);
-             ASSERT(vn=vn_rn);
 
+             rn := [ vn=vn_rn, op(rn) ];
          end do;
 
-         kb;
+         rn_t := map(x->apply(rhs=lhs,x), rn);
+         kb, (proc(f,e0,$)
+                local e := e0;
+                e := subs(rn, e); e := f(e); e := subs(rn_t, e);
+                e;
+              end proc);
 
        end proc;
 
@@ -549,16 +554,20 @@ Domain := module()
                  # ask Maple for a solution to our system
                  local do_LMS := proc( sh, ctx, $ )
                    local vs := Domain:-Bound:-varsOf(ctx)
-                       , cs := Domain:-Bound:-toKB(ctx, KB:-empty) , ret;
+                       , cs, do_rn, ret;
+                   cs, do_rn := Domain:-Bound:-toKB(ctx, KB:-empty) ;
 
-                   if sh :: specfunc(`DConstrain`) then
-                       cs := KB:-build_kb([op(sh)], "do_LMS", cs);
-                   else
-                       error "don't know how to solve %1", sh;
-                   end if;
+                   cs := do_rn(proc(cs_,$)
+                            local cs := cs_;
+                            if sh :: specfunc(`DConstrain`) then
+                                cs := KB:-build_kb([op(sh)], "do_LMS", cs);
+                            else
+                                error "don't know how to solve %1", sh;
+                            end if;
 
-                   cs := op(3, kb_extract(cs));
-                   cs := {op(cs)};
+                            cs := op(3, kb_extract(cs));
+                            cs := {op(cs)}; cs;
+                               end proc , cs);
 
                   # there are variables to solve for, but no non-trivial
                   # constraints which need to be solved.
