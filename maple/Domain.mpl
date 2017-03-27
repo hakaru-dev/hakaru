@@ -75,15 +75,42 @@ Domain := module()
     # for parts of the code which still work with KB.
     export Bound := module ()
 
-       export toKB := proc(dom, kb, $)
-         local kb0 := op(2, dom)
-             , kb1 := op(0, kb0)( op(kb0), op(kb) ); # huge hack...
-         kb1;
+       export toKB := proc(dom :: specfunc(`DBound`), kb0, $)
+         # local kb0 := op(2, dom)
+         #     , kb1 := op(0, kb0)( op(kb0), op(kb) ); # huge hack...
+         # kb1;
+
+         local kb := kb0, vs := op(1, dom);
+
+         for v in vs do
+             vn, vt, make := op(v);
+             vn_rn, kb := ExtBound[make]:-MakeKB( [ vn, vt ] )(kb);
+             ASSERT(vn=vn_rn);
+
+         end do;
+
+         kb;
+
+       end proc;
+
+       export varsOf := proc(dom :: specfunc(`DBound`), $)
+         map(x->op(1,x), op(1, dom));
+       end proc;
+
+       export get := proc(dom :: specfunc(`DBound`), var :: name, $)
+         th := select(x->op(1,x)=var, op(1,dom));
+         if nops(th) = 1 then
+             op([1,2], th), op([1,3], th)
+         else
+             error "cannot find var (%1)", th ;
+         end if;
+
        end proc;
 
     end module;
 
     export Shape := module ()
+
          export asConstraints := proc(sh_, $)
            local sh := sh_;
 
@@ -110,9 +137,12 @@ Domain := module()
     local ModuleLoad := proc($)
            ExtBound[`Int`] :=
                Record('MakeKB'=(e -> kb -> genLebesgue(op([1],e), op([2,1],e), op([2,2],e), kb))
+                     ,'ExtractVar'=(e->op(1,e))
+                     ,'ExtractBound'=(e->op(2,e))
+                     ,'Constrain'=(proc(v,b,$) { op(1,b) < v , v < op(2,b) } end proc)
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
-                     ,'HType'=AlmostEveryReal
+                     # ,'HType'=AlmostEveryReal
                      ,'RangeOf'= # extracts a range (`..`) from a hakaru type
                       (proc(v,$)
                          local lo, hi, lo_b, hi_b, k ;
@@ -144,9 +174,12 @@ Domain := module()
 
            ExtBound[`Sum`] :=
                Record('MakeKB'=(e -> kb -> genSummation(op([1],e), op(op([2],e)), kb))
+                     ,'ExtractVar'=(e->op(1,e))
+                     ,'ExtractBound'=(e->op(2,e))
+                     ,'Constrain'=(proc(v,b,$) { op(1,b) <= v , v <= op(2,b) } end proc)
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
-                     ,'HType'=HInt
+                     # ,'HType'=HInt
                      ,'RangeOf'=KB:-range_of_HInt
                      );
 
@@ -166,46 +199,48 @@ Domain := module()
     export Extract := module ()
 
            # Map from hakaru types to types of domain bounds
-           export MakeOfType := module()
-              local makeTable := proc()
-                 table([seq( ExtBound[e]:-HType=e,e=[indices(ExtBound,'nolist')])]);
-              end proc;
+           # export MakeOfType := module()
+           #    local makeTable := proc()
+           #       table([seq( ExtBound[e]:-HType=e,e=[indices(ExtBound,'nolist')])]);
+           #    end proc;
 
-              export ModuleApply := proc(t, $)
-                 makeTable()[op(0,t)];
-              end proc;
-           end module;
+           #    export ModuleApply := proc(t, $)
+           #       makeTable()[op(0,t)];
+           #    end proc;
+           # end module;
 
            # Extract a domain bound from an expression
            # This pops off the integration constructors recursively, keeping
            # track of the bounds in a KB (which literally become the DBound).
            export Bound := module ()
-             local do_extract_arg := proc(kb1_, vars, kind, arg_, bound, $)
-               local kb1 := kb1_, x0, x, vars1, ty, arg := arg_;
+             local do_extract_arg := proc(vars, kind, arg_, bound, $)
+               local x0, x, vars1, arg := arg_;
 
-               x0 := op(1, bound);
-               x, kb1 := ExtBound[kind]:-MakeKB(bound)(kb1);
+               x0  := ExtBound[kind]:-ExtractVar(bound);
+               rng := ExtBound[kind]:-ExtractBound(bound);
+               x   := DInto(x0, rng, kind);
+               # x, kb1 := ExtBound[kind]:-MakeKB(bound)(kb1);
 
                vars1 := [ x, op(vars) ];
-               arg   := subs(ExtBound[kind]:-MakeEqn(x0,x), arg);
+               # arg   := subs(ExtBound[kind]:-MakeEqn(x0,x), arg);
 
-               do_extract(kb1, vars1, arg);
+               do_extract(vars1, arg);
              end proc;
 
-             local do_extract := proc(kb1, vars, arg, $)
+             local do_extract := proc(vars, arg, $)
                if Domain:-Has:-Bound(arg) then
-                   do_extract_arg(kb1, vars, op(0,arg), op(arg));
+                   do_extract_arg(vars, op(0,arg), op(arg));
                else
-                   arg, vars, kb1
+                   arg, vars
                end if;
 
              end proc;
 
              export ModuleApply := proc(e, $)
                         local arg, vars, kb;
-                        arg, vars, kb := do_extract(KB:-empty, [], e);
+                        arg, vars := do_extract([], e);
 
-                        arg, DBound(vars, kb);
+                        arg, DBound(vars);
              end proc;
            end module;
 
@@ -283,23 +318,26 @@ Domain := module()
     # Apply a domain to an expression.
     export Apply := module ()
            local do_mk := proc(e, vs_ty, vn, ty_, $)
-              local mk, rng, ty := ty_;
 
-              # somewhat of a hack to get around inconsistent representations
-              # of domain intervals.
-              if ty :: t_type then
-                  mk := Extract:-MakeOfType(ty);
-                  rng := Domain:-ExtBound[mk]:-RangeOf(ty);
+              # local mk, rng, ty := ty_;
 
-              elif ty :: `..` then
-                  mk := Extract:-MakeOfType( getType(vs_ty, vn) );
-                  rng := ty;
+              # # somewhat of a hack to get around inconsistent representations
+              # # of domain intervals.
+              # if ty :: t_type then
+              #     mk := Extract:-MakeOfType(ty);
+              #     rng := Domain:-ExtBound[mk]:-RangeOf(ty);
 
-              else
-                  error "don't know how to make %1", ty
-              end if;
+              # elif ty :: `..` then
+              #     mk := Extract:-MakeOfType( getType(vs_ty, vn) );
+              #     rng := ty;
 
-              rng := Domain:-ExtBound[mk]:-MakeEqn(vn, rng);
+              # else
+              #     error "don't know how to make %1", ty
+              # end if;
+
+              _, mk := Domain:-Bound:-get(vs_ty, vn);
+
+              rng := Domain:-ExtBound[mk]:-MakeEqn(vn, ty_);
 
               mk(e, rng);
 
@@ -355,7 +393,8 @@ Domain := module()
            export ModuleApply := proc(dom, e, $)
              local vs, sh, vs_ty, vn, e1, ty, _;
              vs, sh := op(dom);
-             vs, vs_ty := op(vs);
+             # vs, vs_ty := op(vs);
+             vs_ty := vs;
 
              # kb_as := kb_to_assumptions(kb);
              # vs_ty := build_kb( kb_as, "Domain/Apply", vs_ty );
@@ -445,31 +484,37 @@ Domain := module()
                  #    the sequence.
                  # `c : name' - to the interval for `v'
                  # everything else - to itself
-                 local classifyAtom := proc(c, vs_ty, v, $)
-                    local ty, mk, bnd, lo, hi;
+                 local classifyAtom := proc(c_, vs_ty, v, $)
+                    local ty, mk, bnd, lo, hi, c := c_;
 
                     if c :: identical(true) then
-                        ty := getType(vs_ty, v);
+                        c := v;
 
-                        mk   := Extract:-MakeOfType(ty);
-                        bnd  := ExtBound[mk]:-RangeOf(ty);
+                        ty, mk := Domain:-Bound:-get(vs_ty, c);
 
-                        lo, hi := op(bnd);
+                        bnd := ExtBound[mk]:-Constrain(v, ty);
 
-                        lo <= v, v <= hi;
+                        op(bnd);
 
                     elif c :: name and depends(vs_ty, c) then
-                        ty := getType(vs_ty, c);
+                        # ty := getType(vs_ty, c);
 
-                        mk   := Extract:-MakeOfType(ty);
-                        bnd  := ExtBound[mk]:-RangeOf(ty);
+                        # mk   := Extract:-MakeOfType(ty);
+                        # bnd  := ExtBound[mk]:-RangeOf(ty);
 
-                        lo, hi := op(bnd);
+                        # lo, hi := op(bnd);
 
-                        lo <= c, c <= hi;
+                        # lo <= c, c <= hi;
+                        ty, mk := Domain:-Bound:-get(vs_ty, c);
+
+                        bnd := ExtBound[mk]:-Constrain(c, ty);
+
+                        op(bnd);
+
                     else
                         c
                     end if;
+
                  end proc;
 
                  # transforms the solution to the form required by Domain
@@ -478,7 +523,7 @@ Domain := module()
                  #  decide the order of integration
                  #  decide which solutions become integrations and which
                  #     become constrains
-                 local postproc := proc(sol, vs, vs_ty, $)
+                 local postproc := proc(sol, ctx, $)
                    local ret := sol;
 
                    ret := subsindets(ret, specfunc('piecewise')
@@ -488,17 +533,20 @@ Domain := module()
                                     , Or(identical({}), set(list))
                                     , x -> DSum(op(x)) );
 
+                   vs := Domain:-Bound:-varsOf(ctx);
+
                    ret := subsindets(ret, list(set({relation,boolean, name}))
-                                    , classifySols(vs, vs_ty) @
-                                      ( ls -> [ seq( map(a->classifyAtom(a, vs_ty, vs[si]), op(si, ls)) , si=1..nops(ls) ) ] )
+                                    , classifySols(vs, ctx) @
+                                      ( ls -> [ seq( map(a->classifyAtom(a, ctx, vs[si]), op(si, ls)) , si=1..nops(ls) ) ] )
                                      );
 
                    ret;
                  end proc;
 
                  # ask Maple for a solution to our system
-                 local do_LMS := proc( sh, vs_, ctx, $ )
-                   local vs := vs_, cs := ctx, ret;
+                 local do_LMS := proc( sh, ctx, $ )
+                   local vs := Domain:-Bound:-varsOf(ctx)
+                       , cs := Domain:-Bound:-toKB(ctx, KB:-empty) , ret;
 
                    if sh :: specfunc(`DConstrain`) then
                        cs := KB:-build_kb([op(sh)], "do_LMS", cs);
@@ -543,12 +591,11 @@ Domain := module()
                  export ModuleApply := proc(dom, $)
                     local dbnds, dshape, db_vars, db_ctx, sol, domKb, domCtx, res;
                     dbnds, dshape := op(dom);
-                    db_vars, db_ctx := op(dbnds);
 
-                    sol := do_LMS( dshape , db_vars, db_ctx );
+                    sol := do_LMS( dshape , dbnds );
                     if sol :: specfunc(`DNoSol`) then return sol end if;
 
-                    sol := postproc(sol, db_vars, db_ctx);
+                    sol := postproc(sol, dbnds );
                     DOMAIN( dbnds, sol );
                  end proc;
 
