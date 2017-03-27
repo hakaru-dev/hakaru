@@ -105,8 +105,10 @@ Domain := module()
          th := select(x->op(1,x)=var, op(1,dom));
          if nops(th) = 1 then
              op([1,2], th), op([1,3], th)
+         elif nops(th) = 0 then
+             error "cannot find var %1 in %2", var, dom;
          else
-             error "cannot find var (%1)", th ;
+             error "multiple references in %1", dom;
          end if;
 
        end proc;
