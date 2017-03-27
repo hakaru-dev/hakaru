@@ -22,6 +22,8 @@
 # should get rid of all sorts of unnecessary conversions.
 Domain := module()
 
+option package;
+
 # TODO: formalize this with maple types (I don't actually know how...)
 #   Domain = DOMAIN(DomBound, DomShape)
 #   DomBound = DOMBOUND(list(name), KB)
@@ -141,6 +143,29 @@ Domain := module()
     export ExtShape := table();
 
     local ModuleLoad := proc($)
+           local T := TypeTools[AddType];
+
+           # Domain
+           T(t_Domain, 'DOMAIN(DomBound, DomShape)');
+
+           # Domain bounds
+           T(DomBoundBinder , 'DInto(name, range, DomBoundKind)' );
+           T(DomBoundKind   , And(name, satisfies(nm->assigned(Domain:-ExtBound[nm]))) );
+
+           T(DomBound       , 'DBound(list(DomBoundBinder))' );
+
+           # Domain shape
+           T(DomConstrain , specfunc(relation, `DConstrain`) );
+           T(DomSum       , specfunc(DomShape, `DSum`) );
+           T(DomSplit     , 'DSplit(Partition)' );
+           T(DomInto      , 'DInto(name, range, DomShape)' );
+           T(DomShape     , Or( DomConstrain, DomSum, DomSplit, DomInto ) );
+
+           # Maybe domain
+           T(DomNoSol  , specfunc(`DNoSol`) );
+           T(Domain_mb , Or(t_Domain, DomNoSol) );
+
+           unprotect(Domain:-ExtBound);
            ExtBound[`Int`] :=
                Record('MakeKB'=KB:-genLebesgue
                      ,'ExtractVar'=(e->op(1,e))
@@ -160,7 +185,9 @@ Domain := module()
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
                      );
+           protect(Domain:-ExtBound);
 
+           unprotect(Domain:-ExtShape);
            ExtShape[`Indicator`] :=
                Record('MakeCtx'=(e -> ( {op(1,e)}, 1 ))
                      ,'MapleType'='Indicator(anything)'
@@ -170,7 +197,7 @@ Domain := module()
                Record('MakeCtx'=Partition:-Simpl:-single_nonzero_piece
                      ,'MapleType'='Partition'
                      );
-
+           unprotect(Domain:-ExtShape);
     end proc;
 
     # Extract a domain from an expression
