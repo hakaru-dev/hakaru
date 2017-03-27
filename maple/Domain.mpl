@@ -230,11 +230,11 @@ option package;
 
              end proc;
 
-             export ModuleApply := proc(e, $)
+             export ModuleApply := proc(e, $) :: [ DomBound, anything ];
                         local arg, vars, kb;
                         arg, vars := do_extract([], e);
 
-                        arg, DBound(vars);
+                        [ DBound(vars), arg ];
              end proc;
            end module;
 
@@ -288,7 +288,7 @@ option package;
              # todo: simplify the shape
              local simpl_shape := (x->x);
 
-             export ModuleApply := proc(e, $)
+             export ModuleApply := proc(e, $) :: [ DomShape, anything ];
                         local ixs, w, e1;
                         ixs := [indices(ExtShape, 'nolist')];
                         w, e1 := do_gets(ixs, {}, e);
@@ -296,15 +296,15 @@ option package;
                         w := DConstrain(op(w));
                         w := simpl_shape(w);
 
-                        w, e1
+                        [ w, e1 ];
              end proc;
            end module;
 
-           export ModuleApply := proc(e, $)
+           export ModuleApply := proc(e, $) :: [ Domain, anything ];
                       local b, eb, s, es;
-                      b, eb := Bound(e);
-                      s, es := Shape(eb);
-                      DOMAIN(b, s), es;
+                      b, eb := op(Bound(e));
+                      s, es := op(Shape(eb));
+                      [ DOMAIN(b, s), es ];
            end proc;
     end module;
 

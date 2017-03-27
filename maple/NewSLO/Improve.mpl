@@ -22,13 +22,13 @@
         # This may discover other nested domains, simplify them,
         # and allow a further simplification to occur in this
         # step of domain improvement
-        body, dom_specb := Domain:-Extract:-Bound(e);
+        body, dom_specb := op(Domain:-Extract:-Bound(e));
         kb1, with_kb1 := Domain:-Bound:-toKB(dom_specb, kb);
 
         e := with_kb1(_body->reduce(_body, h, kb1), body);
 
         # Extract the shape of the domain
-        (dom_specw, e) := Domain:-Extract:-Shape(e);
+        (dom_specw, e) := op(Domain:-Extract:-Shape(e));
 
         # Construct the domain from the bounds and the shape
         dom_spec := DOMAIN(dom_specb, dom_specw);
@@ -217,7 +217,7 @@
 
     local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
       local w, e, x, g, t, r;
-      w, e := Domain:-Extract:-Shape(ee);
+      w, e := op(Domain:-Extract:-Shape(ee));
       w := Domain:-Shape:-asConstraints(w);
       e := piecewise_And(w, e, 0);
       e := f(e,v,_rest,kb);

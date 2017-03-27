@@ -77,7 +77,7 @@
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      (w0, w) := Domain:-Extract:-Shape(w);
+      (w0, w) := op(Domain:-Extract:-Shape(w));
       w0 := Domain:-Shape:-asConstraints(w0);
       kb1 := foldr(assert, kb, op(w0));
       if kb1 :: t_kb then
