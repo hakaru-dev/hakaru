@@ -147,34 +147,6 @@ Domain := module()
                      ,'Constrain'=(proc(v,b,$) { op(1,b) < v , v < op(2,b) } end proc)
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
-                     # ,'HType'=AlmostEveryReal
-                     ,'RangeOf'= # extracts a range (`..`) from a hakaru type
-                      (proc(v,$)
-                         local lo, hi, lo_b, hi_b, k ;
-
-                         k := nops(v);
-                         lo_b, hi_b := -infinity, infinity;
-
-                         if k = 0 then
-                            # do nothing
-
-                         elif k = 2 then
-                             lo, hi := op(v);
-                             lo, lo_b := op(1,lo), op(2, lo);
-                             hi, hi_b := op(1,hi), op(2, hi);
-
-                         elif k = 1 then
-                             if op([1,1],v) in {`<`, `<=`} then
-                                 hi_b := op([1,2], v);
-                             elif op([1,1],v) in {`>`, `>=`} then
-                                 lo_b := op([1,2], v);
-                             else
-                                 error "unknown bound %1", op([1,1],v);
-                             end if;
-
-                         end if;
-                         return lo_b .. hi_b;
-                       end proc)
                      );
 
            ExtBound[`Sum`] :=
@@ -184,8 +156,6 @@ Domain := module()
                      ,'Constrain'=(proc(v,b,$) { op(1,b) <= v , v <= op(2,b) } end proc)
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
-                     # ,'HType'=HInt
-                     ,'RangeOf'=KB:-range_of_HInt
                      );
 
            ExtShape[`Indicator`] :=
@@ -202,17 +172,6 @@ Domain := module()
 
     # Extract a domain from an expression
     export Extract := module ()
-
-           # Map from hakaru types to types of domain bounds
-           # export MakeOfType := module()
-           #    local makeTable := proc()
-           #       table([seq( ExtBound[e]:-HType=e,e=[indices(ExtBound,'nolist')])]);
-           #    end proc;
-
-           #    export ModuleApply := proc(t, $)
-           #       makeTable()[op(0,t)];
-           #    end proc;
-           # end module;
 
            # Extract a domain bound from an expression
            # This pops off the integration constructors recursively, keeping
@@ -324,22 +283,6 @@ Domain := module()
     export Apply := module ()
            local do_mk := proc(e, vs_ty, vn, ty_, $)
 
-              # local mk, rng, ty := ty_;
-
-              # # somewhat of a hack to get around inconsistent representations
-              # # of domain intervals.
-              # if ty :: t_type then
-              #     mk := Extract:-MakeOfType(ty);
-              #     rng := Domain:-ExtBound[mk]:-RangeOf(ty);
-
-              # elif ty :: `..` then
-              #     mk := Extract:-MakeOfType( getType(vs_ty, vn) );
-              #     rng := ty;
-
-              # else
-              #     error "don't know how to make %1", ty
-              # end if;
-
               _, mk := Domain:-Bound:-get(vs_ty, vn);
 
               rng := Domain:-ExtBound[mk]:-MakeEqn(vn, ty_);
@@ -368,6 +311,8 @@ Domain := module()
                       r := PWToPartition(piecewise(cond, e, 0));
                   end if;
 
+                  # if there are still integrals which have not been applied,
+                  # apply them now
                   vs_td := select(x -> not(op(1, x) in done_), op(1, vs));
                   for v_td in vs_td do
                       vn_td, vt_td, _ := op(v_td);
@@ -495,24 +440,9 @@ Domain := module()
                  local classifyAtom := proc(c_, vs_ty, v, $)
                     local ty, mk, bnd, lo, hi, c := c_;
 
-                    if c :: identical(true) then
-                        c := v;
+                    if c :: identical(true) then c := v; end if;
 
-                        ty, mk := Domain:-Bound:-get(vs_ty, c);
-
-                        bnd := ExtBound[mk]:-Constrain(v, ty);
-
-                        op(bnd);
-
-                    elif c :: name and depends(vs_ty, c) then
-                        # ty := getType(vs_ty, c);
-
-                        # mk   := Extract:-MakeOfType(ty);
-                        # bnd  := ExtBound[mk]:-RangeOf(ty);
-
-                        # lo, hi := op(bnd);
-
-                        # lo <= c, c <= hi;
+                    if c :: name and depends(vs_ty, c) then
                         ty, mk := Domain:-Bound:-get(vs_ty, c);
 
                         bnd := ExtBound[mk]:-Constrain(c, ty);
@@ -622,7 +552,11 @@ Domain := module()
               if not dom1 :: specfunc(`DNoSol`) then
                   s1(dom1);
               else
-                  s1(dom);
+                  r := s1(dom);
+                  if r :: specfunc(`DNoSol`) then
+                      r := op(0, r)( dom1, op(r) );
+                  end if;
+                  r
               end if;
            end proc; end proc;
 
