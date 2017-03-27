@@ -545,8 +545,9 @@ Domain := module()
                     db_vars, db_ctx := op(dbnds);
 
                     sol := do_LMS( ToKB(dom) , db_vars );
-                    sol := postproc(sol, db_vars, db_ctx);
+                    if sol :: specfunc(`DNoSol`) then return sol end if;
 
+                    sol := postproc(sol, db_vars, db_ctx);
                     DOMAIN( dbnds, sol );
                  end proc;
 

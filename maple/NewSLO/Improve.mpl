@@ -24,7 +24,6 @@
         # step of domain improvement
         body, dom_specb := Domain:-Extract:-Bound(e, kb);
         kb1 := Domain:-ToKB:-Bound(dom_specb);
-        vars := op(1, dom_specb);
 
         e := reduce(body, h, kb1);
 
@@ -45,6 +44,7 @@
         elim := elim_intsum( ed, h, kb );
 
         if elim = FAIL then
+            vars := op(1, dom_specb);
             e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
             # simplify(e);
             # `simplify/PARTITION`(e) assuming (op(kb_to_assumptions(kb))) ;
