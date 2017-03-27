@@ -281,14 +281,8 @@ Domain := module()
 
     # Apply a domain to an expression.
     export Apply := module ()
-           local do_mk := proc(e, vs_ty, vn, ty_, $)
-
-              _, mk := Domain:-Bound:-get(vs_ty, vn);
-
-              rng := Domain:-ExtBound[mk]:-MakeEqn(vn, ty_);
-
-              mk(e, rng);
-
+           local do_mk := proc(e, vn, ty_, mk, $)
+              mk(e, Domain:-ExtBound[mk]:-MakeEqn(vn, ty_));
            end proc;
 
            # main loop of the apply function
@@ -296,8 +290,8 @@ Domain := module()
            # vs    := variables
            # vs_ty := domain bounds (as a kb)
            # sh    := domain shape
-           local do_apply := proc(done_, e, vs, sh_, $)
-              local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1, cond;
+           local do_apply := proc(done__, e, vs, sh_, $)
+              local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1, cond, done_ := done__ ;
 
               # If the solution is a constraint, and the constraint is true,
               # then just produce the expression. If it isn't necessarily true
@@ -315,8 +309,8 @@ Domain := module()
                   # apply them now
                   vs_td := select(x -> not(op(1, x) in done_), op(1, vs));
                   for v_td in vs_td do
-                      vn_td, vt_td, _ := op(v_td);
-                      r := do_mk(r, vs, vn_td, vt_td);
+                      vn_td, vt_td, vt_mk := op(v_td);
+                      r := do_mk(r, vn_td, vt_td, vt_mk);
                   end do;
 
                   r;
@@ -338,12 +332,28 @@ Domain := module()
                   # deconstruction
                   vn, vt, shv := op(sh);
 
-                  # recursively apply
-                  done_1 := { vn, op(done_) };
-                  e1 := do_apply(done_1, e, vs, shv);
+                  # extract bounds which have not been applied upon which this
+                  # bound depends. Those are applied after this one, so are not
+                  # in 'scope' in the recursive call
+                  vars := {op(Domain:-Bound:-varsOf(vs))};
+                  deps := (indets(vt, name) intersect vars) minus done_ ;
+                  done_ := `union`(done_, deps, {vn}) ;
 
-                  # build this integral
-                  do_mk(e1, vs, vn, vt);
+                  # recursively apply
+                  e1 := do_apply(done_, e, vs, shv);
+
+                  # build this integral, and the other this one depended on
+                  for v in op(1,vs) do
+                      vvn, vvt, vmk := op(v);
+                      if vvn in deps then
+                          e1 := do_mk(e1, vvn, vvt, vmk);
+                      elif vvn = vn then
+                          e1 := do_mk(e1, vvn,  vt, vmk);
+                      end if;
+                  end do;
+
+                  e1;
+
               else
                   error "don't know how to apply %1", sh
               end if;
