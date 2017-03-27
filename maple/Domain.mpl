@@ -76,15 +76,13 @@ Domain := module()
     export Bound := module ()
 
        export toKB := proc(dom :: specfunc(`DBound`), kb0, $)
-         # local kb0 := op(2, dom)
-         #     , kb1 := op(0, kb0)( op(kb0), op(kb) ); # huge hack...
-         # kb1;
 
          local kb := kb0, vs := op(1, dom), rn := [];
 
          for v in vs do
              vn, vt, make := op(v);
-             vn_rn, kb := ExtBound[make]:-MakeKB( [ vn, vt ] )(kb);
+             lo, hi := ExtBound[make]:-SplitBound(vt);
+             vn_rn, kb := ExtBound[make]:-MakeKB( vn, lo, hi, kb );
 
              rn := [ vn=vn_rn, op(rn) ];
          end do;
@@ -141,7 +139,7 @@ Domain := module()
 
     local ModuleLoad := proc($)
            ExtBound[`Int`] :=
-               Record('MakeKB'=(e -> kb -> genLebesgue(op([1],e), op([2,1],e), op([2,2],e), kb))
+               Record('MakeKB'=KB:-genLebesgue
                      ,'ExtractVar'=(e->op(1,e))
                      ,'ExtractBound'=(e->op(2,e))
                      ,'SplitBound'=(e->op(e))
@@ -151,7 +149,7 @@ Domain := module()
                      );
 
            ExtBound[`Sum`] :=
-               Record('MakeKB'=(e -> kb -> genSummation(op([1],e), op(op([2],e)), kb))
+               Record('MakeKB'=KB:-genSummation
                      ,'ExtractVar'=(e->op(1,e))
                      ,'ExtractBound'=(e->op(2,e))
                      ,'SplitBound'=(e->op(e))
