@@ -22,8 +22,8 @@
         # This may discover other nested domains, simplify them,
         # and allow a further simplification to occur in this
         # step of domain improvement
-        body, dom_specb := op(Domain:-Extract:-Bound(e));
-        kb1, with_kb1 := Domain:-Bound:-toKB(dom_specb, kb);
+        dom_specb, body := op(Domain:-Extract:-Bound(e));
+        kb1, with_kb1 := op(Domain:-Bound:-toKB(dom_specb, kb));
 
         e := with_kb1(_body->reduce(_body, h, kb1), body);
 

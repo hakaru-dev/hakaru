@@ -57,17 +57,17 @@ option package;
     # Checks if an expression has domain bounds/shape, and check for either one.
     export Has := module ()
 
-       export Bound := proc(e :: DomBound, $)::truefalse;
+       export Bound := proc(e, $)::truefalse;
                assigned(Domain:-ExtBound[op(0,e)]) and
                evalb(e :: Domain:-ExtBound[op(0,e)]:-MapleType);
        end proc;
 
-       export Shape := proc(e :: DomShape, $)::truefalse;
+       export Shape := proc(e, $)::truefalse;
                assigned(Domain:-ExtShape[op(0,e)]) and
                evalb(e :: Domain:-ExtShape[op(0,e)]:-MapleType);
        end proc;
 
-       export ModuleApply := proc(e :: Domain, $)::truefalse;
+       export ModuleApply := proc(e, $)::truefalse;
                Bound(e) or Shape(e);
        end proc;
 
@@ -77,7 +77,7 @@ option package;
     # for parts of the code which still work with KB.
     export Bound := module ()
 
-       export toKB := proc(dom :: DomBound, kb0 :: KB:-t_kb, $)::t_kb_mb;
+       export toKB := proc(dom :: DomBound, kb0 :: t_kb, $)
          local kb := kb0, vs := op(1, dom), rn := []
              , vn, vt, make, lo, hi, vn_rn, rn_t, v ;
 
@@ -90,11 +90,11 @@ option package;
          end do;
 
          rn_t := map(x->apply(rhs=lhs,x), rn);
-         kb, (proc(f,e0,$)
-                local e := e0;
-                e := subs(rn, e); e := f(e); e := subs(rn_t, e);
-                e;
-              end proc);
+         [ kb, (proc(f,e0,$)
+                  local e := e0;
+                  e := subs(rn, e); e := f(e); e := subs(rn_t, e);
+                  e;
+                end proc) ];
 
        end proc;
 
@@ -533,7 +533,7 @@ option package;
                  local do_LMS := proc( sh, ctx, $ )
                    local vs := Domain:-Bound:-varsOf(ctx)
                        , cs, do_rn, ret;
-                   cs, do_rn := Domain:-Bound:-toKB(ctx, KB:-empty) ;
+                   cs, do_rn := op(Domain:-Bound:-toKB(ctx, KB:-empty)) ;
 
                    cs := do_rn(proc(cs_,$)
                             local cs := cs_;
@@ -611,7 +611,7 @@ option package;
 
            export ModuleApply := proc(dom, $)
                local es := entries(Simplifiers)
-                   , mk := foldr( cmp_simp , (_->DNoSol()), op(es) );
+                   , mk := foldr( cmp_simp , (_->_), op(es) );
                mk(dom);
            end proc;
     end module;
