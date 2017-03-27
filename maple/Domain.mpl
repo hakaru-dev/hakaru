@@ -592,7 +592,7 @@ Domain := module()
 
            export ModuleApply := proc(dom, $)
                local es := entries(Simplifiers)
-                   , mk := foldr( cmp_simp , (x->x), op(es) );
+                   , mk := foldr( cmp_simp , (_->DNoSol()), op(es) );
                mk(dom);
            end proc;
     end module;
