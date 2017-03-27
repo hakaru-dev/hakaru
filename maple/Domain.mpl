@@ -73,16 +73,18 @@ Domain := module()
 
     # Convert Domain to a KB. Very partial, mainly for backwards compatibility
     # for parts of the code which still work with KB.
-    export ToKB := module ()
+    export Bound := module ()
 
-       export Bound := proc(dom, kb, $)
+       export toKB := proc(dom, kb, $)
          local kb0 := op(2, dom)
              , kb1 := op(0, kb0)( op(kb0), op(kb) ); # huge hack...
          kb1;
        end proc;
 
-       export Shape := module ()
-         export AsConstraints := proc(sh_, $)
+    end module;
+
+    export Shape := module ()
+         export asConstraints := proc(sh_, $)
            local sh := sh_;
 
            if sh :: specfunc(`DConstrain`) then
@@ -92,14 +94,12 @@ Domain := module()
            # elif sh :: specfunc(`DSplit`) then
 
            elif sh :: specfunc(`DInto`) then
-               AsConstraints(op(3, sh));
+               asConstraints(op(3, sh));
            else
                error "don't know how to apply %1", sh
            end if;
 
          end proc;
-
-       end module;
 
     end module;
 

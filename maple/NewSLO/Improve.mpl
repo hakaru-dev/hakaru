@@ -23,7 +23,7 @@
         # and allow a further simplification to occur in this
         # step of domain improvement
         body, dom_specb := Domain:-Extract:-Bound(e);
-        kb1 := Domain:-ToKB:-Bound(dom_specb, kb);
+        kb1 := Domain:-Bound:-toKB(dom_specb, kb);
 
         e := reduce(body, h, kb1);
 
@@ -218,7 +218,7 @@
     local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
       local w, e, x, g, t, r;
       w, e := Domain:-Extract:-Shape(ee);
-      w := Domain:-ToKB:-Shape:-AsConstraints(w);
+      w := Domain:-Shape:-asConstraints(w);
       e := piecewise_And(w, e, 0);
       e := f(e,v,_rest,kb);
       x := `if`(v::name, v, lhs(v));
