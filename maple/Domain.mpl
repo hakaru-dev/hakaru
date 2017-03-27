@@ -144,7 +144,8 @@ Domain := module()
                Record('MakeKB'=(e -> kb -> genLebesgue(op([1],e), op([2,1],e), op([2,2],e), kb))
                      ,'ExtractVar'=(e->op(1,e))
                      ,'ExtractBound'=(e->op(2,e))
-                     ,'Constrain'=(proc(v,b,$) { op(1,b) < v , v < op(2,b) } end proc)
+                     ,'SplitBound'=(e->op(e))
+                     ,'Constrain'=`<`
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
                      );
@@ -153,7 +154,8 @@ Domain := module()
                Record('MakeKB'=(e -> kb -> genSummation(op([1],e), op(op([2],e)), kb))
                      ,'ExtractVar'=(e->op(1,e))
                      ,'ExtractBound'=(e->op(2,e))
-                     ,'Constrain'=(proc(v,b,$) { op(1,b) <= v , v <= op(2,b) } end proc)
+                     ,'SplitBound'=(e->op(e))
+                     ,'Constrain'=`<=`
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
                      );
@@ -362,6 +364,23 @@ Domain := module()
            export ModuleApply := proc(dom, e, $)
              local vs, sh;
              vs, sh := op(dom);
+
+             # This 'simplification' removes redundant information, but it is
+             # entirely pointless as the result should be the same anyways. This
+             # is mainly here as an assertion that Apply properly
+             # re-applies integrals when the domain shape does not explicitly
+             # state them.
+             sh := subsindets( sh, specfunc(`DInto`)
+                             , proc (x, $)
+                                   x_vn, x_t0, x_rest := op(x);
+                                   x_t, x_mk := Domain:-Bound:-get(vs, x_vn);
+                                   if x_t = x_t0 then
+                                       x_rest
+                                   else
+                                       x
+                                   end if;
+                              end proc );
+
              do_apply({}, e, vs, sh);
            end proc;
     end module;
@@ -454,8 +473,10 @@ Domain := module()
 
                     if c :: name and depends(vs_ty, c) then
                         ty, mk := Domain:-Bound:-get(vs_ty, c);
+                        lo, hi := ExtBound[mk]:-SplitBound(ty);
 
-                        bnd := ExtBound[mk]:-Constrain(c, ty);
+                        bnd := { ExtBound[mk]:-Constrain(lo, c)
+                               , ExtBound[mk]:-Constrain(c, hi) } ;
 
                         op(bnd);
 
