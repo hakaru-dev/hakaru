@@ -99,15 +99,8 @@ Domain := module()
 
          end proc;
 
-         export ModuleApply := proc(dom, $)
-           build_kb(AsConstraints(dom), "Domain/ToKB/Shape");
-         end proc;
-
        end module;
 
-       export ModuleApply := proc(dom, $)
-          build_kb( Domain:-ToKB:-Shape:-AsConstraints(op(2,dom)), "Domain/ToKB", Bound(op(1,dom), KB:-empty));
-       end proc;
     end module;
 
     # Extending domain extraction and replacement.
@@ -504,10 +497,16 @@ Domain := module()
                  end proc;
 
                  # ask Maple for a solution to our system
-                 local do_LMS := proc( ctx, vs_, $ )
-                   local vs := vs_, cs, ret;
+                 local do_LMS := proc( sh, vs_, ctx, $ )
+                   local vs := vs_, cs := ctx, ret;
 
-                   cs := op(3, kb_extract(ctx));
+                   if sh :: specfunc(`DConstrain`) then
+                       cs := KB:-build_kb([op(sh)], "do_LMS", cs);
+                   else
+                       error "don't know how to solve %1", sh;
+                   end if;
+
+                   cs := op(3, kb_extract(cs));
                    cs := {op(cs)};
 
                   # there are variables to solve for, but no non-trivial
@@ -546,7 +545,7 @@ Domain := module()
                     dbnds, dshape := op(dom);
                     db_vars, db_ctx := op(dbnds);
 
-                    sol := do_LMS( ToKB(dom) , db_vars );
+                    sol := do_LMS( dshape , db_vars, db_ctx );
                     if sol :: specfunc(`DNoSol`) then return sol end if;
 
                     sol := postproc(sol, db_vars, db_ctx);
