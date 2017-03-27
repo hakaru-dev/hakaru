@@ -361,6 +361,13 @@ Domain := module()
 
            export ModuleApply := proc(dom, e, $)
              local vs, sh;
+             if dom :: specfunc(`DNoSol`) then
+                 error "cannot apply %1", dom;
+             elif not dom :: specfunc(`DOMAIN`) then
+                 error "not a domain: %1", dom;
+             end if;
+
+
              vs, sh := op(dom);
 
              # This 'simplification' removes redundant information, but it is
