@@ -155,7 +155,7 @@ option package;
            T(DomBound       , 'DBound(list(DomBoundBinder))' );
 
            # Domain shape
-           T(DomConstrain , specfunc(relation, `DConstrain`) );
+           T(DomConstrain , specfunc({relation, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}, `DConstrain`) );
            T(DomSum       , specfunc(DomShape, `DSum`) );
            T(DomSplit     , 'DSplit(Partition(Domain))' );
            T(DomInto      , 'DInto(name, range, DomShape)' );
