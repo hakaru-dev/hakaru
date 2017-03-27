@@ -145,8 +145,8 @@ option package;
     local ModuleLoad := proc($)
            local T := TypeTools[AddType];
 
-           # Domain
-           T(t_Domain, 'DOMAIN(DomBound, DomShape)');
+           unprotect(`type/Domain`);
+           unassign(`type/Domain`);
 
            # Domain bounds
            T(DomBoundBinder , 'DInto(name, range, DomBoundKind)' );
@@ -157,13 +157,16 @@ option package;
            # Domain shape
            T(DomConstrain , specfunc(relation, `DConstrain`) );
            T(DomSum       , specfunc(DomShape, `DSum`) );
-           T(DomSplit     , 'DSplit(Partition)' );
+           T(DomSplit     , 'DSplit(Partition(Domain))' );
            T(DomInto      , 'DInto(name, range, DomShape)' );
            T(DomShape     , Or( DomConstrain, DomSum, DomSplit, DomInto ) );
 
+           # Domain
+           T(Domain, 'DOMAIN(DomBound, DomShape)');
+
            # Maybe domain
            T(DomNoSol  , specfunc(`DNoSol`) );
-           T(Domain_mb , Or(t_Domain, DomNoSol) );
+           T(Domain_mb , 'Or(Domain, DomNoSol)' );
 
            unprotect(Domain:-ExtBound);
            ExtBound[`Int`] :=
