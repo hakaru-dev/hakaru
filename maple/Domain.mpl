@@ -563,7 +563,8 @@ Domain := module()
 
            # TODO: this should keep errors (esp. if everything fails to
            # simplify), or print them as a warning(?)
-           local cmp_simp := proc(s0, s1, $) proc(dom, $)
+           local cmp_simp := proc(s0, s1, $) proc(dom :: Or(specfunc(`DNoSol`), specfunc(`DOMAIN`)) , $)
+                                                 ::Or(specfunc(`DNoSol`), specfunc(`DOMAIN`));
               local dom1 := s0(dom), r;
               if not dom1 :: specfunc(`DNoSol`) then
                   s1(dom1);
