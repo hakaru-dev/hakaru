@@ -182,13 +182,10 @@ Domain := module()
              local do_extract_arg := proc(vars, kind, arg_, bound, $)
                local x0, x, vars1, arg := arg_;
 
-               x0  := ExtBound[kind]:-ExtractVar(bound);
-               rng := ExtBound[kind]:-ExtractBound(bound);
-               x   := DInto(x0, rng, kind);
-               # x, kb1 := ExtBound[kind]:-MakeKB(bound)(kb1);
-
+               x0  := ExtBound[kind]:-ExtractVar(bound);   # variable name
+               rng := ExtBound[kind]:-ExtractBound(bound); # variable range
+               x   := DInto(x0, rng, kind);                # the variable spec
                vars1 := [ x, op(vars) ];
-               # arg   := subs(ExtBound[kind]:-MakeEqn(x0,x), arg);
 
                do_extract(vars1, arg);
              end proc;
