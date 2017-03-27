@@ -411,7 +411,7 @@ Domain := module()
                    # either extracts upper and/or lower bounds from the solution
                    # or leaves that solution as a constraint.
                    local classifySol1 :=
-                     proc(v, vs_ty, sol :: set({relation,boolean}), ctx, $)
+                     proc(sol :: set({relation,boolean}), v, ctx, $)
                          local hi, lo, v_t;
 
                          # try to check if we can extract upper and lower bounds from the
@@ -453,37 +453,11 @@ Domain := module()
 
                     ctx := DConstrain();
                     for v in sol1 do
-                        ctx := classifySol1(op(2,v), vs_ty, op(1, v), ctx);
+                        ctx := classifySol1(op(v), ctx);
                     end do;
 
                     ctx;
                  end proc; end proc;
-
-                 # classifyAtom maps
-                 # `true' (produced by LMS for trivial systems) - to the
-                 #    interval for the variable corresponding to this index in
-                 #    the sequence.
-                 # `c : name' - to the interval for `v'
-                 # everything else - to itself
-                 local classifyAtom := proc(c_, vs_ty, v, $)
-                    local ty, mk, bnd, lo, hi, c := c_;
-
-                    if c :: identical(true) then c := v; end if;
-
-                    if c :: name and depends(vs_ty, c) then
-                        ty, mk := Domain:-Bound:-get(vs_ty, c);
-                        lo, hi := ExtBound[mk]:-SplitBound(ty);
-
-                        bnd := { ExtBound[mk]:-Constrain(lo, c)
-                               , ExtBound[mk]:-Constrain(c, hi) } ;
-
-                        op(bnd);
-
-                    else
-                        c
-                    end if;
-
-                 end proc;
 
                  # transforms the solution to the form required by Domain
                  # this would be a straightforward syntactic manipulation,
@@ -503,9 +477,14 @@ Domain := module()
 
                    vs := Domain:-Bound:-varsOf(ctx);
 
+                 # `true' (produced by LMS for trivial systems) - to the
+                 #    interval for the variable corresponding to this index in
+                 #    the sequence.
+                 # `c : name' - to the interval for `v'
+                 # everything else - to itself
                    ret := subsindets(ret, list(set({relation,boolean, name}))
                                     , classifySols(vs, ctx) @
-                                      ( ls -> [ seq( map(a->classifyAtom(a, ctx, vs[si]), op(si, ls)) , si=1..nops(ls) ) ] )
+                                      (ls->map(si->remove(x->x::identical(true) or x::name, si), ls))
                                      );
 
                    ret;
