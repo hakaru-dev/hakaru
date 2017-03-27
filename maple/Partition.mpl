@@ -197,6 +197,14 @@ local
 
    end module,
 
+   isPartitionPieceOf := proc( p, elem_t := anything )
+      type(p, 'Piece({relation, boolean, `::`}, elem_t)');
+   end proc,
+
+   isPartitionOf := proc( e, elem_t := anything )
+      type(e, 'PARTITION(list(PartitionPiece(elem_t)))' );
+   end proc,
+
    ModuleLoad::static:= proc()
       local prev;
 
@@ -207,7 +215,8 @@ local
          )
       end proc;
 
-      TypeTools:-AddType(Partition, specfunc(PARTITION));
+      TypeTools:-AddType(PartitionPiece, isPartitionPieceOf);
+      TypeTools:-AddType(Partition, isPartitionOf);
 
       # global extensions to maple functionality
 
@@ -270,6 +279,7 @@ local
 
    ModuleUnload::static:= proc()
       TypeTools:-RemoveType(Partition);
+      TypeTools:-RemoveType(PartitionPiece);
       NULL
    end proc,
 
