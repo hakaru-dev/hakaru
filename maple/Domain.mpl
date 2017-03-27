@@ -348,7 +348,7 @@ Domain := module()
            # vs    := variables
            # vs_ty := domain bounds (as a kb)
            # sh    := domain shape
-           local do_apply := proc(e, vs, vs_ty, sh_, $)
+           local do_apply := proc(done_, e, vs, sh_, $)
               local sh := sh_, e1, vn, vt, shv, ty, vn_ty, kb1, cond;
 
               # If the solution is a constraint, and the constraint is true,
@@ -358,21 +358,29 @@ Domain := module()
               if sh :: specfunc(`DConstrain`) then
                   cond := `and`(op(sh));
                   if is(cond) then
-                      e
+                      r := e
                   else
-                      PWToPartition(piecewise(cond, e, 0));
+                      r := PWToPartition(piecewise(cond, e, 0));
                   end if;
+
+                  vs_td := select(x -> not(op(1, x) in done_), op(1, vs));
+                  for v_td in vs_td do
+                      vn_td, vt_td, _ := op(v_td);
+                      r := do_mk(r, vs, vn_td, vt_td);
+                  end do;
+
+                  r;
 
               # if the solution is a sum of solutions, produce the algebraic sum
               # of each summand of the solution applied to the expression.
               elif sh :: specfunc(`DSum`) then
-                  `+`(seq(do_apply(e, vs, vs_ty, s), s=sh))
+                  `+`(seq(do_apply(done_, e, vs, s), s=sh))
 
               # if the solution is a split solution, just make `do_apply' over
               # the values of the Partition (the subsolutions)
               elif sh :: specfunc(`DSplit`) then
                   sh := op(1, sh);
-                  Partition:-Pmap(p-> do_apply(e, vs, vs_ty, p), sh);
+                  Partition:-Pmap(p-> do_apply(done_, e, vs, p), sh);
 
               # performs the 'make' on the expression after recursively
               # applying the solution
@@ -381,25 +389,20 @@ Domain := module()
                   vn, vt, shv := op(sh);
 
                   # recursively apply
-                  e1 := do_apply(e, [vn], vs_ty, shv);
+                  done_1 := { vn, op(done_) };
+                  e1 := do_apply(done_1, e, vs, shv);
 
                   # build this integral
-                  do_mk(e1, vs_ty, vn, vt);
+                  do_mk(e1, vs, vn, vt);
               else
                   error "don't know how to apply %1", sh
               end if;
            end proc;
 
            export ModuleApply := proc(dom, e, $)
-             local vs, sh, vs_ty, vn, e1, ty, _;
+             local vs, sh;
              vs, sh := op(dom);
-             # vs, vs_ty := op(vs);
-             vs_ty := vs;
-
-             # kb_as := kb_to_assumptions(kb);
-             # vs_ty := build_kb( kb_as, "Domain/Apply", vs_ty );
-
-             do_apply(e, vs, vs_ty, sh);
+             do_apply({}, e, vs, sh);
            end proc;
     end module;
 
