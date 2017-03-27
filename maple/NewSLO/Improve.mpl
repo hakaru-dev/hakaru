@@ -22,8 +22,8 @@
         # This may discover other nested domains, simplify them,
         # and allow a further simplification to occur in this
         # step of domain improvement
-        body, dom_specb := Domain:-Extract:-Bound(e, kb);
-        kb1 := Domain:-ToKB:-Bound(dom_specb);
+        body, dom_specb := Domain:-Extract:-Bound(e);
+        kb1 := Domain:-ToKB:-Bound(dom_specb, kb);
 
         e := reduce(body, h, kb1);
 
@@ -37,7 +37,7 @@
         dom_spec := Domain:-Improve(dom_spec);
 
         # Apply the domain back to the expression
-        mkDom := (x->Domain:-Apply(dom_spec, x, kb));
+        mkDom := (x->Domain:-Apply(dom_spec, x));
         ed := mkDom(e);
 
         # Some extra simplification may be needed

@@ -75,8 +75,10 @@ Domain := module()
     # for parts of the code which still work with KB.
     export ToKB := module ()
 
-       export Bound := proc(dom, $)
-         op(2, dom);
+       export Bound := proc(dom, kb, $)
+         local kb0 := op(2, dom)
+             , kb1 := op(0, kb0)( op(kb0), op(kb) ); # huge hack...
+         kb1;
        end proc;
 
        export Shape := module ()
@@ -104,7 +106,7 @@ Domain := module()
        end module;
 
        export ModuleApply := proc(dom, $)
-          build_kb( Domain:-ToKB:-Shape:-AsConstraints(op(2,dom)), "Domain/ToKB", Bound(op(1,dom)));
+          build_kb( Domain:-ToKB:-Shape:-AsConstraints(op(2,dom)), "Domain/ToKB", Bound(op(1,dom), KB:-empty));
        end proc;
     end module;
 
@@ -185,7 +187,7 @@ Domain := module()
            # This pops off the integration constructors recursively, keeping
            # track of the bounds in a KB (which literally become the DBound).
            export Bound := module ()
-             local do_extract_arg := proc(kb1_, kb, vars, kind, arg_, bound, $)
+             local do_extract_arg := proc(kb1_, vars, kind, arg_, bound, $)
                local kb1 := kb1_, x0, x, vars1, ty, arg := arg_;
 
                x0 := op(1, bound);
@@ -194,21 +196,21 @@ Domain := module()
                vars1 := [ x, op(vars) ];
                arg   := subs(ExtBound[kind]:-MakeEqn(x0,x), arg);
 
-               do_extract(kb1, kb, vars1, arg);
+               do_extract(kb1, vars1, arg);
              end proc;
 
-             local do_extract := proc(kb1, kb, vars, arg, $)
+             local do_extract := proc(kb1, vars, arg, $)
                if Domain:-Has:-Bound(arg) then
-                   do_extract_arg(kb1, kb, vars, op(0,arg), op(arg));
+                   do_extract_arg(kb1, vars, op(0,arg), op(arg));
                else
                    arg, vars, kb1
                end if;
 
              end proc;
 
-             export ModuleApply := proc(e, ctx := {empty}, $)
+             export ModuleApply := proc(e, $)
                         local arg, vars, kb;
-                        arg, vars, kb := do_extract(ctx, ctx, [], e);
+                        arg, vars, kb := do_extract(KB:-empty, [], e);
 
                         arg, DBound(vars, kb);
              end proc;
@@ -357,13 +359,13 @@ Domain := module()
               end if;
            end proc;
 
-           export ModuleApply := proc(dom, e, kb :: t_kb, $)
-             local vs, sh, vs_ty, vn, e1, ty, _, kb_as;
+           export ModuleApply := proc(dom, e, $)
+             local vs, sh, vs_ty, vn, e1, ty, _;
              vs, sh := op(dom);
              vs, vs_ty := op(vs);
 
-             kb_as := kb_to_assumptions(kb);
-             vs_ty := build_kb( kb_as, "Domain/Apply", vs_ty );
+             # kb_as := kb_to_assumptions(kb);
+             # vs_ty := build_kb( kb_as, "Domain/Apply", vs_ty );
 
              do_apply(e, vs, vs_ty, sh);
            end proc;
