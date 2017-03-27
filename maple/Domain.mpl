@@ -57,17 +57,17 @@ option package;
     # Checks if an expression has domain bounds/shape, and check for either one.
     export Has := module ()
 
-       export Bound := proc(e, $)
+       export Bound := proc(e :: DomBound, $)::truefalse;
                assigned(Domain:-ExtBound[op(0,e)]) and
                evalb(e :: Domain:-ExtBound[op(0,e)]:-MapleType);
        end proc;
 
-       export Shape := proc(e, $)
+       export Shape := proc(e :: DomShape, $)::truefalse;
                assigned(Domain:-ExtShape[op(0,e)]) and
                evalb(e :: Domain:-ExtShape[op(0,e)]:-MapleType);
        end proc;
 
-       export ModuleApply := proc(e, $)
+       export ModuleApply := proc(e :: Domain, $)::truefalse;
                Bound(e) or Shape(e);
        end proc;
 
@@ -77,7 +77,7 @@ option package;
     # for parts of the code which still work with KB.
     export Bound := module ()
 
-       export toKB := proc(dom :: specfunc(`DBound`), kb0, $)
+       export toKB := proc(dom :: DomBound, kb0 :: KB:-t_kb, $)::t_kb_mb;
          local kb := kb0, vs := op(1, dom), rn := []
              , vn, vt, make, lo, hi, vn_rn, rn_t, v ;
 
@@ -98,11 +98,11 @@ option package;
 
        end proc;
 
-       export varsOf := proc(dom :: specfunc(`DBound`), $)
+       export varsOf := proc(dom :: DomBound, $)::list(name);
          map(x->op(1,x), op(1, dom));
        end proc;
 
-       export get := proc(dom :: specfunc(`DBound`), var :: name, $)
+       export get := proc(dom :: DomBound, var :: name, $)
          local th;
          th := select(x->op(1,x)=var, op(1,dom));
          if nops(th) = 1 then
@@ -119,7 +119,7 @@ option package;
 
     export Shape := module ()
 
-         export asConstraints := proc(sh_, $)
+         export asConstraints := proc(sh_ :: DomShape, $)::list({boolean,relation});
            local sh := sh_;
 
            if sh :: specfunc(`DConstrain`) then
