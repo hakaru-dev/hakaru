@@ -513,7 +513,7 @@ Domain := module()
                                 error "don't know how to solve %1", sh;
                             end if;
 
-                            cs := op(3, kb_extract(cs));
+                            cs := op(3, KB:-kb_extract(cs));
                             cs := {op(cs)}; cs;
                                end proc , cs);
 
@@ -586,6 +586,6 @@ Domain := module()
            end proc;
     end module;
 
-    uses Hakaru, KB, Partition, SolveTools[Inequality] ;
+    uses Hakaru, Partition, SolveTools[Inequality] ;
 
 end module;
