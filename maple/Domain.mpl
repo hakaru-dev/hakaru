@@ -282,51 +282,9 @@ option package;
                        end if;
              end proc;
 
-             local simpl_relation :=
-             proc( expr_ :: set({relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`})
-                 , $) :: set(list( {relation, specfunc(relation, Not)} ));
-
-                 local expr := expr_;
-
-                 # simplify negations of relations
-                 expr := subsindets(expr, { specfunc(relation, `Not`), `not`(relation) }
-                                   , x-> KB:-negate_rel(op(1,x))
-                                   );
-
-                 expr := subsindets(expr, { specfunc(`Not`), `not` }
-                                   , x->Logic:-`&not`(op(1,x))
-                                   ) ;
-
-                 expr := subsindets(expr, { specfunc(`Or`), `or` }
-                                   , x->Logic:-`&or`(op(x))
-                                   ) ;
-
-                 expr := subsindets(expr, { specfunc(`And`), `and` }
-                                   , x->Logic:-`&and`(op(x))
-                                   ) ;
-
-                 expr := Logic:-`&and`(op(expr));
-
-                 expr := Logic:-Normalize(expr);
-
-                 expr := subsindets(expr, specfunc(Logic:-`&and`), x->[op(x)]);
-                 expr := subsindets(expr, specfunc(Logic:-`&or`) , x->{op(x)});
-                 expr := subsindets(expr, specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x)) );
-
-                 if not expr :: set then
-                     expr := {expr};
-                 end if;
-
-                 if not expr :: set(list) then
-                     expr := map(x->[x],expr);
-                 end if;
-
-                 expr;
-             end proc;
-
              # todo: simplify the shape
              local simpl_shape := proc(x,$)
-                local e := simpl_relation(x);
+                local e := Domain:-simpl_relation(x);
 
                 e := subsindets(e, set , x->DSum(op(x)));
                 e := subsindets(e, list, x->DConstrain(op(x)));
@@ -675,6 +633,50 @@ option package;
                mk(dom);
            end proc;
     end module;
+
+
+
+    local simpl_relation :=
+    proc( expr_ :: set({relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`})
+        , $) :: set(list( {relation, specfunc(relation, Not)} ));
+
+        local expr := expr_;
+
+        # simplify negations of relations
+        expr := subsindets(expr, { specfunc(relation, `Not`), `not`(relation) }
+                          , x-> KB:-negate_rel(op(1,x))
+                          );
+
+        expr := subsindets(expr, { specfunc(`Not`), `not` }
+                          , x->Logic:-`&not`(op(1,x))
+                          ) ;
+
+        expr := subsindets(expr, { specfunc(`Or`), `or` }
+                          , x->Logic:-`&or`(op(x))
+                          ) ;
+
+        expr := subsindets(expr, { specfunc(`And`), `and` }
+                          , x->Logic:-`&and`(op(x))
+                          ) ;
+
+        expr := Logic:-`&and`(op(expr));
+
+        expr := Logic:-Normalize(expr);
+
+        expr := subsindets(expr, specfunc(Logic:-`&and`), x->[op(x)]);
+        expr := subsindets(expr, specfunc(Logic:-`&or`) , x->{op(x)});
+        expr := subsindets(expr, specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x)) );
+
+        if not expr :: set then
+            expr := {expr};
+        end if;
+
+        if not expr :: set(list) then
+            expr := map(x->[x],expr);
+        end if;
+
+        expr;
+    end proc;
 
     uses Hakaru, Partition, SolveTools[Inequality] ;
 
