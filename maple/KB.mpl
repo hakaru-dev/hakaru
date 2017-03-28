@@ -70,13 +70,6 @@ KB := module ()
      # kb_entails(kb,cond) = "kb => cond"
      kb_entails,
 
-     # Normalize a kb to take advantage of all of
-     # the information in it.  Warning: this can completely
-     # re-arrange things, so that it is no longer valid to call
-     # kb_substract after this operation is performed.
-     # In particular, the result may be a SplitKB.
-     kb_extract,
-
      # Simplify a Hakaru term assuming the knowledge of the kb
      # variants do different things in case of simplification error
      # (which should really only occur when the KB contains a contradicition)
@@ -88,7 +81,7 @@ KB := module ()
 
      # Various 'views' of the KB, in that they take a KB and produce something
      # which is somehow 'representative' of the KB
-     kb_to_variables, kb_to_assumptions, kb_to_equations, kb_piecewise, kb_Partition,
+     kb_to_variables, kb_to_assumptions, kb_to_constraints, kb_to_equations, kb_piecewise, kb_Partition,
 
      # Various utilities ...
      list_of_mul, for_poly, range_of_HInt, eval_kb, kb_is_false,
@@ -647,37 +640,9 @@ KB := module ()
     end proc, kb);
   end proc;
 
-  # Extracts information about the KB in a format suitable for manipulation
-  # with standard Maple library functions, which do not typically expect to
-  # find Hakaru constructors in their input
-  kb_extract := proc(kb::t_kb, $)::[anything, anything, list(t_kb_atom)];
-    local vars, parms, constraints;
-
-    # Select all of the relevant subparts
-    vars        := select(type, kb, 'Introduce(name, specfunc({AlmostEveryReal, EveryInteger}))');
-    parms       := select(type, kb, 'Introduce(name, specfunc({HReal,HInt}))');
-    # constraints := select(type, kb, 'Constrain(relation)');
-
-    # A lot of interesting things will happen here, but maybe they
-    # should happen as a 'pre-processing' step inside of kb_LMS
-
-    # get rid of "x::t", in which t is going to be {real,integer}.
-    # LMS assumes real implicitly, but it could give entirely bogus
-    # solutions if the type is really integer
-
-    # furthermore, kb_to_assumptions is not quite the right thing
-    #  here, as it will produce an empty list for e.g.
-    #     KB(KB:-Introduce(`x`,AlmostEveryReal()))
-    #  but LMS can't do anything with that empty list.
-
-    #  We (maybe?) want to 'trick' LMS here, e.g. if a var "x" occurs in
-    #  "vars" but has no constraints (and the constraints are otherwise empty),
-    #  just add "x = x" to the constraints, which LMS happily solves to
-    #  "x" .
-    constraints := remove(type, kb_to_assumptions(kb), `::`);
-
-    [vars, parms, constraints];
-
+  # The constraints do not include type assumptions
+  kb_to_constraints := proc(kb::t_kb, $)::list(t_kb_atom);
+    remove(type, kb_to_assumptions(kb), `::`);
   end proc;
 
   eval_kb := proc(e,kb::t_kb, $)
