@@ -24,26 +24,6 @@ Domain := module()
 
 option package;
 
-# TODO: formalize this with maple types (I don't actually know how...)
-#   Domain = DOMAIN(DomBound, DomShape)
-#   DomBound = DOMBOUND(list(name), KB)
-#   DomShape =
-#     | DConstrain(relation*)
-#     | DSum (DomShape*)
-#     | DSplit(Partition(DomShape))
-#     | DInto(name, BoundType, DomShape)
-
-    # todo: DOMAIN should perform certain 'simplifications' to make sure the
-    # domain is well-formed. e.g.,
-    #   DOMAIN( DBound( [x,y], [xt,yt] ), DConstrain(..) )
-    #      should  become
-    #                                     DInto(x,xt,DInto(y,yt,DConstrain(..)))
-    # basically, when we see an 'unbound' variable in the 'RHS' , we should bind
-    # it with the default 'DInto'.
-    # The two-part nature of Domain requires that this be done by the DOMAIN
-    # constructor itself. Alternatively, it can be part of the logic of
-    # 'Apply'. It is probably cheaper to put it there, since it duplicates less information.
-
     global DOMAIN;
     global DBound;
 
@@ -156,11 +136,11 @@ option package;
            ,(DomShape     = 'Or( DomConstrain, DomSum, DomSplit, DomInto )' )
 
            # Domain
-           ,('Domain' = ''DOMAIN(DomBound, DomShape)'' )
+           ,(HDomain = ''DOMAIN(DomBound, DomShape)'' )
 
            # Maybe domain
            ,(DomNoSol  = 'specfunc(`DNoSol`)' )
-           ,(Domain_mb = ''Or(Domain, DomNoSol)'' )
+           ,(HDomain_mb = ''Or(HDomain, DomNoSol)'' )
            ] );
 
 
@@ -170,9 +150,6 @@ option package;
 
     local ModuleLoad := proc($)
            local ty_nm;
-
-           unprotect(`type/Domain`);
-           unassign(`type/Domain`);
 
            for ty_nm in [ indices(DomainTypes, nolist) ] do
                TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
@@ -318,7 +295,7 @@ option package;
              end proc;
            end module;
 
-           export ModuleApply := proc(e, $) :: [ Domain, anything ];
+           export ModuleApply := proc(e, $) :: [ HDomain, anything ];
                       local b, eb, s, es;
                       b, eb := op(Bound(e));
                       s, es := op(Shape(eb));
@@ -328,6 +305,14 @@ option package;
 
 
     # Apply a domain to an expression.
+    # Apply will perform certain 'simplifications' to make sure the
+    # domain application is well-formed. e.g.,
+    #   DOMAIN( DBound( [x,y], [xt,yt] ), DConstrain(..) )
+    #      is the same as
+    #   DOMAIN(        ..               , DInto(x,xt,DInto(y,yt,DConstrain(..))) )
+    # basically, when we see an 'unbound' variable in the 'RHS' , we should bind
+    # it with the default 'DInto'.
+
     export Apply := module ()
            local do_mk := proc(e, vn, ty_, mk, $)
               mk(e, Domain:-ExtBound[mk]:-MakeEqn(vn, ty_));
@@ -409,7 +394,7 @@ option package;
               end if;
            end proc;
 
-           export ModuleApply := proc(dom :: Domain_mb, e, $)
+           export ModuleApply := proc(dom :: HDomain_mb, e, $)
              local vs, sh;
              if dom :: DomNoSol then
                  error "cannot apply %1", dom;
@@ -610,8 +595,8 @@ option package;
 
            # TODO: this should keep errors (esp. if everything fails to
            # simplify), or print them as a warning(?)
-           local cmp_simp := proc(s0, s1, $) proc(dom :: Domain_mb , $)
-                                                 ::Domain_mb;
+           local cmp_simp := proc(s0, s1, $) proc(dom :: HDomain_mb , $)
+                                                 ::HDomain_mb;
               local dom1 := s0(dom), r;
               if not dom1 :: DomNoSol then
                   s1(dom1);
@@ -624,7 +609,7 @@ option package;
               end if;
            end proc; end proc;
 
-           export ModuleApply := proc(dom :: Domain, $)::Domain_mb;
+           export ModuleApply := proc(dom :: HDomain, $)::HDomain_mb;
                local es := entries(Simplifiers)
                    , mk := foldr( cmp_simp , (_->_), op(es) );
                mk(dom);
