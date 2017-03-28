@@ -552,7 +552,7 @@ option package;
                  # solution after applying LMS is not simplified any
                  # further. This should probably be done by a seperate
                  # simplifier.
-                 local do_LMS := proc( sh :: DomShape, ctx :: DomBound, $) :: {DomShape, DomNoSol};
+                 local do_LMS := proc( sh :: DomShape, ctx :: DomBound, $)
                     local sol;
                     if sh :: DomConstrain then
                         sol := do_LMS_Constrain(sh, ctx);
@@ -614,14 +614,14 @@ option package;
                    ret;
                  end proc;
 
-                 export ModuleApply := proc(dom, $)
+                 export ModuleApply := proc(dom :: HDomain, $) :: HDomain_mb;
                     local dbnds, dshape, sol, res, errs;
                     dbnds, dshape := op(dom);
 
                     sol := do_LMS( dshape , dbnds );
 
                     errs := indets(sol, DomNoSol);
-                    if errs <> {} then return DNoSol(seq([op(e)], e=errs)) end if;
+                    if errs <> {} then return DNoSol(seq(op(e), e=errs)) end if;
 
                     DOMAIN( dbnds, sol );
 
@@ -630,6 +630,11 @@ option package;
                  end module);
 
            end proc;
+
+           local combine_errs := proc(e0 :: DomNoSol, e1 :: DomNoSol, $) :: DomNoSol;
+              DNoSol( op(e0), op(e1) );
+           end proc;
+
 
            # TODO: this should keep errors (esp. if everything fails to
            # simplify), or print them as a warning(?)
@@ -641,7 +646,7 @@ option package;
               else
                   r := s1(dom);
                   if r :: DomNoSol then
-                      r := op(0, r)( dom1, op(r) );
+                      r := combine_errs( dom1, r );
                   end if;
                   r
               end if;
