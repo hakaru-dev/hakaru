@@ -77,7 +77,7 @@ option package;
     # for parts of the code which still work with KB.
     export Bound := module ()
 
-       export toKB := proc(dom :: DomBound, kb0 :: t_kb, $)
+       export toKB := proc(dom :: DomBound, kb0 :: t_kb, $)::[t_kb_mb, anything];
          local kb := kb0, vs := op(1, dom), rn := []
              , vn, vt, make, lo, hi, vn_rn, rn_t, v ;
 
@@ -490,7 +490,7 @@ option package;
                              DInto(v, v_t, ctx);
 
                          else
-                             subsindets( ctx, specfunc(`DConstrain`)
+                             subsindets( ctx, DomConstrain
                                        , x-> DConstrain(op(x), op(sol))
                                        );
                          end if;
@@ -552,7 +552,7 @@ option package;
 
                    cs := do_rn(proc(cs_,$)
                             local cs := cs_;
-                            if sh :: specfunc(`DConstrain`) then
+                            if sh :: DomConstrain then
                                 cs := KB:-build_kb([op(sh)], "do_LMS", cs);
                             else
                                 error "don't know how to solve %1", sh;
@@ -598,7 +598,7 @@ option package;
                     dbnds, dshape := op(dom);
 
                     sol := do_LMS( dshape , dbnds );
-                    if sol :: specfunc(`DNoSol`) then return sol end if;
+                    if sol :: DomNoSol then return sol end if;
 
                     sol := postproc(sol, dbnds );
                     DOMAIN( dbnds, sol );
@@ -610,21 +610,21 @@ option package;
 
            # TODO: this should keep errors (esp. if everything fails to
            # simplify), or print them as a warning(?)
-           local cmp_simp := proc(s0, s1, $) proc(dom :: Or(specfunc(`DNoSol`), specfunc(`DOMAIN`)) , $)
-                                                 ::Or(specfunc(`DNoSol`), specfunc(`DOMAIN`));
+           local cmp_simp := proc(s0, s1, $) proc(dom :: Domain_mb , $)
+                                                 ::Domain_mb;
               local dom1 := s0(dom), r;
-              if not dom1 :: specfunc(`DNoSol`) then
+              if not dom1 :: DomNoSol then
                   s1(dom1);
               else
                   r := s1(dom);
-                  if r :: specfunc(`DNoSol`) then
+                  if r :: DomNoSol then
                       r := op(0, r)( dom1, op(r) );
                   end if;
                   r
               end if;
            end proc; end proc;
 
-           export ModuleApply := proc(dom, $)
+           export ModuleApply := proc(dom :: Domain, $)::Domain_mb;
                local es := entries(Simplifiers)
                    , mk := foldr( cmp_simp , (_->_), op(es) );
                mk(dom);
