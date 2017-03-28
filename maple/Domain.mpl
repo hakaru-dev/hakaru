@@ -409,14 +409,11 @@ option package;
               end if;
            end proc;
 
-           export ModuleApply := proc(dom, e, $)
+           export ModuleApply := proc(dom :: Domain_mb, e, $)
              local vs, sh;
-             if dom :: specfunc(`DNoSol`) then
+             if dom :: DomNoSol then
                  error "cannot apply %1", dom;
-             elif not dom :: specfunc(`DOMAIN`) then
-                 error "not a domain: %1", dom;
              end if;
-
 
              vs, sh := op(dom);
 
@@ -425,7 +422,7 @@ option package;
              # is mainly here as an assertion that Apply properly
              # re-applies integrals when the domain shape does not explicitly
              # state them.
-             sh := subsindets( sh, specfunc(`DInto`)
+             sh := subsindets( sh, DomInto
                              , proc (x, $)
                                    local x_vn, x_t0, x_rest, x_t, x_mk;
                                    x_vn, x_t0, x_rest := op(x);
