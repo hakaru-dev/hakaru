@@ -138,35 +138,45 @@ option package;
 
     end module;
 
+    # Domain types which are registered/unregistered with TypeTools.
+    # Note that the types have to be quoted (additionally to the quote one would
+    # normally place on certain types) to work properly
+    local DomainTypes := table(
+           # Domain bounds
+           [(DomBoundBinder = ''DInto(name, range, DomBoundKind)'' )
+           ,(DomBoundKind   = 'And(name, satisfies(nm->assigned(Domain:-ExtBound[nm])))' )
+
+           ,(DomBound       = ''DBound(list(DomBoundBinder))'' )
+
+           # Domain shape
+           ,(DomConstrain = 'specfunc({relation, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}, `DConstrain`)' )
+           ,(DomSum       = 'specfunc(DomShape, `DSum`)' )
+           ,(DomSplit     = ''DSplit(Partition(Domain))'' )
+           ,(DomInto      = ''DInto(name, range, DomShape)'' )
+           ,(DomShape     = 'Or( DomConstrain, DomSum, DomSplit, DomInto )' )
+
+           # Domain
+           ,('Domain' = ''DOMAIN(DomBound, DomShape)'' )
+
+           # Maybe domain
+           ,(DomNoSol  = 'specfunc(`DNoSol`)' )
+           ,(Domain_mb = ''Or(Domain, DomNoSol)'' )
+           ] );
+
+
     # Extending domain extraction and replacement.
     export ExtBound := table();
     export ExtShape := table();
 
     local ModuleLoad := proc($)
-           local T := TypeTools[AddType];
+           local ty_nm;
 
            unprotect(`type/Domain`);
            unassign(`type/Domain`);
 
-           # Domain bounds
-           T(DomBoundBinder , 'DInto(name, range, DomBoundKind)' );
-           T(DomBoundKind   , And(name, satisfies(nm->assigned(Domain:-ExtBound[nm]))) );
-
-           T(DomBound       , 'DBound(list(DomBoundBinder))' );
-
-           # Domain shape
-           T(DomConstrain , specfunc({relation, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}, `DConstrain`) );
-           T(DomSum       , specfunc(DomShape, `DSum`) );
-           T(DomSplit     , 'DSplit(Partition(Domain))' );
-           T(DomInto      , 'DInto(name, range, DomShape)' );
-           T(DomShape     , Or( DomConstrain, DomSum, DomSplit, DomInto ) );
-
-           # Domain
-           T(Domain, 'DOMAIN(DomBound, DomShape)');
-
-           # Maybe domain
-           T(DomNoSol  , specfunc(`DNoSol`) );
-           T(Domain_mb , 'Or(Domain, DomNoSol)' );
+           for ty_nm in [ indices(DomainTypes, nolist) ] do
+               TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
+           end do;
 
            unprotect(Domain:-ExtBound);
            ExtBound[`Int`] :=
@@ -201,6 +211,14 @@ option package;
                      ,'MapleType'='Partition'
                      );
            unprotect(Domain:-ExtShape);
+    end proc;
+
+    local ModuleUnload := proc($)
+        local ty_nm;
+        for ty_nm in [ indices(DomainTypes, nolist) ] do
+            if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
+        end do;
+
     end proc;
 
     # Extract a domain from an expression
