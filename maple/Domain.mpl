@@ -96,6 +96,10 @@ option package;
                   }
        end proc;
 
+       export toConstraints := proc( bnd :: DomBound, $ )
+                  {op(map(b->constrain(op(b))[], op(1,bnd)))};
+       end proc;
+
     end module;
 
     export Shape := module ()
@@ -431,7 +435,7 @@ option package;
            export ModuleLoad := proc($)
 
              Simplifiers[`Obviously redundant constraints`] :=
-                 Record('Order'=10
+                 Record('Order'=2
                        ,'DO'=(proc(dom, $)
                                   local vs, sh;
                                   vs, sh := op(dom);
@@ -458,7 +462,60 @@ option package;
                         );
 
 
-             Simplifiers[`LMS`] := Record('Order'=2,'DO'=(
+             Simplifiers[`Make constraints abouts vars`] :=
+                 Record('Order'=6
+                       ,'DO'=
+                   (module()
+
+                    export ModuleApply := proc(dom, $)
+                               local vs, sh, vars, ctx_vs;
+                               vs, sh := op(dom);
+                               vars := {op(Domain:-Bound:-varsOf(vs))};
+                               ctx_vs := Domain:-Bound:-toConstraints(vs);
+
+                               sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
+                               DOMAIN(vs, sh);
+                    end proc;
+
+                    local do_simpl_constraints := proc(vars, ctx_vs, x, $)
+                              local ctx1, ctx, ss, td, rest, d;
+                              ss, ctx := selectremove(q->depends(q,vars), x);
+
+                              td, rest := selectremove(type, ss
+                                                       , And(relation
+                                                             ,satisfies(q-> not(lhs(q) :: name) and not(rhs(q) :: name)
+                                                                       )
+                                                            )
+                                                      );
+
+                              ctx1 := { op(ctx), op(ctx_vs), op(rest) };
+
+                              d := map(x->try_make_about(vars,ctx1,x), td);
+
+                              DConstrain(op(d), op(ctx), op(rest));
+
+                    end proc;
+
+                    local try_make_about := proc(vars, ctx1, q, $)
+                              local vars_q, q_s;
+                              vars_q := indets(q, name) intersect vars;
+                              if nops(vars_q) = 1 then
+
+                                  q_s := solve({q},[op(1,vars_q)], 'useassumptions'=true)
+                                  assuming (op(ctx1));
+                                  if q_s::list and nops(q_s)=1 then
+                                      op(op(1,q_s));
+                                  else
+                                      q
+                                  end if;
+                              else
+                                  q
+                              end if;
+                    end proc;
+
+                    end module));
+
+             Simplifiers[`LMS`] := Record('Order'=10,'DO'=(
                  module()
 
                    local countVs := vs -> (c-> nops(indets(c, name) intersect {op(vs)} ));
