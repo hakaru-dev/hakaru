@@ -280,6 +280,40 @@ option package;
                        end if;
              end proc;
 
+             local simpl_relation :=
+             proc( expr_ :: set({relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`})
+                 , $) :: set(list( {relation, specfunc(relation, Not)} ));
+
+                 local expr := expr_;
+
+                 # simplify negations of relations
+                 expr := subsindets(expr, { specfunc(relation, `Not`), `not`(relation) }
+                                   , x-> KB:-negate_rel(op(1,x))
+                                   );
+
+                 expr := subsindets(expr, { specfunc(`Not`), `not` }
+                                   , x->Logic:-`&not`(op(1,x))
+                                   ) ;
+
+                 expr := subsindets(expr, { specfunc(`Or`), `or` }
+                                   , x->Logic:-`&or`(op(x))
+                                   ) ;
+
+                 expr := subsindets(expr, { specfunc(`And`), `and` }
+                                   , x->Logic:-`&and`(op(x))
+                                   ) ;
+
+                 expr := Logic:-`&and`(op(expr));
+
+                 expr := Logic:-Normalize(expr);
+
+                 expr := subsindets(expr, specfunc(Logic:-`&and`), x->[op(x)]);
+                 expr := subsindets(expr, specfunc(Logic:-`&or`) , x->{op(x)});
+                 expr := subsindets(expr, specfunc(Logic:-`&not`), x->Not(op(x)));
+
+                 expr;
+             end proc;
+
              # todo: simplify the shape
              local simpl_shape := (x->x);
 
