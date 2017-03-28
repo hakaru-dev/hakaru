@@ -583,6 +583,13 @@ option package;
                          , op(sh)
                          } ;
 
+                   cs := remove(type, cs, Or( {`<=`, `<`}(name,identical(infinity))
+                                            , {`>=`, `>`}(identical(infinity),name) )
+                                );
+                   cs := remove(type, cs, Or( {`>=`, `>`}(name,identical(-infinity))
+                                            , {`<=`, `<`}(identical(-infinity),name) )
+                                );
+
                    # there are variables to solve for, but no non-trivial
                    # constraints which need to be solved.
                    if cs = {} and not vs = [] then
