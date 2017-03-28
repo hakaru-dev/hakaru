@@ -81,14 +81,15 @@ compileHakaru opts = do
     case parseAndInfer prog of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
-        ast' <- summary ast
+        ast' <- summary (et ast)
         writeHkHsToFile file (fileOut opts) . TxT.unlines $
           header (asModule opts) ++
-          [ pack $ prettyProg "prog" (et ast') ] ++
+          [ pack $ prettyProg "prog" (opt ast') ] ++
           (case asModule opts of
              Nothing -> footer typ
              Just _  -> [])
-  where et = expandTransformations
+  where et  = expandTransformations
+        opt = optimizations
 
 writeHkHsToFile :: String -> Maybe String -> Text -> IO ()
 writeHkHsToFile inFile moutFile content =
