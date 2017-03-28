@@ -1,10 +1,10 @@
 
 # Step 2 of 3: computer algebra
 
-  improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
+  improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, opts := [], $)
   local r, `&context`;
        userinfo(5, improve, "input: ", print(lo &context _ctx));
-       r:= LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx));
+       r:= LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx, opts));
        userinfo(5, improve, "output: ", print(r));
        r
   end proc;
@@ -12,9 +12,10 @@
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # kb - domain information
-  reduce := proc(ee, h :: name, kb :: t_kb, $)
+  reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     local e, elim, subintegral, w, ww, x, c, kb1, with_kb1, dom_specw, dom_specb
-         , body, dom_spec, ed, mkDom, vars;
+         , body, dom_spec, ed, mkDom, vars
+         , do_domain := not ( ['no', 'domain'] in {op(opts)} ) ;
     e := ee;
 
     if Domain:-Has(e) then
@@ -27,7 +28,7 @@
 
         dom_specb, body := op( subs(with_kb1, [dom_specb, body])  );
 
-        e := reduce(body, h, kb1);
+        e := reduce(body, h, kb1, opts);
 
         # Extract the shape of the domain
         (dom_specw, e) := op(Domain:-Extract:-Shape(e, ctx=kb));
@@ -53,7 +54,7 @@
             kb_assuming_mb(`simplify/PARTITION`)(e, kb, x->x);
 
         else
-            reduce(elim, h, kb);
+            reduce(elim, h, kb, opts);
         end if;
 
     elif e :: 'And(specfunc({Ints,Sums}),
@@ -67,23 +68,23 @@
       if nops(op(4,e)) > 0 then
         kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
       end if;
-      reduce_IntsSums(op(0,e), reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
-        op(3,e), op(4,e), h, kb1)
+      reduce_IntsSums(op(0,e), reduce(subs(op(2,e)=x, op(1,e)), h, kb1, opts), x,
+        op(3,e), op(4,e), h, kb1, opts)
     elif e :: 'applyintegrand(anything, anything)' then
       map(simplify_assuming, e, kb)
     elif e :: `+` then
-      map(reduce, e, h, kb)
+      map(reduce, e, h, kb, opts)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      subintegral := convert(reduce(subintegral, h, kb), 'list', `*`);
+      subintegral := convert(reduce(subintegral, h, kb, opts), 'list', `*`);
       (subintegral, ww) := selectremove(depends, subintegral, h);
       reduce_pw(simplify_factor_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
     elif e :: t_pw then
       e:= flatten_piecewise(e);
       e := kb_piecewise(e, kb, simplify_assuming,
-                        ((rhs, kb) -> %reduce(rhs, h, kb)));
+                        ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
       e := eval(e, %reduce=reduce);
       # big hammer: simplify knows about bound variables, amongst many
       # other things
@@ -92,7 +93,7 @@
       e;
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
-                     eval(subsop(2='reduce'(op(2,b),x,c),b),
+                     eval(subsop(2='reduce'(op(2,b),x,c,opts),b),
                           {x=h, c=kb})
                    end proc,
                    op(2,e)),
@@ -105,12 +106,12 @@
       if kb1 :: t_not_a_kb then
           return 42
       end if;
-      applyop(reduce, 2, e, h, kb1);
+      applyop(reduce, 2, e, h, kb1, opts);
     elif e :: 'integrate(anything, Integrand(name, anything), list)' then
       x := gensym(op([2,1],e));
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.
-      subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)), h, kb)), e)
+      subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)), h, kb, opts)), e)
     else
       simplify_assuming(e, kb)
     end if;
@@ -177,12 +178,12 @@
     end if
   end proc;
 
-  reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, $)
+  reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, opts, $)
     local e, elim;
     # TODO we should apply domain restrictions like reduce_IntSum does.
     e := makes(ee, var, rng, bds);
     elim := elim_intsum(e, h, kb);
-    if elim = FAIL then e else reduce(elim, h, kb) end if
+    if elim = FAIL then e else reduce(elim, h, kb, opts) end if
   end proc;
 
   elim_intsum := module ()
