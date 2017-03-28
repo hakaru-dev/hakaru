@@ -26,7 +26,6 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ANF (normalize, isValue) where
 
-import qualified Data.IntMap                     as IM
 import qualified Data.Foldable                   as F
 import           Data.Maybe
 import           Data.Number.Nat

@@ -46,7 +46,7 @@ import           Control.Applicative             (liftA2)
 import           Control.Monad.RWS
 import qualified Data.Foldable                   as F
 import qualified Data.Graph                      as G
-import qualified Data.IntMap                     as IM
+import qualified Data.IntMap.Strict              as IM
 import qualified Data.List                       as L
 import           Data.Maybe                      (mapMaybe)
 import           Data.Number.Nat
