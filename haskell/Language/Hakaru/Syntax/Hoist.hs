@@ -113,14 +113,14 @@ newtype ExpressionSet (abt :: [Hakaru] -> Hakaru -> *)
   = ExpressionSet [Entry (abt '[])]
 
 mergeEntry :: (ABT Term abt) => Entry (abt '[]) -> Entry (abt '[]) -> Entry (abt '[])
-mergeEntry (Entry d e s1 b1) (Entry _ e' s2 b2) =
+mergeEntry (Entry d e s1 b1) (Entry _ _ s2 b2) =
   case jmEq1 s1 s2 of
     Just Refl -> Entry d e s1 $ L.nub (b1 ++ b2)
     Nothing   -> error "cannot union mismatched entries"
 
 entryEqual :: (ABT Term abt) => Entry (abt '[]) -> Entry (abt '[]) -> Bool
 entryEqual Entry{varDependencies=d1,expression=e1,sing=s1}
-      Entry{varDependencies=d2,expression=e2,sing=s2} =
+           Entry{varDependencies=d2,expression=e2,sing=s2} =
   case (d1 == d2, jmEq1 s1 s2) of
     (True , Just Refl) -> alphaEq e1 e2
     _                  -> False
@@ -144,17 +144,17 @@ intersectEntrySet
   => ExpressionSet abt
   -> ExpressionSet abt
   -> ExpressionSet abt
-intersectEntrySet (ExpressionSet xs) (ExpressionSet ys) = ExpressionSet cross
+intersectEntrySet (ExpressionSet xs) (ExpressionSet ys) = ExpressionSet merged
   where
-    cross :: [Entry (abt '[])]
-    cross = map (uncurry mergeEntry)
-          . filter (uncurry entryEqual)
-          $ liftA2 (,) xs ys
+    merged :: [Entry (abt '[])]
+    merged = map (uncurry mergeEntry) . filter (uncurry entryEqual) $ liftA2 (,) xs ys
 
+-- The general case for generating the entry set for a term is to simply union
+-- the sets for all the subterms, so we choose union as our monoidal operation
+-- for the Writer monad.
 instance (ABT Term abt) => Monoid (ExpressionSet abt) where
   mempty  = ExpressionSet []
   mappend = unionEntrySet
-
 
 -- Given a list of entries to introduce, order them so that their data
 -- data dependencies are satisified.
@@ -193,7 +193,7 @@ topSortEntries entryList = map (entries V.!) $ G.topSort graph
     vertices :: [G.Edge]
     !vertices = V.foldr (++) [] $ V.imap makeEdges entries
 
-    -- The full graph structure to be sorted
+    -- The full graph structure to be topologically sorted
     graph :: G.Graph
     !graph = G.buildG (0, V.length entries - 1) vertices
 
@@ -268,7 +268,7 @@ isolateBinder
   => Variable (a :: Hakaru)
   -> HoistM abt b
   -> HoistM abt (b, ExpressionSet abt)
-isolateBinder v = censor (const mempty) . listen . bindVar v
+isolateBinder v = captureEntries . bindVar v
 
 hoist'
   :: forall abt xs a . (ABT Term abt)
