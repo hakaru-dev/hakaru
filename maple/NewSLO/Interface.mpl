@@ -10,7 +10,7 @@ RoundTrip := proc(e, t::t_type)
 end proc;
 
 Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
-  subsindets(SimplifyKB(e, t, foldr(assert, empty, op(ctx))),
+  subsindets(SimplifyKB(value(e), t, foldr(assert, empty, op(ctx))),
              And({t_sum, t_product}, anyfunc(anything, anything=range)),
              e -> subsop(0 = `if`(e::t_sum, SumIE, ProductIE),
                          applyop(`+`, [2,2,2], e, 1)))
