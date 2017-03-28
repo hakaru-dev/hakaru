@@ -470,6 +470,11 @@ option package;
 
              do_apply({}, e, vs, sh);
            end proc;
+
+           export Shape := proc(dsh :: DomShape, e, $) ModuleApply( DOMAIN( [], dsh ), e ) end proc;
+
+           export Bound := proc(dbn :: DomBound, e, $) ModuleApply( DOMAIN( dbn, DConstrain() ), e ) end proc;
+
     end module;
 
     export Improve := module ()
