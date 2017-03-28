@@ -176,12 +176,12 @@ topSortEntries entryList = map (entries V.!) $ G.topSort graph
     -- Associates all variables introduced by an entry to the entry itself.
     -- A given entry may introduce multiple bindings, since an entry stores all
     -- α-equivalent variable definitions.
-    assocBindingsTo :: Int -> IM.IntMap Int -> Entry (abt '[]) -> IM.IntMap Int
-    assocBindingsTo n m = L.foldl' (\acc v -> IM.insert v n acc) m . getVIDs
+    assocBindingsTo :: IM.IntMap Int -> Int -> Entry (abt '[]) -> IM.IntMap Int
+    assocBindingsTo m n = L.foldl' (\acc v -> IM.insert v n acc) m . getVIDs
 
     -- Mapping from variable IDs to their corresponding entries
     varMap :: IM.IntMap Int
-    !varMap = V.ifoldl' (flip assocBindingsTo) IM.empty entries
+    !varMap = V.ifoldl' assocBindingsTo IM.empty entries
 
     -- Create an edge from each dependency to the variable
     makeEdges :: Int -> Entry (abt '[]) -> [G.Edge]
