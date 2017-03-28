@@ -151,7 +151,7 @@ option package;
            # Domain shape
            ,(DomConstrain = 'specfunc({relation, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}, `DConstrain`)' )
            ,(DomSum       = 'specfunc(DomShape, `DSum`)' )
-           ,(DomSplit     = ''DSplit(Partition(Domain))'' )
+           ,(DomSplit     = ''DSplit(Partition(DomShape))'' )
            ,(DomInto      = ''DInto(name, range, DomShape)'' )
            ,(DomShape     = 'Or( DomConstrain, DomSum, DomSplit, DomInto )' )
 
@@ -347,7 +347,7 @@ option package;
               # then just produce the expression. If it isn't necessarily true
               # (i.e. trivial) then produce a Partition with the constraint as a
               # guard.
-              if sh :: specfunc(`DConstrain`) then
+              if sh :: DomConstrain then
                   cond := `and`(op(sh));
                   if is(cond) then
                       r := e
@@ -367,18 +367,18 @@ option package;
 
               # if the solution is a sum of solutions, produce the algebraic sum
               # of each summand of the solution applied to the expression.
-              elif sh :: specfunc(`DSum`) then
+              elif sh :: DomSum then
                   `+`(seq(do_apply(done_, e, vs, s), s=sh))
 
               # if the solution is a split solution, just make `do_apply' over
               # the values of the Partition (the subsolutions)
-              elif sh :: specfunc(`DSplit`) then
+              elif sh :: DomSplit then
                   sh := op(1, sh);
                   Partition:-Pmap(p-> do_apply(done_, e, vs, p), sh);
 
               # performs the 'make' on the expression after recursively
               # applying the solution
-              elif sh :: specfunc(`DInto`) then
+              elif sh :: DomInto then
                   # deconstruction
                   vn, vt, shv := op(sh);
 
