@@ -95,6 +95,13 @@ option package;
 
        end proc;
 
+       export constrain := proc( vn::name, ty::range, mk :: DomBoundKind, $ ) :: set(relation);
+                  local lo, hi; lo,hi := Domain:-ExtBound[mk]:-SplitBound(ty);
+                  { Domain:-ExtBound[mk]:-Constrain( lo, vn )
+                  , Domain:-ExtBound[mk]:-Constrain( vn, hi )
+                  }
+       end proc;
+
     end module;
 
     export Shape := module ()
@@ -577,25 +584,13 @@ option package;
                  local do_LMS_Constrain := proc( sh :: DomConstrain , ctx, $ )
                    local vs := Domain:-Bound:-varsOf(ctx)
                        , cs, do_rn, ret;
-                   cs, do_rn := op(Domain:-Bound:-toKB(ctx, KB:-empty)) ;
 
-                   cs := do_rn(proc(cs_, $)
-                                local cs := cs_;
-                                cs := foldr( KB:-assert_mb, cs, op(sh) );
-                                if cs :: t_not_a_kb then
-                                    return DSum();
-                                end if;
+                   cs := { seq( Domain:-Bound:-constrain(op(b))[] , b=op(1, ctx))
+                         , op(sh)
+                         } ;
 
-                                cs := op(3, KB:-kb_extract(cs));
-                                cs := {op(cs)}; cs;
-                               end proc, cs);
-
-                  if cs = DSum() then
-                      return cs;
-                  end if;
-
-                  # there are variables to solve for, but no non-trivial
-                  # constraints which need to be solved.
+                   # there are variables to solve for, but no non-trivial
+                   # constraints which need to be solved.
                    if cs = {} and not vs = [] then
                      # this matches the output format of LMS; [x,y] -> { [ {true}, {true} ] }
                      ret := { map(o->{true}, vs) };
