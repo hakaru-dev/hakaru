@@ -57,7 +57,7 @@ option package;
     # for parts of the code which still work with KB.
     export Bound := module ()
 
-       export toKB := proc(dom :: DomBound, kb0 :: t_kb, $)::[t_kb_mb, anything];
+       export toKB := proc(dom :: DomBound, kb0 :: t_kb, $)::[t_kb_mb, list(name=name)];
          local kb := kb0, vs := op(1, dom), rn := []
              , vn, vt, make, lo, hi, vn_rn, rn_t, v ;
 
@@ -69,13 +69,7 @@ option package;
              rn := [ vn=vn_rn, op(rn) ];
          end do;
 
-         rn_t := map(x->apply(rhs=lhs,x), rn);
-         [ kb, (proc(f,e0,$)
-                  local e := e0;
-                  e := subs(rn, e); e := f(e); e := subs(rn_t, e);
-                  e;
-                end proc) ];
-
+         [ kb, rn ]
        end proc;
 
        export varsOf := proc(dom :: DomBound, $)::list(name);

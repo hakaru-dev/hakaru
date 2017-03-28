@@ -25,7 +25,9 @@
         dom_specb, body := op(Domain:-Extract:-Bound(e));
         kb1, with_kb1 := op(Domain:-Bound:-toKB(dom_specb, kb));
 
-        e := with_kb1(_body->reduce(_body, h, kb1), body);
+        dom_specb, body := op( subs(with_kb1, [dom_specb, body])  );
+
+        e := reduce(body, h, kb1);
 
         # Extract the shape of the domain
         (dom_specw, e) := op(Domain:-Extract:-Shape(e));
