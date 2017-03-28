@@ -546,29 +546,53 @@ option package;
                    ret;
                  end proc;
 
-                 local input_for_LMS := proc( sh, $) proc( cs_, $)
-                            local cs := cs_;
-                            if sh :: DomConstrain then
-                                cs := KB:-build_kb([op(sh)], "do_LMS", cs);
+                 # Note this will not simplify solutions, in the sense that if
+                 # there are multiple places to apply LMS, the resulting
+                 # solution after applying LMS is not simplified any
+                 # further. This should probably be done by a seperate
+                 # simplifier.
+                 local do_LMS := proc( sh :: DomShape, ctx :: DomBound, $) :: {DomShape, DomNoSol};
+                    local sol;
+                    if sh :: DomConstrain then
+                        sol := do_LMS_Constrain(sh, ctx);
+                        if sol :: DomShape then
+                            sol
+                        else
+                            postproc(sol, ctx);
+                        end if;
 
-                                cs := op(3, KB:-kb_extract(cs));
-                                cs := {op(cs)}; cs;
+                    elif sh :: DomSplit then
+                        # todo: incorporate piece condition into context
+                        DSplit( Partition:-Pmap(p->do_LMS(p, ctx), op(1, sh)) );
 
-                            elif sh :: DomSum and nops(sh) = 1 then
-                                input_for_LMS( op(1, sh) )( cs );
+                    elif sh :: DomSum then
+                        map(s->do_LMS(s, ctx), sh);
 
-                            else
-                                error "don't know how to solve %1", sh;
-                            end if;
-                 end proc; end proc;
+                    else
+                        DNoSol(sprintf("Don't know how to solve DOMAIN(%a, %a)", ctx, sh));
+                    end if;
+                 end proc;
 
                  # ask Maple for a solution to our system
-                 local do_LMS := proc( sh, ctx, $ )
+                 local do_LMS_Constrain := proc( sh :: DomConstrain , ctx, $ )
                    local vs := Domain:-Bound:-varsOf(ctx)
                        , cs, do_rn, ret;
                    cs, do_rn := op(Domain:-Bound:-toKB(ctx, KB:-empty)) ;
 
-                   cs := do_rn(input_for_LMS(sh) , cs);
+                   cs := do_rn(proc(cs_, $)
+                                local cs := cs_;
+                                cs := foldr( KB:-assert_mb, cs, op(sh) );
+                                if cs :: t_not_a_kb then
+                                    return DSum();
+                                end if;
+
+                                cs := op(3, KB:-kb_extract(cs));
+                                cs := {op(cs)}; cs;
+                               end proc, cs);
+
+                  if cs = DSum() then
+                      return cs;
+                  end if;
 
                   # there are variables to solve for, but no non-trivial
                   # constraints which need to be solved.
@@ -602,14 +626,16 @@ option package;
                  end proc;
 
                  export ModuleApply := proc(dom, $)
-                    local dbnds, dshape, db_vars, db_ctx, sol, domKb, domCtx, res;
+                    local dbnds, dshape, sol, res, errs;
                     dbnds, dshape := op(dom);
 
                     sol := do_LMS( dshape , dbnds );
-                    if sol :: DomNoSol then return sol end if;
 
-                    sol := postproc(sol, dbnds );
+                    errs := indets(sol, DomNoSol);
+                    if errs <> {} then return DNoSol(seq([op(e)], e=errs)) end if;
+
                     DOMAIN( dbnds, sol );
+
                  end proc;
 
                  end module);
@@ -646,7 +672,7 @@ option package;
         , { norty := 'DNF' }
         , $) # :: set(list( {relation, specfunc(relation, Not)} ));
 
-        local expr := expr_;
+        local expr := expr_, outty, outmk, inty, inmk ;
 
         # simplify negations of relations
         expr := subsindets(expr, { specfunc(relation, `Not`), `not`(relation) }
