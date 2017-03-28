@@ -198,7 +198,7 @@ local
    end module,
 
    isPartitionPieceOf := proc( p, elem_t := anything )
-      type(p, 'Piece({relation, boolean, `::`}, elem_t)');
+      type(p, 'Piece(PartitionCond, elem_t)');
    end proc,
 
    isPartitionOf := proc( e, elem_t := anything )
@@ -215,6 +215,7 @@ local
          )
       end proc;
 
+      TypeTools:-AddType(PartitionCond, {relation, boolean, `::`, specfunc({`And`,`Or`,`Not`}), `and`, `or`, `not`});
       TypeTools:-AddType(PartitionPiece, isPartitionPieceOf);
       TypeTools:-AddType(Partition, isPartitionOf);
 
