@@ -266,14 +266,7 @@ local
           r1;
       end proc;
 
-      :-`simplify/PARTITION` :=
-       proc(e,$)
-           subsindets(e
-                     , specfunc('PARTITION')
-                     , x -> Simpl:-single_branch
-                             (Simpl:-remove_false_pieces(x))
-                     );
-       end proc;
+      :-`simplify/PARTITION` := Simpl;
 
       NULL
    end proc,
@@ -504,6 +497,8 @@ export
    end proc,
 
    Simpl := module()
+       export ModuleApply := (single_branch@remove_false_pieces);
+
        export single_nonzero_piece := proc(e, $)
                local zs, nzs, nz;
                if e :: Partition then

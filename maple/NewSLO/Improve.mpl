@@ -49,9 +49,8 @@
         if elim = FAIL then
             vars := op(1, dom_specb);
             e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
-            # simplify(e);
-            # `simplify/PARTITION`(e) assuming (op(kb_to_assumptions(kb))) ;
-            kb_assuming_mb(`simplify/PARTITION`)(e, kb, x->x);
+
+            kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(e, kb, x->x);
 
         else
             reduce(elim, h, kb, opts);
