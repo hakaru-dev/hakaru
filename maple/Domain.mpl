@@ -447,7 +447,7 @@ option package;
 
            export ModuleLoad := proc($)
 
-             Simplifiers[`LMS`] := (
+             Simplifiers[`LMS`] := Record('Order'=2,'DO'=(
                  module()
 
                    local countVs := vs -> (c-> nops(indets(c, name) intersect {op(vs)} ));
@@ -635,7 +635,7 @@ option package;
 
                  end proc;
 
-                 end module);
+                 end module));
 
            end proc;
 
@@ -661,7 +661,11 @@ option package;
            end proc; end proc;
 
            export ModuleApply := proc(dom :: HDomain, $)::HDomain_mb;
-               local es := entries(Simplifiers)
+               local es := [ seq( Simplifiers[si]:-DO
+                                 , si=sort( [indices(Simplifiers,nolist)]
+                                          , key=(si->Simplifiers[si]:-Order)
+                                          )
+                                ) ]
                    , mk := foldr( cmp_simp , (_->_), op(es) );
                mk(dom);
            end proc;
