@@ -105,13 +105,15 @@ option package;
            if sh :: specfunc(`DConstrain`) then
                [ op(sh) ];
 
-           # elif sh :: specfunc(`DSum`) then
+           elif sh :: specfunc(`DSum`) and nops(sh) = 1 then
+               asConstraints(op(1, sh));
+
            # elif sh :: specfunc(`DSplit`) then
 
            elif sh :: specfunc(`DInto`) then
                asConstraints(op(3, sh));
            else
-               error "don't know how to apply %1", sh
+               error "don't know how to convert to constraints %1", sh
            end if;
 
          end proc;
@@ -129,7 +131,7 @@ option package;
            ,(DomBound       = ''DBound(list(DomBoundBinder))'' )
 
            # Domain shape
-           ,(DomConstrain = 'specfunc({relation, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}, `DConstrain`)' )
+           ,(DomConstrain = 'specfunc(relation, `DConstrain`)' )
            ,(DomSum       = 'specfunc(DomShape, `DSum`)' )
            ,(DomSplit     = ''DSplit(Partition(DomShape))'' )
            ,(DomInto      = ''DInto(name, range, DomShape)'' )
@@ -309,20 +311,33 @@ option package;
 
                  expr := subsindets(expr, specfunc(Logic:-`&and`), x->[op(x)]);
                  expr := subsindets(expr, specfunc(Logic:-`&or`) , x->{op(x)});
-                 expr := subsindets(expr, specfunc(Logic:-`&not`), x->Not(op(x)));
+                 expr := subsindets(expr, specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x)) );
+
+                 if not expr :: set then
+                     expr := {expr};
+                 end if;
+
+                 if not expr :: set(list) then
+                     expr := map(x->[x],expr);
+                 end if;
 
                  expr;
              end proc;
 
              # todo: simplify the shape
-             local simpl_shape := (x->x);
+             local simpl_shape := proc(x,$)
+                local e := simpl_relation(x);
+
+                e := subsindets(e, set , x->DSum(op(x)));
+                e := subsindets(e, list, x->DConstrain(op(x)));
+                e;
+             end proc;
 
              export ModuleApply := proc(e, $) :: [ DomShape, anything ];
                         local ixs, w, e1;
                         ixs := [indices(ExtShape, 'nolist')];
                         w, e1 := do_gets(ixs, {}, e);
 
-                        w := DConstrain(op(w));
                         w := simpl_shape(w);
 
                         [ w, e1 ];
@@ -563,23 +578,29 @@ option package;
                    ret;
                  end proc;
 
+                 local input_for_LMS := proc( sh, $) proc( cs_, $)
+                            local cs := cs_;
+                            if sh :: DomConstrain then
+                                cs := KB:-build_kb([op(sh)], "do_LMS", cs);
+
+                                cs := op(3, KB:-kb_extract(cs));
+                                cs := {op(cs)}; cs;
+
+                            elif sh :: DomSum and nops(sh) = 1 then
+                                input_for_LMS( op(1, sh) )( cs );
+
+                            else
+                                error "don't know how to solve %1", sh;
+                            end if;
+                 end proc; end proc;
+
                  # ask Maple for a solution to our system
                  local do_LMS := proc( sh, ctx, $ )
                    local vs := Domain:-Bound:-varsOf(ctx)
                        , cs, do_rn, ret;
                    cs, do_rn := op(Domain:-Bound:-toKB(ctx, KB:-empty)) ;
 
-                   cs := do_rn(proc(cs_,$)
-                            local cs := cs_;
-                            if sh :: DomConstrain then
-                                cs := KB:-build_kb([op(sh)], "do_LMS", cs);
-                            else
-                                error "don't know how to solve %1", sh;
-                            end if;
-
-                            cs := op(3, KB:-kb_extract(cs));
-                            cs := {op(cs)}; cs;
-                               end proc , cs);
+                   cs := do_rn(input_for_LMS(sh) , cs);
 
                   # there are variables to solve for, but no non-trivial
                   # constraints which need to be solved.
