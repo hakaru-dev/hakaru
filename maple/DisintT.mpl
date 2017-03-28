@@ -204,6 +204,14 @@ TestDisint(norm0a, norm0r,
      label = "(norm0a) U(0,1) >>= \x -> U(x,1) >>= \y -> Ret(y,x)"
 );
 
+## This one is kind of cosmetic; it would be 'fixed' properly if the
+## disintegration process did not use 'improve' to do "domain information
+## discovery", but rather had a specific function (and then improve could
+## indeed do this integral).
+# should work now
+TestDisint( normalFB1, normalFB1r,
+     label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
+
 ######################################################################
 #
 # These tests fail, and are expected to.  Move them up when they
@@ -223,12 +231,7 @@ TestDisint(norm1a, norm1r,
 TestDisint(norm1b, norm1r,
      label = "(norm1b) U(0,1) into pw of Ret"
 );
-# This one is kind of cosmetic; it would be 'fixed' properly if the
-# disintegration process did not use 'improve' to do "domain information
-# discovery", but rather had a specific function (and then improve could
-# indeed do this integral).
-TestDisint( normalFB1, normalFB1r,
-     label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
+
 );
 #In this one the function in the inequality, x+x^3, is injective but nonlinear.
 TestDisint(
