@@ -89,15 +89,38 @@ option package;
 
        end proc;
 
-       export constrain := proc( vn::name, ty::range, mk :: DomBoundKind, $ ) :: set(relation);
-                  local lo, hi; lo,hi := Domain:-ExtBound[mk]:-SplitBound(ty);
-                  { Domain:-ExtBound[mk]:-Constrain( lo, vn )
-                  , Domain:-ExtBound[mk]:-Constrain( vn, hi )
+       local constrain := proc( noinf :: truefalse, vn::name, ty::range, mk :: DomBoundKind, $ ) :: set(relation);
+                  local lo, hi, noi; lo,hi := Domain:-ExtBound[mk]:-SplitBound(ty);
+                  noi := `if`(noinf,mk->b->if b in {infinity,-infinity} then {} else {mk(b)} end if
+                                   ,mk->b->{mk(b)} );
+                  { noi(x->Domain:-ExtBound[mk]:-Constrain( x, vn ))(lo)[]
+                  , noi(x->Domain:-ExtBound[mk]:-Constrain( vn, x ))(hi)[]
                   }
        end proc;
 
-       export toConstraints := proc( bnd :: DomBound, $ )
-                  {op(map(b->constrain(op(b))[], op(1,bnd)))};
+       local toConstraints_opts := { 'no_infinity' };
+
+       export toConstraints := proc( bnd :: DomBound )
+                  local cs, opts, bad_opts;
+                  opts := { args[2..-1] } ;
+                  bad_opts := opts minus toConstraints_opts;
+                  if bad_opts <> {} then
+                      error "invalid arguments: %1", bad_opts;
+                  end if;
+
+                  noinf := evalb('no_infinity' in opts);
+                  cs := {op(map(b->constrain(noinf, op(b))[], op(1,bnd)))};
+
+                  # if 'no_infinity' in opts then
+                  #   cs := remove(type, cs, Or( {`<=`, `<`}(name,identical(infinity))
+                  #                            , {`>=`, `>`}(identical(infinity),name)
+                  #                            , {`>=`, `>`}(name,identical(-infinity))
+                  #                            , {`<=`, `<`}(identical(-infinity),name)
+                  #                            )
+                  #               );
+                  # end if;
+
+                  cs;
        end proc;
 
     end module;
@@ -648,16 +671,9 @@ option package;
                    local vs := Domain:-Bound:-varsOf(ctx)
                        , cs, do_rn, ret;
 
-                   cs := { seq( Domain:-Bound:-constrain(op(b))[] , b=op(1, ctx))
+                   cs := { op( Domain:-Bound:-toConstraints(ctx,'no_infinity') )
                          , op(sh)
                          } ;
-
-                   cs := remove(type, cs, Or( {`<=`, `<`}(name,identical(infinity))
-                                            , {`>=`, `>`}(identical(infinity),name) )
-                                );
-                   cs := remove(type, cs, Or( {`>=`, `>`}(name,identical(-infinity))
-                                            , {`<=`, `<`}(identical(-infinity),name) )
-                                );
 
                    # there are variables to solve for, but no non-trivial
                    # constraints which need to be solved.
