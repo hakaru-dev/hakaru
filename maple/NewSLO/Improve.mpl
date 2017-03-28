@@ -15,10 +15,10 @@
   reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     local e, elim, subintegral, w, ww, x, c, kb1, with_kb1, dom_specw, dom_specb
          , body, dom_spec, ed, mkDom, vars
-         , do_domain := not ( ['no', 'domain'] in {op(opts)} ) ;
+         , do_domain := evalb( not ( ['no', 'domain'] in {op(opts)} ) ) ;
     e := ee;
 
-    if Domain:-Has(e) then
+    if do_domain and Domain:-Has(e) then
         # First extract only the bounds, then simplify the body
         # This may discover other nested domains, simplify them,
         # and allow a further simplification to occur in this
@@ -57,7 +57,7 @@
             reduce(elim, h, kb, opts);
         end if;
 
-    elif e :: 'And(specfunc({Ints,Sums}),
+    elif do_domain and e :: 'And(specfunc({Ints,Sums}),
                    anyfunc(anything, name, range, list(name=range)))' then
       x, kb1 := genType(op(2,e),
                         mk_HArray(`if`(op(0,e)=Ints,
