@@ -211,6 +211,7 @@ TestDisint(norm0a, norm0r,
 # should work now
 TestDisint( normalFB1, normalFB1r,
      label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
+            );
 
 ######################################################################
 #
@@ -230,8 +231,6 @@ TestDisint(norm1a, norm1r,
 );
 TestDisint(norm1b, norm1r,
      label = "(norm1b) U(0,1) into pw of Ret"
-);
-
 );
 #In this one the function in the inequality, x+x^3, is injective but nonlinear.
 TestDisint(
