@@ -99,14 +99,19 @@ option package;
 
     export Shape := module ()
 
-         export asConstraints := proc(sh_ :: DomShape, $)::list({boolean,relation});
+         export asConstraints := proc(sh_ :: DomShape, $)::list({boolean,relation,specfunc(`Or`)});
            local sh := sh_;
 
            if sh :: specfunc(`DConstrain`) then
                [ op(sh) ];
 
-           elif sh :: specfunc(`DSum`) and nops(sh) = 1 then
-               asConstraints(op(1, sh));
+           elif sh :: specfunc(`DSum`) then
+               sh := Or(op(map(x->And(op(asConstraints(x))), sh)));
+               sh := Domain:-simpl_relation({sh}, norty='CNF');
+
+               sh := map(x->Or(op(x)),sh);
+
+               sh;
 
            # elif sh :: specfunc(`DSplit`) then
 
@@ -638,7 +643,8 @@ option package;
 
     local simpl_relation :=
     proc( expr_ :: set({relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`})
-        , $) :: set(list( {relation, specfunc(relation, Not)} ));
+        , { norty := 'DNF' }
+        , $) # :: set(list( {relation, specfunc(relation, Not)} ));
 
         local expr := expr_;
 
@@ -661,18 +667,26 @@ option package;
 
         expr := Logic:-`&and`(op(expr));
 
-        expr := Logic:-Normalize(expr);
+        expr := Logic:-Normalize(expr, form=norty);
 
         expr := subsindets(expr, specfunc(Logic:-`&and`), x->[op(x)]);
         expr := subsindets(expr, specfunc(Logic:-`&or`) , x->{op(x)});
         expr := subsindets(expr, specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x)) );
 
-        if not expr :: set then
-            expr := {expr};
+        if norty = 'DNF' then
+            outty := 'set'; outmk := (x->{x});
+            inty  := 'set(list)'; inmk := (x->[x]);
+        else
+            outty := 'list'; outmk := (x->[x]);
+            inty  := 'list(set)'; inmk := (x->{x});
         end if;
 
-        if not expr :: set(list) then
-            expr := map(x->[x],expr);
+        if not expr :: outty then
+            expr := outmk(expr);
+        end if;
+
+        if not expr :: inty then
+            expr := map(inmk,expr);
         end if;
 
         expr;
