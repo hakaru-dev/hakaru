@@ -289,29 +289,30 @@ option package;
              end proc;
 
              # todo: simplify the shape
-             local simpl_shape := proc(x,$)
+             local simpl_shape := proc(x,ctx,$)
                 local e := Domain:-simpl_relation(x);
 
                 e := subsindets(e, set , x->DSum(op(x)));
-                e := subsindets(e, list, x->DConstrain(op(x)));
+                e := subsindets(e, list, x->DConstrain(op(x), op(ctx)));
                 e;
              end proc;
 
-             export ModuleApply := proc(e, $) :: [ DomShape, anything ];
-                        local ixs, w, e1;
+             export ModuleApply := proc(e, { ctx := KB:-empty }, $) :: [ DomShape, anything ];
+                        local ixs, w, e1, ctx1;
                         ixs := [indices(ExtShape, 'nolist')];
                         w, e1 := do_gets(ixs, {}, e);
 
-                        w := simpl_shape(w);
+                        ctx1 := KB:-kb_to_constraints(ctx);
+                        w := simpl_shape(w, ctx1);
 
                         [ w, e1 ];
              end proc;
            end module;
 
-           export ModuleApply := proc(e, $) :: [ HDomain, anything ];
+           export ModuleApply := proc(e, { ctx := KB:-empty }, $) :: [ HDomain, anything ];
                       local b, eb, s, es;
                       b, eb := op(Bound(e));
-                      s, es := op(Shape(eb));
+                      s, es := op(Shape(eb, ctx=ctx ));
                       [ DOMAIN(b, s), es ];
            end proc;
     end module;

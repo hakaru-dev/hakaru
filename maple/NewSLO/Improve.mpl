@@ -30,7 +30,7 @@
         e := reduce(body, h, kb1);
 
         # Extract the shape of the domain
-        (dom_specw, e) := op(Domain:-Extract:-Shape(e));
+        (dom_specw, e) := op(Domain:-Extract:-Shape(e, ctx=kb));
 
         # Construct the domain from the bounds and the shape
         dom_spec := DOMAIN(dom_specb, dom_specw);
