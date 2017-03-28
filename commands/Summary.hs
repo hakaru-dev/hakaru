@@ -84,12 +84,11 @@ compileHakaru opts = do
         ast' <- summary (et ast)
         writeHkHsToFile file (fileOut opts) . TxT.unlines $
           header (asModule opts) ++
-          [ pack $ prettyProg "prog" (opt ast') ] ++
+          [ pack $ prettyProg "prog" ast' ] ++
           (case asModule opts of
              Nothing -> footer typ
              Just _  -> [])
   where et  = expandTransformations
-        opt = optimizations
 
 writeHkHsToFile :: String -> Maybe String -> Text -> IO ()
 writeHkHsToFile inFile moutFile content =
