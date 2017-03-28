@@ -434,7 +434,7 @@ option package;
 
            export ModuleLoad := proc($)
 
-             Simplifiers[`Obviously redundant constraints`] :=
+             Simplifiers[`Obviously redundant 'DInto's`] :=
                  Record('Order'=2
                        ,'DO'=(proc(dom, $)
                                   local vs, sh;
