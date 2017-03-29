@@ -214,6 +214,7 @@ option package;
            protect(Domain:-ExtBound);
 
            unprotect(Domain:-ExtShape);
+
            ExtShape[`Indicator`] :=
                Record('MakeCtx'=(e -> ( {op(1,e)}, 1 ))
                      ,'MapleType'='Indicator(anything)'
@@ -223,6 +224,12 @@ option package;
                Record('MakeCtx'=Partition:-Simpl:-single_nonzero_piece
                      ,'MapleType'='Partition'
                      );
+
+           ExtShape[`piecewise`] :=
+               Record('MakeCtx'=(Partition:-Simpl:-single_nonzero_piece@PWToPartition)
+                     ,'MapleType'=specfunc(`piecewise`)
+                     );
+
            unprotect(Domain:-ExtShape);
     end proc;
 
