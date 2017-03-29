@@ -496,8 +496,12 @@ option package;
                                vars := {op(Domain:-Bound:-varsOf(vs))};
                                ctx_vs := Domain:-Bound:-toConstraints(vs);
 
-                               sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
-                               DOMAIN(vs, sh);
+                               try
+                                   sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
+                                   DOMAIN(vs, sh);
+                               catch "when calling '%1'. Received: 'numeric exception: underflow'":
+                                   DNoSol( StringTools:-FormatMessage(lastexception[2..-1]) );
+                               end try;
                     end proc;
 
                     local do_simpl_constraints := proc(vars, ctx_vs, x, $)
