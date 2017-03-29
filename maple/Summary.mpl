@@ -62,7 +62,7 @@ Summary := module ()
     if not hasfun(e, '{Sum,sum}', 'piecewise') then
       e;
     elif e :: '{known_continuous, known_discrete,
-                specfunc({Weight, Fanout, Split, Nop, Add,
+                specfunc({Msum, Weight, Fanout, Split, Nop, Add,
                           exp, log, GAMMA, Beta, idx, And, Or, Not}),
                 `+`, `*`, `^`, `..`, boolean, indexed, list}' then
       map(procname, _passed);
