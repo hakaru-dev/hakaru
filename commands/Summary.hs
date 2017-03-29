@@ -34,6 +34,7 @@ data Options =
   Options { fileIn          :: String
           , fileOut         :: Maybe String
           , asModule        :: Maybe String
+          , logFloatPrelude :: Bool
           } deriving Show
 
 main :: IO ()
@@ -61,6 +62,9 @@ options = Options
   <*> (optional $ strOption (  long "as-module"
                             <> short 'M'
                             <> help "creates a haskell module with this name"))
+  <*> switch (  long "logfloat-prelude"
+             <> help "use logfloat prelude for numeric stability")
+
 
 prettyProg :: (ABT T.Term abt)
            => String
@@ -83,7 +87,7 @@ compileHakaru opts = do
       Right (TypedAST typ ast) -> do
         ast' <- summary (et ast)
         writeHkHsToFile file (fileOut opts) . TxT.unlines $
-          header (asModule opts) ++
+          header (logFloatPrelude opts) (asModule opts) ++
           [ pack $ prettyProg "prog" ast' ] ++
           (case asModule opts of
              Nothing -> footer typ
@@ -97,8 +101,8 @@ writeHkHsToFile inFile moutFile content =
                    Just x  -> x
   in  writeToFile outFile content
 
-header :: Maybe String -> [Text]
-header mmodule =
+header :: Bool -> Maybe String -> [Text]
+header logfloats mmodule =
   [ "{-# LANGUAGE DataKinds, NegativeLiterals #-}"
   , TxT.unwords [ "module"
                 , case mmodule of
@@ -106,8 +110,14 @@ header mmodule =
                     Nothing -> "Main"
                 , "where" ]
   , ""
-  , "import           Prelude                          hiding (product)"
-  , "import           Language.Hakaru.Runtime.Prelude"
+  , if logfloats
+    then TxT.unlines [ "import           Data.Number.LogFloat hiding (product)"
+                     , "import           Prelude              hiding (product, exp, log, (**))"
+                     ]
+    else "import           Prelude hiding (product)"
+  , if logfloats
+    then "import           Language.Hakaru.Runtime.LogFloatPrelude"
+    else "import           Language.Hakaru.Runtime.Prelude"
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
