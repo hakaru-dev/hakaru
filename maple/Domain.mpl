@@ -89,16 +89,26 @@ option package;
 
        end proc;
 
-       local constrain := proc( noinf :: truefalse, vn::name, ty::range, mk :: DomBoundKind, $ ) :: set(relation);
-                  local lo, hi, noi; lo,hi := Domain:-ExtBound[mk]:-SplitBound(ty);
+       local constrain := proc( opts, vn::name, ty::range, mk :: DomBoundKind, $ )
+                       :: set({relation, `::`});
+                  local lo, hi, noi, bt
+                      , noinf := evalb('no_infinity' in opts)
+                      , btys  := evalb('bound_types' in opts)
+                      ;
+
+                  lo,hi := Domain:-ExtBound[mk]:-SplitBound(ty);
                   noi := `if`(noinf,mk->b->if b in {infinity,-infinity} then {} else {mk(b)} end if
                                    ,mk->b->{mk(b)} );
+
+                  bt  := `if`(btys, { vn :: Domain:-ExtBound[mk]:-BoundType }, {});
+
                   { noi(x->Domain:-ExtBound[mk]:-Constrain( x, vn ))(lo)[]
                   , noi(x->Domain:-ExtBound[mk]:-Constrain( vn, x ))(hi)[]
+                  , bt[]
                   }
        end proc;
 
-       local toConstraints_opts := { 'no_infinity' };
+       local toConstraints_opts := { 'no_infinity', 'bound_types' };
 
        export toConstraints := proc( bnd :: DomBound )
                   local cs, opts, bad_opts, noinf;
@@ -108,18 +118,7 @@ option package;
                       error "invalid arguments: %1", bad_opts;
                   end if;
 
-                  noinf := evalb('no_infinity' in opts);
-                  cs := {op(map(b->constrain(noinf, op(b))[], op(1,bnd)))};
-
-                  # if 'no_infinity' in opts then
-                  #   cs := remove(type, cs, Or( {`<=`, `<`}(name,identical(infinity))
-                  #                            , {`>=`, `>`}(identical(infinity),name)
-                  #                            , {`>=`, `>`}(name,identical(-infinity))
-                  #                            , {`<=`, `<`}(identical(-infinity),name)
-                  #                            )
-                  #               );
-                  # end if;
-
+                  cs := {op(map(b->constrain(opts, op(b))[], op(1,bnd)))};
                   cs;
        end proc;
 
@@ -199,6 +198,7 @@ option package;
                      ,'Constrain'=`<`
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
+                     ,'BoundType'='real'
                      );
 
            ExtBound[`Sum`] :=
@@ -209,6 +209,7 @@ option package;
                      ,'Constrain'=`<=`
                      ,'MakeEqn'=`=`
                      ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
+                     ,'BoundType'='integer'
                      );
            protect(Domain:-ExtBound);
 
@@ -494,7 +495,7 @@ option package;
                                local vs, sh, vars, ctx_vs;
                                vs, sh := op(dom);
                                vars := {op(Domain:-Bound:-varsOf(vs))};
-                               ctx_vs := Domain:-Bound:-toConstraints(vs);
+                               ctx_vs := Domain:-Bound:-toConstraints(vs, 'bound_types');
 
                                sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
                                DOMAIN(vs, sh);
@@ -525,11 +526,8 @@ option package;
                               vars_q := indets(q, name) intersect vars;
                               if nops(vars_q) = 1 then
                                   vars_q := op(1,vars_q);
-                                  # try
 
-                                  lprint( map(getassumptions, indets(q, name)) );
-
-                                  q := KB:-try_improve_exp(q, vars_q);
+                                  q := KB:-try_improve_exp(q, vars_q, ctx1);
 
                                   try
                                       q_s := solve({q},[vars_q], 'useassumptions'=true)
@@ -539,7 +537,6 @@ option package;
                                       return q
 
                                   end try;
-
 
                                   if q_s::list and nops(q_s)=1 then
                                       op(op(1,q_s));

@@ -505,22 +505,19 @@ KB := module ()
   end proc:
 
 
-  try_improve_exp := proc(b0, x, $)
-
+  try_improve_exp := proc(b0, x, ctx, $)
         local b := b0, log_b;
         do
-          try log_b := map(simplify@ln, b) catch: break; end try;
+          try log_b := map(simplify@ln, b) assuming op(ctx); catch: break; end try;
 
           if log_metric(log_b, x) < log_metric(b, x)
-             and (andmap(e->is(e,real)=true, log_b)) then
+             and (andmap(e->is(e,real)=true, log_b) assuming op(ctx)) then
             b := log_b;
           else
             break;
           end if;
         end do;
-
         b;
-
   end proc;
 
   # boolean_if should be equivalent to `if`, but it assumes
