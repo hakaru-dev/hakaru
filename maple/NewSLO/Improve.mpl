@@ -40,7 +40,7 @@
         dom_spec := Domain:-Improve(dom_spec);
 
         # Apply the domain back to the expression
-        mkDom := (x->Domain:-Apply(dom_spec, x));
+        mkDom := (x-> kb_assuming_mb(x->Domain:-Apply(dom_spec, x))(x, kb, (_->_)) );
         ed := mkDom(e);
 
         # Some extra simplification may be needed

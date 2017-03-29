@@ -101,7 +101,7 @@ option package;
        local toConstraints_opts := { 'no_infinity' };
 
        export toConstraints := proc( bnd :: DomBound )
-                  local cs, opts, bad_opts;
+                  local cs, opts, bad_opts, noinf;
                   opts := { args[2..-1] } ;
                   bad_opts := opts minus toConstraints_opts;
                   if bad_opts <> {} then
@@ -496,12 +496,8 @@ option package;
                                vars := {op(Domain:-Bound:-varsOf(vs))};
                                ctx_vs := Domain:-Bound:-toConstraints(vs);
 
-                               try
-                                   sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
-                                   DOMAIN(vs, sh);
-                               catch "when calling '%1'. Received: 'numeric exception: underflow'":
-                                   DNoSol( StringTools:-FormatMessage(lastexception[2..-1]) );
-                               end try;
+                               sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
+                               DOMAIN(vs, sh);
                     end proc;
 
                     local do_simpl_constraints := proc(vars, ctx_vs, x, $)
@@ -524,18 +520,33 @@ option package;
 
                     end proc;
 
-                    local try_make_about := proc(vars, ctx1, q, $)
-                              local vars_q, q_s;
+                    local try_make_about := proc(vars, ctx1, q0, $)
+                              local vars_q, q_s, q := q0;
                               vars_q := indets(q, name) intersect vars;
                               if nops(vars_q) = 1 then
+                                  vars_q := op(1,vars_q);
+                                  # try
 
-                                  q_s := solve({q},[op(1,vars_q)], 'useassumptions'=true)
-                                  assuming (op(ctx1));
+                                  lprint( map(getassumptions, indets(q, name)) );
+
+                                  q := KB:-try_improve_exp(q, vars_q);
+
+                                  try
+                                      q_s := solve({q},[vars_q], 'useassumptions'=true)
+                                               assuming (op(ctx1));
+
+                                  catch "when calling '%1'. Received: 'numeric exception: underflow'":
+                                      return q
+
+                                  end try;
+
+
                                   if q_s::list and nops(q_s)=1 then
                                       op(op(1,q_s));
                                   else
                                       q
                                   end if;
+
                               else
                                   q
                               end if;

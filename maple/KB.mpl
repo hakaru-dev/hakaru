@@ -84,7 +84,7 @@ KB := module ()
      kb_to_variables, kb_to_assumptions, kb_to_constraints, kb_to_equations, kb_piecewise, kb_Partition,
 
      # Various utilities ...
-     list_of_mul, for_poly, range_of_HInt, eval_kb, kb_is_false,
+     list_of_mul, for_poly, range_of_HInt, eval_kb, kb_is_false, try_improve_exp,
 
      # Types corresponding to the constructor forms of the 'atoms' of KBs
      t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
@@ -503,6 +503,25 @@ KB := module ()
     m := select(depends, indets(e, 'exp(anything)'), x);
     length(subsindets(map2(op, 1, m), name, _->L));
   end proc:
+
+
+  try_improve_exp := proc(b0, x, $)
+
+        local b := b0, log_b;
+        do
+          try log_b := map(simplify@ln, b) catch: break; end try;
+
+          if log_metric(log_b, x) < log_metric(b, x)
+             and (andmap(e->is(e,real)=true, log_b)) then
+            b := log_b;
+          else
+            break;
+          end if;
+        end do;
+
+        b;
+
+  end proc;
 
   # boolean_if should be equivalent to `if`, but it assumes
   # all its arguments are boolean conditions, so it basically
