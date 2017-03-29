@@ -68,9 +68,11 @@ end proc;
 
 TestHakaru := proc(m, n::{set(algebraic),algebraic}:=m,
                    {simp:=improve, verify:=simplify, ctx::list:=[]})
-  local kb := build_kb(ctx, "TestHakaru");
+  local kb := build_kb(ctx, "TestHakaru"), ver := measure(verify);
+  ver := `if`(n::set, 'member'(ver), ver);
+
   CodeTools[Test](fromLO(simp(toLO(m), _ctx=kb), _ctx=kb), n,
-    measure(verify), _rest)
+    ver, _rest)
 end proc;
 
   # Test roughly for "efficient" Hakaru measure terms,
