@@ -516,14 +516,9 @@ export
        end proc;
 
        export remove_false_pieces := proc(e::Partition, $)
-                  local ps := op(1, e), qs;
+                  local ps := op(1, e);
 
-                  qs := select(p -> is(condOf(p)), ps);
-                  if nops(qs) = 1 then
-                      ps := qs;
-                  else
-                      ps := remove(p -> not(coulditbe(condOf(p))), ps);
-                  end if;
+                  ps := remove(p -> not(coulditbe(condOf(p))), ps);
 
                   PARTITION(ps);
        end proc;
