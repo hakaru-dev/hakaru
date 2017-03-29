@@ -28,7 +28,6 @@ module Language.Hakaru.Syntax.ANF (normalize, isValue) where
 
 import qualified Data.Foldable                   as F
 import           Data.Maybe
-import           Data.Number.Nat
 import           Data.Sequence                   ((<|))
 import qualified Data.Sequence                   as S
 
@@ -166,27 +165,15 @@ normalizeCase
   -> abt '[] c
 normalizeCase cond bs env ctxt =
   normalizeName cond env $ \ cond' ->
-    let -- TODO: How do we deal with pattern variables?
+    let normalizeBranch :: forall d e . Branch d abt e -> Branch d abt e
+        normalizeBranch (Branch pat body) = Branch pat (normalize' body env id)
 
-        normalizeBranch :: forall d e f . Branch d abt e -> Context abt e f -> Branch d abt f
-        normalizeBranch (Branch pat body) ctxt' = Branch pat (normalize' body env ctxt')
-
-        simple :: Branch a abt b -> Bool
-        simple (Branch pat body) =
-          case pat of
-            PWild                        -> isValue body
-            PVar                         -> caseBind body $ \_ body' -> isValue body'
-            PDatum _ (PInl PDone)        -> isValue body
-            PDatum _ (PInr (PInl PDone)) -> isValue body
-
-        branches :: forall d . Context abt b d -> [Branch a abt d]
-        branches ctxt = map (flip normalizeBranch ctxt) bs
+        branches :: [Branch a abt b]
+        branches = map normalizeBranch bs
 
     -- A possible optimization is to push the context into each conditional,
     -- possibly opening up other optimizations at the cost of code growth.
-    in if False -- all simple bs
-       then syn $ Case_ cond' (branches ctxt)
-       else ctxt $ syn $ Case_ cond' (branches id)
+    in ctxt $ syn $ Case_ cond' branches
 
 normalizeBody
   :: (ABT Term abt)
@@ -196,16 +183,6 @@ normalizeBody
   -> abt '[a] b
 normalizeBody body vold env =
   freshVar vold $ \vnew -> normalize' body (updateEnv vold vnew env) id
-
-normalizeBodyWithCtxt
-  :: (ABT Term abt)
-  => abt '[] a
-  -> Variable b
-  -> Env
-  -> Context abt a c
-  -> abt '[b] c
-normalizeBodyWithCtxt body vold env ctxt =
-  freshVar vold $ \vnew -> normalize' body (updateEnv vold vnew env) ctxt
 
 normalizeName
   :: (ABT Term abt)
