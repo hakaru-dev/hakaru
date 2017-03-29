@@ -70,8 +70,10 @@ model4 :=
   Bind(Gaussian(0,1),x,
   Bind(piecewise(x<0,Ret(0),x>4,Ret(4),Ret(x)),y,
   Ret(y^2))):
-model4s := Bind(Gaussian(0,1),x,piecewise(x<0,Ret(0),4<x,Ret(16),
-  0<x and x<4, Ret(x^2))):
+model4s := { Bind(Gaussian(0,1),x,piecewise(x<0,Ret(0),4<x,Ret(16),
+  0<x and x<4, Ret(x^2))) ,
+  Bind(Gaussian(0,1),`x`,piecewise(`x` < 0,Ret(0),4 < `x`,Ret(16),0 <= `x` and `x` <= 4,Ret(`x`^2)))
+ }:
 
 TestHakaru(model4, model4s, label = "piecewise test");
 sliced :=
@@ -213,14 +215,22 @@ t23s := Msum(Weight(41/100,Ret(Pair(true,true))),
 # to exercise myint_pw
 model_pw := Bind(Uniform(0,4), x,
   piecewise(x<1, Ret(x), x<2, Ret(2*x), x<3, Ret(3*x), Ret(5*x))):
-model_pw1 := Bind(Uniform(0,4), x,
-  piecewise(x<1, Ret(x), x<2, Ret(2*x), x<3, Ret(3*x), 3<x, Ret(5*x))):
+model_pw1 := { Bind(Uniform(0,4), x,
+  piecewise(x<1, Ret(x), x<2, Ret(2*x), x<3, Ret(3*x), 3<x, Ret(5*x))),
+               Bind(Uniform(0,4),`x`,
+  piecewise(x<1, Ret(x), 1<=x and x<2, Ret(2*x), 2<=x and x<3, Ret(3*x),3 <= x,Ret(5*x)))
+}:
 model_pw2 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, 5),Ret(x))):
 model_pw3 := Bind(Uniform(0,4), x,
   piecewise(x<1, Ret(x), x<2, Weight(2,Ret(x)), x<3, Weight(3,Ret(x)), x>=3, Weight(5,Ret(x)))):
+model_pw3_r := { Bind(Uniform(0,4), x,
+  piecewise(x<1, Ret(x), x<2, Weight(2,Ret(x)), x<3, Weight(3,Ret(x)), x>=3, Weight(5,Ret(x)))) ,
+               Bind(Uniform(0,4),x,
+  piecewise(x < 1,Ret(x),1 <= x and x < 2,Weight(2,Ret(x)),2 <= x and x < 3,Weight(3,Ret(x)),3 <= x,Weight(5,Ret(x))))
+}:
 model_pw5 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, x>=3, 5),Ret(x))):
 TestHakaru(model_pw , model_pw1, label = "multi-branch choice");
-TestHakaru(model_pw3, model_pw3, label = "fake multi-branch weight");
+TestHakaru(model_pw3, model_pw3_r, label = "fake multi-branch weight");
 TestHakaru(model_pw2, model_pw5, label = "proper multi-branch weight");
 
 # t43 without the explicit lam
