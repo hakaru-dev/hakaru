@@ -18,7 +18,7 @@
          , do_domain := evalb( not ( ['no', 'domain'] in {op(opts)} ) ) ;
     e := ee;
 
-    if do_domain and Domain:-Has(e) then
+    if do_domain and Domain:-Has:-Bound(e) then
         # First extract only the bounds, then simplify the body
         # This may discover other nested domains, simplify them,
         # and allow a further simplification to occur in this
