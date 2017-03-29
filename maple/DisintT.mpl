@@ -32,7 +32,7 @@ TestDisint := MakeTest(
 
   timelimit(
        TLim,
-       CodeTools[Test]({disint(m)}, n, set(measure(simplify)), _rest)
+       CodeTools[Test]({disint(m)}, n, '`subset`(measure(simplify))', _rest)
   );
 end proc
  , testGroup = "Disint" ):
