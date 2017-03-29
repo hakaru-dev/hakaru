@@ -627,8 +627,8 @@ option package;
                  #  decide the order of integration
                  #  decide which solutions become integrations and which
                  #     become constrains
-                 local postproc := proc(sol, ctx, $)
-                   local ret := sol, vs;
+                 local postproc := proc(sol, ctx, vs, $)
+                   local ret := sol;
 
                    ret := subsindets(ret, specfunc('piecewise')
                                     , x-> DSplit(Partition:-PWToPartition(x)));
@@ -637,7 +637,7 @@ option package;
                                     , Or(identical({}), set(list))
                                     , x -> DSum(op(x)) );
 
-                   vs := Domain:-Bound:-varsOf(ctx);
+                   # vs := Domain:-Bound:-varsOf(ctx);
 
                  # `true' (produced by LMS for trivial systems) - to the
                  #    interval for the variable corresponding to this index in
@@ -657,22 +657,22 @@ option package;
                  # solution after applying LMS is not simplified any
                  # further. This should probably be done by a seperate
                  # simplifier.
-                 local do_LMS := proc( sh :: DomShape, ctx :: DomBound, $)
+                 local do_LMS := proc( sh :: DomShape, ctx :: DomBound, vs, $)
                     local sol;
                     if sh :: DomConstrain then
-                        sol := do_LMS_Constrain(sh, ctx);
+                        sol := do_LMS_Constrain(sh, ctx, vs);
                         if sol :: DomShape then
                             sol
                         else
-                            postproc(sol, ctx);
+                            postproc(sol, ctx, vs);
                         end if;
 
                     elif sh :: DomSplit then
                         # todo: incorporate piece condition into context
-                        DSplit( Partition:-Pmap(p->do_LMS(p, ctx), op(1, sh)) );
+                        DSplit( Partition:-Pmap(p->do_LMS(p, ctx, vs), op(1, sh)) );
 
                     elif sh :: DomSum then
-                        map(s->do_LMS(s, ctx), sh);
+                        map(s->do_LMS(s, ctx, vs), sh);
 
                     else
                         DNoSol(sprintf("Don't know how to solve DOMAIN(%a, %a)", ctx, sh));
@@ -680,8 +680,8 @@ option package;
                  end proc;
 
                  # ask Maple for a solution to our system
-                 local do_LMS_Constrain := proc( sh :: DomConstrain , ctx, $ )
-                   local vs := Domain:-Bound:-varsOf(ctx)
+                 local do_LMS_Constrain := proc( sh :: DomConstrain , ctx, vs_, $ )
+                   local vs := vs_
                        , cs, do_rn, ret;
 
                    cs := { op( Domain:-Bound:-toConstraints(ctx,'no_infinity') )
@@ -720,10 +720,11 @@ option package;
                  end proc;
 
                  export ModuleApply := proc(dom :: HDomain, $) :: HDomain_mb;
-                    local dbnds, dshape, sol, res, errs;
+                    local dbnds, dshape, sol, res, errs, vs;
                     dbnds, dshape := op(dom);
+                    vs := Domain:-Bound:-varsOf(dbnds);
 
-                    sol := do_LMS( dshape , dbnds );
+                    sol := do_LMS( dshape , dbnds, vs );
 
                     errs := indets(sol, DomNoSol);
                     if errs <> {} then return DNoSol(seq(op(e), e=errs)) end if;
