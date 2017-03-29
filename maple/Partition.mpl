@@ -440,8 +440,8 @@ export
                           ];
 
                end if;
-
            end if;
+
        end do;
 
        # if there is an otherwise case, handle that.

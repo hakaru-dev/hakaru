@@ -506,7 +506,8 @@ option package;
 
                               td, rest := selectremove(type, ss
                                                        , And(relation
-                                                             ,satisfies(q-> not(lhs(q) :: name) and not(rhs(q) :: name)
+                                                             ,satisfies(
+                                                                 q-> not(lhs(q) in vars) and not(rhs(q) in vars)
                                                                        )
                                                             )
                                                       );
