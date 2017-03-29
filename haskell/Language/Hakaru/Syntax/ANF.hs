@@ -81,12 +81,17 @@ normalize
 normalize abt = normalize' abt emptyAssocs id
 
 normalize'
-  :: (ABT Term abt)
-  => abt '[] a
+  :: forall abt xs a b . (ABT Term abt)
+  => abt xs a
   -> Env
   -> Context abt a b
-  -> abt '[] b
-normalize' abt = caseVarSyn abt normalizeVar normalizeTerm
+  -> abt xs b
+normalize' abt = loop (viewABT abt)
+  where
+    loop :: forall c d ys . View (Term abt) ys c -> Env -> Context abt c d -> abt ys d
+    loop (Var v) env ctxt    = normalizeVar v env ctxt
+    loop (Syn s) env ctxt    = normalizeTerm s env ctxt
+    loop (Bind v b) env ctxt = remapVar v env (\env' -> loop b env' ctxt)
 
 normalizeVar :: (ABT Term abt) => Variable a -> Env -> Context abt a b -> abt '[] b
 normalizeVar v env ctxt = ctxt . var $ fromMaybe v (lookupAssoc v env)
@@ -162,17 +167,9 @@ normalizeCase
 normalizeCase cond bs env ctxt =
   normalizeName cond env $ \ cond' ->
     let -- TODO: How do we deal with pattern variables?
-        normalizeBranch :: forall d e f . Branch d abt e -> Context abt e f -> Branch d abt f
-        normalizeBranch (Branch pat body) ctxt' =
-          case pat of
-            PWild -> Branch PWild (normalize' body env ctxt')
-            PVar  -> caseBind body $ \v body' ->
-                       Branch PVar (normalizeBodyWithCtxt body' v env ctxt')
 
-            -- Minimum needed to match True and False
-            PDatum _ (PInl PDone)        -> Branch pat (normalize' body env ctxt')
-            PDatum _ (PInr (PInl PDone)) -> Branch pat (normalize' body env ctxt')
-            _     -> error "normalizeBranch: pattern variables not implemented"
+        normalizeBranch :: forall d e f . Branch d abt e -> Context abt e f -> Branch d abt f
+        normalizeBranch (Branch pat body) ctxt' = Branch pat (normalize' body env ctxt')
 
         simple :: Branch a abt b -> Bool
         simple (Branch pat body) =
