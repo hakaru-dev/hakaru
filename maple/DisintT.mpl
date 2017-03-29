@@ -72,14 +72,17 @@ d3r := {
 d4 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x/y,x)))):
 d4r := {
   Weight(1/abs(t)^2,
-    Bind(Uniform(0,1),`x丫丵`,
-         piecewise(`x丫丵` < t,Weight(`x丫丵`,Ret(`x丫丵`)),Msum()))),
+    Bind(Uniform(0,1),x,
+         piecewise(x < t,Weight(x,Ret(x)),Msum()))),
   piecewise(0 < t,
-    Bind(Uniform(0,1),`y丩丱`,
-         piecewise(t < 1/`y丩丱`,
-           Weight(`y丩丱`,Ret(t*`y丩丱`)),
+    Bind(Uniform(0,1),y,
+         piecewise(t < 1/y,
+           Weight(y,Ret(t*y)),
            Msum())),
-    Msum())
+    Msum()),
+  PARTITION([Piece(t <= 0,Msum())
+           , Piece(t <= 1 and 0 < t,Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x)))))
+           , Piece(1 < t,Weight(1/2/t^2,BetaD(2,1)))])
 }:
 
 d5 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(y,x)))):
