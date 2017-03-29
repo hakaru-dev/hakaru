@@ -113,7 +113,9 @@ norm1a :=
 norm1b :=
   Bind(Gaussian(3,2), x,piecewise(x<0, Ret(Pair(-x, _Unit)), Ret(Pair(x, _Unit)))):
 
-norm1r := {}: #Desired output unknown.
+norm1r := {
+  Weight( (1/2)*sqrt(2)*exp(-9/8)*exp(-(1/8)*x^2)*exp((3/4)*x)/sqrt(Pi) , Ret(_Unit) )
+}: #Desired output unknown(?)
 
 assume(s::real, noiseT >= 3, noiseT <= 8, noiseE >= 1, noiseE <= 8);
 easyRoad:= [
