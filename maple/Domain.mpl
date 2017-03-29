@@ -724,6 +724,14 @@ option package;
                     dbnds, dshape := op(dom);
                     vs := Domain:-Bound:-varsOf(dbnds);
 
+                    # We use the opposite "integration order" than LMS, so
+                    # reverse the variables. The scare quotes are because LMS
+                    # knows nothing about domains or integration, but it does
+                    # try to place the first variable "outermost" (probably
+                    # because it solves for each variable one by one, at starts
+                    # at the left) which will flip things around for no reason.
+                    vs := ListTools[Reverse](vs);
+
                     sol := do_LMS( dshape , dbnds, vs );
 
                     errs := indets(sol, DomNoSol);
