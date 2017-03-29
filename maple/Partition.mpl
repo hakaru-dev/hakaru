@@ -516,23 +516,16 @@ export
        end proc;
 
        export remove_false_pieces := proc(e::Partition, $)
-                  local ps := op(1, e);
+                  local ps := op(1, e), qs;
 
-                  ps := remove(p -> not(coulditbe(condOf(p))), ps);
+                  qs := select(p -> is(condOf(p)), ps);
+                  if nops(qs) = 1 then
+                      ps := qs;
+                  else
+                      ps := remove(p -> not(coulditbe(condOf(p))), ps);
+                  end if;
 
                   PARTITION(ps);
-
-                  # e;
-                  # local ps0 := op(1, e); local ps, rs;
-
-                  # ps, rs := selectremove(p -> coulditbe(condOf(p)), ps0);
-
-
-                  # if nops(ps) = 0 then
-                  #     error "remove_false_pieces: the partition  %1  reduced to an empty partition\n", e;
-                  # end if;
-
-                  # PARTITION(rs);
        end proc;
 
        export single_branch := proc(e::Partition, $)
