@@ -1,5 +1,7 @@
 
-  banish := proc(g, h :: name, kb :: t_kb, levels :: extended_numeric,
+  banish := module()
+    export ModuleApply :=
+         proc(g, h :: name, kb :: t_kb, levels :: extended_numeric,
                  x :: name, make, $)
     # banish(g, h, kb, levels, x, make), where the integrand h and the
     # integration variable x take scope over the integral g patently linear
@@ -96,9 +98,9 @@
     end if
   end proc;
 
-  banish_pw_nil := proc(make, kb, $) 0 end proc;
+  local banish_pw_nil := proc(make, kb, $) 0 end proc;
 
-  banish_pw_cons := proc(x, h, levels, $)
+  local banish_pw_cons := proc(x, h, levels, $)
         proc(cond, th, el, $) proc(make, kb, $)
           if depends(cond, x) then
             banish(th, h, kb, levels-1, x, banish_guard(make, cond))
@@ -111,7 +113,7 @@
         end proc end proc;
   end proc;
 
-  banish_guard := proc(make, cond, $)
+  local banish_guard := proc(make, cond, $)
     if cond :: 'And(specfunc(Not), anyfunc(anything))' then
       # Work around simplify/piecewise bug:
       #   > simplify(piecewise(Not(i=0), 1, 0))
@@ -124,6 +126,8 @@
     end if
   end proc;
 
-  banish_weight := proc(make, w, $)
+  local banish_weight := proc(make, w, $)
     proc(kb,g,$) make(kb, w*g) end proc
   end proc;
+
+end module;

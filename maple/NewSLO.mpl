@@ -30,7 +30,7 @@ NewSLO := module ()
         reduce_on_prod, do_app_dom_spec,
         reduce_IntsSums,
         elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
-        banish, banish_guard, banish_weight,
+        banish,
         reduce_pw, nub_piecewise, piecewise_if,
         get_var_pos, get_int_pos,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
