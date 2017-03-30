@@ -223,7 +223,7 @@ option package;
            ExtShape[`PARTITION`] :=
                Record('MakeCtx'=
                       (proc(p0,$)
-                           local p := p0, pw, wps, ws, vs, cs;
+                           local p := p0, pw, wps, ws, vs, cs, w, ps;
                            w, p := Partition:-Simpl:-single_nonzero_piece(p);
                            if w <> {} then
                                [ `and`(op(w)), p ]
@@ -345,7 +345,6 @@ option package;
              local simpl_shape := proc(e0,ctx,$)
                 local e := Domain:-simpl_relation({e0});
 
-                e := subsindets(e, identical(true), _->NULL);
                 e := subsindets(e, set , x->DSum(op(x)));
                 e := subsindets(e, list, x->DConstrain(op(x), op(ctx)));
                 e;
@@ -811,7 +810,7 @@ option package;
     export simpl_relation :=
     proc( expr_ :: set({relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`})
         , { norty := 'DNF' }
-        , $) :: ( (`if`(norty='DNF', 'set'@'list', 'list'@'set'))({relation, specfunc(relation, Not)}) ) ;
+        , $) # :: ( (`if`(norty='DNF', 'set'@'list', 'list'@'set'))({relation, specfunc(relation, Not)}) ) ;
 
         local expr := expr_, outty, outmk, inty, inmk ;
 
@@ -839,6 +838,12 @@ option package;
         expr := subsindets(expr, specfunc(Logic:-`&and`), x->[op(x)]);
         expr := subsindets(expr, specfunc(Logic:-`&or`) , x->{op(x)});
         expr := subsindets(expr, specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x)) );
+
+        if expr :: identical(false) then
+            return `if`(norty='DNF', {}, [{}]);
+        elif expr :: identical(true) then
+            return `if`(norty='CNF', {[]}, []);
+        end if;
 
         if norty = 'DNF' then
             outty := 'set'; outmk := (x->{x});
