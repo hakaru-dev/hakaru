@@ -85,12 +85,14 @@ normalize'
   -> Env
   -> Context abt a b
   -> abt xs b
-normalize' abt = loop (viewABT abt)
+normalize' = loop . viewABT
   where
     loop :: forall c d ys . View (Term abt) ys c -> Env -> Context abt c d -> abt ys d
-    loop (Var v) env ctxt    = normalizeVar v env ctxt
-    loop (Syn s) env ctxt    = normalizeTerm s env ctxt
-    loop (Bind v b) env ctxt = remapVar v env (\env' -> loop b env' ctxt)
+    loop view env ctxt =
+      case view of
+        Var v    -> normalizeVar v env ctxt
+        Syn s    -> normalizeTerm s env ctxt
+        Bind v b -> remapVar v env (\env' -> loop b env' ctxt)
 
 normalizeVar :: (ABT Term abt) => Variable a -> Env -> Context abt a b -> abt '[] b
 normalizeVar v env ctxt = ctxt . var $ fromMaybe v (lookupAssoc v env)
@@ -232,8 +234,8 @@ normalizeSCon Let_ =
   \(rhs :* body :* End) env ctxt -> caseBind body $
     \v body' ->
       normalize' rhs env $ \rhs' ->
-      let mkbody v' = normalize' body' (updateEnv v v' env) ctxt
-      in syn (Let_ :$ rhs' :* freshVar v mkbody :* End)
+      let mkbody env' = normalize' body' env' ctxt
+      in syn (Let_ :$ rhs' :* remapVar v env mkbody :* End)
 
 -- TODO: Remove code duplication between sum and product cases
 normalizeSCon s@Summate{} =
