@@ -216,35 +216,27 @@ option package;
            unprotect(Domain:-ExtShape);
 
            ExtShape[`Indicator`] :=
-               Record('MakeCtx'=(e -> ( {op(1,e)}, 1 ))
+               Record('MakeCtx'=(e -> [ op(1,e), 1 ] )
                      ,'MapleType'='Indicator(anything)'
                      );
 
            ExtShape[`PARTITION`] :=
                Record('MakeCtx'=
                       (proc(p0,$)
-                           local p := p0;
+                           local p := p0, pw, wps, ws, vs, cs;
                            w, p := Partition:-Simpl:-single_nonzero_piece(p);
                            if w <> {} then
-                               w, p
+                               [ `and`(op(w)), p ]
                            else
                                ps := op(1, p);
-
-                               ixs := [indices(ExtShape, 'nolist')];
-                               wps := map(x->[Domain:-Extract:-Shape:-do_gets(ixs, {}, valOf(x))], ps);
-
-                               ws, vs, cs := map(x->op(1,x), wps), map(x->op(2,x), wps), map(condOf, ps);
+                               wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
+                               ws, vs, cs := map2(op, 1, wps), map2(x->op, 2, wps), map(condOf, ps);
 
                                if nops(vs) > 0 and
                                   andmap(v->op(1,vs)=v, vs) then
-                                   b := op(1,vs);
-
-                                   ands := zip(proc(w,c,$) `And`( op(w), c ) end proc, ws, cs);
-                                   ors  := `Or`( op( ands ) );
-
-                                   { ors }, b;
+                                   [ `Or`( op( zip(`And`, ws, cs) ) ) , op(1,vs) ];
                                else
-                                   {}, p0;
+                                   [ true, p0 ];
                                end if;
                            end if;
                        end proc)
@@ -252,7 +244,7 @@ option package;
                      );
 
            ExtShape[`piecewise`] :=
-               Record('MakeCtx'=(Partition:-Simpl:-single_nonzero_piece@PWToPartition)
+               Record('MakeCtx'= (Domain:-ExtShape[`PARTITION`]:-MakeCtx) @ PWToPartition
                      ,'MapleType'=specfunc(`piecewise`)
                      );
 
@@ -310,28 +302,28 @@ option package;
            # products)
            export Shape := module ()
 
-             local do_get := proc(f, f_ty, $) proc(e, $)
+             local do_get := proc(f, f_ty, e, $)
                local sub, inds, rest;
                if e::`*` then
-                 sub := map((s -> [do_get(f, f_ty)(s)]), [op(e)]);
-                 `union`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub)))
+                 sub := map(x->do_get(f, f_ty,x), [op(e)]);
+                 [ `and`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub))) ]
                elif e::`^` then
-                 inds, rest := do_get(f, f_ty)(op(1,e));
-                 inds, subsop(1=rest, e)
+                 inds, rest := do_get(f, f_ty, op(1,e)) [] ;
+                 [ inds, subsop(1=rest, e) ]
                elif e:: f_ty then
                  f(e)
                else
-                 {}, e
+                 [ true, e ]
                end if
 
-             end proc; end proc;
+             end proc;
 
              # apply a list of extractors, in order, until all fail to produce
              # any output .
              local do_gets := proc(todo::list, w, e, $)
                        local t0, ts, w1, e1;
                        if nops(todo) = 0 then
-                           w, e
+                           [ w, e ]
                        else
                            t0 := op(1, todo);
                            ts := op(subsop(1=NULL, todo));
@@ -339,10 +331,10 @@ option package;
                                w1, e1 :=
                                  do_get(ExtShape[t0]:-MakeCtx
                                        ,ExtShape[t0]:-MapleType
-                                       )(e);
-                               ts := `if`(w1={}, [ts], [ts, t0]);
+                                       ,e) [] ;
+                               ts := `if`(w1=true, [ts], [ts, t0]);
 
-                               do_gets( ts, w1 union w, e1 );
+                               do_gets( ts, w1 and w, e1 );
                            else
                                do_gets( [ ts ], w, e );
                            end if;
@@ -350,21 +342,25 @@ option package;
              end proc;
 
              # todo: simplify the shape
-             local simpl_shape := proc(x,ctx,$)
-                local e := Domain:-simpl_relation(x);
+             local simpl_shape := proc(e0,ctx,$)
+                local e := Domain:-simpl_relation({e0});
 
+                e := subsindets(e, identical(true), _->NULL);
                 e := subsindets(e, set , x->DSum(op(x)));
                 e := subsindets(e, list, x->DConstrain(op(x), op(ctx)));
                 e;
              end proc;
 
-             export ModuleApply := proc(e, { ctx := KB:-empty }, $) :: [ DomShape, anything ];
+             export ModuleApply := proc(e, { ctx := KB:-empty }) :: [ DomShape, anything ];
                         local ixs, w, e1, ctx1;
                         ixs := [indices(ExtShape, 'nolist')];
-                        w, e1 := do_gets(ixs, {}, e);
+                        w, e1 := do_gets(ixs, true, e) [];
 
                         ctx1 := KB:-kb_to_constraints(ctx);
-                        w := simpl_shape(w, ctx1);
+
+                        if not ('no_simpl' in {_rest}) then
+                            w := simpl_shape(w, ctx1);
+                        end if;
 
                         [ w, e1 ];
              end proc;
