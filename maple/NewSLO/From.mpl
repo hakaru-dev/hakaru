@@ -99,7 +99,7 @@ fromLO := module()
         kb_Partition(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
-                     eval(subsop(2='unintegrate'(x,op(2,b),c),b),
+                     eval(subsop(2='toLO:-unintegrate'(x,op(2,b),c),b),
                           {x=h, c=kb})
                    end proc,
                    op(2,e)),
@@ -114,7 +114,7 @@ fromLO := module()
           42
       end if;
 
-    elif e :: 'integrate'('freeof'(h), 'anything', identical([])) then
+    elif e :: 'toLO:-integrate'('freeof'(h), 'anything', identical([])) then
       x := mk_sym('x', op(2,e));
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.

@@ -106,7 +106,7 @@
           return 42
       end if;
       applyop(reduce, 2, e, h, kb1, opts);
-    elif e :: 'integrate(anything, Integrand(name, anything), list)' then
+    elif e :: 'toLO:-integrate(anything, Integrand(name, anything), list)' then
       x := gensym(op([2,1],e));
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.

@@ -1,11 +1,14 @@
 # Step 1 of 3: from Hakaru to Maple LO (linear operator)
 
-  toLO := proc(m, $)
+toLO := module()
+  export
+  ModuleApply := proc(m, $)
     local h;
     h := gensym('h');
     LO(h, integrate(m, h, []))
   end proc;
 
+  export
   integrate := proc(m, h, loops :: list(name = range) := [], $)
     local x, n, i, res, l, br, m0;
 
@@ -76,6 +79,8 @@
     end if
   end proc;
 
+
+  local
   integrate_known := proc(make, makes, var, m, h, loops :: list(name=range), $)
     local x, dens, bds;
     x := mk_sym(var, h);
@@ -89,3 +94,5 @@
             x, bds, loops)
     end if;
   end proc;
+end module; #toLO
+

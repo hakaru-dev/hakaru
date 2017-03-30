@@ -89,7 +89,7 @@
       # Partition:-Foldr(banish_pw_cons(x, h, levels), banish_pw_nil, g)(make, kb)
     elif g :: t_case then
       map_piecewiselike(banish, _passed)
-    elif g :: 'integrate(freeof(x), Integrand(name, anything), list)' then
+    elif g :: 'toLO:-integrate(freeof(x), Integrand(name, anything), list)' then
       y           := gensym(op([2,1],g));
       subintegral := subs(op([2,1],g)=y, op([2,2],g));
       subsop(2=Integrand(y, banish(subintegral, h, kb, levels-1, x, make)), g)

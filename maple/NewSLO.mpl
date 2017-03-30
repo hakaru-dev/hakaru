@@ -22,7 +22,6 @@ NewSLO := module ()
   option package;
   local
         t_sum, t_product,
-        integrate_known,
         mysolve, Shiftop, Diffop, Recognized,
         bind, weight,
         reduce_on_prod,
@@ -61,6 +60,10 @@ $include "NewSLO/Improve.mpl"
 $include "NewSLO/Disint.mpl"
 $include "NewSLO/Reparam.mpl"
 $include "NewSLO/Factor.mpl"
+
+  # This is for backwards compatibility, do not use "integrate",
+  # use "toLO:-integrate" instead.
+  `integrate` := toLO:-integrate;
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
