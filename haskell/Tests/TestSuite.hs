@@ -3,12 +3,13 @@
 import System.Exit (exitFailure)
 import System.Environment (lookupEnv)
 
-import qualified Tests.Parser       as P
-import qualified Tests.TypeCheck    as TC
-import qualified Tests.Simplify     as S
-import qualified Tests.Disintegrate as D
-import qualified Tests.Sample       as E
-import qualified Tests.RoundTrip    as RT
+import qualified Tests.ASTTransforms as TR
+import qualified Tests.Parser        as P
+import qualified Tests.TypeCheck     as TC
+import qualified Tests.Simplify      as S
+import qualified Tests.Disintegrate  as D
+import qualified Tests.Sample        as E
+import qualified Tests.RoundTrip     as RT
 
 import Test.HUnit
 
@@ -31,6 +32,7 @@ allTests env = test
   , TestLabel "Disintegrate" D.allTests
   , TestLabel "Evaluate"     E.allTests
   , TestLabel "RoundTrip"    (simplifyTests RT.allTests env)
+  , TestLabel "ASTTransforms" TR.allTests
   ]
 
 main :: IO ()

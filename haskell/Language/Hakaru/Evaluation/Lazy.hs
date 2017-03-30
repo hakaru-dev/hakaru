@@ -29,18 +29,11 @@
 -- like my old one.
 ----------------------------------------------------------------
 module Language.Hakaru.Evaluation.Lazy
-    (
-    -- * Lazy partial evaluation
-      TermEvaluator
-    , MeasureEvaluator
-    , CaseEvaluator
-    , VariableEvaluator
-    , evaluate
+    ( evaluate
     -- ** Helper functions
-    , update
-    , defaultCaseEvaluator
-    , toStatements
-
+    , evaluateNaryOp
+    , evaluatePrimOp
+    , evaluateArrayOp
     -- ** Helpers that should really go away
     , Interp(..), reifyPair
     ) where
@@ -91,44 +84,16 @@ import Debug.Trace (trace)
 -- to select out subtypes of the generic versions.
 
 
--- | A function for evaluating any term to weak-head normal form.
-type TermEvaluator abt m =
-    forall a. abt '[] a -> m (Whnf abt a)
-
--- | A function for \"performing\" an 'HMeasure' monadic action.
--- This could mean actual random sampling, or simulated sampling
--- by generating a new term and returning the newly bound variable,
--- or anything else.
-type MeasureEvaluator abt m =
-    forall a. abt '[] ('HMeasure a) -> m (Whnf abt a)
-
--- | A function for evaluating any case-expression to weak-head
--- normal form.
-type CaseEvaluator abt m =
-    forall a b. abt '[] a -> [Branch a abt b] -> m (Whnf abt b)
-
--- | A function for evaluating any variable to weak-head normal form.
-type VariableEvaluator abt m =
-    forall a. Variable a -> m (Whnf abt a)
-
-
 -- | Lazy partial evaluation with some given \"perform\" and
--- \"evaluateCase\" functions. The first argument to @evaluateCase@
--- will be the 'TermEvaluator' we're constructing (thus tying the
--- knot). N.B., if @p ~ 'Pure@ then the \"perform\" function will
--- never be called.
---
--- We factor out the 'CaseEvaluator' because some code (e.g.,
--- disintegration) may need to do something special rather than
--- just relying on the 'defaultCaseEvaluator' implementation.
+-- \"evaluateCase\" functions. N.B., if @p ~ 'Pure@ then the
+-- \"perform\" function will never be called.
 evaluate
     :: forall abt m p
     .  (ABT Term abt, EvaluationMonad abt m p)
     => MeasureEvaluator abt m
-    -> (TermEvaluator abt m -> CaseEvaluator abt m)
     -> TermEvaluator    abt m
 {-# INLINE evaluate #-}
-evaluate perform evaluateCase = evaluate_
+evaluate perform = evaluate_
     where
     evaluateCase_ :: CaseEvaluator abt m
     evaluateCase_ = evaluateCase evaluate_
@@ -138,7 +103,7 @@ evaluate perform evaluateCase = evaluate_
 #ifdef __TRACE_DISINTEGRATE__
       trace ("-- evaluate_: " ++ show (pretty e0)) $
 #endif
-      caseVarSyn e0 (update perform evaluate_) $ \t ->
+      caseVarSyn e0 (evaluateVar perform evaluate_) $ \t ->
         case t of
         -- Things which are already WHNFs
         Literal_ v               -> return . Head_ $ WLiteral v
@@ -173,13 +138,13 @@ evaluate perform evaluateCase = evaluate_
                 -- call-by-name:
                 caseBind f $ \x f' -> do
                     i <- getIndices
-                    push (SLet x (Thunk e2) i) f' evaluate_
+                    push (SLet x (Thunk e2) i) f' >>= evaluate_
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End -> do
             i <- getIndices
             caseBind e2 $ \x e2' ->
-                push (SLet x (Thunk e1) i) e2' evaluate_
+                push (SLet x (Thunk e1) i) e2' >>= evaluate_
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
         UnsafeFrom_ c :$ e1 :* End -> coerceFrom c <$> evaluate_ e1
@@ -202,103 +167,6 @@ evaluate perform evaluateCase = evaluate_
         Case_ e bs -> evaluateCase_ e bs
 
         _ :$ _ -> error "evaluate: the impossible happened"
-
-
--- | A simple 'CaseEvaluator' which uses the 'DatumEvaluator' to
--- force the scrutinee, and if 'matchBranches' succeeds then we
--- call the 'TermEvaluator' to continue evaluating the body of the
--- matched branch. If we 'GotStuck' then we return a 'Neutral' term
--- of the case expression itself (n.b, any side effects from having
--- called the 'DatumEvaluator' will still persist when returning
--- this neutral term). If we didn't get stuck and yet none of the
--- branches matches, then we throw an exception.
-defaultCaseEvaluator
-    :: forall abt m p
-    .  (ABT Term abt, EvaluationMonad abt m p)
-    => TermEvaluator abt m
-    -> CaseEvaluator abt m
-{-# INLINE defaultCaseEvaluator #-}
-defaultCaseEvaluator evaluate_ = evaluateCase_
-    where
-    -- TODO: At present, whenever we residualize a case expression we'll
-    -- generate a 'Neutral' term which will, when run, repeat the work
-    -- we're doing in the evaluation here. We could eliminate this
-    -- redundancy by introducing a new variable for @e@ each time this
-    -- function is called--- if only we had some way of getting those
-    -- variables put into the right place for when we residualize the
-    -- original scrutinee...
-    --
-    -- N.B., 'DatumEvaluator' is a rank-2 type so it requires a signature
-    evaluateDatum :: DatumEvaluator (abt '[]) m
-    evaluateDatum e = viewWhnfDatum <$> evaluate_ e
-
-    evaluateCase_ :: CaseEvaluator abt m
-    evaluateCase_ e bs = do
-        match <- matchBranches evaluateDatum e bs
-        case match of
-            Nothing ->
-                -- TODO: print more info about where this error
-                -- happened
-                --
-                -- TODO: rather than throwing a Haskell error,
-                -- instead capture the possibility of failure in
-                -- the 'EvaluationMonad' monad.
-                error "defaultCaseEvaluator: non-exhaustive patterns in case!"
-            Just GotStuck ->
-                return . Neutral . syn $ Case_ e bs
-            Just (Matched ss body) ->
-                pushes (toStatements ss) body evaluate_
-
-
-toStatements :: Assocs (abt '[]) -> [Statement abt p]
-toStatements = map (\(Assoc x e) -> SLet x (Thunk e) []) . fromAssocs
-
-
-----------------------------------------------------------------
--- TODO: figure out how to abstract this so it can be reused by
--- 'constrainValue'. Especially the 'SBranch case of 'step'
---
--- TODO: we could speed up the case for free variables by having
--- the 'Context' also keep track of the largest free var. That way,
--- we can just check up front whether @varID x < nextFreeVarID@.
--- Of course, we'd have to make sure we've sufficiently renamed all
--- bound variables to be above @nextFreeVarID@; but then we have to
--- do that anyways.
-update
-    :: forall abt m p
-    .  (ABT Term abt, EvaluationMonad abt m p)
-    => MeasureEvaluator  abt m
-    -> TermEvaluator     abt m
-    -> VariableEvaluator abt m
-update perform evaluate_ = \x ->
-    -- If we get 'Nothing', then it turns out @x@ is a free variable
-    fmap (maybe (Neutral $ var x) id) . select x $ \s ->
-        case s of
-        SBind y e i -> do
-            Refl <- varEq x y
-            Just $ do
-                w <- perform $ caseLazy e fromWhnf id
-                unsafePush (SLet x (Whnf_ w) i)
-#ifdef __TRACE_DISINTEGRATE__
-                trace ("-- updated "
-                    ++ show (ppStatement 11 s)
-                    ++ " to "
-                    ++ show (ppStatement 11 (SLet x (Whnf_ w) i))
-                    ) $ return ()
-#endif
-                return w
-        SLet y e i -> do
-            Refl <- varEq x y
-            Just $ do
-                w <- caseLazy e return evaluate_
-                unsafePush (SLet x (Whnf_ w) i)
-                return w
-        -- These two don't bind any variables, so they definitely can't match.
-        SWeight   _ _ -> Nothing
-        SStuff0   _ _ -> Nothing
-        -- These two do bind variables, but there's no expression we can return for them because the variables are untouchable\/abstract.
-        SStuff1 _ _ _ -> Just . return . Neutral $ var x
-        SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
 
 
 ----------------------------------------------------------------
@@ -547,43 +415,38 @@ evaluateArrayOp
 evaluateArrayOp evaluate_ = go
     where
     go o@(Index _) = \(e1 :* e2 :* End) -> do
+        let -- idxCode :: abt '[] ('HArray a) -> abt '[] 'HNat -> abt '[] a
+            -- idxCode a i = Neutral $ syn (ArrayOp_ o :$ a :* i :* End)
         w1 <- evaluate_ e1
         case w1 of
-            Neutral e1' ->
+            Neutral e1' -> 
                 return . Neutral $ syn (ArrayOp_ o :$ e1' :* e2 :* End)
-            Head_   v1  ->
-                error "TODO: evaluateArrayOp{Index}{Head_}"
+            Head_ (WArray _ b) ->
+                caseBind b $ \x body -> extSubst x e2 body >>= evaluate_
+            Head_ (WEmpty _)   ->
+                error "TODO: evaluateArrayOp{Index}{Head_ (WEmpty _)}"
+            Head_ (WArrayLiteral arr) ->
+                do w2 <- evaluate_ e2
+                   case w2 of
+                     Head_ (WLiteral (LNat n)) -> return . Neutral $ 
+                                                  arr !! fromInteger (fromNatural n)
+                     _  -> return . Neutral $
+                           syn (ArrayOp_ o :$ fromWhnf w1 :* fromWhnf w2 :* End)
+            _ -> error "evaluateArrayOp{Index}: uknown whnf of array type"
 
     go o@(Size _) = \(e1 :* End) -> do
         w1 <- evaluate_ e1
         case w1 of
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
-            Head_   v1  ->
-                case head2array v1 of
-                WAEmpty           -> return . Head_ $ WLiteral (LNat 0)
-                WAArray e3      _ -> evaluate_ e3
-                WAArrayLiteral es -> return . Head_ . WLiteral $ listLengthNat es
+            Head_ (WEmpty _)    -> return . Head_ $ WLiteral (LNat 0)
+            Head_ (WArray e2 _) -> evaluate_ e2
+            Head_ (WArrayLiteral es) -> return . Head_ . WLiteral .
+                                        primCoerceFrom (Signed HRing_Int) .
+                                        LInt . toInteger $ length es
 
     go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
         error "TODO: evaluateArrayOp{Reduce}"
 
-listLengthNat :: [a] -> Literal 'HNat
-listLengthNat = primCoerceFrom (Signed HRing_Int) . LInt . toInteger . length
-
-data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    WAEmpty :: ArrayHead abt a
-    WAArray
-        :: !(abt '[] 'HNat)
-        -> !(abt '[ 'HNat] a)
-        -> ArrayHead abt a
-    WAArrayLiteral :: [abt '[] a] -> ArrayHead abt a
-
-head2array :: Head abt ('HArray a) -> ArrayHead abt a
-head2array (WEmpty _)         = WAEmpty
-head2array (WArray e1 e2)     = WAArray e1 e2
-head2array (WArrayLiteral es) = WAArrayLiteral es
-
-                                
 ----------------------------------------------------------------
 -- TODO: maybe we should adjust 'Whnf' to have a third option for
 -- closed terms of the atomic\/literal types, so that we can avoid

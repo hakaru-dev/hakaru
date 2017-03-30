@@ -16,9 +16,7 @@ import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.Sing
 
-import           Control.Monad.ST
 import           Data.STRef
-import qualified Data.Vector.Unboxed             as UV
 
 import qualified Data.Vector                     as V
 import qualified Data.Number.LogFloat            as LF

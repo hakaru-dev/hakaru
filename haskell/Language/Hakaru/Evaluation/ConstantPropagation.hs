@@ -77,27 +77,28 @@ constantProp' = start
     start = loop . viewABT
 
     loop :: forall b ys . View (Term abt) ys b -> PropM (abt ys b)
-    loop (Var v)    = (maybe (var v) (syn . Literal_) . lookupAssoc v) <$> ask
+    loop (Var v)    = maybe (var v) (syn . Literal_) . lookupAssoc v <$> ask
     loop (Syn s)    = constantPropTerm s
     loop (Bind v b) = bind v <$> loop b
 
-tryEval :: forall abt b . (ABT Term abt) => Term abt b -> abt '[] b
-tryEval term
-  | isFoldable term = runPureEvaluate (syn term)
-  | otherwise       = syn term
+isLiteral :: forall abt b ys . (ABT Term abt) => abt ys b -> Bool
+isLiteral abt = case viewABT abt of
+                  Syn (Literal_ _) -> True
+                  _                -> False
 
 isFoldable :: forall abt b . (ABT Term abt) => Term abt b -> Bool
-isFoldable = getAll . foldMap21 islit
-  where
-    islit :: forall a ys . abt ys a -> All
-    islit (viewABT -> Syn (Literal_ _)) = All True
-    islit _                             = All False
+isFoldable = getAll . foldMap21 (All . isLiteral)
 
 getLiteral :: forall abt ys b. (ABT Term abt) => abt ys b -> Maybe (Literal b)
 getLiteral e =
   case viewABT e of
     Syn (Literal_ l) -> Just l
     _                -> Nothing
+
+tryEval :: forall abt b . (ABT Term abt) => Term abt b -> abt '[] b
+tryEval term
+  | isFoldable term = runPureEvaluate (syn term)
+  | otherwise       = syn term
 
 constantPropTerm
   :: (ABT Term abt)

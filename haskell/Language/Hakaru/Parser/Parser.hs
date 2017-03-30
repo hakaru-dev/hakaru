@@ -199,7 +199,7 @@ table =
     , [ binary "+"  Ex.AssocLeft
       , binary "-"  Ex.AssocLeft
       , prefix "-"  (app1 "negate")]
-    -- TODO: add "<=", ">=", "/="
+    -- TODO: add "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
     , [ postfix ann_expr ]
     , [ binary "<|>" Ex.AssocRight]

@@ -84,9 +84,9 @@ $include "NewSLO/Piecewise.mpl"
         end if;
       end if;
       if mode = `*` then
+	i := map2(op,[2,1],loops);
         if e :: '`^`' then
           # Transform product(a(i)^b,i=...) to product(a(i),i=...)^b
-          i := map2(op,[2,1],loops);
           if not depends(op(2,e), i) then
             return eval_factor(op(1,e), kb, `*`, loops)
                  ^ eval_factor(op(2,e), kb, `+`, []);
@@ -97,8 +97,8 @@ $include "NewSLO/Piecewise.mpl"
           #        to a^   sum(b(i)^2   ,i=...)
           #         * a^(2*sum(b(i)*c(i),i=...))
           #         * a^   sum(c(i)^2   ,i=...)
-          return mul(subsop(-1=i,e),
-                     i in convert(eval_factor(expand(op(-1,e)), kb, `+`,
+          return mul(subsop(-1=j,e),
+                     j in convert(eval_factor(expand(op(-1,e)), kb, `+`,
                                               map2(subsop,1=sum,loops)),
                                   'list', `+`));
         end if;

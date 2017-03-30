@@ -25,7 +25,7 @@
 -- TODO: DeriveDataTypeable for all our newtypes?
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.IClasses
-    ( 
+    (
     -- * Showing indexed types
       Show1(..), shows1, showList1
     , Show2(..), shows2, showList2
@@ -64,8 +64,9 @@ module Language.Hakaru.Syntax.IClasses
     , Foldable31(..)
     , Traversable11(..)
     , Traversable21(..)
+    , Traversable31(..)
     , Traversable22(..)
-    
+
     -- * Helper types
     , Some1(..)
     , Some2(..)
@@ -202,7 +203,7 @@ showParen_01 p s e1 e2 =
         . showString " "
         . showsPrec1 11 e2
         )
-        
+
 showParen_02 :: (Show b, Show2 a) => Int -> String -> b -> a i j -> ShowS
 showParen_02 p s e1 e2 =
     showParen (p > 9)
@@ -381,7 +382,7 @@ class Eq2 a => JmEq2 (a :: k1 -> k2 -> *) where
 -- we can derive for 'Functor'.
 class Functor11 (f :: (k1 -> *) -> k2 -> *) where
     fmap11 :: (forall i. a i -> b i) -> f a j -> f b j
-    
+
 class Functor12 (f :: (k1 -> *) -> k2 -> k3 -> *) where
     fmap12 :: (forall i. a i -> b i) -> f a j l -> f b j l
 
@@ -504,7 +505,6 @@ class Foldable21 t => Traversable21 (t :: (k1 -> k2 -> *) -> k3 -> *) where
         => (forall h i. a h i -> f (b h i))
         -> t a j
         -> f (t b j)
-    
 
 class Foldable22 t =>
     Traversable22 (t :: (k1 -> k2 -> *) -> k3 -> k4 -> *)
@@ -515,6 +515,12 @@ class Foldable22 t =>
         -> t a j l
         -> f (t b j l)
 
+class Foldable31 t => Traversable31 (t :: (k1 -> k2 -> *) -> k3 -> k4 -> *) where
+    traverse31
+        :: Applicative f
+        => (forall h i. a h i -> f (b h i))
+        -> t a j k
+        -> f (t b j k)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -544,10 +550,10 @@ instance Show a => Show2 (Lift2 a) where
 instance Show a => Show1 (Lift2 a i) where
     showsPrec1 p (Lift2 x) = showsPrec p x
     show1        (Lift2 x) = show x
-    
+
 instance Eq a => Eq2 (Lift2 a) where
     eq2 (Lift2 a) (Lift2 b) = a == b
-    
+
 instance Eq a => Eq1 (Lift2 a i) where
     eq1 (Lift2 a) (Lift2 b) = a == b
 
@@ -633,7 +639,7 @@ instance (Show2 a, Show2 b) => Show (Pair2 a b i j) where
 -- BUG: how do we actually use the term-level @(++)@ at the type level? Or do we have to redefine it ourselves (as below)? If we define it ourselves, how can we make sure it's usable? In particular, how can we prove associativity and that @'[]@ is a /two-sided/ identity element?
 type family (xs :: [k]) ++ (ys :: [k]) :: [k] where
     '[]       ++ ys = ys
-    (x ': xs) ++ ys = x ': (xs ++ ys) 
+    (x ': xs) ++ ys = x ': (xs ++ ys)
 
 {-
 -- BUG: having the instances for @[[HakaruFun]]@ and @[HakaruFun]@ precludes giving a general kind-polymorphic data instance for type-level lists; so we have to monomorphize it to just the @[Hakaru]@ kind.

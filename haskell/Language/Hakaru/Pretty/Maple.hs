@@ -197,7 +197,7 @@ mapleSCon Integrate = \(e1 :* e2 :* e3 :* End) ->
         . showString "])"
 mapleSCon (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
-        showString "sum("
+        showString "Sum("
         . arg e3'
         . showString ", "
         . var1 x
@@ -208,7 +208,7 @@ mapleSCon (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
         . showString ")-1)"
 mapleSCon (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
-        showString "product("
+        showString "Product("
         . arg e3'
         . showString ", "
         . var1 x
@@ -337,8 +337,8 @@ mapleArrayOp _         _                 = error "TODO: mapleArrayOp{Reduce}"
 mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> ShowS
-mapleMeasureOp Lebesgue    = \End               -> showString "Lebesgue()"
-mapleMeasureOp Counting    = \End               -> showString "Counting()"
+mapleMeasureOp Lebesgue    = \End               -> showString "Lebesgue(-infinity,infinity)"
+mapleMeasureOp Counting    = \End               -> showString "Counting(-infinity,infinity)"
 mapleMeasureOp Categorical = \(e1 :* End)       -> app1 "Categorical" e1
 mapleMeasureOp Uniform     = \(e1 :* e2 :* End) -> app2 "Uniform"  e1 e2
 mapleMeasureOp Normal      = \(e1 :* e2 :* End) -> app2 "Gaussian" e1 e2

@@ -6,6 +6,11 @@ end proc:
   depends({n,e}, x) or depends(mr, x minus {o})
 end proc:
 
+# note that v _can_ occur in m1.
+`depends/Let` := proc(m1, v::name, m2, x, $)
+  depends(m1, x) or depends(m2, x minus {v})
+end proc:
+
 `eval/Bucket` := proc(e::anyfunc(anything,name=range), eqs, $)
   local bvar, body;
   bvar, body := BindingTools:-generic_evalat(op([2,1],e), op(1,e), eqs);
@@ -18,11 +23,109 @@ end proc:
   eval(op(0,e), eqs)(eval(op(1,e), eqs), o, eval(op(3,e), eqs), mr)
 end proc:
 
+`eval/Let` := proc(e, eqs, $)
+  local m1, v, m2;
+  m1, v, m2 := op(e);
+  eval(op(0,e), eqs)(eval(m1, eqs), BindingTools:-generic_evalat(v, m2, eqs))
+end proc:
+
 Summary := module ()
   option package;
-  export bucket, summarize;
-  global Bucket, Fanout, Index, Split, Nop, Add;
+  export RoundTrip, Summarize, SummarizeKB, bucket, summarize;
+  global Bucket, Fanout, Index, Split, Nop, Add, Let,
+         SumIE, ProductIE, BucketIE;
   uses Hakaru, KB;
+
+  RoundTrip := proc(e)
+    local result;
+    interface(screenwidth=infinity, prettyprint=0, warnlevel=0,
+      showassumed=0,quiet=true);
+    kernelopts(assertlevel=0);
+    result := eval(ToInert(Summarize(_passed)), _Inert_ATTRIBUTE=NULL);
+    lprint(result)
+  end proc;
+
+  Summarize := proc(e, {ctx :: list := []}, $)
+    local ie;
+    ie := table('[sum    =SumIE    , Sum    =SumIE    ,
+                  product=ProductIE, Product=ProductIE,
+                  bucket =BucketIE , Bucket =BucketIE ]');
+    subsindets(SummarizeKB(e, foldr(assert, empty, op(ctx))),
+               And(specfunc({indices(ie, 'nolist')}),
+                   anyfunc(anything, anything=range)),
+               e -> subsop(0 = ie[op(0,e)],
+                           applyop(`+`, [2,2,2], e, 1)))
+  end proc;
+
+  SummarizeKB := proc(e, kb :: t_kb, $)
+    local patterns, x, kb1, e1, rng, summary, mr, f;
+    if not hasfun(e, '{Sum,sum}', 'piecewise') then
+      e;
+    elif e :: '{known_continuous, known_discrete,
+                specfunc({Msum, Weight, Fanout, Split, Nop, Add,
+                          exp, log, GAMMA, Beta, idx, And, Or, Not}),
+                `+`, `*`, `^`, `..`, boolean, indexed, list}' then
+      map(procname, _passed);
+    elif e :: 'Context(anything, anything)' then
+      kb1 := assert(op(1,e), kb);
+      applyop(procname, 2, e, kb1);
+    elif e :: 'specfunc(piecewise)' then
+      kb_piecewise(e, kb, ((lhs, kb) -> lhs), SummarizeKB);
+    elif e :: 'lam(name, anything, anything)' then
+      patterns := htype_patterns(op(2,e));
+      if patterns :: Branches(Branch(PVar(name),anything)) then
+        # Eta-expand the function type
+        x := op(1,e);
+        x, kb1 := genType(x, op(2,e), kb);
+        e1 := eval(op(3,e), op(1,e)=x);
+        lam(x, op(2,e), SummarizeKB(e1, kb1))
+      else
+        # Eta-expand the function type and the sum-of-product argument-type
+        x := op(1,e);
+        if depends([e,kb], x) then x := gensym(x) end if;
+        e1 := eval(op(3,e), op(1,e)=x);
+        lam(x, op(2,e), 'case'(x,
+          map(proc(branch)
+                local eSubst, pSubst, p1, binds, y, kb1, i, pSubst1;
+                eSubst, pSubst := pattern_match([x,e], x, op(1,branch));
+                p1 := subs(pSubst, op(1,branch));
+                binds := [pattern_binds(p1)];
+                kb1 := kb;
+                pSubst1 := table();
+                for i from 1 to nops(binds) do
+                  y, kb1 := genType(op(i,binds), op([2,i],branch), kb1);
+                  pSubst1[op(i,binds)] := y;
+                end do;
+                pSubst1 := op(op(pSubst1));
+                Branch(subs(pSubst1, p1),
+                       SummarizeKB(eval(eval(e1,eSubst),pSubst1), kb1))
+              end proc,
+              patterns)))
+      end if
+    elif e :: 'ary(anything, name, anything)' then
+      x, kb1 := genType(op(2,e), HInt(closed_bounds(0..op(1,e)-1)), kb);
+      e1 := SummarizeKB(eval(op(3,e), op(2,e)=x), kb1);
+      subsop(2=x, 3=e1, e);
+    elif e :: 'And(specfunc({sum, Sum, product, Product}),
+                   anyfunc(anything, name=range))' then
+      rng := map(SummarizeKB, op([2,2],e), kb);
+      x, kb1 := genType(op([2,1],e), HInt(closed_bounds(rng)), kb);
+      e1 := eval(op(1,e), op([2,1],e)=x);
+      if op(0, e) in '{sum, Sum}' and has(e1, 'piecewise') then
+        mr, f := summarize(e1, kb, x, summary);
+        if hasfun(mr, '{Fanout, Index}') then
+          mr := SummarizeKB(mr, kb1);
+          return Let(Bucket(mr, x=rng),
+                     summary,
+                     simplify_factor_assuming(f, kb));
+        end if;
+      end if;
+      e1 := SummarizeKB(e1, kb1);
+      subsop(2=(x=rng), 1=e1, e);
+    else
+      error "SummarizeKB doesn't know how to handle %1", e;
+    end if;
+  end proc;
 
   bucket := proc(mr, r::(name=range), cond::list:=[], $)
     if mr :: 'Fanout(anything,anything)' then
@@ -50,7 +153,11 @@ Summary := module ()
           e1, mr1, f1, e2, mr2, f2,
           variables, var_outerness, outermost, thunk, consider,
           o, t, lo, hi, b, a;
+
+    # Try to ensure termination
     e := simplify_assuming(ee, kb);
+    if length(e) >= length(ee) then e := ee end if;
+
     # Nop rule
     if Testzero(e) then return Nop(), 0 end if;
 
@@ -78,6 +185,9 @@ Summary := module ()
         thunk     := th;
       end if;
     end proc;
+    if has(variables, i) then
+      error "The loop to be summarized shadows the variable %1", i;
+    end if;
     for r in s do
       e1 := eval(e, r=true);  if e = e1 then next end if;
       e2 := eval(e, r=false); if e = e2 then next end if;

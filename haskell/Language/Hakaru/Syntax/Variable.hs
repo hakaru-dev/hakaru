@@ -6,6 +6,7 @@
            , DeriveDataTypeable
            , ExistentialQuantification
            , UndecidableInstances
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -39,9 +40,13 @@ module Language.Hakaru.Syntax.Variable
     , fromVarSet
     , toVarSet
     , toVarSet1
+    , varSetKeys
     , insertVarSet
     , deleteVarSet
     , memberVarSet
+    , unionVarSet
+    , intersectVarSet
+    , sizeVarSet
     , nextVarID
     -- ** Substitutions; aka: maps from variables to their definitions
     , Assoc(..)
@@ -52,6 +57,7 @@ module Language.Hakaru.Syntax.Variable
     , toAssocs
     , toAssocs1
     , insertAssoc
+    , insertOrReplaceAssoc
     , insertAssocs
     , lookupAssoc
     , adjustAssoc
@@ -310,6 +316,9 @@ instance Show1 (Sing :: k -> *) => Show (VarSet (kproxy :: KProxy k)) where
             . showsPrec  11 xs
             )
 
+instance (Eq (SomeVariable (kproxy :: KProxy k))) => Eq (VarSet kproxy) where
+  VarSet s1 == VarSet s2 = s1 == s2
+
 -- | Return the successor of the largest 'varID' of all the variables
 -- in the set. Thus, we return zero for the empty set and non-zero
 -- for non-empty sets.
@@ -366,12 +375,13 @@ toVarSet1 = toVarSet . someVariables
     someVariables Nil1         = []
     someVariables (Cons1 x xs) = SomeVariable x : someVariables xs
 
-
 instance Monoid (VarSet kproxy) where
     mempty = emptyVarSet
     mappend (VarSet xs) (VarSet ys) = VarSet (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
     mconcat = VarSet . IM.unions . map unVarSet
 
+varSetKeys :: VarSet a -> [Int]
+varSetKeys (VarSet set) = IM.keys set
 
 insertVarSet :: Variable a -> VarSet (KindOf a) -> VarSet (KindOf a)
 insertVarSet x (VarSet xs) =
@@ -405,6 +415,28 @@ memberVarSet x (VarSet xs) =
         case varEq x x' of
         Nothing -> False
         Just _  -> True
+
+-- NB: The union and intersection operations are left biased.
+-- What is the best behaviour when we have two variables with
+-- different types in the set?
+unionVarSet
+    :: forall (kproxy :: KProxy k)
+    .  (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    => VarSet kproxy
+    -> VarSet kproxy
+    -> VarSet kproxy
+unionVarSet (VarSet s1) (VarSet s2) = VarSet (IM.union s1 s2)
+
+intersectVarSet
+    :: forall (kproxy :: KProxy k)
+    .  (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    => VarSet kproxy
+    -> VarSet kproxy
+    -> VarSet kproxy
+intersectVarSet (VarSet s1) (VarSet s2) = VarSet (IM.intersection s1 s2)
+
+sizeVarSet :: VarSet a -> Int
+sizeVarSet (VarSet xs) = IM.size xs
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
@@ -515,7 +547,11 @@ insertAssoc :: Assoc ast -> Assocs ast -> Assocs ast
 insertAssoc v@(Assoc x _) (Assocs xs) =
     case IM.insertLookupWithKey (\_ v' _ -> v') (fromNat $ varID x) v xs of
     (Nothing, xs') -> Assocs xs'
-    (Just _,  _)   -> error "insertAssoc: variable is already assigned!"
+    (Just _,  _  ) -> error "insertAssoc: variable is already assigned!"
+
+insertOrReplaceAssoc :: Assoc ast -> Assocs ast -> Assocs ast
+insertOrReplaceAssoc v@(Assoc x _) (Assocs xs) =
+    Assocs $ IM.insert (fromNat $ varID x) v xs
 
 insertAssocs :: Assocs ast -> Assocs ast -> Assocs ast
 insertAssocs (Assocs from) to = IM.foldr insertAssoc to from

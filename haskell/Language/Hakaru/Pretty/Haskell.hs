@@ -461,7 +461,7 @@ instance (ABT Term abt) => Pretty (Reducer abt xs) where
             ]
     prettyPrec_ p (Red_Split b r1 r2) =
         ppFun p "r_split"
-            [ toDoc $ ppUncurryBinder b
+            [ toDoc $ parens True (ppUncurryBinder b)
             , toDoc $ prettyPrec_ 11 r1
             , toDoc $ prettyPrec_ 11 r2
             ]

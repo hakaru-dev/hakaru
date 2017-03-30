@@ -47,7 +47,7 @@ import Language.Hakaru.Syntax.ABT      (ABT(..), subst, maxNextFree)
 import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
+import Language.Hakaru.Evaluation.Lazy (evaluate)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 
@@ -83,7 +83,7 @@ runPureEvaluate e = runEval (fromWhnf <$> pureEvaluate e) [Some2 e]
 --
 -- | Call 'evaluate' on a term. This variant returns something in the 'Eval' monad so you can string multiple evaluation calls together. For the non-monadic version, see 'runPureEvaluate'.
 pureEvaluate :: (ABT Term abt) => TermEvaluator abt (Eval abt)
-pureEvaluate = evaluate (brokenInvariant "perform") defaultCaseEvaluator
+pureEvaluate = evaluate (brokenInvariant "perform")
 
 
 ----------------------------------------------------------------
@@ -124,10 +124,10 @@ residualizePureListContext e0 =
     foldl step e0 . statements
     where
     -- TODO: make paremetric in the purity, so we can combine 'residualizeListContext' with this function.
-    step :: abt '[] a -> Statement abt 'Pure -> abt '[] a
+    step :: abt '[] a -> Statement abt Location  'Pure -> abt '[] a
     step e s =
         case s of
-        SLet x body _
+        SLet (Location x) body _
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
@@ -189,7 +189,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Eval abt) 'Pure where
 
 -- TODO: make parametric in the purity
 -- | Not exported because we only need it for defining 'select' on 'Eval'.
-unsafePop :: Eval abt (Maybe (Statement abt 'Pure))
+unsafePop :: Eval abt (Maybe (Statement abt Location 'Pure))
 unsafePop =
     Eval $ \c h@(ListContext i ss) ->
         case ss of

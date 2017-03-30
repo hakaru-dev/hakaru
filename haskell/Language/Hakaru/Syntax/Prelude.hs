@@ -113,7 +113,7 @@ module Language.Hakaru.Syntax.Prelude
     , nil, cons, list
 
     -- * Lambda calculus
-    , lam, lamWithVar, let_
+    , lam, lamWithVar, let_, letM
     , app, app2, app3
 
     -- * Arrays
@@ -132,7 +132,7 @@ module Language.Hakaru.Syntax.Prelude
     ) where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
-import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), flip, const, error)
+import Prelude (Maybe(..), Functor(..), Bool(..), Integer, Rational, ($), flip, const, error)
 import qualified Prelude
 import           Data.Sequence       (Seq)
 import qualified Data.Sequence       as Seq
@@ -141,6 +141,8 @@ import           Data.List.NonEmpty  (NonEmpty(..))
 import qualified Data.List.NonEmpty  as L
 import           Data.Semigroup      (Semigroup(..))
 import           Control.Category    (Category(..))
+import           Control.Monad       (return)
+import           Control.Monad.Fix
 
 import Data.Number.Natural
 import Language.Hakaru.Types.DataKind
@@ -966,6 +968,12 @@ let_
     -> abt '[] b
 let_ e f = syn (Let_ :$ e :* binder Text.empty (typeOf e) f :* End)
 
+letM :: (Functor m, MonadFix m, ABT Term abt)
+     => abt '[] a
+     -> (abt '[] a -> m (abt '[] b))
+     -> m (abt '[] b)
+letM e f = fmap (\ body -> syn $ Let_ :$ e :* body :* End) (binderM Text.empty t f)
+  where t = typeOf e
 
 ----------------------------------------------------------------
 array
@@ -1635,7 +1643,6 @@ weibull b k =
     exponential (prob_ 1) >>= \x ->
     dirac $ b * x ** recip k
 
--- BUG: would it be better to 'observe' that @p <= 1@ before doing the superpose? At least that way things would be /defined/ for all inputs...
 bern :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure HBool)
 bern p = categorical (arrayLit [p, prob_ 1 `unsafeMinusProb` p]) >>= \i ->
          dirac (arrayLit [true, false] ! i)

@@ -2,6 +2,7 @@
            , GADTs
            , KindSignatures
            , DataKinds
+           , PolyKinds
            , TypeOperators
            , Rank2Types
            , BangPatterns
@@ -11,6 +12,7 @@
            , FlexibleInstances
            , UndecidableInstances
            , EmptyCase
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -42,9 +44,19 @@ module Language.Hakaru.Evaluation.Types
     , getLazyVariable, isLazyVariable
     , getLazyLiteral,  isLazyLiteral
 
+    -- * Lazy partial evaluation
+    , TermEvaluator
+    , MeasureEvaluator
+    , CaseEvaluator
+    , VariableEvaluator
+    
     -- * The monad for partial evaluation
     , Purity(..), Statement(..), statementVars, isBoundBy
-    , Index, indVar, indSize
+    , Index, indVar, indSize, fromIndex
+    , Location(..), locEq, locHint, locType, locations1
+    , fromLocation, fromLocations1, freshenLoc, freshenLocs
+    , LAssoc, LAssocs , emptyLAssocs, singletonLAssocs
+    , toLAssocs1, insertLAssocs, lookupLAssoc
 #ifdef __TRACE_DISINTEGRATE__
     , ppList
     , ppInds
@@ -54,13 +66,17 @@ module Language.Hakaru.Evaluation.Types
     , prettyAssocs
 #endif
     , EvaluationMonad(..)
+    , defaultCaseEvaluator
+    , toVarStatements
+    , extSubst
+    , extSubsts
     , freshVar
     , freshenVar
     , Hint(..), freshVars
     , freshenVars
     , freshInd
     {- TODO: should we expose these?
-    , freshenStatement
+    , freshLocStatement
     , push_
     -}
     , push
@@ -89,6 +105,9 @@ import Language.Hakaru.Types.Sing    (Sing(..))
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumCase (DatumEvaluator,
+                                         MatchResult(..),
+                                         matchBranches)
 import Language.Hakaru.Syntax.AST.Eq (alphaEq)
 -- import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
@@ -489,6 +508,9 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
+-- | A type for tracking the arrays under which the term resides
+-- This is used as a binding form when we "lift" transformations
+-- (currently only Disintegrate) to work on arrays
 data Index ast = Ind (Variable 'HNat) (ast 'HNat)
 
 instance (ABT Term abt) => Eq (Index (abt '[])) where
@@ -497,12 +519,63 @@ instance (ABT Term abt) => Eq (Index (abt '[])) where
 instance (ABT Term abt) => Ord (Index (abt '[])) where
     compare (Ind i _) (Ind j _) = compare i j -- TODO check this
 
-indVar :: Index ast -> Variable 'HNat
+indVar :: Index ast -> Variable 'HNat                                 
 indVar (Ind v _ ) = v
-
+          
 indSize :: Index ast -> ast 'HNat
 indSize (Ind _ a) = a
 
+fromIndex :: (ABT Term abt) => Index (abt '[]) -> abt '[] 'HNat
+fromIndex (Ind v _) = var v
+
+-- | Distinguish between variables and heap locations
+newtype Location (a :: k) = Location (Variable a)
+
+instance Show (Sing a) => Show (Location a) where
+    show (Location v) = show v
+
+locHint :: Location a -> Text
+locHint (Location x) = varHint x
+
+locType :: Location a -> Sing a
+locType (Location x) = varType x
+
+locEq :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+      => Location (a :: k)
+      -> Location (b :: k)
+      -> Maybe (TypeEq a b)
+locEq (Location a) (Location b) = varEq a b
+
+fromLocation :: Location a -> Variable a
+fromLocation (Location v) = v
+
+fromLocations1 :: List1 Location a -> List1 Variable a
+fromLocations1 = fmap11 fromLocation
+
+locations1 :: List1 Variable a -> List1 Location a
+locations1 = fmap11 Location
+
+newtype LAssoc ast = LAssoc (Assoc ast)
+newtype LAssocs ast = LAssocs (Assocs ast)
+
+emptyLAssocs :: LAssocs abt
+emptyLAssocs = LAssocs (emptyAssocs)
+    
+singletonLAssocs :: Location a -> f a -> LAssocs f
+singletonLAssocs (Location v) e = LAssocs (singletonAssocs v e)
+
+toLAssocs1 :: List1 Location xs -> List1 ast xs -> LAssocs ast
+toLAssocs1 ls es = LAssocs (toAssocs1 (fromLocations1 ls) es)
+
+insertLAssocs :: LAssocs ast -> LAssocs ast -> LAssocs ast
+insertLAssocs (LAssocs a) (LAssocs b) = LAssocs (insertAssocs a b)
+
+lookupLAssoc :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+             => Location (a :: k)
+             -> LAssocs ast
+             -> Maybe (ast a)
+lookupLAssoc (Location v) (LAssocs a) = lookupAssoc v a
+                                  
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
 -- 'MBind' (or 'Let_') together with the variable bound in the
@@ -511,8 +584,11 @@ indSize (Ind _ a) = a
 -- In addition to these binding constructs, we also include a few
 -- non-binding statements like 'SWeight'.
 --
+-- Statements are parameterized by the type of the bound element,
+-- which (if present) is either a Variable or a Location.
+-- 
 -- The semantics of this type are as follows. Let @ss :: [Statement
--- abt p]@ be a sequence of statements. We have @Γ@: the collection
+-- abt v p]@ be a sequence of statements. We have @Γ@: the collection
 -- of all free variables that occur in the term expressions in @ss@,
 -- viewed as a measureable space (namely the product of the measureable
 -- spaces for each variable). And we have @Δ@: the collection of
@@ -520,35 +596,35 @@ indSize (Ind _ a) = a
 -- measurable space. The semantic interpretation of @ss@ is a
 -- measurable function of type @Γ ':-> M Δ@ where @M@ is either
 -- @HMeasure@ (if @p ~ 'Impure@) or @Identity@ (if @p ~ 'Pure@).
-data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
+data Statement :: ([Hakaru] -> Hakaru -> *) -> (Hakaru -> *) -> Purity -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors. So we can't make the constructor descriptions below available to Haddock.
     -- <https://github.com/hakaru-dev/hakaru/issues/6>
     
     -- A variable bound by 'MBind' to a measure expression.
     SBind
-        :: forall abt (a :: Hakaru)
-        .  {-# UNPACK #-} !(Variable a)
+        :: forall abt (v :: Hakaru -> *) (a :: Hakaru)
+        .  {-# UNPACK #-} !(v a)
         -> !(Lazy abt ('HMeasure a))
         -> [Index (abt '[])]
-        -> Statement abt 'Impure
+        -> Statement abt v 'Impure
 
     -- A variable bound by 'Let_' to an expression.
     SLet
-        :: forall abt p (a :: Hakaru)
-        .  {-# UNPACK #-} !(Variable a)
+        :: forall abt p (v :: Hakaru -> *) (a :: Hakaru)
+        .  {-# UNPACK #-} !(v a)
         -> !(Lazy abt a)
         -> [Index (abt '[])]
-        -> Statement abt p
+        -> Statement abt v p
 
 
     -- A weight; i.e., the first component of each argument to
     -- 'Superpose_'. This is a statement just so that we can avoid
     -- needing to atomize the weight itself.
     SWeight
-        :: forall abt
+        :: forall abt (v :: Hakaru -> *)
         .  !(Lazy abt 'HProb)
         -> [Index (abt '[])]
-        -> Statement abt 'Impure
+        -> Statement abt v 'Impure
 
     -- A monadic guard statement. If the scrutinee matches the
     -- pattern, then we bind the variables as usual; otherwise, we
@@ -557,12 +633,12 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- /monadic context/. In pure contexts we should be able to
     -- handle case analysis without putting anything onto the heap.
     SGuard
-        :: forall abt (xs :: [Hakaru]) (a :: Hakaru)
-        .  !(List1 Variable xs)
+        :: forall abt (v :: Hakaru -> *) (xs :: [Hakaru]) (a :: Hakaru)
+        .  !(List1 v xs)
         -> !(Pattern xs a)
         -> !(Lazy abt a)
         -> [Index (abt '[])]
-        -> Statement abt 'Impure
+        -> Statement abt v 'Impure
 
     -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
     --
@@ -570,27 +646,26 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- TODO: generalize to use a 'VarSet' so we can collapse these
     -- TODO: defunctionalize? These break pretty printing...
     SStuff0
-        :: forall abt
+        :: forall abt (v :: Hakaru -> *)
         .  (abt '[] 'HProb -> abt '[] 'HProb)
         -> [Index (abt '[])]
-        -> Statement abt 'ExpectP
+        -> Statement abt v 'ExpectP
     SStuff1
-        :: forall abt (a :: Hakaru)
-        . {-# UNPACK #-} !(Variable a)
+        :: forall abt (v :: Hakaru -> *) (a :: Hakaru)
+        . {-# UNPACK #-} !(v a)
         -> (abt '[] 'HProb -> abt '[] 'HProb)
         -> [Index (abt '[])]
-        -> Statement abt 'ExpectP
+        -> Statement abt v 'ExpectP
 
-
-statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
-statementVars (SBind x _ _)     = singletonVarSet x
-statementVars (SLet  x _ _)     = singletonVarSet x
+statementVars :: Statement abt Location p -> VarSet ('KProxy :: KProxy Hakaru)
+statementVars (SBind x _ _)     = singletonVarSet (fromLocation x)
+statementVars (SLet  x _ _)     = singletonVarSet (fromLocation x)
 statementVars (SWeight _ _)     = emptyVarSet
-statementVars (SGuard xs _ _ _) = toVarSet1 xs
+statementVars (SGuard xs _ _ _) = toVarSet1 (fromLocations1 xs)
 statementVars (SStuff0   _ _)   = emptyVarSet
-statementVars (SStuff1 x _ _)   = singletonVarSet x    
+statementVars (SStuff1 x _ _)   = singletonVarSet (fromLocation x)
 
--- | Is the variable bound by the statement?
+-- | Is the Location bound by the statement?
 --
 -- We return @Maybe ()@ rather than @Bool@ because in our primary
 -- use case we're already in the @Maybe@ monad and so it's easier
@@ -598,16 +673,17 @@ statementVars (SStuff1 x _ _)   = singletonVarSet x
 -- really rather have the @Bool@, then we can easily change things
 -- and use some @boolToMaybe@ function to do the coercion wherever
 -- needed.
-isBoundBy :: Variable (a :: Hakaru) -> Statement abt p -> Maybe ()
-x `isBoundBy` SBind  y  _ _   = const () <$> varEq x y
-x `isBoundBy` SLet   y  _ _   = const () <$> varEq x y
+isBoundBy :: Location (a :: Hakaru) -> Statement abt Location p -> Maybe ()
+x `isBoundBy` SBind  y  _ _   = const () <$> locEq x y
+x `isBoundBy` SLet   y  _ _   = const () <$> locEq x y
 _ `isBoundBy` SWeight   _ _   = Nothing
 x `isBoundBy` SGuard ys _ _ _ =
-    if memberVarSet x (toVarSet1 ys) -- TODO: just check membership directly, rather than going through VarSet
+    -- TODO: just check membership directly, rather than going through VarSet
+    if memberVarSet (fromLocation x) (toVarSet1 (fmap11 fromLocation ys))
     then Just ()
     else Nothing
 _ `isBoundBy` SStuff0   _ _   = Nothing
-x `isBoundBy` SStuff1 y _ _   = const () <$> varEq x y
+x `isBoundBy` SStuff1 y _ _   = const () <$> locEq x y
 
 
 -- TODO: remove this CPP guard, provided we don't end up with a cyclic dependency...
@@ -640,16 +716,16 @@ ppList = PP.sep . (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.co
 ppInds :: (ABT Term abt) => [Index (abt '[])] -> PP.Doc
 ppInds = ppList . map (ppVariable . indVar)
 
-ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
+ppStatement :: (ABT Term abt) => Int -> Statement abt Location p -> PP.Doc
 ppStatement p s =
     case s of
-    SBind x e inds ->
+    SBind (Location x) e inds ->
         PP.sep $ ppFun p "SBind"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
             , ppInds inds
             ]
-    SLet x e inds ->
+    SLet (Location x) e inds ->
         PP.sep $ ppFun p "SLet"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
@@ -662,7 +738,7 @@ ppStatement p s =
             ]
     SGuard xs pat e inds ->
         PP.sep $ ppFun p "SGuard"
-            [ PP.sep $ ppVariables xs
+            [ PP.sep $ ppVariables (fromLocations1 xs)
             , PP.sep $ prettyPrec_ 11 pat
             , PP.sep $ prettyPrec_ 11 e
             , ppInds inds
@@ -676,7 +752,7 @@ ppStatement p s =
             [ PP.text "TODO: ppStatement{SStuff1}"
             ]
 
-pretty_Statements :: (ABT Term abt) => [Statement abt p] -> PP.Doc
+pretty_Statements :: (ABT Term abt) => [Statement abt Location p] -> PP.Doc
 pretty_Statements []     = PP.text "[]"
 pretty_Statements (s:ss) =
     foldl
@@ -686,7 +762,7 @@ pretty_Statements (s:ss) =
     PP.$+$ PP.text "]"
 
 pretty_Statements_withTerm
-    :: (ABT Term abt) => [Statement abt p] -> abt '[] a -> PP.Doc
+    :: (ABT Term abt) => [Statement abt Location p] -> abt '[] a -> PP.Doc
 pretty_Statements_withTerm ss e =
     pretty_Statements ss PP.$+$ pretty e
 
@@ -700,6 +776,29 @@ prettyAssocs a = PP.vcat $ map go (fromAssocs a)
                          pretty e
                                 
 #endif
+
+
+-----------------------------------------------------------------
+-- | A function for evaluating any term to weak-head normal form.
+type TermEvaluator abt m =
+    forall a. abt '[] a -> m (Whnf abt a)
+
+-- | A function for \"performing\" an 'HMeasure' monadic action.
+-- This could mean actual random sampling, or simulated sampling
+-- by generating a new term and returning the newly bound variable,
+-- or anything else.
+type MeasureEvaluator abt m =
+    forall a. abt '[] ('HMeasure a) -> m (Whnf abt a)
+
+-- | A function for evaluating any case-expression to weak-head
+-- normal form.
+type CaseEvaluator abt m =
+    forall a b. abt '[] a -> [Branch a abt b] -> m (Whnf abt b)
+
+-- | A function for evaluating any variable to weak-head normal form.
+type VariableEvaluator abt m =
+    forall a. Variable a -> m (Whnf abt a)
+                            
 
 ----------------------------------------------------------------
 -- | This class captures the monadic operations needed by the
@@ -718,25 +817,26 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- | Internal function for renaming the variables bound by a
     -- statement. We return the renamed statement along with a substitution
     -- for mapping the old variable names to their new variable names.
-    freshenStatement
-        :: Statement abt p
-        -> m (Statement abt p, Assocs (Variable :: Hakaru -> *))
-    freshenStatement s =
+    freshLocStatement
+        :: Statement abt Variable p
+        -> m (Statement abt Location p, Assocs (Variable :: Hakaru -> *))
+    freshLocStatement s =
         case s of
-          SWeight _ _    -> return (s, mempty)
+          SWeight w e    -> return (SWeight w e, mempty)
           SBind x body i -> do
                x' <- freshenVar x
-               return (SBind x' body i, singletonAssocs x x')
-          SLet  x body i -> do
+               return (SBind (Location x') body i, singletonAssocs x x')
+          SLet x  body i -> do
                x' <- freshenVar x
-               return (SLet x' body i, singletonAssocs x x')
+               return (SLet (Location x') body i, singletonAssocs x x')
           SGuard xs pat scrutinee i -> do
                xs' <- freshenVars xs
-               return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
-          SStuff0   _ _ -> return (s, mempty)
+               return (SGuard (locations1 xs') pat scrutinee i,
+                       toAssocs1 xs xs')
+          SStuff0   e e' -> return (SStuff0 e e', mempty)
           SStuff1 x f i -> do
                x' <- freshenVar x
-               return (SStuff1 x' f i, singletonAssocs x x')
+               return (SStuff1 (Location x') f i, singletonAssocs x x')
 
 
     -- | Returns the current Indices. Currently, this is only
@@ -750,7 +850,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- because it may allow confusion between variables with the
     -- same name but different scopes (thus, may allow variable
     -- capture). Prefer using 'push_', 'push', or 'pushes'.
-    unsafePush :: Statement abt p -> m ()
+    unsafePush :: Statement abt Location p -> m ()
 
     -- | Call 'unsafePush' repeatedly. Is part of the class since
     -- we may be able to do this more efficiently than actually
@@ -758,7 +858,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     --
     -- N.B., this should push things in the same order as 'pushes'
     -- does.
-    unsafePushes :: [Statement abt p] -> m ()
+    unsafePushes :: [Statement abt Location p] -> m ()
     unsafePushes = mapM_ unsafePush
 
     -- | Look for the statement @s@ binding the variable. If found,
@@ -790,12 +890,134 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- 'Statement'. Perhaps we should have an alternative statement
     -- type which exposes the existential?
     select
-        :: Variable (a :: Hakaru)
-        -> (Statement abt p -> Maybe (m r))
+        :: Location (a :: Hakaru)
+        -> (Statement abt Location p -> Maybe (m r))
         -> m (Maybe r)
 
+    substVar :: Variable a -> abt '[] a
+             -> (forall b'. Variable b' -> m (abt '[] b'))
+    substVar x e = return . var
 
 
+    -- The first argument to @evaluateCase@ will be the
+    -- 'TermEvaluator' we're constructing (thus tying the knot).
+    evaluateCase :: TermEvaluator abt m -> CaseEvaluator abt m
+    {-# INLINE evaluateCase #-}
+    evaluateCase = defaultCaseEvaluator
+
+               
+    -- TODO: figure out how to abstract this so it can be reused by
+    -- 'constrainValue'. Especially the 'SBranch case of 'step'
+    -- TODO: we could speed up the case for free variables by having
+    -- the 'Context' also keep track of the largest free var. That way,
+    -- we can just check up front whether @varID x < nextFreeVarID@.
+    -- Of course, we'd have to make sure we've sufficiently renamed all
+    -- bound variables to be above @nextFreeVarID@; but then we have to
+    -- do that anyways.
+    evaluateVar :: MeasureEvaluator  abt m
+                -> TermEvaluator     abt m
+                -> VariableEvaluator abt m
+    evaluateVar perform evaluate_ = \x ->
+    -- If we get 'Nothing', then it turns out @x@ is a free variable
+      fmap (maybe (Neutral $ var x) id) . select (Location x) $ \s ->
+        case s of
+        SBind y e i -> do
+            Refl <- locEq (Location x) y
+            Just $ do
+                w <- perform $ caseLazy e fromWhnf id
+                unsafePush (SLet (Location x) (Whnf_ w) i)
+#ifdef __TRACE_DISINTEGRATE__
+                trace ("-- updated "
+                    ++ show (ppStatement 11 s)
+                    ++ " to "
+                    ++ show (ppStatement 11 (SLet (Location x) (Whnf_ w) i))
+                    ) $ return ()
+#endif
+                return w
+        SLet y e i -> do
+            Refl <- locEq (Location x) y
+            Just $ do
+                w <- caseLazy e return evaluate_
+                unsafePush (SLet (Location x) (Whnf_ w) i)
+                return w
+        -- These two don't bind any variables, so they definitely
+        -- can't match.
+        SWeight   _ _ -> Nothing
+        SStuff0   _ _ -> Nothing
+        -- These two do bind variables, but there's no expression we
+        -- can return for them because the variables are
+        -- untouchable\/abstract.
+        SStuff1 _ _ _ -> Just . return . Neutral $ var x
+        SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
+
+
+-- | A simple 'CaseEvaluator' which uses the 'DatumEvaluator' to
+-- force the scrutinee, and if 'matchBranches' succeeds then we
+-- call the 'TermEvaluator' to continue evaluating the body of the
+-- matched branch. If we 'GotStuck' then we return a 'Neutral' term
+-- of the case expression itself (n.b, any side effects from having
+-- called the 'DatumEvaluator' will still persist when returning
+-- this neutral term). If we didn't get stuck and yet none of the
+-- branches matches, then we throw an exception.
+defaultCaseEvaluator
+    :: forall abt m p
+    .  (ABT Term abt, EvaluationMonad abt m p)
+    => TermEvaluator abt m
+    -> CaseEvaluator abt m
+{-# INLINE defaultCaseEvaluator #-}
+defaultCaseEvaluator evaluate_ = evaluateCase_
+    where
+    -- TODO: At present, whenever we residualize a case expression we'll
+    -- generate a 'Neutral' term which will, when run, repeat the work
+    -- we're doing in the evaluation here. We could eliminate this
+    -- redundancy by introducing a new variable for @e@ each time this
+    -- function is called--- if only we had some way of getting those
+    -- variables put into the right place for when we residualize the
+    -- original scrutinee...
+    --
+    -- N.B., 'DatumEvaluator' is a rank-2 type so it requires a signature
+    evaluateDatum :: DatumEvaluator (abt '[]) m
+    evaluateDatum e = viewWhnfDatum <$> evaluate_ e
+
+    evaluateCase_ :: CaseEvaluator abt m
+    evaluateCase_ e bs = do
+        match <- matchBranches evaluateDatum e bs
+        case match of
+            Nothing ->
+                -- TODO: print more info about where this error
+                -- happened
+                --
+                -- TODO: rather than throwing a Haskell error,
+                -- instead capture the possibility of failure in
+                -- the 'EvaluationMonad' monad.
+                error "defaultCaseEvaluator: non-exhaustive patterns in case!"
+            Just GotStuck ->
+                return . Neutral . syn $ Case_ e bs
+            Just (Matched ss body) ->
+                pushes (toVarStatements ss) body >>= evaluate_
+
+
+toVarStatements :: Assocs (abt '[]) -> [Statement abt Variable p]
+toVarStatements = map (\(Assoc x e) -> SLet x (Thunk e) []) .
+                  fromAssocs 
+ 
+extSubst
+    :: forall abt a xs b m p. (EvaluationMonad abt m p)
+    => Variable a
+    -> abt '[] a
+    -> abt xs b
+    -> m (abt xs b)
+extSubst x e = substM x e (substVar x e)
+
+extSubsts
+    :: forall abt a xs m p. (EvaluationMonad abt m p)
+    => Assocs (abt '[])
+    -> abt xs a
+    -> m (abt xs a)
+extSubsts rho0 e0 =
+    F.foldlM (\e (Assoc x v) -> extSubst x v e) e0 (unAssocs rho0)
+
+           
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?
 
 
@@ -866,6 +1088,21 @@ freshInd s = do
   return $ Ind x s
 
 
+-- | Given a location, return a new Location with the same hint
+-- and type but with a fresh ID
+freshenLoc :: (EvaluationMonad abt m p)
+           => Location (a :: Hakaru) -> m (Location a)
+freshenLoc (Location x) = Location <$> freshenVar x
+
+-- | Call `freshenLoc` repeatedly
+freshenLocs :: (EvaluationMonad abt m p)
+            => List1 Location (ls :: [Hakaru])
+            -> m (List1 Location ls)
+freshenLocs Nil1         = return Nil1
+freshenLocs (Cons1 l ls) = Cons1 <$> freshenLoc l <*> freshenLocs ls
+
+                           
+
 -- | Add a statement to the top of the context, renaming any variables
 -- the statement binds and returning the substitution mapping the
 -- old variables to the new ones. This is safer than 'unsafePush'
@@ -875,10 +1112,10 @@ freshInd s = do
 -- 'pushes' instead.
 push_
     :: (ABT Term abt, EvaluationMonad abt m p)
-    => Statement abt p
+    => Statement abt Variable p
     -> m (Assocs (Variable :: Hakaru -> *))
 push_ s = do
-    (s',rho) <- freshenStatement s
+    (s',rho) <- freshLocStatement s
     unsafePush s'
     return rho
 
@@ -895,13 +1132,13 @@ push_ s = do
 -- than applying it to the term before calling the continuation.
 push
     :: (ABT Term abt, EvaluationMonad abt m p)
-    => Statement abt p   -- ^ the statement to push
+    => Statement abt Variable p   -- ^ the statement to push
     -> abt xs a          -- ^ the \"rest\" of the term
-    -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
-    -> m r               -- ^ the final result
-push s e k = do
+    -- -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
+    -> m (abt xs a)               -- ^ the final result
+push s e = do
     rho <- push_ s
-    k (renames rho e)
+    return (renames rho e)
 
 
 -- | Call 'push' repeatedly. (N.B., is more efficient than actually
@@ -910,14 +1147,14 @@ push s e k = do
 -- pushed last and is the closest in the final context.
 pushes
     :: (ABT Term abt, EvaluationMonad abt m p)
-    => [Statement abt p] -- ^ the statements to push
+    => [Statement abt Variable p] -- ^ the statements to push
     -> abt xs a          -- ^ the \"rest\" of the term
-    -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
-    -> m r               -- ^ the final result
-pushes ss e k = do
+    -- -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
+    -> m (abt xs a)         -- ^ the final result
+pushes ss e = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
-    k (renames rho e)
+    return (renames rho e)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

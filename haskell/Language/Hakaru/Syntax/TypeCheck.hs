@@ -68,6 +68,7 @@ import Language.Hakaru.Types.HClasses
     , HRadical(..), HContinuous(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Sing
     (sing_Literal, sing_MeasureOp)
@@ -185,6 +186,7 @@ mustCheck e = caseVarSyn e (const False) go
     go (U.Integrate_  _ _ _) = False
     go (U.Summate_    _ _ _) = False
     go (U.Product_    _ _ _) = False
+    go (U.Bucket_     _ _ _) = False
     go U.Reject_             = True
     go (U.Expect_ _ e2)      = mustCheck' e2
     go (U.Observe_  e1  _)   = mustCheck  e1
@@ -460,6 +462,12 @@ checkBinders xs eTyp e =
     Cons1 x xs' -> pushCtx x (bind x <$> checkBinders xs' eTyp e)
 
 
+-- HACK: Passing this list of variables feels like a hack
+-- it would be nice if it could be removed from this datatype
+data TypedReducer (abt :: [Hakaru] -> Hakaru -> *)
+                  (xs  :: [Hakaru])
+    = forall b. TypedReducer !(Sing b) (List1 Variable xs) (Reducer abt xs b)
+
 ----------------------------------------------------------------
 -- | Given a typing environment and a term, synthesize the term's
 -- type (and produce an elaborated term):
@@ -698,6 +706,13 @@ inferType = inferType_
                      return . TypedAST typ2 $
                             syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
                  _                  -> failwith_ "Product given bounds which are not discrete"
+
+       U.Bucket_ e1 e2 r1 -> do
+           e1' <- checkType_ SNat e1
+           e2' <- checkType_ SNat e2
+           TypedReducer typ1 Nil1 r1' <- inferReducer r1 Nil1
+           return . TypedAST typ1 $
+                  syn (Bucket e1' e2' r1')
 
        U.Expect_ e1 e2 -> do
            TypedAST typ1 e1' <- inferType_ e1
@@ -959,6 +974,48 @@ inferType = inferType_
              _ -> typeMismatch Nothing (Right typ) (Left "HFun")
         _            -> argumentNumberError
 
+  inferReducer :: U.Reducer xs U.U_ABT 'U.U
+               -> List1 Variable xs1
+               -> TypeCheckMonad (TypedReducer abt xs1)
+
+  inferReducer (U.R_Fanout_ r1 r2) xs = do
+      TypedReducer t1 _ r1' <- inferReducer r1 xs
+      TypedReducer t2 _ r2' <- inferReducer r2 xs
+      return (TypedReducer (sPair t1 t2) xs (Red_Fanout r1' r2'))
+
+  inferReducer (U.R_Index_ x n ix r1) xs = do
+      let (_, n') = caseBinds n
+      let b = makeVar x SNat
+      TypedReducer t1 _ r1' <- inferReducer r1 (Cons1 b xs)
+      n'' <- checkBinders xs SNat n'
+      caseBind ix $ \i ix1 ->
+          let i' = makeVar i SNat
+              (_, ix2) = caseBinds ix1 in do
+          ix3 <- pushCtx i' (checkBinders xs SNat ix2)
+          return . TypedReducer (SArray t1) xs $
+                 Red_Index n'' (bind i' ix3) r1'
+
+  inferReducer (U.R_Split_ b r1 r2) xs = do
+      TypedReducer t1 _ r1' <- inferReducer r1 xs
+      TypedReducer t2 _ r2' <- inferReducer r2 xs
+      caseBind b $ \x b1 ->
+       let (_, b2) = caseBinds b1
+           x'  = makeVar x SNat in do
+           b3 <- pushCtx x' (checkBinders xs sBool b2)
+           return . TypedReducer (sPair t1 t2) xs $
+                  (Red_Split (bind x' b3) r1' r2')
+
+  inferReducer U.R_Nop_ xs = return (TypedReducer sUnit xs Red_Nop)
+
+  inferReducer (U.R_Add_ e) xs =
+      caseBind e $ \x e1 ->
+      let (_, e2) = caseBinds e1
+          x'  = makeVar x SNat in
+          pushCtx x' $
+            inferBinders xs e2 $ \typ e3 -> do
+              h <- getHSemiring typ
+              return $ TypedReducer typ xs (Red_Add h (bind x' e3))
+
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And  = isBool a >>= \Refl -> return And
 make_NaryOp a U.Or   = isBool a >>= \Refl -> return Or
@@ -1039,7 +1096,6 @@ instance Show2 abt => Show (TypedASTs abt) where
     showsPrec p (TypedASTs typ es) =
         showParen_1x p "TypedASTs" typ es
 -}
-
 
 -- TODO: can we make this lazier in the second component of 'TypedASTs'
 -- so that we can perform case analysis on the type component before

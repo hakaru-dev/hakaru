@@ -1,11 +1,12 @@
-{-# LANGUAGE GADTs,
-             OverloadedStrings #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Main where
 
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
+import Language.Hakaru.Syntax.AST.Transforms (expandTransformations, optimizations)
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 import Language.Hakaru.CodeGen.CodeGenMonad
@@ -87,7 +88,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
   case prog' of
     Left err -> IO.hPutStrLn stderr err
     Right (TypedAST typ ast) -> do
-      let ast'    = TypedAST typ $ foldr id ast abtPasses
+      let ast'    = TypedAST typ $ foldr id ast (abtPasses $ optimize config)
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
@@ -115,8 +116,12 @@ compileHakaru prog = ask >>= \config -> lift $ do
 
   where hrule s = concat ["\n<=======================| "
                          ,s," |=======================>\n"]
-        abtPasses = [ expandTransformations
-                    , constantPropagation ]
+        -- abtPasses :: forall (a :: Hakaru)
+        --           .  Bool
+        --           -> [TrivialABT Term '[] a -> TrivialABT Term '[] a]
+        abtPasses b = [ expandTransformations
+                      , constantPropagation ]
+                      ++ (if b then [optimizations] else [])
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr

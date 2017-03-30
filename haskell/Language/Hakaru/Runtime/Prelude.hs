@@ -147,15 +147,15 @@ r_index n f Reducer{init=initR,accum=accumR,done=doneR} = Reducer
    }
 {-# INLINE r_index #-}
 
-r_split :: Bool
+r_split :: ((Int, xs) -> Bool)
         -> Reducer xs s a
-         -> Reducer xs s b
-         -> Reducer xs s (a,b)
+        -> Reducer xs s b
+        -> Reducer xs s (a,b)
 r_split b Reducer{init=initA,accum=accumA,done=doneA}
           Reducer{init=initB,accum=accumB,done=doneB} = Reducer
    { init  = \xs -> liftM2 (,) (initA xs) (initB xs)
    , accum = \bs i (s1, s2) ->
-             if b then accumA bs i s1 else accumB bs i s2
+             if (b (i,bs)) then accumA bs i s1 else accumB bs i s2
    , done  = \(s1, s2) -> liftM2 (,) (doneA s1) (doneB s2)
    }
 {-# INLINE r_split #-}
@@ -322,6 +322,7 @@ abs_ = abs
 
 thRootOf :: Int -> Double -> Double
 thRootOf a b = b ** (recip $ fromIntegral a)
+{-# INLINE thRootOf #-}
 
 array
     :: (G.Vector (MayBoxVec a) a)
@@ -342,6 +343,15 @@ a ! b = a G.! (fromIntegral b)
 size :: (G.Vector (MayBoxVec a) a) => MayBoxVec a a -> Int
 size v = fromIntegral (G.length v)
 {-# INLINE size #-}
+
+reduce
+    :: (G.Vector (MayBoxVec a) a)
+    => (a -> a -> a)
+    -> a
+    -> MayBoxVec a a
+    -> a
+reduce f n v = G.foldr f n v
+{-# INLINE reduce #-}
 
 product
     :: Num a

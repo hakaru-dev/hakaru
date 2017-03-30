@@ -115,8 +115,7 @@ import qualified Data.IntMap          as IM
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as S
 import           Data.Proxy           (KProxy(..))
-import qualified Data.Set             as Set (fromList)
-import           Data.Maybe           (fromMaybe)
+import           Data.Maybe           (fromMaybe, fromJust)
 
 import Language.Hakaru.Syntax.IClasses
 import Data.Number.Natural
@@ -130,7 +129,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy hiding (evaluate,update)
+import Language.Hakaru.Evaluation.Lazy
 import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
@@ -218,10 +217,10 @@ disintegrateWithVar hint typ m =
         constrainValue (var x) a
 #ifdef __TRACE_DISINTEGRATE__
         ss <- getStatements
-        locs <- getLocs
+        extras <- getExtras
         traceM ("-- disintegrate: finished constrainValue\n"
                 ++ show (pretty_Statements ss) ++ "\n"
-                ++ show (prettyLocs locs)
+                ++ show (prettyExtras extras)
                )
 #endif
         return b
@@ -306,644 +305,7 @@ firstM f (x,y) = (\z -> (z, y)) <$> f x
 -- More specifically, we need to ensure emissibility in the places
 -- where we call 'emitMBind'
 evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
-evaluate_ = evaluate perform evaluateCase
-
-
--- Copying `evaluate` and `update` from LH.Evaluation.Lazy for now (2016-06-28)
--- Beginning of copied code -------------------------------------------------
-
-evaluate
-    :: forall abt m p
-    .  (ABT Term abt)
-    => MeasureEvaluator abt (Dis abt)
-    -> (TermEvaluator abt (Dis abt) -> CaseEvaluator abt (Dis abt))
-    -> TermEvaluator  abt (Dis abt)
-{-# INLINE evaluate #-}
-evaluate perform evaluateCase = goEvaluate
-    where
-    evaluateCase_ :: CaseEvaluator abt (Dis abt)
-    evaluateCase_ = evaluateCase goEvaluate
-
-    goEvaluate :: TermEvaluator abt (Dis abt)
-    goEvaluate e0 =
-#ifdef __TRACE_DISINTEGRATE__
-      getIndices >>= \inds ->
-      trace ("-- goEvaluate: " ++ show (pretty e0)
-                               ++ "at " ++ show (ppInds inds)) $
-#endif
-      caseVarSyn e0 (update perform goEvaluate) $ \t ->
-        case t of
-        -- Things which are already WHNFs
-        Literal_ v               -> return . Head_ $ WLiteral v
-        Datum_   d               -> return . Head_ $ WDatum   d
-        Empty_   typ             -> return . Head_ $ WEmpty   typ
-        Array_   e1 e2           -> return . Head_ $ WArray e1 e2
-        ArrayLiteral_ es         -> return . Head_ $ WArrayLiteral es
-        Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
-        Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
-        MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
-        Plate :$ e1 :* e2 :* End -> return . Head_ $ WPlate e1 e2
-        MeasureOp_ o :$ es       -> return . Head_ $ WMeasureOp o es
-        Superpose_ pes           -> return . Head_ $ WSuperpose pes
-        Reject_ typ              -> return . Head_ $ WReject typ
-        -- We don't bother evaluating these, even though we could...
-        Integrate :$ e1 :* e2 :* e3 :* End ->
-            return . Head_ $ WIntegrate e1 e2 e3
-        Summate h1 h2 :$ e1 :* e2 :* e3 :* End ->
-            return . Neutral $ syn t
-            --return . Head_ $ WSummate   e1 e2 e3
-
-
-        -- Everything else needs some evaluation
-
-        App_ :$ e1 :* e2 :* End -> do
-            w1 <- goEvaluate e1
-            case w1 of
-                Neutral e1' -> return . Neutral $ P.app e1' e2
-                Head_   v1  -> evaluateApp v1
-            where
-            evaluateApp (WLam f)   =
-                -- call-by-name:
-                caseBind f $ \x f' -> do
-                    i <- getIndices
-                    push (SLet x (Thunk e2) i) f' goEvaluate
-            evaluateApp _ = error "evaluate{App_}: the impossible happened"
-
-        Let_ :$ e1 :* e2 :* End -> do
-            i <- getIndices
-            caseBind e2 $ \x e2' ->
-                push (SLet x (Thunk e1) i) e2' goEvaluate
-
-        CoerceTo_   c :$ e1 :* End -> C.coerceTo   c <$> goEvaluate e1
-        UnsafeFrom_ c :$ e1 :* End -> C.coerceFrom c <$> goEvaluate e1
-
-        -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
-        NaryOp_  o    es -> evaluateNaryOp  goEvaluate o es
-        ArrayOp_ o :$ es -> evaluateArrayOp goEvaluate o es
-        PrimOp_  o :$ es -> evaluatePrimOp  goEvaluate o es
-
-        -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
-        -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
-        Expect :$ e1 :* e2 :* End ->
-            error "TODO: evaluate{Expect}: unclear how to handle this without cyclic dependencies"
-        {-
-        -- BUG: can't call E.expect because of cyclic dependency
-            goEvaluate . E.expect e1 $ \e3 ->
-                syn (Let_ :$ e3 :* e2 :* End)
-        -}
-
-        Case_ e bs -> evaluateCase_ e bs
-
-        _ :$ _ -> error "evaluate: the impossible happened"
-
-evaluateNaryOp
-    :: (ABT Term abt)
-    => TermEvaluator abt (Dis abt)
-    -> NaryOp a
-    -> Seq (abt '[] a)
-    -> Dis abt (Whnf abt a)
-evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) S.empty es
-    where
-    -- TODO: there's got to be a more efficient way to do this...
-    mainLoop o op ws es =
-        case S.viewl es of
-        S.EmptyL   -> return $
-            case S.viewl ws of
-            S.EmptyL         -> identityElement o -- Avoid empty naryOps
-            w S.:< ws'
-                | S.null ws' -> w -- Avoid singleton naryOps
-                | otherwise    ->
-                    Neutral . syn . NaryOp_ o $ fmap fromWhnf ws
-        e S.:< es' -> do
-            w <- evaluate_ e
-            case matchNaryOp o w of
-                Nothing  -> mainLoop o op (snocLoop op ws w) es'
-                Just es2 -> mainLoop o op ws (es2 S.>< es')
-
-    snocLoop
-        :: (ABT syn abt)
-        => (Head abt a -> Head abt a -> Head abt a)
-        -> Seq (Whnf abt a)
-        -> Whnf abt a
-        -> Seq (Whnf abt a)
-    snocLoop op ws w1 =
-        -- TODO: immediately return @ws@ if @w1 == identityElement o@ (whenever identityElement is defined)
-        case S.viewr ws of
-        S.EmptyR    -> S.singleton w1
-        ws' S.:> w2 ->
-            case (w1,w2) of
-            (Head_ v1, Head_ v2) -> snocLoop op ws' (Head_ (op v1 v2))
-            _                    -> ws S.|> w1
-
-    matchNaryOp
-        :: (ABT Term abt)
-        => NaryOp a
-        -> Whnf abt a
-        -> Maybe (Seq (abt '[] a))
-    matchNaryOp o w =
-        case w of
-        Head_   _ -> Nothing
-        Neutral e ->
-            caseVarSyn e (const Nothing) $ \t ->
-                case t of
-                NaryOp_ o' es | o' == o -> Just es
-                _                       -> Nothing
-
-    -- TODO: move this off to Prelude.hs or somewhere...
-    identityElement :: (ABT Term abt) => NaryOp a -> Whnf abt a
-    identityElement o =
-        case o of
-        And    -> Head_ (WDatum dTrue)
-        Or     -> Head_ (WDatum dFalse)
-        Xor    -> Head_ (WDatum dFalse)
-        Iff    -> Head_ (WDatum dTrue)
-        Min  _ -> Neutral (syn (NaryOp_ o S.empty)) -- no identity in general (but we could do it by cases...)
-        Max  _ -> Neutral (syn (NaryOp_ o S.empty)) -- no identity in general (but we could do it by cases...)
-        -- TODO: figure out how to reuse 'P.zero_' and 'P.one_' here; requires converting thr @(syn . Literal_)@ into @(Head_ . WLiteral)@. Maybe we should change 'P.zero_' and 'P.one_' so they just return the 'Literal' itself rather than the @abt@?
-        Sum  HSemiring_Nat  -> Head_ (WLiteral (LNat  0))
-        Sum  HSemiring_Int  -> Head_ (WLiteral (LInt  0))
-        Sum  HSemiring_Prob -> Head_ (WLiteral (LProb 0))
-        Sum  HSemiring_Real -> Head_ (WLiteral (LReal 0))
-        Prod HSemiring_Nat  -> Head_ (WLiteral (LNat  1))
-        Prod HSemiring_Int  -> Head_ (WLiteral (LInt  1))
-        Prod HSemiring_Prob -> Head_ (WLiteral (LProb 1))
-        Prod HSemiring_Real -> Head_ (WLiteral (LReal 1))
-
-    -- | The evaluation interpretation of each NaryOp
-    evalOp
-        :: (ABT Term abt)
-        => NaryOp a
-        -> Head abt a
-        -> Head abt a
-        -> Head abt a
-    -- TODO: something more efficient\/direct if we can...
-    evalOp And      = \v1 v2 -> reflect (reify v1 && reify v2)
-    evalOp Or       = \v1 v2 -> reflect (reify v1 || reify v2)
-    evalOp Xor      = \v1 v2 -> reflect (reify v1 /= reify v2)
-    evalOp Iff      = \v1 v2 -> reflect (reify v1 == reify v2)
-    evalOp (Min  _) = error "TODO: evalOp{Min}"
-    evalOp (Max  _) = error "TODO: evalOp{Max}"
-    {-
-    evalOp (Min  _) = \v1 v2 -> reflect (reify v1 `min` reify v2)
-    evalOp (Max  _) = \v1 v2 -> reflect (reify v1 `max` reify v2)
-    evalOp (Sum  _) = \v1 v2 -> reflect (reify v1 + reify v2)
-    evalOp (Prod _) = \v1 v2 -> reflect (reify v1 * reify v2)
-    -}
-    -- HACK: this is just to have something to test. We really should reduce\/remove all this boilerplate...
-    evalOp (Sum  theSemi) =
-        \(WLiteral v1) (WLiteral v2) -> WLiteral $ evalSum  theSemi v1 v2
-    evalOp (Prod theSemi) =
-        \(WLiteral v1) (WLiteral v2) -> WLiteral $ evalProd theSemi v1 v2
-
-    -- TODO: even if only one of the arguments is a literal, if that literal is zero\/one, then we can still partially evaluate it. (As is done in the old finally-tagless code)
-    evalSum, evalProd :: HSemiring a -> Literal a -> Literal a -> Literal a
-    evalSum  HSemiring_Nat  = \(LNat  n1) (LNat  n2) -> LNat  (n1 + n2)
-    evalSum  HSemiring_Int  = \(LInt  i1) (LInt  i2) -> LInt  (i1 + i2)
-    evalSum  HSemiring_Prob = \(LProb p1) (LProb p2) -> LProb (p1 + p2)
-    evalSum  HSemiring_Real = \(LReal r1) (LReal r2) -> LReal (r1 + r2)
-    evalProd HSemiring_Nat  = \(LNat  n1) (LNat  n2) -> LNat  (n1 * n2)
-    evalProd HSemiring_Int  = \(LInt  i1) (LInt  i2) -> LInt  (i1 * i2)
-    evalProd HSemiring_Prob = \(LProb p1) (LProb p2) -> LProb (p1 * p2)
-    evalProd HSemiring_Real = \(LReal r1) (LReal r2) -> LReal (r1 * r2)
-
-isIndex :: (ABT Term abt) => Variable 'HNat -> Dis abt Bool
-isIndex v = do inds <- getIndices
-               return $ v `elem` map indVar inds                              
-
--- | For {evaluate, constrainValue v0} ArrayOp_ (Index _) :$ e1 :* e2 :* End
-indexArrayOp :: forall abt typs args a r
-             .  ( ABT Term abt
-                , typs ~ UnLCs args, args ~ LCs typs )
-             => ArrayOp typs a
-             -> SArgs abt args
-             -> (abt '[] a -> Dis abt r) -- evaluate or (constrainValue v0)
-             -> (Head abt ('HArray a)    -- e1 is in whnf, and
-                -> Variable 'HNat        -- e2 is a free under current indices
-                -> Dis abt r)
-             -> (Term abt ('HArray a)    -- e1 is neutral syntax
-                -> Dis abt r)
-             -> (abt '[] ('HArray a)     -- e1 is a free variable
-                -> Dis abt r) 
-             -> (abt '[] ('HArray a)     -- e1 is a multiloc, and
-                -> Variable 'HNat        -- e2 is a free under current indices
-                -> Dis abt r)
-             -> Dis abt r
-indexArrayOp o@(Index _) (e1 :* e2 :* End) kInd kArr kSyn kFree kMultiLoc = do
-  w1 <- evaluate_ e1
-  case w1 of
-    Head_ arr@(WArray _ b)  -> caseBind b $ \x body ->
-      evalIndex (kInd . flip (rename x) body) (kArr arr)
-    Head_ (WEmpty _)        -> error "TODO: indexArrayOp o (Empty_ :* _ :* End)"
-    Head_ (WArrayLiteral _) -> error "TODO: indexArrayOp o (ArrayLiteral_ :* _ :* End)"
-    Head_ _          -> error "indexArrayOp: unknown whnf of array type"
-    Neutral e1' -> flip (caseVarSyn e1') kSyn $ \x ->
-      do locs <- getLocs
-         case (lookupAssoc x locs) of
-           Nothing              -> kFree e1'
-           Just (Loc _ _)       -> error "indexArrayOp: impossible, we have a Neutral term"
-           Just (MultiLoc l js) ->
-             evalIndex ((kInd . var =<<) . mkLoc Text.empty l . flip extendLocInds js)
-                       (kMultiLoc e1')
-    where
-      evalIndex :: (ABT Term abt)
-                => (Variable 'HNat -> Dis abt r)
-                -> (Variable 'HNat -> Dis abt r)
-                -> Dis abt r
-      evalIndex thenCase elseCase = do
-            w2 <- evaluate_ e2
-            caseWhnf w2 (const bot) $ \term -> -- bot if index is in whnf (eg. a literal num)
-              flip (caseVarSyn term) (const bot) $ \v -> -- bot if index is neutral syntax
-                do isInd <- isIndex v
-                   if isInd then thenCase v else elseCase v
-indexArrayOp _ _ _ _ _ _ _ = error "indexArrayOp called on incorrect ArrayOp"
-
-isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
-isLitBool e = caseVarSyn e (const Nothing) $ \b ->
-                  case b of
-                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
-                                                  Just Refl -> Just d
-                                                  Nothing   -> Nothing
-                    _ -> Nothing
-
-isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
-isLitTrue (Datum tdTrue sBool (Inl Done)) = True
-isLitTrue _                               = False
-
-isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
-isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
-isLitFalse _                                      = False
-
-evaluateArrayOp
-    :: ( ABT Term abt
-       , typs ~ UnLCs args, args ~ LCs typs)
-    => TermEvaluator abt (Dis abt)
-    -> ArrayOp typs a
-    -> SArgs abt args
-    -> Dis abt (Whnf abt a)
-evaluateArrayOp evaluate_ = go
-    where
-    go o@(Index _) = \args@(e1 :* e2 :* End) ->
-      let returnIndex = return . Neutral . syn
-          generalCase = indexArrayOp o args
-                          evaluate_
-                          (\arr v -> returnIndex (ArrayOp_ o :$ fromHead arr :* var v :* End))
-                          (\s     -> returnIndex (ArrayOp_ o :$ syn s        :* e2    :* End))
-                          (\e1'   -> returnIndex (ArrayOp_ o :$ e1'          :* e2    :* End))
-                          (\e1' v -> returnIndex (ArrayOp_ o :$ e1'          :* var v :* End))
-      in caseVarSyn e1 (const generalCase) $ \t ->
-          case t of
-            -- Special case for [true,false] ! i, and [false, true] ! i
-            -- This helps us disintegrate bern
-            arr@(ArrayLiteral_ [a1,a2]) ->
-                 case (isLitBool a1, isLitBool a2) of
-                   (Just b1, Just b2)
-                       | (isLitTrue b1 && isLitFalse b2) ||
-                         (isLitTrue b2 && isLitFalse b1) ->
-                             fromWhnf <$> evaluate_ e2 >>= \i ->
-                             returnIndex (ArrayOp_ o :$ syn arr :* i :* End)
-                       | otherwise -> error "evaluateArrayOp: Cannot invert (Index [b,b] i)"
-                   _ -> error "TODO: evaluateArrayOp (Index [a1,a2] i)"
-            -- All other cases of array indexing
-            _ -> generalCase
-                   
-    go o@(Size _) = \(e1 :* End) -> do
-        w1 <- evaluate_ e1
-        case w1 of
-            Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
-            Head_   v1  ->
-                case head2array v1 of
-                WAEmpty           -> return . Head_ $ WLiteral (LNat 0)
-                WAArray e3 _      -> evaluate_ e3
-                WAArrayLiteral es -> return . Head_ . WLiteral $ listLengthNat es
-
-    go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
-        error "TODO: evaluateArrayOp{Reduce}"
-
-listLengthNat :: [a] -> Literal 'HNat
-listLengthNat = C.primCoerceFrom (C.Signed HRing_Int) . LInt . toInteger . length
-
-data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    WAEmpty :: ArrayHead abt a
-    WAArray
-        :: !(abt '[] 'HNat)
-        -> !(abt '[ 'HNat] a)
-        -> ArrayHead abt a
-    WAArrayLiteral :: [abt '[] a] -> ArrayHead abt a           
-
-head2array :: Head abt ('HArray a) -> ArrayHead abt a
-head2array (WEmpty _)     = WAEmpty
-head2array (WArray e1 e2) = WAArray e1 e2
-head2array (WArrayLiteral es) = WAArrayLiteral es
-
-impl, diff, nand, nor :: Bool -> Bool -> Bool
-impl x y = not x || y
-diff x y = x && not y
-nand x y = not (x && y)
-nor  x y = not (x || y)                            
-
-evaluatePrimOp
-    :: forall abt p typs args a
-    .  ( ABT Term abt
-       , typs ~ UnLCs args, args ~ LCs typs)
-    => TermEvaluator abt (Dis abt)
-    -> PrimOp typs a
-    -> SArgs abt args
-    -> Dis abt (Whnf abt a)
-evaluatePrimOp evaluate_ = go
-    where
-    -- HACK: we don't have any way of saying these functions haven't reduced even though it's not actually a neutral term.
-    neu1 :: forall b c
-        .  (abt '[] b -> abt '[] c)
-        -> abt '[] b
-        -> Dis abt (Whnf abt c)
-    neu1 f e = (Neutral . f . fromWhnf) <$> evaluate_ e
-
-    neu2 :: forall b c d
-        .  (abt '[] b -> abt '[] c -> abt '[] d)
-        -> abt '[] b
-        -> abt '[] c   
-        -> Dis abt (Whnf abt d)
-    neu2 f e1 e2 = do e1' <- fromWhnf <$> evaluate_ e1
-                      e2' <- fromWhnf <$> evaluate_ e2
-                      return . Neutral $ f e1' e2'
-
-    rr1 :: forall b b' c c'
-        .  (Interp b b', Interp c c')
-        => (b' -> c')
-        -> (abt '[] b -> abt '[] c)
-        -> abt '[] b
-        -> Dis abt (Whnf abt c)
-    rr1 f' f e = do
-        w <- evaluate_ e
-        return $
-            case w of
-            Neutral e' -> Neutral $ f e'
-            Head_   v  -> Head_ . reflect $ f' (reify v)
-
-    rr2 :: forall b b' c c' d d'
-        .  (Interp b b', Interp c c', Interp d d')
-        => (b' -> c' -> d')
-        -> (abt '[] b -> abt '[] c -> abt '[] d)
-        -> abt '[] b
-        -> abt '[] c
-        -> Dis abt (Whnf abt d)
-    rr2 f' f e1 e2 = do
-        w1 <- evaluate_ e1
-        w2 <- evaluate_ e2
-        return $
-            case w1 of
-            Neutral e1' -> Neutral $ f e1' (fromWhnf w2)
-            Head_   v1  ->
-                case w2 of
-                Neutral e2' -> Neutral $ f (fromWhnf w1) e2'
-                Head_   v2  -> Head_ . reflect $ f' (reify v1) (reify v2)
-
-    primOp2_
-        :: forall b c d
-        .  PrimOp '[ b, c ] d -> abt '[] b -> abt '[] c -> abt '[] d
-    primOp2_ o e1 e2 = syn (PrimOp_ o :$ e1 :* e2 :* End)
-
-    -- TODO: something more efficient\/direct if we can...
-    go Not  (e1 :* End)       = rr1 not  P.not  e1
-    go Impl (e1 :* e2 :* End) = rr2 impl (primOp2_ Impl) e1 e2
-    go Diff (e1 :* e2 :* End) = rr2 diff (primOp2_ Diff) e1 e2
-    go Nand (e1 :* e2 :* End) = rr2 nand P.nand e1 e2
-    go Nor  (e1 :* e2 :* End) = rr2 nor  P.nor  e1 e2
-
-    -- HACK: we don't have a way of saying that 'Pi' (or 'Infinity',...) is in fact a head; so we're forced to call it neutral which is a lie. We should add constructor(s) to 'Head' to cover these magic constants; probably grouped together under a single constructor called something like @Constant@. Maybe should group them like that in the AST as well?
-    go Pi        End               = return $ Neutral P.pi
-
-    -- We treat trig functions as strict, thus forcing their
-    -- arguments; however, to avoid fuzz issues we don't actually
-    -- evaluate the trig functions.
-    --
-    -- HACK: we might should have some other way to make these
-    -- 'Whnf' rather than calling them neutral terms; since they
-    -- aren't, in fact, neutral!
-    go Sin       (e1 :* End)       = neu1 P.sin   e1
-    go Cos       (e1 :* End)       = neu1 P.cos   e1
-    go Tan       (e1 :* End)       = neu1 P.tan   e1
-    go Asin      (e1 :* End)       = neu1 P.asin  e1
-    go Acos      (e1 :* End)       = neu1 P.acos  e1
-    go Atan      (e1 :* End)       = neu1 P.atan  e1
-    go Sinh      (e1 :* End)       = neu1 P.sinh  e1
-    go Cosh      (e1 :* End)       = neu1 P.cosh  e1
-    go Tanh      (e1 :* End)       = neu1 P.tanh  e1
-    go Asinh     (e1 :* End)       = neu1 P.asinh e1
-    go Acosh     (e1 :* End)       = neu1 P.acosh e1
-    go Atanh     (e1 :* End)       = neu1 P.atanh e1
-
-    -- TODO: deal with how we have better types for these three ops than Haskell does...
-    -- go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
-    go RealPow   (e1 :* e2 :* End) = neu2 (P.**) e1 e2
-
-    -- HACK: these aren't actually neutral!
-    -- BUG: we should try to cancel out @(exp . log)@ and @(log . exp)@
-    go Exp       (e1 :* End)       = neu1 P.exp e1
-    go Log       (e1 :* End)       = neu1 P.log e1
-
-    -- HACK: these aren't actually neutral!
-    go (Infinity h)     End        =
-        case h of
-          HIntegrable_Nat  -> return . Neutral $ P.primOp0_ (Infinity h)
-          HIntegrable_Prob -> return $ Neutral P.infinity
-
-    go GammaFunc   (e1 :* End)            = neu1 P.gammaFunc e1
-    go BetaFunc    (e1 :* e2 :* End)      = neu2 P.betaFunc  e1 e2
-
-    go (Equal  theEq)   (e1 :* e2 :* End) = rrEqual theEq  e1 e2
-    go (Less   theOrd)  (e1 :* e2 :* End) = rrLess  theOrd e1 e2
-    go (NatPow theSemi) (e1 :* e2 :* End) =
-        case theSemi of
-        HSemiring_Nat    -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
-        HSemiring_Int    -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
-        HSemiring_Prob   -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
-        HSemiring_Real   -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
-    go (Negate theRing) (e1 :* End) =
-        case theRing of
-        HRing_Int        -> rr1 negate P.negate e1
-        HRing_Real       -> rr1 negate P.negate e1
-    go (Abs    theRing) (e1 :* End) =
-        case theRing of
-        HRing_Int        -> rr1 (unsafeNatural . abs) P.abs_ e1
-        HRing_Real       -> rr1 (unsafeNonNegativeRational  . abs) P.abs_ e1
-    go (Signum theRing) (e1 :* End) =
-        case theRing of
-        HRing_Int        -> rr1 signum P.signum e1
-        HRing_Real       -> rr1 signum P.signum e1
-    go (Recip  theFractional) (e1 :* End) =
-        case theFractional of
-        HFractional_Prob -> rr1 recip  P.recip  e1
-        HFractional_Real -> rr1 recip  P.recip  e1
-    go (NatRoot theRadical) (e1 :* e2 :* End) =
-        case theRadical of
-        HRadical_Prob -> neu2 (flip P.thRootOf) e1 e2
-    {-
-    go (NatRoot theRadical) (e1 :* e2 :* End) =
-        case theRadical of
-        HRadical_Prob -> rr2 natRoot (flip P.thRootOf) e1 e2
-    go (Erf theContinuous) (e1 :* End) =
-        case theContinuous of
-        HContinuous_Prob -> rr1 erf P.erf e1
-        HContinuous_Real -> rr1 erf P.erf e1
-    -}
-    go op _ = error $ "TODO: evaluatePrimOp{" ++ show op ++ "}"
-
-
-    rrEqual
-        :: forall b. HEq b -> abt '[] b -> abt '[] b -> Dis abt (Whnf abt HBool)
-    rrEqual theEq =
-        case theEq of
-        HEq_Nat    -> rr2 (==) (P.==)
-        HEq_Int    -> rr2 (==) (P.==)
-        HEq_Prob   -> rr2 (==) (P.==)
-        HEq_Real   -> rr2 (==) (P.==)
-        HEq_Array aEq -> error "TODO: rrEqual{HEq_Array}"
-        HEq_Bool   -> rr2 (==) (P.==)
-        HEq_Unit   -> rr2 (==) (P.==)
-        HEq_Pair   aEq bEq ->
-            \e1 e2 -> do
-                w1 <- evaluate_ e1
-                w2 <- evaluate_ e2
-                case w1 of
-                    Neutral e1' ->
-                        return . Neutral
-                            $ P.primOp2_ (Equal theEq) e1' (fromWhnf w2)
-                    Head_   v1  ->
-                        case w2 of
-                        Neutral e2' ->
-                            return . Neutral
-                                $ P.primOp2_ (Equal theEq) (fromHead v1) e2'
-                        Head_ v2 -> do
-                            let (v1a, v1b) = reifyPair v1
-                            let (v2a, v2b) = reifyPair v2
-                            wa <- rrEqual aEq v1a v2a
-                            wb <- rrEqual bEq v1b v2b
-                            return $
-                                case wa of
-                                Neutral ea ->
-                                    case wb of
-                                    Neutral eb -> Neutral (ea P.&& eb)
-                                    Head_   vb
-                                        | reify vb  -> wa
-                                        | otherwise -> Head_ $ WDatum dFalse
-                                Head_ va
-                                    | reify va  -> wb
-                                    | otherwise -> Head_ $ WDatum dFalse
-
-        HEq_Either aEq bEq -> error "TODO: rrEqual{HEq_Either}"
-
-    rrLess
-        :: forall b. HOrd b -> abt '[] b -> abt '[] b -> Dis abt (Whnf abt HBool)
-    rrLess theOrd =
-        case theOrd of
-        HOrd_Nat    -> rr2 (<) (P.<)
-        HOrd_Int    -> rr2 (<) (P.<)
-        HOrd_Prob   -> rr2 (<) (P.<)
-        HOrd_Real   -> rr2 (<) (P.<)
-        HOrd_Array aOrd -> error "TODO: rrLess{HOrd_Array}"
-        HOrd_Bool   -> rr2 (<) (P.<)
-        HOrd_Unit   -> rr2 (<) (P.<)
-        HOrd_Pair aOrd bOrd ->
-            \e1 e2 -> do
-                w1 <- evaluate_ e1
-                w2 <- evaluate_ e2
-                case w1 of
-                    Neutral e1' ->
-                        return . Neutral
-                            $ P.primOp2_ (Less theOrd) e1' (fromWhnf w2)
-                    Head_   v1  ->
-                        case w2 of
-                        Neutral e2' ->
-                            return . Neutral
-                                $ P.primOp2_ (Less theOrd) (fromHead v1) e2'
-                        Head_ v2 -> do
-                            let (v1a, v1b) = reifyPair v1
-                            let (v2a, v2b) = reifyPair v2
-                            error "TODO: rrLess{HOrd_Pair}"
-                            -- BUG: The obvious recursion won't work because we need to know when the first components are equal before recursing (to implement lexicographic ordering). We really need a ternary comparison operator like 'compare'.
-        HOrd_Either aOrd bOrd -> error "TODO: rrLess{HOrd_Either}"
-                  
-update
-    :: forall abt
-    .  (ABT Term abt)
-    => MeasureEvaluator  abt (Dis abt)
-    -> TermEvaluator     abt (Dis abt)
-    -> VariableEvaluator abt (Dis abt)
-update perform evaluate_ x =
-    do locs <- getLocs
-    -- If we get 'Nothing', then it turns out @x@ is a free variable
-       maybe (return $ Neutral (var x)) lookForLoc (lookupAssoc x locs)
-    where lookForLoc (Loc      l jxs) =
-            (maybe (freeLocError l) return =<<) . select l $ \s ->
-                case s of
-                SBind l' e ixs -> do
-                  Refl <- varEq l l'
-                  Just $ do
-                    w <- withIndices ixs $ perform (caseLazy e fromWhnf id)
-                    unsafePush (SLet l (Whnf_ w) ixs)
-#ifdef __TRACE_DISINTEGRATE__
-                    trace ("-- updated "
-                           ++ show (ppStatement 11 s)
-                           ++ " to "
-                           ++ show (ppStatement 11 (SLet l (Whnf_ w) ixs))
-                          ) $ return ()
-#endif
-                    let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
-                        w' = renames as (fromWhnf w)
-                    inds <- getIndices
-                    withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
-                SLet  l' e ixs -> do
-                  Refl <- varEq l l'
-                  Just $ do
-                    w <- withIndices ixs $ caseLazy e return evaluate_
-                    unsafePush (SLet l (Whnf_ w) ixs)
-                    let as = toAssocs $ zipWith Assoc (map indVar ixs) jxs
-                        w' = renames as (fromWhnf w)
-                    inds <- getIndices
-                    withIndices inds $ return (fromMaybe (Neutral w') (toWhnf w'))
-                -- This does not bind any variables, so it definitely can't match.
-                SWeight   _ _ -> Nothing
-                -- This does bind variables,
-                -- but there's no expression we can return for it
-                -- because the variables are untouchable\/abstract.
-                SGuard ls pat scrutinee i -> Just . return . Neutral $ var x
-
-          -- Case for MultiLocs
-          lookForLoc (MultiLoc l jxs) = return (Neutral $ var x)
-                      
----------------------------------------------------------- End of copied code --
-                 
-
--- | The forward disintegrator's function for evaluating case
--- expressions. First we try calling 'defaultCaseEvaluator' which
--- will evaluate the scrutinee and select the matching branch (if
--- any). But that doesn't work out in general, since the scrutinee
--- may contain heap-bound variables. So our fallback definition
--- will push a 'SGuard' onto the heap and then continue evaluating
--- each branch (thereby duplicating the continuation, calling it
--- once on each branch).
-evaluateCase
-    :: forall abt
-    .  (ABT Term abt)
-    => TermEvaluator abt (Dis abt)
-    -> CaseEvaluator abt (Dis abt)
-{-# INLINE evaluateCase #-}
-evaluateCase evaluate_ = evaluateCase_
-    where
-    evaluateCase_ :: CaseEvaluator abt (Dis abt)
-    evaluateCase_ e bs =
-        defaultCaseEvaluator evaluate_ e bs
-        <|> evaluateBranches e bs
-
-    evaluateBranches :: CaseEvaluator abt (Dis abt)
-    evaluateBranches e = choose . map evaluateBranch
-        where
-        evaluateBranch (Branch pat body) =
-            let (vars,body') = caseBinds body
-            in getIndices >>= \i ->
-                push (SGuard vars pat (Thunk e) i) body' evaluate_
-
+evaluate_ = evaluate perform
 
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
@@ -956,11 +318,11 @@ perform :: forall abt. (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform = \e0 ->
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
-    getLocs >>= \locs ->
+    getExtras >>= \extras ->
     getIndices >>= \inds ->
     trace ("\n-- perform --\n"
         ++ "at " ++ show (ppInds inds) ++ "\n"
-        ++ show (prettyLocs locs) ++ "\n"
+        ++ show (prettyExtras extras) ++ "\n"
         ++ show (pretty_Statements_withTerm ss e0)
         ++ "\n") $
 #endif
@@ -972,24 +334,24 @@ perform = \e0 ->
     performTerm (MBind :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' -> do
             inds <- getIndices
-            push (SBind x (Thunk e1) inds) e2' perform
+            push (SBind x (Thunk e1) inds) e2' >>= perform
 
     performTerm (Plate :$ e1 :* e2 :* End) =  do
       x1 <- pushPlate e1 e2
-      return (Neutral (var x1))
+      return $ fromJust (toWhnf x1)
 
     performTerm (Superpose_ pes) = do
         inds <- getIndices
         if not (null inds) && L.length pes > 1 then bot else
           emitFork_ (P.superpose . fmap ((,) P.one))
-                    (fmap (\(p,e) -> push (SWeight (Thunk p) inds) e perform)
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) inds) e >>= perform)
                           pes)
 
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' -> do
             inds <- getIndices
-            push (SLet x (Thunk e1) inds) e2' perform
+            push (SLet x (Thunk e1) inds) e2' >>= perform
 
     -- TODO: we could optimize this by calling some @evaluateTerm@
     -- directly, rather than calling 'syn' to rebuild @e0@ from
@@ -1010,7 +372,7 @@ perform = \e0 ->
 
 
     performVar :: forall a. Variable ('HMeasure a) -> Dis abt (Whnf abt a)
-    performVar = performWhnf <=< update perform evaluate_
+    performVar = performWhnf <=< evaluateVar perform evaluate_
 
     -- BUG: it's not clear this is actually doing the right thing for its call-sites. In particular, we should handle 'Case_' specially, to deal with the hygiene bug in 'testPerform1b'...
     --
@@ -1132,6 +494,21 @@ getHeapVars =
     Dis $ \_ c h -> c (foldMap statementVars (statements h)) h
 
 ----------------------------------------------------------------
+isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
+isLitBool e = caseVarSyn e (const Nothing) $ \b ->
+                  case b of
+                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
+                                                  Just Refl -> Just d
+                                                  Nothing   -> Nothing
+                    _ -> Nothing
+
+isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitTrue (Datum tdTrue sBool (Inl Done)) = True
+isLitTrue _                               = False
+
+isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
+isLitFalse _                                      = False
 ----------------------------------------------------------------
 -- | Given an emissible term @v0@ (the first argument) and another
 -- term @e0@ (the second argument), compute the constraints such
@@ -1150,12 +527,12 @@ constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
-    getLocs >>= \locs ->
+    getExtras >>= \extras ->
     getIndices >>= \inds ->
     trace ("\n-- constrainValue: " ++ show (pretty v0) ++ "\n"           
         ++ show (pretty_Statements_withTerm ss e0) ++ "\n"
         ++ "at " ++ show (ppInds inds) ++ "\n"
-        ++ show (prettyLocs locs) ++ "\n"
+        ++ show (prettyExtras extras) ++ "\n"
           ) $
 #endif
     caseVarSyn e0 (constrainVariable v0) $ \t ->
@@ -1165,37 +542,36 @@ constrainValue v0 e0 =
         Array_   n e             ->
             caseBind e $ \x body -> do j <- freshInd n
                                        let x'    = indVar j
-                                           body' = rename x x' body
-                                       inds <- getIndices
+                                       body' <- extSubst x (var x') body
+                                       inds  <- getIndices
                                        withIndices (extendIndices j inds) $
                                                    constrainValue (v0 P.! (var x')) body'
                                                    -- TODO use meta-index
         ArrayLiteral_ _          -> error "TODO: disintegrate literal arrays"
-        ArrayOp_ o@(Index _) :$ args@(e1 :* e2 :* End) ->
-            let generalCase = indexArrayOp o args
-                                             (constrainValue v0)
-                                             (const $ const bot)
-                                             (const bot)
-                                             (const bot)
-                                             (const $ const bot)
-            in caseVarSyn e1 (const generalCase) $ \t ->
-                case t of
-                  -- Special case for [true,false] ! i, and [false, true] ! i
-                  -- This helps us disintegrate bern
-                  arr@(ArrayLiteral_ [a1,a2]) ->
-                      case (jmEq1 (typeOf v0) sBool) of
-                        Just Refl ->
-                            let constrainInd = flip constrainValue e2
-                            in case (isLitBool a1, isLitBool a2) of
-                                 (Just b1, Just b2)
-                                     | isLitTrue b1 && isLitFalse b2 ->
-                                         constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
-                                     | isLitTrue b2 && isLitFalse b1 ->
-                                         constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
-                                     | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
-                                 _ -> error "TODO: constrainValue (Index [b1,b2] i)"
-                        Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
-                  _ -> generalCase
+        ArrayOp_ o@(Index _) :$ args@(e1 :* e2 :* End) -> do
+            w1 <- evaluate_ e1
+            case w1 of
+              Neutral e1' -> bot
+              Head_ (WArray _ b) -> caseBind b $ \x body ->
+                                    extSubst x e2 body >>= constrainValue v0
+              Head_ (WEmpty _) -> bot -- TODO: check this
+              -- Special case for [true,false] ! i, and [false, true] ! i
+              -- This helps us disintegrate bern
+              Head_ (WArrayLiteral [a1,a2]) ->
+                  case (jmEq1 (typeOf v0) sBool) of
+                    Just Refl ->
+                        let constrainInd = flip constrainValue e2
+                        in case (isLitBool a1, isLitBool a2) of
+                             (Just b1, Just b2)
+                                 | isLitTrue b1 && isLitFalse b2 ->
+                                     constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
+                                 | isLitTrue b2 && isLitFalse b1 ->
+                                     constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
+                                 | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
+                             _ -> error "TODO: constrainValue (Index [b1,b2] i)"
+                    Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
+              Head_ (WArrayLiteral _) -> bot
+              _ -> error "constrainValue {ArrayOp Index}: uknown whnf of array type"
                            
         ArrayOp_ _ :$ _          -> error "TODO: disintegrate non-Index arrayOps"
         Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"
@@ -1225,7 +601,7 @@ constrainValue v0 e0 =
         Reject_ _                -> bot -- giving up.
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push (SLet x (Thunk e1) []) e2' (constrainValue v0)
+                push (SLet x (Thunk e1) []) e2' >>= constrainValue v0
 
         CoerceTo_   c :$ e1 :* End ->
             -- TODO: we need to insert some kind of guard that says
@@ -1267,7 +643,7 @@ constrainValue v0 e0 =
                     Just GotStuck ->
                         constrainBranches v0 e bs
                     Just (Matched rho body) ->
-                        pushes (toStatements rho) body (constrainValue v0)
+                        pushes (toVarStatements rho) body >>= constrainValue v0
             <|> constrainBranches v0 e bs
 
         _ :$ _ -> error "constrainValue: the impossible happened"
@@ -1294,7 +670,8 @@ constrainBranches v0 e = choose . map constrainBranch
     where
     constrainBranch (Branch pat body) =
         let (vars,body') = caseBinds body
-        in push (SGuard vars pat (Thunk e) []) body' (constrainValue v0)
+        in push (SGuard vars pat (Thunk e) []) body'
+               >>= constrainValue v0
 
 
 constrainDatum
@@ -1369,53 +746,38 @@ patternOfDatum =
 constrainVariable
     :: (ABT Term abt) => abt '[] a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
-    do locs <- getLocs
+    do extras <- getExtras
     -- If we get 'Nothing', then it turns out @x@ is a free variable.
     -- If @x@ is a free variable, then it's a neutral term; and we
     -- return 'bot' for neutral terms
-       maybe bot lookForLoc (lookupAssoc x locs)
+       maybe bot lookForLoc (lookupAssoc x extras)
     where lookForLoc (Loc      l jxs) =
-              let -- Assumption: js has no duplicates
-                  permutes is js = length is == length js && 
-                                   Set.fromList is == Set.fromList (map indVar js)
               -- If we get 'Nothing', then it turns out @l@ is a free location.
               -- This is an error because of the invariant:
-              --   if there exists an 'Assoc x ({Multi}Loc l _)' inside @locs@
+              --   if there exists an 'Assoc x ({Multi}Loc l _)' inside @extras@
               --   then there must be a statement on the 'ListContext' that binds @l@
-              in (maybe (freeLocError l) return =<<) . select l $ \s ->
+              (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
                     SBind l' e ixs -> do
-                           Refl <- varEq l l'
+                           Refl <- locEq l l'
                            guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
                              guard (jxs `permutes` inds) -- will bot otherwise
-                             e' <- apply (zip ixs inds) (fromLazy e)
+                             e' <- apply ixs inds (fromLazy e)
                              constrainOutcome v0 e'
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SLet  l' e ixs -> do
-                           Refl <- varEq l l'
+                           Refl <- locEq l l'
                            guard (length ixs == length jxs) -- will error otherwise
                            Just $ do
                              inds <- getIndices
                              guard (jxs `permutes` inds) -- will bot otherwise
-                             e' <- apply (zip ixs inds) (fromLazy e)
+                             e' <- apply ixs inds (fromLazy e)
                              constrainValue v0 e'
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SWeight _ _ -> Nothing
                     SGuard ls' pat scrutinee i -> error "TODO: constrainVariable{SGuard}"
-          -- Case for MultiLoc
-          lookForLoc (MultiLoc l jxs) = do
-#ifdef __TRACE_DISINTEGRATE__
-              traceM $ "looking for MultiLoc: " ++ show (prettyLoc (MultiLoc l jxs))
-#endif       
-              n    <- sizeInnermostInd l
-              j    <- freshInd n
-              x'   <- mkLoc Text.empty l (extendLocInds (indVar j) jxs)
-              inds <- getIndices
-              withIndices (extendIndices j inds) $
-                          constrainValue (v0 P.! (var $ indVar j)) (var x')
-                                            -- TODO use meta-index
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
@@ -1776,7 +1138,7 @@ constrainOutcome
     -> Dis abt ()
 constrainOutcome v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
-    getLocs >>= \locs ->
+    getExtras >>= \extras ->
     getIndices >>= \inds ->
     trace (
         let s = "-- constrainOutcome"
@@ -1785,7 +1147,7 @@ constrainOutcome v0 e0 =
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
             ++ show (pretty e0) ++ "\n"
             ++ "at " ++  show (ppInds inds) ++ "\n"
-            ++ show (prettyLocs locs)
+            ++ show (prettyExtras extras)
           ) $
 #endif
     do  w0 <- evaluate_ e0
@@ -1810,10 +1172,10 @@ constrainOutcome v0 e0 =
     go (WMBind e1 e2)        =
         caseBind e2 $ \x e2' -> do
             i <- getIndices
-            push (SBind x (Thunk e1) i) e2' (constrainOutcome v0)
+            push (SBind x (Thunk e1) i) e2' >>= constrainOutcome v0
     go (WPlate e1 e2)        = do
         x' <- pushPlate e1 e2
-        constrainValue v0 (var x')
+        constrainValue v0 x'
 
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
     go (WReject typ)         = emit_ $ \m -> P.reject (typeOf m)
@@ -1821,7 +1183,7 @@ constrainOutcome v0 e0 =
         i <- getIndices
         if not (null i) && L.length pes > 1 then bot else
           emitFork_ (P.superpose . fmap ((,) P.one))
-                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e (constrainOutcome v0))
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e >>= constrainOutcome v0)
                           pes)
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?

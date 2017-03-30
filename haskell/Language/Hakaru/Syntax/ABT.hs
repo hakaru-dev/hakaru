@@ -57,10 +57,12 @@ module Language.Hakaru.Syntax.ABT
     , rename
     , renames
     , subst
+    , substM
     , substs
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
+    , binderM
     , Binders(binders)
     -- *** Highly experimental
     -- , Hint(..)
@@ -68,6 +70,7 @@ module Language.Hakaru.Syntax.ABT
     , withMetadata
     -- ** Abstract nonsense
     , cataABT
+    , cataABTM
     , paraABT
 
     -- * Some ABT instances
@@ -80,9 +83,13 @@ import           Data.Text         (Text, empty)
 --import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid       (Monoid(..))
+import           Control.Applicative hiding (empty)
+import           Data.Monoid                (Monoid(..))
 #endif
 
+import Control.Monad
+import Control.Monad.Identity    
+import Control.Monad.Fix
 import Data.Number.Nat
 import Language.Hakaru.Syntax.IClasses
 -- TODO: factor the definition of the 'Sing' type family out from
@@ -740,49 +747,64 @@ rename x y =
 -- should have strict 'fmap21' definitions.
 subst
     :: forall syn abt (a :: k) xs (b :: k)
-    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Functor21 syn, ABT syn abt)
+    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Traversable21 syn, ABT syn abt)
     => Variable a
     -> abt '[]  a
     -> abt xs   b
     -> abt xs   b
-subst x e =
+subst x e = 
 #ifdef __TRACE_DISINTEGRATE__
     trace ("about to subst " ++ show (varID x)) $
-#endif            
+#endif
+    runIdentity . substM x e varCase
+    where
+      varCase :: forall m b'. (Applicative m, Functor m, Monad m)
+              => Variable b' -> m (abt '[] b')
+      varCase = return . var
+                     
+substM
+    :: forall syn abt (a :: k) xs (b :: k) m
+    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *),
+        Traversable21 syn, ABT syn abt,
+        Applicative m, Functor m, Monad m)
+    => Variable a
+    -> abt '[] a
+    -> (forall b'. Variable b' -> m (abt '[] b'))
+    -> abt xs b
+    -> m (abt xs b)
+substM x e vf =
     start (maxNextFreeOrBind [Some2 (var x), Some2 e])
     where
-    -- TODO: we could use the director-strings approach to optimize this (for MemoizedABT, but pessimizing for TrivialABT) by first checking whether @x@ is free in @f@; if so then recurse, if not then we're done.
-    start :: forall xs' b'. Nat -> abt xs' b' -> abt xs' b'
+    -- TODO: we could use the director-strings approach to optimize
+    -- this (for MemoizedABT, but pessimizing for TrivialABT) by first
+    -- checking whether @x@ is free in @f@; if so then recurse, if not
+    -- then we're done.
+    start :: forall xs' b'. Nat -> abt xs' b' -> m (abt xs' b')
     start n f = loop n f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
-    loop :: forall xs' b'. Nat -> abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
-    loop n _ (Syn t) = syn $! fmap21 (start n) t
+    loop :: forall xs' b'
+         .  Nat -> abt xs' b' -> View (syn abt) xs' b' -> m (abt xs' b')
+    loop n _ (Syn t) = syn <$> traverse21 (start n) t
     loop _ f (Var z) =
 #ifdef __TRACE_DISINTEGRATE__
         trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
 #endif        
         case varEq x z of
-        Just Refl -> e
-        Nothing   -> f
-    loop n f (Bind z _)
-        | varID x == varID z = f
-        | otherwise = 
-            -- TODO: even if we don't come up with a smarter way
-            -- of freshening variables, it'd be better to just pass
-            -- both sets to 'freshen' directly and then check them
-            -- each; rather than paying for taking their union every
-            -- time we go under a binder like this.
-            let i  = 1 + max n (nextFreeOrBind f) -- (freeVars e `mappend` freeVars f)
-                z' = i `seq` z{varID = i}
-            -- HACK: the 'rename' function requires an ABT not a
-            -- View, so we have to use 'caseBind' to give its
-            -- input and then 'viewABT' to discard the topmost
-            -- annotation. We really should find a way to eliminate
-            -- that overhead.
-            in caseBind f $ \_ f' ->
-                   let f'' = rename z z' f' in
-                   bind z' (loop i f'' (viewABT f''))
+          Just Refl -> return e
+          Nothing   -> vf z
+    loop n f (Bind z b) =
+        if (varID x == varID z) then return f
+        else do -- TODO: even if we don't come up with a smarter way
+                -- of freshening variables, it'd be better to just pass
+                -- both sets to 'freshen' directly and then check them
+                -- each; rather than paying for taking their union every
+                -- time we go under a binder like this.
+          let i  = 1 + max n (nextFreeOrBind f) -- (freeVars e `mappend` freeVars f)
+              z' = i `seq` z{varID = i}
+          f'' <- substM z (var z') vf (unviewABT b)
+          bind z' <$> loop i f'' (viewABT f'')
+               
 
 renames
     :: forall
@@ -831,7 +853,7 @@ substs
     .   ( ABT syn abt
         , JmEq1 (Sing :: k -> *)
         , Show1 (Sing :: k -> *)
-        , Functor21 syn
+        , Traversable21 syn
         )
     => Assocs (abt '[])
     -> abt xs a
@@ -916,6 +938,23 @@ binder hint typ hoas = bind x body
     x    = Variable hint (nextBind body) typ
     -- N.B., cannot use 'nextFree' when deciding the 'varID' of @x@
 
+
+-- A Monadic variant of @binder@ which allows constructing a term in a monadic
+-- context. The dependency on MonadFix is due to the knot-tying used to generate
+-- the bound variable.
+binderM
+  :: (MonadFix m, ABT syn abt)
+  => Text
+  -> Sing a
+  -> (abt '[] a -> m (abt xs b))
+  -> m (abt (a ': xs) b)
+binderM hint typ hoas = do
+  (var, body) <- mfix $ \ ~(_, b) -> do
+    let v = Variable hint (nextBind b) typ
+    b' <- hoas (var v)
+    return (v, b')
+  return (bind var body)
+
 class (ABT syn abt) =>
     Binders syn abt xs as | abt -> syn, abt xs -> as, abt as -> xs where
     binders :: (as -> abt '[] b) -> abt xs b
@@ -927,6 +966,7 @@ instance (ABT syn abt) =>
 instance (Binders syn abt xs as, SingI x) =>
     Binders syn abt (x ': xs) (abt '[] x, as) where
     binders hoas = binder empty sing (binders . curry hoas)
+
 
 {-
 data Hint (a :: k)
@@ -999,6 +1039,31 @@ cataABT var_ bind_ syn_ = start
     loop (Bind x e) = bind_ x (loop e)
 {-# INLINE cataABT #-}
 
+-- | A monadic variant of @cataABT@, which may not fit the precise definition of
+-- a catamorphism? The @bind@ and @syn@ operations receive monadic actions as their
+-- inputs, which allows the @bind@ and @syn@ operations to update the monadic
+-- context in which the subterms are evaluated if need be.
+cataABTM
+    :: forall
+        (abt :: [k] -> k -> *)
+        (syn :: ([k] -> k -> *) -> k -> *)
+        (r   :: [k] -> k -> *)
+        (f   :: * -> *)
+    .  (ABT syn abt, Traversable21 syn, Applicative f)
+    => (forall a.      Variable a  -> f (r '[] a))
+    -> (forall x xs a. Variable x  -> f (r xs a) -> f (r (x ': xs) a))
+    -> (forall a.      f (syn r a) -> f (r '[] a))
+    -> forall  xs a.   abt xs a    -> f (r xs a)
+cataABTM var_ bind_ syn_ = start
+    where
+    start :: forall ys b. abt ys b -> f (r ys b)
+    start = loop . viewABT
+
+    loop :: forall ys b. View (syn abt) ys b -> f (r ys b)
+    loop (Syn  t)   = syn_ (traverse21 start t)
+    loop (Var  x)   = var_  x
+    loop (Bind x e) = bind_ x (loop e)
+{-# INLINE cataABTM #-}
 
 -- | The paramorphism (aka: recursor) for ABTs. While this is
 -- equivalent to 'cataABT' in terms of the definable /functions/,
