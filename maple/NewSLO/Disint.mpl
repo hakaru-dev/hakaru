@@ -144,7 +144,7 @@
    local
     mc,  #final integral to be passed to improve @ toLO; then result
          #of each disintegration step
-    kb, var_rn := table(),
+    kb, var_rn := table(), mc_prts,
     V, #wrt vars
     v::name #iterator over V
    ;
@@ -230,6 +230,14 @@
     end do;
 
     mc := fromLO(mc, _ctx= kb);
+
+    if not mc :: Partition then
+        mc_prts := select(p->ormap(x->depends(condOf(x),V),op(1,p))
+                         ,indets(mc, Partition));
+        if mc_prts <> {} then
+            mc := simplify_assuming( subs( [ seq(p=PartitionToPW(p),p=mc_prts) ], mc ) , kb );
+        end if;
+    end if;
 
     userinfo(3, Disint, "Disint hakaru:", eval(mc));
 
