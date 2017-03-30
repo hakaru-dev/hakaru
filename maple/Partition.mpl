@@ -376,7 +376,7 @@ export
             , nil
             , op(op(1, prt))
             );
-   end proc;
+   end proc,
 
    Foldr_mb := proc( cons, nil, prt, $ )
        if prt :: Partition then
@@ -384,7 +384,7 @@ export
        else
            cons( true, prt, nil )
        end if;
-   end proc;
+   end proc,
 
    PartitionToPW := proc(x::Partition)::specfunc(piecewise);
        # piecewise can reduce immediately to not-piecewise which makes the type

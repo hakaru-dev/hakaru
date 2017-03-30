@@ -81,20 +81,10 @@
 
       subintegral := subs(op(2,g)=y, op(1,g));
       op(0,g)(banish(subintegral, h, kb1, levels-1, x, m), y, lo..hi, op(4,g));
-    elif g :: t_pw then
-      foldr_piecewise(
-        proc(cond, th, el, $) proc(make, kb, $)
-          if depends(cond, x) then
-            banish(th, h, kb, levels-1, x, banish_guard(make, cond))
-              + el(banish_guard(make, Not(cond)), kb)
-          else
-            piecewise_if(cond,
-              banish(th, h, assert(cond, kb), levels-1, x, make),
-              el(make, assert(Not(cond), kb)))
-          end if
-        end proc end proc,
-        proc(make, kb, $) 0 end proc,
-        g)(make, kb)
+    elif g :: {t_pw, Partition} then
+      `if`(g::t_pw,foldr_piecewise,Partition:-Foldr)(banish_pw_cons(x, h, levels), banish_pw_nil, g)(make, kb)
+    # elif g ::  then
+      # Partition:-Foldr(banish_pw_cons(x, h, levels), banish_pw_nil, g)(make, kb)
     elif g :: t_case then
       map_piecewiselike(banish, _passed)
     elif g :: 'integrate(freeof(x), Integrand(name, anything), list)' then
@@ -104,6 +94,21 @@
     else
       make(kb, g)
     end if
+  end proc;
+
+  banish_pw_nil := proc(make, kb, $) 0 end proc;
+
+  banish_pw_cons := proc(x, h, levels, $)
+        proc(cond, th, el, $) proc(make, kb, $)
+          if depends(cond, x) then
+            banish(th, h, kb, levels-1, x, banish_guard(make, cond))
+              + el(banish_guard(make, Not(cond)), kb)
+          else
+            piecewise_if(cond,
+              banish(th, h, assert(cond, kb), levels-1, x, make),
+              el(make, assert(Not(cond), kb)))
+          end if
+        end proc end proc;
   end proc;
 
   banish_guard := proc(make, cond, $)
