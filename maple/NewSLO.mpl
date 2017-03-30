@@ -23,16 +23,13 @@ NewSLO := module ()
   local
         t_sum, t_product,
         integrate_known,
-        recognize_continuous, recognize_discrete, get_de, get_se,
-        recognize_de, mysolve, Shiftop, Diffop, Recognized,
-        factorize, termize, bind, weight,
-        app_dom_spec_IntSum, app_dom_spec_IntSum_LMS,
-        reduce_on_prod, do_app_dom_spec,
+        mysolve, Shiftop, Diffop, Recognized,
+        bind, weight,
+        reduce_on_prod,
         reduce_IntsSums,
         elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
         banish,
         reduce_pw, nub_piecewise, piecewise_if,
-        get_var_pos, get_int_pos,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
         ModuleLoad;
   export
@@ -40,12 +37,12 @@ NewSLO := module ()
          integrate, applyintegrand,
      # while these are "proper functions"
          RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, Efficient,
-         toLO, fromLO, unintegrate, unweight, improve, reduce,
+         toLO, fromLO, improve, reduce,
          density, bounds,
 
      # Like simplify_assuming, but also applies `hack_Beta` and `eval_factor`
      # which helps some things simplify.
-     simplify_factor_assuming,
+         simplify_factor_assuming,
 
          ReparamDetermined, determined, reparam, disint;
   # these names are not assigned (and should not be).  But they are

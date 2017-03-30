@@ -2,12 +2,16 @@
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
-  fromLO := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
+fromLO := module()
+
+  export ModuleApply :=
+  proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
     local h;
     h := gensym(op(1,lo));
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
   end proc;
 
+  export
   unintegrate := proc(h :: name, e, kb :: t_kb, $)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
           i, kb1, kb2, loops, subst, hh, pp, t, bnds, br;
@@ -127,6 +131,7 @@
     end if
   end proc;
 
+  export
   recognize_continuous := proc(weight0, x, lo, hi, kb, $)
     local Constant, de, Dx, f, w, res, rng;
     res := FAIL;
@@ -174,6 +179,7 @@
     res
   end proc;
 
+  export
   recognize_discrete := proc(w, k, lo, hi, kb, $)
     local se, Sk, f, a0, a1, lambda, r, s, res;
     res := FAIL;
@@ -209,6 +215,7 @@
             applyop(simplify_factor_assuming, 2, res, kb), kb)
   end proc;
 
+  local
   get_de := proc(dens, var, Dx, f, $)
     :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
     local de, init;
@@ -236,6 +243,7 @@
     FAIL
   end proc;
 
+  local
   get_se := proc(dens, var, Sk, u, $)
     :: Or(Shiftop(anything, set(function=anything), name), identical(FAIL));
     local x, de, re, gftype, init, f;
@@ -277,6 +285,7 @@
     FAIL
   end proc;
 
+  local
   recognize_de := proc(diffop, init, Dx, f, var, lo, hi, kb, $)
     local dist, ii, constraints, w, a0, a1, a, b0, b1, c0, c1, c2, loc, nu;
     dist := FAIL;
@@ -337,10 +346,10 @@
   end proc;
 
 
-
   # (s,r):=factorize(e,var,kb) expresses e in the context kb as s*r,
   # where r doesn't depend on var and s is as simple as possible
   # (and non-negative if possible).
+  local
   factorize := proc(e, var, kb, $)
     local res, x, y, kb1, s, r;
     if not depends(e, var) then
@@ -380,6 +389,7 @@
 
   # (s,r):=termize(e,var,kb) expresses e in the context kb as s+r,
   # where r doesn't depend on var and s is as simple as possible.
+  local
   termize := proc(e, var, kb, $)
     local res, x, y, kb1, s, r, i, conds, pw;
     if not depends(e, var) then
@@ -457,7 +467,7 @@
   end proc;
 
 
-
+  local
   unweight := proc(m, $)
     local total, ww, mm;
     if m :: 'Weight(anything, anything)' then
@@ -469,3 +479,5 @@
       (1, m)
     end if;
   end proc;
+
+end module; # fromLO
