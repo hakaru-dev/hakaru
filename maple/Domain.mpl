@@ -306,7 +306,7 @@ option package;
                local sub, inds, rest;
                if e::`*` then
                  sub := map(x->do_get(f, f_ty,x), [op(e)]);
-                 [ `and`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub))) ]
+                 [ `And`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub))) ]
                elif e::`^` then
                  inds, rest := do_get(f, f_ty, op(1,e)) [] ;
                  [ inds, subsop(1=rest, e) ]
@@ -334,7 +334,7 @@ option package;
                                        ,e) [] ;
                                ts := `if`(w1=true, [ts], [ts, t0]);
 
-                               do_gets( ts, w1 and w, e1 );
+                               do_gets( ts, And(w1, w), e1 );
                            else
                                do_gets( [ ts ], w, e );
                            end if;
