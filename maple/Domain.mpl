@@ -248,7 +248,7 @@ option package;
            ExtShape[`piecewise`] :=
                Record('MakeCtx'=
                        (proc(p, $)
-                         local w, pw1;
+                         local w, p1;
                          w, p1 := Domain:-ExtShape[`PARTITION`]:-MakeCtx( PWToPartition(p) ) [] ;
                          if w = true then
                              [ true, p ] ;
