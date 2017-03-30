@@ -350,14 +350,13 @@ option package;
                 e;
              end proc;
 
-             export ModuleApply := proc(e, { ctx := KB:-empty }) :: [ DomShape, anything ];
+             export ModuleApply := proc(e, { ctx := KB:-empty }) :: [ anything, anything ];
                         local ixs, w, e1, ctx1;
                         ixs := [indices(ExtShape, 'nolist')];
                         w, e1 := do_gets(ixs, true, e) [];
 
-                        ctx1 := KB:-kb_to_constraints(ctx);
-
                         if not ('no_simpl' in {_rest}) then
+                            ctx1 := KB:-kb_to_constraints(ctx);
                             w := simpl_shape(w, ctx1);
                         end if;
 
@@ -810,7 +809,9 @@ option package;
     export simpl_relation :=
     proc( expr_ :: set({relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`})
         , { norty := 'DNF' }
-        , $) # :: ( (`if`(norty='DNF', 'set'@'list', 'list'@'set'))({relation, specfunc(relation, Not)}) ) ;
+        , $) :: { set(list({relation, specfunc(relation, Not)}))
+                , list(set({relation, specfunc(relation, Not)}))
+                };
 
         local expr := expr_, outty, outmk, inty, inmk ;
 
@@ -842,25 +843,19 @@ option package;
         if expr :: identical(false) then
             return `if`(norty='DNF', {}, [{}]);
         elif expr :: identical(true) then
-            return `if`(norty='CNF', {[]}, []);
+            return `if`(norty='DNF', {[]}, []);
         end if;
 
         if norty = 'DNF' then
             outty := 'set'; outmk := (x->{x});
-            inty  := 'set(list)'; inmk := (x->[x]);
+            inty  := 'list'; inmk := (x->[x]);
         else
             outty := 'list'; outmk := (x->[x]);
-            inty  := 'list(set)'; inmk := (x->{x});
+            inty  := 'set'; inmk := (x->{x});
         end if;
 
-        if not expr :: outty then
-            expr := outmk(expr);
-        end if;
-
-        if not expr :: inty then
-            expr := map(inmk,expr);
-        end if;
-
+        if not expr :: outty then expr := outmk(expr) end if;
+        expr := map(x -> if not x :: inty then inmk(x) else x end if, expr);
         expr;
     end proc;
 
