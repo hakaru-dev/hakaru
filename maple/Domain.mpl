@@ -230,10 +230,12 @@ option package;
                            else
                                ps := op(1, p);
                                wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
-                               ws, vs, cs := map2(op, 1, wps), map2(x->op, 2, wps), map(condOf, ps);
+                               ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
 
                                if nops(vs) > 0 and
-                                  andmap(v->op(1,vs)=v, vs) then
+                                  andmap(v->op(1,vs)=v, vs) and
+                                  ormap(a->a<>{}, ws)
+                               then
                                    [ `Or`( op( zip(`And`, ws, cs) ) ) , op(1,vs) ];
                                else
                                    [ true, p0 ];
@@ -243,10 +245,19 @@ option package;
                      ,'MapleType'='Partition'
                      );
 
-           # ExtShape[`piecewise`] :=
-           #     Record('MakeCtx'= (Domain:-ExtShape[`PARTITION`]:-MakeCtx) @ PWToPartition
-           #           ,'MapleType'=specfunc(`piecewise`)
-           #           );
+           ExtShape[`piecewise`] :=
+               Record('MakeCtx'=
+                       (proc(p, $)
+                         local w, pw1;
+                         w, p1 := Domain:-ExtShape[`PARTITION`]:-MakeCtx( PWToPartition(p) ) [] ;
+                         if w = true then
+                             [ true, p ] ;
+                         else
+                             [ w, p1 ];
+                         end if;
+                        end proc)
+                     ,'MapleType'=specfunc(`piecewise`)
+                     );
 
            unprotect(Domain:-ExtShape);
     end proc;
@@ -332,7 +343,7 @@ option package;
                                  do_get(ExtShape[t0]:-MakeCtx
                                        ,ExtShape[t0]:-MapleType
                                        ,e) [] ;
-                               ts := `if`(w1=true, [ts], [ts, t0]);
+                               ts := `if`(is(w1), [ts], [ts, t0]);
 
                                do_gets( ts, And(w1, w), e1 );
                            else
