@@ -371,6 +371,21 @@ export
       PARTITION(map(doIt,op(1,part)));
    end proc,
 
+   Foldr := proc( cons, nil, prt :: Partition, $ )
+       foldr( proc(p, x) cons(condOf(p), valOf(p), x); end proc
+            , nil
+            , op(op(1, prt))
+            );
+   end proc;
+
+   Foldr_mb := proc( cons, nil, prt, $ )
+       if prt :: Partition then
+           Foldr(_passed);
+       else
+           cons( true, prt, nil )
+       end if;
+   end proc;
+
    PartitionToPW := proc(x::Partition)::specfunc(piecewise);
        # piecewise can reduce immediately to not-piecewise which makes the type
        # test fail
