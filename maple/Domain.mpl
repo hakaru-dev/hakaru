@@ -815,7 +815,7 @@ option package;
     export simpl_relation :=
     proc( expr_ :: set({relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`})
         , { norty := 'DNF' }
-        , $) # :: set(list( {relation, specfunc(relation, Not)} ));
+        , $) :: ( (`if`(norty='DNF', 'set'@'list', 'list'@'set'))({relation, specfunc(relation, Not)}) ) ;
 
         local expr := expr_, outty, outmk, inty, inmk ;
 
