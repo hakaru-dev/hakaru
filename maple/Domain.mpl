@@ -221,7 +221,33 @@ option package;
                      );
 
            ExtShape[`PARTITION`] :=
-               Record('MakeCtx'=Partition:-Simpl:-single_nonzero_piece
+               Record('MakeCtx'=
+                      (proc(p0,$)
+                           local p := p0;
+                           w, p := Partition:-Simpl:-single_nonzero_piece(p);
+                           if w <> {} then
+                               w, p
+                           else
+                               ps := op(1, p);
+
+                               ixs := [indices(ExtShape, 'nolist')];
+                               wps := map(x->[Domain:-Extract:-Shape:-do_gets(ixs, {}, valOf(x))], ps);
+
+                               ws, vs, cs := map(x->op(1,x), wps), map(x->op(2,x), wps), map(condOf, ps);
+
+                               if nops(vs) > 0 and
+                                  andmap(v->op(1,vs)=v, vs) then
+                                   b := op(1,vs);
+
+                                   ands := zip(proc(w,c,$) `And`( op(w), c ) end proc, ws, cs);
+                                   ors  := `Or`( op( ands ) );
+
+                                   { ors }, b;
+                               else
+                                   {}, p0;
+                               end if;
+                           end if;
+                       end proc)
                      ,'MapleType'='Partition'
                      );
 
