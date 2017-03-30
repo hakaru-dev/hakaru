@@ -89,15 +89,10 @@
       else # if the domain is empty
         Msum()
       end if;
-
-    elif e :: t_pw_or_part then
-      Partition:-AppPartOrPw
-        ( proc(p)
-              if not Partition:-ConditionsDepend(p, h) then
-                  kb_Partition(p, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)))
-              end if; # todo: this just crashes if the condition is ever false...
-          end proc
-        , e);
+    elif e :: t_pw and not Partition:-ConditionsDepend(Partition:-PWToPartition(e), h) then
+        kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
+    elif e :: Partition and not Partition:-ConditionsDepend(e, h) then
+        kb_Partition(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),
