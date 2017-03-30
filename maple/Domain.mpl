@@ -243,10 +243,10 @@ option package;
                      ,'MapleType'='Partition'
                      );
 
-           ExtShape[`piecewise`] :=
-               Record('MakeCtx'= (Domain:-ExtShape[`PARTITION`]:-MakeCtx) @ PWToPartition
-                     ,'MapleType'=specfunc(`piecewise`)
-                     );
+           # ExtShape[`piecewise`] :=
+           #     Record('MakeCtx'= (Domain:-ExtShape[`PARTITION`]:-MakeCtx) @ PWToPartition
+           #           ,'MapleType'=specfunc(`piecewise`)
+           #           );
 
            unprotect(Domain:-ExtShape);
     end proc;
