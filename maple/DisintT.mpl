@@ -80,7 +80,8 @@ d4r := {
            Weight(y,Ret(t*y)),
            Msum())),
     Msum()),
-  PARTITION([Piece(t <= 0,Msum())
+  PARTITION([Piece(t <  0,Msum())
+           , Piece(t =  0,undefined)
            , Piece(t <= 1 and 0 < t,Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x)))))
            , Piece(1 < t,Weight(1/2/t^2,BetaD(2,1)))])
 }:
