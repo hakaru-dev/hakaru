@@ -121,10 +121,8 @@ fromLO := module()
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,e), x), kb));
       (w, w0) := factorize(w, x, kb);
       weight(w0, bind(op(1,e), x, weight(w, m)))
-    # elif e :: identical('undefined') then
-      # an undefined term can become anything
-      # Msum()
-
+    elif e :: identical('undefined') then
+      undefined
     else
       # Failure: return residual LO
       LO(h, e)
