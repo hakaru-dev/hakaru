@@ -373,8 +373,8 @@ export
        export singular_pts := module()
            # we can simplify the pieces which are equalities and whose LHS or RHS is
            # a name.
-           local canSimp := c -> valOf(c) :: identical('undefined') and condOf(c) :: `=`
-                                      and (lhs(condOf(c)) :: name or rhs(condOf(c)) :: name);
+           local canSimp := c -> #valOf(c) :: identical('undefined') and
+                                 condOf(c) :: `=` and (lhs(condOf(c)) :: name or rhs(condOf(c)) :: name);
 
            # determines if a given variable `t' has the given upper/lower `bnd'.
            local mentions_t_hi :=
