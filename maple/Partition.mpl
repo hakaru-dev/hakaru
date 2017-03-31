@@ -15,96 +15,12 @@ option package;
 global Piece;
 
 local
-   diff_,
-
    Umap := proc(f,x,$)
        f(op(0,x))( map( p -> Piece(f(condOf(p)),f(valOf(p)))
                       , op(1,x)
                       )
                  )
    end proc,
-
-   simplifyPartitionCtx := module()
-
-       local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
-                               # or (x :: name);
-
-       local preproc_for_solve := proc(ctx, $)
-                 ctx;
-             end proc;
-
-       local eval_ctrs := ctx -> eval(ctx, [`And`=`and`, `Not`=`not`]);
-
-       local postproc_for_solve := proc(ctx, ctxSlv, $)::{identical(false), list({boolean,relation})};
-                 local ctxC := ctxSlv;
-
-                 if ctxC = [] then
-                     ctxC := false ;
-
-                 elif nops(ctxC)> 1 then
-                     ctxC := map(x -> postproc_for_solve(ctx, [x])[], ctxC);
-
-                 elif nops(ctxC) = 1 then
-                     ctxC := op(1,ctxC);
-
-                     if ctxC :: set then
-                         ctxC := remove(is_extra_sol, ctxC);
-
-                         if ctxC :: identical('{}') then
-                             ctxC := eval_ctrs(ctx);
-                         else
-                             ctxC := `and`(op(ctxC));
-                         end if ;
-
-                         ctxC := [ctxC];
-
-                     elif ctxC :: specfunc('piecewise') then
-                         ctxC := PWToPartition(ctxC);
-
-                         ctxC := [ seq( map( o -> condOf(c) and o
-                                           , postproc_for_solve(ctx, valOf(c)))[]
-                                      , c=op(1, ctxC)
-                                      )
-                                 ] ;
-                     else
-                         error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
-                     end if;
-                 else
-                     error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
-
-                 end if;
-
-                 ctxC;
-
-             end proc;
-
-       export ModuleApply := proc(ctx, $)::list;
-       local ctxC := ctx;
-
-           if ctx :: identical(true) then
-               error "simplifyPartitionCtx: don't know what to do with %1", ctxC;
-           end if;
-
-           ctxC := solve({ctxC}, 'useassumptions'=true);
-           if ctxC = NULL and indets(ctxC, specfunc(`exp`)) <> {} then
-               return [ctx];
-           end if;
-
-           ctxC := postproc_for_solve(ctx, [ctxC]);
-
-           if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
-               userinfo(10, 'simplifyPartitionCtx',
-                   printf("output: \n"
-                          "  %a\n\n"
-                          , ctxC )
-                  );
-           end if;
-
-           ctxC;
-
-       end proc;
-
-   end module,
 
    isPartitionPieceOf := proc( p, elem_t := anything )
       type(p, 'Piece(PartitionCond, elem_t)');
@@ -115,8 +31,6 @@ local
    end proc,
 
    ModuleLoad::static:= proc()
-      local prev;
-
       :-`print/PARTITION`:= proc(SetOfRecords)
       local branch;
          `print/%piecewise`(
@@ -129,7 +43,6 @@ local
       TypeTools:-AddType(Partition, isPartitionOf);
 
       # global extensions to maple functionality
-
       :-`eval/PARTITION` :=
       proc(p, eqs, $)
           local q, r;
@@ -339,7 +252,7 @@ export
                return PARTITION( cls );
            else
                ctxC := `And`(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
-               ctxC := simplifyPartitionCtx(ctxC);
+               ctxC := Simpl:-condition(ctxC);
 
                if cnd :: `=` then
                    ncnd := lhs(cnd) <> rhs(cnd);
@@ -370,7 +283,7 @@ export
 
        # if there is an otherwise case, handle that.
        if n::odd then
-           ctx := simplifyPartitionCtx(ctx);
+           ctx := Simpl:-condition(ctx);
            if not ctx :: identical(false) then
                cls := [ op(cls)
                       , seq(Piece(cl
@@ -562,10 +475,82 @@ export
 
            end proc;
 
-       end module;
+       end module; # singular_pts
 
+       condition := module()
+           local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
+           local eval_ctrs := ctx -> eval(ctx, [`And`=`and`, `Not`=`not`]);
 
-   end module,
+           local postproc_for_solve := proc(ctx, ctxSlv, $)::{identical(false), list({boolean,relation})};
+                     local ctxC := ctxSlv;
+
+                     if ctxC = [] then
+                         ctxC := false ;
+
+                     elif nops(ctxC)> 1 then
+                         ctxC := map(x -> postproc_for_solve(ctx, [x])[], ctxC);
+
+                     elif nops(ctxC) = 1 then
+                         ctxC := op(1,ctxC);
+
+                         if ctxC :: set then
+                             ctxC := remove(is_extra_sol, ctxC);
+
+                             if ctxC :: identical('{}') then
+                                 ctxC := eval_ctrs(ctx);
+                             else
+                                 ctxC := `and`(op(ctxC));
+                             end if ;
+
+                             ctxC := [ctxC];
+
+                         elif ctxC :: specfunc('piecewise') then
+                             ctxC := PWToPartition(ctxC);
+
+                             ctxC := [ seq( map( o -> condOf(c) and o
+                                               , postproc_for_solve(ctx, valOf(c)))[]
+                                          , c=op(1, ctxC)
+                                          )
+                                     ] ;
+                         else
+                             error "Simpl:-condition: don't know what to do with %1", ctxC;
+                         end if;
+                     else
+                         error "Simpl:-condition: don't know what to do with %1", ctxC;
+
+                     end if;
+
+                     ctxC;
+
+                 end proc;
+
+           export ModuleApply := proc(ctx, $)::list;
+           local ctxC := ctx;
+
+               if ctx :: identical(true) then
+                   error "Simpl:-condition: don't know what to do with %1", ctxC;
+               end if;
+
+               ctxC := solve({ctxC}, 'useassumptions'=true);
+               if ctxC = NULL and indets(ctxC, specfunc(`exp`)) <> {} then
+                   return [ctx];
+               end if;
+
+               ctxC := postproc_for_solve(ctx, [ctxC]);
+
+               if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
+                   userinfo(10, 'Simpl:-condition',
+                       printf("output: \n"
+                              "  %a\n\n"
+                              , ctxC )
+                      );
+               end if;
+
+               ctxC;
+
+           end proc;
+       end module, #Simpl:-condition
+   end module, #Simpl
 
    SamePartition := proc(eqCond, eqPart, $) proc(p0 :: Partition, p1 :: Partition, $)
      local ps0, ps1, pc0, the;
