@@ -477,7 +477,7 @@ export
 
        end module; # singular_pts
 
-       condition := module()
+       export condition := module()
            local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
            local eval_ctrs := ctx -> eval(ctx, [`And`=`and`, `Not`=`not`]);
 
@@ -549,7 +549,7 @@ export
                ctxC;
 
            end proc;
-       end module, #Simpl:-condition
+       end module; #Simpl:-condition
    end module, #Simpl
 
    SamePartition := proc(eqCond, eqPart, $) proc(p0 :: Partition, p1 :: Partition, $)
