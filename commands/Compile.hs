@@ -139,7 +139,11 @@ header logfloats mmodule =
                     Nothing -> "Main"
                 , "where" ]
   , ""
-  , "import           Prelude                          hiding (product)"
+  , if logfloats
+    then TxT.unlines [ "import           Data.Number.LogFloat hiding (product)"
+                     , "import           Prelude              hiding (product, exp, log, (**))"
+                     ]
+    else "import           Prelude hiding (product)"
   , if logfloats
     then "import           Language.Hakaru.Runtime.LogFloatPrelude"
     else "import           Language.Hakaru.Runtime.Prelude"
