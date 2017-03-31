@@ -197,47 +197,38 @@
           Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator,
           2, mc, DV[v]:-disintegrator_arg
         );
-
-         # simplify integrals which do not mention the LO var (i.e. integrals in
-         # weights). this is a hack, we should do this inside of `improve'* in
-         # the correct place.  It is required to see the correct output for
-         # d7_normalFB1.
-
-         # * Or, some other simplifier, which does only specific things - note
-         # the simplification we hope to see here (in d7) can only be done after
-         # the application of the `diff'. So just chucking it into `improve'
-         # might not be the correct thing to do. Calling `improve' at all might
-         # be wrong since we roundtrip through pulling off domains and replacing
-         # them (this is sort of expensive..), although we may also want such
-         # simplifications here - the application of the `diff' might give a new
-         # domain problem that can be improved significanly.
-         mc :=
-          kb_assuming_mb( _mc ->
-            subsindets( _mc, And(specfunc(`Int`)
-                                ,freeof(op(1, _mc))
-                                ,satisfies(e->indets(e,specfunc(`exp`))<>{})
-                                )
-                           , x-> simplify( int(op(x)) )
-                      ) )(mc, kb, x->x);
-
-         # all of the below achieve the same as the above, but in a different
-         # way.
-         # mc :=  subs( `int`=`Int`, improve( eval(mc, `Int`=`int`), _ctx=kb ) );
-         # mc := subs( `int`=`Int`, improve( eval(mc, `Int`=`int`) , _ctx=kb) );
-         # mc := kb_assuming_mb(x-> subs(`int`=`Int`,simplify(eval(x, `Int`=`int`))) )(mc, kb, x->x);
-
         userinfo(3, Disint, "Disint diff:", eval(mc));
     end do;
 
     mc := fromLO(mc, _ctx= kb);
 
-    if not mc :: Partition then
-        mc_prts := select(p->ormap(x->depends(condOf(x),V),op(1,p))
-                         ,indets(mc, Partition));
-        if mc_prts <> {} then
-            mc := simplify_assuming( subs( [ seq(p=PartitionToPW(p),p=mc_prts) ], mc ) , kb );
-        end if;
-    end if;
+
+    ## simplify integrals which do not mention the LO var (i.e. integrals in
+    ## weights). this is a hack, we should do this inside of `improve'* in
+    ## the correct place.  It is required to see the correct output for
+    ## d7_normalFB1.
+    #
+    ## * Or, some other simplifier, which does only specific things - note
+    ## the simplification we hope to see here (in d7) can only be done after
+    ## the application of the `diff'. So just chucking it into `improve'
+    ## might not be the correct thing to do. Calling `improve' at all might
+    ## be wrong since we roundtrip through pulling off domains and replacing
+    ## them (this is sort of expensive..), although we may also want such
+    ## simplifications here - the application of the `diff' might give a new
+    ## domain problem that can be improved significanly.
+    # 'Simplify' partitions in weights by converting them to piecewise and
+    # letting piecewise simplify do the work; and evaluate integrals in weights
+    mc := subsindets( mc, 'Weight(anything, anything)'
+                    , mw -> applyop(x->simplify_assuming(
+                        subsindets( subsindets(x,Partition,PartitionToPW)
+                                  , And(specfunc(`Int`)
+                                       ,satisfies(e->indets(e,specfunc(`exp`))<>{})
+                                       )
+                                  , value
+                                  )
+                        , kb ), 1, mw)
+                    );
+
 
     userinfo(3, Disint, "Disint hakaru:", eval(mc));
 
