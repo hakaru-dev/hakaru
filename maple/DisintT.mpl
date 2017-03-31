@@ -69,6 +69,11 @@ d3r := {
             ])
 }:
 
+
+BUniform := proc(x,b,$) Bind(Uniform(0,1), x, b) end proc:
+d3_3 := BUniform(x, BUniform(y, BUniform(z, Ret(Pair(x+y+z,f(x,y,z)))))):
+d3_3_r := {}:
+
 d4 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x/y,x)))):
 d4r := {
   Weight(1/abs(t)^2,
@@ -249,9 +254,7 @@ TestDisint( normalFB1, normalFB1r,
 # change of variables
 TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
 TestDisint(d4, d4r, label = "(d4) Disintegrate U(0,1) twice, over x/y");
-
-d3_3 := BUniform(x, BUniform(y, BUniform(z, Ret(Pair(x+y+z,f(x,y,z)))))):
-TestDisint(d3_3, {}, label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
+TestDisint(d3_3, d3_3_r, label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
 # funky piecewise
 TestDisint(norm1a, norm1r,
      label = "(norm1a) U(0,1) into Ret of pw"
