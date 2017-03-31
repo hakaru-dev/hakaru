@@ -114,15 +114,20 @@ norm1a :=
 norm1b :=
   Bind(Gaussian(3,2), x,piecewise(x<0, Ret(Pair(-x, _Unit)), Ret(Pair(x, _Unit)))):
 
+
+norm1r_w := (1/4)*sqrt(2)*exp(-9/8)*((exp(t))^(3/4)/(exp(t^2))^(1/8)+1/((exp(t^2))^(1/8)*(exp(t))^(3/4)))/sqrt(Pi):
 norm1r := {
-  piecewise(t < 0 , Weight(0, Ret(_Unit))
-           ,0 <= t, Weight((1/4)*sqrt(2)*exp(-9/8)*((exp(t))^(3/4)/(exp(t^2))^(1/8)+1/((exp(t^2))^(1/8)*(exp(t))^(3/4)))/sqrt(Pi)
-                          , Ret(_Unit))) ,
-  PARTITION([Piece(t < 0 , Weight(0, Ret(_Unit)))
-            ,Piece(0 <= t, Weight((1/4)*sqrt(2)*exp(-9/8)*((exp(t))^(3/4)/(exp(t^2))^(1/8)+1/((exp(t^2))^(1/8)*(exp(t))^(3/4)))/sqrt(Pi)
-                          , Ret(_Unit)))
-            ])
-}: #Desired output unknown(?)
+  Weight( piecewise(t < 0  , 0
+                   ,0 <= t , norm1r_w
+                   )
+        , Ret(_Unit)
+        ) ,
+  Weight( PARTITION([Piece(t < 0  , 0)
+                    ,Piece(0 <= t , norm1r_w)
+                   ])
+        , Ret(_Unit)
+        )
+}:
 
 assume(s::real, noiseT >= 3, noiseT <= 8, noiseE >= 1, noiseE <= 8);
 easyRoad:= [
