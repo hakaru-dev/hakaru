@@ -589,6 +589,27 @@ option package;
 
                     end module));
 
+             Simplifiers[`Single_pts`] :=
+                 Record('Order'=14
+                       ,'DO'=
+                   (module()
+                        export ModuleApply := proc(dom :: HDomain, $)
+                           local bnds, sh, vs;
+                           bnds, sh := op(dom); vs := Domain:-Bound:-varsOf(bnds);
+
+                           todo := select( x -> nops(x) = 1 and op(1,x) :: `=`
+                                                and ( depends(lhs(op(1,x)), vs)
+                                                   <> depends(rhs(op(1,x)), vs) )
+                                         , indets(sh, specfunc(`DConstrain`))
+                                         ) ;
+
+                           sh1 := subs([seq(t=DSum(),t=todo)], sh);
+
+                           DOMAIN(bnds, sh1);
+                        end proc;
+
+                    end module));
+
              Simplifiers[`LMS`] := Record('Order'=10,'DO'=(
                  module()
 
