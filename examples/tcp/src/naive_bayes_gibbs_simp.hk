@@ -1,0 +1,112 @@
+fn topic_prior array(prob): 
+ fn word_prior array(prob): 
+  fn z array(nat): 
+   fn w array(nat): 
+    fn doc array(nat): 
+     fn docUpdate nat: 
+      weight((recip(product i from 0 to int2nat((nat2int(size(topic_prior))
+                                                  - 
+                                                 1)): 
+                     betaFunc(topic_prior[i],
+                              (summate i丙 from (i + 1) to size(topic_prior): topic_prior[i丙])))
+               * 
+              product i from 0 to size(topic_prior): 
+               product i丣 from 0 to size(word_prior): 
+                product j from 0 to (summate i丙 from 0 to size(w): 
+                                      (match (docUpdate == doc[i丙]): 
+                                        true: 0
+                                        false: 
+                                         (match ((i == z[doc[i丙]]) && (i丣 == w[i丙])): 
+                                           true: 1
+                                           false: 0))): 
+                 (nat2prob(j) + word_prior[i丣])
+               / 
+              product i from 0 to size(topic_prior): 
+               product i丣 from 0 to (summate i丙 from 0 to size(w): 
+                                      (match (docUpdate == doc[i丙]): 
+                                        true: 0
+                                        false: 
+                                         (match (not((w[i丙] < 0)) && (i == z[doc[i丙]])): 
+                                           true: 1
+                                           false: 0))): 
+                (nat2prob(i丣)
+                  + 
+                 (summate i丙 from 0 to size(word_prior): word_prior[i丙]))),
+             categorical(array zNew丏 of size(topic_prior): 
+                          (product i from 0 to size(topic_prior): 
+                            product i丣 from 0 to size(word_prior): 
+                             product j from 0 to (summate i丙 from 0 to size(w): 
+                                                   (match (docUpdate == doc[i丙]): 
+                                                     true: 
+                                                      (match ((i == zNew丏) && (i丣 == w[i丙])): 
+                                                        true: 1
+                                                        false: 0)
+                                                     false: 0)): 
+                              (nat2prob((summate i丙 from 0 to size(w): 
+                                          (match (doc[i丙] == docUpdate): 
+                                            true: 0
+                                            false: 
+                                             (match ((i == z[doc[i丙]]) && (i丣 == w[i丙])): 
+                                               true: 1
+                                               false: 0))))
+                                + 
+                               nat2prob(j)
+                                + 
+                               word_prior[i丣])
+                            * 
+                           product i from 0 to int2nat((nat2int(size(topic_prior)) - 1)): 
+                            betaFunc((nat2prob((summate i丙 from 0 to size(z): 
+                                                 (match (not((((match (i丙 == docUpdate): 
+                                                                 true: zNew丏
+                                                                 false: z[i丙])
+                                                                + 
+                                                               1)
+                                                               == 
+                                                              size(topic_prior))) && 
+                                                         (i
+                                                           == 
+                                                          (match (i丙 == docUpdate): 
+                                                            true: zNew丏
+                                                            false: z[i丙]))): 
+                                                   true: 1
+                                                   false: 0)))
+                                       + 
+                                      topic_prior[i]),
+                                     ((summate i丙 from (i + 1) to size(topic_prior): 
+                                        topic_prior[i丙])
+                                       + 
+                                      nat2prob((summate i丙 from 0 to size(z): 
+                                                 (match not(((nat2int((match (not(((nat2int(size(z))
+                                                                                     - 
+                                                                                    1)
+                                                                                    < 
+                                                                                   nat2int(docUpdate))) && 
+                                                                              (i丙 == docUpdate)): 
+                                                                        true: zNew丏
+                                                                        false: z[i丙]))
+                                                               - 
+                                                              1)
+                                                              < 
+                                                             nat2int(i))): 
+                                                   true: 1
+                                                   false: 0)))))
+                            / 
+                           product i from 0 to size(topic_prior): 
+                            product i丣 from 0 to (summate i丙 from 0 to size(w): 
+                                                   (match (docUpdate == doc[i丙]): 
+                                                     true: 
+                                                      (match (not((w[i丙] < 0)) && (i == zNew丏)): 
+                                                        true: 1
+                                                        false: 0)
+                                                     false: 0)): 
+                             (nat2prob((summate i丙 from 0 to size(w): 
+                                         (match (doc[i丙] == docUpdate): 
+                                           true: 0
+                                           false: 
+                                            (match (not((w[i丙] < 0)) && (i == z[doc[i丙]])): 
+                                              true: 1
+                                              false: 0))))
+                               + 
+                              nat2prob(i丣)
+                               + 
+                              (summate i丙 from 0 to size(word_prior): word_prior[i丙])))))
