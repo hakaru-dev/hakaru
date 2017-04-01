@@ -67,7 +67,7 @@ z0 = V.fromList [0,1]
 
 -- | Build a vector of ones with length given by the maximal element of a given vector.
 -- 
-onesFrom :: Vector Int -> Vector Double
+onesFrom :: Vector Int -> Vector LogFloat
 onesFrom v = V.replicate (V.maximum v + 1) 1
 
 -- |Make it easier to draw a sample

@@ -10,9 +10,10 @@ import Text.Printf (printf)
 import NaiveBayes (prog)
 import Control.Monad (forever, replicateM, forM_)
 import Data.List (sort)
+import Data.Number.LogFloat
 
 main = do
-  (words, docs, topics) <- getNews (Just 100) [0..]
+  (words, docs, topics) <- getNews (Just 100) [0,1]
   g <- MWC.create
   let 
     zPrior = onesFrom topics
@@ -24,9 +25,8 @@ main = do
   printf "length docs   == %d\n" (V.length docs)
   printf "length topics == %d\n" (V.length topics)
   forM_ [0..(V.length topics - 1)] $ \i -> do
-    print $ V.toList $ predict i
-
-    -- printf "%d %d\n" (topics ! i) (V.maxIndex $ predict i)
+    --print $ V.map logFromLogFloat $ predict i
+    printf "%d %d\n" (topics ! i) (V.maxIndex $ predict i)
   -- replicateM 5 . withGen g (print . sort) $ do
   --   pred <- predict
   --   let p = pred $ V.fromList $ [0,1,7]
