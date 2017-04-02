@@ -311,7 +311,7 @@ Domain := module()
                 [ op(sh) ];
             elif sh :: specfunc(`DSum`) then
                 sh := Or(op(map(x->And(op(toConstraints(x))), sh)));
-                sh := Domain:-simpl_relation({sh}, norty='CNF');
+                sh := Domain:-simpl_relation(sh, norty='CNF');
                 map(x->Or(op(x)),sh);
             # elif sh :: specfunc(`DSplit`) then
             elif sh :: specfunc(`DInto`) then
@@ -440,7 +440,7 @@ Domain := module()
 
             # todo: simplify the shape
             local simpl_shape := proc(e0,ctx,$)
-                local e := Domain:-simpl_relation({e0});
+                local e := Domain:-simpl_relation(e0);
                 e := subsindets(e, set , x->DSum(op(x)));
                 e := subsindets(e, list, x->DConstrain(op(x), op(ctx)));
                 e;
@@ -818,7 +818,7 @@ Domain := module()
     end module;
 
     export simpl_relation :=
-    proc( expr_ :: set({relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`})
+    proc( expr_ :: {relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}
         , { norty := 'DNF' }
         , $) :: { set(list({relation, specfunc(relation, Not)}))
                 , list(set({relation, specfunc(relation, Not)}))
