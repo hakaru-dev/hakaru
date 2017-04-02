@@ -337,37 +337,27 @@ export
        export ModuleApply := (single_branch@remove_false_pieces);
 
        export single_nonzero_piece := proc(e, $)
-               local zs, nzs, nz;
-               if e :: Partition then
-                   zs, nzs := selectremove(p -> Testzero(valOf(p)), op(1, e));
-
-                   if nops(nzs) = 1 then
-                       nz := op(1,nzs);
-                       {condOf(nz)} , valOf(nz)
-                   else
-                       {}, e
-                   end if;
-               else
-                   {}, e
+           local zs, nzs;
+           if e :: Partition then
+               zs, nzs := selectremove(p -> Testzero(valOf(p)), op(1, e));
+               if nops(nzs) = 1 then
+                   return condOf(op(1,nzs)) , valOf(op(1,nzs))
                end if;
+           end if;
+           true, e
        end proc;
 
        export remove_false_pieces := proc(e::Partition, $)
-                  local ps := op(1, e);
-
-                  ps := remove(p -> not(coulditbe(condOf(p))), ps);
-
-                  PARTITION(ps);
+           PARTITION(remove(p -> not(coulditbe(condOf(p))), op(1, e)));
        end proc;
 
        export single_branch := proc(e::Partition, $)
-                  if nops(op(1,e)) = 1 then
-                      op([1,1,2], e)
-                  else
-                      e
-                  end if;
+           if nops(op(1,e)) = 1 then
+               op([1,1,2], e)
+           else
+               e
+           end if;
        end proc;
-
 
        # Removal of singular points from partitions
        export singular_pts := module()

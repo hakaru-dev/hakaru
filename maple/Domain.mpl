@@ -189,18 +189,17 @@ Domain := module()
                       (proc(p0,$)
                            local p := p0, pw, wps, ws, vs, cs, w, ps;
                            w, p := Partition:-Simpl:-single_nonzero_piece(p);
-                           if w <> {} then
-                               [ `and`(op(w)), p ]
+                           if not w :: identical(true) then
+                               [ w, p ]
                            else
                                ps := op(1, p);
                                wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
                                ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
-
                                if nops(vs) > 0 and
                                   andmap(v->op(1,vs)=v, vs) and
                                   ormap(a->a<>{}, ws)
                                then
-                                   [ `Or`( op( zip(`And`, ws, cs) ) ) , op(1,vs) ];
+                                   [ `or`( op( zip(`and`, ws, cs) ) ) , op(1,vs) ];
                                else
                                    [ true, p0 ];
                                end if;
