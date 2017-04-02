@@ -26,7 +26,7 @@ NewSLO := module ()
         bind, weight,
         reduce_on_prod,
         reduce_IntsSums,
-        elim_intsum, do_elim_intsum,
+        elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
         banish,
         reduce_pw, nub_piecewise, piecewise_if,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
@@ -41,7 +41,7 @@ NewSLO := module ()
 
      # Like simplify_assuming, but also applies `hack_Beta` and `eval_factor`
      # which helps some things simplify.
-         simplify_factor_assuming, int_assuming, sum_assuming,
+         simplify_factor_assuming,
 
          ReparamDetermined, determined, reparam, disint;
   # these names are not assigned (and should not be).  But they are
