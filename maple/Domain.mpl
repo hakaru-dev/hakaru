@@ -825,20 +825,23 @@ Domain := module()
                 };
         local expr := expr_, outty, outmk, inty, inmk, ty_ord ;
 
-        # simplify negations of relations
-        expr := subsindets(expr, { specfunc(relation, `Not`), `not`(relation) }
-                          , x-> KB:-negate_rel(op(1,x)) );
-        expr := subsindets(expr, { specfunc(`Not`), `not` }
-                          , x->Logic:-`&not`(op(1,x)) ) ;
-        expr := subsindets(expr, { specfunc(`Or`), `or` }
-                          , x->Logic:-`&or`(op(x)) ) ;
-        expr := subsindets(expr, { specfunc(`And`), `and` }
-                          , x->Logic:-`&and`(op(x)) ) ;
+        expr := foldr( proc(v,e) subsindets(e, op(v)) end proc
+                     , expr
+                     , [ { specfunc(relation, `Not`), `not`(relation) }
+                       , x-> KB:-negate_rel(op(1,x)) ]
+                     , [ { specfunc(`Not`), `not` }
+                       , x->Logic:-`&not`(op(1,x)) ]
+                     , [ { specfunc(`Or`), `or` }
+                       , x->Logic:-`&or`(op(x)) ]
+                     , [ { specfunc(`And`), `and` }
+                       , x->Logic:-`&and`(op(x)) ] );
         expr := Logic:-`&and`(op(expr));
         expr := Logic:-Normalize(expr, form=norty);
-        expr := subsindets(expr, specfunc(Logic:-`&and`), x->[op(x)]);
-        expr := subsindets(expr, specfunc(Logic:-`&or`) , x->{op(x)});
-        expr := subsindets(expr, specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x)) );
+        expr := foldr( proc(v,e) subsindets(e, op(v)) end proc
+                     , expr
+                     , [ specfunc(Logic:-`&and`), x->[op(x)] ]
+                     , [ specfunc(Logic:-`&or`) , x->{op(x)} ]
+                     , [ specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x))  ] );
 
         if expr :: identical(false) then
             return `if`(norty='DNF', {}, [{}]);
