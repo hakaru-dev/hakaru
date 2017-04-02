@@ -268,12 +268,6 @@ TestDisint(
      {}, #I don't know what to expect.
      label= "(d0_5) Injective nonlinear inequality"
 );
-# takes too long.
-TestDisint(
-     easyRoad, easyRoadr,
-     label= "(easyRoad) Combo of Normals with distinct Uniform noises",
-     TLim= 5 #takes 6 - 8 minutes to `improve` on an Intel i7
-);
 
 #This one is a basic test of the Counting wrt-var type.
 #This one gives the Weight(-1, ...) error
@@ -289,4 +283,11 @@ TestDisint(
      helloWorld, helloWorldr,
      label= "(helloWorld) Plate of Normals",
      ctx= [n::integer, n > 0]
+);
+
+# tests which take too long
+TestDisint(
+     easyRoad, easyRoadr,
+     label= "(easyRoad) Combo of Normals with distinct Uniform noises",
+     TLim= 120 #takes 6 - 8 minutes to `improve` on an Intel i7
 );
