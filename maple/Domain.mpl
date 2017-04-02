@@ -20,6 +20,129 @@
 # out all of the domain-related code into a single module.
 # At some point, the interface should be improved, and the implementation
 # should get rid of all sorts of unnecessary conversions.
+
+# Broad TODOs:
+# Make bound extraction look into products ('integrate out GammaD with PoissonD likelihood to NegativeBinomial')
+#
+# Banish fails somtimes because some `int(piecewise..)` are values, but are
+#   too hard for `int` to do (it used to before!). this can be fixed several
+#   possible ways:
+#     - eliminate certain piecewise(with Or in cases) produced by PWToPartition
+#         (but it should do this already, where are the Ors happening?)
+#     - calling domain:-Improve in more places (elim_intsum, where
+#       Shape:-toConstraints happens) and hoping domain improvement works
+#
+# rmProg1 still fails, but it is possiblly related to the banishing failure
+#   above. The expected result contains `Uniform(3,8) .. Uniform(1,4)` but we
+#   produce a reversed version, which also may have something to do with it.
+#
+# Mechanism for 'checking if' and 'making' constraints about variables should
+#   be abstracted out into its own module (it is needed in multiple places, and
+#   done sort of ad-hoc) (this could be fixed by a broader design - see "merging
+#   KB with Domain")
+#
+# General interface for folding over a domain while including the domain
+#   information in a context; basically a function of type
+#      (X -> X) -> X where X = DomBound -> DomShape -> r
+#   Pretty much everything in Domain does this, or should be doing it! and this
+#   insulates against future additions of new constructors which may have
+#   'interesting' contexts.
+#
+# All the global setup should be done through some kind of table
+#
+# Shape extraction needs to be reworked; we "flatten" constraints multiple
+#   times; This should be done once after shape extraction, not at every step
+#
+# Several 'simplifications' other than LMS are done in LMS. These need to have
+#   their own entry in Simplifiers (and work properly in their own context).
+#
+# Domain simplifiers should take the bounds as a context but not produce
+#   a bounds as output. The bounds should not change. (if we find they do, that is
+#   indicated in the shape anyways) - several things rely on this. In
+#   particular, a domain shape can 'strengthen' a bound, it cannot weaken one.
+#   domain application should use this fact
+#
+# DInto should also optionally omit the bounds if they are identical to the
+#   bounds in the a-priori domain bounds (i.e. just `DInto(x)`); DInto sort of
+#   means 'we've solved this bound in this subcontext' but the `DInto`s where
+#   the bound is identically the a-priori bound are erased (as they should be)
+#   - we want a slightly seperate form to mean "we are done improving this", but
+#   we still want to be able to omit bounds which would be identical. It should
+#   also allow specifying only a subset of the bounds.
+#
+# A mechanism for Bound to use it as a table. In particular, we don't want to
+#   represent the bound as a table, but we do "table lookup" on variables quite
+#   a bit. (perhaps add a function which places the table as a second component
+#   in the bounds, and have the Bound functions use it; or even a big record,
+#   containing the table and other things; so long as we update the original
+#   bound concurrently with the table, we should be okay with `has`, etc. I
+#   believe that another table which provides lookup from names to indices in
+#   the list would allow it to be done efficiently?)
+#
+# A more granular interface for composing/re-composing simplifiers, including
+#   call simplifier A {before/after} B
+#
+# Domain should support Ints/Sums. Currently pretty much all of the hard work is
+#   in place; the concept of 'variables' needs to be generalized to 'indexed
+#   variables' and 'ranges' to 'collections of ranges'. Perhaps the 'variable'
+#   and 'range' types should actually be part of ExtBound, and ExtBound provides
+#   a consistent way for dealing with different variable types that have an
+#   entirely different syntactic form but essentially identical semantics.
+#
+# Domain bounds should store a representation of 'dependancy' of variables
+#   (a more refined representation; the current one is a linear order of variables)
+#   Basically we want a list of graphs, nodes are variables and edges are
+#   variable dependencies. If each graph is acyclic, the variable dependency
+#   in the bounds is valid. e.g.
+#     [x=0..1, y=0..1, z=0..1]  =>  [ {[x, {}]}, {[y, {}]}, {[z, {}]} ]
+#     [x=0..1, y=x..1, z=0..y]  =>  [ {[z, {y}], [y, {x}], [x, {}]} ]
+#   This generalizes the previous notion of variable order, although in certain
+#     cases it is ambiguous what the 'original' order was. This is only when
+#     there are variable dependencies, so perhaps this isn't a big deal - we may
+#     want to rearrange the dependant bounds even when there is no 'interesting'
+#     constraint to solve in the shape, because we know a particular order will
+#     be better in some way.
+#   The graph is probably not a convenient place to store the variable bounds.
+#    (this is one of the big reasons we want to view the variables as a table -
+#    we have lots of different information for which the convenient formats are
+#    all different)
+#
+# A better interface for `simpl_relation` - something that allows it to treat
+#   arbitrary constructor forms as And, Or, Not. Typically, we do a `subs` right
+#   before the call to `simpl_relation` to put things in the right form, then
+#   another `subs` immediately inside `simpl_relation` to turn `And,Or` into `&and,&or`.
+#
+# Long term, KB and Domain should be merged, as their functionality overlaps
+#   quite a bit; basically
+#     - Introduce becomes a variable in DBound
+#     - Constrain becomes DConstrain
+#     - DBound becomes DInto
+#     - Let becomes (probably?) a one piece partition,
+#           or maybe a new variable type
+#          (it doesn't seem to appear in present code?)
+#  Logically, this is at most an ephemeral change - Domain already generalizes
+#   KB. But mechanically it is no small undertaking.
+#  assert_deny becomes a "DConstrain" smart constructor (note that in the
+#   current AST for Domain, DConstrain appears only at leaves, i.e. products
+#   are pushed all the way down; whereas KB is 'flat') but the shape of domains
+#   means it is probably much simpler to 'normalize' the constraints all at
+#   once, as opposed to when every constrain is inserted, as KB currently does.
+#  kb_subtract becomes a similar `domain_combine` function (kb_subtract is really
+#   an 'combine' as well as a 'deconstruct into a way to rebuild the KB' together in
+#   one - we don't really need the 'deconstruct' part anymore, but 'add' is
+#   still useful) - basically this function takes two domains, checks if the
+#   variables of the first are a subset of the second (non commutative!) and if
+#   so, combines the shapes according to the passed 'shape constructor'; all of
+#   the constructors (aside from DInto)
+#  gen{whatever} becomes a part of `Domain:-Extract` - basically we will not
+#   have `gen` as part of the "interface" to KB+Domain, but rather an entry in
+#   the `Ext` function tables.
+#  most of the other functions in KB can be basically literally translated to
+#    the subset of Domain which corresponds to KB
+#
+# Maybe break up domain into seperate files; it's getting sort of big and will
+#   probably only get bigger, esp. if it is merged with KB.
+
 Domain := module()
     option package;
     uses Hakaru, Partition, SolveTools[Inequality] ;
@@ -59,8 +182,7 @@ Domain := module()
 
            ExtShape[`Indicator`] :=
                Record('MakeCtx'=(e -> [ op(1,e), 1 ] )
-                     ,'MapleType'='Indicator(anything)'
-                     );
+                     ,'MapleType'='Indicator(anything)');
 
            ExtShape[`PARTITION`] :=
                Record('MakeCtx'=
@@ -84,8 +206,7 @@ Domain := module()
                                end if;
                            end if;
                        end proc)
-                     ,'MapleType'='Partition'
-                     );
+                     ,'MapleType'='Partition');
 
            ExtShape[`piecewise`] :=
                Record('MakeCtx'=
@@ -98,9 +219,7 @@ Domain := module()
                              [ w, p1 ];
                          end if;
                         end proc)
-                     ,'MapleType'=specfunc(`piecewise`)
-                     );
-
+                     ,'MapleType'=specfunc(`piecewise`));
            unprotect(Domain:-ExtShape);
     end proc;
 
@@ -163,9 +282,7 @@ Domain := module()
                         :: set({relation, `::`});
             local lo, hi, noi, bt
                 , noinf := evalb('no_infinity' in opts)
-                , btys  := evalb('bound_types' in opts)
-                ;
-
+                , btys  := evalb('bound_types' in opts);
             lo,hi := Domain:-ExtBound[mk]:-SplitBound(ty);
             noi := `if`(noinf,mk->b->if b in {infinity,-infinity} then {} else {mk(b)} end if
                              ,mk->b->{mk(b)} );
@@ -339,7 +456,6 @@ Domain := module()
     #   DOMAIN(        ..               , DInto(x,xt,DInto(y,yt,DConstrain(..))) )
     # basically, when we see an 'unbound' variable in the 'RHS' , we should bind
     # it with the default 'DInto'.
-
     export Apply := module ()
            export ModuleApply := proc(dom :: HDomain_mb, e, $)
                local vs, sh;
