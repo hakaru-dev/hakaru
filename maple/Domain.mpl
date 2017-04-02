@@ -823,7 +823,7 @@ Domain := module()
         , $) :: { set(list({relation, specfunc(relation, Not)}))
                 , list(set({relation, specfunc(relation, Not)}))
                 };
-        local expr := expr_, outty, outmk, inty, inmk ;
+        local expr := expr_, outty, outmk, inty, inmk, ty_ord ;
 
         # simplify negations of relations
         expr := subsindets(expr, { specfunc(relation, `Not`), `not`(relation) }
@@ -845,13 +845,11 @@ Domain := module()
         elif expr :: identical(true) then
             return `if`(norty='DNF', {[]}, []);
         end if;
-        if norty = 'DNF' then
-            outty := 'set'; outmk := (x->{x});
-            inty  := 'list'; inmk := (x->[x]);
-        else
-            outty := 'list'; outmk := (x->[x]);
-            inty  := 'set'; inmk := (x->{x});
-        end if;
+
+        ty_ord := `if`(norty='DNF', [1,2], [2,1]);
+        outty, inty := [ 'set', 'list' ][ty_ord][];
+        outmk, inmk := [ x->{x},x->[x] ][ty_ord][];
+
         if not expr :: outty then expr := outmk(expr) end if;
         map(x -> if not x :: inty then inmk(x) else x end if, expr);
     end proc;
