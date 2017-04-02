@@ -305,15 +305,16 @@ Domain := module()
     end module;#Bound
 
     export Shape := module ()
-        export toConstraints := proc(sh_ :: DomShape, $)::list({boolean,relation,specfunc(`Or`)});
+        export toConstraints := proc(sh_ :: DomShape, $)
+               ::specfunc({boolean,relation,specfunc(`Or`)}, `And`);
             local sh := sh_;
             if sh :: specfunc(`DConstrain`) then
-                [ op(sh) ];
+                And( op(sh) );
             elif sh :: specfunc(`DSum`) then
-                sh := Or(op(map(x->And(op(toConstraints(x))), sh)));
+                sh := Or(op(map(toConstraints, sh)));
                 sh := Domain:-simpl_relation(sh, norty='CNF');
-                map(x->Or(op(x)),sh);
-            # elif sh :: specfunc(`DSplit`) then
+                sh := subsindets(sh, set , x->`Or`(op(x)));
+                sh := subsindets(sh, list, x->`And`(op(x)));
             elif sh :: specfunc(`DInto`) then
                 toConstraints(op(3, sh));
             else
