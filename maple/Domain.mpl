@@ -377,7 +377,19 @@ Domain := module()
             end proc;
 
             local do_extract := proc(vars, arg, $)
-                if Domain:-Has:-Bound(arg) then
+                local sub, sarg, svars;
+                if arg :: `*` then
+                    sub := map(x->[do_extract(vars,x)], [op(arg)]);
+                    sarg := `*`(op(map2(op,1,sub)));
+                    svars := map2(op,2,sub);
+                    svars := remove(x->x=[], svars);
+                    svars := {op(svars)};
+                    if nops(svars) = 1 then
+                      sarg, op(1, svars);
+                    else
+                      arg, vars
+                    end if;
+                elif Domain:-Has:-Bound(arg) then
                     do_extract_arg(vars, op(0,arg), op(arg));
                 else
                     arg, vars
