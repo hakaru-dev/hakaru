@@ -836,7 +836,6 @@ Domain := module()
                        , x->Logic:-`&or`(op(x)) ]
                      , [ { specfunc(`And`), `and` }
                        , x->Logic:-`&and`(op(x)) ] );
-        expr := Logic:-`&and`(op(expr));
         expr := Logic:-Normalize(expr, form=norty);
         expr := foldr( proc(v,e) subsindets(e, op(v)) end proc
                      , expr
