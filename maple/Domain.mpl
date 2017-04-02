@@ -718,6 +718,69 @@ Domain := module()
             DOMAIN(vs, sh);
         end proc;
 
+        local constraints_about_vars := module()
+            export ModuleApply := proc(dom, $)
+                local vs, sh, vars, ctx_vs;
+                vs, sh := op(dom);
+                vars := {op(Domain:-Bound:-varsOf(vs))};
+                ctx_vs := Domain:-Bound:-toConstraints(vs, 'bound_types');
+                sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
+                DOMAIN(vs, sh);
+            end proc;
+
+            local do_simpl_constraints := proc(vars, ctx_vs, x, $)
+                local ctx1, ctx, ss, td, rest, d, in_vs;
+                ss, ctx := selectremove(q->depends(q,vars), x);
+                in_vs := q-> not(lhs(q) in vars) and not(rhs(q) in vars);
+                td, rest := selectremove(type, ss, And(relation,satisfies(in_vs)));
+                ctx1 := { op(ctx), op(ctx_vs), op(rest) };
+                d := map(x->try_make_about(vars,ctx1,x), td);
+                DConstrain(op(d), op(ctx), op(rest));
+            end proc;
+
+            local try_make_about := proc(vars, ctx1, q0, $)
+                local vars_q, q_s, q := q0;
+                vars_q := indets(q, name) intersect vars;
+                if nops(vars_q) = 1 then
+                    vars_q := op(1,vars_q);
+                    q := KB:-try_improve_exp(q, vars_q, ctx1);
+                    try
+                        q_s := solve({q},[vars_q], 'useassumptions'=true) assuming (op(ctx1));
+                    catch "when calling '%1'. Received: 'numeric exception: underflow'":
+                        return q
+                    end try;
+                    if q_s::list and nops(q_s)=1 then
+                        op(op(1,q_s));
+                    else
+                        q
+                    end if;
+                else
+                    q
+                end if;
+            end proc;
+        end module;
+
+        # todo; this should actually solve for a variable, then substitute
+        # that variable in. In most cases, it would probably be enough to
+        # leave that as it is; it would simplify later.
+        local singular_pts := module()
+            export ModuleApply := proc(dom :: HDomain, $)
+                local bnds, sh, vs, todo, sh1, vs_ty;
+                bnds, sh := op(dom);
+                vs := applyop(bl -> select(b->op(3,b)=`Int`, bl), 1, bnds);
+                vs := Domain:-Bound:-varsOf(vs);
+                vs_ty := satisfies(x->x in {op(vs)});
+                todo := select( x -> nops(x) = 1 and op(1,x) :: `=`
+                                     # one side mentions exactly one
+                                     # var, and the other none
+                                     and nops ( (indets(lhs(op(1,x)), vs_ty))
+                                          union (indets(rhs(op(1,x)), vs_ty)) ) = 1
+                              , indets(sh, specfunc(`DConstrain`)) ) ;
+                sh1 := subs([seq(t=DSum(),t=todo)], sh);
+                DOMAIN(bnds, sh1);
+            end proc;
+        end module;
+
         export ModuleLoad := proc($)
             unprotect(Domain:-Improve:-Simplifiers):
             Simplifiers["Obviously redundant 'DInto's"] :=
@@ -726,74 +789,11 @@ Domain := module()
 
             Simplifiers["Make constraints abouts vars"] :=
                  Record('Order'=6
-                       ,'DO'=
-                   (module()
-                        export ModuleApply := proc(dom, $)
-                            local vs, sh, vars, ctx_vs;
-                            vs, sh := op(dom);
-                            vars := {op(Domain:-Bound:-varsOf(vs))};
-                            ctx_vs := Domain:-Bound:-toConstraints(vs, 'bound_types');
-                            sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
-                            DOMAIN(vs, sh);
-                        end proc;
+                       ,'DO'=Domain:-Improve:-constraints_about_vars);
 
-                        local do_simpl_constraints := proc(vars, ctx_vs, x, $)
-                            local ctx1, ctx, ss, td, rest, d;
-                            ss, ctx := selectremove(q->depends(q,vars), x);
-                            td, rest := selectremove(type, ss
-                                                     , And(relation
-                                                           ,satisfies(q-> not(lhs(q) in vars) and not(rhs(q) in vars))));
-                            ctx1 := { op(ctx), op(ctx_vs), op(rest) };
-                            d := map(x->try_make_about(vars,ctx1,x), td);
-                            DConstrain(op(d), op(ctx), op(rest));
-                        end proc;
-
-                        local try_make_about := proc(vars, ctx1, q0, $)
-                            local vars_q, q_s, q := q0;
-                            vars_q := indets(q, name) intersect vars;
-                            if nops(vars_q) = 1 then
-                                vars_q := op(1,vars_q);
-                                q := KB:-try_improve_exp(q, vars_q, ctx1);
-                                try
-                                    q_s := solve({q},[vars_q], 'useassumptions'=true)
-                                             assuming (op(ctx1));
-                                catch "when calling '%1'. Received: 'numeric exception: underflow'":
-                                    return q
-                                end try;
-                                if q_s::list and nops(q_s)=1 then
-                                    op(op(1,q_s));
-                                else
-                                    q
-                                end if;
-                            else
-                                q
-                            end if;
-                        end proc;
-                    end module));
-
-            # todo; this should actually solve for a variable, then substitute
-            # that variable in. In most cases, it would probably be enough to
-            # leave that as it is; it would simplify later.
             Simplifiers["Single_pts"] :=
               Record('Order'=14
-                    ,'DO'=
-                (module()
-                     export ModuleApply := proc(dom :: HDomain, $)
-                         local bnds, sh, vs, todo, sh1, vs_ty;
-                         bnds, sh := op(dom);
-                         vs := applyop(bl -> select(b->op(3,b)=`Int`, bl), 1, bnds);
-                         vs := Domain:-Bound:-varsOf(vs);
-                         vs_ty := satisfies(x->x in {op(vs)});
-                         todo := select( x -> nops(x) = 1 and op(1,x) :: `=`
-                                              # one side mentions exactly one
-                                              # var, and the other none
-                                              and nops ( (indets(lhs(op(1,x)), vs_ty))
-                                                   union (indets(rhs(op(1,x)), vs_ty)) ) = 1
-                                       , indets(sh, specfunc(`DConstrain`)) ) ;
-                         sh1 := subs([seq(t=DSum(),t=todo)], sh);
-                         DOMAIN(bnds, sh1);
-                     end proc;
-                 end module));
+                    ,'DO'=Domain:-Improve:-singular_pts);
 
             Simplifiers["LMS"] := Record('Order'=10,'DO'=evaln(Domain:-Improve:-LMS));
         end proc;#ModuleLoad
