@@ -227,6 +227,8 @@ TestDisint( normalFB1, normalFB1r,
      label = "(d7_normalFB1) Disintegrate N(0,1)*N(x,1), over (y+y)+x"
             );
 
+TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
+
 ######################################################################
 #
 # These tests fail, and are expected to.  Move them up when they
@@ -236,11 +238,7 @@ TestDisint( normalFB1, normalFB1r,
 #
 
 # change of variables
-TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
 TestDisint(d4, d4r, label = "(d4) Disintegrate U(0,1) twice, over x/y");
-TestDisint(d3_3, d3_3_r, label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
-TestDisint(d3posfam, d3posfam_r, d3posfam_ctx
-          , label = "(d3posfam) Disintegrate U(0,1) twice, over x+y+K");
 # funky piecewise
 TestDisint(norm1a, norm1r,
      label = "(norm1a) U(0,1) into Ret of pw"
@@ -256,6 +254,9 @@ TestDisint(
 );
 
 TestDisint(pair_x_x, pair_x_x_r, label="(pair_x_x) Disintegrate U(0,1) over Ret(x,x)");
+TestDisint(d3_3, d3_3_r, label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
+TestDisint(d3posfam, d3posfam_r, d3posfam_ctx
+          , label = "(d3posfam) Disintegrate U(0,1) twice, over x+y+K");
 
 #This one is a basic test of the Counting wrt-var type.
 #This one gives the Weight(-1, ...) error
