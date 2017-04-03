@@ -474,14 +474,14 @@ export
            local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
            local eval_ctrs := ctx -> eval(ctx, [`And`=`and`, `Not`=`not`]);
 
-           local postproc_for_solve := proc(ctx, ctxSlv, $)::{identical(false), list({boolean,relation})};
+           local postproc_for_solve := proc(ctx, ctxSlv)::{identical(false), list({boolean,relation})};
                      local ctxC := ctxSlv;
 
                      if ctxC = [] then
                          ctxC := false ;
 
                      elif nops(ctxC)> 1 then
-                         ctxC := map(x -> postproc_for_solve(ctx, [x])[], ctxC);
+                         ctxC := map(x -> postproc_for_solve(ctx, [x], _rest)[], ctxC);
 
                      elif nops(ctxC) = 1 then
                          ctxC := op(1,ctxC);
@@ -498,10 +498,10 @@ export
                              ctxC := [ctxC];
 
                          elif ctxC :: specfunc('piecewise') then
-                             ctxC := PWToPartition(ctxC, 'do_solve');
+                             ctxC := PWToPartition(ctxC, _rest);
 
                              ctxC := [ seq( map( o -> condOf(c) and o
-                                               , postproc_for_solve(ctx, valOf(c)))[]
+                                               , postproc_for_solve(ctx, valOf(c), _rest))[]
                                           , c=op(1, ctxC)
                                           )
                                      ] ;
@@ -529,7 +529,7 @@ export
                    if ctxC = NULL and indets(ctxC, specfunc(`exp`)) <> {} then
                        return [ctx];
                    end if;
-                   ctxC := postproc_for_solve(ctx, [ctxC]);
+                   ctxC := postproc_for_solve(ctx, [ctxC], _rest);
                    if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
                        userinfo(10, 'Simpl:-condition',
                            printf("output: \n"
