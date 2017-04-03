@@ -371,7 +371,7 @@ Domain := module()
             end proc;
 
             local do_extract_arg := proc(kind, arg_, bound, $)
-                local x0, x, vars1, arg := arg_, rng;
+                local x0, x, vars, arg := arg_, rng;
                 x0  := ExtBound[kind]:-ExtractVar(bound);   # variable name
                 rng := ExtBound[kind]:-ExtractBound(bound); # variable range
                 x   := DInto(x0, rng, kind);                # the variable spec
