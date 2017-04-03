@@ -130,6 +130,13 @@ local
        end if
    end proc,
 
+   pw_cAnd := proc()
+       if nargs=0 then true
+       elif nargs=1 then args[1]
+       else `And`(args)
+       end if;
+   end proc,
+
    pw_cond_ctx := proc(ctx_, p, $)
        local ps, ctx, ctxN, cond, ncond;
        ps, ctx := op(ctx_); cond := condOf(p);
@@ -137,8 +144,8 @@ local
        cond := remove(x->x in ctx, cond);
        ncond := `if`(nops(cond)=1
                      , KB:-negate_rel(op(1,cond))
-                     , `not`(`and`(op(cond))) );
-       cond := `and`(op(cond));
+                     , `Not`(pw_cAnd(op(cond))) );
+       cond := pw_cAnd(op(cond));
        ctx := ctx union { ncond };
        [ [ op(ps), Piece(cond, valOf(p)) ], ctx ]
    end proc
@@ -247,7 +254,11 @@ export
    PartitionToPW := proc(x::Partition)#::specfunc(piecewise);
        local parts := op(1,x);
        parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
-       piecewise( op( ListTools[Flatten]( [ seq([condOf(p), valOf(p)], p=op(1,parts)) ] ) ) );
+       parts := [seq([condOf(p), valOf(p)][], p=op(1,parts))];
+       if op(-2, parts) :: identical(true) then
+           parts := subsop(-2=NULL, parts);
+       end if;
+       piecewise(op(parts));
    end proc,
 
 
