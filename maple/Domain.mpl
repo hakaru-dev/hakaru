@@ -193,7 +193,7 @@ Domain := module()
                                [ w, p ]
                            else
                                ps := op(1, p);
-                               wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
+                               wps := map(x->Domain:-Extract:-Shape(valOf(x), KB:-empty, 'no_simpl'), ps);
                                ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
                                if nops(vs) > 0 and
                                   andmap(v->op(1,vs)=v, vs) and
@@ -353,10 +353,10 @@ Domain := module()
 
     # Extract a domain from an expression
     export Extract := module ()
-        export ModuleApply := proc(e, { ctx := KB:-empty }, $) :: [ HDomain, anything ];
+        export ModuleApply := proc(e, kb, $) :: [ HDomain, anything ];
             local b, eb, s, es;
             b, eb := op(Bound(e));
-            s, es := op(Shape(eb, ctx=ctx ));
+            s, es := op(Shape(eb, kb ));
             [ DOMAIN(b, s), es ];
         end proc;
 
@@ -406,7 +406,7 @@ Domain := module()
         # essentially this assumes a distributive law (of domain shapes over
         # products)
         export Shape := module ()
-            export ModuleApply := proc(e, { ctx := KB:-empty }) :: [ anything, anything ];
+            export ModuleApply := proc(e, ctx :: t_kb) :: [ anything, anything ];
                 local ixs, w, e1, ctx1;
                 ixs := [indices(ExtShape, 'nolist')];
                 w, e1 := do_gets(ixs, true, e) [];
@@ -458,7 +458,9 @@ Domain := module()
             local simpl_shape := proc(e0,ctx,$)
                 local e := Domain:-simpl_relation(e0);
                 e := subsindets(e, set , x->DSum(op(x)));
-                e := subsindets(e, list, x->DConstrain(op(x), op(ctx)));
+                e := subsindets(e, list
+                               , x-> if nops(x) > 0 then DConstrain(op(x), op(ctx)) else DConstrain() end if
+                               );
                 e;
             end proc;
         end module;
