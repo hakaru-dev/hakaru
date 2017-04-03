@@ -18,45 +18,13 @@
          , do_domain := evalb( not ( ['no', 'domain'] in {op(opts)} ) ) ;
     e := ee;
 
-    if do_domain and Domain:-Has:-Bound(e) then
-        # First extract only the bounds, then simplify the body
-        # This may discover other nested domains, simplify them,
-        # and allow a further simplification to occur in this
-        # step of domain improvement
+    if do_domain then
         dom_specb, body := op(Domain:-Extract:-Bound(e));
-        kb1, with_kb1 := op(Domain:-Bound:-toKB(dom_specb, kb));
-
-        dom_specb, body := op( subs(with_kb1, [dom_specb, body])  );
-
-        e := reduce(body, h, kb1, opts);
-
-        # Extract the shape of the domain
-        (dom_specw, e) := op(Domain:-Extract:-Shape(e, ctx=kb));
-
-        # Construct the domain from the bounds and the shape
-        dom_spec := DOMAIN(dom_specb, dom_specw);
-
-        # Improve the domain
-        dom_spec := Domain:-Improve(dom_spec);
-
-        # Apply the domain back to the expression
-        mkDom := (x-> kb_assuming_mb(x->Domain:-Apply(dom_spec, x))(x, kb, (_->_)) );
-        ed := mkDom(e);
-
-        # Some extra simplification may be needed
-        elim := elim_intsum( ed, h, kb );
-
-        if elim = FAIL then
-            vars := op(1, dom_specb);
-            e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
-
-            kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(e, kb, x->x);
-
-        else
-            reduce(elim, h, kb, opts);
+        if not Domain:-Bound:-isEmpty(dom_specb) then # we have found bounds
+            return reduce_Integrals(body, h, kb, opts, dom_specb);
         end if;
-
-    elif do_domain and e :: 'And(specfunc({Ints,Sums}),
+    end if;
+    if do_domain and e :: 'And(specfunc({Ints,Sums}),
                    anyfunc(anything, name, range, list(name=range)))' then
       x, kb1 := genType(op(2,e),
                         mk_HArray(`if`(op(0,e)=Ints,
@@ -113,6 +81,50 @@
       subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)), h, kb, opts)), e)
     else
       simplify_assuming(e, kb)
+    end if;
+  end proc;
+
+  # "Integrals" refers to any types of "integrals" understood by domain (Int,
+  # Sum currently)
+  reduce_Integrals := proc(body_, h, kb, opts, dom_specb_, $)
+    local body := body_, dom_specb := dom_specb_, elim, e, mkDom, vars
+        , kb1, with_kb1, dom_specw, dom_spec, ed;
+
+    # First simplify the body; this may discover other nested domains, simplify
+    # them, and allow a further simplification to occur in this step of domain
+    # improvement. To do this we currently need a KB for the recursive call to reduce
+    kb1, with_kb1 := op(Domain:-Bound:-toKB(dom_specb, kb));
+
+    # kb may produce variable substitutions
+    dom_specb, body := op( subs(with_kb1, [dom_specb, body])  );
+    e := reduce(body, h, kb1, opts);
+
+    # Extract the shape of the domain
+    (dom_specw, e) := op(Domain:-Extract:-Shape(e, ctx=kb));
+
+    # Construct the domain from the bounds and the shape
+    dom_spec := DOMAIN(dom_specb, dom_specw);
+
+    # Improve the domain
+    dom_spec := Domain:-Improve(dom_spec);
+
+    # Apply the domain back to the expression
+    mkDom := (x-> kb_assuming_mb(x->Domain:-Apply(dom_spec, x))(x, kb, (_->_)) );
+    ed := mkDom(e);
+
+    # Some extra simplification may be needed
+    elim := elim_intsum( ed, h, kb );
+
+    if elim = FAIL then
+      # that simplification fails, so build the domain individually
+      # on each multiplicand of the produce (reduce_on_prod)
+      vars := op(1, dom_specb);
+      e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
+      # simplify partitions (might not be needed?)
+      kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(e, kb, x->x);
+    else
+      # that simplification fails, so reduce again (might not be needed?)
+      reduce(elim, h, kb, opts);
     end if;
   end proc;
 

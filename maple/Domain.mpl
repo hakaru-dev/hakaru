@@ -230,7 +230,7 @@ Domain := module()
     end proc;
 
     # Checks if an expression has domain bounds/shape, and check for either one.
-    export Has := module ()
+    local Has := module ()
         export ModuleApply := proc(e, $)::truefalse;
             Bound(e) or Shape(e);
         end proc;
@@ -263,6 +263,10 @@ Domain := module()
 
         export varsOf := proc(dom :: DomBound, $)::list(name);
             map(x->op(1,x), op(1, dom));
+        end proc;
+
+        export isEmpty := proc(dom :: DomBound, $)::truefalse;
+            evalb(nops(op(1,dom))=0);
         end proc;
 
         export get := proc(dom :: DomBound, var :: name, $)
