@@ -118,7 +118,12 @@ $include "NewSLO/Piecewise.mpl"
 
       if mode = `*` and e :: 'specfunc(Beta)' then
         res := hack_Beta(e, kb, loops);
-        if res <> FAIL then return res end if;
+        if res <> FAIL then
+          userinfo(3, `beta_hack`,
+                   printf("Beta hack was applied to %a, %a, %a\n"
+                          "\tto produce %a\n", e, kb, loops, res));
+          return res
+        end if;
       end if;
 
       if nops(loops) > 0 then
