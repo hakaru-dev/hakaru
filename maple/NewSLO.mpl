@@ -28,7 +28,7 @@ NewSLO := module ()
         reduce_IntsSums, reduce_Integrals,
         elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
         banish,
-        reduce_pw, nub_piecewise, piecewise_if,
+        nub_piecewise, piecewise_if,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
         ModuleLoad;
   export
@@ -46,7 +46,7 @@ NewSLO := module ()
          ReparamDetermined, determined, reparam, disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global LO, Integrand, Indicator, SumIE, ProductIE;
+  global LO, Integrand, SumIE, ProductIE;
   uses Hakaru, KB, Loop, Partition, Domain, disint;
 
   t_sum     := 'specfunc({sum    ,Sum    })';

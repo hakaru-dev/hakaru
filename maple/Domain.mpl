@@ -180,10 +180,6 @@ Domain := module()
 
            unprotect(Domain:-ExtShape);
 
-           ExtShape[`Indicator`] :=
-               Record('MakeCtx'=(e -> [ op(1,e), 1 ] )
-                     ,'MapleType'='Indicator(anything)');
-
            ExtShape[`PARTITION`] :=
                Record('MakeCtx'=
                       (proc(p0,$)

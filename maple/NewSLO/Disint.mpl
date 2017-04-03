@@ -43,17 +43,7 @@
          #Ret is aka Dirac.
          Ret= Record(
               cond_constructor= `=`,
-              #If it wasn't necessary to clean out the superfluous `Indicator`s,
-              #then this disintegrator could simply be `eval`, which would
-              #have a great symmetry, the 3 disintegrators being diff, delta,
-              #and eval.
-              disintegrator= ((e::algebraic, pt::{name=anything})->
-                   eval(
-                        eval(e, pt),
-                        #Remove any Indicator made superfluous by the above eval:
-                        Indicator= (r-> `if`(r::`=` and r, 1, 'Indicator'(r)))
-                   )
-              ),
+              disintegrator='eval',
               disintegrator_arg_extractor= (A-> op(1,A)= op([2,1], A)),
               #E.g., (x &M Ret(3)) --> (x= 3).
 

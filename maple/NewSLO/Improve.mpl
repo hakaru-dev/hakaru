@@ -46,7 +46,7 @@
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
       subintegral := convert(reduce(subintegral, h, kb, opts), 'list', `*`);
       (subintegral, ww) := selectremove(depends, subintegral, h);
-      reduce_pw(simplify_factor_assuming(`*`(w, op(ww)), kb))
+      nub_piecewise(simplify_factor_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
     elif e :: t_pw then
       e:= flatten_piecewise(e);
@@ -56,8 +56,7 @@
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      e := reduce_pw(e);
-      e;
+      nub_piecewise(e);
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='reduce'(op(2,b),x,c,opts),b),
@@ -137,7 +136,7 @@
   reduce_on_prod := proc(f,ee, var:: {name, list(name), set(name)} ,kb0::t_kb,$)
       local e := ee, w;
       e, w := selectremove(depends, list_of_mul(e), var);
-      reduce_pw(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
+      nub_piecewise(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
   end proc;
 
   int_assuming := proc(e, v::name=anything, kb::t_kb, $)
@@ -146,23 +145,6 @@
 
   sum_assuming := proc(e, v::name=anything, kb::t_kb)
     simplify_factor_assuming('sum'(e, v), kb);
-  end proc;
-
-  reduce_pw := proc(ee, $) # ee may or may not be piecewise
-    local e;
-    e := nub_piecewise(ee);
-    if e :: t_pw then
-      if nops(e) = 2 then
-        return Indicator(op(1,e)) * op(2,e)
-      elif nops(e) = 3 and Testzero(op(2,e)) then
-        return Indicator(Not(op(1,e))) * op(3,e)
-      elif nops(e) = 3 and Testzero(op(3,e)) then
-        return Indicator(op(1,e))*op(2,e)
-      elif nops(e) = 4 and Testzero(op(2,e)) then
-        return Indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
-      end if
-    end if;
-    return e
   end proc;
 
   nub_piecewise := proc(pw, $) # pw may or may not be piecewise
