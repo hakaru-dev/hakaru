@@ -366,36 +366,34 @@ Domain := module()
         export Bound := module ()
             export ModuleApply := proc(e, $) :: [ DomBound, anything ];
                 local arg, vars, kb;
-                arg, vars := do_extract([], e);
+                arg, vars := do_extract(e)[];
                 [ DBound(vars), arg ];
             end proc;
 
-            local do_extract_arg := proc(vars, kind, arg_, bound, $)
+            local do_extract_arg := proc(kind, arg_, bound, $)
                 local x0, x, vars1, arg := arg_, rng;
                 x0  := ExtBound[kind]:-ExtractVar(bound);   # variable name
                 rng := ExtBound[kind]:-ExtractBound(bound); # variable range
                 x   := DInto(x0, rng, kind);                # the variable spec
-                vars1 := [ x, op(vars) ];
-                do_extract(vars1, arg);
+                arg, vars := do_extract(arg)[];
+                [ arg, [ op(vars), x ] ];
             end proc;
 
-            local do_extract := proc(vars, arg, $)
-                local sub, sarg, svars;
-                if arg :: `*` then
-                    sub := map(x->[do_extract(vars,x)], [op(arg)]);
-                    sarg := `*`(op(map2(op,1,sub)));
-                    svars := map2(op,2,sub);
-                    svars := remove(x->x=[], svars);
-                    svars := {op(svars)};
-                    if nops(svars) = 1 then
-                      sarg, op(1, svars);
-                    else
-                      arg, vars
-                    end if;
-                elif Domain:-Has:-Bound(arg) then
-                    do_extract_arg(vars, op(0,arg), op(arg));
+            local do_extract := proc(arg, $)
+                local sub, prod, svars;
+                # if arg :: `*` then
+                #     sub := map(do_extract, [op(arg)]);
+                #     prod, svars := selectremove(x->op(2,x)=[],sub);
+                #     if nops(svars) = 1 then
+                #         [ `*`(op([1,1],svars),op(map2(op,1,prod)))
+                #         , op([1,2], svars) ];
+                #     else
+                #         [ arg, [] ];
+                #     end if;
+                if Domain:-Has:-Bound(arg) then
+                    do_extract_arg(op(0,arg), op(arg));
                 else
-                    arg, vars
+                    [ arg, [] ]
                 end if;
             end proc;
         end module;
