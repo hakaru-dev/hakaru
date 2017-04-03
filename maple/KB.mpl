@@ -62,7 +62,7 @@ KB := module ()
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
-     negated_relation, negate_rel,
+     negated_relation, negate_rel, negate_rels,
 
      # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
      kb_subtract,
@@ -191,6 +191,10 @@ KB := module ()
           # 'Technically' this is a KB 'constructor'!
           not(R);
       end if;
+  end proc;
+
+  negate_rels := proc(e, $)
+      subsindets(e, { specfunc(relation, `Not`), `not`(relation) }, negate_rel@op );
   end proc;
 
   # Builds a kb from a list of atoms - simply foldr(assert,empty,as) except
