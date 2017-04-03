@@ -122,20 +122,17 @@ local
       return pos;
    end proc,
 
-   flatten := proc(ty, x, $)
-       if x :: ty then
-           { map(a->flatten(ty,a)[],[op(x)])[] };
-       else
-           {x};
-       end if;
-   end proc,
-
    pw_cond_ctx := proc(ctx_, p, $)
        local ps, ctx, ctxN, cond; ps, ctx := op(ctx_); cond := condOf(p);
-       cond := flatten({specfunc(`And`), `and`}, cond);
-       ctxN := map(KB:-negate_rel,ctx);            # "this context"
-       cond := cond minus ctxN;                    # "this cond" minus "context"
-       ctx := ctxN union map(KB:-negate_rel,cond); # context and not "this cond"
+       if cond :: {specfunc(`And`), `and`} then
+           cond := { op(cond) };
+       else
+           cond := { cond };
+       end if;
+       ctxN := map(KB:-negate_rel,ctx);
+       try cond := remove(x->not(coulditbe(x)), cond) assuming (op(ctxN));
+         catch: NULL; end try;
+       ctx := ctxN union cond;
        cond := `and`(op(cond));
        [ [ op(ps), Piece(cond, valOf(p)) ], ctx ]
    end proc
