@@ -138,9 +138,8 @@
     m::t_Hakaru,
     #var &M wrt-var type, or Pairs thereof
     A::{t_disint_var, t_disint_var_pair},
-    {ctx::t_kb_atoms:= []}, #context: parameter assumptions, "knowledge"
-    $
-   )::t_Hakaru;
+    ctx::t_kb_atoms:= [] #context: parameter assumptions, "knowledge"
+   ,$)::t_Hakaru;
    local
     mc,  #final integral to be passed to improve @ toLO; then result
          #of each disintegration step

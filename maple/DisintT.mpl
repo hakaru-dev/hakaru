@@ -15,30 +15,6 @@ with(Partition):
 # disintegration tests
 #
 #####################################################################
-
-# this uses a *global* name 't'.
-# assume(t::real);
-`t`:
-
-TestDisint := MakeTest(
- proc(
-  M::{t_Hakaru, list({algebraic, name=list})}, #args to disint, or just 1st arg
-  n::set({t_Hakaru, identical(NULL)}), #desired return
-  {ctx::list:= []}, #context: assumptions, "knowledge"
-  {TLim::{positive, identical(-1)}:= 80} #timelimit
-)
-  local m;
-  m:= `if`(M::list, M, [M, :-t])[], :-ctx= ctx;
-
-  timelimit(
-       TLim,
-       CodeTools[Test]({disint(m)}, n, '`subset`(measure(simplify))', _rest)
-  );
-end proc
- , testGroup = "Disint" ):
-
-# End of the possibly statistically meaningless tests.
-
 d1 := Bind(Lebesgue(-infinity,infinity), x, Ret(Pair(-5*x,3/x))):
 d1r := {Weight(1/5,Ret(-15/t))}:
 
@@ -194,14 +170,11 @@ easyRoadr:= {
   Weight(density[Gaussian](x2, noiseE)(t), Ret(Pair(noiseT, noiseE)))
   )))))
 }:
-helloWorld:= [
+helloWorld:=
   Bind(Gaussian(0,1), mu,
   Bind(Plate(n, k, Gaussian(mu, 1)), nu,
   Ret(Pair(nu, mu))
-  )),
-  :-t,
-  ctx= [n::integer, n > 0]
-]:
+  )):
 helloWorldr:= {
   Bind(Gaussian(0,1), mu,
   Plate(n, i, Weight(density[Gaussian](mu, 1)(idx(t,i)), Ret(mu)))
@@ -263,7 +236,7 @@ TestDisint( normalFB1, normalFB1r,
 TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
 TestDisint(d4, d4r, label = "(d4) Disintegrate U(0,1) twice, over x/y");
 TestDisint(d3_3, d3_3_r, label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
-TestDisint(d3posfam, d3posfam_r, ctx=d3posfam_ctx
+TestDisint(d3posfam, d3posfam_r, d3posfam_ctx
           , label = "(d3posfam) Disintegrate U(0,1) twice, over x+y+K");
 # funky piecewise
 TestDisint(norm1a, norm1r,
@@ -281,23 +254,22 @@ TestDisint(
 
 #This one is a basic test of the Counting wrt-var type.
 #This one gives the Weight(-1, ...) error
-assume(n_, integer);
 TestDisint(
      [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_ &M Counting((-1,1)*~infinity)],
      {},  #I don't know what to expect.
-     ctx= [n::integer, n >= 0],
+     [n::integer, n >= 0],
      label= "(d0_1) `Counting` test; `Weight` bug (currently failing)"
 );
 
 TestDisint(
      helloWorld, helloWorldr,
-     label= "(helloWorld) Plate of Normals",
-     ctx= [n::integer, n > 0]
+     [n::integer, n > 0],
+     label= "(helloWorld) Plate of Normals"
 );
 
 # tests which take too long
 TestDisint(
-     easyRoad, easyRoadr,
-     label= "(easyRoad) Combo of Normals with distinct Uniform noises",
-     TLim= 120 #takes 6 - 8 minutes to `improve` on an Intel i7
+     easyRoad, easyRoadr, [],
+     120, #takes 6 - 8 minutes to `improve` on an Intel i7
+     label= "(easyRoad) Combo of Normals with distinct Uniform noises"
 );

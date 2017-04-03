@@ -75,6 +75,37 @@ TestHakaru := proc(m, n::{set(algebraic),algebraic}:=m,
     ver, _rest)
 end proc;
 
+TestDisint := module()
+    export ModuleApply := proc(
+      M::{t_Hakaru, list(anything)}, #args to disint, or just 1st arg
+      n::set({t_Hakaru, identical(NULL)}), #desired return
+      ctx::t_kb_atoms:= [], #context: assumptions, "knowledge"
+      TLim::{positive, identical(-1)}:= 80 #timelimit
+    )
+      local disint_args, disint_var, expected := n;
+      if M :: list then
+        disint_args := [op(M),ctx];
+      else
+        disint_var := gensym('t');
+        disint_args := [M,disint_var,ctx];
+        expected := subs(:-`t`=disint_var,expected);
+      end if;
+      do_test(disint_args, copy(expected), TLim, _rest);
+    end proc;
+
+    # This is necessary because CodeTools seems to forgot the value
+    # of our local variables (but only the `expected result' arg)
+    # unless that arg is precisely a formal parameter, and we `copy' the
+    # input to this function.
+    local do_test := proc(disint_args, expected, tlim)
+      timelimit( tlim, CodeTools[Test]
+                 ( {disint(op(disint_args))}
+                 , expected
+                 , '`subset`(measure(simplify))'
+                 , _rest));
+    end proc;
+end module;
+
   # Test roughly for "efficient" Hakaru measure terms,
   # i.e., those we want simplification to produce.
 Efficient := proc(mm, $)

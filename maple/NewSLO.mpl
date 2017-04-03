@@ -35,7 +35,7 @@ NewSLO := module ()
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, Efficient,
+         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, TestDisint, Efficient,
          toLO, fromLO, improve, reduce,
          density, bounds,
 
@@ -47,7 +47,7 @@ NewSLO := module ()
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global LO, Integrand, Indicator, SumIE, ProductIE;
-  uses Hakaru, KB, Loop, Partition, Domain;
+  uses Hakaru, KB, Loop, Partition, Domain, disint;
 
   t_sum     := 'specfunc({sum    ,Sum    })';
   t_product := 'specfunc({product,Product})';
