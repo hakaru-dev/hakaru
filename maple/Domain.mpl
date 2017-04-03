@@ -149,9 +149,21 @@ Domain := module()
     global DOMAIN; global DBound; global DConstrain; global DSum; global DSplit; global DInto; global DNoSol;
 
     local ModuleLoad := proc($)
-           local ty_nm;
+           local ty_nm, g;
            for ty_nm in [ indices(DomainTypes, nolist) ] do
                TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
+           end do;
+
+           #op([2,6], ...) of a module is its globals.
+           for g in op([2,6], thismodule) do
+               if g <> eval(g) then
+                   unassign(g);
+                   WARNING("Previous value of global name '%1' erased.", g)
+               end if;
+               if assigned(Domain:-GLOBALS[g]) then
+                   assign(g = copy(Domain:-GLOBALS[g]));
+               end if;
+               protect(g);
            end do;
 
            unprotect(Domain:-ExtBound);
@@ -342,6 +354,31 @@ Domain := module()
            ,(DomNoSol  = 'specfunc(`DNoSol`)' )
            ,(HDomain_mb = ''Or(HDomain, DomNoSol)'' )
            ] );
+
+    local GLOBALS := table(
+      ['DOMAIN' =
+       (proc()
+          local errs := indets([args[2..-1]], DomNoSol);
+          if errs <> {} then
+              'procname'(args[1], 'DNoSol'(map(op,errs)[]));
+          end if;
+          'procname'(args);
+        end proc)
+     , 'DConstrain' =
+       (proc()
+         local as := {args};
+         if false in as then return DSum() end if;
+         as := remove(x->x::identical(false),as);
+         'procname'(op(as));
+       end proc)
+     , 'DSum' =
+       (proc()
+         local as := [args];
+         as := subsindets(as, specfunc(`DSum`), xs->
+               subsindets(xs, specfunc(`DSum`), op));
+         if nops(as) = 1 then return op(1,as) end if;
+         'procname'(op(as));
+       end proc) ]);
 
     # Extending domain extraction and replacement.
     export ExtBound := table();
