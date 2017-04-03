@@ -793,11 +793,7 @@ Domain := module()
                 if nops(vars_q) = 1 then
                     vars_q := op(1,vars_q);
                     q := KB:-try_improve_exp(q, vars_q, ctx1);
-                    try
-                        q_s := solve({q},[vars_q], 'useassumptions'=true) assuming (op(ctx1));
-                    catch "when calling '%1'. Received: 'numeric exception: underflow'":
-                        return q
-                    end try;
+                    q_s := solve({q},[vars_q], 'useassumptions'=true) assuming (op(ctx1));
                     if q_s::list and nops(q_s)=1 then
                         op(op(1,q_s));
                     else
