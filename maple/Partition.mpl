@@ -50,7 +50,7 @@ local
 
           r := eval( PartitionToPW(q), eqs );
           if r :: specfunc('piecewise') then
-              q := PWToPartition( r );
+              q := PWToPartition( r , 'do_solve' );
           else
               q := r;
           end if;
@@ -69,7 +69,7 @@ local
       proc(parts, wrt, $)
           local pw  := PartitionToPW(PARTITION(parts))
               , dpw := diff(pw, wrt)
-              , r   := PWToPartition(dpw)
+              , r   := PWToPartition(dpw, 'do_solve' )
               , r0, r1;
             ;
           r0 := Simpl:-singular_pts(r);
@@ -120,6 +120,21 @@ local
          return err;
       end if;
       return pos;
+   end proc,
+
+   pw_cond_ctx := proc(ctx_, p, $)
+       local ps, ctx, ctxN, cond; ps, ctx := op(ctx_); cond := condOf(p);
+       if cond :: {specfunc(`And`), `and`} then
+           cond := { op(cond) };
+       else
+           cond := { cond };
+       end if;
+       ctxN := map(KB:-negate_rel,ctx);
+       try cond := remove(is, cond) assuming (op(ctxN));
+         catch: NULL; end try;
+       ctx := ctx union cond;
+       cond := `and`(op(cond));
+       [ [ op(ps), Piece(cond, valOf(p)) ], ctx ]
    end proc
 ;
 export
@@ -154,6 +169,21 @@ export
    Pairs:= proc(P::Partition)::set([anything, anything]);
    local p;
       {seq([condOf(p), valOf(p)], p= op(1,P)) }
+   end proc,
+
+   Pieces := proc(cs0,es0)::list(PartitionPiece);
+       local es, cs;
+       if es0 :: {set,list} then
+           es := es0;
+       else
+           es := {es0};
+       end if;
+       if cs0 :: {set,list,specfunc(`And`),`and`} then
+           cs := cs0;
+       else
+           cs := {cs0};
+       end if;
+       [seq(seq(Piece(c,e),c=cs),e=es)];
    end proc,
 
    #This is just `map` for Partitions.
@@ -208,10 +238,10 @@ export
        end if;
    end proc,
 
-   PartitionToPW := proc(x::Partition)::specfunc(piecewise);
-       # piecewise can reduce immediately to not-piecewise which makes the type
-       # test fail
-       'piecewise'( op( ListTools[Flatten]( [ seq([condOf(p), valOf(p)], p= op(1,x)) ] ) ) );
+   PartitionToPW := proc(x::Partition)#::specfunc(piecewise);
+       local parts := op(1,x);
+       parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
+       piecewise( op( ListTools[Flatten]( [ seq([condOf(p), valOf(p)], p=op(1,parts)) ] ) ) );
    end proc,
 
 
@@ -233,15 +263,11 @@ export
        # which is the conjunction of the negations of all clauses
        # so far
        local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q
-           , ctxC, cl
-         ;
-
+           , ctxC, cl;
        userinfo(5, PWToPartition
                , printf("PWToPartition: found %d ops in %a \n ", n, x) );
-
        # handles all but the `otherwise` case if there is such a case
        for i in seq(q, q = 1 .. iquo(n, 2)) do
-
            userinfo(3, PWToPartition
                     , printf("PWToPartition: looking at clause %d (op %d) \n ", i, 2*i-1));
 
@@ -252,7 +278,7 @@ export
                return PARTITION( cls );
            else
                ctxC := `And`(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
-               ctxC := Simpl:-condition(ctxC);
+               ctxC := Simpl:-condition(ctxC, _rest);
 
                if cnd :: `=` then
                    ncnd := lhs(cnd) <> rhs(cnd);
@@ -265,17 +291,10 @@ export
                userinfo(3, PWToPartition, printf("PWToPartition: ctx after %d clauses "
                                                  "is %a\n", i, ctx));
 
-               if ctxC :: identical(false) then # this clause is actually unreachable
+               if ctxC :: identical(false,[]) then # this clause is actually unreachable
                    return(PARTITION(cls));
                else
-                   cls := [ op(cls)
-                          , seq(Piece(cl
-                                     ,op(2*i ,x)
-                                     )
-                               ,cl=ctxC
-                               )
-                          ];
-
+                   cls := [ op(cls), op(Pieces(ctxC,[op(2*i,x)])) ];
                end if;
            end if;
 
@@ -283,15 +302,9 @@ export
 
        # if there is an otherwise case, handle that.
        if n::odd then
-           ctx := Simpl:-condition(ctx);
-           if not ctx :: identical(false) then
-               cls := [ op(cls)
-                      , seq(Piece(cl
-                                 ,op(n,x)
-                                 )
-                           ,cl=ctx
-                           )
-                      ];
+           ctx := Simpl:-condition(ctx, _rest);
+           if not ctx :: identical(false,[]) then
+               cls := [ op(cls), op(Pieces(ctx,[op(n,x)])) ];
            end if;
        end if;
 
@@ -302,20 +315,10 @@ export
        PARTITION( cls );
    end proc,
 
-   MbAppPartOrPw := proc(chk,f,x::Or(Partition,specfunc(piecewise)))
-       local isPr := evalb(x::Partition), pr := `if`(isPr, x, PWToPartition(x));
-       if chk(pr) then
-           (`if`(isPr, a->a, PartitionToPW))(f(pr));
-       else
-           FAIL
-       end if;
-   end proc,
-
    # applies a function to the arg if arg::Partition,
    # and if arg::piecewise, then converts the piecewise to a partition,
    # applies the function, then converts back to piecewise
    # this mainly acts as a sanity check
-
    AppPartOrPw := proc(f::anything # TODO better type
                       ,x::Or(Partition,specfunc(piecewise))
                       )
@@ -495,7 +498,7 @@ export
                              ctxC := [ctxC];
 
                          elif ctxC :: specfunc('piecewise') then
-                             ctxC := PWToPartition(ctxC);
+                             ctxC := PWToPartition(ctxC, 'do_solve');
 
                              ctxC := [ seq( map( o -> condOf(c) and o
                                                , postproc_for_solve(ctx, valOf(c)))[]
@@ -514,30 +517,36 @@ export
 
                  end proc;
 
-           export ModuleApply := proc(ctx, $)::list;
-           local ctxC := ctx;
+           export ModuleApply := proc(ctx)::list;
+               local ctxC := ctx;
 
                if ctx :: identical(true) then
                    error "Simpl:-condition: don't know what to do with %1", ctxC;
                end if;
 
-               ctxC := solve({ctxC}, 'useassumptions'=true);
-               if ctxC = NULL and indets(ctxC, specfunc(`exp`)) <> {} then
-                   return [ctx];
+               if 'do_solve' in {_rest} then
+                   ctxC := solve({ctxC}, 'useassumptions'=true);
+                   if ctxC = NULL and indets(ctxC, specfunc(`exp`)) <> {} then
+                       return [ctx];
+                   end if;
+                   ctxC := postproc_for_solve(ctx, [ctxC]);
+                   if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
+                       userinfo(10, 'Simpl:-condition',
+                           printf("output: \n"
+                                  "  %a\n\n"
+                                  , ctxC )
+                          );
+                   end if;
+               else
+                   ctxC := Domain:-simpl_relation(ctxC, norty='DNF');
+                   ctxC := subsindets(ctxC, list, `and`@op);
+                   if ctxC :: set then
+                       ctxC := [op(ctxC)]
+                   else
+                       ctxC := [ctxC];
+                   end if;
                end if;
-
-               ctxC := postproc_for_solve(ctx, [ctxC]);
-
-               if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
-                   userinfo(10, 'Simpl:-condition',
-                       printf("output: \n"
-                              "  %a\n\n"
-                              , ctxC )
-                      );
-               end if;
-
                ctxC;
-
            end proc;
        end module; #Simpl:-condition
    end module, #Simpl

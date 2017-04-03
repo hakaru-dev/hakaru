@@ -219,7 +219,7 @@ Domain := module()
                Record('MakeCtx'=
                        (proc(p, $)
                          local w, p1;
-                         w, p1 := Domain:-ExtShape[`PARTITION`]:-MakeCtx( PWToPartition(p) ) [] ;
+                         w, p1 := Domain:-ExtShape[`PARTITION`]:-MakeCtx( PWToPartition(p, 'do_solve') ) [] ;
                          if w = true then
                              [ true, p ] ;
                          else
@@ -536,7 +536,7 @@ Domain := module()
                    if is(cond) then
                        r := e
                    else
-                       r := PWToPartition(piecewise(cond, e, 0));
+                       r := PWToPartition(piecewise(cond, e, 0), 'do_solve');
                    end if;
                    # if there are still integrals which have not been applied,
                    # apply them now
@@ -675,7 +675,7 @@ Domain := module()
             local postproc := proc(sol, ctx, vs, $)
                 local ret := sol;
                 ret := subsindets(ret, specfunc('piecewise')
-                                 , x-> DSplit(Partition:-PWToPartition(x)));
+                                 , x-> DSplit(Partition:-PWToPartition(x, 'do_solve')));
                 ret := subsindets(ret
                                  , Or(identical({}), set(list))
                                  , x -> DSum(op(x)) );

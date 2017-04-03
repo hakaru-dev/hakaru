@@ -107,9 +107,13 @@ introLO :=
   Bind(Uniform(0,1),x,
   Bind(Uniform(0,1),y,
   piecewise(x<y,Ret(true),x>=y,Ret(false)))):
+introLO_opt := { introLO,
+  Bind(Uniform(0,1),x,
+  Bind(Uniform(0,1),y,
+  piecewise(x<y,Ret(true),Ret(false)))) }:
 introLOs := Msum(Weight(1/2, Ret(false)), Weight(1/2, Ret(true))):
 
-TestHakaru(introLO, introLO, simp = (x -> x), label = "2 uniform - no change");
+TestHakaru(introLO, introLO_opt, simp = (x -> x), label = "2 uniform - no change");
 TestHakaru(introLO, introLOs, simp = ((x,y) -> value(x)), label = "2 uniform + value = elimination");
 TestHakaru(introLO, introLOs, label = "2 uniform + simplifier  elimination");
 
