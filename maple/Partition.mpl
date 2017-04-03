@@ -130,9 +130,9 @@ local
            cond := { cond };
        end if;
        ctxN := map(KB:-negate_rel,ctx);
-       try cond := remove(is, cond) assuming (op(ctxN));
+       try cond := remove(x->not(coulditbe(x)), cond) assuming (op(ctxN));
          catch: NULL; end try;
-       ctx := ctx union cond;
+       ctx := ctxN union cond;
        cond := `and`(op(cond));
        [ [ op(ps), Piece(cond, valOf(p)) ], ctx ]
    end proc
