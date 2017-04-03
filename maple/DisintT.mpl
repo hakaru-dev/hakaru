@@ -90,6 +90,15 @@ d4r := {
            , Piece(1 < t,Weight(1/2/t^2,BetaD(2,1)))])
 }:
 
+# like d3 but positive, and the entire parametric family.
+d3posfam := Bind(Uniform(0, 1), x, Bind(Uniform(0, 1), y, Ret(Pair(x+y+K_0, f(x, y))))):
+d3posfam_r := {
+  PARTITION([ Piece(t <= K_0, Msum())
+            , Piece(K_0 < t and t <= 1+K_0, Weight(t-K_0, Bind(Uniform(0, t-K_0), x, Ret(f(x, t-x-K_0)))))
+            , Piece(t < 2+K_0 and 1+K_0 < t, Weight(2-t+K_0, Bind(Uniform(-1+t-K_0, 1), x, Ret(f(x, t-x-K_0)))))
+            , Piece(2+K_0 <= t, Msum())]) }:
+d3posfam_ctx := [K_0::real]:
+
 d5 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(y,x)))):
 d5r := {Weight((1/2)*exp(-(1/4)*t^2)/Pi^(1/2), Gaussian((1/2)*t, (1/2)*2^(1/2)))}:
 
@@ -254,6 +263,8 @@ TestDisint( normalFB1, normalFB1r,
 TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
 TestDisint(d4, d4r, label = "(d4) Disintegrate U(0,1) twice, over x/y");
 TestDisint(d3_3, d3_3_r, label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
+TestDisint(d3posfam, d3posfam_r, ctx=d3posfam_ctx
+          , label = "(d3posfam) Disintegrate U(0,1) twice, over x+y+K");
 # funky piecewise
 TestDisint(norm1a, norm1r,
      label = "(norm1a) U(0,1) into Ret of pw"
