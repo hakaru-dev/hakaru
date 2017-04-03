@@ -17,9 +17,7 @@ global Piece;
 local
    Umap := proc(f,x,$)
        f(op(0,x))( map( p -> Piece(f(condOf(p)),f(valOf(p)))
-                      , op(1,x)
-                      )
-                 )
+                      , op(1,x) ))
    end proc,
 
    isPartitionPieceOf := proc( p, elem_t := anything )
@@ -47,16 +45,13 @@ local
       proc(p, eqs, $)
           local q, r;
           q := Umap(x->eval(x,eqs), p);
-
           r := eval( PartitionToPW(q), eqs );
           if r :: specfunc('piecewise') then
               q := PWToPartition( r , 'do_solve' );
           else
               q := r;
           end if;
-
           q;
-
       end proc;
 
       :-`depends/PARTITION` :=
@@ -411,18 +406,13 @@ export
            local tryReplacePieces :=
                    proc(replPieces, otherPieces,cmp,$)
                      local rpp := replPieces, otp := otherPieces, nm, val, rp, rpv;
-
                      for rp in rpp do
                          rp, rpv := op(rp);
-
                          nm   := `if`(lhs(rp)::name, lhs(rp), rhs(rp));
                          val  := `if`(lhs(rp)::name, rhs(rp), lhs(rp));
-
                          otp := tryReplacePiece( nm, val, rpv, otp, cmp )
                      end do;
-
                      otp;
-
                    end proc;
 
            local do_eval_for_cmp := proc(ev, x, $)
@@ -439,52 +429,39 @@ export
                proc(vrNm, vrVal, pc0val, pcs, eval_cmp,$)
                  local pcs0 := pcs, pcs1, qs0, qs1, qs2, vrEq := vrNm=vrVal, vs2, ret;
                  ret := [ Piece(vrEq, pc0val), op(pcs0) ] ;
-
                  # speculatively replace the conditions
                  pcs1 := subsindets(pcs0, relation, replace_with(vrNm)(vrVal));
-
                  # convert to sets and take the "set xor", which will contain
                  # only those elements which are not common to both sets.
                  qs0, qs1 := seq({op(qs)},qs=(pcs0,pcs1));
                  qs2 := set_xor(qs1, qs0);
-
                  # if we have updated precisely two pieces (an upper and lower bound)
                  if nops(qs2) = 2 then
-
                      # get the values of those pieces, and the value of the
                      # piece to be replaced, if that isn't undefined
                      vs2 := map(valOf, qs2);
                      if not pc0val :: identical('undefined') then
                          vs2 := { pc0val, op(vs2) };
                      end if;
-
                      # substitute the equality over the piece values
                      vs2 := map(q -> do_eval_for_cmp(r -> eval_cmp(subs(vrEq, r)), q), vs2);
-
                      # if they are identically equal, return the original
                      # "guess"
                      if nops(vs2) = 1 then ret := pcs1; end if;
                  end if;
-
                  ret;
-
                end proc;
 
            export ModuleApply := proc(p_,{eval_cmp:='value'},$)
-
               local p := p_, r := p, uc, oc;
-
               # if the partition contains case of the form `x = t', where `t' is a
               # constant (or term??) and `x' is a variable, and the value of that
               # case is `undefined', then we may be able to eliminate it (if another
               # case includes that point)
               r := op(1,r);
               uc, oc := selectremove(canSimp, r);
-
               PARTITION(tryReplacePieces(uc, oc, eval_cmp));
-
            end proc;
-
        end module; # singular_pts
 
        export condition := module()
@@ -492,47 +469,38 @@ export
            local eval_ctrs := ctx -> eval(ctx, [`And`=`and`, `Not`=`not`]);
 
            local postproc_for_solve := proc(ctx, ctxSlv)::{identical(false), list({boolean,relation})};
-                     local ctxC := ctxSlv;
-
-                     if ctxC = [] then
-                         ctxC := false ;
-
-                     elif nops(ctxC)> 1 then
-                         ctxC := map(x -> postproc_for_solve(ctx, [x], _rest)[], ctxC);
-
-                     elif nops(ctxC) = 1 then
-                         ctxC := op(1,ctxC);
-
-                         if ctxC :: set then
-                             ctxC := remove(is_extra_sol, ctxC);
-
-                             if ctxC :: identical('{}') then
-                                 ctxC := eval_ctrs(ctx);
-                             else
-                                 ctxC := `and`(op(ctxC));
-                             end if ;
-
-                             ctxC := [ctxC];
-
-                         elif ctxC :: specfunc('piecewise') then
-                             ctxC := PWToPartition(ctxC, _rest);
-
-                             ctxC := [ seq( map( o -> condOf(c) and o
-                                               , postproc_for_solve(ctx, valOf(c), _rest))[]
-                                          , c=op(1, ctxC)
-                                          )
-                                     ] ;
-                         else
-                             error "Simpl:-condition: don't know what to do with %1", ctxC;
-                         end if;
-                     else
-                         error "Simpl:-condition: don't know what to do with %1", ctxC;
-
-                     end if;
-
-                     ctxC;
-
-                 end proc;
+               local ctxC := ctxSlv;
+               if ctxC = [] then
+                   ctxC := false ;
+               elif nops(ctxC)> 1 then
+                   ctxC := map(x -> postproc_for_solve(ctx, [x], _rest)[], ctxC);
+               elif nops(ctxC) = 1 then
+                   ctxC := op(1,ctxC);
+                   if ctxC :: set then
+                       ctxC := remove(is_extra_sol, ctxC);
+                       if ctxC :: identical('{}') then
+                           ctxC := eval_ctrs(ctx);
+                       else
+                           ctxC := `and`(op(ctxC));
+                       end if ;
+                       ctxC := [ctxC];
+                   elif ctxC :: specfunc('piecewise') then
+                       ctxC := PWToPartition(ctxC, _rest);
+                       ctxC := [ seq( map( o -> condOf(c) and o
+                                         , postproc_for_solve(ctx, valOf(c), _rest))[]
+                                    , c=op(1, ctxC) )] ;
+                   else
+                       ctxC := FAIL;
+                   end if;
+               else
+                   ctxC := FAIL;
+               end if;
+               if ctxC = FAIL then
+                   error "don't know what to do with %1", ctxSlv;
+               else
+                   ctxC;
+               end if;
+           end proc;
 
            export ModuleApply := proc(ctx)::list;
                local ctxC := ctx;
