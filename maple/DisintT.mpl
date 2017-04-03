@@ -181,6 +181,9 @@ helloWorldr:= {
   )
 }:
 
+pair_x_x := Bind(Uniform(0, 1), x, Ret(Pair(x, x))):
+pair_x_x_r := {
+  PARTITION([Piece(t < 0, Msum()), Piece(0 <= t and t <= 1, Ret(t)), Piece(1 < t, Msum())]) }:
 
 #This first block of tests is to test the basic functionality of disint, and,
 #to some extent, the system as a whole. These tests may be meaningless to you,
@@ -251,6 +254,8 @@ TestDisint(
      {}, #I don't know what to expect.
      label= "(d0_5) Injective nonlinear inequality"
 );
+
+TestDisint(pair_x_x, pair_x_x_r, label="(pair_x_x) Disintegrate U(0,1) over Ret(x,x)");
 
 #This one is a basic test of the Counting wrt-var type.
 #This one gives the Weight(-1, ...) error
