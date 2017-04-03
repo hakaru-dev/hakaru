@@ -122,13 +122,18 @@ local
       return pos;
    end proc,
 
-   extr_conjs := proc(x,$) if x::{specfunc(`And`), `and`} then op(x) else x end if end proc,
+   extr_conjs := proc(x,$)
+       if x::{specfunc(`And`), `and`} then
+           map(extr_conjs, [op(x)])[];
+       else
+           x
+       end if
+   end proc,
 
    pw_cond_ctx := proc(ctx_, p, $)
        local ps, ctx, ctxN, cond, ncond;
        ps, ctx := op(ctx_); cond := condOf(p);
        cond := {extr_conjs(cond)};
-       cond := map(extr_conjs,cond);
        cond := remove(x->x in ctx, cond);
        ncond := `if`(nops(cond)=1
                      , KB:-negate_rel(op(1,cond))
