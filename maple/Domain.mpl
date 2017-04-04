@@ -139,9 +139,6 @@
 #   the `Ext` function tables.
 #  most of the other functions in KB can be basically literally translated to
 #    the subset of Domain which corresponds to KB
-#
-# Maybe break up domain into seperate files; it's getting sort of big and will
-#   probably only get bigger, esp. if it is merged with KB.
 
 Domain := module()
     option package;
@@ -237,15 +234,14 @@ Domain := module()
         end do;
     end proc;
 
-$include "Domain/Has.mpl"
-$include "Domain/Bound.mpl"
-$include "Domain/Shape.mpl"
-$include "Domain/Types.mpl"
-
     # Extending domain extraction and replacement.
     export ExtBound := table();
     export ExtShape := table();
 
+$include "Domain/Has.mpl"
+$include "Domain/Bound.mpl"
+$include "Domain/Shape.mpl"
+$include "Domain/Types.mpl"
 $include "Domain/Extract.mpl"
 $include "Domain/Apply.mpl"
 $include "Domain/Improve.mpl"
