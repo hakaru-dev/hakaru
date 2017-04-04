@@ -71,6 +71,14 @@ freshVar
   -> abt (a ': xs) b
 freshVar var f = binder (varHint var) (varType var) (f . getVar)
 
+remapVar
+  :: (ABT Term abt)
+  => Variable a
+  -> Env
+  -> (Env -> abt xs b)
+  -> abt (a ': xs) b
+remapVar var env f = freshVar var $ \var' -> f (updateEnv var var' env)
+
 -- | Entry point for the normalization process. Initializes normalize' with the
 -- empty context.
 normalize
@@ -149,14 +157,6 @@ normalizeDatum
   -> abt '[] r
 normalizeDatum d env ctxt = ctxt $ datum_ newdata
   where newdata = fmap11 (\x -> normalize' x env id) d
-
-remapVar
-  :: (ABT Term abt)
-  => Variable a
-  -> Env
-  -> (Env -> abt xs b)
-  -> abt (a ': xs) b
-remapVar var env f = freshVar var $ \var' -> f (updateEnv var var' env)
 
 normalizeCase
   :: forall a b c abt . (ABT Term abt)
