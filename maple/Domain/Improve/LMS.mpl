@@ -1,19 +1,13 @@
 local LMS := module()
-    export ModuleApply := proc(dom :: HDomain, $) :: HDomain_mb;
-        local dbnds, dshape, sol, res, errs, vs;
-        dbnds, dshape := op(dom);
-        vs := Domain:-Bound:-varsOf(dbnds);
-        # We use the opposite "integration order" than LMS, so
-        # reverse the variables. The scare quotes are because LMS
-        # knows nothing about domains or integration, but it does
-        # try to place the first variable "outermost" (probably
-        # because it solves for each variable one by one, at starts
-        # at the left) which will flip things around for no reason.
-        vs := ListTools[Reverse](vs);
-        sol := do_LMS( dshape , dbnds, vs );
-        errs := indets(sol, DomNoSol);
-        if errs <> {} then return DNoSol(seq(op(e), e=errs)) end if;
-        DOMAIN( dbnds, sol );
+    # We use the opposite "integration order" than LMS, so
+    # reverse the variables. The scare quotes are because LMS
+    # knows nothing about domains or integration, but it does
+    # try to place the first variable "outermost" (probably
+    # because it solves for each variable one by one, at starts
+    # at the left) which will flip things around for no reason.
+    export ModuleApply := proc(dbnds :: DomBound, dshape :: DomShape, $)
+        do_LMS( dshape , dbnds
+              , ListTools[Reverse](Domain:-Bound:-varsOf(dbnds)));
     end proc;
 
     local countVs := vs -> (c-> nops(indets(c, name) intersect {op(vs)} ));

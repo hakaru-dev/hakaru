@@ -2,9 +2,8 @@
 # that variable in. In most cases, it would probably be enough to
 # leave that as it is; it would simplify later.
 local singular_pts := module()
-    export ModuleApply := proc(dom :: HDomain, $)
-        local bnds, sh, vs, todo, sh1, vs_ty;
-        bnds, sh := op(dom);
+    export ModuleApply := proc(bnds_ :: DomBound, sh_ :: DomShape, $)
+        local bnds := bnds_, sh := sh_, vs, todo, sh1, vs_ty;
         vs := applyop(bl -> select(b->op(3,b)=`Int`, bl), 1, bnds);
         vs := Domain:-Bound:-varsOf(vs);
         vs_ty := satisfies(x->x in {op(vs)});
@@ -14,7 +13,6 @@ local singular_pts := module()
                              and nops ( (indets(lhs(op(1,x)), vs_ty))
                                   union (indets(rhs(op(1,x)), vs_ty)) ) = 1
                       , indets(sh, specfunc(`DConstrain`)) ) ;
-        sh1 := subs([seq(t=DSum(),t=todo)], sh);
-        DOMAIN(bnds, sh1);
+        subs([seq(t=DSum(),t=todo)], sh);
     end proc;
 end module;

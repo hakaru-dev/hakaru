@@ -1,11 +1,10 @@
 local constraints_about_vars := module()
-    export ModuleApply := proc(dom, $)
-        local vs, sh, vars, ctx_vs;
-        vs, sh := op(dom);
-        vars := {op(Domain:-Bound:-varsOf(vs))};
-        ctx_vs := Domain:-Bound:-toConstraints(vs, 'bound_types');
-        sh := subsindets(sh, DomConstrain, x->do_simpl_constraints(vars, ctx_vs, x));
-        DOMAIN(vs, sh);
+    export ModuleApply := proc(vs0 :: DomBound, sh :: DomShape, $)
+        local vs := vs0, ctx;
+        vs  := {op(Domain:-Bound:-varsOf(vs))};
+        ctx := Domain:-Bound:-toConstraints(vs0, 'bound_types');
+        subsindets(sh, DomConstrain
+                  ,x->do_simpl_constraints(vs, ctx, x));
     end proc;
 
     local do_simpl_constraints := proc(vars, ctx_vs, x, $)

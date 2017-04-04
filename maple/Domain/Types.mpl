@@ -8,13 +8,13 @@ local DomainTypes := table(
        ,(DomBoundBinder = ''DInto(DomBoundVar, DomBoundRange, DomBoundKind)'' )
        ,(DomBoundKind   = 'And(name, satisfies(nm->assigned(Domain:-ExtBound[nm])))' )
        ,(DomBound       = ''Or(DBound(list(DomBoundBinder))
-                              ,DBound(list(DomBoundBinder)),anything)'' )
+                              ,DBound(list(DomBoundBinder),anything) )'' )
        # Domain shape
        ,(DomConstrain = 'specfunc(relation, `DConstrain`)' )
        ,(DomSum       = 'specfunc(DomShape, `DSum`)' )
        ,(DomSplit     = ''DSplit(Partition(DomShape))'' )
        ,(DomInto      = ''Or(DInto(DomBoundVar, DomBoundRange, DomShape)
-                            ,DInto(DomBoundVar, DomShape))'' )
+                            ,DInto(DomBoundVar, DomShape) )'' )
        ,(DomShape     = 'Or( DomConstrain, DomSum, DomSplit, DomInto )' )
        # Domain
        ,(DomCtx = ''set({relation, `::`})'')

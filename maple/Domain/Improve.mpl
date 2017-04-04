@@ -3,8 +3,11 @@ export Improve := module ()
     export ModuleApply := proc(dom :: HDomain, $)::HDomain_mb;
         local es := map(si->Simplifiers[si]:-DO
                        , sort( [indices(Domain:-Improve:-Simplifiers,nolist) ]
-                             , key=(si->Simplifiers[si]:-Order)));
-        foldr(cmp_simp , (_->_), op(es))(dom);
+                             , key=(si->Simplifiers[si]:-Order)))
+             , bnd, sh;
+        bnd, sh := op([1..2], dom);
+        sh := foldr(cmp_simp_sh, (proc(_,b,$) b end proc), op(es))(bnd, sh);
+        DOMAIN(bnd, sh);
     end proc;
 
 # our simplifiers
@@ -27,23 +30,26 @@ $include "Domain/Improve/singular_pts.mpl"
         Simplifiers["Single_pts"] :=
              Record('Order'=14
                    ,'DO'=Domain:-Improve:-singular_pts);
+        # protect(Domain:-Improve:-Simplifiers):
     end proc;#ModuleLoad
 
-    local combine_errs := proc(e0 :: DomNoSol, e1 :: DomNoSol, $) :: DomNoSol;
-       DNoSol( op(e0), op(e1) );
+    local combine_errs := proc(err::DomNoSol, mb, $)
+        if mb :: DomNoSol then
+            DNoSol(op(err),op(mb));
+        else
+            mb
+        end if;
     end proc;
-    # TODO: this should keep errors (esp. if everything fails to
-    # simplify), or print them as a warning(?)
-    local cmp_simp := proc(s0, s1, $) proc(dom :: HDomain_mb , $)::HDomain_mb;
-       local dom1 := s0(dom), r;
-       if not dom1 :: DomNoSol then
-           s1(dom1);
-       else
-           r := s1(dom);
-           if r :: DomNoSol then
-               r := combine_errs( dom1, r );
-           end if;
-           r
-       end if;
-    end proc; end proc;
+
+    # compose two simplifiers, combining errors if both fail
+    local cmp_simp_sh :=
+        proc(simp0, simp1, $)
+        proc(bnd, sh :: {DomShape,DomNoSol}, $)::{DomShape,DomNoSol};
+            local res, sh1; sh1 := simp0(bnd, sh);
+            if not sh1 :: DomNoSol then
+                res := simp1(bnd, sh1); res;
+            else
+                res := combine_errs( sh1, simp1(bnd, sh) ); res;
+            end if;
+    end proc end proc;
 end module;
