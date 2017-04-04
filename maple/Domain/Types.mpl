@@ -3,21 +3,36 @@
 # normally place on certain types) to work properly
 local DomainTypes := table(
        # Domain bounds
-       [(DomBoundBinder = ''DInto(name, range, DomBoundKind)'' )
+       [(DomBoundVar = 'DomBoundVar_type')
+       ,(DomBoundRange = 'DomBoundRange_type')
+       ,(DomBoundBinder = ''DInto(DomBoundVar, DomBoundRange, DomBoundKind)'' )
        ,(DomBoundKind   = 'And(name, satisfies(nm->assigned(Domain:-ExtBound[nm])))' )
-       ,(DomBound       = ''DBound(list(DomBoundBinder))'' )
+       ,(DomBound       = ''Or(DBound(list(DomBoundBinder))
+                              ,DBound(list(DomBoundBinder)),anything)'' )
        # Domain shape
        ,(DomConstrain = 'specfunc(relation, `DConstrain`)' )
        ,(DomSum       = 'specfunc(DomShape, `DSum`)' )
        ,(DomSplit     = ''DSplit(Partition(DomShape))'' )
-       ,(DomInto      = ''DInto(name, range, DomShape)'' )
+       ,(DomInto      = ''Or(DInto(DomBoundVar, DomBoundRange, DomShape)
+                            ,DInto(DomBoundVar, DomShape))'' )
        ,(DomShape     = 'Or( DomConstrain, DomSum, DomSplit, DomInto )' )
        # Domain
+       ,(DomCtx = ''set({relation, `::`})'')
        ,(HDomain = ''DOMAIN(DomBound, DomShape)'' )
        # Maybe domain
-       ,(DomNoSol  = 'specfunc(`DNoSol`)' )
-       ,(HDomain_mb = ''Or(HDomain, DomNoSol)'' )
+       ,(DomNoSol  = ''Not(freeof(`DNoSol`))'' )
+       ,(HDomain_mb = ''Or(HDomain, DOMAIN(DomBound, DomNoSol))'' )
        ] );
+
+local DomBoundVar_type := proc(nm)
+    local ixs := [indices(Domain:-ExtBound, nolist)], vs;
+    ormap(i->type(nm,Domain:-ExtBound[i]:-VarType), ixs);
+end proc;
+
+local DomBoundRange_type := proc(nm)
+    local ixs := [indices(Domain:-ExtBound, nolist)], vs;
+    ormap(i->type(nm,Domain:-ExtBound[i]:-RangeType), ixs);
+end proc;
 
 local GLOBALS := table(
   ['DOMAIN' =

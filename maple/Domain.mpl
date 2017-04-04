@@ -167,10 +167,12 @@ Domain := module()
            ExtBound[`Int`] :=
                Record('MakeKB'=KB:-genLebesgue
                      ,'ExtractVar'=(e->op(1,e))
-                     ,'ExtractBound'=(e->op(2,e))
-                     ,'SplitBound'=(e->op(e))
+                     ,'ExtractRange'=(e->op(2,e))
+                     ,'SplitRange'=(e->op(e))
                      ,'Constrain'=`<`
                      ,'MakeEqn'=`=`
+                     ,'VarType'='name'
+                     ,'RangeType'='range'
                      ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
                      ,'BoundType'='real'
                      );
@@ -178,10 +180,12 @@ Domain := module()
            ExtBound[`Sum`] :=
                Record('MakeKB'=KB:-genSummation
                      ,'ExtractVar'=(e->op(1,e))
-                     ,'ExtractBound'=(e->op(2,e))
-                     ,'SplitBound'=(e->op(e))
+                     ,'ExtractRange'=(e->op(2,e))
+                     ,'SplitRange'=(e->op(e))
                      ,'Constrain'=`<=`
                      ,'MakeEqn'=`=`
+                     ,'VarType'='name'
+                     ,'RangeType'='range'
                      ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
                      ,'BoundType'='integer'
                      );

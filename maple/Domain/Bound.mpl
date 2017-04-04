@@ -6,14 +6,14 @@ export Bound := module ()
             , vn, vt, make, lo, hi, vn_rn, rn_t, v ;
         for v in vs do
             vn, vt, make := op(v);
-            lo, hi := ExtBound[make]:-SplitBound(vt);
+            lo, hi := ExtBound[make]:-SplitRange(vt);
             vn_rn, kb := ExtBound[make]:-MakeKB( vn, lo, hi, kb );
             rn := [ vn=vn_rn, op(rn) ];
         end do;
         [ kb, rn ]
     end proc;
 
-    export varsOf := proc(dom :: DomBound, $)::list(name);
+    export varsOf := proc(dom :: DomBound, $)::list(DomBoundVar);
         map(x->op(1,x), op(1, dom));
     end proc;
 
@@ -21,7 +21,7 @@ export Bound := module ()
         evalb(nops(op(1,dom))=0);
     end proc;
 
-    export get := proc(dom :: DomBound, var :: name, $)
+    export get := proc(dom :: DomBound, var :: DomBoundVar, $)
         local th;
         th := select(x->op(1,x)=var, op(1,dom));
         if nops(th) = 1 then
@@ -33,12 +33,12 @@ export Bound := module ()
         end if;
     end proc;
 
-    local constrain := proc( opts, vn::name, ty::range, mk :: DomBoundKind, $ )
+    local constrain := proc( opts, vn::DomBoundVar, ty::DomBoundRange, mk :: DomBoundKind, $ )
                     :: set({relation, `::`});
         local lo, hi, noi, bt
             , noinf := evalb('no_infinity' in opts)
             , btys  := evalb('bound_types' in opts);
-        lo,hi := Domain:-ExtBound[mk]:-SplitBound(ty);
+        lo,hi := Domain:-ExtBound[mk]:-SplitRange(ty);
         noi := `if`(noinf,mk->b->if b in {infinity,-infinity} then {} else {mk(b)} end if
                          ,mk->b->{mk(b)} );
         bt  := `if`(btys, { vn :: Domain:-ExtBound[mk]:-BoundType }, {});
