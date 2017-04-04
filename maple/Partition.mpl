@@ -117,19 +117,28 @@ local
       return pos;
    end proc,
 
+   bool_And := proc()
+       if nargs=0 then true
+       elif nargs=1 then args[1]
+       else `And`(map(a->if a::specfunc(`And`)then op(a) else a end if
+                     ,a=[args])[])
+       end if;
+   end proc,
+
+   bool_Or := proc()
+       if nargs=0 then false
+       elif nargs=1 then args[1]
+       else `Or`(map(a->if a::specfunc(`Or`)then op(a) else a end if
+                     ,a=[args])[])
+       end if;
+   end proc,
+
    extr_conjs := proc(x,$)
        if x::{specfunc(`And`), `and`} then
            map(extr_conjs, [op(x)])[];
        else
            x
        end if
-   end proc,
-
-   pw_cAnd := proc()
-       if nargs=0 then true
-       elif nargs=1 then args[1]
-       else `And`(args)
-       end if;
    end proc,
 
    pw_cond_ctx := proc(ctx_, p, $)
@@ -139,8 +148,8 @@ local
        cond := remove(x->x in ctx, cond);
        ncond := `if`(nops(cond)=1
                      , KB:-negate_rel(op(1,cond))
-                     , `Not`(pw_cAnd(op(cond))) );
-       cond := pw_cAnd(op(cond));
+                     , `Not`(bool_And(op(cond))) );
+       cond := bool_And(op(cond));
        ctx := ctx union { ncond };
        [ [ op(ps), Piece(cond, valOf(p)) ], ctx ]
    end proc
