@@ -531,8 +531,8 @@ export
                    end if;
                else
                    ctxC := Domain:-simpl_relation(ctxC, norty='DNF');
-                   ctxC := subsindets(ctxC, list, `and`@op);
-                   if ctxC :: set then
+                   ctxC := subs(`And`=`and`, ctxC);
+                   if ctxC :: specfunc(`Or`) then
                        ctxC := [op(ctxC)]
                    else
                        ctxC := [ctxC];

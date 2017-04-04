@@ -323,9 +323,7 @@ Domain := module()
                 And( op(sh) );
             elif sh :: specfunc(`DSum`) then
                 sh := Or(op(map(toConstraints, sh)));
-                sh := Domain:-simpl_relation(sh, norty='CNF');
-                sh := subsindets(sh, set , x->`Or`(op(x)));
-                sh := subsindets(sh, list, x->`And`(op(x)));
+                Domain:-simpl_relation(sh, norty='CNF');
             elif sh :: specfunc(`DInto`) then
                 toConstraints(op(3, sh));
             else
@@ -488,8 +486,8 @@ Domain := module()
             # todo: simplify the shape
             local simpl_shape := proc(e0,ctx,$)
                 local e := Domain:-simpl_relation(e0);
-                e := subsindets(e, set , x->DSum(op(x)));
-                e := subsindets(e, list
+                e := subsindets(e, specfunc(`Or`) , x->DSum(op(x)));
+                e := subsindets(e, specfunc(`And`)
                                , x-> if nops(x) > 0 then DConstrain(op(x), op(ctx)) else DConstrain() end if
                                );
                 e;
@@ -865,8 +863,8 @@ Domain := module()
     export simpl_relation :=
     proc( expr_ :: {relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}
         , { norty := 'DNF' }
-        , $) :: { set(list({relation, specfunc(relation, Not)}))
-                , list(set({relation, specfunc(relation, Not)}))
+        , $) :: { specfunc(specfunc({relation, specfunc(relation, Not)}, `Or`), `And`)
+                , specfunc(specfunc({relation, specfunc(relation, Not)}, `And`), `Or`)
                 };
         local expr := expr_, outty, outmk, inty, inmk, ty_ord ;
 
@@ -883,19 +881,19 @@ Domain := module()
         expr := Logic:-Normalize(expr, form=norty);
         expr := foldr( proc(v,e) subsindets(e, op(v)) end proc
                      , expr
-                     , [ specfunc(Logic:-`&and`), x->[op(x)] ]
-                     , [ specfunc(Logic:-`&or`) , x->{op(x)} ]
+                     , [ specfunc(Logic:-`&and`), x->`And`(op(x)) ]
+                     , [ specfunc(Logic:-`&or`) , x->`Or`(op(x)) ]
                      , [ specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x))  ] );
 
         if expr :: identical(false) then
-            return `if`(norty='DNF', {}, [{}]);
+            return `if`(norty='DNF', `Or`(), `And`(`Or`()));
         elif expr :: identical(true) then
-            return `if`(norty='DNF', {[]}, []);
+            return `if`(norty='DNF', `Or`(`And`()), `And`());
         end if;
 
         ty_ord := `if`(norty='DNF', [1,2], [2,1]);
-        outty, inty := [ 'set', 'list' ][ty_ord][];
-        outmk, inmk := [ x->{x},x->[x] ][ty_ord][];
+        outty, inty := [ 'specfunc(Or)', 'specfunc(And)' ][ty_ord][];
+        outmk, inmk := [ `Or`, `And` ][ty_ord][];
 
         if not expr :: outty then expr := outmk(expr) end if;
         map(x -> if not x :: inty then inmk(x) else x end if, expr);
