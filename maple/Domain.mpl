@@ -239,23 +239,8 @@ Domain := module()
 
 $include "Domain/Has.mpl"
 $include "Domain/Bound.mpl"
+$include "Domain/Shape.mpl"
 
-    export Shape := module ()
-        export toConstraints := proc(sh_ :: DomShape, $)
-               ::specfunc({boolean,relation,specfunc(`Or`)}, `And`);
-            local sh := sh_;
-            if sh :: specfunc(`DConstrain`) then
-                And( op(sh) );
-            elif sh :: specfunc(`DSum`) then
-                sh := Or(op(map(toConstraints, sh)));
-                Domain:-simpl_relation(sh, norty='CNF');
-            elif sh :: specfunc(`DInto`) then
-                toConstraints(op(3, sh));
-            else
-                error "don't know how to convert to constraints %1", sh
-            end if;
-        end proc;
-    end module;
 
     # Domain types which are registered/unregistered with TypeTools.
     # Note that the types have to be quoted (additionally to the quote one would
