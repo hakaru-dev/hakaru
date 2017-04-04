@@ -386,9 +386,9 @@ KB := module ()
    # note: k is ignored, but this makes the API the same as
    # bound_simp
    not_bound_simp := proc(b,x,k,kb,pol,as,$)
-     local c;
-     c := solve({b},[x], 'useassumptions'=true) assuming op(as);
-     postproc_for_solve(c, kb, pol, as);
+     local c, cc;
+     c := solve({chill(b)},[x], 'useassumptions'=true) assuming op(as);
+     postproc_for_solve(warm(c), kb, pol, as);
    end proc;
 
    postproc_for_solve := proc(c, kb, pol, as, $)
