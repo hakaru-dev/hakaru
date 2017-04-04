@@ -120,16 +120,14 @@ local
    bool_And := proc()
        if nargs=0 then true
        elif nargs=1 then args[1]
-       else `And`(map(a->if a::specfunc(`And`)then op(a) else a end if
-                     ,a=[args])[])
+       else `And`(args)
        end if;
    end proc,
 
    bool_Or := proc()
        if nargs=0 then false
        elif nargs=1 then args[1]
-       else `Or`(map(a->if a::specfunc(`Or`)then op(a) else a end if
-                     ,a=[args])[])
+       else `Or`(args)
        end if;
    end proc,
 
