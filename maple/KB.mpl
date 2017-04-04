@@ -335,12 +335,13 @@ KB := module ()
 
    # Simplification when the `:: t_bound_on' predicate is false
    not_bound_simp := proc(b,x,kb,pol,as,$)
-     local c;
+     local c, chilled_b;
 
-     c := solve({b},[x], 'useassumptions'=true) assuming op(as);
+     chilled_b := chill(b);
+     c := solve({chilled_b},[x], 'useassumptions'=true) assuming op(as);
      # success!
      if c::list and nops(c)=1 then
-       foldr(((z,kb)->assert_deny(z, pol, kb)), kb, op(c[1]));
+       foldr(((z,kb)->assert_deny(z, pol, kb)), kb, op(warm(c[1])));
      else
        FAIL; # No simplification could be done
      end if;
