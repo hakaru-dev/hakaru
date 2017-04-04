@@ -421,8 +421,7 @@ KB := module ()
      local as_eval, bb := bb0, as := chill(kb_to_assumptions(kb, bb));
      # try to evaluate under the assumptions, but some assumptions break
      # with eval, so remove any of those we tried to chill to prevent them breaking
-     as_eval := remove(c->indets(c,'specindex'(chilled))<>{},as);
-     bb := subsindets(bb, relation, x->map(eval,x) assuming(op(as_eval)));
+     bb := subsindets(bb, relation, x->map(eval,x) assuming(op(as)));
      bb := chill(bb);
 
      # Check that the new clause would not cause a contradictory
@@ -737,8 +736,8 @@ KB := module ()
   end proc;
 
   kb_to_assumptions := proc(kb, e:={}, $)
-    local n;
-    remove((a -> a :: `=` and has(a,piecewise)),
+    local n, as;
+    as := remove((a -> a :: `=` and has(a,piecewise)),
       # The "remove" above is because the following takes forever:
       # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_ = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1, i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] = size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
     map(proc(k, $)
@@ -757,7 +756,8 @@ KB := module ()
         NULL # Maple doesn't understand our other types
       end if
     end proc, [op(coalesce_bounds(kb)),
-               seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]))
+               seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]));
+    remove(c->c::`=` and indets(c,'{specindex,specfunc}'(chilled))<>{},as);
   end proc;
 
   # extract Lets and equality constraints (only!) from a KB
