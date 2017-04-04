@@ -232,9 +232,9 @@ KB := module ()
   # Also implements a second way to call it, 'part', which will
   # return a SplitKB instead.
   assert_deny := module ()
-   export ModuleApply;
+   export ModuleApply, do_assert_deny;
    local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
-         refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg;
+         refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg, rel_coulditbe;
 
    # Either And or Or type, chosen by boolean pol
    t_if_and_or_of := proc(pol,$)
@@ -397,49 +397,60 @@ KB := module ()
      warm(b);
    end proc;
 
+   rel_coulditbe := proc(a,as,$)
+      try
+          coulditbe(a) assuming op(as);
+      catch "when calling '%1'. Received: 'contradictory assumptions'" :
+          # technically this means the KB was already contradictory, we
+          # just didn't know?
+          return false;
+      catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
+          error expr_indp_errMsg(), a, as;
+      catch "when calling '%2'. Received: 'expression independent of, %0'":
+          error expr_indp_errMsg(), a, as;
+      end try;
+   end proc;
+
    expr_indp_errMsg := proc($)
        sprintf("Something strange happened(%s)\n"
-               "assert_deny(%%1, %%2, %%3)"
+               "\tin coulditbe(%%1) assuming %%2"
               ,StringTools[FormatMessage](lastexception[2..-1]))
+   end proc;
+
+   ModuleApply := proc(bb0::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
+     local as_eval, bb := bb0, as := chill(kb_to_assumptions(kb, bb));
+     # try to evaluate under the assumptions, but some assumptions break
+     # with eval, so remove any of those we tried to chill to prevent them breaking
+     as_eval := remove(c->indets(c,'specindex'(chilled))<>{},as);
+     bb := subsindets(bb, relation, x->map(eval,x) assuming(op(as_eval)));
+     bb := chill(bb);
+
+     # Check that the new clause would not cause a contradictory
+     # KB. If it does, then produce NotAKB.
+     if not rel_coulditbe(`if`(pol,bb,not(bb)), as) then
+         return NotAKB();
+     end if;
+     do_assert_deny(bb, pol, kb);
    end proc;
 
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
    # Great deal of magic happens behind the scenes
-   ModuleApply := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
+   do_assert_deny := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
     local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret, todo;
-
-    # Setup the assumptions
     as := chill(kb_to_assumptions(kb, bb));
-
-    # Check that the new clause would not cause a contradictory
-    # KB. If it does, then produce NotAKB.
-
-    try
-      if not coulditbe(`if`(pol,bb,not(bb))) assuming op(as) then
-          return NotAKB();
-      end if;
-    catch "when calling '%1'. Received: 'contradictory assumptions'" :
-        # technically this means the KB was already contradictory, we
-        # just didn't know?
-        return NotAKB();
-    catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
-        error expr_indp_errMsg() , bb, pol, kb;
-    catch "when calling '%2'. Received: 'expression independent of, %0'":
-        error expr_indp_errMsg() , bb, pol, kb;
-    end try;
 
     if bb = pol then
       # Ignore literal true and Not(false).
       kb
 
     elif bb :: t_if_and_or_of(pol) then
-      foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
+      foldr(((b,kb) -> do_assert_deny(b, pol, kb)), kb, op(bb))
 
     elif bb :: t_not then
-      foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
+      foldr(((b,kb) -> do_assert_deny(b, not pol, kb)), kb, op(bb))
 
     else
       b := simplify_in_context(bb, as);
@@ -491,7 +502,7 @@ KB := module ()
       # Add constraint to KB.
       KB(Constrain(b), op(kb))
     end if;
-   end proc: # ModuleApply
+   end proc: # do_assert_deny
   end module; # assert_deny
 
   # In order to hopefully produce a simplification,
