@@ -4,8 +4,8 @@ import NaiveBayes (prog)
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as MV
 import Data.Vector.Unboxed (Vector)
-import           Prelude                          hiding (product)
-import           Language.Hakaru.Runtime.Prelude
+import           Prelude                          hiding (product, exp, log, (**))
+import           Language.Hakaru.Runtime.LogFloatPrelude
 import           Language.Hakaru.Types.Sing
 import qualified System.Random.MWC                as MWC
 import           Control.Monad
@@ -30,8 +30,8 @@ prog
 -- |Step through documents, performing one Gibbs sampling iteration
 -- on each to select a new topic. 
 gibbsRound 
-     :: Vector Double        -- prior probability of each topic
-     -> Vector Double        -- prior probability of each word
+     :: Vector LogFloat      -- prior probability of each topic
+     -> Vector LogFloat      -- prior probability of each word
      -> Vector Int           -- topics, indexed by document 
      -> Vector Int           -- words, indexed by token position
      -> Vector Int           -- document, indexed by token position

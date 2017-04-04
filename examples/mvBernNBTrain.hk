@@ -15,16 +15,16 @@ def mvBernNBTrain(categories nat,
                      false: 0
                      true: 1
     condps = array i of features:
-               fcount = summate i from 0 to size(train_set):
-	                  match (train_set[i]):
-			    (fs,ic):
-			      match (ic == c):
+               fcount = summate j from 0 to size(train_set):
+	                  match (train_set[j]):
+			    (fs,jc):
+			      match (jc == c):
 			        false: 0
 				true:
 				  match (fs[i]):
 				    false: 0
 				    true: 1
                (fcount + 1) / (ccount + 2)
-    (ccount/categories, condps)
+    (ccount/size(train_set), condps)
 
 mvBernNBTrain
