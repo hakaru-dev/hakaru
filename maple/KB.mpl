@@ -49,7 +49,7 @@ KB := module ()
      ModuleLoad, ModuleUnload,
 
      # Various utilities
-     t_intro, t_lo, t_hi, log_metric,
+     t_intro, t_lo, t_hi, log_metric, bad_assumption,
      boolean_if, coalesce_bounds, htype_to_property
 
      ;
@@ -58,7 +58,7 @@ KB := module ()
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
       empty, genLebesgue, genType, genSummation, genIntVar, genLet,
-      assert, assert_deny, assert_mb, build_kb,
+      assert, assert_deny, assert_mb, assert_deny_mb, build_kb,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -218,6 +218,14 @@ KB := module ()
       end if;
   end proc;
 
+  assert_deny_mb := proc(bb0::t_kb_atom, pol::identical(true,false), kb::t_kb_mb, $)
+      if kb :: t_kb then
+          assert_deny(bb0,pol,kb);
+      else
+          NotAKB();
+      end if;
+  end proc;
+
   # Like assert_deny, except does not accept a boolean
   # parameter to indicate negation, and evaluates
   # (using Maple's eval, anything can happen!) the
@@ -232,7 +240,7 @@ KB := module ()
   # Also implements a second way to call it, 'part', which will
   # return a SplitKB instead.
   assert_deny := module ()
-   export ModuleApply, do_assert_deny;
+   export ModuleApply;
    local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
          refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg, rel_coulditbe;
 
@@ -417,41 +425,39 @@ KB := module ()
               ,StringTools[FormatMessage](lastexception[2..-1]))
    end proc;
 
-   ModuleApply := proc(bb0::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
-     local as_eval, bb := bb0, as := chill(kb_to_assumptions(kb, bb));
-     # try to evaluate under the assumptions, but some assumptions break
-     # with eval, so remove any of those we tried to chill to prevent them breaking
-     bb := subsindets(bb, relation, x->map(eval,x) assuming(op(as)));
-     bb := chill(bb);
-
-     # Check that the new clause would not cause a contradictory
-     # KB. If it does, then produce NotAKB.
-     if not rel_coulditbe(`if`(pol,bb,not(bb)), as) then
-         return NotAKB();
-     end if;
-     do_assert_deny(bb, pol, kb);
-   end proc;
-
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
    # Great deal of magic happens behind the scenes
-   do_assert_deny := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
+   ModuleApply := proc(bb0::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret, todo;
-    as := chill(kb_to_assumptions(kb, bb));
+    local as, bb, bbv, b, k, x, log_b, todo, kb0, ch;
+    bb := bb0;
 
     if bb = pol then
       # Ignore literal true and Not(false).
       kb
 
     elif bb :: t_if_and_or_of(pol) then
-      foldr(((b,kb) -> do_assert_deny(b, pol, kb)), kb, op(bb))
+      foldr(((b,kb) -> assert_deny_mb(b, pol, kb)), kb, op(bb))
 
     elif bb :: t_not then
-      foldr(((b,kb) -> do_assert_deny(b, not pol, kb)), kb, op(bb))
+      foldr(((b,kb) -> assert_deny_mb(b, not pol, kb)), kb, op(bb))
 
     else
+      bb := chill(bb);
+      as := chill(kb_to_assumptions(kb, bb));
+
+      # try to evaluate under the assumptions, but some assumptions break
+      # with eval, so remove any of those we tried to chill to prevent them breaking
+      bb := subsindets(bb, relation, x->map(eval,x) assuming(op(as)));
+
+      # Check that the new clause would not cause a contradictory
+      # KB. If it does, then produce NotAKB.
+      if not bad_assumption(bb) and not rel_coulditbe(`if`(pol,bb,not(bb)), as) then
+          return NotAKB();
+      end if;
+
       b := simplify_in_context(bb, as);
 
       # Look through kb for the innermost scope where b makes sense.
@@ -501,7 +507,7 @@ KB := module ()
       # Add constraint to KB.
       KB(Constrain(b), op(kb))
     end if;
-   end proc: # do_assert_deny
+   end proc: # ModuleApply
   end module; # assert_deny
 
   # In order to hopefully produce a simplification,
@@ -735,11 +741,23 @@ KB := module ()
     [op(map2(op, 1, select(type, kb, t_intro)))];
   end proc;
 
+  # Returns true if the assumption is bad, false otherwise
+  bad_assumption := proc(a, $)
+    (a :: `=` and has(a,piecewise)) or
+    # The case above is because the following takes forever:
+    # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_
+    # = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1,
+    # i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] =
+    # size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
+    ( a :: {`=`,`::`} and
+      ormap(f->f(a)::name,[lhs,rhs]) and
+      indets(a,'{specindex,specfunc}'(chilled))<>{} )
+    # These are dealt with otherwise and aren't understood by Maple
+  end proc;
+
   kb_to_assumptions := proc(kb, e:={}, $)
     local n, as;
-    as := remove((a -> a :: `=` and has(a,piecewise)),
-      # The "remove" above is because the following takes forever:
-      # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_ = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1, i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] = size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
+    as := remove(bad_assumption,
     map(proc(k, $)
       local x;
       if k :: t_intro then
@@ -757,7 +775,6 @@ KB := module ()
       end if
     end proc, [op(coalesce_bounds(kb)),
                seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]));
-    remove(c->c::`=` and indets(c,'{specindex,specfunc}'(chilled))<>{},as);
   end proc;
 
   # extract Lets and equality constraints (only!) from a KB
