@@ -358,10 +358,10 @@ export
    Simpl := module()
        export ModuleApply := (single_branch@remove_false_pieces);
 
-       export single_nonzero_piece := proc(e, $)
+       export single_nonzero_piece := proc(e, { _testzero := Testzero })
            local zs, nzs;
            if e :: Partition then
-               zs, nzs := selectremove(p -> Testzero(valOf(p)), op(1, e));
+               zs, nzs := selectremove(p -> _testzero(valOf(p)), op(1, e));
                if nops(nzs) = 1 then
                    return condOf(op(1,nzs)) , valOf(op(1,nzs))
                end if;

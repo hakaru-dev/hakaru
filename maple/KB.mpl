@@ -241,7 +241,7 @@ KB := module ()
   # return a SplitKB instead.
   assert_deny := module ()
    export ModuleApply;
-   local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
+   local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve,
          refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg, rel_coulditbe;
 
    # Either And or Or type, chosen by boolean pol
@@ -387,13 +387,30 @@ KB := module ()
    # bound_simp
    not_bound_simp := proc(b,x,k,kb,pol,as,$)
      local c;
-
      c := solve({b},[x], 'useassumptions'=true) assuming op(as);
-     # success!
-     if c::list and nops(c)=1 then
-       foldr(((z,kb)->assert_deny(z, pol, kb)), kb, op(c[1]));
+     postproc_for_solve(c, kb, pol, as);
+   end proc;
+
+   postproc_for_solve := proc(c, kb, pol, as, $)
+     local p, c0, c1;
+     if c :: list then # conjunction
+       foldr(((z,kb)->postproc_for_solve(z, kb, pol, as)), kb, op(c));
+
+     elif c :: {relation,specfunc(`Not`)} then # atom
+       assert_deny(c, pol, kb);
+
+     elif c :: specfunc(`piecewise`) then # try to make it into a conjunction
+       p := Partition:-PWToPartition(c);
+       p := apply(Partition:-Simpl:-remove_false_pieces,p) assuming op(as);
+       c0, c1 := Partition:-Simpl:-single_nonzero_piece(p, _testzero=(x->x=[]));
+       if not c0 :: identical(true) then
+         try postproc_for_solve([ c0, c1 ], kb, pol, as);
+         catch "when calling '%1'. Received: 'cannot assume on a constant object'": FAIL; end try;
+       else
+         FAIL
+       end if;
      else
-       FAIL; # No simplification could be done
+       FAIL
      end if;
    end proc;
 
