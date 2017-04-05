@@ -18,6 +18,9 @@ $include "Domain/Improve/singular_pts.mpl"
 
     export ModuleLoad := proc($)
         unprotect(Domain:-Improve:-Simplifiers):
+        Simplifiers["Push context down"] :=
+             Record('Order'=1
+                   ,'DO'=Domain:-Improve:-push_ctx_down);
         Simplifiers["Obviously redundant 'DInto's"] :=
              Record('Order'=2
                    ,'DO'=Domain:-Improve:-redundant_DIntos);
@@ -30,6 +33,9 @@ $include "Domain/Improve/singular_pts.mpl"
         Simplifiers["Single_pts"] :=
              Record('Order'=14
                    ,'DO'=Domain:-Improve:-singular_pts);
+        Simplifiers["Pull context out"] :=
+             Record('Order'=20
+                   ,'DO'=Domain:-Improve:-pull_ctx_out);
         # protect(Domain:-Improve:-Simplifiers):
     end proc;#ModuleLoad
 

@@ -34,3 +34,21 @@ local constraints_about_vars := module()
         end if;
     end proc;
 end module;
+
+# Pushes constraints down, or pulls them up, when there are such constraints.
+local do_ctx_dir := dir -> proc(vs :: DomBound, sh :: DomShape, $)
+    local ctx := `if`(nops(vs)=2,op(2,vs),{});
+    ctx := remove(x->x::`::`,ctx);
+    if ctx <> {} then
+        dir(ctx)(sh);
+    else
+        sh;
+    end if;
+end proc;
+
+local push_ctx_down :=
+  do_ctx_dir(ctx->sh->subsindets(sh, DomConstrain, x->if nops(x)<>0 then DConstrain(op(x), op(ctx)) else DConstrain() end if));
+
+local pull_ctx_out :=
+  do_ctx_dir(ctx->sh->subsindets(sh, DomConstrain
+            ,x->remove(c->c in ctx or (is(c) assuming ctx), x)));

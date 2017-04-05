@@ -87,7 +87,7 @@
   # Sum currently)
   reduce_Integrals := proc(body_, h, kb, opts, dom_specb_, $)
     local body := body_, dom_specb := dom_specb_, elim, e, mkDom, vars
-        , kb1, with_kb1, dom_specw, dom_spec, ed;
+        , kb1, with_kb1, dom_specw, dom_spec, dom_ctx, ed;
 
     # First simplify the body; this may discover other nested domains, simplify
     # them, and allow a further simplification to occur in this step of domain
@@ -99,7 +99,9 @@
     e := reduce(body, h, kb1, opts);
 
     # Extract the shape of the domain
-    (dom_specw, e) := op(Domain:-Extract:-Shape(e, kb));
+    (dom_specw, e) := op(Domain:-Extract:-Shape(e, KB:-empty));
+    dom_ctx := {op(kb_to_constraints(kb))};
+    dom_specb := DBound(op(1,dom_specb), dom_ctx);
 
     # Construct the domain from the bounds and the shape
     dom_spec := DOMAIN(dom_specb, dom_specw);
