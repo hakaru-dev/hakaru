@@ -37,7 +37,7 @@ export Apply := module ()
                if is(cond) then
                    r := e
                else
-                   r := PWToPartition(piecewise(cond, e, 0), 'do_solve');
+                   r := PARTITION([Piece(cond,e), Piece(Not(cond),e)]);
                end if;
                # if there are still integrals which have not been applied,
                # apply them now
