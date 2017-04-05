@@ -7,13 +7,13 @@
 # basically, when we see an 'unbound' variable in the 'RHS' , we should bind
 # it with the default 'DInto'.
 export Apply := module ()
-       export ModuleApply := proc(dom :: HDomain_mb, e, $)
-           local vs, sh;
+       export ModuleApply := proc(dom :: HDomain_mb, $)
+           local vs, sh, `expression body`;
            if dom :: DomNoSol then
                error "cannot apply %1", dom;
            end if;
            vs, sh := op(dom);
-           do_apply({}, e, vs, sh);
+           unapply(do_apply({}, `expression body`, vs, sh), `expression body`);
        end proc;
 
        export Shape := proc(dsh :: DomShape, e, $) ModuleApply( DOMAIN( [], dsh ), e ) end proc;

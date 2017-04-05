@@ -108,8 +108,7 @@
     dom_spec := Domain:-Improve(dom_spec);
 
     # Apply the domain back to the expression
-    mkDom := (x-> kb_assuming_mb(x->Domain:-Apply(dom_spec, x))(x, kb, (_->_)) );
-    ed := mkDom(e);
+    mkDom := Domain:-Apply(dom_spec); ed := mkDom(e);
 
     # Some extra simplification may be needed
     elim := elim_intsum( ed, h, kb );
