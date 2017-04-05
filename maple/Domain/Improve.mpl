@@ -15,6 +15,7 @@ $include "Domain/Improve/LMS.mpl"
 $include "Domain/Improve/redundant_DIntos.mpl"
 $include "Domain/Improve/constraints_about_vars.mpl"
 $include "Domain/Improve/singular_pts.mpl"
+$include "Domain/Improve/single_case_Partition.mpl"
 
     export ModuleLoad := proc($)
         unprotect(Domain:-Improve:-Simplifiers):
@@ -30,6 +31,9 @@ $include "Domain/Improve/singular_pts.mpl"
         Simplifiers["LMS"] :=
              Record('Order'=10
                    ,'DO'=evaln(Domain:-Improve:-LMS));
+        Simplifiers["Single case partition"] :=
+             Record('Order'=11
+                   ,'DO'=Domain:-Improve:-single_case_Partition);
         Simplifiers["Single_pts"] :=
              Record('Order'=14
                    ,'DO'=Domain:-Improve:-singular_pts);
