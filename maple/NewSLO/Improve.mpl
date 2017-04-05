@@ -212,7 +212,7 @@
 
     local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
       local w, e, x, g, t, r;
-      w, e := op(Domain:-Extract:-Shape(ee, kb));
+      w, e := op(Domain:-Extract:-Shape(ee, KB:-empty));
       w := Domain:-Shape:-toConstraints(w);
       e := piecewise_And(w, e, 0);
       e := f(e,v,_rest,kb);
