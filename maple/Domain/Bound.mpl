@@ -17,6 +17,19 @@ export Bound := module ()
         map(x->op(1,x), op(1, dom));
     end proc;
 
+    export withVarsIxs := proc(dom :: DomBound, $) :: DomBound;
+        DBound( op(1..2,dom), table([ seq(op([1,i,1],dom)=i,i=1..nops(op(1,dom))) ]) );
+    end proc;
+
+    export varIx := proc(dom0::DomBound, v::DomBoundVar, $)::nonnegint;
+        local dom := `if`(nops(dom0)>=3, (_->_), withVarsIxs)(dom0);
+        if assigned(op(3,dom)[v]) then
+            op(3,dom)[v]
+        else
+            error "cannot find var %1 in %2", v, dom0;
+        end if;
+    end proc;
+
     export isEmpty := proc(dom :: DomBound, $)::truefalse;
         evalb(nops(op(1,dom))=0);
     end proc;

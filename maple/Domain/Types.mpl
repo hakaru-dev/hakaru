@@ -7,8 +7,10 @@ local DomainTypes := table(
        ,(DomBoundRange = 'DomBoundRange_type')
        ,(DomBoundBinder = ''DInto(DomBoundVar, DomBoundRange, DomBoundKind)'' )
        ,(DomBoundKind   = 'And(name, satisfies(nm->assigned(Domain:-ExtBound[nm])))' )
-       ,(DomBound       = ''Or(DBound(list(DomBoundBinder))
-                              ,DBound(list(DomBoundBinder),anything) )'' )
+       ,(DomBound       = ''And(specfunc(DBound)
+                               ,{anyfunc(list(DomBoundBinder))
+                                ,anyfunc(list(DomBoundBinder),DomCtx)
+                                ,anyfunc(list(DomBoundBinder),DomCtx,table) })'' )
        # Domain shape
        ,(DomConstrain = 'specfunc(relation, `DConstrain`)' )
        ,(DomSum       = 'specfunc(DomShape, `DSum`)' )
@@ -43,6 +45,12 @@ local GLOBALS := table(
       end if;
       'procname'(args);
     end proc)
+ , 'DBound' = (proc(a)
+     local b,cs;
+     b := `if`(nargs>=2,[args[2]],[{}])[];
+     cs := `if`(nargs>=3,[args[3..-1]],[])[];
+     'procname'(a,b,cs) ;
+     end proc)
  , 'DConstrain' =
    (proc()
      local as := {args};

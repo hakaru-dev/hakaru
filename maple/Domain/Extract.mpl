@@ -14,7 +14,8 @@ export Extract := module ()
         export ModuleApply := proc(e, $) :: [ DomBound, anything ];
             local arg, vars, kb;
             arg, vars := do_extract(e)[];
-            [ DBound(vars), arg ];
+            vars := Domain:-Bound:-withVarsIxs(DBound(vars));
+            [ vars , arg ];
         end proc;
 
         local do_extract_arg := proc(kind, arg_, bound, $)
