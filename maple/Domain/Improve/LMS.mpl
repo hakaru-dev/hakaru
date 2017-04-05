@@ -113,6 +113,12 @@ local LMS := module()
         local vs := vs_, cs, do_rn, ret;
         cs := { op( Domain:-Bound:-toConstraints(ctx,'no_infinity') )
               , op(sh) } ;
+        if nops(ctx) >= 2 then
+            # LMS doesn't understand constraints (those are excluded by default
+            # in Bound:-toConstraints)
+            cs := cs union {op(remove(x->not(x::{`<`,`<=`,`=`}),ctx))};
+        end if;
+
         # there are variables to solve for, but no non-trivial
         # constraints which need to be solved.
         if cs = {} and not vs = [] then
