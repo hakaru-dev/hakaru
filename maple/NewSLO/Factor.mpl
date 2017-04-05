@@ -146,6 +146,6 @@ $include "NewSLO/Piecewise.mpl"
     end proc;
 
     ModuleApply := proc(e, kb::t_kb, $)
-      simplify_assuming(eval_factor(convert(e, 'Beta'), kb, `*`, []), kb);
+      simplify_assuming(eval_factor(convert(Partition:-PartitionToPW_mb(e), 'Beta'), kb, `*`, []), kb);
     end proc;
   end module; # simplify_factor_assuming
