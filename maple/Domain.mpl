@@ -202,7 +202,7 @@ Domain := module()
                                [ w, p ]
                            else
                                ps := op(1, p);
-                               wps := map(x->Domain:-Extract:-Shape(valOf(x), KB:-empty, 'no_simpl'), ps);
+                               wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
                                ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
                                if nops(vs) > 0 and
                                   andmap(v->op(1,vs)=v, vs) and

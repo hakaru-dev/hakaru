@@ -51,13 +51,12 @@ export Extract := module ()
     # essentially this assumes a distributive law (of domain shapes over
     # products)
     export Shape := module ()
-        export ModuleApply := proc(e, ctx :: t_kb) :: [ anything, anything ];
-            local ixs, w, e1, ctx1;
+        export ModuleApply := proc(e) :: [ anything, anything ];
+            local ixs, w, e1;
             ixs := [indices(ExtShape, 'nolist')];
             w, e1 := do_gets(ixs, true, e) [];
             if not ('no_simpl' in {_rest}) then
-                ctx1 := KB:-kb_to_constraints(ctx);
-                w := simpl_shape(w, ctx1);
+                w := simpl_shape(w);
             end if;
             [ w, e1 ];
         end proc;
@@ -100,12 +99,10 @@ export Extract := module ()
         end proc;
 
         # todo: simplify the shape
-        local simpl_shape := proc(e0,ctx,$)
+        local simpl_shape := proc(e0,$)
             local e := Domain:-simpl_relation(e0);
             e := subsindets(e, specfunc(`Or`) , x->DSum(op(x)));
-            e := subsindets(e, specfunc(`And`)
-                           , x-> if nops(x) > 0 then DConstrain(op(x), op(ctx)) else DConstrain() end if
-                           );
+            e := subsindets(e, specfunc(`And`), x->DConstrain(op(x)));
             e;
         end proc;
     end module;

@@ -99,7 +99,7 @@
     e := reduce(body, h, kb1, opts);
 
     # Extract the shape of the domain
-    (dom_specw, e) := op(Domain:-Extract:-Shape(e, KB:-empty));
+    (dom_specw, e) := op(Domain:-Extract:-Shape(e));
     dom_ctx := {op(kb_to_constraints(kb))};
     dom_specb := DBound(op(1,dom_specb), dom_ctx);
 
@@ -214,7 +214,7 @@
 
     local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
       local w, e, x, g, t, r;
-      w, e := op(Domain:-Extract:-Shape(ee, KB:-empty));
+      w, e := op(Domain:-Extract:-Shape(ee));
       w := Domain:-Shape:-toConstraints(w);
       e := piecewise_And(w, e, 0);
       e := f(e,v,_rest,kb);
