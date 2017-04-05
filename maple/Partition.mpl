@@ -253,7 +253,11 @@ export
        end if;
    end proc,
 
-   PartitionToPW := proc(x::Partition)#::specfunc(piecewise);
+   PartitionToPW_mb := proc(x, $)
+       if x :: Partition then PartitionToPW(x) else x end if;
+   end proc,
+
+   PartitionToPW := proc(x::Partition, $)
        local parts := op(1,x);
        parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
        parts := [seq([condOf(p), valOf(p)][], p=op(1,parts))];
@@ -357,6 +361,15 @@ export
 
    Simpl := module()
        export ModuleApply := (single_branch@remove_false_pieces);
+
+       export single_nonzero_piece_cps := proc(k)
+           local r,p; r, p := single_nonzero_piece(_rest);
+           if r :: identical(true) then
+               args[2]
+           else
+               k(r, p);
+           end if;
+       end proc;
 
        export single_nonzero_piece := proc(e, { _testzero := Testzero })
            local zs, nzs;
