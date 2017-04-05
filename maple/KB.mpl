@@ -422,7 +422,8 @@ KB := module ()
      warm(b);
    end proc;
 
-   rel_coulditbe := proc(a,as,$)
+   rel_coulditbe := proc(a,as0,$)
+      local as := remove(x->x::`not`(`and`), as0);
       try
           coulditbe(a) assuming op(as);
       catch "when calling '%1'. Received: 'contradictory assumptions'" :
