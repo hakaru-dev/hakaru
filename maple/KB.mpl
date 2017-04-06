@@ -342,6 +342,10 @@ KB := module ()
      # success!
      if c::list and nops(c)=1 then
        foldr(((z,kb)->assert_deny(z, pol, kb)), kb, op(warm(c[1])));
+     elif c :: t_pw then
+       error "Solve returned a parametric solution!"
+     elif c::list and nops(c)>1 then
+       error "Solve returned multiple solutions!"
      else
        FAIL; # No simplification could be done
      end if;

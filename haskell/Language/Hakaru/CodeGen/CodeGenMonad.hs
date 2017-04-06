@@ -188,11 +188,16 @@ genIdent' s =
 createIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 createIdent var@(Variable name _ _) =
   do !cg <- get
-     let ident = Ident $ (T.unpack name) ++ "_" ++ (head $ freshNames cg)
+     let ident = Ident $ concat [ concatMap toAscii . T.unpack $ name
+                                , "_",head $ freshNames cg ]
          env'  = updateEnv var ident (varEnv cg)
      put $! cg { freshNames = tail $ freshNames cg
                , varEnv     = env' }
      return ident
+  where toAscii c = let num = fromEnum c in
+                    if num < 48 || num > 122
+                    then "u" ++ (show num)
+                    else [c]
 
 lookupIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 lookupIdent var =
