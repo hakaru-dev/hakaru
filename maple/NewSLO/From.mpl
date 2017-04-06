@@ -1,9 +1,5 @@
-
-
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
-
 fromLO := module()
-
   export ModuleApply :=
   proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
     local h;
@@ -464,8 +460,7 @@ fromLO := module()
     e, 0;
   end proc;
 
-
-  local
+  export
   unweight := proc(m, $)
     local total, ww, mm;
     if m :: 'Weight(anything, anything)' then

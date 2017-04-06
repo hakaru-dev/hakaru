@@ -37,7 +37,7 @@ NewSLO := module ()
      # while these are "proper functions"
          RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, TestDisint, Efficient,
          toLO, fromLO, improve, reduce,
-         density, bounds,
+         density, bounds, unweight,
 
      # Like simplify_assuming, but also applies `hack_Beta` and `eval_factor`
      # which helps some things simplify.
@@ -61,9 +61,10 @@ $include "NewSLO/Disint.mpl"
 $include "NewSLO/Reparam.mpl"
 $include "NewSLO/Factor.mpl"
 
-  # This is for backwards compatibility, do not use "integrate",
-  # use "toLO:-integrate" instead.
+  # This is for backwards compatibility; do not use them directly,
+  # instead use the symbols exported from inner modules of NewSLO
   `integrate` := toLO:-integrate;
+  `unweight`  := fromLO:-unweight;
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
