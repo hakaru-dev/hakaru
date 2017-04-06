@@ -260,9 +260,9 @@ TestDisint(d3posfam, d3posfam_r, d3posfam_ctx
 #This one is a basic test of the Counting wrt-var type.
 #This one gives the Weight(-1, ...) error
 TestDisint(
-     [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_ &M Counting((-1,1)*~infinity)],
+     [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_wrt &M Counting((-1,1)*~infinity)],
      {},  #I don't know what to expect.
-     [n::integer, n >= 0],
+     [n_wrt::integer, n_wrt >= 0],
      label= "(d0_1) `Counting` test; `Weight` bug (currently failing)"
 );
 
