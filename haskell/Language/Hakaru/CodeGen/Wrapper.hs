@@ -117,10 +117,9 @@ mainFunction
   -> CodeGen ()
 
 -- when measure, compile to a sampler
-mainFunction pc typ@(SMeasure t) abt =
+mainFunction pc typ@(SMeasure _) abt =
   let ident   = Ident "measure"
       funId   = Ident "main"
-      mdataId = Ident "mdata"
   in  do reserveName "measure"
          reserveName "mdata"
          reserveName "main"
@@ -128,9 +127,12 @@ mainFunction pc typ@(SMeasure t) abt =
          extDeclareTypes typ
 
          -- defined a measure function that returns mdata
-         funCG CVoid ident [mdataPtrDeclaration t mdataId] $
-           do flattenABT abt (CVar mdataId)
-              putStat (CReturn Nothing)
+         funCG (head . buildType $ typ) ident [] $
+           do sampId <- genIdent' "samp"
+              declare typ sampId
+              let sampE = CVar sampId
+              flattenABT abt sampE
+              putStat . CReturn . Just $ sampE
 
          -- need to set seed?
          -- srand(time(NULL));
@@ -199,7 +201,7 @@ printf pc mt@(SMeasure t) sampleFunc =
     _ -> do mId <- genIdent' "m"
             declare mt mId
             let mE = CVar mId
-                getSampleS   = CExpr . Just $ CCall sampleFunc [address mE]
+                getSampleS   = CExpr . Just $ mE .=. (CCall sampleFunc [])
                 printSampleE = CExpr . Just
                              $ printfE
                              $ [ stringE $ printfText pc mt "\n"]
