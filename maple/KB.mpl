@@ -45,7 +45,7 @@ KB := module ()
 
      # Various utilities
      t_intro, t_lo, t_hi, log_metric,
-     boolean_if, coalesce_bounds, htype_to_property
+     boolean_if, coalesce_bounds, htype_to_property, bad_assumption
 
      ;
   export
@@ -334,8 +334,8 @@ KB := module ()
    end proc;
 
    # Simplification when the `:: t_bound_on' predicate is false
-   not_bound_simp := proc(b,x,kb,pol,as,$)
-     local c;
+   not_bound_simp := proc(b,x,kb,pol,as0,$)
+     local c, as; as := remove(c->c::`not`(`and`), as);
      c := solve({b},[x], 'useassumptions'=true) assuming op(as);
      postproc_for_solve(c, kb, pol, as);
    end proc;
@@ -665,9 +665,23 @@ KB := module ()
     [op(map2(op, 1, select(type, kb, t_intro)))];
   end proc;
 
+  # Returns true if the assumption is bad, false otherwise
+  bad_assumption := proc(a, $)
+    (a :: `=` and has(a,piecewise)) or
+    # The case above is because the following takes forever:
+    # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_
+    # = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1,
+    # i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] =
+    # size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
+    ( a :: {`=`,`::`} and
+      ormap(f->f(a)::name,[lhs,rhs]) and
+      indets(a,'{specindex,specfunc}'(chilled))<>{} )
+    # These are dealt with otherwise and aren't understood by Maple
+  end proc;
+
   kb_to_assumptions := proc(kb, e:={}, $)
     local n;
-    remove((a -> a :: `=` and has(a,piecewise)),
+    remove(bad_assumption,
       # The "remove" above is because the following takes forever:
       # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_ = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1, i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] = size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
     map(proc(k, $)
