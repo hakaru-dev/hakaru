@@ -1,7 +1,7 @@
 
   banish := module()
     export ModuleApply :=
-         proc(g, h :: name, kb :: t_kb, levels :: extended_numeric,
+         proc(g, h :: name, kb :: t_kb_mb, levels :: extended_numeric,
                  x :: name, make, $)
     # banish(g, h, kb, levels, x, make), where the integrand h and the
     # integration variable x take scope over the integral g patently linear
@@ -11,7 +11,7 @@
     #   - if levels < infinity then levels controls how deeply to banish g;
     #   - make is invoked with the KB in the first argument extended.
     local subintegral, w, y, kb1, lo, hi, m, loops, xx, less;
-    if g = 0 then
+    if g = 0 or kb :: t_not_a_kb then
       0
     elif levels <= 0 then
       make(kb, g)
@@ -107,8 +107,8 @@
               + el(banish_guard(make, Not(cond)), kb)
           else
             piecewise_if(cond,
-              banish(th, h, assert(cond, kb), levels-1, x, make),
-              el(make, assert(Not(cond), kb)))
+              banish(th, h, assert_mb(cond, kb), levels-1, x, make),
+              el(make, assert_mb(Not(cond), kb)))
           end if
         end proc end proc;
   end proc;
