@@ -195,9 +195,8 @@ Loop := module ()
         # use kb as a local context, and 'solve' for the innermost bound var
         #   used in ind.
         kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
-        ASSERT(type(kb,t_kb)
-              ,sprintf("unproduct: BUG! bijectivity assumed!(%a is not a KB)", %assert(lhs(loop)=ind,kb1)) );
-
+        # if the assertion makes the KB false, it isn't needed(?)
+        if kb :: t_not_a_kb then kb := kb1 end if;
         res := subs(idx(var,ind) = idx(var,lhs(loop)), w);
         res := wrap(heap, res, mode, kb, kb0);
         res := subs(idx(var,lhs(loop))=dummy, res);
