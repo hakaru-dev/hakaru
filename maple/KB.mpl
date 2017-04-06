@@ -52,7 +52,7 @@ KB := module ()
      # Functions which build up KBs from KBs and other pieces
      #  typically ensuring that internal invariants are upheld
      # (i.e. 'smart' constructors)
-      empty, genLebesgue, genType, genLet, assert, assert_deny,
+      empty, genLebesgue, genType, genLet, assert, assert_deny, assert_deny_mb,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -179,6 +179,10 @@ KB := module ()
       end if;
   end proc;
 
+  assert_deny_mb := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb_mb, $)
+    if kb :: t_kb then assert_deny(args) else NotAKB() end if;
+  end proc;
+
   # Like assert_deny, except does not accept a boolean
   # parameter to indicate negation, and evaluates
   # (using Maple's eval, anything can happen!) the
@@ -277,7 +281,7 @@ KB := module ()
         for c in t_lo, t_hi do
           c := refine_given(k,kb,x,c);
           if nops(c)>0 then
-            kb1 := assert_deny(op([1,1],c)(e,op([1,2],c)), true, kb1)
+            kb1 := assert_deny_mb(op([1,1],c)(e,op([1,2],c)), true, kb1)
           end if
         end do;
         return kb1
@@ -336,32 +340,43 @@ KB := module ()
    # Simplification when the `:: t_bound_on' predicate is false
    not_bound_simp := proc(b,x,kb,pol,as0,$)
      local c, as; as := remove(c->c::`not`(`and`), as0);
+     if bad_assumption(b) then return FAIL end if;
      c := solve({b},[x], 'useassumptions'=true) assuming op(as);
      postproc_for_solve(c, kb, pol, as);
    end proc;
 
    postproc_for_solve := proc(c, kb, pol, as, $)
      local p, c0, c1;
-     if c :: list then # conjunction
-       foldr(((z,kb)->postproc_for_solve(z, kb, pol, as)), kb, op(c));
+     if c :: list({relation, specfunc(`And`), `and`}) then # conjunction
+       c0 := map(c -> if c::{specfunc(`And`),`and`} then op(c) else c end if,c);
+       return foldr(((z,kb)->postproc_for_solve(z, kb, pol, as)), kb, op(c0));
+
+     elif c :: list and nops(c)=1 then # disjunction
+       return postproc_for_solve(op(1,c), kb, pol, as);
 
      elif c :: {relation,specfunc(`Not`)} then # atom
-       assert_deny(c, pol, kb);
+       return assert_deny_mb(c, pol, kb);
 
      elif c :: specfunc(`piecewise`) then # try to make it into a conjunction
        p := Partition:-PWToPartition(c);
        p := apply(Partition:-Simpl:-remove_false_pieces,p) assuming op(as);
        c0, c1 := Partition:-Simpl:-single_nonzero_piece(p, _testzero=(x->x=[]));
        if not c0 :: identical(true) then
-         try postproc_for_solve([ c0, c1 ], kb, pol, as);
-         catch "when calling '%1'. Received: 'cannot assume on a constant object'": FAIL; end try;
-       else
-         FAIL
+         if c1 :: relation then
+         elif c1 :: list and nops(c1) = 1 then
+             c1 := op(1,c1);
+             if c1 :: list then c1 := op(c1) end if;
+         else
+             FAIL;
+         end if;
+         try return postproc_for_solve([ c0, c1 ], kb, pol, as);
+         catch "when calling '%1'. Received: 'cannot assume on a constant object'": NULL; end try;
        end if;
-      else
-       FAIL; # No simplification could be done
-      end if;
-    end proc;
+       return FAIL;
+     end if;
+
+     error "don't know what to do with %1 (in ctx %2, %3)", c, as, kb;
+   end proc;
 
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
@@ -394,10 +409,10 @@ KB := module ()
       kb
 
     elif bb :: t_if_and_or_of(pol) then
-      foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
+      foldr(((b,kb) -> assert_deny_mb(b, pol, kb)), kb, op(bb))
 
     elif bb :: t_not then
-      foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
+      foldr(((b,kb) -> assert_deny_mb(b, not pol, kb)), kb, op(bb))
 
     else
 
