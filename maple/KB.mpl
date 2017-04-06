@@ -353,14 +353,23 @@ KB := module ()
    # Great deal of magic happens behind the scenes
    ModuleApply := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret;
+    local as, b, log_b, k, x, rel, e, ch, c, kb0, kb1, y, ret, bbv;
 
     # Setup the assumptions
     as := chill(kb_to_assumptions(kb, bb));
 
     # Check that the new clause would not cause a contradictory
-    # KB. If it does, then produce NotAKB.
-    if not coulditbe(`if`(pol,bb,not(bb))) assuming op(as) then
+    # KB. If it does, then produce NotAKB. We skip the check when the
+    # left/right hand side is identically a variable, for two reasons
+    #  - it is entirely unnecessary, since if the constraint is about a
+    #    variable, the rest of the KB logic deals with it very easily
+    #  - `coulditbe` throws ('simplify/siderels:-`simplify/siderels`'. Received:
+    #    'side relations must be polynomials in (name or function) variables')
+    #    for certain such relations; we could catch this error and ignore it,
+    #    but the extra check to skip `coulditbe` avoids this error, at least for now
+    bbv := `if`(pol,bb,not(bb));
+    if not (bbv :: relation and ormap(s->s(bbv)::name,[lhs,rhs]))
+       and (not coulditbe(bbv) assuming op(as)) then
         return NotAKB();
     end if;
 
