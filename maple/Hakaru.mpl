@@ -426,9 +426,9 @@ Hakaru := module ()
      #piecewise.
      r:= [
           And(C_O, C_I[1]), B_I[1],
-          And(C_O, KB:-negate_kb1(C_I[1])), B_I[2],
-          And(KB:-negate_kb1(C_O), C_I[2]), B_I[3],
-          And(KB:-negate_kb1(C_O), KB:-negate_kb1(C_I[2])), B_I[4]
+          And(C_O, KB:-negate_rel(C_I[1])), B_I[2],
+          And(KB:-negate_rel(C_O), C_I[2]), B_I[3],
+          And(KB:-negate_rel(C_O), KB:-negate_rel(C_I[2])), B_I[4]
      ];
      userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
      piecewise(r[])
@@ -566,19 +566,7 @@ Hakaru := module ()
    # If it lives in Partition, then `Partition:-Partition` (the type)
    # matches partitions, but the `t_partition` type in Hakaru does not.
    # clearly I'm missing something
-   PARTITION::static:= proc(
-      Pairs::list(
-         record(
-            #The type `anything` below should be some boolean type, but we'll
-            #need to write our own as neither Maple's 'boolean' nor
-            #'boolean &under (convert, boolean_operator)' is inclusive enough.
-            cond::anything,
-            val::anything
-             # TODO: t_Hakaru doesn't work here because sometimes there is an `applyintegrand`
-         )
-      ),
-      $ #no optional arguments, for now at least
-   )::t_partition;
+   PARTITION::static:= proc(Pairs::list,$)::t_partition;
      'procname'(_passed)
    end proc;
 

@@ -56,7 +56,7 @@ KB := module ()
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
-     negated_relation, negate_kb1,
+     negated_relation, negate_rel,
 
      # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
      kb_subtract,
@@ -166,7 +166,7 @@ KB := module ()
 
   # Takes the bool type (true/false) to mean universal and empty relations respectively.
   # i.e. negate R, where R is an 'atomic' relation of a KB
-  negate_kb1:= proc(R::t_kb_atom, $)::t_kb_atom;
+  negate_rel:= proc(R::t_kb_atom, $)::t_kb_atom;
       if R :: truefalse then
         not R
       elif R :: relation then
@@ -193,7 +193,7 @@ KB := module ()
   assert_deny := module ()
    export ModuleApply ;
    local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp,
-         refine_given, t_bound_on;
+         refine_given, t_bound_on, postproc_for_solve;
 
    # The 'type' of `if(,,)` where the first parameter is the given type
    t_if_and_or_of := proc(pol,$)
@@ -335,21 +335,50 @@ KB := module ()
 
    # Simplification when the `:: t_bound_on' predicate is false
    not_bound_simp := proc(b,x,kb,pol,as,$)
-     local c, chilled_b;
-
-     chilled_b := chill(b);
-     c := solve({chilled_b},[x], 'useassumptions'=true) assuming op(as);
-     # success!
-     if c::list and nops(c)=1 then
-       foldr(((z,kb)->assert_deny(z, pol, kb)), kb, op(warm(c[1])));
-     elif c :: t_pw then
-       error "Solve returned a parametric solution!"
-     elif c::list and nops(c)>1 then
-       error "Solve returned multiple solutions!"
-     else
-       FAIL; # No simplification could be done
-     end if;
+     local c;
+     c := solve({b},[x], 'useassumptions'=true) assuming op(as);
+     postproc_for_solve(c, kb, pol, as);
    end proc;
+
+   postproc_for_solve := proc(c, kb, pol, as, $)
+     local p, c0, c1;
+     if c :: list then # conjunction
+       foldr(((z,kb)->postproc_for_solve(z, kb, pol, as)), kb, op(c));
+
+     elif c :: {relation,specfunc(`Not`)} then # atom
+       assert_deny(c, pol, kb);
+
+     elif c :: specfunc(`piecewise`) then # try to make it into a conjunction
+       p := Partition:-PWToPartition(c);
+       p := apply(Partition:-Simpl:-remove_false_pieces,p) assuming op(as);
+       c0, c1 := Partition:-Simpl:-single_nonzero_piece(p, _testzero=(x->x=[]));
+       if not c0 :: identical(true) then
+         try postproc_for_solve([ c0, c1 ], kb, pol, as);
+         catch "when calling '%1'. Received: 'cannot assume on a constant object'": FAIL; end try;
+       else
+         FAIL
+       end if;
+      else
+       FAIL; # No simplification could be done
+      end if;
+    end proc;
+
+   # not_bound_simp := proc(b,x,kb,pol,as,$)
+   #   local c, chilled_b;
+
+   #   chilled_b := chill(b);
+   #   c := solve({chilled_b},[x], 'useassumptions'=true) assuming op(as);
+   #   # success!
+   #   if c::list and nops(c)=1 then
+   #     foldr(((z,kb)->assert_deny(z, pol, kb)), kb, op(warm(c[1])));
+   #   elif c :: t_pw then
+   #     error "Solve returned a parametric solution!"
+   #   elif c::list and nops(c)>1 then
+   #     error "Solve returned multiple solutions!"
+   #   else
+   #     FAIL; # No simplification could be done
+   #   end if;
+   # end proc;
 
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
@@ -429,7 +458,7 @@ KB := module ()
 
       # Normalize `=` and `<>` constraints a bit.
       if not pol then
-        b := negate_kb1(b);
+        b := negate_rel(b);
       end if;
 
       # If the name in the simple equality (if it is such) is not
