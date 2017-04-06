@@ -262,7 +262,6 @@ TestDisint(d3posfam, d3posfam_r, d3posfam_ctx
 TestDisint(
      [Bind(PoissonD(2), n, Ret(Pair(3,n))), n_wrt &M Counting((-1,1)*~infinity)],
      {},  #I don't know what to expect.
-     [n_wrt::integer, n_wrt >= 0],
      label= "(d0_1) `Counting` test; `Weight` bug (currently failing)"
 );
 
