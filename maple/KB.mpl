@@ -367,7 +367,7 @@ KB := module ()
              c1 := op(1,c1);
              if c1 :: list then c1 := op(c1) end if;
          else
-             FAIL;
+             return FAIL;
          end if;
          try return postproc_for_solve([ c0, c1 ], kb, pol, as);
          catch "when calling '%1'. Received: 'cannot assume on a constant object'": NULL; end try;
