@@ -335,7 +335,7 @@ KB := module ()
 
    # Simplification when the `:: t_bound_on' predicate is false
    not_bound_simp := proc(b,x,kb,pol,as0,$)
-     local c, as; as := remove(c->c::`not`(`and`), as);
+     local c, as; as := remove(c->c::`not`(`and`), as0);
      c := solve({b},[x], 'useassumptions'=true) assuming op(as);
      postproc_for_solve(c, kb, pol, as);
    end proc;
@@ -362,23 +362,6 @@ KB := module ()
        FAIL; # No simplification could be done
       end if;
     end proc;
-
-   # not_bound_simp := proc(b,x,kb,pol,as,$)
-   #   local c, chilled_b;
-
-   #   chilled_b := chill(b);
-   #   c := solve({chilled_b},[x], 'useassumptions'=true) assuming op(as);
-   #   # success!
-   #   if c::list and nops(c)=1 then
-   #     foldr(((z,kb)->assert_deny(z, pol, kb)), kb, op(warm(c[1])));
-   #   elif c :: t_pw then
-   #     error "Solve returned a parametric solution!"
-   #   elif c::list and nops(c)>1 then
-   #     error "Solve returned multiple solutions!"
-   #   else
-   #     FAIL; # No simplification could be done
-   #   end if;
-   # end proc;
 
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
