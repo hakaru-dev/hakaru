@@ -393,25 +393,35 @@ KB := module ()
 
    postproc_for_solve := proc(c, kb, pol, as, $)
      local p, c0, c1;
-     if c :: list then # conjunction
-       foldr(((z,kb)->postproc_for_solve(z, kb, pol, as)), kb, op(c));
+     if c :: list({relation, specfunc(`And`), `and`}) then # conjunction
+       c0 := map(c -> if c::{specfunc(`And`),`and`} then op(c) else c end if,c);
+       return foldr(((z,kb)->postproc_for_solve(z, kb, pol, as)), kb, op(c0));
+
+     elif c :: list and nops(c)=1 then # disjunction
+       return postproc_for_solve(op(1,c), kb, pol, as);
 
      elif c :: {relation,specfunc(`Not`)} then # atom
-       assert_deny(c, pol, kb);
+       return assert_deny_mb(c, pol, kb);
 
      elif c :: specfunc(`piecewise`) then # try to make it into a conjunction
        p := Partition:-PWToPartition(c);
        p := apply(Partition:-Simpl:-remove_false_pieces,p) assuming op(as);
        c0, c1 := Partition:-Simpl:-single_nonzero_piece(p, _testzero=(x->x=[]));
        if not c0 :: identical(true) then
-         try postproc_for_solve([ c0, c1 ], kb, pol, as);
-         catch "when calling '%1'. Received: 'cannot assume on a constant object'": FAIL; end try;
-       else
-         FAIL
+         if c1 :: relation then
+         elif c1 :: list and nops(c1) = 1 then
+             c1 := op(1,c1);
+             if c1 :: list then c1 := op(c1) end if;
+         else
+             return FAIL;
+         end if;
+         try return postproc_for_solve([ c0, c1 ], kb, pol, as);
+         catch "when calling '%1'. Received: 'cannot assume on a constant object'": NULL; end try;
        end if;
-     else
-       FAIL
+       return FAIL;
      end if;
+
+     error "don't know what to do with %1 (in ctx %2, %3)", c, as, kb;
    end proc;
 
    # Simplify `bb' in context `as'
