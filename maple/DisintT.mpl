@@ -7,7 +7,6 @@ end if;
 
 with(Hakaru):
 with(NewSLO):
-with(TestWrapper):
 with(Partition):
 
 #####################################################################
