@@ -1,5 +1,5 @@
 # Checks if an expression has domain bounds/shape, and check for either one.
-local Has := module ()
+export Has := module ()
     export ModuleApply := proc(e, $)::truefalse;
         Bound(e) or Shape(e);
     end proc;
