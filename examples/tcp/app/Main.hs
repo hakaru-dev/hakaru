@@ -24,12 +24,12 @@ main = do
   printf "length words  == %d\n" (V.length words)
   printf "length docs   == %d\n" (V.length docs)
   printf "length topics == %d\n" (V.length topics)
-  -- forM_ [0..(V.length topics - 1)] $ \i -> do
-  --   --print $ V.map logFromLogFloat $ predict i
-  --   printf "%d %d\n" (topics ! i) (V.maxIndex $ predict i)
-  print $ accuracy
-            topics
-            (V.map (V.maxIndex . predict) (V.generate (V.length topics) id))
+  forM_ [0..(V.length topics - 1)] $ \i -> do
+    --print $ V.map logFromLogFloat $ predict i
+    printf "%d %d\n" (topics ! i) (V.maxIndex $ predict i)
+  -- print $ accuracy
+  --           topics
+  --           (V.map (V.maxIndex . predict) (V.generate (V.length topics) id))
   -- replicateM 5 . withGen g (print . sort) $ do
   --   pred <- predict
   --   let p = pred $ V.fromList $ [0,1,7]
