@@ -1230,7 +1230,8 @@ flattenMeasureOp Categorical = \(arr :* End) ->
          let test = wMaxE .<. currE
              thn  = CExpr $ Just (wMaxE .=. currE)
          putStat $ CIf test (seqCStat [thn]) Nothing
-         logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
+         logSumExpCG (S.fromList [wSumE, currE]) wSumE
+       putExprStat $ wSumE .=. (wSumE .-. wMaxE)
 
        -- draw number from uniform(0, weightSum)
        rId <- genIdent' "r"
