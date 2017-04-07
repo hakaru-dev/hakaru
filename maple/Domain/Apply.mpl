@@ -37,7 +37,7 @@ export Apply := module ()
                if is(cond) then
                    r := e
                else
-                   r := piecewise(cond,e,0);
+                   r := PARTITION([Piece(cond,e), Piece(Not(cond),e)]);
                end if;
                # if there are still integrals which have not been applied,
                # apply them now
