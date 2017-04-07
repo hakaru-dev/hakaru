@@ -1225,13 +1225,11 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        mkSequential
 
        -- Calculate the maximum value of the input array
+       -- And calculate the total weight
        forCG (itE .=. (intE 0)) cond inc $ do
          let test = wMaxE .<. currE
              thn  = CExpr $ Just (wMaxE .=. currE)
          putStat $ CIf test (seqCStat [thn]) Nothing
-
-       -- first calculate the total weight
-       forCG (itE .=. (intE 0)) cond inc $
          logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
 
        -- draw number from uniform(0, weightSum)
