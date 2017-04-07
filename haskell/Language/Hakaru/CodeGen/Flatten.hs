@@ -79,6 +79,24 @@ mochastic values
 
 -}
 
+flattenWithName'
+  :: ABT Term abt
+  => abt '[] a
+  -> String
+  -> CodeGen CExpr
+flattenWithName' abt hint = do
+  ident <- genIdent' hint
+  declare (typeOf abt) ident
+  let cvar = CVar ident
+  flattenABT abt cvar
+  return cvar
+
+flattenWithName
+  :: ABT Term abt
+  => abt '[] a
+  -> CodeGen CExpr
+flattenWithName abt = flattenWithName' abt ""
+
 flattenABT
   :: ABT Term abt
   => abt '[] a
@@ -1181,19 +1199,23 @@ flattenMeasureOp Beta =
 -- reference
 flattenMeasureOp Categorical = \(arr :* End) ->
   \loc ->
-    do arrId <- genIdent
-       declare (typeOf arr) arrId
-       let arrE = CVar arrId
-       flattenABT arr arrE
+    do arrE <- flattenWithName arr
 
        itId <- genIdent' "it"
        declare SInt itId
        let itE = CVar itId
 
+      -- Accumulator for the total probability of the input array
        wSumId <- genIdent' "ws"
        declare SProb wSumId
        let wSumE = CVar wSumId
        assign wSumId (logE (intE 0))
+
+       -- Accumulator for the max value in the input array
+       wMaxId <- genIdent' "max"
+       declare SProb wMaxId
+       let wMaxE = CVar wMaxId
+       assign wMaxId (logE (floatE 0))
 
        let currE = index (arrayData arrE) itE
            cond  = itE .<. (arraySize arrE)
@@ -1202,9 +1224,15 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        isPar <- isParallel
        mkSequential
 
-       -- first calculate the max weight
+       -- Calculate the maximum value of the input array
+       forCG (itE .=. (intE 0)) cond inc $ do
+         let test = wMaxE .<. currE
+             thn  = CExpr $ Just (wMaxE .=. currE)
+         putStat $ CIf test (seqCStat [thn]) Nothing
+
+       -- first calculate the total weight
        forCG (itE .=. (intE 0)) cond inc $
-         logSumExpCG (S.fromList [wSumE,currE]) wSumE
+         logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
 
        -- draw number from uniform(0, weightSum)
        rId <- genIdent' "r"
@@ -1222,7 +1250,7 @@ flattenMeasureOp Categorical = \(arr :* End) ->
                            putExprStat $ mdataSample loc .=. (itE .-. (intE 1))
                            putStat CBreak
               putStat $ CIf (rE .<. (expE wSumE)) stat Nothing
-              logSumExpCG (S.fromList [wSumE,currE]) wSumE
+              logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
               putExprStat $ CUnary CPostIncOp itE
 
        when isPar mkParallel
