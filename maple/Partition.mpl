@@ -582,7 +582,7 @@ export
                           );
                    end if;
                else
-                   ctxC := Partition:-simpl_relation(ctxC, norty='DNF');
+                   ctxC := simpl_relation(ctxC, norty='DNF');
                    ctxC := subs(`And`=`and`, ctxC);
                    if ctxC :: specfunc(`Or`) then
                        ctxC := [op(ctxC)]
