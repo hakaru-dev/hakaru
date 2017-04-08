@@ -52,7 +52,7 @@ fromLO := module()
       end if;
       subintegral := eval(op(1,e), op(2,e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      w := peel(w); # for "Don't be confused by extra iterations" tests
+      w := simplify_factor_assuming(peel(w), kb1); # for "Don't be confused by extra iterations" tests
       bnds, loops, kb2 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
       w, pp := unproducts(w, x, loops, kb2);
       hh := gensym('ph');
