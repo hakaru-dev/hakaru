@@ -386,7 +386,12 @@ KB := module ()
    # note: k is ignored, but this makes the API the same as
    # bound_simp
    not_bound_simp := proc(b,x,k,kb,pol,as,$)
-     local c;
+     local c, bad;
+     # don't even try to solve bad cases, we might get a RootOf !
+     bad := select(depends, indets(b, specfunc(chilled)),x);
+     if not (bad = {}) then return FAIL; end if;
+
+     # otherwise go ahead
      c := solve({chill(b)},[x], 'useassumptions'=true) assuming op(as);
      postproc_for_solve(warm(c), kb, pol, as);
    end proc;
