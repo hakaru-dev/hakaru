@@ -101,7 +101,7 @@
 
     # Extract the shape of the domain
     (dom_specw, e) := op(Domain:-Extract:-Shape(e));
-    if dom_specw = DConstrain() then return FAIL end if;
+    # if dom_specw = DConstrain() then return FAIL end if;
 
     dom_ctx := {op(kb_to_constraints(kb))};
     dom_specb := DBound(op(1,dom_specb), dom_ctx);
