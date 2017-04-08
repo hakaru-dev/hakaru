@@ -233,7 +233,7 @@
 
       do_elim := evalb(f in {'sums','ints','int_assuming','sum_assuming'});
 
-      mk_kb := kb -> KB:-assert(mk_bnd(lo_bnd,var) and mk_bnd(var,hi_bnd), kb);
+      mk_kb := kb -> KB:-assert(And(mk_bnd(lo_bnd,var),mk_bnd(var,hi_bnd)), kb);
 
       todo0      := [ f, var, [op(2..-1,e)], mk_kb, do_elim ];
       body, todo := extract_elim(op(1,e), h, false)[];
@@ -245,17 +245,17 @@
         return FAIL;
       end if;
 
-      body, todos := op(todo); kbs[0] := kb;
+      body, todos := op(todo); kbs[nops(todos)+1] := kb;
 
-      for i from 1 to nops(todos) do
+      for i from nops(todos) to 1 by -1 do
         f, var, rrest, mk_kb, do_elim := op(op(i,todos));
-        kbs[i] := mk_kb(kbs[i-1]);
+        kbs[i] := mk_kb(kbs[i+1]);
 
         if do_elim then
           body := banish(body, h, kbs[i], infinity, var,
                          proc (kb,g,$) do_elim_intsum(kb, f, g, op(rrest)) end proc);
         else
-          body := f(body, var, op(rrest));
+          body := f(body, op(rrest));
         end if;
       end do;
 
