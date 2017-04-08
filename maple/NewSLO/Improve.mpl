@@ -14,7 +14,7 @@
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     local e, elim, subintegral, w, ww, x, c, kb1, with_kb1, dom_specw, dom_specb
-         , body, dom_spec, ed, mkDom, vars
+         , body, dom_spec, ed, mkDom, vars, rr
          , do_domain := evalb( not ( ['no', 'domain'] in {op(opts)} ) ) ;
     e := ee;
 
@@ -183,9 +183,18 @@
     if elim = FAIL then e else reduce(elim, h, kb, opts) end if
   end proc;
 
+  # Try to find an eliminate (by evaluation, or simplification) integrals which
+  # are free of `applyintegrand`s.
   elim_intsum := module ()
+    export ModuleApply := proc(e, h :: name, kb :: t_kb, $)
+      local todo, elim;
+      todo := extract_elim(e,h,true);
+      elim := apply_elim(h,kb,todo);
+      check_elim(e, elim);
+    end proc;
+
     local extract_elim := proc(e, h::name, toplevel :: truefalse := true, $)
-      local t, var, f, elim;
+      local t, var, mk_bnd, lo_bnd, hi_bnd, f, do_elim, mk_kb, todo0, body, todo;
       t := 'applyintegrand'('identical'(h), 'anything');
       if e :: Int(anything, name=anything) then
           var := op([2,1],e);
@@ -241,6 +250,7 @@
     end proc;
 
     local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
+      local body, todos, kbs, i, f, var, rrest, mk_kb, do_elim;
       if todo = FAIL or not(ormap(x->op(5,x),op(2,todo))) then
         return FAIL;
       end if;
@@ -267,12 +277,6 @@
         return FAIL;
       end if;
       return elim;
-    end proc;
-
-    export ModuleApply := proc(e, h :: name, kb :: t_kb, $)
-      todo := extract_elim(e,h,true);
-      elim := apply_elim(h,kb,todo);
-      check_elim(e, elim);
     end proc;
 
     local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
