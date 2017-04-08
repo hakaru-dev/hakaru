@@ -785,7 +785,7 @@ KB := module ()
     # = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1,
     # i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] =
     # size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
-    ( a :: {`=`,`::`} and
+    ( a :: `=` and
       ormap(f->f(a)::name,[lhs,rhs]) and
       indets(a,'{specindex,specfunc}'(chilled))<>{} )
     # These are dealt with otherwise and aren't understood by Maple
