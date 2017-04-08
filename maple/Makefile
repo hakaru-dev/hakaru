@@ -1,6 +1,7 @@
 all: ppaml.mla NewSLOTests.out PlateT.out SummaryT.out # call-graph.pdf
 
-ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Partition.mpl Loop.mpl NewSLO.mpl Summary.mpl \
+ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Partition.mpl Loop.mpl Summary.mpl \
+    Domain.mpl \
     Domain/Has.mpl \
     Domain/Bound.mpl \
     Domain/Shape.mpl \
@@ -13,6 +14,7 @@ ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Partition.mpl L
     Domain/Improve/constraints_about_vars.mpl \
     Domain/Improve/singular_pts.mpl \
     Domain/Improve/single_case_Partition.mpl \
+    NewSLO.mpl \
     NewSLO/Interface.mpl \
     NewSLO/To.mpl \
     NewSLO/From.mpl \
