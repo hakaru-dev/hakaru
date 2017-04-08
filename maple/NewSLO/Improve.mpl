@@ -231,27 +231,32 @@
         return `if`(toplevel, FAIL, [ e, [] ]);
       end if;
 
+      do_elim := evalb(f in {'sums','ints','int_assuming','sum_assuming'});
+
       mk_kb := kb -> KB:-assert(mk_bnd(lo_bnd,var) and mk_bnd(var,hi_bnd), kb);
 
-      todo0      := [ f, var, [op(2..-1,e)], mk_kb ];
+      todo0      := [ f, var, [op(2..-1,e)], mk_kb, do_elim ];
       body, todo := extract_elim(op(1,e), h, false)[];
       [ body, [ todo0, op(todo) ] ];
     end proc;
 
     local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
-      if todo = FAIL then
+      if todo = FAIL or not(ormap(x->op(5,x),op(2,todo))) then
         return FAIL;
       end if;
 
       body, todos := op(todo); kbs[0] := kb;
 
       for i from 1 to nops(todos) do
-        f, var, rrest, mk_kb := op(op(i,todos));
+        f, var, rrest, mk_kb, do_elim := op(op(i,todos));
         kbs[i] := mk_kb(kbs[i-1]);
 
-        body := banish(body, h, kbs[i], infinity, var,
-                       proc (kb,g,$) do_elim_intsum(kb, f, g, op(rrest)) end proc);
-
+        if do_elim then
+          body := banish(body, h, kbs[i], infinity, var,
+                         proc (kb,g,$) do_elim_intsum(kb, f, g, op(rrest)) end proc);
+        else
+          body := f(body, var, op(rrest));
+        end if;
       end do;
 
       body;
