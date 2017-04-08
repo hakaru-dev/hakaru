@@ -117,7 +117,7 @@ Summary := module ()
           mr := SummarizeKB(mr, kb1);
           return Let(Bucket(mr, x=rng),
                      summary,
-                     simplify_factor_assuming(f, kb));
+                     NewSLO:-simplify_factor_assuming(f, kb));
         end if;
       end if;
       e1 := SummarizeKB(e1, kb1);
