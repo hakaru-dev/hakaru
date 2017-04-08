@@ -488,7 +488,8 @@ export
            local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
            local eval_ctrs := ctx -> eval(ctx, [`And`=bool_And, `Not`=KB:-negate_rel]);
 
-           local postproc_for_solve := proc(ctx, ctxSlv)::{identical(false), list({boolean,relation})};
+           local postproc_for_solve := proc(ctx, ctxSlv)
+                                    ::{identical(false), list({boolean,relation,specfunc(boolean,And),`and`(boolean)})};
                local ctxC := ctxSlv;
                if ctxC = [] then
                    ctxC := false ;
