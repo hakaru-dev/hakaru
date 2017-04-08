@@ -21,7 +21,8 @@
     if do_domain then
         dom_specb, body := op(Domain:-Extract:-Bound(e));
         if not Domain:-Bound:-isEmpty(dom_specb) then # we have found bounds
-            return reduce_Integrals(body, h, kb, opts, dom_specb);
+            rr := reduce_Integrals(body, h, kb, opts, dom_specb);
+            if rr = FAIL then return e else return rr end if;
         end if;
     end if;
     if do_domain and e :: 'And(specfunc({Ints,Sums}),
@@ -100,6 +101,8 @@
 
     # Extract the shape of the domain
     (dom_specw, e) := op(Domain:-Extract:-Shape(e));
+    if dom_specw = DConstrain() then return FAIL end if;
+
     dom_ctx := {op(kb_to_constraints(kb))};
     dom_specb := DBound(op(1,dom_specb), dom_ctx);
 
@@ -181,35 +184,90 @@
   end proc;
 
   elim_intsum := module ()
-    export ModuleApply := proc(e, h :: name, kb :: t_kb, $)
+    local extract_elim := proc(e, h::name, toplevel :: truefalse := true, $)
       local t, var, f, elim;
       t := 'applyintegrand'('identical'(h), 'anything');
-      if e :: Int(anything, name=anything) and
-         not depends(indets(op(1,e), t), op([2,1],e)) then
+      if e :: Int(anything, name=anything) then
+          var := op([2,1],e);
+          mk_bnd := `<`;
+          lo_bnd, hi_bnd := op(op([2,2],e));
+        if not depends(indets(op(1,e), t), op([2,1],e)) then
+          f := 'int_assuming';
+        else
+          f := proc(e,v) `Int`(e,v) end proc;
+        end if;
+      elif e :: Sum(anything, name=anything) then
         var := op([2,1],e);
-        f := 'int_assuming';
-      elif e :: Sum(anything, name=anything) and
-         not depends(indets(op(1,e), t), op([2,1],e)) then
-        var := op([2,1],e);
-        f := 'sum_assuming';
-      elif e :: Ints(anything, name, range, list(name=range)) and
-           not depends(indets(op(1,e), t), op(2,e)) then
+        mk_bnd := `<=`;
+        lo_bnd, hi_bnd := op(op([2,2],e));
+        if not depends(indets(op(1,e), t), op([2,1],e)) then
+          f := 'sum_assuming';
+        else
+          f := proc(e,v) `Sum`(e,v) end proc;
+        end if;
+      elif e :: Ints(anything, name, range, list(name=range)) then
+
         var := op(2,e);
-        f := 'ints';
-      elif e :: Sums(anything, name, range, list(name=range)) and
-           not depends(indets(op(1,e), t), op(2,e)) then
+        mk_bnd := `<`;
+        lo_bnd, hi_bnd := op(op(3,e));
+
+        if not depends(indets(op(1,e), t), op(2,e)) then
+          f := 'ints';
+        else
+          f := `Ints`;
+        end if;
+
+      elif e :: Sums(anything, name, range, list(name=range)) then
         var := op(2,e);
-        f := 'sums';
+        mk_bnd := `<=`;
+        lo_bnd, hi_bnd := op(op(3,e));
+
+        if not depends(indets(op(1,e), t), op(2,e)) then
+          f := 'sums';
+        else
+          f := `Sums`;
+        end if;
       else
+        return `if`(toplevel, FAIL, [ e, [] ]);
+      end if;
+
+      mk_kb := kb -> KB:-assert(mk_bnd(lo_bnd,var) and mk_bnd(var,hi_bnd), kb);
+
+      todo0      := [ f, var, [op(2..-1,e)], mk_kb ];
+      body, todo := extract_elim(op(1,e), h, false)[];
+      [ body, [ todo0, op(todo) ] ];
+    end proc;
+
+    local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
+      if todo = FAIL then
         return FAIL;
       end if;
-      # try to eliminate unused var
-      elim := banish(op(1,e), h, kb, infinity, var,
-        proc (kb,g,$) do_elim_intsum(kb, f, g, op(2..-1,e)) end proc);
+
+      body, todos := op(todo); kbs[0] := kb;
+
+      for i from 1 to nops(todos) do
+        f, var, rrest, mk_kb := op(op(i,todos));
+        kbs[i] := mk_kb(kbs[i-1]);
+
+        body := banish(body, h, kbs[i], infinity, var,
+                       proc (kb,g,$) do_elim_intsum(kb, f, g, op(rrest)) end proc);
+
+      end do;
+
+      body;
+    end proc;
+
+    local check_elim := proc(e, elim,$)
       if has(elim, {MeijerG, undefined, FAIL}) or e = elim or elim :: SymbolicInfinity then
         return FAIL;
       end if;
-      elim
+      return elim;
+    end proc;
+
+    export ModuleApply := proc(e, h :: name, kb :: t_kb, $)
+      todo := extract_elim(e,h,true);
+      elim := apply_elim(h,kb,todo);
+      check_elim(e, elim);
     end proc;
 
     local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
