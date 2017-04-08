@@ -219,11 +219,13 @@ Loop := module ()
           kbThen := assert(    op(i-1,w) , kb);
           # accumulate the rest, regardless
           kb     := assert(Not(op(i-1,w)), kb);
+
+          # if kbThen is invalid, deal appropriately
           if not type(kbThen,t_kb) then next end if;
-          # ASSERT(type(kbThen,t_kb), "unproduct: KB of piecewise conditions is not valid, so the input piecewise must not be valid.");
 
-
-          w1[i], pp[i] := op(unproduct(op(i,w),var,loop,heap,mode,kbThen,kb0))
+          w1[i], pp[i] := op(unproduct(op(i,w),var,loop,heap,mode,kbThen,kb0));
+          # if kb is inconsistent, we're done
+          if not type(kb,t_kb) then break end if;
         elif i = nops(w) then
           if not type(kb,t_kb) then next end if;
           w1[i], pp[i] := op(unproduct(op(i,w),var,loop,heap,mode,kb    ,kb0))
