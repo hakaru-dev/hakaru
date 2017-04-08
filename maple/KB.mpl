@@ -393,7 +393,10 @@ KB := module ()
 
    postproc_for_solve := proc(c, kb, pol, as, $)
      local p, c0, c1;
-     if c :: list({relation, specfunc(`And`), `and`}) then # conjunction
+     if c :: list and nops(c) = 0 then
+       return FAIL;
+
+     elif c :: list({relation, specfunc(`And`), `and`}) then # conjunction
        c0 := map(c -> if c::{specfunc(`And`),`and`} then op(c) else c end if,c);
        return foldr(((z,kb)->postproc_for_solve(z, kb, pol, as)), kb, op(c0));
 
