@@ -24,18 +24,6 @@
 # Broad TODOs:
 # Make bound extraction look into products ('integrate out GammaD with PoissonD likelihood to NegativeBinomial')
 #
-# Banish fails somtimes because some `int(piecewise..)` are values, but are
-#   too hard for `int` to do (it used to before!). this can be fixed several
-#   possible ways:
-#     - eliminate certain piecewise(with Or in cases) produced by PWToPartition
-#         (but it should do this already, where are the Ors happening?)
-#     - calling domain:-Improve in more places (elim_intsum, where
-#       Shape:-toConstraints happens) and hoping domain improvement works
-#
-# rmProg1 still fails, but it is possiblly related to the banishing failure
-#   above. The expected result contains `Uniform(3,8) .. Uniform(1,4)` but we
-#   produce a reversed version, which also may have something to do with it.
-#
 # Mechanism for 'checking if' and 'making' constraints about variables should
 #   be abstracted out into its own module (it is needed in multiple places, and
 #   done sort of ad-hoc) (this could be fixed by a broader design - see "merging
@@ -55,12 +43,6 @@
 #
 # Several 'simplifications' other than LMS are done in LMS. These need to have
 #   their own entry in Simplifiers (and work properly in their own context).
-#
-# Domain simplifiers should take the bounds as a context but not produce
-#   a bounds as output. The bounds should not change. (if we find they do, that is
-#   indicated in the shape anyways) - several things rely on this. In
-#   particular, a domain shape can 'strengthen' a bound, it cannot weaken one.
-#   domain application should use this fact
 #
 # DInto should also optionally omit the bounds if they are identical to the
 #   bounds in the a-priori domain bounds (i.e. just `DInto(x)`); DInto sort of
