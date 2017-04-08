@@ -106,8 +106,13 @@ TestHakaru(Bind(Plate(k,c,Uniform(37,42)),xs,Weight(f(size(xs)),Ret(Unit))),
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,
        Bind(Plate(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit))), ys,
        Ret(xs))):
-gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1)))*exp((1/2)*(sum((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))^2/(1+sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)), c=0..k-1)))/sqrt(product(1+sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1), c=0..k-1)),
-         Plate(k, c, Gaussian((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1), (1/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1))^(1/2)))):
+gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1)))*
+  exp((1/2)*(sum((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))^2/(1+sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)), c=0..k-1))) *
+  sqrt(1/product(1+sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1), c=0..k-1)),
+    Plate(k, c,
+      Gaussian((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))/
+               (sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1),
+               (1/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1))^(1/2)))):
 TestHakaru(gmm, gmm_s,
            label="gmm (currently failing -- due to alpha-equivalence)",
            ctx = [k::nonnegint, n::nonnegint]);
