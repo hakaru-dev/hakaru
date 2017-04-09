@@ -1,5 +1,7 @@
 all: ppaml.mla NewSLOTests.out PlateT.out SummaryT.out # call-graph.pdf
 
+disint: ppaml.mla DisintT.out 
+
 ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Partition.mpl Loop.mpl Summary.mpl \
     Domain.mpl \
     Domain/Has.mpl \
