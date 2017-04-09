@@ -314,7 +314,7 @@ export
                userinfo(3, PWToPartition, printf("PWToPartition: ctx after %d clauses "
                                                  "is %a\n", i, ctx));
 
-               if ctxC :: identical(false,[]) then # this clause is actually unreachable
+               if ctx :: identical(false,[]) then # this clause is actually unreachable
                    return(PARTITION(cls));
                else
                    cls := [ op(cls), op(Pieces(ctxC,[op(2*i,x)])) ];
@@ -486,13 +486,12 @@ export
 
        export condition := module()
            local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
-           local eval_ctrs := ctx -> eval(ctx, [`And`=bool_And, `Not`=KB:-negate_rel]);
 
            local postproc_for_solve := proc(ctx, ctxSlv)
                                     ::{identical(false), list({boolean,relation,specfunc(boolean,And),`and`(boolean)})};
                local ctxC := ctxSlv;
                if ctxC = [] then
-                   ctxC := false ;
+                   ctxC := [] ;
                elif nops(ctxC)> 1 then
                    ctxC := map(x -> postproc_for_solve(ctx, [x], _rest)[], ctxC);
                elif nops(ctxC) = 1 then
@@ -500,7 +499,7 @@ export
                    if ctxC :: set then
                        ctxC := remove(is_extra_sol, ctxC);
                        if ctxC :: identical('{}') then
-                           ctxC := eval_ctrs(ctx);
+                           ctxC := NULL;
                        else
                            ctxC := bool_And(op(ctxC));
                        end if ;
@@ -532,9 +531,6 @@ export
 
                if 'do_solve' in {_rest} then
                    ctxC := solve({ctxC}, 'useassumptions'=true);
-                   if ctxC = NULL and indets(ctxC, specfunc(`exp`)) <> {} then
-                       return [ctx];
-                   end if;
                    ctxC := postproc_for_solve(ctx, [ctxC], _rest);
                    if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
                        userinfo(10, 'Simpl:-condition',
