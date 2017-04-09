@@ -183,7 +183,7 @@ Domain := module()
                            if not w :: identical(true) then
                                [ w, p ]
                            else
-                               ps := op(1, p);
+                               ps := op(1, p0);
                                wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
                                ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
                                if nops(vs) > 0 and
