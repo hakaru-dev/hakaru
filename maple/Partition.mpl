@@ -508,7 +508,7 @@ export
                end if;
            end proc;
 
-           export ModuleApply := proc(ctx)::list;
+           export ModuleApply := proc(ctx)::list(PartitionCond);
                local ctxC := ctx;
 
                if ctx :: identical(true) then
@@ -531,7 +531,7 @@ export
                    end if;
                else
                    ctxC := Domain:-simpl_relation(ctxC, norty='DNF');
-                   ctxC := subs(`And`=bool_And, ctxC);
+                   ctxC := eval(ctxC,`And`=bool_And);
                    if ctxC :: specfunc(`Or`) then
                        ctxC := [op(ctxC)]
                    else
