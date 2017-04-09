@@ -68,7 +68,8 @@ Hakaru := module ()
          flatten_piecewise,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
-         htype_patterns, extract_bound, extract_bound_lo, extract_bound_hi ;
+         htype_patterns, extract_bound, extract_bound_lo, extract_bound_hi,
+         bool_And, bool_Or, bool_Not;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global
@@ -560,6 +561,30 @@ Hakaru := module ()
                                         , [ {`<`, `<=`}, {`>`, `>=`} ]
                                         , v
                                         );
+
+   # Replacements for `and` and `or` which do not
+   # evaluate "x = y" to "false" when "x,y" are unbound vars.
+   bool_And := proc()
+       if nargs=0 then true
+       elif nargs=1 then args[1]
+       else `And`(args)
+       end if;
+   end proc;
+
+   bool_Or := proc()
+       if nargs=0 then false
+       elif nargs=1 then args[1]
+       else `Or`(args)
+       end if;
+   end proc;
+
+   bool_Not := proc(a,$)
+       if a :: KB:-t_kb_atom then
+           subsindets(KB:-negate_rel(a), `not`, Not@op);
+       else
+           Not(a)
+       end if;
+   end proc;
 
   # Enumerate patterns for a given Hakaru type
   htype_patterns := proc(t::t_type, $)

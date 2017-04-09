@@ -117,20 +117,6 @@ local
       return pos;
    end proc,
 
-   bool_And := proc()
-       if nargs=0 then true
-       elif nargs=1 then args[1]
-       else `And`(args)
-       end if;
-   end proc,
-
-   bool_Or := proc()
-       if nargs=0 then false
-       elif nargs=1 then args[1]
-       else `Or`(args)
-       end if;
-   end proc,
-
    extr_conjs := proc(x,$)
        if x::{specfunc(`And`), `and`} then
            map(extr_conjs, [op(x)])[];
