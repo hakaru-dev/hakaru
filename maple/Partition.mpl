@@ -483,10 +483,10 @@ export
                elif nops(ctxC) = 1 then
                    ctxC := op(1,ctxC);
                    if ctxC :: set then
-                       ctxC := remove(is_extra_sol, ctxC);
                        if ctxC :: identical('{}') then
                            ctxC := NULL;
                        else
+                           ctxC := remove(is_extra_sol, ctxC);
                            ctxC := bool_And(op(ctxC));
                        end if ;
                        ctxC := [ctxC];
@@ -517,7 +517,11 @@ export
 
                if 'do_solve' in {_rest} then
                    ctxC := solve({ctxC}, 'useassumptions'=true);
-                   ctxC := postproc_for_solve(ctx, [ctxC], _rest);
+                   if ctxC = NULL and indets(ctx, specfunc(`exp`)) <> {} then
+                       ctxC := [ctx];
+                   else
+                       ctxC := postproc_for_solve(ctx, [ctxC], _rest);
+                   end if;
                    if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
                        userinfo(10, 'Simpl:-condition',
                            printf("output: \n"
