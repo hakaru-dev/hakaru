@@ -123,7 +123,6 @@
 #    the subset of Domain which corresponds to KB
 
 Domain := module()
-    option package;
     uses Hakaru, Partition, SolveTools[Inequality] ;
     global DOMAIN; global DBound; global DConstrain; global DSum; global DSplit; global DInto; global DNoSol;
 
