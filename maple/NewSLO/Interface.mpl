@@ -16,10 +16,10 @@ Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
                          applyop(`+`, [2,2,2], e, 1)))
 end proc;
 
-SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
+SimplifyKB_ := proc(e, t::t_type, kb::t_kb, $)
   local patterns, x, kb1, ex;
   if t :: HMeasure(anything) then
-    fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
+    %fromLO(%improve(%toLO(e), _ctx=kb), _ctx=kb);
   elif t :: HFunction(anything, anything) then
     patterns := htype_patterns(op(1,t));
     if patterns :: Branches(Branch(PVar(name),anything)) then
@@ -28,7 +28,7 @@ SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
                 op([1,1,1],patterns));
       x, kb1 := genType(x, op(1,t), kb, e);
       ex := app(e,x);
-      lam(x, op(1,t), SimplifyKB(ex, op(2,t), kb1))
+      lam(x, op(1,t), SimplifyKB_(ex, op(2,t), kb1))
     else
       # Eta-expand the function type and the sum-of-product argument-type
       x := `if`(e::lam(name,anything,anything), op(1,e), d);
@@ -48,13 +48,17 @@ SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
               end do;
               pSubst1 := op(op(pSubst1));
               Branch(subs(pSubst1, p1),
-                     SimplifyKB(eval(eval(ex,eSubst),pSubst1), op(2,t), kb1))
+                     SimplifyKB_(eval(eval(ex,eSubst),pSubst1), op(2,t), kb1))
             end proc,
             patterns)))
     end if
   else
-    simplify_assuming(e, kb)
+    %simplify_assuming(e, kb)
   end if
+end proc;
+
+SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
+    eval(SimplifyKB_(args), [%fromLO=fromLO,%improve=improve,%toLO=toLO,%simplify_assuming=simplify_assuming]);
 end proc;
 
 # Testing
@@ -106,8 +110,24 @@ TestDisint := module()
     end proc;
 end module;
 
-  # Test roughly for "efficient" Hakaru measure terms,
-  # i.e., those we want simplification to produce.
+TestEfficient := proc(e, t::t_type, t_kb := KB:-empty, {label::string := "Test" })
+  local done_, result, todo;
+  todo := SimplifyKB_(args[1..3]);
+  done_ := eval(todo, [%fromLO=fromLO,%improve=improve,%toLO=toLO,%simplify_assuming=simplify_assuming]);
+
+  _Env_TestTools_Try_printf := false;
+  result := TestTools[Try](label, Efficient(done_),true);
+  if result = NULL then
+    printf("%s passed.\n", label);
+  else
+    error sprintf("%s FAILED.\n"
+                  "The result of\n\t%a\n\tis not efficient.\n"
+                 , label, todo );
+  end if;
+end proc;
+
+# Test roughly for "efficient" Hakaru measure terms,
+# i.e., those we want simplification to produce.
 Efficient := proc(mm, $)
   local m, n;
   m := mm;

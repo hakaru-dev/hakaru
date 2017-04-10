@@ -29,13 +29,13 @@ NewSLO := module ()
         elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
         banish,
         nub_piecewise, piecewise_if,
-        mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt,
+        mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt, SimplifyKB_,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, TestDisint, Efficient,
+         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
          toLO, fromLO, improve, reduce,
          density, bounds, unweight,
 
