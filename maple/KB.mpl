@@ -343,7 +343,7 @@ KB := module ()
 
   simplify_factor_assuming := module ()
     export ModuleApply;
-    local graft_pw, GAMMAratio, wrap, hack_Beta,
+    local graft_pw, GAMMAratio, wrap, and_info, hack_Beta,
           bounds_are_simple, eval_piecewise, eval_factor;
 
     # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
@@ -405,6 +405,15 @@ KB := module ()
       res
     end proc;
 
+    # A debugging utility that's like `and` except it calls `userinfo` if there is disagreement
+    and_info := proc(e :: {list,set})
+      local s, r;
+      s, r := selectremove(evalb, e);
+      if nops(r) = 0 then return true end if;
+      if nops(s) > 0 then userinfo(_passed, s, r) end if;
+      return false;
+    end proc;
+
     hack_Beta := proc(e :: specfunc(Beta), kb :: t_kb,
                       loops :: list([identical(product,Product,sum,Sum),
                                      name=range]),
@@ -428,12 +437,14 @@ KB := module ()
         end proc);
         s1, r1 := selectremove(has, op(1,res), piecewise);
         s2, r2 := selectremove(has, op(2,res), piecewise);
-        sg := graft_pw(combine(s1+s2));
+        sg := graft_pw(combine(combine(s1+s2), 'sum'));
         rg := Loop:-graft(r1+r2);
-        if rg = eval(r2,x=x-1) and sg = eval(s2,x=x-1) then
-          # Telescoping match!
-        elif rg = eval(r1,x=x-1) and sg = eval(s1,x=x-1) then
-          # Telescoping match, but swap Beta arguments
+        if and_info([rg = eval(r2,x=x-1), sg = combine(eval(s2,x=x-1))],
+                    3, 'procname',
+                    "Telescoping match! ALMOST") then
+        elif and_info([rg = eval(r1,x=x-1), sg = combine(eval(s1,x=x-1))],
+                      3, 'procname',
+                      "Telescoping match, but swap Beta arguments! ALMOST") then
           s1, s2 := s2, s1;
           r1, r2 := r2, r1;
         else
