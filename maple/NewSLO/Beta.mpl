@@ -7,7 +7,7 @@
       local s, r;
       s, r := selectremove(evalb, e);
       if nops(r) = 0 then return true end if;
-      if nops(s) > 0 then userinfo(_rest, s, r) end if;
+      if nops(s) > 0 then userinfo(op([_rest, s, r])) end if;
       return false;
     end proc;
 
