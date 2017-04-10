@@ -102,6 +102,15 @@ $include "NewSLO/Piecewise.mpl"
                                               map2(subsop,1=sum,loops)),
                                   'list', `+`));
         end if;
+        # power, but both parts depend on the variable, but maybe not all
+        # sub-parts.  In other words, catch (a*b(i))^c(i) and split product
+        if e :: '`^`' and op(1,e)::`*` then
+          (s,r) := selectremove(depends, op(1,e), i);
+          if not (r = 1) then
+            return eval_factor(s^op(2,e), kb, `*`, loops) 
+                 * eval_factor(r^op(2,e), kb, `*`, loops)
+          end if;
+        end if;
         # Rewrite ... * idx([p,1-p],i)
         #      to ... * p^idx([1,0],i) * (1-p)^idx([0,1],i)
         # because the latter is easier to integrate and recognize with respect to p
