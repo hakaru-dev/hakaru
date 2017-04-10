@@ -1,4 +1,4 @@
-all: ppaml.mla NewSLOTests.out PlateT.out SummaryT.out # call-graph.pdf
+all: ppaml.mla NewSLOTests.out PlateT.out SummaryT.out PlateT2.out # call-graph.pdf
 
 disint: ppaml.mla DisintT.out 
 
