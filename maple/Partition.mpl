@@ -525,7 +525,7 @@ export
 
        export condition := module()
            local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
-           local eval_ctrs := ctx -> eval(ctx, [`And`=`and`, `Not`=`not`]);
+           local eval_ctrs := ctx -> eval(ctx, [`And`=bool_And, `Not`=KB:-negate_rel]);
 
            local postproc_for_solve := proc(ctx, ctxSlv)::{identical(false), list({boolean,relation})};
                local ctxC := ctxSlv;
@@ -540,7 +540,7 @@ export
                        if ctxC :: identical('{}') then
                            ctxC := eval_ctrs(ctx);
                        else
-                           ctxC := `and`(op(ctxC));
+                           ctxC := bool_And(op(ctxC));
                        end if ;
                        ctxC := [ctxC];
                    elif ctxC :: specfunc('piecewise') then
@@ -583,7 +583,7 @@ export
                    end if;
                else
                    ctxC := simpl_relation(ctxC, norty='DNF');
-                   ctxC := subs(`And`=`and`, ctxC);
+                   ctxC := subs(`And`=bool_And, ctxC);
                    if ctxC :: specfunc(`Or`) then
                        ctxC := [op(ctxC)]
                    else

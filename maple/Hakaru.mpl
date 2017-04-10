@@ -52,6 +52,7 @@ end proc:
 end proc:
 `eval/Plate` := eval(`eval/ary`):
 
+
 #############################################################################
 
 Hakaru := module ()
@@ -60,7 +61,7 @@ Hakaru := module ()
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
-         case, app, ary, idx, fst, snd, size, Datum, PARTITION,
+         case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
@@ -72,7 +73,7 @@ Hakaru := module ()
   # used as global names, so document that here.
   global
      # Basic syntax for composing measures
-         Bind, Weight, Ret, Msum, Plate, Context, Pair, _Unit,
+         Bind, Weight, Ret, Msum, Plate, Context, Pair, _Unit, PARTITION,
      # Primitive (known) measures
          Lebesgue, Uniform, Gaussian, Cauchy, StudentT, BetaD,
          GammaD, ChiSquared,
@@ -554,21 +555,6 @@ Hakaru := module ()
                       [t]))
     end if
   end proc;
-
-
-   #The object's (internal) constructor. This just checks the argument types and
-   #returns unevaluated.
-   # this must be exported in in order to define the type for partition
-   # inside of Hakaru
-
-   # YT: I don't know how to get Maple to accept `t_partition =
-   # specfunc(PARTITION)` without placing this inside Hakaru.mpl.
-   # If it lives in Partition, then `Partition:-Partition` (the type)
-   # matches partitions, but the `t_partition` type in Hakaru does not.
-   # clearly I'm missing something
-   PARTITION::static:= proc(Pairs::list,$)::t_partition;
-     'procname'(_passed)
-   end proc;
 
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
