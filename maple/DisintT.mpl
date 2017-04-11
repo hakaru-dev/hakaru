@@ -277,3 +277,10 @@ TestDisint(
      120, #takes 6 - 8 minutes to `improve` on an Intel i7
      label= "(easyRoad) Combo of Normals with distinct Uniform noises"
 );
+
+# Example from Chad (April 9, 2017)
+prog :=
+ Bind(Gaussian(70,30), temp,
+ Bind(Gaussian(temp, 10), withErr,
+ Ret(Pair(min(withErr, 100), temp)))):
+TestDisint( prog, {}, label= "censored temperature example");
