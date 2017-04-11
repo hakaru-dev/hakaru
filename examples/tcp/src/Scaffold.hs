@@ -1,11 +1,20 @@
+{-# LANGUAGE 
+  MultiParamTypeClasses
+, TemplateHaskell
+, TypeFamilies
+#-}
+
+
 module Scaffold where
 
+import Data.Vector.Unboxed.Deriving
 import NaiveBayes (prog)
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as MV
 import Data.Vector.Unboxed (Vector)
 import           Prelude                          hiding (product)
-import           Language.Hakaru.Runtime.Prelude
+import           Language.Hakaru.Runtime.Prelude hiding (unMeasure, Measure)
+import           Language.Hakaru.Runtime.LogFloatPrelude
 import           Language.Hakaru.Types.Sing
 import qualified System.Random.MWC                as MWC
 import           Control.Monad
@@ -84,3 +93,9 @@ withGen
   -> Measure x
   -> IO a
 withGen g k m = k =<< sample g m
+
+-- Make an Unbox instance. This really should go in the 'logfloat' package.
+-- derivingUnbox "LogFloat"
+--     [t| LogFloat -> Double |]
+--     [| \ logfloat -> logFromLogFloat logfloat |]
+--     [| \ double -> logToLogFloat double |]

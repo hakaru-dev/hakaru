@@ -2,7 +2,7 @@
 
 RoundTrip := proc(e, t::t_type)
   local result;
-  interface(screenwidth=infinity, prettyprint=0, warnlevel=0,
+  interface(screenwidth=9999, prettyprint=0, warnlevel=0,
     showassumed=0,quiet=true);
   kernelopts(assertlevel=0);
   result := eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL);

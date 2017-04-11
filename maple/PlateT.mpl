@@ -100,7 +100,7 @@ TestHakaru(extra_2, extra_s, label="Don't be confused by extra iterations at end
 # Simplify by size of array
 TestHakaru(Bind(Plate(k,c,Uniform(37,42)),xs,Weight(f(size(xs)),Ret(Unit))),
            Weight(f(k),Ret(Unit)),
-           label="plate size"):
+           label="plate size", ctx = [k::nonnegint]):
 
 # Simplifying gmm below is a baby step towards index manipulations we need
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,

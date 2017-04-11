@@ -29,7 +29,8 @@ library
                      , vector
                      , mwc-random
                      , hakaru
-                     , logfloat
+                     , logfloat 
+                     , vector-th-unbox
   default-language:    Haskell2010
 
 executable tcp

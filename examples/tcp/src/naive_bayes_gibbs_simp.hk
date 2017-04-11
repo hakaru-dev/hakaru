@@ -4,7 +4,7 @@ fn topic_prior array(prob):
    fn w array(nat): 
     fn doc array(nat): 
      fn docUpdate nat: 
-                array zNew丏 of size(topic_prior): 
+      array zNew丏 of size(topic_prior): 
                              ((product i from 0 to size(topic_prior): 
                                 (product i丣 from 0 to size(word_prior): 
                                   (product j from 0 to (summate i丙 from 0 to size(w): 

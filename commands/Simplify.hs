@@ -21,14 +21,21 @@ import           System.IO (stderr)
 import qualified Options.Applicative as O
 
 data Options = Options
-  { debug   :: Bool
-  , program :: String }
+  { debug     :: Bool
+  , timelimit :: Int
+  , program   :: String }
 
 options :: O.Parser Options
 options = Options
   <$> O.switch
       ( O.long "debug" <>
         O.help "Prints output that is sent to Maple" )
+  <*> O.option O.auto
+      ( O.long "timelimit" <>
+        O.help "Set simplify to timeout in N seconds" <>
+        O.showDefault <>
+        O.value 90 <>
+        O.metavar "N")
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
         O.help "Program to be simplified" )
@@ -44,13 +51,14 @@ main :: IO ()
 main = do
   args <- parseOpts
   case args of
-   Options debug_ file -> do
+   Options debug_ timelimit file -> do
     prog <- readFromFile file
-    runSimplify prog debug_
+    runSimplify prog debug_ timelimit
 
-runSimplify :: Text -> Bool -> IO ()
-runSimplify prog debug_ =
+runSimplify :: Text -> Bool -> Int -> IO ()
+runSimplify prog debug_ timelimit =
     case parseAndInfer prog of
     Left  err              -> IO.hPutStrLn stderr err
-    Right (TypedAST _ ast) -> simplifyDebug debug_ (et ast) >>= print . pretty
+    Right (TypedAST _ ast) -> do ast' <- simplifyDebug debug_ timelimit (et ast)
+                                 print (pretty ast')
 

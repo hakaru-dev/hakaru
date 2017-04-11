@@ -49,8 +49,8 @@ KB := module ()
      ModuleLoad, ModuleUnload,
 
      # Various utilities
-     t_intro, t_lo, t_hi, log_metric, bad_assumption,
-     boolean_if, coalesce_bounds, htype_to_property
+     t_intro, t_lo, t_hi, log_metric,
+     boolean_if, coalesce_bounds, htype_to_property, bad_assumption
 
      ;
   export
@@ -326,7 +326,7 @@ KB := module ()
         for c in t_lo, t_hi do
           c := refine_given(k,kb,x,c);
           if nops(c)>0 then
-            kb1 := assert_deny(op([1,1],c)(e,op([1,2],c)), true, kb1)
+            kb1 := assert_deny_mb(op([1,1],c)(e,op([1,2],c)), true, kb1)
           end if
         end do;
         return kb1
@@ -398,7 +398,7 @@ KB := module ()
 
    postproc_for_solve := proc(c, kb, pol, as, $)
      local p, c0, c1;
-     if c :: list and nops(c) = 0 then
+     if c :: list and nops(c) = 0 then # false
        return FAIL;
 
      elif c :: list({relation, specfunc(`And`), `and`}) then # conjunction

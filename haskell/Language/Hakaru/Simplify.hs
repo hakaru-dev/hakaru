@@ -70,15 +70,19 @@ simplify
     :: forall abt a
     .  (ABT Term abt) 
     => abt '[] a -> IO (abt '[] a)
-simplify = simplifyDebug False
+simplify = simplifyDebug False 90
 
 simplifyDebug
     :: forall abt a
     .  (ABT Term abt) 
-    => Bool -> abt '[] a -> IO (abt '[] a)
-simplifyDebug debug e = do
+    => Bool
+    -> Int
+    -> abt '[] a
+    -> IO (abt '[] a)
+simplifyDebug debug timelimit e = do
     let typ = typeOf e
-    let toMaple_ = "use Hakaru, NewSLO in timelimit(90, RoundTrip("
+    let toMaple_ = "use Hakaru, NewSLO in timelimit("
+                   ++ show timelimit ++ ", RoundTrip("
                    ++ Maple.pretty e ++ ", " ++ Maple.mapleType typ ")) end use;"
     when debug (hPutStrLn stderr ("Sent to Maple:\n" ++ toMaple_))
     fromMaple <- maple toMaple_

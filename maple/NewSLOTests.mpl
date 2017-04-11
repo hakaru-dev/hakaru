@@ -103,14 +103,14 @@ end module:
 
 # test with uniform.  No change without simplifier, eliminates it with
 # call to value.
-introLO :=
+introLO_opt := {
   Bind(Uniform(0,1),x,
   Bind(Uniform(0,1),y,
-  piecewise(x<y,Ret(true),x>=y,Ret(false)))):
-introLO_opt := { introLO,
+  piecewise(x<y,Ret(true),x>=y,Ret(false)))),
   Bind(Uniform(0,1),x,
   Bind(Uniform(0,1),y,
   piecewise(x<y,Ret(true),Ret(false)))) }:
+introLO := op(1,introLO_opt):
 introLOs := Msum(Weight(1/2, Ret(false)), Weight(1/2, Ret(true))):
 
 TestHakaru(introLO, introLO_opt, simp = (x -> x), label = "2 uniform - no change");
