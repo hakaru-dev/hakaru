@@ -1205,7 +1205,7 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        declare SInt itId
        let itE = CVar itId
 
-      -- Accumulator for the total probability of the input array
+       -- Accumulator for the total probability of the input array
        wSumId <- genIdent' "ws"
        declare SProb wSumId
        let wSumE = CVar wSumId

@@ -230,6 +230,12 @@ normalizeSCon Lam_ =
       let body'' = normalizeBody body' v env
       in ctxt $ syn (Lam_ :$ body'' :* End)
 
+normalizeSCon App_ =
+  \(fun :* arg :* End) env ctxt ->
+    normalizeName fun env $ \fun' ->
+    normalizeName arg env $ \arg' ->
+    ctxt $ syn (App_ :$ fun' :* arg' :* End)
+
 normalizeSCon Let_ =
   \(rhs :* body :* End) env ctxt -> caseBind body $
     \v body' ->
