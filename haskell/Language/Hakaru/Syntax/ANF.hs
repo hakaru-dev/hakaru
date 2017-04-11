@@ -284,9 +284,15 @@ normalizeSCon (CoerceTo_ c) =
   \(t :* End) env ctxt -> normalize' t env (ctxt . coerceTo_ c)
 
 normalizeSCon (MeasureOp_ op) = normalizeMeasureOp op
+normalizeSCon (ArrayOp_ op)   = normalizeArrayOp op
+normalizeSCon (PrimOp_ op)    = normalizePrimOp op
 
-normalizeSCon (ArrayOp_ op) = normalizeArrayOp op
-normalizeSCon (PrimOp_ op)  = normalizePrimOp op
+normalizeSCon Observe       =
+  \(a :* b :* End) env ctxt ->
+    normalizeName a env $ \a' ->
+    normalizeName b env $ \b' ->
+    ctxt $ syn (Observe :$ a' :* b' :* End)
+
 normalizeSCon op            = error $ "not implemented: normalizeSCon{" ++ show op ++ "}"
 
 normalizeArrayOp
