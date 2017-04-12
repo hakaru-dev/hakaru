@@ -35,7 +35,9 @@ NewSLO := module ()
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
+         RoundTrip, Simplify, SimplifyKB,
+         TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
+         Concrete,
          toLO, fromLO, improve, reduce,
          density, bounds, unweight,
 
