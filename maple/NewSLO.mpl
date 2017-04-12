@@ -350,8 +350,13 @@ NewSLO := module ()
     elif e :: t_pw
          and `and`(seq(not (depends(op(i,e), h)),
                        i=1..nops(e)-1, 2)) then
-      kb_piecewise(e, kb, ((lhs, kb) -> lhs),
-                          ((rhs, kb) -> unintegrate(h, rhs, kb)))
+      m := kb_piecewise(e, kb, ((lhs, kb) -> lhs),
+                               ((rhs, kb) -> unintegrate(h, rhs, kb)));
+      if m :: t_pw and nops(m) = 2 then
+        piecewise(op(m), Msum());
+      else
+        m;
+      end if;
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),
