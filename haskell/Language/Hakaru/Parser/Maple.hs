@@ -348,6 +348,7 @@ maple2AST (InertArgs Func
         [InertName "piecewise", InertArgs ExpSeq es]) = go es where
   go [e1,e2]      = If (maple2AST e1) (maple2AST e2) (ULiteral (Nat 0))
   go [e1,e2,e3]   = If (maple2AST e1) (maple2AST e2) (maple2AST e3)
+  -- BUG! piecewise(a<b,2,a=b,1) doesn't mean piecewise(a<b,2,1) in Maple
   go [e1,e2,_,e3] = If (maple2AST e1) (maple2AST e2) (maple2AST e3)
   go (e1:e2:rest) = If (maple2AST e1) (maple2AST e2) (go rest)
 
