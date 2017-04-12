@@ -1,5 +1,7 @@
 all: ppaml.mla NewSLOTests.out PlateT.out SummaryT.out PlateT2.out # call-graph.pdf
 
+PlateT2.out: ../examples/dice_index.hk ../examples/gmm_gibbs.hk
+
 disint: ppaml.mla DisintT.out 
 
 ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Partition.mpl Loop.mpl Summary.mpl \
