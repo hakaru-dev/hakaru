@@ -90,7 +90,12 @@ fromLO := module()
         Msum()
       end if;
     elif e :: t_pw and not Partition:-ConditionsDepend(Partition:-PWToPartition(e), h) then
-        kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
+        m := kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
+        if m :: t_pw and nops(m) = 2 then
+          piecewise(op(m), Msum());
+        else
+          m;
+        end if;
     elif e :: Partition and not Partition:-ConditionsDepend(e, h) then
         kb_Partition(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
     elif e :: t_case then
