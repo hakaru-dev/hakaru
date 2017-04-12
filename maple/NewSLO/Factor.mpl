@@ -85,7 +85,7 @@ $include "NewSLO/Piecewise.mpl"
         end if;
       end if;
       if mode = `*` then
-	i := map2(op,[2,1],loops);
+        i := map2(op,[2,1],loops);
         if e :: '`^`' then
           # Transform product(a(i)^b,i=...) to product(a(i),i=...)^b
           if not depends(op(2,e), i) then
