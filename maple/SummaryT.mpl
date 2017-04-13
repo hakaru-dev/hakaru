@@ -2,7 +2,6 @@ kernelopts(assertlevel=2): # be strict on all assertions while testing
 with(Hakaru):
 with(KB):
 with(Summary):
-with(NewSLO): #, simplify_factor_assuming):
 
 module()
   local kb, b, mr, f, bkt;
