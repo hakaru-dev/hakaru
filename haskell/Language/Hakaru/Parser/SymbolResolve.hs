@@ -67,7 +67,7 @@ pairPat a b =
     U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone
 
 primTypes :: [(Text, Symbol' U.SSing)]
-primTypes = 
+primTypes =
     [ ("nat",     TNeu' $ U.SSing SNat)
     , ("int",     TNeu' $ U.SSing SInt)
     , ("prob",    TNeu' $ U.SSing SProb)
@@ -229,15 +229,16 @@ primWeight, primFactor, primBern :: Symbol U.AST
 primWeight = t2 $ \w m -> syn $ U.Superpose_ (singleton (w, m))
 primFactor = TLam $ \w -> TNeu . syn . U.Superpose_ $
               singleton (w, syn $ U.Dirac_ unit_)
-primBern   =
-    TLam $ \p -> TNeu . syn . U.Superpose_ . L.fromList $
-        [ (p, syn $ U.Dirac_ true_)
-        , (unsafeFrom_ . syn $ U.NaryOp_ U.Sum
-            [ syn $ U.Literal_ (Some1 $ T.LReal 1.0)
-            , syn $ U.PrimOp_ U.Negate [p]
-            ]
-            , syn $ U.Dirac_ false_)
-        ]
+primBern   = TLam $ \p -> TNeu . syn . U.MBind_ (cat p) $ binder "" U.SU ret
+    where cat x = syn . U.MeasureOp_ (U.SomeOp T.Categorical) $
+                  [syn $ U.ArrayLiteral_
+                   [ x
+                   , unsafeFrom_ . syn $ U.NaryOp_ U.Sum 
+                     [ syn $ U.Literal_ (Some1 $ T.LReal 1.0)
+                     , syn $ U.PrimOp_ U.Negate [x] ]
+                   ]]
+          ret i = syn . U.Dirac_ . syn $ U.ArrayOp_ U.Index_
+                  [ syn $ U.ArrayLiteral_ [true_, false_] , i ]    
 
 two :: U.AST
 two = syn . U.Literal_ . U.val . U.Nat $ 2
@@ -270,8 +271,8 @@ resolveBinder symbols name e1 e2 f = do
     name' <- gensym name
     f (mkSym name')
         <$> symbolResolution symbols e1
-        <*> symbolResolution (insertSymbol name' symbols) e2        
-    
+        <*> symbolResolution (insertSymbol name' symbols) e2
+
 
 -- TODO: clean up by merging the @Reader (SymbolTable)@ and @State Int@ monads
 -- | Figure out symbols and types.
@@ -305,26 +306,33 @@ symbolResolution symbols ast =
     U.Infinity'         -> return $ U.Infinity'
     U.ULiteral v        -> return $ U.ULiteral v
 
-    U.Integrate  name e1 e2 e3 -> do       
+    U.Integrate  name e1 e2 e3 -> do
         name' <- gensym name
         U.Integrate (mkSym name')
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
-            <*> symbolResolution (insertSymbol name' symbols) e3     
+            <*> symbolResolution (insertSymbol name' symbols) e3
 
-    U.Summate    name e1 e2 e3 -> do       
+    U.Summate    name e1 e2 e3 -> do
         name' <- gensym name
         U.Summate (mkSym name')
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
-            <*> symbolResolution (insertSymbol name' symbols) e3     
+            <*> symbolResolution (insertSymbol name' symbols) e3
 
-    U.Product    name e1 e2 e3 -> do       
+    U.Product    name e1 e2 e3 -> do
         name' <- gensym name
         U.Product (mkSym name')
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
-            <*> symbolResolution (insertSymbol name' symbols) e3     
+            <*> symbolResolution (insertSymbol name' symbols) e3
+
+    U.Bucket     name e1 e2 e3 -> do
+        name' <- gensym name
+        U.Bucket (mkSym name')
+            <$> symbolResolution symbols e1
+            <*> symbolResolution symbols e2
+            <*> symbolResolutionReducer (insertSymbol name' symbols) e3
 
     U.NaryOp op es      -> U.NaryOp op
         <$> mapM (symbolResolution symbols) es
@@ -336,6 +344,8 @@ symbolResolution symbols ast =
         <*> symbolResolution symbols e2
 
     U.Array name e1 e2  -> resolveBinder symbols name e1 e2 U.Array
+
+    U.ArrayLiteral es   -> U.ArrayLiteral <$> mapM (symbolResolution symbols) es
 
     U.Index a i -> U.Index
         <$> symbolResolution symbols a
@@ -349,22 +359,47 @@ symbolResolution symbols ast =
     U.Bind   name e1 e2    -> resolveBinder symbols name e1 e2 U.Bind
     U.Plate  name e1 e2    -> resolveBinder symbols name e1 e2 U.Plate
     U.Expect name e1 e2    -> resolveBinder symbols name e1 e2 U.Expect
-    U.Chain  name e1 e2 e3 -> do       
+    U.Chain  name e1 e2 e3 -> do
         name' <- gensym name
         U.Chain (mkSym name')
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
-            <*> symbolResolution (insertSymbol name' symbols) e3     
+            <*> symbolResolution (insertSymbol name' symbols) e3
     U.Observe e1 e2        -> U.Observe
         <$> symbolResolution symbols e1
         <*> symbolResolution symbols e2
 
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
-    U.Data   _name _typ -> error "TODO: symbolResolution{U.Data}"
+    U.Data name tvars typ e -> error $ ("TODO: symbolResolution{U.Data} " ++
+                                        show name  ++ " with " ++
+                                        show tvars ++ ":" ++ show typ)
     U.WithMeta a meta -> U.WithMeta
         <$> symbolResolution symbols a
         <*> return meta
+
+symbolResolutionReducer
+    :: SymbolTable
+    -> U.Reducer' Text
+    -> State Int (U.Reducer' (Symbol U.AST))
+symbolResolutionReducer symbols ast =
+    case ast of
+    U.R_Fanout e1 e2        -> U.R_Fanout
+                               <$> symbolResolutionReducer symbols e1
+                               <*> symbolResolutionReducer symbols e2
+
+    U.R_Index name e1 e2 e3 -> do
+      name' <- gensym name
+      U.R_Index (mkSym name')
+           <$> symbolResolution symbols e1
+           <*> symbolResolution symbols e2
+           <*> symbolResolutionReducer (insertSymbol name' symbols) e3
+    U.R_Split e1 e2 e3      -> U.R_Split
+                               <$> symbolResolution symbols e1
+                               <*> symbolResolutionReducer symbols e2
+                               <*> symbolResolutionReducer symbols e3
+    U.R_Nop                 -> return U.R_Nop
+    U.R_Add   e1            -> U.R_Add <$> symbolResolution symbols e1
 
 
 symbolResolveBranch
@@ -420,13 +455,15 @@ normAST ast =
     U.Integrate name e1 e2 e3 -> U.Integrate name (normAST e1) (normAST e2) (normAST e3)
     U.Summate   name e1 e2 e3 -> U.Summate   name (normAST e1) (normAST e2) (normAST e3)
     U.Product   name e1 e2 e3 -> U.Product   name (normAST e1) (normAST e2) (normAST e3)
+    U.Bucket    name e1 e2 e3 -> U.Bucket    name (normAST e1) (normAST e2) (redNorm e3)
     U.ULiteral v              -> U.ULiteral v
     U.NaryOp op es            -> U.NaryOp op (map normAST es)
     U.Unit                    -> U.Unit
     U.Empty                   -> U.Empty
     U.Pair e1 e2              -> U.Pair (normAST e1) (normAST e2)
     U.Array  name e1 e2       -> U.Array name (normAST e1) (normAST e2)
-    U.Index       e1 e2       -> U.Index (normAST e1) (normAST e2)    
+    U.ArrayLiteral   es       -> U.ArrayLiteral (map normAST es)
+    U.Index       e1 e2       -> U.Index (normAST e1) (normAST e2)
     U.Case        e1 e2       -> U.Case  (normAST e1) (map branchNorm e2)
     U.Dirac       e1          -> U.Dirac (normAST e1)
     U.Bind   name e1 e2       -> U.Bind   name (normAST e1) (normAST e2)
@@ -435,12 +472,25 @@ normAST ast =
     U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
     U.Observe     e1 e2       -> U.Observe (normAST e1) (normAST e2)
     U.Msum es                 -> U.Msum (map normAST es)
-    U.Data name typ           -> U.Data name typ
+    U.Data name tvars typs e  -> U.Data name tvars typs e
+     -- do we need to norm here? what if we try to define `true` which is already a constructor
     U.WithMeta a meta         -> U.WithMeta (normAST a) meta
 
 branchNorm :: U.Branch' (Symbol U.AST) -> U.Branch' (Symbol U.AST)
 branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
 branchNorm (U.Branch'' pat e2') = U.Branch'' pat (normAST e2')
+
+redNorm :: U.Reducer' (Symbol U.AST) -> U.Reducer' (Symbol U.AST)
+redNorm ast =
+    case ast of
+     U.R_Fanout e1 e2         ->
+         U.R_Fanout (redNorm e1) (redNorm e2)
+     U.R_Index  name e1 e2 e3 ->
+         U.R_Index name (normAST e1) (normAST e2) (redNorm e3)
+     U.R_Split e1 e2 e3       ->
+         U.R_Split (normAST e1) (redNorm e2) (redNorm e3)
+     U.R_Nop                  -> U.R_Nop
+     U.R_Add   e1             -> U.R_Add (normAST e1)
 
 collapseSuperposes :: [U.AST] -> U.AST
 collapseSuperposes es = syn $ U.Superpose_ (fromList $ F.concatMap go es)
@@ -490,8 +540,30 @@ makeTrue  e =
     U.Branch_ (makePattern (U.PData' (U.DV "true"  []))) (makeAST e)
 makeFalse e =
     U.Branch_ (makePattern (U.PData' (U.DV "false" []))) (makeAST e)
-        
-        
+
+makeReducerAST
+    :: Variable 'U.U
+    -> U.Reducer' (Symbol U.AST)
+    -> List1 Variable xs
+    -> U.Reducer xs U.U_ABT 'U.U
+makeReducerAST i r1 bs =
+    case r1 of
+    U.R_Fanout r2 r3       -> U.R_Fanout_
+                              (makeReducerAST i r2 bs)
+                              (makeReducerAST i r3 bs)
+    U.R_Index  b  e1 e2 r1 -> withName "U.R_Index" b $ \b' ->
+                                U.R_Index_
+                                b' -- HACK: This shouldn't be needed here
+                                (binds_ bs (makeAST e1))
+                                (bind i (binds_ bs (makeAST e2)))
+                                (makeReducerAST i r1 (Cons1 b' bs))
+    U.R_Split  e1 r2 r3    -> U.R_Split_
+                              (bind i (binds_ bs (makeAST e1)))
+                              (makeReducerAST i r2 bs)
+                              (makeReducerAST i r3 bs)
+    U.R_Nop                -> U.R_Nop_
+    U.R_Add e1             -> U.R_Add_ (bind i (binds_ bs (makeAST e1)))
+
 makeAST :: U.AST' (Symbol U.AST) -> U.AST
 makeAST ast =
     case ast of
@@ -520,6 +592,7 @@ makeAST ast =
     U.Array s e1 e2 ->
         withName "U.Array" s $ \name ->
             syn $ U.Array_ (makeAST e1) (bind name $ makeAST e2)
+    U.ArrayLiteral es -> syn $ U.ArrayLiteral_ (map makeAST es)
     U.Index e1 e2     -> syn $ U.ArrayOp_ U.Index_ [(makeAST e1), (makeAST e2)]
     U.Case e bs       -> syn $ U.Case_ (makeAST e) (map makeBranch bs)
     U.Dirac e1        -> syn $ U.Dirac_ (makeAST e1)
@@ -541,21 +614,23 @@ makeAST ast =
     U.Product s e1 e2 e3 ->
         withName "U.Product" s $ \name ->
             syn $ U.Product_ (makeAST e1) (makeAST e2) (bind name $ makeAST e3)
+    U.Bucket s e1 e2 e3 ->
+        withName "U.Bucket"  s $ \name ->
+            syn $ U.Bucket_ (makeAST e1) (makeAST e2) (makeReducerAST name e3 Nil1)
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)
     U.Observe e1 e2  -> syn $ U.Observe_ (makeAST e1) (makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
-    
-    U.Data   _name _typ -> error "TODO: makeAST{U.Data}"
+
+    U.Data name tvars typs e -> error "TODO: makeAST{U.Data}" 
     U.WithMeta a meta -> withMetadata meta (makeAST a)
 
-    where
-    withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r
-    withName fun s k =
-        case s of
-        TNeu e -> caseVarSyn e k (error $ "makeAST: bad " ++ fun)
-        _      -> error $ "makeAST: bad " ++ fun
+withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r
+withName fun s k =
+    case s of
+    TNeu e -> caseVarSyn e k (error $ "makeAST: bad " ++ fun)
+    _      -> error $ "makeAST: bad " ++ fun
 
 resolveAST :: U.AST' Text -> U.AST
 resolveAST ast =

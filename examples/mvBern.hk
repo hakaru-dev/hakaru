@@ -1,0 +1,19 @@
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from i+1 to size(as): as[j],
+                 as[i])
+    return array i of size(as):
+             x = product j from 0 to i: xs[j]
+             x * if i+1==size(as): 1 else: real2prob(1-xs[i])
+
+def mvBern(categories nat, features nat, trainings nat):
+    pC     <~ dirichlet(array c of categories: 1)
+    pF     <~ plate c of categories: plate f of features: p <~ beta(1,1)
+                                                          return [p,real2prob(1-p)]
+    trainC <~ plate i of trainings: categorical(pC)
+    trainF <~ plate i of trainings: plate f of features: categorical(pF[trainC[i]][f])
+    testC  <~                       categorical(pC)
+    testF  <~                       plate f of features: categorical(pF[testC    ][f])
+    return (((trainF, trainC), testF), testC)
+
+mvBern(10, 100, 1000)

@@ -49,7 +49,7 @@ import Language.Hakaru.Syntax.ABT      (ABT(..), caseVarSyn, subst, maxNextFreeO
 import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.AST      hiding (Expect)
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
+import Language.Hakaru.Evaluation.Lazy (evaluate)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 
@@ -79,10 +79,10 @@ residualizeExpectListContext e0 =
     foldl step e0 . statements
     where
     -- TODO: make paremetric in the purity, so we can combine 'residualizeListContext' with this function.
-    step :: abt '[] 'HProb -> Statement abt 'ExpectP -> abt '[] 'HProb
+    step :: abt '[] 'HProb -> Statement abt Location 'ExpectP -> abt '[] 'HProb
     step e s =
         case s of
-        SLet x body _
+        SLet (Location x) body _
             -- BUG: this trick for dropping unused let-bindings doesn't seem to work anymore... (cf., 'Tests.Expect.test4')
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
@@ -99,7 +99,7 @@ residualizeExpectListContext e0 =
 
 
 pureEvaluate :: (ABT Term abt) => TermEvaluator abt (Expect abt)
-pureEvaluate = evaluate (brokenInvariant "perform") defaultCaseEvaluator
+pureEvaluate = evaluate (brokenInvariant "perform")
 
 brokenInvariant :: String -> a
 brokenInvariant loc = error (loc ++ ": Expect's invariant broken")
@@ -185,7 +185,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Expect abt) 'ExpectP where
 
 -- TODO: make paremetric in the purity
 -- | Not exported because we only need it for defining 'select' on 'Expect'.
-unsafePop :: Expect abt (Maybe (Statement abt 'ExpectP))
+unsafePop :: Expect abt (Maybe (Statement abt Location 'ExpectP))
 unsafePop =
     Expect $ \c h@(ListContext i ss) ->
         case ss of

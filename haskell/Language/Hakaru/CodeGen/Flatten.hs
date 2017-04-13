@@ -42,6 +42,7 @@ import Language.Hakaru.Syntax.Datum hiding (Ident)
 import qualified Language.Hakaru.Syntax.Prelude as HKP
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.Sing
 
@@ -78,6 +79,24 @@ mochastic values
 
 -}
 
+flattenWithName'
+  :: ABT Term abt
+  => abt '[] a
+  -> String
+  -> CodeGen CExpr
+flattenWithName' abt hint = do
+  ident <- genIdent' hint
+  declare (typeOf abt) ident
+  let cvar = CVar ident
+  flattenABT abt cvar
+  return cvar
+
+flattenWithName
+  :: ABT Term abt
+  => abt '[] a
+  -> CodeGen CExpr
+flattenWithName abt = flattenWithName' abt ""
+
 flattenABT
   :: ABT Term abt
   => abt '[] a
@@ -90,32 +109,33 @@ flattenVar
   -> (CExpr -> CodeGen ())
 flattenVar v = \loc ->
   do v' <- CVar <$> lookupIdent v
-     putStat . CExpr . Just $ loc .=. v'
+     putExprStat $ loc .=. v'
 
 flattenTerm
   :: ABT Term abt
   => Term abt a
   -> (CExpr -> CodeGen ())
-flattenTerm (NaryOp_ t s)    = flattenNAryOp t s
-flattenTerm (Literal_ x)     = flattenLit x
-flattenTerm (Empty_ _)       = error "TODO: flattenTerm Empty"
-
-flattenTerm (Datum_ d)       = flattenDatum d
-flattenTerm (Case_ c bs)     = flattenCase c bs
-
-flattenTerm (Array_ s e)     = flattenArray s e
-
 -- SCon can contain mochastic terms
-flattenTerm (x :$ ys)        = flattenSCon x ys
+flattenTerm (x :$ ys)         = flattenSCon x ys
+
+flattenTerm (NaryOp_ t s)     = flattenNAryOp t s
+flattenTerm (Literal_ x)      = flattenLit x
+flattenTerm (Empty_ _)        = error "TODO: flattenTerm{Empty}"
+
+flattenTerm (Datum_ d)        = flattenDatum d
+flattenTerm (Case_ c bs)      = flattenCase c bs
+
+flattenTerm (Bucket _ _ _)    = error "TODO: flattenTerm{Bucket}"
+
+flattenTerm (Array_ s e)      = flattenArray s e
+flattenTerm (ArrayLiteral_ s) = flattenArrayLiteral s
+
 
 ---------------------
 -- Mochastic Terms --
 ---------------------
-flattenTerm (Reject_ _)      = \loc -> putExprStat (mdataPtrWeight loc .=. (intE 0)) -- fail to draw a sample
-flattenTerm (Superpose_ wes) = flattenSuperpose wes
-
-
-
+flattenTerm (Superpose_ wes)  = flattenSuperpose wes
+flattenTerm (Reject_ _)       = \loc -> putExprStat (mdataPtrWeight loc .=. (intE 0)) -- fail to draw a sample
 
 
 --------------------------------------------------------------------------------
@@ -133,56 +153,115 @@ flattenSCon Let_ =
     \loc -> do
       caseBind body $ \v@(Variable _ _ typ) body'->
         do ident <- createIdent v
-           declare typ ident
+           case typ of
+             (SFun _ _) -> return ()
+             _ -> declare typ ident
            flattenABT expr (CVar ident)
            flattenABT body' loc
 
--- Lambdas produce functions and then return a function pointer
-flattenSCon Lam_ = undefined
-  -- \(body :* End) ->
-  --   \loc ->
-  --     do coalesceLambda body $ \vars body' ->
-  --        let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
-  --        in  do funcId <- genIdent' "fn"
-  --               argDecls <- sequence varMs
+-- Lambdas produce functions and then return a function label exprssion
+flattenSCon Lam_ =
+  \(body :* End) ->
+    \loc -> do
+      -- externally declare closure and function
+      closureTypeSpec <- coalesceLambda body extDeclClosure
 
-  --               cg <- get
-  --               let m       = putStat . CReturn . Just =<< flattenABT body'
-  --                   (_,cg') = runState m $ cg { statements = []
-  --                                             , declarations = [] }
-  --               put $ cg' { statements   = statements cg
-  --                         , declarations = declarations cg }
+      -- declare local closure var
+      closureId <- genIdent' "closure"
+      declare' (buildDeclaration closureTypeSpec closureId)
 
-  --               extDeclare . CFunDefExt $ functionDef (typeOf body')
-  --                                                     funcId
-  --                                                     argDecls
-  --                                                     (reverse $ declarations cg')
-  --                                                     (reverse $ statements cg')
-  -- -- do at top level
-  -- where coalesceLambda
-  --         :: ( ABT Term abt )
-  --         => abt '[x] a
-  --         -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
-  --         -> r
-  --       coalesceLambda abt k =
-  --         caseBind abt $ \v abt' ->
-  --           caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
-  --             case term of
-  --               (Lam_ :$ body :* End) ->
-  --                 coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
-  --               _ -> k (Cons1 v Nil1) abt'
+      -- capture environment in closure
+      putExprStat $ loc .=. (CVar closureId)
 
-  --       mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
-  --       mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
-  --       mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
-  --       mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
-  --       mkVarDecl (Variable _ _ SReal) = return . typeDeclaration SReal
-  --       mkVarDecl (Variable _ _ (SArray t)) = \i -> do extDeclare $ arrayStruct t
-  --                                                      return $ arrayDeclaration t i
-  --       mkVarDecl (Variable _ _ d@(SData _ _)) = \i -> do extDeclare $ datumStruct d
-  --                                                         return $ datumDeclaration d i
-  --       mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
+  where coalesceLambda
+          :: ( ABT Term abt )
+          => abt '[x] a
+          -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
+          -> r
+        coalesceLambda abt k =
+          caseBind abt $ \v abt' ->
+            caseVarSyn abt' (const (k (Cons1 v Nil1) abt')) $ \term ->
+              case term of
+                (Lam_ :$ body :* End) ->
+                  coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
+                _ -> k (Cons1 v Nil1) abt'
 
+        -- given a parameter, create identifiers corresponding to Hakaru vars,
+        -- and return a CTypeSpec for the param
+        -- Will this fail if the parameter is a SFun?
+        mkVarIdandSpec :: Variable (a :: Hakaru) -> CodeGen (Ident,[CTypeSpec])
+        mkVarIdandSpec v@(Variable _ _ typ) = do
+          extDeclareTypes typ
+          vId <- createIdent v
+          return (vId,buildType typ)
+
+        extDeclClosure
+          :: ( ABT Term abt )
+          => List1 Variable (ys :: [Hakaru])
+          -> abt '[] b
+          -> CodeGen CTypeSpec
+        extDeclClosure vars body'= do
+          funcId <- genIdent' "fn"
+          idAndSpecs <- sequence $ foldMap11 (\v -> [mkVarIdandSpec v]) vars
+          cg <- get
+          let fVars   = freeVars body'
+              typ     = typeOf body'
+              m       = do outId <- genIdent' "out"
+                           declare typ outId
+                           let outE = CVar outId
+                           flattenABT body' outE
+                           putStat . CReturn . Just $ outE
+              (_,cg') = runState m $ cg { statements = []
+                                        , declarations = [] }
+          put $ cg' { statements   = statements cg
+                    , declarations = declarations cg }
+          sId@(Ident sname) <- extDeclClosureStruct typ (fmap snd idAndSpecs) fVars
+          extDeclare . CFunDefExt
+            $ functionDef typ funcId
+                ([buildDeclaration (callStruct sname) (Ident "env")]
+                 ++ (fmap (\(vId,specs) -> buildDeclaration' specs vId) idAndSpecs))
+                (reverse $ declarations cg')
+                (reverse $ statements cg')
+          return (callStruct sname)
+
+        extDeclClosureStruct
+          :: forall (a :: Hakaru) (ys :: [Hakaru])
+          .  Sing a
+          -> [[CTypeSpec]]
+          -> VarSet (KindOf a)
+          -> CodeGen Ident
+        extDeclClosureStruct retTyp paramTypeSpecs freeVars = do
+          sId@(Ident sname) <- genIdent' "clos"
+          freeVarDecls <- mapM (\(SomeVariable v@(Variable _ _ typ)) -> do
+                                  extDeclareTypes typ
+                                  vId <- createIdent v
+                                  return (typeDeclaration typ vId)
+                               ) (fromVarSet freeVars)
+          let funPtrDecl =
+                CDecl (fmap CTypeSpec $ buildType retTyp)
+                      [( CDeclr Nothing
+                         (CDDeclrFun
+                           (CDDeclrRec (CDeclr (Just $ CPtrDeclr []) (CDDeclrIdent . Ident $ "fn")))
+                           ([callStruct sname]++(concat paramTypeSpecs)))
+                       , Nothing)]
+          extDeclare $ CDeclExt
+                     $ CDecl [ CTypeSpec $ buildStruct (Just sId)
+                                             ([funPtrDecl]++freeVarDecls) ]
+                             []
+          return sId
+
+flattenSCon App_  =
+ \(fun :* arg :* End) ->
+   \loc -> do
+     closId <- genIdent' "clos"
+     paramId <- genIdent' "param"
+     declare (typeOf fun) closId
+     declare (typeOf arg) paramId
+     let closE  = CVar closId
+         paramE = CVar paramId
+     flattenABT fun closE
+     flattenABT arg paramE
+     putExprStat $ loc .=. (CCall (CMember closE (Ident "fn") True) [paramE])
 
 flattenSCon (PrimOp_ op) = flattenPrimOp op
 
@@ -191,94 +270,109 @@ flattenSCon (ArrayOp_ op) = flattenArrayOp op
 flattenSCon (Summate _ sr) =
   \(lo :* hi :* body :* End) ->
     \loc ->
-      caseBind body $ \v body' ->
-        do loId <- genIdent
-           hiId <- genIdent
-           declare (typeOf lo) loId
-           declare (typeOf hi) hiId
-           let loE = CVar loId
-               hiE = CVar hiId
-           flattenABT lo loE
-           flattenABT hi hiE
+      do loId <- genIdent
+         hiId <- genIdent
+         declare (typeOf lo) loId
+         declare (typeOf hi) hiId
+         let loE     = CVar loId
+             hiE     = CVar hiId
+             semiTyp = sing_HSemiring sr
+         flattenABT lo loE
+         flattenABT hi hiE
 
-           iterI <- createIdent v
-           declare SNat iterI
+         putStat $ opComment "Begin Summate"
 
-           accI <- genIdent' "acc"
-           let semiT = sing_HSemiring sr
-           declare semiT accI
-           assign accI (case semiT of
-                          SProb -> negInfinityE
-                          SReal -> floatE 0
-                          _     -> intE 0)
+         case semiTyp of
+           -- special prob branch
+           SProb -> do
+             summateArrId <- genIdent' "summate_arr"
+             declare (SArray SProb) summateArrId
+             let summateArrE = CVar summateArrId
+             putExprStat $ arraySize summateArrE .=. (hiE .-. loE)
+             putExprStat $ arrayData summateArrE
+                   .=. (castToPtrOf CDouble
+                         (mallocE ((arraySize summateArrE) .*.
+                                  (CSizeOfType (CTypeName [CDouble] False)))))
+             lseSummateArrayCG body summateArrE loc
+             putExprStat $ freeE $ arrayData summateArrE
 
-           let accVar  = CVar accI
-               iterVar = CVar iterI
+           _ -> do
+             caseBind body $ \v body' -> do
+               iterI <- createIdent v
+               declare SNat iterI
 
+               accI <- genIdent' "acc"
+               declare semiTyp accI
+               assign accI (case semiTyp of
+                              SReal -> floatE 0
+                              _     -> intE 0)
 
-           putStat $ opComment "Summate"
-           -- logSumExp for probabilities
-           reductionCG CAddOp
-                       accI
-                       (iterVar .=. loE)
-                       (iterVar .<. hiE)
-                       (CUnary CPostIncOp iterVar) $
-             do tmpId <- genIdent
-                declare (typeOf body') tmpId
-                let tmpE = CVar tmpId
-                flattenABT body' tmpE
-                case semiT of
-                  SProb -> logSumExpCG (S.fromList [accVar,tmpE]) accVar
-                  _     -> putStat . CExpr . Just $ (accVar .+=. tmpE)
+               let accVar  = CVar accI
+                   iterVar = CVar iterI
 
-           putExprStat (loc .=. accVar)
+               reductionCG CAddOp
+                           accI
+                           (iterVar .=. loE)
+                           (iterVar .<. hiE)
+                           (CUnary CPostIncOp iterVar) $
+                 do tmpId <- genIdent
+                    declare (typeOf body') tmpId
+                    let tmpE = CVar tmpId
+                    flattenABT body' tmpE
+                    putStat . CExpr . Just $ (accVar .+=. tmpE)
+                    putExprStat (loc .=. accVar)
+
+         putStat $ opComment "End Summate"
+
 
 
 flattenSCon (Product _ sr) =
   \(lo :* hi :* body :* End) ->
-    \loc ->
-      caseBind body $ \v body' ->
-        do loId <- genIdent
-           hiId <- genIdent
-           declare (typeOf lo) loId
-           declare (typeOf hi) hiId
-           let loE = CVar loId
-               hiE = CVar hiId
-           flattenABT lo loE
-           flattenABT hi hiE
+    \loc -> do
+      loId <- genIdent
+      hiId <- genIdent
+      declare (typeOf lo) loId
+      declare (typeOf hi) hiId
+      let loE     = CVar loId
+          hiE     = CVar hiId
+          semiTyp = sing_HSemiring sr
+      flattenABT lo loE
+      flattenABT hi hiE
 
-           iterI <- createIdent v
-           declare SNat iterI
+      putStat $ opComment "Begin Product"
 
-           accI <- genIdent' "acc"
-           let semiT = sing_HSemiring sr
-           declare semiT accI
-           assign accI (case semiT of
-                          SProb -> floatE 0
-                          SReal -> floatE 1
-                          _     -> intE 1)
+      case semiTyp of
+      -- special prob branch
+        SProb -> kahanSummationCG body loE hiE loc
 
-           let accVar  = CVar accI
-               iterVar = CVar iterI
+        _ -> do
+          caseBind body $ \v body' -> do
+            iterI <- createIdent v
+            declare SNat iterI
 
-           putStat $ opComment "Product"
-           reductionCG (case semiT of
-                          SProb -> CAddOp
-                          _     -> CMulOp)
-                       accI
-                       (iterVar .=. loE)
-                       (iterVar .<. hiE)
-                       (CUnary CPostIncOp iterVar) $
-             do tmpId <- genIdent
-                declare (typeOf body') tmpId
-                let tmpE = CVar tmpId
-                flattenABT body' tmpE
-                putExprStat $ case semiT of
-                                SProb -> CAssign CAddAssOp accVar
-                                _ -> CAssign CMulAssOp accVar
-                            $ tmpE
+            accI <- genIdent' "acc"
+            declare semiTyp accI
+            assign accI (case semiTyp of
+                           SReal -> floatE 1
+                           _     -> intE 1)
 
-           putExprStat (loc .=. accVar)
+            let accVar  = CVar accI
+                iterVar = CVar iterI
+
+            reductionCG CMulOp
+                         accI
+                         (iterVar .=. loE)
+                         (iterVar .<. hiE)
+                         (CUnary CPostIncOp iterVar) $
+               do tmpId <- genIdent
+                  declare (typeOf body') tmpId
+                  let tmpE = CVar tmpId
+                  flattenABT body' tmpE
+                  putExprStat (accVar .*=. tmpE)
+
+            putExprStat (loc .=. accVar)
+
+      putStat $ opComment "End Product"
 
 
 --------------------
@@ -332,7 +426,7 @@ flattenSCon (CoerceTo_ ctyp) =
                              declare SReal ident
                              assign ident $ (expm1E p) .+. (intE 1)
                              return (CVar ident)
-        int2real  = return . CCast doubleDecl
+        int2real  = return . castTo CDouble
 
 
 -----------------------------------
@@ -348,8 +442,8 @@ flattenSCon Dirac           =
           declare (typeOf e) sId
           let sE = CVar sId
           flattenABT e sE
-          putExprStat $ mdataPtrWeight loc .=. (floatE 0)
-          putExprStat $ mdataPtrSample loc .=. sE
+          putExprStat $ mdataWeight loc .=. (floatE 0)
+          putExprStat $ mdataSample loc .=. sE
 
 flattenSCon MBind           =
   \(ma :* b :* End) ->
@@ -359,14 +453,14 @@ flattenSCon MBind           =
            mId <- genIdent' "m"
            declare (typeOf ma) mId
            let mE = CVar mId
-           flattenABT ma (address mE)
+           flattenABT ma mE
 
            -- assign that sample to var
            vId <- createIdent v
            declare typ vId
            assign vId (mdataSample mE)
            flattenABT mb loc
-           putExprStat $ mdataPtrWeight loc .+=. (mdataWeight mE)
+           putExprStat $ mdataWeight loc .+=. (mdataWeight mE)
 
 -- for now plats make use of a global sample
 flattenSCon Plate           =
@@ -381,8 +475,8 @@ flattenSCon Plate           =
            isManagedMem <- managedMem <$> get
            if isManagedMem
               then putExprStat $   (arrayPtrData . mdataPtrSample $ loc)
-                               .=. (CCast (mkPtrDecl . buildType $ typ)
-                                          (gc_mallocE (sizeE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+                               .=. (CCast (CTypeName (buildType typ) True)
+                                      (gc_mallocE (sizeE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
               else error "plate requires used of the garbage collector, '-g' flag"
 
            weightId <- genIdent' "w"
@@ -393,7 +487,7 @@ flattenSCon Plate           =
            itId <- createIdent v
            declare SNat itId
            let itE = CVar itId
-               currInd  = indirect $ (CMember (mdataPtrSample loc) (Ident "data") True) .+. itE
+               currInd  = index (arrayData . mdataSample $ loc) itE
 
            sampId <- genIdent' "samp"
            declare (typeOf $ body) sampId
@@ -404,11 +498,11 @@ flattenSCon Plate           =
                        (itE .=. (intE 0))
                        (itE .<. sizeE)
                        (CUnary CPostIncOp itE)
-                       (do flattenABT body (address sampE)
+                       (do flattenABT body sampE
                            putExprStat (currInd .=. (mdataSample sampE))
                            putExprStat (weightE .+=. (mdataWeight sampE)))
 
-           putExprStat $ mdataPtrWeight loc .=. weightE
+           putExprStat $ mdataWeight loc .=. weightE
 
 
 -----------------------------------
@@ -458,76 +552,6 @@ flattenNAryOp op args =
           in  putExprStat ((indexOf loc') .=. expr)
 
 
---------------------------------------
--- LogSumExp for NaryOp Add [SProb] --
---------------------------------------
-{-
-
-Special for addition of probabilities we have a logSumExp. This will compute the
-sum of the probabilities safely. Just adding the exp(a . prob) would make us
-loose any of the safety from underflow that we got from storing prob in the log
-domain
-
--}
-
--- the tree traversal is a depth first search
-logSumExp :: S.Seq CExpr -> CExpr
-logSumExp es = mkCompTree 0 1
-
-  where lastIndex  = S.length es - 1
-
-        compIndices :: Int -> Int -> CExpr -> CExpr -> CExpr
-        compIndices i j = CCond ((S.index es i) .>. (S.index es j))
-
-        mkCompTree :: Int -> Int -> CExpr
-        mkCompTree i j
-          | j == lastIndex = compIndices i j (logSumExp' i) (logSumExp' j)
-          | otherwise      = compIndices i j
-                               (mkCompTree i (succ j))
-                               (mkCompTree j (succ j))
-
-        diffExp :: Int -> Int -> CExpr
-        diffExp a b = expm1E ((S.index es a) .-. (S.index es b))
-
-        -- given the max index, produce a logSumExp expression
-        logSumExp' :: Int -> CExpr
-        logSumExp' 0 = S.index es 0
-          .+. (log1pE $ foldr (\x acc -> diffExp x 0 .+. acc)
-                            (diffExp 1 0)
-                            [2..S.length es - 1]
-                    .+. (intE $ fromIntegral lastIndex))
-        logSumExp' i = S.index es i
-          .+. (log1pE $ foldr (\x acc -> if i == x
-                                       then acc
-                                       else diffExp x i .+. acc)
-                            (diffExp 0 i)
-                            [1..S.length es - 1]
-                    .+. (intE $ fromIntegral lastIndex))
-
-
--- | logSumExpCG creates global functions for every n-ary logSumExp function
--- this reduces code size
-logSumExpCG :: S.Seq CExpr -> (CExpr -> CodeGen ())
-logSumExpCG seqE =
-  let size   = S.length $ seqE
-      name   = "logSumExp" ++ (show size)
-      funcId = Ident name
-  in \loc -> do-- reset the names so that the function is the same for each arity
-       cg <- get
-       put (cg { freshNames = suffixes })
-       argIds <- replicateM size genIdent
-       let decls = fmap (typeDeclaration SProb) argIds
-           vars  = fmap CVar argIds
-       extDeclare . CFunDefExt $ functionDef SProb
-                                             funcId
-                                             decls
-                                             []
-                                             [CReturn . Just $ logSumExp $ S.fromList vars ]
-       cg' <- get
-       put (cg' { freshNames = freshNames cg })
-       putExprStat $ loc .=. (CCall (CVar funcId) (F.toList seqE))
-
-
 --------------------------------------------------------------------------------
 --                                  Literals                                  --
 --------------------------------------------------------------------------------
@@ -559,28 +583,64 @@ flattenArray
   -> (CExpr -> CodeGen ())
 flattenArray arity body =
   \loc ->
-    caseBind body $ \v@(Variable _ _ typ) body' ->
+    caseBind body $ \v body' -> do
       let arityE = arraySize loc
-          dataE  = arrayData loc in
-      do flattenABT arity arityE
+          dataE  = arrayData loc
+          typ    = typeOf body'
 
-         isManagedMem <- managedMem <$> get
-         let malloc' = if isManagedMem then gc_mallocE else mallocE
-         putExprStat $   dataE
-                     .=. (CCast (mkPtrDecl . buildType $ typ)
-                                (malloc' (arityE .*. (CSizeOfType . mkDecl . buildType $ typ))))
+      flattenABT arity arityE
 
-         itId  <- createIdent v
-         declare SNat itId
-         let itE     = CVar itId
-             currInd = indirect (dataE .+. itE)
+      isManagedMem <- managedMem <$> get
+      let malloc' = if isManagedMem then gc_mallocE else mallocE
+      putExprStat $   dataE
+                  .=. (CCast (CTypeName (buildType typ) True)
+                             (malloc' (arityE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
 
-         putStat $ opComment "Create Array"
-         forCG (itE .=. (intE 0))
-               (itE .<. arityE)
-               (CUnary CPostIncOp itE)
-               (flattenABT body' currInd)
+      itId  <- createIdent v
+      declare SNat itId
+      let itE     = CVar itId
+          currInd = index dataE itE
 
+      putStat $ opComment "Create Array"
+      forCG (itE .=. (intE 0))
+            (itE .<. arityE)
+            (CUnary CPostIncOp itE)
+            (flattenABT body' currInd)
+
+flattenArrayLiteral
+  :: ( ABT Term abt )
+  => [abt '[] a]
+  -> (CExpr -> CodeGen ())
+flattenArrayLiteral es =
+  \loc -> do
+    arrId <- genIdent
+    isManagedMem <- managedMem <$> get
+    let arity = fromIntegral . length $ es
+        typ   = typeOf . head $ es
+        arrE = CVar arrId
+        malloc' = if isManagedMem then gc_mallocE else mallocE
+
+    declare (SArray typ) arrId
+    putExprStat $   (arrayData arrE)
+                .=. (CCast (CTypeName (buildType typ) True)
+                           (malloc' ((intE arity) .*. (CSizeOfType (CTypeName (buildType typ) False)))))
+
+    putExprStat $ arraySize arrE .=. (intE arity)
+    sequence_ . snd $ foldl (\(i,acc) e -> (succ i,(assignIndex e i arrE):acc))
+                            (0,[])
+                            es
+    putExprStat $ loc .=. arrE
+  where assignIndex
+          :: ( ABT Term abt )
+          => abt '[] a
+          -> Integer
+          -> (CExpr -> CodeGen ())
+        assignIndex e index loc = do
+          eId <- genIdent
+          declare (typeOf e) eId
+          let eE = CVar eId
+          flattenABT e eE
+          putExprStat $ indirect ((arrayData loc) .+. (intE index)) .=. eE
 
 --------------
 -- ArrayOps --
@@ -607,7 +667,7 @@ flattenArrayOp (Index _)  =
          declare SNat indId
          flattenABT arr arrE
          flattenABT ind indE
-         let valE = indirect ((CMember arrE (Ident "data") True) .+. indE)
+         let valE = index (CMember arrE (Ident "data") True) indE
          putExprStat (loc .=. valE)
 
 flattenArrayOp (Size _)   =
@@ -660,7 +720,7 @@ flattenDatum
   -> (CExpr -> CodeGen ())
 flattenDatum (Datum _ typ code) =
   \loc ->
-    do extDeclare $ datumStruct typ
+    do extDeclareTypes typ
        assignDatum code loc
 
 datumNames :: [String]
@@ -746,7 +806,8 @@ flattenCase
   -> [Branch a abt b]
   -> (CExpr -> CodeGen ())
 
-flattenCase c (Branch (PDatum _ (PInl PDone)) trueB:Branch (PDatum _ (PInr (PInl PDone))) falseB:[]) =
+flattenCase c [ Branch (PDatum _ (PInl PDone))        trueB
+              , Branch (PDatum _ (PInr (PInl PDone))) falseB ] =
   \loc ->
     do cId <- genIdent
        declare (typeOf c) cId
@@ -760,12 +821,12 @@ flattenCase c (Branch (PDatum _ (PInl PDone)) trueB:Branch (PDatum _ (PInr (PInl
            (_,cg'') = runState falseM $ cg' { statements = [] }
        put $ cg'' { statements = statements cg }
 
-       putStat $ CIf ((CMember cE (Ident "index") True) .==. (intE 0))
-                     (CCompound . fmap CBlockStat . reverse . statements $ cg')
-                     Nothing
-       putStat $ CIf ((CMember cE (Ident "index") True) .==. (intE 1))
+       let alt = CIf ((CMember cE (Ident "index") True) .==. (intE 1))
                      (CCompound . fmap CBlockStat . reverse . statements $ cg'')
                      Nothing
+       putStat $ CIf ((CMember cE (Ident "index") True) .==. (intE 0))
+                     (CCompound . fmap CBlockStat . reverse . statements $ cg')
+                     (Just alt)
 
 
 flattenCase _ _ = error "TODO: flattenCase"
@@ -946,14 +1007,17 @@ TODO: add inline pragmas to uniformCG, normalCG, and gammaCG
 -}
 
 uniformFun :: CFunDef
-uniformFun = CFunDef [CTypeSpec CVoid]
-                     (CDeclr Nothing [CDDeclrIdent funcId])
+uniformFun = CFunDef (CTypeSpec <$> retTyp)
+                     (CDeclr Nothing (CDDeclrIdent funcId))
                      [typeDeclaration SReal loId
-                     ,typeDeclaration SReal hiId
-                     ,typePtrDeclaration (SMeasure SReal) mId]
-                     (seqCStat $ comment ++[assW,assS,CReturn Nothing])
-  where r          = CCast doubleDecl randE
-        rMax       = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+                     ,typeDeclaration SReal hiId]
+                     (CCompound . concat
+                     $ [ CBlockDecl <$> [declMD]
+                       , CBlockStat <$> comment ++ [assW,assS,CReturn . Just $ mE]]
+                     )
+  where r          = castTo CDouble randE
+        rMax       = castTo CDouble (CVar . Ident $ "RAND_MAX")
+        retTyp     = buildType (SMeasure SReal)
         (mId,mE)   = let ident = Ident "mdata" in (ident,CVar ident)
         (loId,loE) = let ident = Ident "lo" in (ident,CVar ident)
         (hiId,hiE) = let ident = Ident "hi" in (ident,CVar ident)
@@ -961,8 +1025,9 @@ uniformFun = CFunDef [CTypeSpec CVoid]
         comment = fmap CComment
           ["uniform :: real -> real -> *(mdata real) -> ()"
           ,"------------------------------------------------"]
-        assW       = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
-        assS       = CExpr . Just $ mdataPtrSample mE .=. value
+        declMD     = buildDeclaration (head retTyp) mId
+        assW       = CExpr . Just $ mdataWeight mE .=. (floatE 0)
+        assS       = CExpr . Just $ mdataSample mE .=. value
         funcId     = Ident "uniform"
 
 
@@ -971,7 +1036,7 @@ uniformCG aE bE =
   \loc -> do
     reserveName "uniform"
     extDeclare . CFunDefExt $ uniformFun
-    putExprStat $ CCall (CVar . Ident $ "uniform") [aE,bE,loc]
+    putExprStat $ loc .=. CCall (CVar . Ident $ "uniform") [aE,bE]
 
 
 {-
@@ -980,15 +1045,16 @@ uniformCG aE bE =
 -}
 
 normalFun :: CFunDef
-normalFun = CFunDef [CTypeSpec CVoid]
-                    (CDeclr Nothing [CDDeclrIdent (Ident "normal")])
+normalFun = CFunDef (CTypeSpec <$> retTyp)
+                    (CDeclr Nothing (CDDeclrIdent (Ident "normal")))
                     [typeDeclaration SReal aId
-                    ,typeDeclaration SProb bId
-                    ,typePtrDeclaration (SMeasure SReal) mId]
-                    (CCompound $ comment ++ decls ++ stmts)
+                    ,typeDeclaration SProb bId ]
+                    ( CCompound . concat
+                    $ [[CBlockDecl declMD],comment,decls,stmts])
 
-  where r      = CCast doubleDecl randE
-        rMax   = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+  where r      = castTo CDouble randE
+        rMax   = castTo CDouble (CVar . Ident $ "RAND_MAX")
+        retTyp = buildType (SMeasure SReal)
         (aId,aE) = let ident = Ident "a" in (ident,CVar ident)
         (bId,bE) = let ident = Ident "b" in (ident,CVar ident)
         (qId,qE) = let ident = Ident "q" in (ident,CVar ident)
@@ -996,6 +1062,7 @@ normalFun = CFunDef [CTypeSpec CVoid]
         (vId,vE) = let ident = Ident "v" in (ident,CVar ident)
         (rId,rE) = let ident = Ident "r" in (ident,CVar ident)
         (mId,mE) = let ident = Ident "mdata" in (ident,CVar ident)
+        declMD     = buildDeclaration (head retTyp) mId
         draw xE = CExpr . Just $ xE .=. (((r ./. rMax) .*. (floatE 2)) .-. (floatE 1))
         body = seqCStat [draw uE
                         ,draw vE
@@ -1007,10 +1074,10 @@ normalFun = CFunDef [CTypeSpec CVoid]
           ["normal :: real -> real -> *(mdata real) -> ()"
           ,"Marsaglia Polar Method"
           ,"-----------------------------------------------"]
-        decls = fmap (CBlockDecl . typeDeclaration SReal) [uId,vId,qId,rId]
-        stmts = fmap CBlockStat [polar,setR, assW, assS,CReturn Nothing]
-        assW = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
-        assS = CExpr . Just $ mdataPtrSample mE .=. finalValue
+        decls = (CBlockDecl . typeDeclaration SReal) <$> [uId,vId,qId,rId]
+        stmts = CBlockStat <$> [polar,setR, assW, assS,CReturn . Just $ mE]
+        assW = CExpr . Just $ mdataWeight mE .=. (floatE 0)
+        assS = CExpr . Just $ mdataSample mE .=. finalValue
 
 
 normalCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
@@ -1018,18 +1085,18 @@ normalCG aE bE =
   \loc -> do
     reserveName "normal"
     extDeclare . CFunDefExt $ normalFun
-    putExprStat $ CCall (CVar . Ident $ "normal") [aE,bE,loc]
+    putExprStat $ loc .=. (CCall (CVar . Ident $ "normal") [aE,bE])
 
 {-
   This method is from Marsaglia and Tsang "a simple method for generating gamma variables"
 -}
 gammaFun :: CFunDef
-gammaFun = CFunDef [CTypeSpec CVoid]
-                   (CDeclr Nothing [CDDeclrIdent (Ident "gamma")])
+gammaFun = CFunDef (CTypeSpec <$> retTyp)
+                   (CDeclr Nothing (CDDeclrIdent (Ident "gamma")))
                    [typeDeclaration SProb aId
-                   ,typeDeclaration SProb bId
-                   ,typePtrDeclaration (SMeasure SProb) mId]
-                   (CCompound $ comment ++ decls ++ stmts)
+                   ,typeDeclaration SProb bId]
+                    ( CCompound . concat
+                    $ [[CBlockDecl declMD],comment,decls,stmts])
   where (aId,aE) = let ident = Ident "a" in (ident,CVar ident)
         (bId,bE) = let ident = Ident "b" in (ident,CVar ident)
         (cId,cE) = let ident = Ident "c" in (ident,CVar ident)
@@ -1038,6 +1105,8 @@ gammaFun = CFunDef [CTypeSpec CVoid]
         (vId,vE) = let ident = Ident "v" in (ident,CVar ident)
         (uId,uE) = let ident = Ident "u" in (ident,CVar ident)
         (mId,mE) = let ident = Ident "mdata" in (ident,CVar ident)
+        retTyp = buildType (SMeasure SProb)
+        declMD     = buildDeclaration (head retTyp) mId
         comment = fmap (CBlockStat . CComment)
           ["gamma :: real -> prob -> *(mdata prob) -> ()"
           ,"Marsaglia and Tsang 'a simple method for generating gamma variables'"
@@ -1051,24 +1120,24 @@ gammaFun = CFunDef [CTypeSpec CVoid]
         assC = CExpr . Just $ cE .=. ((floatE 1) ./. (sqrtE ((floatE 9) .*. dE)))
         outerWhile = CWhile (intE 1) (seqCStat [innerWhile,assV,assU,exit]) False
         innerWhile = CWhile (vE .<=. (floatE 0)) (seqCStat [assX,assVIn]) True
-        assX = CExpr . Just $ CCall (CVar . Ident $ "normal") [(floatE 0),(floatE 1),address xE]
+        assX = CExpr . Just $ xE .=. (CCall (CVar . Ident $ "normal") [(floatE 0),(floatE 1)])
         assVIn = CExpr . Just $ vE .=. ((floatE 1) .+. (cE .*. xS))
         assV = CExpr . Just $ vE .=. (vE .*. vE .*. vE)
-        assU = CExpr . Just $ CCall (CVar . Ident $ "uniform") [(floatE 0),(floatE 1),address uE]
+        assU = CExpr . Just $ uE .=. (CCall (CVar . Ident $ "uniform") [(floatE 0),(floatE 1)])
         exitC1 = uS .<. ((floatE 1) .-. ((floatE 0.331 .*. (xS .*. xS) .*. (xS .*. xS))))
         exitC2 = (logE uS) .<. (((floatE 0.5) .*. (xS .*. xS)) .+. (dE .*. ((floatE 1.0) .-. vE .+. (logE vE))))
-        assW = CExpr . Just $ mdataPtrWeight mE .=. (floatE 0)
-        assS = CExpr . Just $ mdataPtrSample mE .=. (logE (dE .*. vE)) .+. bE
-        exit = CIf (exitC1 .||. exitC2) (seqCStat [assW,assS,CReturn Nothing]) Nothing
+        assW = CExpr . Just $ mdataWeight mE .=. (floatE 0)
+        assS = CExpr . Just $ mdataSample mE .=. (logE (dE .*. vE)) .+. bE
+        exit = CIf (exitC1 .||. exitC2) (seqCStat [assW,assS,CReturn . Just $ mE]) Nothing
 
 
 gammaCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 gammaCG aE bE =
   \loc -> do
-     extDeclare $ mdataStruct SReal
+     extDeclareTypes (SMeasure SReal)
      mapM_ reserveName ["uniform","normal","gamma"]
      mapM_ (extDeclare . CFunDefExt) [uniformFun,normalFun,gammaFun]
-     putExprStat $ CCall (CVar . Ident $ "gamma") [aE,bE,loc]
+     putExprStat $ loc .=. (CCall (CVar . Ident $ "gamma") [aE,bE])
 
 
 flattenMeasureOp
@@ -1124,38 +1193,51 @@ flattenMeasureOp Beta =
   \(a :* b :* End) -> flattenABT (HKP.beta'' a b)
 
 
+-- I ran into a bug here where sometime I recieved a location by reference and
+-- others by value. Since measureOps assign a sample to mdata that they have a
+-- reference to, we should enforce that when passing around mdata it is by
+-- reference
 flattenMeasureOp Categorical = \(arr :* End) ->
   \loc ->
-    do arrId <- genIdent
-       declare (typeOf arr) arrId
-       let arrE = CVar arrId
-       flattenABT arr arrE
+    do arrE <- flattenWithName arr
 
        itId <- genIdent' "it"
        declare SInt itId
        let itE = CVar itId
 
+       -- Accumulator for the total probability of the input array
        wSumId <- genIdent' "ws"
        declare SProb wSumId
        let wSumE = CVar wSumId
        assign wSumId (logE (intE 0))
 
-       let currE = indirect (arrayData arrE .+. itE)
+       -- Accumulator for the max value in the input array
+       wMaxId <- genIdent' "max"
+       declare SProb wMaxId
+       let wMaxE = CVar wMaxId
+       assign wMaxId (logE (floatE 0))
+
+       let currE = index (arrayData arrE) itE
            cond  = itE .<. (arraySize arrE)
            inc   = CUnary CPostIncOp itE
 
        isPar <- isParallel
        mkSequential
 
-       -- first calculate the max weight
-       forCG (itE .=. (intE 0)) cond inc $
-         logSumExpCG (S.fromList [wSumE,currE]) wSumE
+       -- Calculate the maximum value of the input array
+       -- And calculate the total weight
+       forCG (itE .=. (intE 0)) cond inc $ do
+         let test = wMaxE .<. currE
+             thn  = CExpr $ Just (wMaxE .=. currE)
+         putStat $ CIf test (seqCStat [thn]) Nothing
+         logSumExpCG (S.fromList [wSumE, currE]) wSumE
+       putExprStat $ wSumE .=. (wSumE .-. wMaxE)
 
        -- draw number from uniform(0, weightSum)
        rId <- genIdent' "r"
        declare SReal rId
-       let r    = CCast doubleDecl randE
-           rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+       let r    = castTo CDouble randE
+           rMax = castTo CDouble (CVar . Ident $ "RAND_MAX")
            rE = CVar rId
        assign rId ((r ./. rMax) .*. (expE wSumE))
 
@@ -1163,11 +1245,11 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        assign itId (intE 0)
        whileCG (intE 1)
          $ do stat <- runCodeGenBlock $
-                        do putExprStat $ mdataPtrWeight loc .=. (intE 0)
-                           putExprStat $ mdataPtrSample loc .=. itE
+                        do putExprStat $ mdataWeight loc .=. (intE 0)
+                           putExprStat $ mdataSample loc .=. (itE .-. (intE 1))
                            putStat CBreak
               putStat $ CIf (rE .<. (expE wSumE)) stat Nothing
-              logSumExpCG (S.fromList [wSumE,currE]) wSumE
+              logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
               putExprStat $ CUnary CPostIncOp itE
 
        when isPar mkParallel
@@ -1194,12 +1276,12 @@ flattenSuperpose pairs =
             wId <- genIdent
             declare (typeOf m) mId
             declare SProb wId
-            let mE = address . CVar $ mId
+            let mE = CVar $ mId
                 wE = CVar wId
             flattenABT w wE
             flattenABT m mE
-            putExprStat $ mdataPtrWeight loc .=. ((mdataPtrWeight mE) .+. wE)
-            putExprStat $ mdataPtrSample loc .=. (mdataPtrSample mE)
+            putExprStat $ mdataWeight loc .=. ((mdataWeight mE) .+. wE)
+            putExprStat $ mdataSample loc .=. (mdataSample mE)
 
   else \loc ->
          do wEs <- forM pairs' $ \(w,_) ->
@@ -1217,8 +1299,8 @@ flattenSuperpose pairs =
             -- draw number from uniform(0, weightSum)
             rId <- genIdent' "r"
             declare SReal rId
-            let r    = CCast doubleDecl randE
-                rMax = CCast doubleDecl (CVar . Ident $ "RAND_MAX")
+            let r    = castTo CDouble randE
+                rMax = castTo CDouble (CVar . Ident $ "RAND_MAX")
                 rE = CVar rId
             assign rId ((r ./. rMax) .*. (expE wSumE))
 
@@ -1231,7 +1313,7 @@ flattenSuperpose pairs =
             -- an output measure to assign to
             outId <- genIdent' "out"
             declare (typeOf . snd . head $ pairs') outId
-            let outE = address $ CVar outId
+            let outE = CVar outId
 
             outLabel <- genIdent' "exit"
 
@@ -1242,5 +1324,162 @@ flattenSuperpose pairs =
                      putStat $ CIf (rE .<. (expE itE)) stat Nothing
 
             putStat $ CLabel outLabel (CExpr Nothing)
-            putExprStat $ mdataPtrWeight loc .=. ((mdataPtrWeight outE) .+. wSumE)
-            putExprStat $ mdataPtrSample loc .=. (mdataPtrSample outE)
+            putExprStat $ mdataWeight loc .=. ((mdataWeight outE) .+. wSumE)
+            putExprStat $ mdataSample loc .=. (mdataSample outE)
+
+
+
+--------------------------------------------------------------------------------
+--                           Specialized Arithmetic                           --
+--------------------------------------------------------------------------------
+
+--------------------------------------
+-- LogSumExp for NaryOp Add [SProb] --
+--------------------------------------
+{-
+
+Special for addition of probabilities we have a logSumExp. This will compute the
+sum of the probabilities safely. Just adding the exp(a . prob) would make us
+loose any of the safety from underflow that we got from storing prob in the log
+domain
+
+-}
+
+-- the tree traversal is a depth first search
+logSumExp :: S.Seq CExpr -> CExpr
+logSumExp es = mkCompTree 0 1
+
+  where lastIndex  = S.length es - 1
+
+        compIndices :: Int -> Int -> CExpr -> CExpr -> CExpr
+        compIndices i j = CCond ((S.index es i) .>. (S.index es j))
+
+        mkCompTree :: Int -> Int -> CExpr
+        mkCompTree i j
+          | j == lastIndex = compIndices i j (logSumExp' i) (logSumExp' j)
+          | otherwise      = compIndices i j
+                               (mkCompTree i (succ j))
+                               (mkCompTree j (succ j))
+
+        diffExp :: Int -> Int -> CExpr
+        diffExp a b = expm1E ((S.index es a) .-. (S.index es b))
+
+        -- given the max index, produce a logSumExp expression
+        logSumExp' :: Int -> CExpr
+        logSumExp' 0 = S.index es 0
+          .+. (log1pE $ foldr (\x acc -> diffExp x 0 .+. acc)
+                            (diffExp 1 0)
+                            [2..S.length es - 1]
+                    .+. (intE $ fromIntegral lastIndex))
+        logSumExp' i = S.index es i
+          .+. (log1pE $ foldr (\x acc -> if i == x
+                                       then acc
+                                       else diffExp x i .+. acc)
+                            (diffExp 0 i)
+                            [1..S.length es - 1]
+                    .+. (intE $ fromIntegral lastIndex))
+
+
+-- | logSumExpCG creates global functions for every n-ary logSumExp function
+-- this reduces code size
+logSumExpCG :: S.Seq CExpr -> (CExpr -> CodeGen ())
+logSumExpCG seqE =
+  let size   = S.length $ seqE
+      name   = "logSumExp" ++ (show size)
+      funcId = Ident name
+  in \loc -> do -- reset the names so that the function is the same for each arity
+       cg <- get
+       put (cg { freshNames = suffixes })
+       argIds <- replicateM size genIdent
+       let decls = fmap (typeDeclaration SProb) argIds
+           vars  = fmap CVar argIds
+       extDeclare . CFunDefExt $ functionDef SProb
+                                             funcId
+                                             decls
+                                             []
+                                             [CReturn . Just $ logSumExp $ S.fromList vars ]
+       cg' <- get
+       put (cg' { freshNames = freshNames cg })
+       putExprStat $ loc .=. (CCall (CVar funcId) (F.toList seqE))
+
+-------------------------------------
+-- LogSumExp for Summation of Prob --
+-------------------------------------
+{-
+
+For summation of SProb we need a new logSumExp function that will find the max
+of an array and then sum it in a loop
+
+-}
+
+lseSummateArrayCG
+  :: ( ABT Term abt )
+  => (abt '[ a ] b)
+  -> CExpr
+  -> (CExpr -> CodeGen ())
+lseSummateArrayCG body arrayE =
+  caseBind body $ \v body' ->
+    \loc -> do
+      (maxVId:maxIId:sumId:[]) <- mapM genIdent' ["maxV","maxI","sum"]
+      itId <- createIdent v
+      mapM_ (declare SProb) [maxVId,sumId]
+      mapM_ (declare SNat)  [maxIId,itId]
+      let (maxVE:maxIE:sumE:itE:[]) = fmap CVar [maxVId,maxIId,sumId,itId]
+      forCG (itE .=. intE 0)
+            (itE .<. arraySize arrayE)
+            (CUnary CPostIncOp itE)
+            (do tmpId <- genIdent
+                declare SProb tmpId
+                let tmpE = CVar tmpId
+                flattenABT body' tmpE
+                putExprStat $ derefIndex itE .=. tmpE
+                putStat $ CIf ((maxVE .<. tmpE) .||. (itE .==. (intE 0)))
+                              (seqCStat . fmap (CExpr . Just) $
+                                [ maxVE .=. tmpE
+                                , maxIE .=. itE ])
+                              Nothing)
+      putExprStat $ sumE  .=. (floatE 0) -- the sum is actually in real space
+      forCG (itE .=. intE 0)
+            (itE .<. arraySize arrayE)
+            (CUnary CPostIncOp itE)
+            (putStat $ CIf (itE .!=. maxIE)
+                           (CExpr . Just $ sumE .+=. (expE ((derefIndex itE) .-. (maxVE))))
+                           Nothing)
+
+      putExprStat $ loc .=. (maxVE .+. (logE sumE))
+
+  where derefIndex xE = index (arrayData arrayE) xE
+
+---------------------
+-- Kahan Summation --
+---------------------
+-- | given a body and a size compute the kahan summation. This should work on
+--   both probs and reals
+kahanSummationCG
+  :: ( ABT Term abt )
+  => (abt '[ a ] b)
+  -> CExpr
+  -> CExpr
+  -> (CExpr -> CodeGen ())
+kahanSummationCG body loE hiE =
+  caseBind body $ \v body' ->
+    \loc -> do
+      (tId:cId:[]) <- mapM genIdent' ["t","c"]
+      itId <- createIdent v
+      declare SNat itId
+      mapM_ (declare SProb) [tId,cId]
+      let (tE:cE:itE:[]) = fmap CVar [tId,cId,itId]
+      putExprStat $ tE .=. (floatE 0)
+      putExprStat $ cE .=. (floatE 0)
+      forCG (itE .=. loE)
+            (itE .<. hiE)
+            (CUnary CPostIncOp itE)
+            (do (xId:yId:zId:[]) <- mapM genIdent' ["x","y","z"]
+                mapM_ (declare SProb) [xId,yId,zId]
+                let (xE:yE:zE:[]) = fmap CVar [xId,yId,zId]
+                flattenABT body' xE
+                putExprStat $ yE .=. (xE .-. cE)
+                putExprStat $ zE .=. (tE .+. yE)
+                putExprStat $ cE .=.  ((zE .-. tE) .-. yE)
+                putExprStat $ tE .=. zE)
+      putExprStat $ loc .=. tE

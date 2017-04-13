@@ -20,15 +20,20 @@ import qualified Data.Number.LogFloat            as LF
 -- import qualified Numeric.Integration.TanhSinh    as TS
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
+
 import qualified Data.Vector                     as V
+import           Data.STRef
 import           Data.Sequence (Seq)
 import qualified Data.Foldable                   as F
 import qualified Data.List.NonEmpty              as L
 import           Data.List.NonEmpty              (NonEmpty(..))
 import           Data.Maybe                      (fromMaybe)
+
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
+import           Control.Monad
+import           Control.Monad.ST
 import           Control.Monad.Identity
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.State.Strict
@@ -43,6 +48,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.Value
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.AST
@@ -59,6 +65,15 @@ emptyEnv = Env IM.empty
 updateEnv :: EAssoc -> Env -> Env
 updateEnv v@(EAssoc x _) (Env xs) =
     Env $ IM.insert (fromNat $ varID x) v xs
+
+updateEnvs
+    :: List1 Variable xs
+    -> List1 Value xs
+    -> Env
+    -> Env
+updateEnvs Nil1         Nil1         env = env
+updateEnvs (Cons1 x xs) (Cons1 y ys) env =
+    updateEnvs xs ys (updateEnv (EAssoc x y) env)
 
 lookupVar :: Variable a -> Env -> Maybe (Value a)
 lookupVar x (Env env) = do
@@ -155,15 +170,17 @@ evaluateTerm
     -> Value a
 evaluateTerm t env =
     case t of
-    o :$ es       -> evaluateSCon    o es env
-    NaryOp_  o es -> evaluateNaryOp  o es env
-    Literal_ v    -> evaluateLiteral v
-    Empty_   _    -> evaluateEmpty
-    Array_   n es -> evaluateArray   n es env
-    Datum_   d    -> evaluateDatum   d    env
-    Case_    o es -> evaluateCase    o es env
-    Superpose_ es -> evaluateSuperpose es env
-    Reject_ _     -> VMeasure $ \_ _ -> return Nothing
+    o :$          es -> evaluateSCon    o es    env
+    NaryOp_  o    es -> evaluateNaryOp  o es    env
+    Literal_ v       -> evaluateLiteral v
+    Empty_   _       -> evaluateEmpty
+    Array_   n    es -> evaluateArray   n es    env
+    ArrayLiteral_ es -> VArray . V.fromList $ map (flip evaluate env) es
+    Bucket b e    rs -> evaluateBucket  b e  rs env
+    Datum_   d       -> evaluateDatum   d       env
+    Case_    o    es -> evaluateCase    o es    env
+    Superpose_    es -> evaluateSuperpose es    env
+    Reject_  _       -> VMeasure $ \_ _ -> return Nothing
 
 evaluateSCon
     :: (ABT Term abt)
@@ -536,6 +553,94 @@ evaluateArray n e env =
         VArray $ V.generate (fromNat n') $ \v ->
             let v' = VNat $ unsafeNat v in
             evaluate e' (updateEnv (EAssoc x v') env)
+
+evaluateBucket
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> abt '[] 'HNat
+    -> Reducer abt '[] a
+    -> Env
+    -> Value a
+evaluateBucket b e rs env =
+    case (evaluate b env, evaluate e env) of
+      (VNat b', VNat e') -> runST $ do
+          s' <- init Nil1 rs env
+          mapM_ (\i -> accum (VNat i) Nil1 rs s' env) [b' .. e' - 1]
+          done s'
+      v2                 -> case v2 of {}
+    where init :: (ABT Term abt)
+               => List1 Value xs
+               -> Reducer abt xs a
+               -> Env
+               -> ST s (VReducer s a)
+          init ix (Red_Fanout r1 r2)    env  =
+              VRed_Pair (type_ r1) (type_ r2) <$> init ix r1 env <*> init ix r2 env
+          init ix (Red_Index  n  _  mr) env  =
+              let (vars, n') = caseBinds n in
+              case evaluate n' (updateEnvs vars ix env) of
+                VNat n'' -> VRed_Array <$> V.generateM (fromIntegral n'')
+                            (\b -> init (Cons1 (vnat b) ix) mr env)
+          init ix (Red_Split _ r1 r2)   env  =
+              VRed_Pair (type_ r1) (type_ r2) <$> init ix r1 env <*> init ix r2 env
+          init ix Red_Nop               env  = return VRed_Unit
+          init ix (Red_Add h _) env = VRed_Num <$> newSTRef (identityElement (Sum h))
+
+          type_ = typeOfReducer
+
+          vnat :: Int -> Value 'HNat
+          vnat  = VNat . fromIntegral
+
+          accum :: (ABT Term abt)
+                => Value 'HNat
+                -> List1 Value xs
+                -> Reducer abt xs a
+                -> VReducer s a
+                -> Env
+                -> ST s ()
+          accum n ix (Red_Fanout r1 r2)   (VRed_Pair s1 s2 v1 v2) env =
+              accum n ix r1 v1 env >> accum n ix r2 v2 env
+          accum n ix (Red_Index n' a1 r2) (VRed_Array v)          env =
+              caseBind a1 $ \i a1' ->
+              let (vars, a1'') = caseBinds a1'
+                  VNat ov = evaluate a1''
+                            (updateEnv (EAssoc i n) (updateEnvs vars ix env))
+                  ov' = fromIntegral ov in
+              accum n (Cons1 (VNat ov) ix) r2 (v V.! ov') env
+          accum n ix (Red_Split b  r1 r2) (VRed_Pair s1 s2 v1 v2) env =
+              caseBind b $ \i b' ->
+                  let (vars, b'') = caseBinds b' in
+                  case evaluate b''
+                       (updateEnv (EAssoc i n) (updateEnvs vars ix env)) of
+                  VDatum b' -> if b' == dTrue then
+                                   accum n ix r1 v1 env
+                               else
+                                   accum n ix r2 v2 env
+          accum n ix (Red_Add h e) (VRed_Num s) env =
+              caseBind e $ \i e' ->
+                  let (vars, e'') = caseBinds e'
+                      v = evaluate e''
+                          (updateEnv (EAssoc i n) (updateEnvs vars ix env)) in
+                  modifySTRef' s (evalOp (Sum h) v)
+          accum _ _ Red_Nop _ _ = return ()
+
+          done :: VReducer s a -> ST s (Value a)
+          done (VRed_Num s)            = readSTRef s
+          done VRed_Unit               = return (VDatum dUnit)
+          done (VRed_Pair s1 s2 v1 v2) = do
+            v1' <- done v1
+            v2' <- done v2
+            return (VDatum $ dPair_ s1 s2 v1' v2')
+          done (VRed_Array v)          = VArray <$> V.sequence (V.map done v)
+
+typeOfReducer
+    :: Reducer abt xs a
+    -> Sing a
+typeOfReducer (Red_Fanout a b)  = sPair  (typeOfReducer a) (typeOfReducer b)
+typeOfReducer (Red_Index _ _ a) = SArray (typeOfReducer a)
+typeOfReducer (Red_Split _ a b) = sPair  (typeOfReducer a) (typeOfReducer b)
+typeOfReducer Red_Nop           = sUnit
+typeOfReducer (Red_Add h _)     = sing_HSemiring h
+
 
 evaluateDatum
     :: (ABT Term abt)

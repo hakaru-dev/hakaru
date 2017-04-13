@@ -1,4 +1,4 @@
-resolver: lts-7.16
+resolver: lts-8.2
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -9,5 +9,9 @@ packages:
 extra-deps:
  - indentation-core-0.0
  - indentation-parsec-0.0
- - pretty-1.1.3.2
+ - pretty-1.1.3.3
  - logfloat-0.13.3.3
+
+ # This pulls in about 5 additional transitive dependencies (building Cabal still takes 
+ # about 80% of the compile time for the dependencies, total...)
+ - tasty-hunit-adapter-1.1

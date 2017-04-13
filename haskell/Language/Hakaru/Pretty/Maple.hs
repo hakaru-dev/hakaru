@@ -105,6 +105,10 @@ parens :: ShowS -> ShowS
 parens a = showChar '(' . a . showChar ')'
 {-# INLINE parens #-}
 
+brackets :: ShowS -> ShowS
+brackets a = showChar '[' . a . showChar ']'
+{-# INLINE brackets #-}
+
 intercalate :: F.Foldable f => ShowS -> f ShowS -> ShowS
 intercalate sep = F.foldr1 (\a b -> a . sep . b)
 {-# INLINE intercalate #-}
@@ -117,21 +121,22 @@ mapleAST :: (ABT Term abt) => LC_ abt a -> ShowS
 mapleAST (LC_ e) =
     caseVarSyn e var1 $ \t ->
         case t of
-        o :$ es        -> mapleSCon o  es
-        NaryOp_ op es  -> mapleNary op es
-        Literal_ v     -> mapleLiteral v
-        Empty_ _       -> error "TODO: mapleAST{Empty}"
-        Array_ e1 e2   -> 
+        o :$ es          -> mapleSCon o  es
+        NaryOp_ op es    -> mapleNary op es
+        Literal_ v       -> mapleLiteral v
+        Empty_ _         -> error "TODO: mapleAST{Empty}"
+        Array_ e1 e2     ->
             caseBind e2 $ \x e2' ->
                 app3 "ary" e1 (var x) e2'
+        ArrayLiteral_ es -> brackets (commaSep (fmap arg es))
         Datum_ (Datum "true"  _typ (Inl Done)      ) -> showString "true"
         Datum_ (Datum "false" _typ (Inr (Inl Done))) -> showString "false"
-        Datum_ d       -> mapleDatum d
-        Case_  e'  bs  ->
+        Datum_ d         -> mapleDatum d
+        Case_  e'  bs    ->
             op2 "case" (arg e') (opN "Branches" (mapleBranch <$> bs))
-        Superpose_ pms ->
+        Superpose_ pms   ->
             opN "Msum" (uncurry (app2 "Weight") <$> L.toList pms)
-        Reject_ _      -> showString "Msum()"
+        Reject_ _        -> showString "Msum()"
 
 
 mapleLiteral :: Literal a -> ShowS
@@ -192,7 +197,7 @@ mapleSCon Integrate = \(e1 :* e2 :* e3 :* End) ->
         . showString "])"
 mapleSCon (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
-        showString "sum("
+        showString "Sum("
         . arg e3'
         . showString ", "
         . var1 x
@@ -203,7 +208,7 @@ mapleSCon (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
         . showString ")-1)"
 mapleSCon (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
-        showString "product("
+        showString "Product("
         . arg e3'
         . showString ", "
         . var1 x
@@ -332,8 +337,8 @@ mapleArrayOp _         _                 = error "TODO: mapleArrayOp{Reduce}"
 mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> ShowS
-mapleMeasureOp Lebesgue    = \End               -> showString "Lebesgue()"
-mapleMeasureOp Counting    = \End               -> showString "Counting()"
+mapleMeasureOp Lebesgue    = \End               -> showString "Lebesgue(-infinity,infinity)"
+mapleMeasureOp Counting    = \End               -> showString "Counting(-infinity,infinity)"
 mapleMeasureOp Categorical = \(e1 :* End)       -> app1 "Categorical" e1
 mapleMeasureOp Uniform     = \(e1 :* e2 :* End) -> app2 "Uniform"  e1 e2
 mapleMeasureOp Normal      = \(e1 :* e2 :* End) -> app2 "Gaussian" e1 e2

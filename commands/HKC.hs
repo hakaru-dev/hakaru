@@ -1,11 +1,13 @@
-{-# LANGUAGE GADTs,
-             OverloadedStrings #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Main where
 
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
+import Language.Hakaru.Syntax.AST.Transforms (expandTransformations, optimizations)
+import Language.Hakaru.Summary
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 import Language.Hakaru.CodeGen.CodeGenMonad
@@ -13,6 +15,8 @@ import Language.Hakaru.CodeGen.AST
 import Language.Hakaru.CodeGen.Pretty
 
 import           Control.Monad.Reader
+
+import           Data.Monoid
 import           Data.Text hiding (any,map,filter,foldr)
 import qualified Data.Text.IO as IO
 import           Text.PrettyPrint (render)
@@ -25,6 +29,7 @@ import           Prelude hiding (concat)
 data Options =
  Options { debug            :: Bool
          , optimize         :: Bool
+         , summaryOpt       :: Bool
          , make             :: Maybe String
          , asFunc           :: Maybe String
          , fileIn           :: String
@@ -33,6 +38,7 @@ data Options =
          , showWeightsOpt   :: Bool
          , showProbInLogOpt :: Bool
          , garbageCollector :: Bool
+         -- , logProbs         :: Bool
          } deriving Show
 
 
@@ -49,7 +55,10 @@ options = Options
              <> help "Prints Hakaru src, Hakaru AST, C AST, C src" )
   <*> switch (  long "optimize"
              <> short 'O'
-             <> help "Performs constant folding on Hakaru AST" )
+             <> help "Performs Hakaru AST Optimizations" )
+  <*> switch (  long "summary"
+             <> short 'S'
+             <> help "Performs summarization optimization" )
   <*> (optional $ strOption (  long "make"
                             <> short 'm'
                             <> help "Compiles generated C code with the compiler ARG"))
@@ -71,6 +80,8 @@ options = Options
   <*> switch (  long "garbage-collector"
              <> short 'g'
              <> help "Use Boehm Garbage Collector")
+  -- <*> switch (  long "-no-log-space-probs"
+  --            <> help "Do not log `prob` types; WARNING this is more likely to underflow.")
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options)
@@ -78,10 +89,14 @@ parseOpts = execParser $ info (helper <*> options)
 
 compileHakaru :: Text -> ReaderT Options IO ()
 compileHakaru prog = ask >>= \config -> lift $ do
-  case parseAndInfer prog of
+  prog' <- parseAndInferWithDebug (debug config) prog
+  case prog' of
     Left err -> IO.hPutStrLn stderr err
     Right (TypedAST typ ast) -> do
-      let ast'    = TypedAST typ $ foldr id ast abtPasses
+      astS <- case summaryOpt config of
+                True  -> summary (expandTransformations ast)
+                False -> return ast
+      let ast'    = TypedAST typ $ foldr id astS (abtPasses $ optimize config)
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"
@@ -109,8 +124,12 @@ compileHakaru prog = ask >>= \config -> lift $ do
 
   where hrule s = concat ["\n<=======================| "
                          ,s," |=======================>\n"]
-        abtPasses = [ expandTransformations
-                    , constantPropagation ]
+        -- abtPasses :: forall (a :: Hakaru)
+        --           .  Bool
+        --           -> [TrivialABT Term '[] a -> TrivialABT Term '[] a]
+        abtPasses b = [ expandTransformations
+                      , constantPropagation ]
+                      ++ (if b then [optimizations] else [])
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr

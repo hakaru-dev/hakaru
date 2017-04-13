@@ -12,6 +12,11 @@ module Language.Hakaru.Syntax.AST.Transforms where
 
 import qualified Data.Sequence as S
 
+import Language.Hakaru.Syntax.ANF      (normalize)
+import Language.Hakaru.Syntax.CSE      (cse)
+import Language.Hakaru.Syntax.Prune    (prune)
+import Language.Hakaru.Syntax.Uniquify (uniquify)
+import Language.Hakaru.Syntax.Hoist    (hoist)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeOf
@@ -20,6 +25,18 @@ import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Expect       (expect)
 import Language.Hakaru.Disintegrate (determine, observe)
+
+optimizations
+  :: (ABT Term abt)
+  => abt '[] a
+  -> abt '[] a
+optimizations = uniquify
+              . prune
+              . cse
+              . hoist
+              -- The hoist pass needs globally uniqiue identifiers
+              . uniquify
+              . normalize
 
 underLam
     :: (ABT Term abt, Monad m)

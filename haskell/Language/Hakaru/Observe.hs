@@ -79,6 +79,7 @@ observeAST (LC_ m) (LC_ a) =
 
 -- This function can't inspect a variable due to
 -- calls to subst that happens in Let_ and Bind_
+observeVar :: Variable a -> r
 observeVar = error "observe can only be applied measure primitives"
 
 observeMeasureOp

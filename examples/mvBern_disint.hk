@@ -1,0 +1,31 @@
+fn categories nat:
+fn features nat:
+fn x26 pair(pair(array(array(nat)), array(nat)), array(nat)): 
+  match x26: 
+   (x49, testF): 
+     match x49: 
+      (trainF, trainC): 
+       dirichlet = fn as array(prob): 
+                    xs <~ plate i of int2nat((nat2int(size(as)) - 1)): 
+                           beta((summate j from (i + 1) to size(as): as[j]), as[i])
+                    return array i of size(as): 
+                            x = product j from 0 to i: xs[j]
+                            (x
+                              * 
+                             (match ((i + 1) == size(as)): 
+                               true: 1
+                               false: real2prob((1 - prob2real(xs[i])))))
+       pC <~ dirichlet(array c of categories: 1)
+       pF <~ plate c of categories: 
+              plate f of features: 
+               p <~ beta(1, 1)
+               return [p, real2prob(1-p)]
+       x84 <~ plate x66 of size(trainC): 
+               weight(pC[trainC[x66]], return ())
+       x81 <~ plate x56 of size(trainC): 
+               plate x61 of features: 
+                weight(pF[trainC[x56]][x61][trainF[x56][x61]], return ())
+       testC <~ categorical(pC)
+       x75 <~ plate x71 of features: 
+               weight(pF[testC][x71][testF[x71]], return ())
+       return testC
