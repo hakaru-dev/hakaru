@@ -158,10 +158,11 @@ end proc;
 # Load a file in concrete Hakaru syntax (using the "momiji" command)
 # and return its term (in which Sum and Product are inert) and type.
 Concrete := proc(path::string, $)
-  local cmd, res;
+  local cmd, res, dangerous_chars;
   cmd := FileTools:-AbsolutePath(path,
     (FileTools:-ParentDirectory@@2)(LibraryTools:-FindLibrary(Hakaru)));
-  if ormap((c->StringTools:-Has(cmd,c)), [" ", "'", """", "\\"]) then
+  dangerous_chars := [ " ", "'", """", `if`(kernelopts(platform)="windows", [], ["\\"])[] ];
+  if ormap((c->StringTools:-Has(cmd,c)), dangerous_chars) then
     error "Dangerous characters in path: %1", cmd;
   end if;
   cmd := cat("momiji ", cmd);
