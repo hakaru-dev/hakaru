@@ -10,4 +10,4 @@ To add a feature to the Hakaru language you must
 * Update the sampler if this primitive is intended to exist at runtime
 * Update the compilers to emit the right code for this symbol
 
-We give an example of what this looks like by adding `double` to the language.
+TODO: We give an example of what this looks like by adding `double` to the language.

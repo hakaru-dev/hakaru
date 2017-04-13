@@ -1,12 +1,27 @@
-\documentclass{article}
-\usepackage[margin=0.8in]{geometry}
+\documentclass[12pt]{article}
+\usepackage[margin=1.2in]{geometry}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{tikz}
 \usepackage{tikz-qtree}
 \usepackage{verbatim}
+\usepackage{algorithm,caption}
 
 % \usepackage{natbib}
 % \twocolumn
+
+\newcommand{\ind}{\hspace*{1em}}
+\newcommand{\kword}[1]{{\bf #1}}
+\newcommand{\algblk}[2]{
+  \begin{center}
+    \begin{minipage}[c]{22em}
+      \begin{algorithm}[H]
+        \caption*{{\bf Algorithm} #1}
+        #2
+      \end{algorithm}
+    \end{minipage}
+  \end{center}
+}
 
 
 \title{Adding Probabilities in the Hakaru to C Compiler (HKC)}
@@ -16,14 +31,14 @@
 \begin{document}
 \maketitle
 
-\section*{Probabilities in Hakaru}
+\section{Probabilities in Hakaru}
 
 Because Hakaru is a probabilistic language, we provide a type just for
 probabilities. The type {\tt prob} has extra safety from underflow. The main way
 we accomplish this is by storing its value as double precision floating point
 numbers in the log-domain. We can do basic arithmetic on our probabilities.
 
-\section*{The ``LogSumExp Trick''}
+\section{The ``LogSumExp Trick''}
 Because our probability types are stored in the log-domain, we need to compute
 \begin{displaymath}
 {\rm LSE}(x) = \log\Bigg(\sum_{i=0}^{n}{e^{x_i}}\Bigg)
@@ -39,6 +54,45 @@ operations.
 \end{align*}
 
 This trick preserves the value of the largest of the numbers being summed.
+
+
+\section{Summation over Probabilities}
+
+For summation over probabilities a different technique for LogSumExp will need
+to be use. Since arity will not be known at runtime we need to have a function
+that operates over an array.
+
+This algorithm follows directly from the math:
+
+\algblk{LogSumExp for Summation}
+{
+  \kword{input:} an index production function
+  $f : \mathbb{N} \rightarrow \mathbb{R}^+$ and a size $n \in \mathbb{N}$
+
+  \kword{output:} summation of array produced by $f$ in log-space\\
+
+  $A[0] \leftarrow f(0)$\\
+  $m \leftarrow A[0]$\\
+  $s \leftarrow 0$\\
+  \kword{for} $i = 0,1,...,n-1$\kword{:}\\
+  \ind $A[i] \leftarrow f(i)$\\
+  \ind \kword{if} $m < A[i]$ \kword{:}\\
+  \ind \ind $m \leftarrow A[i]$\\
+  \kword{for} $i = 0,1,...,n-1$\kword{:}\\
+  \ind \ind $s \leftarrow s + \exp(A[i]-m)$\\
+  \kword{return} $m + \log(s)$
+}
+
+It scales in space at $O(n)$ and in time at $O(2n)$. We generate a function
+for this operation and call it when we summate over probabilities. It differs
+from summation over {\tt nat}, {\tt int}, and {\tt real} which are done in
+constant time.
+
+\section{$n$-ary Probability Summation}
+
+Algorithmically, $n$-ary operations are the same operation as summation over an
+array. However, it requires different word for code generation. For summation
+we do not know that arity at runtime. For $n$-ary operations, we do.
 
 
 \subsection*{Max Comparison Tree}
@@ -88,7 +142,7 @@ A Hakaru program that sums 4 probabilities will generate the following C
 expression, where {\tt p\_a}, {\tt p\_b}, {\tt p\_c}, and {\tt p\_d} are
 variables holding probabilities:
 
-\begin{center}
+{\small
 \begin{verbatim}
 p_a > p_b
   ? p_a > p_c
@@ -106,12 +160,11 @@ p_a > p_b
       ? p_c + log1p(expm1(p_b - p_c) + (expm1(p_d - p_c) + expm1(p_a - p_c)) + 3)
       : p_d + log1p(expm1(p_b - p_d) + (expm1(p_c - p_d) + expm1(p_a - p_d)) + 3)));
 \end{verbatim}
-\end{center}
+}
 
 We can use {\tt log1p} because where $x_i$ is the maximum
 $e^{x_i - \hat x} = 1$. We use {\tt log1p} and {\tt expm1} because they can be
 more accurate for small values.
-
 
 \subsection*{Future Improvements}
 

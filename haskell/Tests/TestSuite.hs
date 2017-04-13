@@ -3,12 +3,13 @@
 import System.Exit (exitFailure)
 import System.Environment (lookupEnv)
 
-import qualified Tests.Parser       as P
-import qualified Tests.TypeCheck    as TC
-import qualified Tests.Simplify     as S
-import qualified Tests.Disintegrate as D
-import qualified Tests.Sample       as E
-import qualified Tests.RoundTrip    as RT
+import qualified Tests.ASTTransforms as TR
+import qualified Tests.Parser        as P
+import qualified Tests.TypeCheck     as TC
+import qualified Tests.Simplify      as S
+import qualified Tests.Disintegrate  as D
+import qualified Tests.Sample        as E
+import qualified Tests.RoundTrip     as RT
 
 import Test.HUnit
 
@@ -31,10 +32,16 @@ allTests env = test
   , TestLabel "Disintegrate" D.allTests
   , TestLabel "Evaluate"     E.allTests
   , TestLabel "RoundTrip"    (simplifyTests RT.allTests env)
+  , TestLabel "ASTTransforms" TR.allTests
   ]
 
 main :: IO ()
-main  = do
+main = mainWith (fmap Just . runTestTT)
+
+mainWith :: (Test -> IO (Maybe Counts)) -> IO ()
+mainWith run = do
     env <- lookupEnv "LOCAL_MAPLE"
-    Counts _ _ e f <- runTestTT (allTests env)
-    if (e>0) || (f>0) then exitFailure else return ()
+    run (allTests env) >>=
+      maybe (return ()) (\(Counts _ _ e f) -> if (e>0) || (f>0) then exitFailure else return ())
+
+-- maini = mainWith 

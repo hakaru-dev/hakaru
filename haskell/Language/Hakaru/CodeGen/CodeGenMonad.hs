@@ -42,6 +42,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , putStat
   , putExprStat
   , extDeclare
+  , extDeclareTypes
   , defineFunction
   , funCG
   , isParallel
@@ -101,10 +102,11 @@ data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generatio
              , managedMem    :: Bool         -- ^ garbage collected block
              , sharedMem     :: Bool         -- ^ shared memory supported block
              , distributed   :: Bool         -- ^ distributed supported block
+             , logProbs      :: Bool         -- ^ true by default, but might not matter in some situations
              }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty mempty [] [] emptyEnv False False False
+emptyCG = CG suffixes mempty mempty [] [] emptyEnv False False False True
 
 type CodeGen = State CG
 
@@ -186,11 +188,16 @@ genIdent' s =
 createIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 createIdent var@(Variable name _ _) =
   do !cg <- get
-     let ident = Ident $ (T.unpack name) ++ "_" ++ (head $ freshNames cg)
+     let ident = Ident $ concat [ concatMap toAscii . T.unpack $ name
+                                , "_",head $ freshNames cg ]
          env'  = updateEnv var ident (varEnv cg)
      put $! cg { freshNames = tail $ freshNames cg
                , varEnv     = env' }
      return ident
+  where toAscii c = let num = fromEnum c in
+                    if num < 48 || num > 122
+                    then "u" ++ (show num)
+                    else [c]
 
 lookupIdent :: Variable (a :: Hakaru) -> CodeGen Ident
 lookupIdent var =
@@ -204,21 +211,47 @@ lookupIdent var =
 --   code in the CodeGenMonad while literal types SReal, SInt, SNat, and SProb
 --   do not
 declare :: Sing (a :: Hakaru) -> Ident -> CodeGen ()
-declare SInt          = declare' . typeDeclaration SInt
-declare SNat          = declare' . typeDeclaration SNat
-declare SProb         = declare' . typeDeclaration SProb
-declare SReal         = declare' . typeDeclaration SReal
-declare (SMeasure (SArray t))  = \i -> do extDeclare $ arrayStruct t
-                                          extDeclare $ mdataStruct t
-                                          declare'   $ mdataDeclaration (SArray t) i
-declare (SMeasure t)  = \i -> do extDeclare $ mdataStruct t
-                                 declare'   $ mdataDeclaration t i
-declare (SArray t)    = \i -> do extDeclare $ arrayStruct t
-                                 declare'   $ arrayDeclaration t i
-declare d@(SData _ _) = \i -> do extDeclare $ datumStruct d
-                                 declare'   $ datumDeclaration d i
-declare (SFun _ _)    = \_ -> return () -- function definitions handeled in flatten
+declare SInt  = declare' . typeDeclaration SInt
+declare SNat  = declare' . typeDeclaration SNat
+declare SProb = declare' . typeDeclaration SProb
+declare SReal = declare' . typeDeclaration SReal
+declare m@(SMeasure t) = \i ->
+  extDeclareTypes m >> (declare' $ mdataDeclaration t i)
 
+declare a@(SArray t) = \i ->
+  extDeclareTypes a >> (declare' $ arrayDeclaration t i)
+
+declare d@(SData _ _)  = \i ->
+  extDeclareTypes d >> (declare' $ datumDeclaration d i)
+
+declare f@(SFun _ _) = \_ ->
+  extDeclareTypes f >> return ()
+  -- this currently avoids declaration if the type is a lambda, this is hacky
+
+-- | for types that contain subtypes we need to recursively traverse them and
+--   build up a list of external type declarations.
+--   For example: Measure (Array Nat) will need to have structures for arrays
+--   declared before the top level type
+extDeclareTypes :: Sing (a :: Hakaru) -> CodeGen ()
+extDeclareTypes SInt          = return ()
+extDeclareTypes SNat          = return ()
+extDeclareTypes SReal         = return ()
+extDeclareTypes SProb         = return ()
+extDeclareTypes (SMeasure i)  = extDeclareTypes i >> extDeclare (mdataStruct i)
+extDeclareTypes (SArray i)    = extDeclareTypes i >> extDeclare (arrayStruct i)
+extDeclareTypes (SFun x y)    = extDeclareTypes x >> extDeclareTypes y
+extDeclareTypes d@(SData _ i) = extDeclDatum i    >> extDeclare (datumStruct d)
+  where extDeclDatum :: Sing (a :: [[HakaruFun]]) -> CodeGen ()
+        extDeclDatum SVoid       = return ()
+        extDeclDatum (SPlus p s) = extDeclDatum s >> datumProdTypes p
+
+        datumProdTypes :: Sing (a :: [HakaruFun]) -> CodeGen ()
+        datumProdTypes SDone     = return ()
+        datumProdTypes (SEt x p) = datumProdTypes p >> datumPrimTypes x
+
+        datumPrimTypes :: Sing (a :: HakaruFun) -> CodeGen ()
+        datumPrimTypes SIdent     = return ()
+        datumPrimTypes (SKonst s) = extDeclareTypes s
 
 declare' :: CDecl -> CodeGen ()
 declare' d = do cg <- get
@@ -275,7 +308,7 @@ funCG ts ident args mbody =
                , declarations = declarations cg }
      extDeclare . CFunDefExt $
        CFunDef [CTypeSpec ts]
-               (CDeclr Nothing [ CDDeclrIdent ident ])
+               (CDeclr Nothing (CDDeclrIdent ident))
                args
                (CCompound ((fmap CBlockDecl decls) ++ (fmap CBlockStat stmts)))
 

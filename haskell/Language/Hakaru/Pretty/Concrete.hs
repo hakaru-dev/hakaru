@@ -181,8 +181,8 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 identityElement Or       = [PP.text "false"]
                 identityElement Xor      = [PP.text "false"]
                 identityElement Iff      = [PP.text "true"]
-                identityElement (Min  _) = error "min can not be used with no arguements"
-                identityElement (Max  _) = error "max can not be used with no arguements"
+                identityElement (Min  _) = error "min cannot be used with no arguments"
+                identityElement (Max  _) = error "max cannot be used with no arguments"
                 identityElement (Sum  _) = [PP.text "0"]
                 identityElement (Prod _) = [PP.text "1"]
 
@@ -196,6 +196,8 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
               <+> toDoc (ppArg e1)
               <> PP.colon <> PP.space
             , PP.nest 1 (toDoc body)]
+
+        ArrayLiteral_ es -> ppList $ fmap (prettyPrec 0) es
 
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
         Case_  e1 bs  -> parens True $
@@ -321,6 +323,7 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
 
 ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     let (vars, types, body) = ppBinder2 e3 in
+    parens True $
     [ PP.text "summate"
       <+> toDoc vars
       <+> PP.text "from"
@@ -333,6 +336,7 @@ ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
 
 ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
     let (vars, types, body) = ppBinder2 e3 in
+    parens True $
     [ PP.text "product"
       <+> toDoc vars
       <+> PP.text "from"

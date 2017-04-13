@@ -74,7 +74,7 @@ integer = Tok.integer lexer
 
 float :: Parser Rational
 float =  (decimal >>= fractExponent) <* whiteSpace
-                  
+
 fractFloat :: Integer -> Parser (Either Integer Rational)
 fractFloat n  =  fractExponent n >>= return . Right
 
@@ -182,7 +182,7 @@ binop s x y
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
 binary s = Ex.Infix (binop (Text.pack s) <$ reservedOp s)
 
-prefix :: String -> (a -> a) -> Operator a 
+prefix :: String -> (a -> a) -> Operator a
 prefix s f = Ex.Prefix (f <$ reservedOp s)
 
 postfix :: Parser (a -> a) -> Operator a
@@ -199,7 +199,7 @@ table =
     , [ binary "+"  Ex.AssocLeft
       , binary "-"  Ex.AssocLeft
       , prefix "-"  (app1 "negate")]
-    -- TODO: add "<=", ">=", "/="
+    -- TODO: add "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
     , [ postfix ann_expr ]
     , [ binary "<|>" Ex.AssocRight]
@@ -314,10 +314,10 @@ integrate_expr =
     reserved "integrate"
     *> (Integrate
         <$> identifier
-        <*  symbol "from"        
+        <*  symbol "from"
         <*> expr
         <*  symbol "to"
-        <*> expr     
+        <*> expr
         <*> semiblockExpr
         )
 
@@ -326,10 +326,10 @@ summate_expr =
     reserved "summate"
     *> (Summate
         <$> identifier
-        <*  symbol "from"        
+        <*  symbol "from"
         <*> expr
         <*  symbol "to"
-        <*> expr     
+        <*> expr
         <*> semiblockExpr
         )
 
@@ -338,10 +338,10 @@ product_expr =
     reserved "product"
     *> (Product
         <$> identifier
-        <*  symbol "from"        
+        <*  symbol "from"
         <*> expr
         <*  symbol "to"
-        <*> expr     
+        <*> expr
         <*> semiblockExpr
         )
 
@@ -378,15 +378,7 @@ array_index = flip Index <$> brackets expr
 array_literal :: Parser (AST' Text)
 array_literal = checkEmpty <$> brackets (commaSep expr)
   where checkEmpty [] = Empty
-        checkEmpty xs = Array "" (ULiteral . Nat . fromIntegral . length $ xs)
-                        (go 0 xs)
-
-        go _ []      = error "the impossible happened"
-        go _ [x]     = x
-        go n (x:xs)  = If (Var "equal" `App` (Var "") `App` (ULiteral $ Nat n))
-                          x
-                          (go (n + 1) xs)
-                
+        checkEmpty xs = ArrayLiteral xs
 
 plate_expr :: Parser (AST' Text)
 plate_expr =
@@ -474,7 +466,7 @@ term =  try if_expr
     <|> try lam_expr
     <|> try def_expr
     <|> try match_expr
-    -- <|> try data_expr
+    <|> try data_expr
     <|> try integrate_expr
     <|> try summate_expr
     <|> try product_expr
@@ -513,7 +505,7 @@ parseHakaru =
 parseHakaruWithImports :: Text -> Either ParseError (ASTWithImport' Text)
 parseHakaruWithImports =
     runParser (skipMany (comments <|> emptyLine) *>
-               exprWithImport <* eof) () "<input>" . indentConfig
+               exprWithImport <* eof) () "<input>" . indentConfig . Text.strip
 
 withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
@@ -522,14 +514,26 @@ withPos x = do
     e  <- getPosition
     return $ WithMeta x' (SourceSpan s e)
 
+{-
+user-defined types:
+
+data either(a,b):
+  left(a)
+  right(a)
+
+data maybe(a):
+  nothing
+  just(a)
+-}
+
 data_expr :: Parser (AST' Text)
-data_expr =
+data_expr = do
     reserved "data"
-    *>  (Data
-        <$> identifier
-        <*  parens (commaSep identifier) -- TODO: why throw them away?
-        <*> blockOfMany (try type_app <|> type_var)
-        )
+    ident <- identifier
+    typvars <- parens (commaSep identifier)
+    ts <- blockOfMany (try type_app <|> type_var)
+    e <- expr
+    return (Data ident typvars ts e)
 
 import_expr :: Parser (Import Text)
 import_expr =
