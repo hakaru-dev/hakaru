@@ -24,6 +24,7 @@ KB := module ()
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert, (* `&assuming` *)
          negated_relation, negate_relation,
+         build_unsafely,
          kb_subtract, simplify_assuming, simplify_factor_assuming,
          getType, kb_to_variables, kb_to_assumptions, kb_to_equations,
          kb_piecewise, list_of_mul, for_poly, range_of_HInt;
@@ -65,10 +66,10 @@ KB := module ()
   #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
   #Carl 2016Sep09
   negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
-  negate_relation:= proc(R::relation, $)::relation; 
+  negate_relation:= proc(R::relation, $)::relation;
        negated_relation[op(0,R)](op(R))
   end proc;
-  
+
   assert := proc(b, kb::t_kb, $)
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
@@ -849,6 +850,14 @@ KB := module ()
   chilled := '{size, idx}';
   chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
   warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
+
+  # The KB constructors are local, but sometimes for debugging purposes one
+  # would like to construct the KB directly. This converts the global names
+  # Introduce,Constrain,Let, and Bound to KB:-<..> and replaces the 0-th operand
+  # with KB:-KB.
+  build_unsafely := proc(kb,$)
+    KB(op(subs([ :-Introduce=Introduce, :-Let=Let, :-Bound=Bound, :-Constrain=Constrain ], kb)));
+  end proc;
 
   ModuleLoad := proc($)
     Hakaru; # Make sure the KB module is loaded, for the type t_type
