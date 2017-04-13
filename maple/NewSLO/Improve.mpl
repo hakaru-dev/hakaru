@@ -51,7 +51,7 @@
         * `*`(op(subintegral));
     elif e :: t_pw then
       e:= flatten_piecewise(e);
-      e := kb_piecewise(e, kb, simplify_assuming,
+      e := kb_piecewise(e, kb, (z,_)->z,
                         ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
       e := eval(e, %reduce=reduce);
       # big hammer: simplify knows about bound variables, amongst many
