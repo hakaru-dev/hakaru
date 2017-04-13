@@ -60,6 +60,9 @@ KB := module ()
       empty, genLebesgue, genType, genSummation, genIntVar, genLet,
       assert, assert_deny, assert_mb, assert_deny_mb, build_kb,
 
+     # for debugging
+     build_unsafely,
+
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
      negated_relation, negate_rel, negate_rels,
@@ -906,6 +909,14 @@ KB := module ()
 
   chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
   warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
+
+  # The KB constructors are local, but sometimes for debugging purposes one
+  # would like to construct the KB directly. This converts the global names
+  # Introduce,Constrain,Let, and Bound to KB:-<..> and replaces the 0-th operand
+  # with KB:-KB.
+  build_unsafely := proc(kb,$)
+    KB(op(subs([ :-Introduce=Introduce, :-Let=Let, :-Bound=Bound, :-Constrain=Constrain ], kb)));
+  end proc;
 
   ModuleLoad := proc($)
     Hakaru; # Make sure the KB module is loaded, for the type t_type
