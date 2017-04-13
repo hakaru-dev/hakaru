@@ -448,6 +448,10 @@ KB := module ()
           # technically this means the KB was already contradictory, we
           # just didn't know?
           return false;
+      catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
+          # This is seemingly a Maple bug - the condition could still be, but we
+          # don't know, so conservatively return true.
+          return true;
       catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
           error expr_indp_errMsg(), a, as;
       catch "when calling '%2'. Received: 'expression independent of, %0'":
