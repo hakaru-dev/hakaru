@@ -451,6 +451,8 @@ KB := module ()
       catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
           # This is seemingly a Maple bug - the condition could still be, but we
           # don't know, so conservatively return true.
+          WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling coulditbe(%%1) assuming (%%2)"
+                          , StringTools[FormatMessage](lastexception[2..-1])), a, as0 );
           return true;
       catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
           error expr_indp_errMsg(), a, as;
@@ -509,16 +511,7 @@ KB := module ()
         x, k := op(op(1,k));
         # Found the innermost scope where b makes sense.
         # Reduce (in)equality between exp(A) and exp(B) to between A and B.
-        do
-          try log_b := map(simplify@ln, b) assuming op(as); catch: break; end try;
-
-          if log_metric(log_b, x) < log_metric(b, x)
-             and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
-            b := log_b;
-          else
-            break;
-          end if;
-        end do;
+        b := try_improve_exp(b, x, as);
 
         # syntactic adjustment
         # If `b' is of a particular form (a bound on `x'), simplification
@@ -562,9 +555,10 @@ KB := module ()
     local m, L;
     m := select(depends, indets(e, 'exp(anything)'), x);
     length(subsindets(map2(op, 1, m), name, _->L));
-  end proc:
+  end proc;
 
-
+  # This should be local to KB (or even to assert_deny) but it is used
+  # by Domain.
   try_improve_exp := proc(b0, x, ctx, $)
         local b := b0, log_b;
         do
