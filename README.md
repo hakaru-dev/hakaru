@@ -28,7 +28,7 @@ Hakaru has multiple components. To build it by default run
     cabal build
     cabal test
 
-If you have Maple installed and wish to take advantage
+If you have Maple (2016 or newer) installed and wish to take advantage
 of Hakaru's program simplifier run
 
     export LOCAL_MAPLE="`which maple`"
