@@ -490,8 +490,8 @@ KB := module ()
       foldr(((b,kb) -> assert_deny_mb(b, not pol, kb)), kb, op(bb))
 
     else
-      bb := chill(bb);
       as := chill(kb_to_assumptions(kb, bb));
+      bb := chill(bb);
 
       # try to evaluate under the assumptions, but some assumptions break
       # with eval, so remove any of those we tried to chill to prevent them breaking
