@@ -705,6 +705,22 @@ flattenArrayOp (Reduce _) = error "TODO: flattenArrayOp"
 --------------------------------------------------------------------------------
 --                              Bucket and Recuders                           --
 --------------------------------------------------------------------------------
+{- Declarations for buckets -
+  since we will have some product of monoids we need unique names for each one.
+
+  Ex:
+    bucket i from 0 to 100:
+      fanout(add(\_ -> 1),add(\_ -> 2))
+
+  we will need to keep track of two ints:
+
+  int x;
+  int y;
+  for (i = 0; i < 100; i++) {
+    x += 1;
+    y += 2;
+  }
+-}
 
 flattenBucket
   :: (ABT Term abt)
@@ -713,14 +729,33 @@ flattenBucket
   -> Reducer abt '[] a
   -> (CExpr -> CodeGen ())
 flattenBucket lo hi red = \loc -> do
+    putStat $ opComment "Begin Bucket"
     loE <- flattenWithName' lo "lo"
     hiE <- flattenWithName' hi "hi"
-    return ()
-  where initRed (Red_Fanout _ _)  = undefined
+    itId <- genIdent' "it"
+    declare SNat itId
+    let itE = CVar itId
+    -- declare' . declRed $ red
+    forCG (itE .=. loE)
+          (itE .<. hiE)
+          (CUnary CPostIncOp itE)
+          (return ())
+    putStat $ opComment "End Bucket"
+  where declRed :: Reducer abt '[] a -> CDecl
+        declRed (Red_Fanout _ _)  = undefined
+        declRed (Red_Index _ _ _) = undefined
+        declRed (Red_Split _ _ _) = undefined
+        declRed (Red_Nop)         = undefined
+        declRed (Red_Add _ t)     = undefined
+
+        initRed :: Reducer abt '[] a -> CodeGen ()
+        initRed (Red_Fanout _ _)  = undefined
         initRed (Red_Index _ _ _) = undefined
         initRed (Red_Split _ _ _) = undefined
         initRed (Red_Nop)         = undefined
         initRed (Red_Add _ _)     = undefined
+
+        accumRed :: Reducer abt '[] a -> CodeGen ()
         accumRed (Red_Fanout _ _)  = undefined
         accumRed (Red_Index _ _ _) = undefined
         accumRed (Red_Split _ _ _) = undefined
