@@ -39,6 +39,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum hiding (Ident)
+import Language.Hakaru.Syntax.Reducer
 import qualified Language.Hakaru.Syntax.Prelude as HKP
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
@@ -125,7 +126,7 @@ flattenTerm (Empty_ _)        = error "TODO: flattenTerm{Empty}"
 flattenTerm (Datum_ d)        = flattenDatum d
 flattenTerm (Case_ c bs)      = flattenCase c bs
 
-flattenTerm (Bucket _ _ _)    = error "TODO: flattenTerm{Bucket}"
+flattenTerm (Bucket b e rs)   = flattenBucket b e rs
 
 flattenTerm (Array_ s e)      = flattenArray s e
 flattenTerm (ArrayLiteral_ s) = flattenArrayLiteral s
@@ -701,6 +702,31 @@ flattenArrayOp (Reduce _) = error "TODO: flattenArrayOp"
 
   --    return accE
 
+--------------------------------------------------------------------------------
+--                              Bucket and Recuders                           --
+--------------------------------------------------------------------------------
+
+flattenBucket
+  :: (ABT Term abt)
+  => abt '[] 'HNat
+  -> abt '[] 'HNat
+  -> Reducer abt '[] a
+  -> (CExpr -> CodeGen ())
+flattenBucket lo hi red = \loc -> do
+    loE <- flattenWithName' lo "lo"
+    hiE <- flattenWithName' hi "hi"
+    return ()
+  where initRed (Red_Fanout _ _)  = undefined
+        initRed (Red_Index _ _ _) = undefined
+        initRed (Red_Split _ _ _) = undefined
+        initRed (Red_Nop)         = undefined
+        initRed (Red_Add _ _)     = undefined
+        accumRed (Red_Fanout _ _)  = undefined
+        accumRed (Red_Index _ _ _) = undefined
+        accumRed (Red_Split _ _ _) = undefined
+        accumRed (Red_Nop)         = undefined
+        accumRed (Red_Add _ _)     = undefined
+
 
 --------------------------------------------------------------------------------
 --                                 Datum and Case                             --
@@ -828,8 +854,26 @@ flattenCase c [ Branch (PDatum _ (PInl PDone))        trueB
                      (CCompound . fmap CBlockStat . reverse . statements $ cg')
                      (Just alt)
 
+flattenCase e [ Branch (PDatum _ (PInl (PEt (PKonst PVar)
+                                            (PEt (PKonst PVar)
+                                                 PDone)))) b
+              ]
+  = \loc -> do
+    eE <- flattenWithName e
+    caseBind b $ \vfst@(Variable _ _ fstTyp) b' ->
+      caseBind b' $ \vsnd@(Variable _ _ sndTyp) b'' -> do
+        fstId <- createIdent vfst
+        sndId <- createIdent vsnd
+        declare fstTyp fstId
+        declare sndTyp sndId
+        let fstE = CVar fstId
+            sndE = CVar sndId
+            obj = CMember (CMember eE (Ident "sum") True) (Ident "a") True
+        putExprStat $ fstE .=. (CMember obj (Ident "a") True)
+        putExprStat $ sndE .=. (CMember obj (Ident "b") True)
+        flattenABT b'' loc
 
-flattenCase _ _ = error "TODO: flattenCase"
+flattenCase e _ = error $ "TODO: flattenCase{" ++ show (typeOf e) ++ "}"
 
 
 --------------------------------------------------------------------------------
