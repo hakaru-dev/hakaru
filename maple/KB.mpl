@@ -603,7 +603,7 @@ KB := module ()
   kb_subtract := proc(kb::t_kb, kb0::t_kb, $)
     local cut;
     cut := nops(kb) - nops(kb0);
-    if cut < 0 or KB(op(cut+1..-1, kb)) <> kb0 then
+    if cut < 0 or [op(cut+1..-1, kb)] <> [op(kb0)] then
       error "%1 is not an extension of %2", kb, kb0;
     end if;
     map(proc(k, $)
