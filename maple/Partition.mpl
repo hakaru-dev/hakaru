@@ -258,9 +258,16 @@ export
      export ModuleApply;
      local unpiece, unpart, unpartProd;
 
-     ModuleApply := proc(pr0, $)
-       local pr := subsindets(pr0, Or(Partition, `*`), unpartProd);;
-       if pr <> pr0 then ModuleApply(pr) else pr end if;
+     ModuleApply := proc(pr0, { _with := [ 'Partition', unpart ] } )
+       local ty, un_ty, pr1, pr2;
+       ty, un_ty := op(_with);
+
+       pr1 := subsindets(pr0, ty, un_ty);
+       if pr0 <> pr1 then
+         ModuleApply(pr1, _with=[ Or('Partiton',`*`), unpartProd ]);
+       else
+         pr0
+       end if;
      end proc;
 
      # like Piece, but tries to not be a Piece
@@ -285,7 +292,7 @@ export
        if pr :: `*` then
          ps, ws := selectremove(q->type(q,Partition), [op(pr)]);
          if nops(ps) = 1 then
-           Pmap(x->`*`(op(ws),x), unpart(op(1,ps)));
+           Pmap(x->`*`(op(ws),x), unpartProd(op(1,ps)));
          else
            pr;
          end if;
