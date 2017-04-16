@@ -85,6 +85,7 @@ export Bound := module ()
         if bad_opts <> {} then
             error "invalid arguments: %1", bad_opts;
         end if;
-        {op(map(b->constrain(opts, op(b))[], op(1,bnd)))};
+        {op(map(b->constrain(opts, op(b))[], op(1,bnd)))
+        ,op( `if`(nops(bnd)>1,op(2,bnd),{}) ) };
     end proc;
 end module;#Bound
