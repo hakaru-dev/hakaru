@@ -51,8 +51,7 @@ export Bound := module ()
             , old_lo,old_hi, lo,hi, old_ty, new_ty, _, vr_k;
         i := varIx(dom, vr);
 
-        _, old_ty, vr_k := op([1,i], dom)[];
-
+        _, old_ty, vr_k := op(op([1,i], dom));
         old_lo,old_hi := Domain:-ExtBound[vr_k]:-SplitRange(old_ty);
         lo, hi        := Domain:-ExtBound[vr_k]:-SplitRange(ty);
 

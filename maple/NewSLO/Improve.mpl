@@ -115,7 +115,7 @@
     dom_spec := Domain:-Improve(dom_spec);
 
     # Apply the domain back to the expression
-    mkDom := Domain:-Apply(dom_spec); ed := mkDom(e);
+    mkDom := Domain:-Apply(dom_spec, KB:-empty); ed := mkDom(e);
 
     # Some extra simplification may be needed
     elim := elim_intsum( ed, h, kb );
