@@ -175,11 +175,12 @@
     inert := Domain:-Apply:-do_mk(args[2..-1]);
     ex := elim_intsum:-extract_elim(inert, h);
     e1 := elim_intsum:-apply_elim(h, kb, ex);
+    e1 := elim_intsum:-check_elim(inert, e1);
     if e1 = FAIL then
       inert
     else
       e1
-    end if;
+    end if
   end proc;
 
 
