@@ -19,11 +19,8 @@
     e := ee;
 
     if do_domain then
-        dom_specb, body := op(Domain:-Extract:-Bound(e));
-        if not Domain:-Bound:-isEmpty(dom_specb) then # we have found bounds
-            rr := reduce_Integrals(body, h, kb, opts, dom_specb);
-            if rr = FAIL then return e else return rr end if;
-        end if;
+      rr := reduce_Integrals(e, h, kb, opts);
+      if rr <> FAIL then return rr end if;
     end if;
     if do_domain and e :: 'And(specfunc({Ints,Sums}),
                    anyfunc(anything, name, range, list(name=range)))' then
@@ -86,51 +83,36 @@
     end if;
   end proc;
 
-  # "Integrals" refers to any types of "integrals" understood by domain (Int,
-  # Sum currently)
-  reduce_Integrals := proc(body_, h, kb, opts, dom_specb_, $)
-    local body := body_, dom_specb := dom_specb_, elim, e, mkDom, vars
-        , kb1, with_kb1, dom_specw, dom_spec, dom_ctx, ed;
-
-    # First simplify the body; this may discover other nested domains, simplify
-    # them, and allow a further simplification to occur in this step of domain
-    # improvement. To do this we currently need a KB for the recursive call to reduce
-    kb1, with_kb1 := op(Domain:-Bound:-toKB(dom_specb, kb));
-
-    # kb may produce variable substitutions
-    dom_specb, body := op( subs(with_kb1, [dom_specb, body])  );
-    e := reduce(body, h, kb1, opts);
-
-    # Extract the shape of the domain
-    (dom_specw, e) := op(Domain:-Extract:-Shape(e));
-    # if dom_specw = DConstrain() then return FAIL end if;
-
-    dom_ctx := {op(kb_to_constraints(kb))};
-    dom_specb := DBound(op(1,dom_specb), dom_ctx);
-
-    # Construct the domain from the bounds and the shape
-    dom_spec := DOMAIN(dom_specb, dom_specw);
-
-    # Improve the domain
-    dom_spec := Domain:-Improve(dom_spec);
-
-    # Apply the domain back to the expression
-    mkDom := Domain:-Apply(dom_spec, KB:-empty); ed := mkDom(e);
-
-    # Some extra simplification may be needed
-    elim := elim_intsum( ed, h, kb );
-
-    if elim = FAIL then
-      # that simplification fails, so build the domain individually
-      # on each multiplicand of the produce (reduce_on_prod)
-      vars := op(1, dom_specb);
-      e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
-      # simplify partitions (might not be needed?)
+  reduce_Integrals_post := proc(kb,dom,mkDom,body)
+    local vars, e, ed := mkDom(body);
+    if ed = FAIL then
+      vars := {op(Domain:-Bound:-varsOf(op(1,dom)))};
+      e := reduce_on_prod(mkDom, e, vars, kb);
       kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(e, kb, x->x);
     else
-      # that simplification fails, so reduce again (might not be needed?)
-      reduce(elim, h, kb, opts);
-    end if;
+      ed
+    end if
+  end proc;
+
+  # "Integrals" refers to any types of "integrals" understood by domain (Int,
+  # Sum currently)
+  reduce_Integrals := proc(expr, h, kb, opts, $)
+    local rr;
+    rr := Domain:-Fold(expr, kb
+                ,proc() elim_intsum_Domain(h,args) end proc
+                ,((x,kb1)->reduce(x,h,kb1,opts))
+                # , proc(dom,mkDom,body) mkDom(body) end proc
+                , proc() reduce_Integrals_post(kb,args) end proc
+                ,(_->:-DOM_FAIL));
+
+    if has(rr, :-DOM_FAIL) then
+      return FAIL;
+    elif has(rr, FAIL) then
+      error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
+          , expr, kb, kb, opts, rr;
+    else
+      return rr;
+    end if
   end proc;
 
   # Helper function for performing reductions
@@ -184,6 +166,22 @@
     elim := elim_intsum(e, h, kb);
     if elim = FAIL then e else reduce(elim, h, kb, opts) end if
   end proc;
+
+
+  elim_intsum_Domain := proc(h, kind, e, vn, vt, kb, $)
+    local ex, inert, e1;
+    kernelopts(opaquemodules=false):
+
+    inert := Domain:-Apply:-do_mk(args[2..-1]);
+    ex := elim_intsum:-extract_elim(inert, h);
+    e1 := elim_intsum:-apply_elim(h, kb, ex);
+    if e1 = FAIL then
+      inert
+    else
+      e1
+    end if;
+  end proc;
+
 
   # Try to find an eliminate (by evaluation, or simplification) integrals which
   # are free of `applyintegrand`s.
