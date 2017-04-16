@@ -189,7 +189,7 @@ Domain := module()
                                   andmap(v->op(1,vs)=v, vs) and
                                   ormap(a->a<>{}, ws)
                                then
-                                   [ `or`( op( zip(`and`, ws, cs) ) ) , op(1,vs) ];
+                                   [ `bool_Or`( op( zip(`bool_And`, ws, cs) ) ) , op(1,vs) ];
                                else
                                    [ true, p0 ];
                                end if;
