@@ -113,7 +113,7 @@ KB := module ()
   # Some types
   # A particular form of Introduce, containing those types
   # about which Maple currently knows
-  t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt,EveryInteger}))';
+  t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
 
   # Low and high bounds (?)
   t_lo    := 'identical(`>`,`>=`)';
@@ -825,7 +825,7 @@ KB := module ()
 
   htype_to_property := proc(t::t_type, $)
     if t :: 'specfunc({AlmostEveryReal, HReal})' then real
-    elif t :: 'specfunc({HInt, EveryInteger})' then integer
+    elif t :: 'specfunc({HInt})' then integer
     else TopProp end if
   end proc;
 
