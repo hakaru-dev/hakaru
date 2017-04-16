@@ -289,10 +289,9 @@ $include "Domain/Improve.mpl"
       dom_ctx := {op(KB:-kb_to_constraints(kb))};
       dom_specb := DBound(op(1,dom_specb), dom_ctx);
       dom_spec := DOMAIN(dom_specb, dom_specw);
-      dom_spec1 := Domain:-Improve(dom_spec);
-      if (dom_spec = dom_spec1)
-      then return f_nosimp(e0);
-      else dom_spec := dom_spec1;
+
+      if dom_specw <> DConstrain() then
+        dom_spec := Domain:-Improve(dom_spec);
       end if;
 
       mkDom := Domain:-Apply(dom_spec, kb, F_INTO, F_BODY);
