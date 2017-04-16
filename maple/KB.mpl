@@ -829,15 +829,19 @@ KB := module ()
     else TopProp end if
   end proc;
 
-  # implementing this in terms of Partition (as opposed to algebraic
-  # manipulations with the piecewise) cause d0_2(DisintT) to fail
+  # See kb_Partition
   kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen, $)
     Partition:-PartitionToPW(
         kb_Partition( Partition:-PWToPartition(e), kb, doIf, doThen )
         ) ;
   end proc;
 
-  #For now at least, this procedure is parallel to kb_piecewise.
+  # A sort of map over a Partition with the given KB as a context, such that:
+  #    kb_Partition( PARTITION ( Piece( c_i , v_i ), .. )  , kb, doIf, doThen )
+  #    =
+  #    PARTITION ( Piece( doIf(c_i, kb), doThen(v_i, assert(c_i, kb)) ) )
+  # Semantics originally given here:
+  #  https://github.com/hakaru-dev/hakaru/commit/6f1c1ea2d039a91c157462f09f15760c98884303
   kb_Partition:= proc(e::Partition, kb::t_kb, doIf, doThen, $)::Partition;
   local br;
     #Unlike `piecewise`, the conditions in a Partition are necessarily
@@ -845,7 +849,7 @@ KB := module ()
     #simply `assert` the condition (i.e., roll it into the kb) without
     #needing to `assert` the negation of all previous conditions.
 
-    Partition:-Amap([doIf, doThen, z -> assert(z,kb)], e);
+    Partition:-Amap([(x,_) -> doIf(x, kb), (x,c) -> doThen(x, assert(c,kb)), z -> z], e);
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
