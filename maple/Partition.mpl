@@ -47,7 +47,7 @@ local
           q := Umap(x->eval(x,eqs), p);
           r := eval( PartitionToPW(q), eqs );
           if r :: specfunc('piecewise') then
-              q := PWToPartition( r , 'do_solve' );
+              q := PWToPartition(r);
           else
               q := r;
           end if;
