@@ -273,4 +273,36 @@ $include "Domain/Improve.mpl"
         if not expr :: outty then expr := outmk(expr) end if;
         map(x -> if not x :: inty then inmk(x) else x end if, expr);
     end proc;
+
+    export Fold := proc(e0, kb :: t_kb
+                , f_into, f_body
+                , f_apply
+                , f_nosimp := (_->FAIL), $)
+      local F_INTO, F_BODY, e := e0, rn
+           , dom_specb, dom_specw, dom_ctx, dom_spec1, dom_spec, mkDom ;
+      rn := [F_INTO=f_into, F_BODY=f_body,%subs=subs];
+
+      dom_specb, e := op(Domain:-Extract:-Bound(e));
+      if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
+      dom_specw, e := op(Domain:-Extract:-Shape(e));
+
+      dom_ctx := {op(KB:-kb_to_constraints(kb))};
+      dom_specb := DBound(op(1,dom_specb), dom_ctx);
+      dom_spec := DOMAIN(dom_specb, dom_specw);
+      dom_spec1 := Domain:-Improve(dom_spec);
+      if (dom_spec = dom_spec1)
+      then return f_nosimp(e0);
+      else dom_spec := dom_spec1;
+      end if;
+
+      mkDom := Domain:-Apply(dom_spec, kb, F_INTO, F_BODY);
+      e := f_apply(dom_spec, x->eval(mkDom(x),rn), e);
+      if has(e, FAIL) then
+        # TODO: check for type(e, LO)
+        f_nosimp(e0);
+      else
+        e
+      end if;
+    end proc;
+
 end module;
