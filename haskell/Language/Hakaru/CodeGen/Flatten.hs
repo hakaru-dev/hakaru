@@ -50,6 +50,7 @@ import Language.Hakaru.Types.Sing
 import           Control.Monad.State.Strict
 import           Control.Monad (replicateM)
 import           Data.Number.Natural
+import           Data.Monoid        hiding (Product,Sum)
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence      as S
@@ -720,6 +721,8 @@ flattenArrayOp (Reduce _) = error "TODO: flattenArrayOp"
     x += 1;
     y += 2;
   }
+
+  Summary objects are nested pairs, e.g. pair(nat,pair(real,array(nat)))
 -}
 
 flattenBucket
@@ -735,32 +738,66 @@ flattenBucket lo hi red = \loc -> do
     itId <- genIdent' "it"
     declare SNat itId
     let itE = CVar itId
-    -- declare' . declRed $ red
+    ids <- declRed red
+    initRed ids red
     forCG (itE .=. loE)
           (itE .<. hiE)
           (CUnary CPostIncOp itE)
-          (return ())
-    putStat $ opComment "End Bucket"
-  where declRed :: Reducer abt '[] a -> CDecl
-        declRed (Red_Fanout _ _)  = undefined
-        declRed (Red_Index _ _ _) = undefined
-        declRed (Red_Split _ _ _) = undefined
-        declRed (Red_Nop)         = undefined
-        declRed (Red_Add _ t)     = undefined
+          (accumRed ids red)
+    case S.viewl ids of
+      (h S.:< _) ->
+        do putExprStat $ loc .=. (CVar h)
+           putStat $ opComment "End Bucket"
+  where declRed :: Reducer abt xs a -> CodeGen (S.Seq Ident)
+        declRed (Red_Fanout mr1 mr2) =
+          do ids1 <- declRed mr1
+             ids2 <- declRed mr2
+             return (ids1 <> ids2)
+        declRed (Red_Index _ _ mr) = return mempty
+          -- caseBind mr $ \_ mr' ->
+          --   do return mempty -- declRed mr'
+        declRed (Red_Split _ mr1 mr2) =
+          do ids1 <- declRed mr1
+             ids2 <- declRed mr2
+             return (ids1 <> ids2)
+        declRed (Red_Nop) = return mempty
+        declRed (Red_Add sr _)    =
+          do let semiTyp = sing_HSemiring sr
+             mId <- genIdent' "m"
+             declare semiTyp mId
+             return . S.singleton $ mId
 
-        initRed :: Reducer abt '[] a -> CodeGen ()
-        initRed (Red_Fanout _ _)  = undefined
-        initRed (Red_Index _ _ _) = undefined
-        initRed (Red_Split _ _ _) = undefined
-        initRed (Red_Nop)         = undefined
-        initRed (Red_Add _ _)     = undefined
+        initRed :: S.Seq Ident -> Reducer abt xs a -> CodeGen ()
+        initRed s (Red_Fanout mr1 mr2) = initRed s mr1 >> initRed s mr2
+        initRed _ (Red_Index _ _ _) = putStat $ CComment "TODO: initRed{Red_Index}"
+        initRed s (Red_Split _ mr1 mr2) = initRed s mr1 >> initRed s mr2
+        initRed _ (Red_Nop) = return ()
+        initRed s (Red_Add sr _) =
+          case S.viewl s of
+            (h S.:< _) ->
+              let identityE = case sing_HSemiring sr of
+                                SNat  -> intE 0
+                                SInt  -> intE 0
+                                SReal -> floatE 0
+                                SProb -> logE (floatE 0)
+              in  putExprStat $ (CVar h) .=. identityE
 
-        accumRed :: Reducer abt '[] a -> CodeGen ()
-        accumRed (Red_Fanout _ _)  = undefined
-        accumRed (Red_Index _ _ _) = undefined
-        accumRed (Red_Split _ _ _) = undefined
-        accumRed (Red_Nop)         = undefined
-        accumRed (Red_Add _ _)     = undefined
+        accumRed
+          :: (ABT Term abt)
+          => S.Seq Ident
+          -> Reducer abt xs a
+          -> CodeGen ()
+        accumRed _ (Red_Fanout _ _)  = putStat $ CComment "TODO: accumRed"
+        accumRed _ (Red_Index _ _ _) = putStat $ CComment "TODO: accumRed"
+        accumRed _ (Red_Split _ _ _) = putStat $ CComment "TODO: accumRed"
+        accumRed _ (Red_Nop)         = putStat $ CComment "TODO: accumRed"
+        accumRed s (Red_Add sr e) =
+          case S.viewl s of
+            (h S.:< _) ->
+              caseBind e $ \_ e' ->
+                let (_,e'') = caseBinds e' in
+                   do eE <- flattenWithName e''
+                      putExprStat $ (CVar h) .+=. eE
 
 
 --------------------------------------------------------------------------------
