@@ -42,13 +42,13 @@ export Apply := module ()
            # (i.e. trivial) then produce a Partition with the constraint as a
            # guard.
            if sh :: DomConstrain then
-               r := op(3,ctx)(r, op(1,ctx));
+               r := op(3,ctx)(e, op(1,ctx));
                cond := remove(is, sh);
                if cond = DConstrain() then
-                   r := e;
+                   r := r;
                else
                    cond := bool_And(op(sh));
-                   r := PARTITION([Piece(cond,e), Piece(Not(cond),0)]);
+                   r := PARTITION([Piece(cond,r), Piece(Not(cond),0)]);
                end if;
                # if there are still integrals which have not been applied, apply
                # them now
