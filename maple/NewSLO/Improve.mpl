@@ -49,14 +49,16 @@
       (subintegral, ww) := selectremove(depends, subintegral, h);
       nub_piecewise(simplify_factor_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
-    elif e :: t_pw then
-      e:= flatten_piecewise(e);
-      e := kb_piecewise(e, kb, simplify_assuming,
+    elif e :: Or(Partition,t_pw) then
+      if e :: t_pw then e := PWToPartition(e); end if;
+      e := Partition:-Flatten(e);
+      e := kb_Partition(e, kb, simplify_assuming,
                         ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
       e := eval(e, %reduce=reduce);
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
+      e := PartitionToPW(e);
       nub_piecewise(e);
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))

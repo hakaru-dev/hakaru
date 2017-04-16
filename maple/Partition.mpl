@@ -245,6 +245,7 @@ export
 
    PartitionToPW := proc(x::Partition, $)
        local parts := op(1,x);
+       if nops(parts) = 1 and is(op([1,1],parts)) then return op([1,2], parts) end if;
        parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
        parts := [seq([condOf(p), valOf(p)][], p=op(1,parts))];
        if op(-2, parts) :: identical(true) then
@@ -252,6 +253,47 @@ export
        end if;
        piecewise(op(parts));
    end proc,
+
+   Flatten := module()
+     export ModuleApply;
+     local unpiece, unpart, unpartProd;
+
+     ModuleApply := proc(pr0, $)
+       local pr := subsindets(pr0, Or(Partition, `*`), unpartProd);;
+       if pr <> pr0 then ModuleApply(pr) else pr end if;
+     end proc;
+
+     # like Piece, but tries to not be a Piece
+     unpiece := proc(c, pr, $)
+       if pr :: Partition then
+         map(q -> applyop(z->bool_And(z,c),1,q), op(1,pr))[]
+       else
+         Piece(c, pr)
+       end if
+     end proc;
+
+     unpart := proc(pr, $)
+       if pr :: Partition then
+         PARTITION(map(q -> unpiece(condOf(q),valOf(q)), op(1,pr)))
+       else
+         pr
+       end if
+     end proc:
+
+     unpartProd := proc(pr, $)
+       local ps, ws;
+       if pr :: `*` then
+         ps, ws := selectremove(q->type(q,Partition), [op(pr)]);
+         if nops(ps) = 1 then
+           Pmap(x->`*`(op(ws),x), unpart(op(1,ps)));
+         else
+           pr;
+         end if;
+       else
+         unpart(pr);
+       end if;
+     end proc;
+   end module,
 
 
    # convert a piecewise to a partition, which is straightforward except:
