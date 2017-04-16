@@ -18,3 +18,11 @@ local single_case_Partition := module()
         end if;
     end proc;
 end module;
+
+local redundant_Partition_Pieces := proc(vs :: DomBound, sh :: DomShape, $)
+    local as := Domain:-Bound:-toConstraints(vs, 'bound_types');
+    subsindets(sh, DomSplit, proc(pr)
+        local r; r := Partition:-Simpl(op(1,pr)) assuming op(as);
+        if not r :: Partition then r else pr end if;
+      end proc);
+end proc;

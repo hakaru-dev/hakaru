@@ -31,6 +31,9 @@ $include "Domain/Improve/single_case_Partition.mpl"
         Simplifiers["LMS"] :=
              Record('Order'=10
                    ,'DO'=evaln(Domain:-Improve:-LMS));
+        Simplifiers["Redundant Partition pieces"] :=
+             Record('Order'=(10+1/2)
+                   ,'DO'=Domain:-Improve:-redundant_Partition_Pieces);
         Simplifiers["Single case partition"] :=
              Record('Order'=11
                    ,'DO'=Domain:-Improve:-single_case_Partition);
