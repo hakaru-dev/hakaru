@@ -108,8 +108,9 @@ export Apply := module ()
        end proc;
 
        local do_mks := proc(e, todo::set(DomBoundVar), dbnd :: DomBound, ctx, $)
-           local v_td, i, vt, v_mk, _, r := e;
-           for v_td in todo do
+           local vs, v_td, i, vt, v_mk, _, r := e;
+           vs := select(v->v in todo,Domain:-Bound:-varsOf(dbnd));
+           for v_td in vs do
              i := Domain:-Bound:-varIx(dbnd, v_td);
              _, vt, v_mk := op(op([1,i], dbnd));
              r := op(2,ctx)(v_mk, r, v_td, vt, op(1,ctx));
