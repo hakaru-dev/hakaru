@@ -29,16 +29,16 @@ export Extract := module ()
 
         local do_extract := proc(arg, $)
             local sub, prod, svars;
-            # if arg :: `*` then
-            #     sub := map(do_extract, [op(arg)]);
-            #     prod, svars := selectremove(x->op(2,x)=[],sub);
-            #     if nops(svars) = 1 then
-            #         [ `*`(op([1,1],svars),op(map2(op,1,prod)))
-            #         , op([1,2], svars) ];
-            #     else
-            #         [ arg, [] ];
-            #     end if;
-            if Domain:-Has:-Bound(arg) then
+            if arg :: `*` then
+                sub := map(do_extract, [op(arg)]);
+                prod, svars := selectremove(x->op(2,x)=[],sub);
+                if nops(svars) = 1 then
+                    [ `*`(op([1,1],svars),op(map2(op,1,prod)))
+                    , op([1,2], svars) ];
+                else
+                    [ arg, [] ];
+                end if;
+            elif Domain:-Has:-Bound(arg) then
                 do_extract_arg(op(0,arg), op(arg));
             else
                 [ arg, [] ]
