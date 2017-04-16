@@ -13,6 +13,7 @@ export Apply := module ()
                error "cannot apply %1", dom;
            end if;
            vs, sh := op(dom);
+           vs := Domain:-Bound:-withVarsIxs(vs);
            unapply(do_apply({}, `expression body`, vs, sh), `expression body`);
        end proc;
 
@@ -33,20 +34,16 @@ export Apply := module ()
            # (i.e. trivial) then produce a Partition with the constraint as a
            # guard.
            if sh :: DomConstrain then
-               cond := `and`(op(sh));
-               if is(cond) then
-                   r := e
+               cond := remove(is, sh);
+               if cond = DConstrain() then
+                   r := e;
                else
+                   cond := bool_And(op(sh));
                    r := PARTITION([Piece(cond,e), Piece(Not(cond),0)]);
                end if;
-               # if there are still integrals which have not been applied,
-               # apply them now
-               vs_td := select(x -> not(op(1, x) in done_), op(1, vs));
-               for v_td in vs_td do
-                   vn_td, vt_td, vt_mk := op(v_td);
-                   r := do_mk(r, vn_td, vt_td, vt_mk);
-               end do;
-               r;
+               # if there are still integrals which have not been applied, apply
+               # them now
+               do_mks(r, vs_td, {op(Domain:-Bound:-varsOf(vs_td))} minus done_);
            # if the solution is a sum of solutions, produce the algebraic sum
            # of each summand of the solution applied to the expression.
            elif sh :: DomSum then
@@ -65,26 +62,29 @@ export Apply := module ()
                # bound depends. Those are applied after this one, so are not
                # in 'scope' in the recursive call
                vars := {op(Domain:-Bound:-varsOf(vs))};
-               deps := (indets(vt, name) intersect vars) minus done_ ;
+               deps := (indets(vt, DomBoundVar) intersect vars) minus done_ ;
                done_ := `union`(done_, deps, {vn}) ;
                # recursively apply
                e1 := do_apply(done_, e, vs, shv);
                # build this integral, and the other this one depended on
-               for v in op(1,vs) do
-                   vvn, vvt, vmk := op(v);
-                   if vvn in deps then
-                       e1 := do_mk(e1, vvn, vvt, vmk);
-                   elif vvn = vn then
-                       e1 := do_mk(e1, vvn,  vt, vmk);
-                   end if;
-               end do;
-               e1;
+               vs := Domain:-Bound:-upd(vs, vn, vt);
+               do_mks(e1, deps, vs);
            else
                error "don't know how to apply %1", sh
            end if;
        end proc;
 
        local do_mk := proc(e, vn, ty_, mk, $)
-           mk(e, Domain:-ExtBound[mk]:-MakeEqn(vn, ty_));
+           Domain:-ExtBound[mk]:-DoMk(e, vn, ty_);
+       end proc;
+
+       local do_mks := proc(e, todo::set(DomBoundVar), dbnd :: DomBound, $)
+           local v_td, i, vt, v_mk, _, r := e;
+           for v_td in todo do
+             i := varIx(dbnd, v_td);
+             _, vt, v_mk := op([1,i], dbnd)[];
+             r := do_mk(r, v_td, vt, v_mk);
+           end do;
+           r;
        end proc;
 end module;

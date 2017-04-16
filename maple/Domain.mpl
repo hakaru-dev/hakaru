@@ -149,9 +149,11 @@ Domain := module()
                Record('MakeKB'=KB:-genLebesgue
                      ,'ExtractVar'=(e->op(1,e))
                      ,'ExtractRange'=(e->op(2,e))
+                     ,'MakeRange'=`..`
                      ,'SplitRange'=(e->op(e))
                      ,'Constrain'=`<`
-                     ,'MakeEqn'=`=`
+                     ,'DoMk'=((e,v,t)->`Int`(e,v=t))
+                     ,'Min'=min, 'Max'=max
                      ,'VarType'='name'
                      ,'RangeType'='range'
                      ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
@@ -162,9 +164,11 @@ Domain := module()
                Record('MakeKB'=KB:-genSummation
                      ,'ExtractVar'=(e->op(1,e))
                      ,'ExtractRange'=(e->op(2,e))
+                     ,'MakeRange'=`..`
                      ,'SplitRange'=(e->op(e))
                      ,'Constrain'=`<=`
-                     ,'MakeEqn'=`=`
+                     ,'DoMk'=((e,v,t)->`Sum`(e,v=t))
+                     ,'Min'=min, 'Max'=max
                      ,'VarType'='name'
                      ,'RangeType'='range'
                      ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'

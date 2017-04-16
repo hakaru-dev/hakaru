@@ -46,6 +46,24 @@ export Bound := module ()
         end if;
     end proc;
 
+    export upd := proc(dom0 :: DomBound, vr :: DomBoundVar, ty :: DomBoundRange, $)
+        local dom := `if`(nops(dom0)>=3, (_->_), withVarsIxs)(dom0), i
+            , old_lo,old_hi, lo,hi, old_ty, new_ty, _, vr_k;
+        i := varIx(dom, vr);
+
+        _, old_ty, vr_k := op([1,i], dom)[];
+
+        old_lo,old_hi := Domain:-ExtBound[vr_k]:-SplitRange(old_ty);
+        lo, hi        := Domain:-ExtBound[vr_k]:-SplitRange(ty);
+
+        lo := Domain:-ExtBound[vr_k]:-Max(old_lo, lo);
+        hi := Domain:-ExtBound[vr_k]:-Min(old_hi, hi);
+
+        new_ty := Domain:-ExtBound[vr_k]:-MakeRange(lo,hi);
+
+        subsop([1,i,2]=new_ty, dom);
+    end proc;
+
     local constrain := proc( opts, vn::DomBoundVar, ty::DomBoundRange, mk :: DomBoundKind, $ )
                     :: set({relation, `::`});
         local lo, hi, noi, bt
