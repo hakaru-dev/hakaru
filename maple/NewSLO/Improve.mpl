@@ -112,7 +112,7 @@
   # under the given assumption context, "kb0"
   reduce_on_prod := proc(f,ee, var:: {name, list(name), set(name)} ,kb0::t_kb,$)
       local e := ee, w;
-      e, w := selectremove(depends, list_of_mul(e), var);
+      e, w := selectremove(x->depends(x,var) or x :: realcons, list_of_mul(e));
       nub_piecewise(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
   end proc;
 
