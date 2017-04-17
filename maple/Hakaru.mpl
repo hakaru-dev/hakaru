@@ -241,10 +241,13 @@ Hakaru := module ()
   end proc:
 
   verify_hboolean := proc(a, b, $)
-    local x,y,conv_tbl;
-    conv_tbl := table([`and`=`bool_And`,`or`=`bool_And`,`not`=`bool_Not`]);
-    x,y := subsindets([a,b], Or(`and`,`or`,`not`), x->conv_tbl[op(0,x)](op(x)))[];
-    verify(x,y,'boolean');
+    local x,y,conv_tbl,and_fn,or_fn,not_fn;
+    and_fn := ((x->AND({op(x)}))@`bool_And`);
+    or_fn  := ((x->OR({op(x)}))@`bool_Or`);
+    not_fn := bool_Not;
+    conv_tbl := table([`and`=and_fn,`And`=and_fn,`Or`=or_fn,`or`=or_fn,`Not`=not_fn,`not`=not_fn]);
+    x,y := subsindets([a,b], Or(`and`,`or`,`not`, specfunc({`And`,`Or`,`Not`})), x->conv_tbl[op(0,x)](op(x)))[];
+    evalb(x=y);
   end proc;
 
   verify_measure := proc(m, n, v:='hboolean', $)
