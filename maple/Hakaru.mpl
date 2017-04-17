@@ -63,7 +63,7 @@ Hakaru := module ()
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
-         verify_measure, pattern_equiv,
+         verify_measure, verify_hboolean, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
          flatten_piecewise,
          pattern_match, pattern_binds,

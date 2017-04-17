@@ -503,7 +503,7 @@ export
 
            local tryReplacePiece :=
                proc(vrNm, vrVal, pc0val, pcs, eval_cmp,$)
-                 local pcs0 := pcs, pcs1, qs0, qs1, qs2, vrEq := vrNm=vrVal, vs2, ret;
+                 local pcs0 := pcs, pcs1, qs0, qs1, qs2, vrEq := vrNm=vrVal, vs2, ret, q, q_i;
                  ret := [ Piece(vrEq, pc0val), op(pcs0) ] ;
                  # speculatively replace the conditions
                  pcs1 := subsindets(pcs0, relation, replace_with(vrNm)(vrVal));
@@ -523,7 +523,13 @@ export
                      vs2 := map(q -> do_eval_for_cmp(r -> eval_cmp(subs(vrEq, r)), q), vs2);
                      # if they are identically equal, return the original
                      # "guess"
-                     if nops(vs2) = 1 then ret := pcs1; end if;
+                     if nops(vs2) = 1 then
+                       # arbitrarily pick the first candidate to be the one to
+                       # be replaced
+                       q := op(1,qs2);
+                       q_i := seq(`if`(op(i,pcs1)=q,[i],[])[],i=1..nops(pcs1));
+                       ret := subsop(q_i=op(q_i,pcs0), pcs1);
+                     end if;
                  end if;
                  ret;
                end proc;
