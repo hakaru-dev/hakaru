@@ -57,7 +57,7 @@ end proc:
 
 Hakaru := module ()
   option package;
-  local p_true, p_false, make_piece, lift1_piecewise,
+  local p_true, p_false, make_piece, Mk_Plus, lift1_piecewise,
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
@@ -555,36 +555,30 @@ Hakaru := module ()
 
   extract_bound_hi := v -> extract_bound( [lhs,rhs]
                                         , [ {`<`, `<=`}, {`>`, `>=`} ]
-                                        , v
-                                        );
+                                        , v);
   extract_bound_lo := v -> extract_bound( [rhs,lhs]
                                         , [ {`<`, `<=`}, {`>`, `>=`} ]
-                                        , v
-                                        );
+                                        , v);
 
-   # Replacements for `and` and `or` which do not
-   # evaluate "x = y" to "false" when "x,y" are unbound vars.
-   bool_And := proc()
-       if nargs=0 then true
-       elif nargs=1 then args[1]
-       else `And`(args)
-       end if;
-   end proc;
+  Mk_Plus := proc(plus,zero,$) proc()
+      if nargs=0 then op(1,zero)
+      elif nargs=1 then args[1]
+      else op(1,plus)(args)
+      end if;
+  end proc; end proc;
 
-   bool_Or := proc()
-       if nargs=0 then false
-       elif nargs=1 then args[1]
-       else `Or`(args)
-       end if;
-   end proc;
+  # Replacements for `and` and `or` which do not
+  # evaluate "x = y" to "false" when "x,y" are unbound vars.
+  bool_And := Mk_Plus(['And'], ['true' ]);
+  bool_Or  := Mk_Plus(['Or'] , ['false']);
 
-   bool_Not := proc(a,$)
-       if a :: KB:-t_kb_atom then
-           subsindets(KB:-negate_rel(a), `not`, Not@op);
-       else
-           Not(a)
-       end if;
-   end proc;
+  bool_Not := proc(a,$)
+    if a :: KB:-t_kb_atom then
+      subsindets(KB:-negate_rel(a), `not`, Not@op);
+    else
+      Not(a)
+    end if;
+  end proc;
 
   # Enumerate patterns for a given Hakaru type
   htype_patterns := proc(t::t_type, $)
