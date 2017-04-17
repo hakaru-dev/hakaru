@@ -158,8 +158,8 @@ Domain := module()
     end proc;
 
     # Extending domain extraction and replacement.
-    local ExtBound := table();
-    local ExtShape := table();
+    export ExtBound := table();
+    export ExtShape := table();
 
     export Set_ExtBound := proc(nm,val,$)
       unprotect(Domain:-ExtBound);
