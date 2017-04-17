@@ -83,14 +83,17 @@
     end if;
   end proc;
 
-  reduce_Integrals_post := proc(kb,dom,mkDom,body)
-    local vars, e, ed := mkDom(body);
-    if ed = FAIL then
+  reduce_Integrals_post := proc(h,kb,opts,dom,mkDom,body)
+    local vars, e
+      , ed := mkDom(body)
+      , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x));
+
+    if ed = ee then
       vars := {op(Domain:-Bound:-varsOf(op(1,dom)))};
-      e := reduce_on_prod(mkDom, e, vars, kb);
-      kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(e, kb, x->x);
+      ed := reduce_on_prod(mkDom, body, vars, kb);
+      kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(ed, kb, x->x);
     else
-      ed
+      reduce(ee,h,kb,opts);
     end if
   end proc;
 
@@ -99,11 +102,10 @@
   reduce_Integrals := proc(expr, h, kb, opts, $)
     local rr;
     rr := Domain:-Fold(expr, kb
-                ,proc() elim_intsum_Domain(h,args) end proc
-                ,((x,kb1)->reduce(x,h,kb1,opts))
-                # , proc(dom,mkDom,body) mkDom(body) end proc
-                , proc() reduce_Integrals_post(kb,args) end proc
-                ,(_->:-DOM_FAIL));
+      ,proc() elim_intsum_Domain(h,args) end proc
+      ,((x,kb1)->reduce(x,h,kb1,opts))
+      , proc() reduce_Integrals_post(h,kb,opts,args) end proc
+      ,(_->:-DOM_FAIL));
 
     if has(rr, :-DOM_FAIL) then
       return FAIL;
@@ -169,17 +171,25 @@
 
 
   elim_intsum_Domain := proc(h, kind, e, vn, vt, kb, $)
-    local ex, inert, e1;
+    local ex, inert, e1, done_e := false;
     kernelopts(opaquemodules=false):
 
-    inert := Domain:-Apply:-do_mk(args[2..-1]);
+    e1 := args[3];
+    if e1 :: specfunc('ELIMED') then
+      e1 := op(1,e1);
+      done_e := true;
+    end if;
+    mk_as := subsop(2=e1,[args[2..-1]])[];
+
+    inert := Domain:-Apply:-do_mk(mk_as);
+
     ex := elim_intsum:-extract_elim(inert, h);
     e1 := elim_intsum:-apply_elim(h, kb, ex);
     e1 := elim_intsum:-check_elim(inert, e1);
     if e1 = FAIL then
-      inert
+      `if`(done_e,ELIMED,_->_)(inert)
     else
-      e1
+      ELIMED(e1)
     end if
   end proc;
 
@@ -197,11 +207,16 @@
     local extract_elim := proc(e, h::name, toplevel :: truefalse := true, $)
       local t, var, mk_bnd, lo_bnd, hi_bnd, f, do_elim, mk_kb, todo0, body, todo;
       t := 'applyintegrand'('identical'(h), 'anything');
+      intapps := indets(op(1,e), t);
+      if intapps = {} then
+        return `if`(toplevel, FAIL, [ e, [] ]);
+      end if;
+
       if e :: Int(anything, name=anything) then
           var := op([2,1],e);
           mk_bnd := `<`;
           lo_bnd, hi_bnd := op(op([2,2],e));
-        if not depends(indets(op(1,e), t), op([2,1],e)) then
+        if not depends(intapps, op([2,1],e)) then
           f := 'int_assuming';
         else
           f := proc(e,v) `Int`(e,v) end proc;
@@ -210,7 +225,7 @@
         var := op([2,1],e);
         mk_bnd := `<=`;
         lo_bnd, hi_bnd := op(op([2,2],e));
-        if not depends(indets(op(1,e), t), op([2,1],e)) then
+        if not depends(intapps, op([2,1],e)) then
           f := 'sum_assuming';
         else
           f := proc(e,v) `Sum`(e,v) end proc;
@@ -221,7 +236,7 @@
         mk_bnd := `<`;
         lo_bnd, hi_bnd := op(op(3,e));
 
-        if not depends(indets(op(1,e), t), op(2,e)) then
+        if not depends(intapps, op(2,e)) then
           f := 'ints';
         else
           f := `Ints`;
@@ -232,7 +247,7 @@
         mk_bnd := `<=`;
         lo_bnd, hi_bnd := op(op(3,e));
 
-        if not depends(indets(op(1,e), t), op(2,e)) then
+        if not depends(intapps, op(2,e)) then
           f := 'sums';
         else
           f := `Sums`;
