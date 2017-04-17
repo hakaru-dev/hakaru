@@ -240,7 +240,14 @@ Hakaru := module ()
     end if
   end proc:
 
-  verify_measure := proc(m, n, v:='boolean', $)
+  verify_hboolean := proc(a, b, $)
+    local x,y,conv_tbl;
+    conv_tbl := table([`and`=`bool_And`,`or`=`bool_And`,`not`=`bool_Not`]);
+    x,y := subsindets([a,b], Or(`and`,`or`,`not`), x->conv_tbl[op(0,x)](op(x)))[];
+    verify(x,y,'boolean');
+  end proc;
+
+  verify_measure := proc(m, n, v:='hboolean', $)
     local mv, x, i, j, k;
     mv := measure(v);
     if m :: specfunc({Bind, Plate}) and n :: specfunc({Bind, Plate}) and
@@ -257,10 +264,10 @@ Hakaru := module ()
                         j=1..k), i=1..k)}))[1]);
     elif andmap(type, [m,n], 'specfunc(piecewise)') and nops(m) = nops(n) then
       k := nops(m);
-      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, boolean), i=1..k)));
+      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, hboolean), i=1..k)));
 
     elif andmap(type, [m,n], 'specfunc(PARTITION)') then
-      Partition:-SamePartition(verify_measure, verify_measure)(m, n);
+      Partition:-SamePartition(verify_hboolean, verify_measure)(m, n);
 
     elif m :: specfunc('case') and
         verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
@@ -621,6 +628,7 @@ Hakaru := module ()
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
     VerifyTools[AddVerification](measure = eval(verify_measure));
+    VerifyTools[AddVerification](hboolean = eval(verify_hboolean));
 
     TypeTools:-AddType(
          `&implies`,
