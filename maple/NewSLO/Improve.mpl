@@ -102,7 +102,7 @@
   reduce_Integrals := proc(expr, h, kb, opts, $)
     local rr;
     rr := Domain:-Fold(expr, kb
-      ,proc() elim_intsum_Domain(h,args) end proc
+      ,proc() elim_intsum:-for_Domain(h,args) end proc
       ,((x,kb1)->reduce(x,h,kb1,opts))
       , proc() reduce_Integrals_post(h,kb,opts,args) end proc
       ,(_->:-DOM_FAIL));
@@ -166,126 +166,71 @@
     # TODO we should apply domain restrictions like reduce_IntSum does.
     e := makes(ee, var, rng, bds);
     elim := elim_intsum(e, h, kb);
-    if elim = FAIL then e else reduce(elim, h, kb, opts) end if
+    if elim :: specfunc('ELIMED') then e else reduce(op(1,elim), h, kb, opts) end if
   end proc;
-
-
-  elim_intsum_Domain := proc(h, kind, e, vn, vt, kb, $)
-    local ex, inert, e1, done_e := false;
-    kernelopts(opaquemodules=false):
-
-    e1 := args[3];
-    if e1 :: specfunc('ELIMED') then
-      e1 := op(1,e1);
-      done_e := true;
-    end if;
-    mk_as := subsop(2=e1,[args[2..-1]])[];
-
-    inert := Domain:-Apply:-do_mk(mk_as);
-
-    ex := elim_intsum:-extract_elim(inert, h);
-    e1 := elim_intsum:-apply_elim(h, kb, ex);
-    e1 := elim_intsum:-check_elim(inert, e1);
-    if e1 = FAIL then
-      `if`(done_e,ELIMED,_->_)(inert)
-    else
-      ELIMED(e1)
-    end if
-  end proc;
-
 
   # Try to find an eliminate (by evaluation, or simplification) integrals which
   # are free of `applyintegrand`s.
   elim_intsum := module ()
-    export ModuleApply := proc(e, h :: name, kb :: t_kb, $)
-      local todo, elim;
-      todo := extract_elim(e,h,true);
-      elim := apply_elim(h,kb,todo);
-      check_elim(e, elim);
+    export ModuleApply := proc(inert0, h :: name, kb :: t_kb, $)
+       local ex, un_elim, e1, inert := inert0, done_e := false;
+
+       un_elim := subsindets(inert, specfunc('ELIMED'), x->op(1,x));
+       if un_elim <> inert then
+         inert := un_elim; done_e := true;
+       end if;
+
+       ex := extract_elim(inert, h);
+       e1 := apply_elim(h, kb, ex);
+       e1 := check_elim(inert, e1);
+       if e1 = FAIL then
+         `if`(done_e,ELIMED,_->_)(inert)
+       else
+         ELIMED(e1)
+       end if
     end proc;
 
-    local extract_elim := proc(e, h::name, toplevel :: truefalse := true, $)
-      local t, var, mk_bnd, lo_bnd, hi_bnd, f, do_elim, mk_kb, todo0, body, todo;
+    export for_Domain := proc(h, kind, e, vn, vt, kb, $)
+       ModuleApply(Domain:-Apply:-do_mk(args[2..-1]), h, kb);
+    end proc;
+
+    local extract_elim := proc(e, h::name, $)
+      local t, intapps, var, f;
       t := 'applyintegrand'('identical'(h), 'anything');
       intapps := indets(op(1,e), t);
       if intapps = {} then
-        return `if`(toplevel, FAIL, [ e, [] ]);
-      end if;
-
-      if e :: Int(anything, name=anything) then
-          var := op([2,1],e);
-          mk_bnd := `<`;
-          lo_bnd, hi_bnd := op(op([2,2],e));
-        if not depends(intapps, op([2,1],e)) then
-          f := 'int_assuming';
-        else
-          f := proc(e,v) `Int`(e,v) end proc;
-        end if;
-      elif e :: Sum(anything, name=anything) then
-        var := op([2,1],e);
-        mk_bnd := `<=`;
-        lo_bnd, hi_bnd := op(op([2,2],e));
-        if not depends(intapps, op([2,1],e)) then
-          f := 'sum_assuming';
-        else
-          f := proc(e,v) `Sum`(e,v) end proc;
-        end if;
-      elif e :: Ints(anything, name, range, list(name=range)) then
-
-        var := op(2,e);
-        mk_bnd := `<`;
-        lo_bnd, hi_bnd := op(op(3,e));
-
-        if not depends(intapps, op(2,e)) then
-          f := 'ints';
-        else
-          f := `Ints`;
-        end if;
-
-      elif e :: Sums(anything, name, range, list(name=range)) then
-        var := op(2,e);
-        mk_bnd := `<=`;
-        lo_bnd, hi_bnd := op(op(3,e));
-
-        if not depends(intapps, op(2,e)) then
-          f := 'sums';
-        else
-          f := `Sums`;
-        end if;
-      else
-        return `if`(toplevel, FAIL, [ e, [] ]);
-      end if;
-
-      do_elim := evalb(f in {'sums','ints','int_assuming','sum_assuming'});
-
-      mk_kb := kb -> KB:-assert(And(mk_bnd(lo_bnd,var),mk_bnd(var,hi_bnd)), kb);
-
-      todo0      := [ f, var, [op(2..-1,e)], mk_kb, do_elim ];
-      body, todo := extract_elim(op(1,e), h, false)[];
-      [ body, [ todo0, op(todo) ] ];
-    end proc;
-
-    local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
-      local body, todos, kbs, i, f, var, rrest, mk_kb, do_elim;
-      if todo = FAIL or not(ormap(x->op(5,x),op(2,todo))) then
         return FAIL;
       end if;
 
-      body, todos := op(todo); kbs[nops(todos)+1] := kb;
+      if e :: Int(anything, name=anything) and
+      not depends(intapps, op([2,1],e)) then
+        var := op([2,1],e);
+        f := 'int_assuming';
+      elif e :: Sum(anything, name=anything)and
+      not depends(intapps, op([2,1],e)) then
+        var := op([2,1],e);
+        f := 'sum_assuming';
+      elif e :: Ints(anything, name, range, list(name=range)) and
+      not depends(intapps, op(2,e)) then
+        var := op(2,e);
+        f := 'ints';
+      elif e :: Sums(anything, name, range, list(name=range)) and
+      not depends(intapps, op(2,e)) then
+        var := op(2,e);
+        f := 'sums';
+      else
+        return FAIL;
+      end if;
 
-      for i from nops(todos) to 1 by -1 do
-        f, var, rrest, mk_kb, do_elim := op(op(i,todos));
-        kbs[i] := mk_kb(kbs[i+1]);
+      [ op(1,e), f, var, [op(2..-1,e)] ];
+    end proc;
 
-        if do_elim then
-          body := banish(body, h, kbs[i], infinity, var,
-                         proc (kb,g,$) do_elim_intsum(kb, f, g, op(rrest)) end proc);
-        else
-          body := f(body, op(rrest));
-        end if;
-      end do;
-
-      body;
+    local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
+      local body, f, var, rrest;
+      if todo = FAIL then return FAIL; end if;
+      body, f, var, rrest := op(todo);
+      banish(body, h, kb, infinity, var,
+             proc (kb1,g,$) do_elim_intsum(kb1, f, g, op(rrest)) end proc);
     end proc;
 
     local check_elim := proc(e, elim,$)

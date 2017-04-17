@@ -87,11 +87,11 @@ export Apply := module ()
            end if;
        end proc;
 
-       local do_mk := proc(mk, e, vn, ty_, kb, $)
+       export do_mk := proc(mk, e, vn, ty_, _kb)
            Domain:-ExtBound[mk]:-DoMk(e, vn, ty_);
        end proc;
 
-       local do_body := proc(e, kb, $) e end proc;
+       export do_body := proc(e, _kb) e end proc;
 
        # Move into an integral by augmenting the KB with the variables bound by
        # that integral.
