@@ -9,7 +9,7 @@ local constraints_about_vars := module()
 
     local do_simpl_constraints := proc(vars, ctx_vs, x, $)
         local ctx1, ctx, ss, td, rest, d, in_vs;
-        ss, ctx := selectremove(q->depends(q,vars), x);
+        ss, ctx := selectremove(q->depends(q,indets(vars,And(name,Not(constant)) )), x);
         in_vs := q-> not(lhs(q) in vars) and not(rhs(q) in vars);
         td, rest := selectremove(type, ss, And(relation,satisfies(in_vs)));
         ctx1 := { op(ctx), op(ctx_vs), op(rest) };
