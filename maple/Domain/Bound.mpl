@@ -55,8 +55,12 @@ export Bound := module ()
         old_lo,old_hi := Domain:-ExtBound[vr_k]:-SplitRange(old_ty);
         lo, hi        := Domain:-ExtBound[vr_k]:-SplitRange(ty);
 
-        lo := Domain:-ExtBound[vr_k]:-Max(old_lo, lo);
-        hi := Domain:-ExtBound[vr_k]:-Min(old_hi, hi);
+        if lo :: realcons then
+          lo := Domain:-ExtBound[vr_k]:-Max(old_lo, lo);
+        end if;
+        if hi :: realcons then
+          hi := Domain:-ExtBound[vr_k]:-Min(old_hi, hi);
+        end if;
 
         new_ty := Domain:-ExtBound[vr_k]:-MakeRange(lo,hi);
 
