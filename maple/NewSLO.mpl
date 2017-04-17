@@ -268,6 +268,10 @@ $include "NewSLO/Factor.mpl"
       Domain:-Set_ExtBound(op(1,ex), op(2,ex)(op(1,ex)));
     end do;
 
+    for ex in [ [`PARTITION`, Partition:-isShape] , [ 'piecewise', Partition:-isShape] ] do
+      Domain:-Set_ExtShape(op(1,ex), op(2,ex)(op(1,ex)));
+    end do;
+
   end proc; #ModuleLoad
 
   ModuleLoad();

@@ -302,6 +302,35 @@ export
      end proc;
    end module,
 
+   isShape := kind -> module()
+     option record;
+
+     export MakeCtx := proc(p0,$)
+       local p := p0, pw, p1, wps, ws, vs, cs, w, ps;
+
+       if kind='piecewise' then
+         p := Partition:-PWToPartition(p, 'do_solve');
+       end if;
+
+       w, p1 := Partition:-Simpl:-single_nonzero_piece(p);
+       if not w :: identical(true) or p1 <> p then
+           [ w, p1 ]
+       else
+           ps := op(1, p);
+           wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
+           ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
+           if nops(vs) > 0 and
+              andmap(v->op(1,vs)=v, vs) and
+              ormap(a->a<>{}, ws)
+           then
+               [ `bool_Or`( op( zip(`bool_And`, ws, cs) ) ) , op(1,vs) ];
+           else
+               [ true, p0 ];
+           end if;
+       end if;
+     end proc;
+     export MapleType := `if`(kind=`PARTITION`,'Partition','specfunc(piecewise)');
+   end module,
 
    # convert a piecewise to a partition, which is straightforward except:
    # - if any of the branches are unreachable, they are removed
