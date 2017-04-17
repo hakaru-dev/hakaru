@@ -241,7 +241,7 @@ $include "Domain/Improve.mpl"
       end if;
 
       mkDom := Domain:-Apply(dom_spec, kb, F_INTO, F_BODY);
-      e := f_apply(dom_spec, x->eval(mkDom(x),rn), e);
+      e := f_apply(dom_specb, x->eval(mkDom(x),rn), e);
       if has(e, FAIL) then
         # TODO: check for type(e, LO)
         f_nosimp(e0);

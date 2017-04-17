@@ -70,13 +70,13 @@
     end if;
   end proc;
 
-  reduce_Integrals_post := proc(h,kb,opts,dom,mkDom,body)
+  reduce_Integrals_post := proc(h,kb,opts,dvars,mkDom,body)
     local vars, e
       , ed := mkDom(body)
       , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x));
 
     if ed = ee then
-      vars := indets(Domain:-Bound:-varsOf(op(1,dom)), name);
+      vars := indets(Domain:-Bound:-varsOf(dvars), name);
       ed := reduce_on_prod(mkDom, body, vars, kb);
       kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(ed, kb, x->x);
     else
