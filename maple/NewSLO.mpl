@@ -45,7 +45,7 @@ NewSLO := module ()
      # which helps some things simplify.
          simplify_factor_assuming,
 
-         ReparamDetermined, determined, reparam, disint;
+         ReparamDetermined, determined, reparam, disint, isBound_IntsSums;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global LO, Integrand, SumIE, ProductIE;

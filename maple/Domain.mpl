@@ -174,6 +174,9 @@ Domain := module()
                      ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
                      ,'BoundType'='integer'
                      );
+
+           ExtBound[`Ints`] := NewSLO:-isBound_IntsSums(`Ints`);
+           ExtBound[`Sums`] := NewSLO:-isBound_IntsSums(`Sums`);
            protect(Domain:-ExtBound);
 
            unprotect(Domain:-ExtShape);

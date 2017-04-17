@@ -22,20 +22,7 @@
       rr := reduce_Integrals(e, h, kb, opts);
       if rr <> FAIL then return rr end if;
     end if;
-    if do_domain and e :: 'And(specfunc({Ints,Sums}),
-                   anyfunc(anything, name, range, list(name=range)))' then
-      x, kb1 := genType(op(2,e),
-                        mk_HArray(`if`(op(0,e)=Ints,
-                                       HReal(open_bounds(op(3,e))),
-                                       HInt(closed_bounds(op(3,e)))),
-                                  op(4,e)),
-                        kb);
-      if nops(op(4,e)) > 0 then
-        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
-      end if;
-      reduce_IntsSums(op(0,e), reduce(subs(op(2,e)=x, op(1,e)), h, kb1, opts), x,
-        op(3,e), op(4,e), h, kb1, opts)
-    elif e :: 'applyintegrand(anything, anything)' then
+    if e :: 'applyintegrand(anything, anything)' then
       map(simplify_assuming, e, kb)
     elif e :: `+` then
       map(reduce, e, h, kb, opts)
@@ -89,7 +76,7 @@
       , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x));
 
     if ed = ee then
-      vars := {op(Domain:-Bound:-varsOf(op(1,dom)))};
+      vars := indets(Domain:-Bound:-varsOf(op(1,dom)), name);
       ed := reduce_on_prod(mkDom, body, vars, kb);
       kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(ed, kb, x->x);
     else
@@ -161,13 +148,42 @@
     end if
   end proc;
 
-  reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, opts, $)
-    local e, elim;
-    # TODO we should apply domain restrictions like reduce_IntSum does.
-    e := makes(ee, var, rng, bds);
-    elim := elim_intsum(e, h, kb);
-    if elim :: specfunc('ELIMED') then e else reduce(op(1,elim), h, kb, opts) end if
-  end proc;
+  # Ints( .., var::name, var_ty::range, dims::list(name=range) ) ==
+  #        [ var   , map(lhs,dims) ] :: list(name)  &X
+  #        [ var_ty, map(rhs,dims) ] :: list(range)
+  isBound_IntsSums := kind -> module()
+    option record;
+
+    export MakeKB := proc(vars, lo, hi, kb, $)
+      local var, dims, ty, rngs, x, kb1;
+      var  := op(1, vars);
+      rngs := zip(`..`,lo,hi);
+      ty   := op(1, rngs);
+      dims := subsop(1=NULL,zip(`=`,vars,rngs));
+
+      x, kb1 := genType(var,
+                        mk_HArray(`if`(kind=Ints,
+                                       HReal(open_bounds(ty)),
+                                       HInt(closed_bounds(ty))),
+                                  dims),kb);
+      if nops(dims) > 0 then
+        kb1 := assert(size(x)=op([-1,2,2],dims)-op([-1,2,1],dims)+1, kb1);
+      end if;
+      x, kb1;
+    end proc;
+    export ExtractVar   := ((v,t,d)->[v,map(lhs,d)[]]);
+    export ExtractRange := ((v,t,d)->[t,map(rhs,d)[]]);
+    export MakeRange    := ((a,b)->zip(`..`,a,b));
+    export SplitRange   := (rs->(map(x->op(1,x),rs), map(x->op(2,x),rs)));
+    export Constrain    := ((a,b)->zip(`if`(kind=Ints, `<`, `<=`)),a,b);
+    export DoMk         := ((e,v,t)->kind( e,op(1,v),op(1,t), subsop(1=NULL,zip(`=`,v,t)) ));
+    export Min          := ((a,b)->zip(`min`,a,b));
+    export Max          := ((a,b)->zip(`max`,a,b));
+    export VarType      := 'And(list(name),satisfies(x->x<>[]))';
+    export RangeType    := 'And(list(range),satisfies(x->x<>[]))';
+    export MapleType    := 'And'('specfunc'(kind),'anyfunc'('anything', 'name', 'range', 'list(name=range)'));
+    export BoundType    := TopProp;
+  end module;
 
   # Try to find an eliminate (by evaluation, or simplification) integrals which
   # are free of `applyintegrand`s.

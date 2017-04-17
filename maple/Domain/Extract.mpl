@@ -18,10 +18,10 @@ export Extract := module ()
             [ vars , arg ];
         end proc;
 
-        local do_extract_arg := proc(kind, arg_, bound, $)
+        local do_extract_arg := proc(kind, arg_)
             local x0, x, vars, arg := arg_, rng;
-            x0  := ExtBound[kind]:-ExtractVar(bound);   # variable name
-            rng := ExtBound[kind]:-ExtractRange(bound); # variable range
+            x0  := ExtBound[kind]:-ExtractVar(_rest);   # variable name
+            rng := ExtBound[kind]:-ExtractRange(_rest); # variable range
             x   := DInto(x0, rng, kind);                # the variable spec
             arg, vars := do_extract(arg)[];
             [ arg, [ op(vars), x ] ];
