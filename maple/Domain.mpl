@@ -22,19 +22,11 @@
 # should get rid of all sorts of unnecessary conversions.
 
 # Broad TODOs:
-# Make bound extraction look into products ('integrate out GammaD with PoissonD likelihood to NegativeBinomial')
 #
 # Mechanism for 'checking if' and 'making' constraints about variables should
 #   be abstracted out into its own module (it is needed in multiple places, and
 #   done sort of ad-hoc) (this could be fixed by a broader design - see "merging
 #   KB with Domain")
-#
-# General interface for folding over a domain while including the domain
-#   information in a context; basically a function of type
-#      (X -> X) -> X where X = DomBound -> DomShape -> r
-#   Pretty much everything in Domain does this, or should be doing it! and this
-#   insulates against future additions of new constructors which may have
-#   'interesting' contexts.
 #
 # All the global setup should be done through some kind of table
 #
@@ -52,24 +44,8 @@
 #   we still want to be able to omit bounds which would be identical. It should
 #   also allow specifying only a subset of the bounds.
 #
-# A mechanism for Bound to use it as a table. In particular, we don't want to
-#   represent the bound as a table, but we do "table lookup" on variables quite
-#   a bit. (perhaps add a function which places the table as a second component
-#   in the bounds, and have the Bound functions use it; or even a big record,
-#   containing the table and other things; so long as we update the original
-#   bound concurrently with the table, we should be okay with `has`, etc. I
-#   believe that another table which provides lookup from names to indices in
-#   the list would allow it to be done efficiently?)
-#
 # A more granular interface for composing/re-composing simplifiers, including
 #   call simplifier A {before/after} B
-#
-# Domain should support Ints/Sums. Currently pretty much all of the hard work is
-#   in place; the concept of 'variables' needs to be generalized to 'indexed
-#   variables' and 'ranges' to 'collections of ranges'. Perhaps the 'variable'
-#   and 'range' types should actually be part of ExtBound, and ExtBound provides
-#   a consistent way for dealing with different variable types that have an
-#   entirely different syntactic form but essentially identical semantics.
 #
 # Domain bounds should store a representation of 'dependancy' of variables
 #   (a more refined representation; the current one is a linear order of variables)
