@@ -15,7 +15,7 @@
   reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     local e, elim, subintegral, w, ww, x, c, kb1, with_kb1, dom_specw, dom_specb
          , body, dom_spec, ed, mkDom, vars, rr
-         , do_domain := evalb( not ( ['no', 'domain'] in {op(opts)} ) ) ;
+         , do_domain := evalb( not ( 'no_domain' in {op(opts)} ) ) ;
     e := ee;
 
     if do_domain then
@@ -43,7 +43,11 @@
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
       e := PartitionToPW(e);
-      nub_piecewise(e);
+      e := nub_piecewise(e);
+      if ee::Partition and e :: t_pw then
+        e := Partition:-PWToPartition(e,'do_solve');
+      end if;
+      e;
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='reduce'(op(2,b),x,c,opts),b),
