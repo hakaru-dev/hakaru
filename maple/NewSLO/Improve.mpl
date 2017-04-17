@@ -159,6 +159,7 @@
     export SplitRange := (e->op(e));
     export Constrain := `if`(kind=Sum,`<=`,`<`);
     export DoMk := ((e,v,t)->kind(e,v=t));
+    export EvalInCtx    := `if`(kind=Sum,'sum_assuming','int_assuming');
     export Min := `min`; export Max := `max`;
     export VarType := 'name';
     export RangeType := 'range';
@@ -195,6 +196,7 @@
     export SplitRange   := (rs->(map(x->op(1,x),rs), map(x->op(2,x),rs)));
     export Constrain    := ((a,b)->zip(`if`(kind=Ints, `<`, `<=`)),a,b);
     export DoMk         := ((e,v,t)->kind( e,op(1,v),op(1,t), subsop(1=NULL,zip(`=`,v,t)) ));
+    export EvalInCtx    := `if`(kind=Ints,'ints','sums');
     export Min          := ((a,b)->zip(`min`,a,b));
     export Max          := ((a,b)->zip(`max`,a,b));
     export VarType      := 'And(list(name),satisfies(x->x<>[]))';
@@ -229,34 +231,27 @@
     end proc;
 
     local extract_elim := proc(e, h::name, $)
-      local t, intapps, var, f;
+      local t, intapps, var, f, e_k, e_args;
       t := 'applyintegrand'('identical'(h), 'anything');
       intapps := indets(op(1,e), t);
       if intapps = {} then
         return FAIL;
       end if;
+      e_k := op(0,e); e_args := op([2..-1],e);
 
-      if e :: Int(anything, name=anything) and
-      not depends(intapps, op([2,1],e)) then
-        var := op([2,1],e);
-        f := 'int_assuming';
-      elif e :: Sum(anything, name=anything)and
-      not depends(intapps, op([2,1],e)) then
-        var := op([2,1],e);
-        f := 'sum_assuming';
-      elif e :: Ints(anything, name, range, list(name=range)) and
-      not depends(intapps, op(2,e)) then
-        var := op(2,e);
-        f := 'ints';
-      elif e :: Sums(anything, name, range, list(name=range)) and
-      not depends(intapps, op(2,e)) then
-        var := op(2,e);
-        f := 'sums';
-      else
-        return FAIL;
+      if Domain:-Has:-Bound(e) then
+        var := Domain:-ExtBound[e_k]:-ExtractVar(e_args);
+        ASSERT(var::DomBoundVar);
+        if var :: list then var := op(1,var) end if;
+
+        if not depends(intapps, var) then
+          f := Domain:-ExtBound[e_k]:-EvalInCtx;
+        else
+          return FAIL;
+        end if;
       end if;
 
-      [ op(1,e), f, var, [op(2..-1,e)] ];
+      [ op(1,e), f, var, [e_args] ];
     end proc;
 
     local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
