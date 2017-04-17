@@ -8,9 +8,10 @@ fromLO := module()
   end proc;
 
   export
-  unintegrate := proc(h :: name, e, kb :: t_kb, $)
+  unintegrate := proc(h :: name, e, kb :: t_kb_mb, $)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
           i, kb1, kb2, loops, subst, hh, pp, t, bnds, br;
+    if kb :: t_not_a_kb then return Msum(); end if;
     if e :: 'And'('specfunc({Int,int})',
                   'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],e));
