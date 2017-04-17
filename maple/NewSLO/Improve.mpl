@@ -194,7 +194,7 @@
     export ExtractRange := ((v,t,d)->[t,map(rhs,d)[]]);
     export MakeRange    := ((a,b)->zip(`..`,a,b));
     export SplitRange   := (rs->(map(x->op(1,x),rs), map(x->op(2,x),rs)));
-    export Constrain    := ((a,b)->zip(`if`(kind=Ints, `<`, `<=`)),a,b);
+    export Constrain    := ((a,b)->zip(`if`(kind=Ints, `<`, `<=`),a,b)[]);
     export DoMk         := ((e,v,t)->kind( e,op(1,v),op(1,t), subsop(1=NULL,zip(`=`,v,t)) ));
     export EvalInCtx    := `if`(kind=Ints,'ints','sums');
     export Min          := ((a,b)->zip(`min`,a,b));
