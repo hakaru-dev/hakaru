@@ -4,33 +4,35 @@ local constraints_about_vars := module()
         vs  := {op(Domain:-Bound:-varsOf(vs))};
         ctx := Domain:-Bound:-toConstraints(vs0, 'bound_types');
         subsindets(sh, DomConstrain
-                  ,x->do_simpl_constraints(vs, ctx, x));
+                  ,x->do_simpl_constraints(vs0, vs, ctx, x));
     end proc;
 
-    local do_simpl_constraints := proc(vars, ctx_vs, x, $)
+    local do_simpl_constraints := proc(vs0, vars, ctx_vs, x, $)
         local ctx1, ctx, ss, td, rest, d, in_vs;
         ss, ctx := selectremove(q->depends(q,indets(vars,And(name,Not(constant)) )), x);
         in_vs := q-> not(lhs(q) in vars) and not(rhs(q) in vars);
         td, rest := selectremove(type, ss, And(relation,satisfies(in_vs)));
         ctx1 := { op(ctx), op(ctx_vs), op(rest) };
-        d := map(x->try_make_about(vars,ctx1,x), td);
+        d := map(x->try_make_about(vs0, vars,ctx1,x), td);
         DConstrain(op(d), op(ctx), op(rest));
     end proc;
 
-    local try_make_about := proc(vars, ctx1, q0, $)
+    local try_make_about := proc(dbnd, vars, ctx1, q0, $)
         local vars_q, q_s, q := q0;
         vars_q := indets(q, name) intersect vars;
-        if nops(vars_q) = 1 then
-            vars_q := op(1,vars_q);
-            q := KB:-try_improve_exp(q, vars_q, ctx1);
-            q_s := solve({q},[vars_q], 'useassumptions'=true) assuming (op(ctx1));
-            if q_s::list and nops(q_s)=1 then
-                op(op(1,q_s));
-            else
-                q
-            end if;
+        if nops(vars_q)=0 then return q end if;
+
+        q := KB:-try_improve_exp(q, op(1,vars_q), ctx1);
+        q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
+        q_s := eval(q_s);
+        if q_s::list then
+          if nops(q_s)=0 then return q end if;
+          q_s := map(s->remove(c->c in ctx1 or `and`(c::relation,lhs(c)::name,lhs(c)=rhs(c)), s), q_s);
+          q_s := remove(x->x=[],q_s);
+          if nops(q_s)=0 then return q end if;
+          op(op(1,q_s)); # pick the first solution arbitrarily!
         else
-            q
+          q
         end if;
     end proc;
 end module;
