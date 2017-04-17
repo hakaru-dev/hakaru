@@ -84,6 +84,7 @@ local LMS := module()
         subsindets(ret, list(set({relation,boolean, name}))
                       , classifySols(vs, ctx) @
                         (ls->map(si->remove(x->x::identical(true) or x::name, si), ls)) );
+        subsindets(ret,[DomShape],op);
     end proc;
 
     # Note this will not simplify solutions, in the sense that if
