@@ -62,7 +62,8 @@ local GLOBALS := table(
    (proc()
      local as := [args];
      as := subsindets(as, specfunc(`DSum`), xs->
-           subsindets(xs, specfunc(`DSum`), op));
+                      map(x->if op(0,x)=`DSum` then op(x) else x end if,
+                          xs));
      if nops(as) = 1 then return op(1,as) end if;
      'procname'(op(as));
    end proc) ]);
