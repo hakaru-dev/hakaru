@@ -6,8 +6,10 @@ local LMS := module()
     # because it solves for each variable one by one, at starts
     # at the left) which will flip things around for no reason.
     export ModuleApply := proc(dbnds :: DomBound, dshape :: DomShape, $)
-        do_LMS( dshape , dbnds
-              , ListTools[Reverse](Domain:-Bound:-varsOf(dbnds)));
+        local vs;
+        vs := ListTools[Reverse](Domain:-Bound:-varsOf(dbnds));
+        vs := map(v->if v::list then op(1,v) else v end if, vs);
+        do_LMS( dshape , dbnds, vs );
     end proc;
 
     local countVs := vs -> (c-> nops(indets(c, name) intersect {op(vs)} ));
@@ -114,9 +116,9 @@ local LMS := module()
         cs := { op( Domain:-Bound:-toConstraints(ctx,'no_infinity') )
               , op(sh) } ;
         if nops(ctx) >= 2 then
-            # LMS doesn't understand constraints (those are excluded by default
-            # in Bound:-toConstraints)
-            cs := cs union {op(remove(x->not(x::{`<`,`<=`,`=`}),ctx))};
+          # LMS doesn't understand constraints (those are excluded by default
+          # in Bound:-toConstraints)
+          cs := remove(x->not(x::{`<`,`<=`,`=`}), cs union op(2,ctx));
         end if;
 
         # there are variables to solve for, but no non-trivial
