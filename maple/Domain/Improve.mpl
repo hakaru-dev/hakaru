@@ -6,7 +6,8 @@ export Improve := module ()
                              , key=(si->Simplifiers[si]:-Order)))
              , bnd, sh;
         bnd, sh := op([1..2], dom);
-        sh := foldr(cmp_simp_sh, (proc(_,b,$) b end proc), op(es))(bnd, sh);
+        sh := foldr(((f,q)->proc() cmp_simp_sh(f,q,args) end proc)
+                   ,(proc(_,b,$) b end proc), op(es))(bnd, sh);
         DOMAIN(bnd, sh);
     end proc;
 
@@ -55,14 +56,12 @@ $include "Domain/Improve/single_case_Partition.mpl"
     end proc;
 
     # compose two simplifiers, combining errors if both fail
-    local cmp_simp_sh :=
-        proc(simp0, simp1, $)
-        proc(bnd, sh :: {DomShape,DomNoSol}, $)::{DomShape,DomNoSol};
-            local res, sh1; sh1 := simp0(bnd, sh);
-            if not sh1 :: DomNoSol then
-                res := simp1(bnd, sh1); res;
-            else
-                res := combine_errs( sh1, simp1(bnd, sh) ); res;
-            end if;
-    end proc end proc;
+    local cmp_simp_sh := proc(simp0, simp1, bnd, sh :: {DomShape,DomNoSol}, $)::{DomShape,DomNoSol};
+      local res, sh1; sh1 := simp0(bnd, sh);
+      if not sh1 :: DomNoSol then
+          simp1(bnd, sh1);
+      else
+          combine_errs( sh1, simp1(bnd, sh) );
+      end if;
+    end proc;
 end module;
