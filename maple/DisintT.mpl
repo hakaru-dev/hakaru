@@ -41,7 +41,8 @@ d3r := {
             ,Piece(t <= 1 and 0 < t
                   ,Weight(1-t,Bind(Uniform(t,1),`x`,Ret(f(`x`,-t+`x`)))))
             ,Piece(1 < t,Msum())
-            ])
+            ]),
+PARTITION([Piece(t <= -1,Msum()), Piece(And(-1 < t,t <= 0),Weight(t+1,Bind(Uniform(0,t+1),x,Ret(f(x,-t+x))))), Piece(And(0 < t,t < 1),Weight(1-t,Bind(Uniform(t,1),x,Ret(f(x,-t+x))))), Piece(1 <= t,Msum())])
 }:
 
 
