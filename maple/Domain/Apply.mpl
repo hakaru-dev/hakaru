@@ -36,23 +36,23 @@ export Apply := module ()
        # f_body := how to make the expression body
        local do_apply := proc(done__, e, vs, sh_, ctx, $)
            local sh := sh_, done_ := done__
-               , r, cond, vn, vt, shv, vars, deps, ctx1, rn;
+               , r, cond, mk_cond, vn, vt, shv, vars, deps, ctx1, rn;
            # If the solution is a constraint, and the constraint is true,
            # then just produce the expression. If it isn't necessarily true
            # (i.e. trivial) then produce a Partition with the constraint as a
            # guard.
            if sh :: DomConstrain then
-               r := op(3,ctx)(e, op(1,ctx));
                cond := remove(is, sh);
                if cond = DConstrain() then
-                   r := r;
+                   mk_cond := x->x;
                else
-                   cond := bool_And(op(sh));
-                   r := PARTITION([Piece(cond,r), Piece(Not(cond),0)]);
+                   mk_cond := bool_And(op(sh));
+                   mk_cond := x->PARTITION([Piece(cond,x), Piece(Not(cond),0)]);
                end if;
                # if there are still integrals which have not been applied, apply
                # them now
-               do_mks(r, {op(Domain:-Bound:-varsOf(vs))} minus done_, vs, ctx);
+               do_mks(e, (r,kb1) -> mk_cond(op(3,ctx)(r, kb1)),
+                      {op(Domain:-Bound:-varsOf(vs))} minus done_, vs, ctx);
            # if the solution is a sum of solutions, produce the algebraic sum
            # of each summand of the solution applied to the expression.
            elif sh :: DomSum then
@@ -74,14 +74,13 @@ export Apply := module ()
                # in 'scope' in the recursive call
                vars := {op(Domain:-Bound:-varsOf(vs))};
                deps := (indets(vt, DomBoundVar) intersect vars) minus done_ ;
-               done_ := `union`(done_, deps, {vn}) ;
-               # recursively apply
-               ctx1, rn := into_mk(vs, vn, vt, ctx);
-               r := `if`(rn<>[],%subs(rn,e),e);
-               r := do_apply(done_, r, vs, shv, ctx1);
-               # build this integral, and the other this one depended on
                deps := `union`(deps, {vn});
-               do_mks(r, deps, Domain:-Bound:-upd(vs, vn, vt), ctx);
+               done_ := `union`(done_, deps) ;
+
+               # build this integral, and the other this one depended on, then
+               # recursively apply
+               do_mks(e, (r,kb1) -> do_apply(done_, r, vs, shv, subsop(1=kb1,ctx)),
+                      deps, Domain:-Bound:-upd(vs, vn, vt), ctx);
            else
                error "don't know how to apply %1", sh
            end if;
@@ -107,14 +106,32 @@ export Apply := module ()
            subsop(1=kb1, ctx), rn;
        end proc;
 
-       local do_mks := proc(e, todo::set(DomBoundVar), dbnd :: DomBound, ctx, $)
-           local vs, v_td, i, vt, v_mk, _, r := e;
-           vs := select(v->v in todo,Domain:-Bound:-varsOf(dbnd));
-           for v_td in vs do
-             i := Domain:-Bound:-varIx(dbnd, v_td);
-             _, vt, v_mk := op(op([1,i], dbnd));
-             r := op(2,ctx)(v_mk, r, v_td, vt, op(1,ctx));
-           end do;
-           r;
+       local do_mks := proc(e, kont, todo::({list,set})(DomBoundVar), dbnd :: DomBound, ctx, $)
+           local vs, v_td, i, vt, kb0, v_mk, _, ctx1, rn, r := e;
+
+           if todo :: set then
+             vs := select(v->v in todo,Domain:-Bound:-varsOf(dbnd));
+           else
+             vs := todo;
+           end if;
+
+           if nops(vs)=0 then
+             return kont(r,op(1,ctx));
+           end if;
+
+           v_td := op(1,vs);
+           vs   := subsop(1=NULL,vs);
+           i    := Domain:-Bound:-varIx(dbnd, v_td);
+           _,vt,v_mk := op(op([1,i], dbnd));
+
+           ctx1, rn := into_mk(dbnd, v_td, vt, ctx);
+           if rn <> [] then
+             r := %subs(r,rn);
+           else
+             r := e;
+           end if;
+
+           r := do_mks(r, kont, vs, dbnd, ctx1);
+           op(2,ctx)(v_mk, r, v_td, vt, op(1,ctx));
        end proc;
 end module;
