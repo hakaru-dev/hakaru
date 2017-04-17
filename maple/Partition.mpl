@@ -43,15 +43,7 @@ local
       # global extensions to maple functionality
       :-`eval/PARTITION` :=
       proc(p, eqs, $)
-          local q, r;
-          q := Umap(x->eval(x,eqs), p);
-          r := eval( PartitionToPW(q), eqs );
-          if r :: specfunc('piecewise') then
-              q := PWToPartition(r);
-          else
-              q := r;
-          end if;
-          q;
+          Umap(x->eval(x,eqs), p);
       end proc;
 
       :-`depends/PARTITION` :=
@@ -64,7 +56,7 @@ local
       proc(parts, wrt, $)
           local pw  := PartitionToPW(PARTITION(parts))
               , dpw := diff(pw, wrt)
-              , r   := PWToPartition(dpw, 'do_solve' )
+              , r   := PWToPartition(dpw, 'do_solve')
               , r0, r1;
             ;
           r0 := Simpl:-singular_pts(r);
