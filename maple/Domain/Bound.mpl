@@ -73,12 +73,12 @@ export Bound := module ()
             , noinf := evalb('no_infinity' in opts)
             , btys  := evalb('bound_types' in opts);
         lo,hi := Domain:-ExtBound[mk]:-SplitRange(ty);
-        noi := `if`(noinf,mk->b->if b in {infinity,-infinity} then {} else {mk(b)} end if
-                         ,mk->b->{mk(b)} );
         bt  := `if`(btys, { vn :: Domain:-ExtBound[mk]:-BoundType }, {});
-        { noi(x->Domain:-ExtBound[mk]:-Constrain( x, vn ))(lo)[]
-        , noi(x->Domain:-ExtBound[mk]:-Constrain( vn, x ))(hi)[]
-        , bt[]}
+        bt := { Domain:-ExtBound[mk]:-Constrain( lo, vn )
+        , Domain:-ExtBound[mk]:-Constrain( vn, hi )
+        , bt[]};
+        `if`(noinf,x->remove(c->c::relation and ormap(s->s(c)::identical(infinity,-infinity),[lhs,rhs]), x),_->_)
+            (bt);
     end proc;
 
     local toConstraints_opts := { 'no_infinity', 'bound_types' };
