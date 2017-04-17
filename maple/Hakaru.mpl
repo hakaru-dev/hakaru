@@ -560,17 +560,24 @@ Hakaru := module ()
                                         , [ {`<`, `<=`}, {`>`, `>=`} ]
                                         , v);
 
+  # Creates an N-ary operator `Plus` such:
+  #  Plus(Plus(a,b),c)=Plus(a,Plus(a,b))
+  #  Plus(a,Zero)=a
+  #  Plus(a)=a
+  #  Plus(x,x)=x
   Mk_Plus := proc(plus,zero,$) proc()
-      if nargs=0 then op(1,zero)
-      elif nargs=1 then args[1]
-      else op(1,plus)(args)
-      end if;
+    local as := {args};
+    as := map(a->if op(0,a)=plus then op(a) else a end if, as);
+    if nops(as)=0 then zero
+    elif nops(as)=1 then op(1,as)
+    else plus(op(as))
+    end if;
   end proc; end proc;
 
   # Replacements for `and` and `or` which do not
   # evaluate "x = y" to "false" when "x,y" are unbound vars.
-  bool_And := Mk_Plus(['And'], ['true' ]);
-  bool_Or  := Mk_Plus(['Or'] , ['false']);
+  bool_And := Mk_Plus('And','true' );
+  bool_Or  := Mk_Plus('Or' ,'false');
 
   bool_Not := proc(a,$)
     if a :: KB:-t_kb_atom then
