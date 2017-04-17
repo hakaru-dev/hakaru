@@ -144,43 +144,7 @@ Domain := module()
                protect(g);
            end do;
 
-           unprotect(Domain:-ExtBound);
-           ExtBound[`Int`] :=
-               Record('MakeKB'=KB:-genLebesgue
-                     ,'ExtractVar'=(e->op(1,e))
-                     ,'ExtractRange'=(e->op(2,e))
-                     ,'MakeRange'=`..`
-                     ,'SplitRange'=(e->op(e))
-                     ,'Constrain'=`<`
-                     ,'DoMk'=((e,v,t)->`Int`(e,v=t))
-                     ,'Min'=min, 'Max'=max
-                     ,'VarType'='name'
-                     ,'RangeType'='range'
-                     ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
-                     ,'BoundType'='real'
-                     );
-
-           ExtBound[`Sum`] :=
-               Record('MakeKB'=KB:-genSummation
-                     ,'ExtractVar'=(e->op(1,e))
-                     ,'ExtractRange'=(e->op(2,e))
-                     ,'MakeRange'=`..`
-                     ,'SplitRange'=(e->op(e))
-                     ,'Constrain'=`<=`
-                     ,'DoMk'=((e,v,t)->`Sum`(e,v=t))
-                     ,'Min'=min, 'Max'=max
-                     ,'VarType'='name'
-                     ,'RangeType'='range'
-                     ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
-                     ,'BoundType'='integer'
-                     );
-
-           ExtBound[`Ints`] := NewSLO:-isBound_IntsSums(`Ints`);
-           ExtBound[`Sums`] := NewSLO:-isBound_IntsSums(`Sums`);
-           protect(Domain:-ExtBound);
-
            unprotect(Domain:-ExtShape);
-
            ExtShape[`PARTITION`] :=
                Record('MakeCtx'=
                       (proc(p0,$)
@@ -227,8 +191,20 @@ Domain := module()
     end proc;
 
     # Extending domain extraction and replacement.
-    export ExtBound := table();
-    export ExtShape := table();
+    local ExtBound := table();
+    local ExtShape := table();
+
+    export Set_ExtBound := proc(nm,val,$)
+      unprotect(Domain:-ExtBound);
+      Domain:-ExtBound[nm] := val;
+      protect(Domain:-ExtBound);
+    end proc;
+
+    export Set_ExtShape := proc(nm,val,$)
+      unprotect(Domain:-ExtShape);
+      Domain:-ExtShape[nm] := val;
+      protect(Domain:-ExtShape);
+    end proc;
 
 $include "Domain/Has.mpl"
 $include "Domain/Bound.mpl"

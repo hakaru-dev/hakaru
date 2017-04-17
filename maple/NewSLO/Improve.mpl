@@ -148,6 +148,24 @@
     end if
   end proc;
 
+  # Int( .., var=var_ty ) == var &X var_ty
+  isBound_IntSum := kind -> module()
+    option record;
+
+    export MakeKB := (`if`(kind=Int,KB:-genSummation,KB:-genLebesgue));
+    export ExtractVar := (e->op(1,e));
+    export ExtractRange := (e->op(2,e));
+    export MakeRange := `..`;
+    export SplitRange := (e->op(e));
+    export Constrain := `if`(kind=Int,`<=`,`<`);
+    export DoMk := ((e,v,t)->kind(e,v=t));
+    export Min := `min`; export Max := `max`;
+    export VarType := 'name';
+    export RangeType := 'range';
+    export MapleType := 'And'('specfunc'(kind), 'anyfunc(anything,name=range)');
+    export BoundType := `if`(kind=Int,'integer','real');
+  end module;
+
   # Ints( .., var::name, var_ty::range, dims::list(name=range) ) ==
   #        [ var   , map(lhs,dims) ] :: list(name)  &X
   #        [ var_ty, map(rhs,dims) ] :: list(range)
