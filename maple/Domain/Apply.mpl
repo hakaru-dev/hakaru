@@ -46,7 +46,7 @@ export Apply := module ()
                if cond = DConstrain() then
                    mk_cond := x->x;
                else
-                   mk_cond := bool_And(op(sh));
+                   cond := bool_And(op(cond));
                    mk_cond := x->PARTITION([Piece(cond,x), Piece(Not(cond),0)]);
                end if;
                # if there are still integrals which have not been applied, apply
