@@ -301,7 +301,7 @@ export
        local p := p0, pw, p1, wps, ws, vs, cs, w, ps;
 
        if kind='piecewise' then
-         p := Partition:-PWToPartition(p, 'do_solve');
+         p := Partition:-PWToPartition(p);
        end if;
 
        w, p1 := Partition:-Simpl:-single_nonzero_piece(p);
