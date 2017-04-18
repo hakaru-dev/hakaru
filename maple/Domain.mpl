@@ -188,9 +188,8 @@ $include "Domain/Improve.mpl"
         map(x -> if not x :: inty then inmk(x) else x end if, expr);
     end proc;
 
-    export Fold := proc(e0, kb :: t_kb
-                , f_into, f_body
-                , f_nosimp := (_->FAIL), $)
+    # The main interface to Domain
+    export Reduce := proc(e0,kb::t_kb,f_into,f_body,f_nosimp:=(_->FAIL),$)
       local e := e0, dom_specb, dom_specw, dom_ctx, dom_spec;
       # Build the domain
       dom_specb, e := op(Domain:-Extract:-Bound(e));

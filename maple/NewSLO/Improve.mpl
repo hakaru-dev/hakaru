@@ -77,8 +77,8 @@
   # "Integrals" refers to any types of "integrals" understood by domain (Int,
   # Sum currently)
   reduce_Integrals := proc(expr, h, kb, opts, $)
-    local rr;
-    rr := Domain:-Fold(expr, kb
+    local rr, elim;
+    rr := Domain:-Reduce(expr, kb
       ,proc() elim_intsum:-for_Domain(h,args) end proc
       ,((x,kb1)->reduce(x,h,kb1,opts))
       ,(_->:-DOM_FAIL));
