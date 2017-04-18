@@ -314,13 +314,11 @@ export
         single_branch(remove_false_pieces(flatten(p)));
       elif assigned(distrib_op_Partition[op(0,p)]) then
         mk := distrib_op_Partition[op(0,p)];
-        qs := [op(p)];
-        ps, qs := selectremove(type, qs, Partition);
-        if nops(ps)=0 then return p end if;
+        ps := [op(p)];
         ps := map(Simpl, ps);
-        ps, qs1 := selectremove(type, ps, Partition);
+        ps, qs := selectremove(type, ps, Partition);
         if nops(ps)=0 then return p end if;
-        mk(op(qs),op(qs1),foldr(((a,b)->Partition:-PProd(a,b,_add=mk)),op(ps)));
+        mk(op(qs),foldr(((a,b)->Partition:-PProd(a,b,_add=mk)),op(ps)));
       else
         subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},Simpl);
       end if;
