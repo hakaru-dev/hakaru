@@ -14,7 +14,7 @@ constraints_about_vars := module()
         local ctx1, ctx, ss, td, rest, d, in_vs;
         ss, ctx := selectremove(q->depends(q,indets(vars,And(name,Not(constant)) )), x);
         in_vs := q-> not(lhs(q) in vars) and not(rhs(q) in vars);
-        td, rest := selectremove(type, ss, And(relation,satisfies(in_vs)));
+        td, rest := selectremove(type, ss, And(relation,satisfies(x->in_vs(x) and has(x,{ln,exp}))));
         ctx1 := { op(ctx), op(ctx_vs), op(rest) };
         d := map(x->try_make_about(vs0, vars,ctx1,x), td);
         DConstrain(op(d), op(ctx), op(rest));
