@@ -1,4 +1,8 @@
-local LMS := module()
+LMS := module()
+    uses SolveTools[Inequality];
+    export SimplName  := "LMS";
+    export SimplOrder := 6+(1/2);
+
     # We use the opposite "integration order" than LMS, so
     # reverse the variables. The scare quotes are because LMS
     # knows nothing about domains or integration, but it does

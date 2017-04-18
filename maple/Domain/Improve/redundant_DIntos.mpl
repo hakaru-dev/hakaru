@@ -1,4 +1,5 @@
-local redundant_DIntos := proc(vs :: DomBound, sh :: DomShape, $)
+redundant_DIntos := module()
+  export ModuleApply := proc(vs :: DomBound, sh :: DomShape, $)
     # This 'simplification' removes redundant information, but it is
     # entirely pointless as the result should be the same anyways. This
     # is mainly here as an assertion that Apply properly
@@ -15,5 +16,9 @@ local redundant_DIntos := proc(vs :: DomBound, sh :: DomShape, $)
                       x
                   end if;
                 end proc );
-end proc;
+  end proc;
+
+  export SimplName  := "Obviously redundant 'DInto's";
+  export SimplOrder := 2;
+end module;
 

@@ -1,4 +1,8 @@
-local constraints_about_vars := module()
+constraints_about_vars := module()
+  uses SolveTools[Inequality];
+  export SimplName  := "Make constraints abouts vars";
+  export SimplOrder := 6;
+
     export ModuleApply := proc(vs0 :: DomBound, sh :: DomShape, $)
         local vs := vs0, ctx;
         vs  := {op(Domain:-Bound:-varsOf(vs))};
@@ -59,9 +63,16 @@ local do_ctx_dir := dir -> proc(vs :: DomBound, sh :: DomShape, $)
     end if;
 end proc;
 
-local push_ctx_down :=
-  do_ctx_dir(ctx->sh->subsindets(sh, DomConstrain, x->if nops(x)<>0 then DConstrain(op(x), op(ctx)) else DConstrain() end if));
+push_ctx_down := module()
+  export ModuleApply := do_ctx_dir(ctx->sh->subsindets(sh, DomConstrain, x->if nops(x)<>0 then DConstrain(op(x), op(ctx)) else DConstrain() end if));
+  export SimplName  := "Push context down";
+  export SimplOrder := 1;
+end module;
 
-local pull_ctx_out :=
-  do_ctx_dir(ctx->sh->subsindets(sh, DomConstrain
-            ,x->remove(c->c in ctx or (is(c) assuming ctx), x)));
+pull_ctx_out := module()
+  export ModuleApply :=
+    do_ctx_dir(ctx->sh->subsindets(sh, DomConstrain
+              ,x->remove(c->c in ctx or (is(c) assuming ctx), x)));
+  export SimplName  := "Pull context out";
+  export SimplOrder := 20;
+end module;

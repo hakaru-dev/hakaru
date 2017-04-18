@@ -1,7 +1,10 @@
 # todo; this should actually solve for a variable, then substitute
 # that variable in. In most cases, it would probably be enough to
 # leave that as it is; it would simplify later.
-local singular_pts := module()
+singular_pts := module()
+  export SimplName  := "Single_pts";
+  export SimplOrder := 14;
+
     export ModuleApply := proc(bnds_ :: DomBound, sh_ :: DomShape, $)
         local bnds := bnds_, sh := sh_, vs, todo, sh1, vs_ty;
         vs := applyop(bl -> select(b->op(3,b)=`Int`, bl), 1, bnds);

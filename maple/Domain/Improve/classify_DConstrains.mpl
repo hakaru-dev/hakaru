@@ -1,4 +1,7 @@
-local classify_DConstrains := module()
+classify_DConstrains := module()
+  export SimplName  := "Classify constraints";
+  export SimplOrder := 8;
+
   export ModuleApply := proc(dbnds::DomBound,dsh::DomShape,$)
     subsindets(dsh, DomConstrain, x->classify_Rels([op(x)], dbnds));
   end proc;

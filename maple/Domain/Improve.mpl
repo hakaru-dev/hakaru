@@ -1,55 +1,47 @@
 export Improve := module ()
     export Simplifiers := table();
     export ModuleApply := proc(dom :: HDomain, $)::HDomain_mb;
-        local es := map(si->Simplifiers[si]:-DO
+        local es := map(si->Simplifiers[si]
                        , sort( [indices(Domain:-Improve:-Simplifiers,nolist) ]
-                             , key=(si->Simplifiers[si]:-Order)))
+                             , key=(si->Simplifiers[si]:-SimplOrder)))
              , bnd, sh;
         bnd, sh := op([1..2], dom);
         sh := foldr(((f,q)->proc() cmp_simp_sh(f,q,args) end proc)
                    ,(proc(_,b,$) b end proc), op(es))(bnd, sh);
         DOMAIN(bnd, sh);
     end proc;
+    export ModuleLoad := proc($) LoadSimplifiers() end proc;#ModuleLoad
 
-# our simplifiers
-$include "Domain/Improve/LMS.mpl"
-$include "Domain/Improve/redundant_DIntos.mpl"
-$include "Domain/Improve/constraints_about_vars.mpl"
-$include "Domain/Improve/singular_pts.mpl"
-$include "Domain/Improve/single_case_Partition.mpl"
-$include "Domain/Improve/classify_DConstrains.mpl"
+    local unknown_Simplifiers := {};
+    local LoadSimplifiers := proc($)
+      local lib_path, drs, improve_path, simpls_paths, simpl_path, names0, names1, new_names, nm;
+      unprotect(Simplifiers);
+      lib_path := FileTools:-ParentDirectory(LibraryTools:-FindLibrary(Hakaru));
+      ASSERT(lib_path<>NULL);
+      drs := kernelopts(dirsep);
+      improve_path := `cat`(lib_path,drs,"Domain",drs,"Improve");
 
-    export ModuleLoad := proc($)
-        unprotect(Domain:-Improve:-Simplifiers):
-        Simplifiers["Push context down"] :=
-             Record('Order'=1
-                   ,'DO'=Domain:-Improve:-push_ctx_down);
-        Simplifiers["Obviously redundant 'DInto's"] :=
-             Record('Order'=2
-                   ,'DO'=Domain:-Improve:-redundant_DIntos);
-        Simplifiers["Make constraints abouts vars"] :=
-             Record('Order'=6
-                   ,'DO'=Domain:-Improve:-constraints_about_vars);
-        Simplifiers["LMS"] :=
-             Record('Order'=(6+1/2)
-                   ,'DO'=evaln(Domain:-Improve:-LMS));
-        Simplifiers["Classify constraints"] :=
-             Record('Order'=8
-                   ,'DO'=Domain:-Improve:-classify_DConstrains);
-        Simplifiers["Redundant Partition pieces"] :=
-             Record('Order'=(10+1/2)
-                   ,'DO'=Domain:-Improve:-redundant_Partition_Pieces);
-        Simplifiers["Single case partition"] :=
-             Record('Order'=11
-                   ,'DO'=Domain:-Improve:-single_case_Partition);
-        Simplifiers["Single_pts"] :=
-             Record('Order'=14
-                   ,'DO'=Domain:-Improve:-singular_pts);
-        Simplifiers["Pull context out"] :=
-             Record('Order'=20
-                   ,'DO'=Domain:-Improve:-pull_ctx_out);
-        # protect(Domain:-Improve:-Simplifiers):
-    end proc;#ModuleLoad
+      simpls_paths := FileTools:-ListDirectory(improve_path);
+      for simpl_path in simpls_paths do
+        names0 := {anames(user)};
+        read(`cat`(improve_path,drs,simpl_path));
+        names1 := {anames(user)};
+        new_names := names1 minus names0;
+        for nm in new_names minus {entries(Simplifiers,nolist)} do
+          if nm :: `module`(SimplName,SimplOrder) then
+            if assigned(Simplifiers[nm:-SimplName])
+            and not Simplifiers[nm:-SimplName] = nm then
+              WARNING("overwriting old simplifier! (%1)", Simplifiers[nm:-SimplName]):
+            end if;
+            Simplifiers[nm:-SimplName] := nm;
+          elif not nm in unknown_Simplifiers then
+            unknown_Simplifiers := { nm, op(unknown_Simplifiers) };
+            WARNING("not recognized as a simplifier: %1", nm);
+          end if;
+        end do;
+      end do;
+      protect(Simplifiers);
+    end proc;#LoadSimplifiers
 
     local combine_errs := proc(err::DomNoSol, mb, $)
         if mb :: DomNoSol then
