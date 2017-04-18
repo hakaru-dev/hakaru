@@ -56,7 +56,7 @@ export Improve := module ()
 
     # compose two simplifiers, combining errors if both fail
     local cmp_simp_sh := proc(simp0, simp1, bnd, sh :: {DomShape,DomNoSol}, $)::{DomShape,DomNoSol};
-      local res, sh1; sh1 := simp0(bnd, sh);
+      local res, sh1; sh1 := simp0(bnd, sh); simp0:-SimplName;
       if not sh1 :: DomNoSol then
           simp1(bnd, sh1);
       else
