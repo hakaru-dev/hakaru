@@ -1,5 +1,4 @@
 constraints_about_vars := module()
-  uses SolveTools[Inequality];
   export SimplName  := "Make constraints abouts vars";
   export SimplOrder := 6;
 
@@ -28,30 +27,19 @@ constraints_about_vars := module()
 
         vars_q := op(1,vars_q);
         q := KB:-try_improve_exp(q, vars_q, ctx1);
-        try
-          q_s := LinearUnivariate(q, vars_q) assuming (op(ctx1));
-          if q_s :: set(relation) and nops(q_s)=1 then
-            userinfo(3, 'constraints_about_vars'
-                    ,printf("Found a solution to %a (with LinearUnivariate):\n\t%a\n", q0, op(1,q_s)));
-            op(1,q_s)
-          else
-            q
-          end if;
-        catch "when calling '%2'. Received: 'inequality must be linear in %1'":
-          q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
-          q_s := eval(q_s);
-          if q_s::list then
-            if nops(q_s)=0 then return q end if;
-            q_s := map(s->remove(c->c in ctx1 or `and`(c::relation,lhs(c)::name,lhs(c)=rhs(c)), s), q_s);
-            q_s := remove(x->x=[],q_s);
-            if nops(q_s)=0 then return q end if;
-            userinfo(3, 'constraints_about_vars'
-                    ,printf("Found a solution to %a (with solve):\n\t%a\n", q0, op(1,q_s)));
-            op(op(1,q_s)); # pick the first solution arbitrarily!
-          else
-            q
-          end if;
-        end try;
+        q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
+        q_s := eval(q_s);
+        if q_s::list then
+          if nops(q_s)=0 then return q end if;
+          q_s := map(s->remove(c->c in ctx1 or `and`(c::relation,lhs(c)::name,lhs(c)=rhs(c)), s), q_s);
+          q_s := remove(x->x=[],q_s);
+          if nops(q_s)=0 then return q end if;
+          userinfo(3, 'constraints_about_vars'
+                  ,printf("Found a solution to %a (with solve):\n\t%a\n", q0, op(1,q_s)));
+          op(op(1,q_s)); # pick the first solution arbitrarily!
+        else
+          q
+        end if;
     end proc;
 end module;
 
