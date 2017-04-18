@@ -10,14 +10,18 @@ export Improve := module ()
                    ,(proc(_,b,$) b end proc), op(es))(bnd, sh);
         DOMAIN(bnd, sh);
     end proc;
-    export ModuleLoad := proc($) LoadSimplifiers() end proc;#ModuleLoad
 
-    local unknown_Simplifiers := {};
+    local ModuleLoad := proc($)
+      LoadSimplifiers();
+      LoadSimplifiers := (proc() end proc);
+    end proc;#ModuleLoad
+
     local LoadSimplifiers := proc($)
       local lib_path, drs, improve_path, simpls_paths, simpl_path, names0, names1, new_names, nm;
       unprotect(Simplifiers);
-      lib_path := FileTools:-ParentDirectory(LibraryTools:-FindLibrary(Hakaru));
+      lib_path := LibraryTools:-FindLibrary(Hakaru);
       ASSERT(lib_path<>NULL);
+      lib_path := FileTools:-ParentDirectory(lib_path);
       drs := kernelopts(dirsep);
       improve_path := `cat`(lib_path,drs,"Domain",drs,"Improve");
 
@@ -33,9 +37,8 @@ export Improve := module ()
             and not Simplifiers[nm:-SimplName] = nm then
               WARNING("overwriting old simplifier! (%1)", Simplifiers[nm:-SimplName]):
             end if;
-            Simplifiers[nm:-SimplName] := nm;
-          elif not nm in unknown_Simplifiers then
-            unknown_Simplifiers := { nm, op(unknown_Simplifiers) };
+            Simplifiers[nm:-SimplName] := eval(nm);
+          else
             WARNING("not recognized as a simplifier: %1", nm);
           end if;
         end do;

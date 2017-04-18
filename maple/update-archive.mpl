@@ -46,7 +46,11 @@ LibraryTools:-Save(`depends/Integrand`, lib):
 LibraryTools:-Save(`depends/LO`, lib):
 LibraryTools:-Save(`eval/Integrand`, lib):
 LibraryTools:-Save(`eval/LO`, lib):
-Domain:-Improve:-ModuleLoad(): LibraryTools:-Save('Domain', lib):
+LibraryTools:-Save('Domain', lib):
+prev := kernelopts(opaquemodules=false):
+Domain:-Improve:-ModuleLoad():
+kernelopts(opaquemodules=prev):
+LibraryTools:-Save('Domain:-Improve', lib):
 LibraryTools:-Save('NewSLO', lib):
 LibraryTools:-Save('Partition', lib):
 LibraryTools:-Save(`depends/Bucket`, lib):
