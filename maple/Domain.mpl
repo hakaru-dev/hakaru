@@ -195,30 +195,36 @@ $include "Domain/Improve.mpl"
                 , f_into, f_body
                 , f_apply
                 , f_nosimp := (_->FAIL), $)
-      local F_INTO, F_BODY, e := e0, rn
-           , dom_specb, dom_specw, dom_ctx, dom_spec1, dom_spec, mkDom ;
-      rn := [F_INTO=f_into, F_BODY=f_body,%subs=subs];
+      local F_INTO, F_BODY, e := e0, body
+           , dom_specb, dom_specw, dom_ctx, dom_spec,
+           , mkDom, `result body` ;
 
+      # Build the domain
       dom_specb, e := op(Domain:-Extract:-Bound(e));
       if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
       dom_specw, e := op(Domain:-Extract:-Shape(e));
-
       dom_ctx := {op(KB:-kb_to_constraints(kb))};
       dom_specb := DBound(op(1,dom_specb), dom_ctx);
       dom_spec := DOMAIN(dom_specb, dom_specw);
 
-      if dom_specw <> DConstrain() then
-        dom_spec := Domain:-Improve(dom_spec);
-      end if;
+      # Improve, if necessary, then apply back to the expression
+      if dom_specw <> DConstrain() then dom_spec := Domain:-Improve(dom_spec) end if;
+      e := Domain:-Apply(dom_spec, kb, F_INTO, F_BODY)(e);
 
-      mkDom := Domain:-Apply(dom_spec, kb, F_INTO, F_BODY);
-      e := f_apply(dom_specb, x->eval(mkDom(x),rn), e);
-      if has(e, FAIL) then
-        # TODO: check for type(e, LO)
-        f_nosimp(e0);
-      else
-        e
-      end if;
+      # if the entire domain is identically zero
+      if e :: identical(0) then return f_apply(dom_specb, (x->x), 0) end if;
+
+      # remove the body from the result and evaluate it seperately (once);
+      # the rest of the domain 'continuation' is passed to f_apply
+      e := eval(e,%subs=subs);
+      body := indets(e, specfunc(F_BODY));
+      if nops(body) <> 1 then
+        error "expression has no holes or "
+              "more than 1 hole: %1, %2, %3", e;
+      else body := op(1,body) end if;
+      mkDom := unapply(subs([body=`result body`,F_INTO=f_into],e), `result body`);
+      body := eval(body, [F_BODY=f_body]);
+      f_apply(dom_specb, mkDom, body);
     end proc;
 
 end module;
