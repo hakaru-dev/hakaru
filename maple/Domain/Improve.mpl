@@ -17,6 +17,7 @@ $include "Domain/Improve/redundant_DIntos.mpl"
 $include "Domain/Improve/constraints_about_vars.mpl"
 $include "Domain/Improve/singular_pts.mpl"
 $include "Domain/Improve/single_case_Partition.mpl"
+$include "Domain/Improve/classify_DConstrains.mpl"
 
     export ModuleLoad := proc($)
         unprotect(Domain:-Improve:-Simplifiers):
@@ -30,8 +31,11 @@ $include "Domain/Improve/single_case_Partition.mpl"
              Record('Order'=6
                    ,'DO'=Domain:-Improve:-constraints_about_vars);
         Simplifiers["LMS"] :=
-             Record('Order'=10
+             Record('Order'=(6+1/2)
                    ,'DO'=evaln(Domain:-Improve:-LMS));
+        Simplifiers["Classify constraints"] :=
+             Record('Order'=8
+                   ,'DO'=Domain:-Improve:-classify_DConstrains);
         Simplifiers["Redundant Partition pieces"] :=
              Record('Order'=(10+1/2)
                    ,'DO'=Domain:-Improve:-redundant_Partition_Pieces);

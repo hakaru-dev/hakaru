@@ -177,6 +177,19 @@
     export RangeType := 'range';
     export MapleType := 'And'('specfunc'(kind), 'anyfunc(anything,name=range)');
     export BoundType := `if`(kind=Sum,'integer','real');
+    export RecogBound := `if`(kind=Sum,
+              (proc(k,b)
+                 if   k = `<=` then (x->subsop(1=b,x))
+                 elif k = `>=` then (x->subsop(2=b,x))
+                 elif k = `<`  then (x->subsop(1=(b-1),x))
+                 elif k = `>`  then (x->subsop(2=b+1,x))
+                 end if;
+               end proc),
+              (proc(k,b)
+                 if   k in {`<=`,`<`} then (x->subsop(1=b,x))
+                 elif k in {`>=`,`>`} then (x->subsop(2=b,x))
+                 end if;
+               end proc));
   end module;
 
   # Ints( .., var::name, var_ty::range, dims::list(name=range) ) ==
@@ -215,6 +228,7 @@
     export RangeType    := 'And(list(range),satisfies(x->x<>[]))';
     export MapleType    := 'And'('specfunc'(kind),'anyfunc'('anything', 'name', 'range', 'list(name=range)'));
     export BoundType    := TopProp;
+    export RecogBound   := (_->NULL);
   end module;
 
   # Try to find an eliminate (by evaluation, or simplification) integrals which

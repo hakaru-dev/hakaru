@@ -82,8 +82,7 @@ local LMS := module()
         # `c : name' - to the interval for `v'
         # everything else - to itself
         ret := subsindets(ret, list(set({relation,boolean, name}))
-                         , classifySols(vs, ctx) @
-                          (ls->map(si->remove(x->x::identical(true) or x::name, si), ls)) );
+                         , x -> DConstrain(indets(x,{relation,boolean})[]) );
         subsindets(ret,[DomShape],op);
     end proc;
 
