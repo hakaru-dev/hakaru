@@ -491,14 +491,16 @@ export
                      otp;
                    end proc;
 
-           local do_eval_for_cmp := proc(ev, x, $)
-              try
-                  return ev(x);
-              catch "numeric exception: division by zero":
-                  # a cheap and dirty way of discovering we have
-                  # an expression which is singular at the point
-              end try;
-              x
+           local do_eval_for_cmp := proc(eval_cmp, ev, x, $)
+             local r;
+             try
+               return eval_cmp(subs(ev,x));
+             catch "numeric exception: division by zero":
+               r := limit(x, ev);
+               r := subsindets(r,And(specfunc(NewSLO:-applyintegrand),anyfunc(anything, identical(0)))
+                              ,_->0);
+               return eval_cmp(r);
+             end try;
            end proc;
 
            local tryReplacePiece :=
@@ -520,7 +522,7 @@ export
                          vs2 := { pc0val, op(vs2) };
                      end if;
                      # substitute the equality over the piece values
-                     vs2 := map(q -> do_eval_for_cmp(r -> eval_cmp(subs(vrEq, r)), q), vs2);
+                     vs2 := map(x->do_eval_for_cmp(eval_cmp,vrEq,x), vs2);
                      # if they are identically equal, return the original
                      # "guess"
                      if nops(vs2) = 1 then
