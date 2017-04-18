@@ -415,8 +415,40 @@ export
       false
    end proc,
 
+   PSum := proc(p0::Partition,p1::Partition,{_add := `+`})::Partition;
+     local ps0, ps1, cs, rs, rs0, rs1;
+     ps0,ps1 := map(ps -> sort(op(1,ps), key=(z->condOf(z))), [p0,p1])[];
+     cs := zip(proc(p0,p1)
+                 if condOf(p0)=condOf(p1) then
+                   Piece(condOf(p0),_add(valOf(p0),valOf(p1))) ;
+                 else [p0,p1];
+                 end if;
+               end proc, ps0,ps1);
+     rs, cs := selectremove(c->type(c,list),cs);
+     rs0, rs1 := map(k->map(r->op(k,r),rs),[1,2])[];
+     rs := map(r0->map(r1->
+               Piece( bool_And(condOf(r0),condOf(r1)), _add(valOf(r0),valOf(r1)) )
+              ,rs1)[],rs0);
+     PARTITION([op(cs),op(rs)]);
+   end proc,
+
    Simpl := module()
-       export ModuleApply := (single_branch@remove_false_pieces);
+       export ModuleApply := proc(p, $)
+         local ps, qs, qs1;
+         if p :: Partition then
+           single_branch(remove_false_pieces(p));
+         elif p :: `+` then
+           qs := convert(p, 'list', `+`);
+           ps, qs := selectremove(type, qs, Partition);
+           if nops(ps)=0 then return p end if;
+           ps := map(Simpl, ps);
+           ps, qs1 := selectremove(type, ps, Partition);
+           if nops(ps)=0 then return p end if;
+           `+`(op(qs),foldr(Partition:-PSum,op(ps)));
+         else
+           subsindets(p,{Partition,`+`},Simpl);
+         end if;
+       end proc;
 
        export single_nonzero_piece_cps := proc(k)
            local r,p; r, p := single_nonzero_piece(_rest);
