@@ -98,29 +98,29 @@ Domain := module()
     global DOMAIN; global DBound; global DConstrain; global DSum; global DSplit; global DInto; global DNoSol;
 
     local ModuleLoad := proc($)
-           local ty_nm, g;
-           for ty_nm in [ indices(DomainTypes, nolist) ] do
-               TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
-           end do;
+      local ty_nm, g;
+      for ty_nm in [ indices(DomainTypes, nolist) ] do
+        TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
+      end do;
 
-           #op([2,6], ...) of a module is its globals.
-           for g in op([2,6], thismodule) do
-               if g <> eval(g) then
-                   unassign(g);
-                   WARNING("Previous value of global name '%1' erased.", g)
-               end if;
-               if assigned(Domain:-GLOBALS[g]) then
-                   assign(g = copy(Domain:-GLOBALS[g]));
-               end if;
-               protect(g);
-           end do;
+      #op([2,6], ...) of a module is its globals.
+      for g in op([2,6], thismodule) do
+        if g <> eval(g) then
+          unassign(g);
+          WARNING("Previous value of global name '%1' erased.", g)
+        end if;
+        if assigned(Domain:-GLOBALS[g]) then
+          assign(g = copy(Domain:-GLOBALS[g]));
+        end if;
+        protect(g);
+      end do;
     end proc;
 
     local ModuleUnload := proc($)
-        local ty_nm;
-        for ty_nm in [ indices(DomainTypes, nolist) ] do
-            if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
-        end do;
+      local ty_nm;
+      for ty_nm in [ indices(DomainTypes, nolist) ] do
+        if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
+      end do;
     end proc;
 
     # Extending domain extraction and replacement.
