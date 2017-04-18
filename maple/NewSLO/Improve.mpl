@@ -179,15 +179,15 @@
     export BoundType := `if`(kind=Sum,'integer','real');
     export RecogBound := `if`(kind=Sum,
               (proc(k,b)
-                 if   k = `<=` then (x->subsop(1=b,x))
-                 elif k = `>=` then (x->subsop(2=b,x))
-                 elif k = `<`  then (x->subsop(1=(b-1),x))
-                 elif k = `>`  then (x->subsop(2=b+1,x))
+                 if   k = `<=` then (x->subsop(2=b,x))
+                 elif k = `>=` then (x->subsop(1=b,x))
+                 elif k = `<`  then (x->subsop(2=(b-1),x))
+                 elif k = `>`  then (x->subsop(1=b+1,x))
                  end if;
                end proc),
               (proc(k,b)
-                 if   k in {`<=`,`<`} then (x->subsop(1=b,x))
-                 elif k in {`>=`,`>`} then (x->subsop(2=b,x))
+                 if   k in {`<=`,`<`} then (x->subsop(2=b,x))
+                 elif k in {`>=`,`>`} then (x->subsop(1=b,x))
                  end if;
                end proc));
   end module;
