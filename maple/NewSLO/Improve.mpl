@@ -74,16 +74,6 @@
     end if;
   end proc;
 
-  reduce_Integrals_post := proc(h,kb,opts,dvars,mkDom,body)
-    local vars, e
-      , ed := mkDom(body)
-      , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x));
-    if ed <> ee then
-      ed := reduce(ee,h,kb,opts);
-    end if;
-    kb_assuming_mb(Partition:-Simpl)(ed, kb, x->x);
-  end proc;
-
   # "Integrals" refers to any types of "integrals" understood by domain (Int,
   # Sum currently)
   reduce_Integrals := proc(expr, h, kb, opts, $)
@@ -91,17 +81,19 @@
     rr := Domain:-Fold(expr, kb
       ,proc() elim_intsum:-for_Domain(h,args) end proc
       ,((x,kb1)->reduce(x,h,kb1,opts))
-      , proc() reduce_Integrals_post(h,kb,opts,args) end proc
       ,(_->:-DOM_FAIL));
+
+    elim := subsindets(rr, specfunc(ELIMED), x->op(1,x));
+    if elim <> rr then rr := reduce(elim,h,kb,opts) end if;
+    rr := kb_assuming_mb(Partition:-Simpl)(rr, kb, x->x);
 
     if has(rr, :-DOM_FAIL) then
       return FAIL;
     elif has(rr, FAIL) then
       error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
           , expr, kb, kb, opts, rr;
-    else
-      return rr;
-    end if
+    end if;
+    rr;
   end proc;
 
   int_assuming := proc(e, v::name=anything, kb::t_kb, $)
