@@ -167,17 +167,15 @@ singular_pts := module()
   export SimplName  := "Single_pts";
   export SimplOrder := 14;
 
-    export ModuleApply := proc(bnds_ :: DomBound, sh_ :: DomShape, $)
-        local bnds := bnds_, sh := sh_, vs, todo, sh1, vs_ty;
-        vs := applyop(bl -> select(b->op(3,b)=`Int`, bl), 1, bnds);
-        vs := Domain:-Bound:-varsOf(vs);
-        vs_ty := satisfies(x->x in {op(vs)});
-        todo := select( x -> nops(x) = 1 and op(1,x) :: `=`
-                             # one side mentions exactly one
-                             # var, and the other none
-                             and nops ( (indets(lhs(op(1,x)), vs_ty))
-                                  union (indets(rhs(op(1,x)), vs_ty)) ) = 1
-                      , indets(sh, specfunc(`DConstrain`)) ) ;
-        subs([seq(t=DSum(),t=todo)], sh);
-    end proc;
+  local can_remove := ((x,vs_ty) -> nops(x) = 1 and op(1,x) :: `=` and ormap(s->s(op(1,x))::vs_ty,[lhs,rhs]));
+
+  export ModuleApply := proc(bnds_ :: DomBound, sh_ :: DomShape, $)
+    local bnds := bnds_, sh := sh_, vs, todo, sh1, vs_ty;
+    vs := applyop(bl -> select(b->op(3,b)=`Int`, bl), 1, bnds);
+    vs := Domain:-Bound:-varsOf(vs);
+    vs_ty := 'satisfies(x->x in {op(vs)})';
+    todo := indets(sh, specfunc(`DConstrain`));
+    todo := select(x->can_remove(x,vs_ty), todo);
+    subs([seq(t=DSum(),t=todo)], sh);
+  end proc;
 end module;
