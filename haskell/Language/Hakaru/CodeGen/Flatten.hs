@@ -49,6 +49,7 @@ import Language.Hakaru.Types.Sing
 
 import           Control.Monad.State.Strict
 import           Control.Monad (replicateM)
+import           Control.Applicative (pure)
 import           Data.Number.Natural
 import           Data.Monoid        hiding (Product,Sum)
 import           Data.Ratio
