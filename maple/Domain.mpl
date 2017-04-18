@@ -33,9 +33,6 @@
 # Shape extraction needs to be reworked; we "flatten" constraints multiple
 #   times; This should be done once after shape extraction, not at every step
 #
-# Several 'simplifications' other than LMS are done in LMS. These need to have
-#   their own entry in Simplifiers (and work properly in their own context).
-#
 # DInto should also optionally omit the bounds if they are identical to the
 #   bounds in the a-priori domain bounds (i.e. just `DInto(x)`); DInto sort of
 #   means 'we've solved this bound in this subcontext' but the `DInto`s where
@@ -198,7 +195,6 @@ $include "Domain/Improve.mpl"
       local F_INTO, F_BODY, e := e0, body
            , dom_specb, dom_specw, dom_ctx, dom_spec,
            , mkDom, `result body` ;
-
       # Build the domain
       dom_specb, e := op(Domain:-Extract:-Bound(e));
       if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
