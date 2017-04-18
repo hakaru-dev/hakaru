@@ -28,8 +28,6 @@
 #   done sort of ad-hoc) (this could be fixed by a broader design - see "merging
 #   KB with Domain")
 #
-# All the global setup should be done through some kind of table
-#
 # Shape extraction needs to be reworked; we "flatten" constraints multiple
 #   times; This should be done once after shape extraction, not at every step
 #
