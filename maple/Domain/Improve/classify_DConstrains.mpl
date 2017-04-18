@@ -36,20 +36,14 @@ local classify_DConstrains := module()
 
   export classify_Rels := proc(rs0,dbnd,$)
     local rs := rs0;
-
     rs := map(r->classify_Rel(r,dbnd), rs);
     rs := [ListTools[Categorize]( ((a,b) -> op(1,a)=op(1,b) ), rs )];
     cs1, rs := selectremove(x->op([1,1],x)=DConstrain, rs);
     rs, cs2 := selectremove(x->nops(x)=1 or (nops(x)=2 and op([1,4],x)<>op([2,4],x)), rs);
-
+    rs := sort(rs, key=(x->-(`+`( seq(op(3,z),z=x) ))));
     rs := map(r->make_DInto(r,dbnd),rs);
-
-    cs := map(c->map(q->op(2,q),c)[], [op(cs1),op(cs2)]);
-    cs := DConstrain(op(cs));
-
-    rs := foldr((f,g)->f@g,x->x,op(rs))(cs);
-
-    rs;
+    cs := DConstrain(map(c->map(q->op(2,q),c)[], [op(cs1),op(cs2)])[]);
+    foldr((f,g)->f@g,x->x,op(rs))(cs);
   end proc;
 
   export make_DInto := proc(r::list([specfunc(DInto),anything,anything,identical(B_LO,B_HI),nonnegint]), dbnd, $)
