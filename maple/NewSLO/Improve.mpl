@@ -15,7 +15,7 @@
   reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     local e, elim, subintegral, w, ww, x, c, kb1, with_kb1, dom_specw, dom_specb
          , body, dom_spec, ed, mkDom, vars, rr
-         , do_domain := evalb( not ( 'no_domain' in {op(opts)} ) ) ;
+         , do_domain := evalb( not ( "no_domain" in {op(opts)} ) ) ;
     e := ee;
 
     if do_domain then
@@ -77,11 +77,14 @@
   reduce_Integrals_post := proc(h,kb,opts,dvars,mkDom,body)
     local vars, e
       , ed := mkDom(body)
-      , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x));
-
+      , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x))
+      , do_r :=
+          op(1,
+           [ map(x->op(2,x),select(x->x::list and op(1,x)="reduce_on", opts))[]
+           , reduce_on_prod ]);
     if ed = ee then
       vars := indets(Domain:-Bound:-varsOf(dvars), name);
-      ed := reduce_on_prod(mkDom, body, vars, kb);
+      ed := do_r(mkDom, body, vars, kb);
       kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(ed, kb, x->x);
     else
       reduce(ee,h,kb,opts);
@@ -114,6 +117,9 @@
   # to the portion depending on "var".
   # the 'weights' (factors not depending on "var") are simplified
   # under the given assumption context, "kb0"
+  reduce_on_sum := proc(f,ee,var,kb0,$)
+    `+`(map(s->reduce_on_prod(f,s,var,kb0), convert(expand(ee), 'list', `+`))[]);
+  end proc;
   reduce_on_prod := proc(f,ee, var:: {name, list(name), set(name)} ,kb0::t_kb,$)
       local e := ee, w;
       e, w := selectremove(x->depends(x,var) or x :: realcons, list_of_mul(e));
