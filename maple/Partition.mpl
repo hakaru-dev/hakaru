@@ -433,8 +433,10 @@ export
         local r;
         try
           r := eval_cmp(subs(ev,x));
+          userinfo(3, 'Partition', printf("evaluating\n\tsubs(%a,%a)\n\tproduced %a\n",x,ev,r)):
         catch "numeric exception: division by zero":
           r := eval_cmp(limit(x, ev));
+          userinfo(3, 'Partition', printf("evaluating\n\tlimit(%a,%a)\n\tproduced %a\n",x,ev,r)):
         end try;
         subsindets(r,And(specfunc(NewSLO:-applyintegrand),anyfunc(anything, identical(0))),_->0);
       end proc;
