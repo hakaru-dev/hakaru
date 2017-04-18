@@ -85,10 +85,10 @@
     if ed = ee then
       vars := indets(Domain:-Bound:-varsOf(dvars), name);
       ed := do_r(mkDom, body, vars, kb);
-      kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(ed, kb, x->x);
     else
-      reduce(ee,h,kb,opts);
-    end if
+      ed := reduce(ee,h,kb,opts);
+    end if;
+    kb_assuming_mb(Partition:-Simpl)(ed, kb, x->x);
   end proc;
 
   # "Integrals" refers to any types of "integrals" understood by domain (Int,
