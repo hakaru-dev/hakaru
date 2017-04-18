@@ -194,46 +194,6 @@ export
     end proc;
   end module,
 
-  Flatten := module()
-    export ModuleApply;
-    local unpiece, unpart, unpartProd;
-
-    ModuleApply := proc(pr0, { _with := [ 'Partition', unpart ] } )
-      local ty, un_ty, pr1, pr2;
-      ty, un_ty := op(_with);
-
-      pr1 := subsindets(pr0, ty, un_ty);
-      if pr0 <> pr1 then
-        ModuleApply(pr1, _with=[ Or('Partiton',`*`), unpartProd ]);
-      else
-        pr0
-      end if;
-    end proc;
-
-    # like Piece, but tries to not be a Piece
-    unpiece := proc(c, pr, $)
-      if pr :: Partition then
-        map(q -> applyop(z->bool_And(z,c),1,q), op(1,pr))[]
-      else Piece(c, pr) end if
-    end proc;
-
-    unpart := proc(pr, $)
-      if pr :: Partition then
-        PARTITION(map(q -> unpiece(condOf(q),valOf(q)), op(1,pr)))
-      else pr end if
-    end proc:
-
-    unpartProd := proc(pr, $)
-    local ps, ws;
-      if pr :: `*` then
-        ps, ws := selectremove(q->type(q,Partition), [op(pr)]);
-        if nops(ps) = 1 then
-          Pmap(x->`*`(op(ws),x), unpartProd(op(1,ps)));
-        else pr end if;
-      else unpart(pr) end if;
-    end proc;
-  end module,
-
   isShape := kind ->
   module()
     option record;
@@ -351,7 +311,7 @@ export
     export ModuleApply := proc(p, $)
       local ps, qs, qs1;
       if p :: Partition then
-        single_branch(remove_false_pieces(Flatten(p)));
+        single_branch(remove_false_pieces(flatten(p)));
       elif p :: `+` then
         qs := convert(p, 'list', `+`);
         ps, qs := selectremove(type, qs, Partition);
@@ -372,6 +332,46 @@ export
         subsindets(p,{Partition,`+`,`*`},Simpl);
       end if;
     end proc;
+
+    export flatten := module()
+      export ModuleApply;
+      local unpiece, unpart, unpartProd;
+
+      ModuleApply := proc(pr0, { _with := [ 'Partition', unpart ] } )
+        local ty, un_ty, pr1, pr2;
+        ty, un_ty := op(_with);
+
+        pr1 := subsindets(pr0, ty, un_ty);
+        if pr0 <> pr1 then
+          ModuleApply(pr1, _with=[ Or('Partiton',`*`), unpartProd ]);
+        else
+          pr0
+        end if;
+      end proc;
+
+      # like Piece, but tries to not be a Piece
+      unpiece := proc(c, pr, $)
+        if pr :: Partition then
+          map(q -> applyop(z->bool_And(z,c),1,q), op(1,pr))[]
+        else Piece(c, pr) end if
+      end proc;
+
+      unpart := proc(pr, $)
+        if pr :: Partition then
+          PARTITION(map(q -> unpiece(condOf(q),valOf(q)), op(1,pr)))
+        else pr end if
+      end proc:
+
+      unpartProd := proc(pr, $)
+      local ps, ws;
+        if pr :: `*` then
+          ps, ws := selectremove(q->type(q,Partition), [op(pr)]);
+          if nops(ps) = 1 then
+            Pmap(x->`*`(op(ws),x), unpartProd(op(1,ps)));
+          else pr end if;
+        else unpart(pr) end if;
+      end proc;
+    end module;
 
     export single_nonzero_piece_cps := proc(k)
       local r,p; r, p := single_nonzero_piece(_rest);

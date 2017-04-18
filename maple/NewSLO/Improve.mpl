@@ -35,7 +35,7 @@
         * `*`(op(subintegral));
     elif e :: Or(Partition,t_pw) then
       if e :: t_pw then e := PWToPartition(e); end if;
-      e := Partition:-Flatten(e);
+      e := Partition:-Simpl(e);
       e := kb_Partition(e, kb, simplify_assuming,
                         ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
       e := eval(e, %reduce=reduce);
