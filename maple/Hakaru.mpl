@@ -270,7 +270,7 @@ Hakaru := module ()
       verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, hboolean), i=1..k)));
 
     elif andmap(type, [m,n], 'specfunc(PARTITION)') then
-      Partition:-SamePartition(verify_hboolean, verify_measure)(m, n);
+      Partition:-SamePartition(verify_hboolean, verify_measure, m, n);
 
     elif m :: specfunc('case') and
         verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
