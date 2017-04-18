@@ -13,7 +13,7 @@ local classify_DConstrains := module()
   #    bound_kind  :=   {LO/HI}
   #    numVars     :=   how many variables are mentioned by the bound
   local classify_Rel := proc(r0,dbnd,$)
-    local ret, r := r0;
+    local ret, vars, mk_k, bnd_k, i, var_k, q, r := r0;
     ret := [ DConstrain, r0 ];
     vars := {Domain:-Bound:-varsOf(dbnd)[]};
     if r :: {`<=`,`<`} then
@@ -50,7 +50,7 @@ local classify_DConstrains := module()
   #  - Rebuild the leftover relations as a DConstrain.
   #  - Squash together ("foldr (.) id fs z") the continuations and leftover relations.
   local classify_Rels := proc(rs0,dbnd,$)
-    local rs := rs0;
+    local cs1, cs2, cs, rs := rs0;
     rs := map(r->classify_Rel(r,dbnd), rs);
     rs := [ListTools[Categorize]( ((a,b) -> op(1,a)=op(1,b) ), rs )];
     cs1, rs := selectremove(x->op([1,1],x)=DConstrain, rs);
@@ -67,6 +67,7 @@ local classify_DConstrains := module()
   # None of this is checked!
   # (since there are 2 bound kinds, this list is at most length 2)
   local make_DInto := proc(r::list([specfunc(DInto),anything,anything,identical(B_LO,B_HI),nonnegint]), dbnd, $)
+    local var_nm, var_ty;
     var_nm := op([1,1,1], r);
     var_ty := Domain:-Bound:-get(dbnd, var_nm)[1];
     var_ty := foldr( ((q,x)->op(3,q)(x)), var_ty, op(r) );
