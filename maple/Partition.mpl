@@ -452,89 +452,77 @@ export
 
        # Removal of singular points from partitions
        export singular_pts := module()
-           # we can simplify the pieces which are equalities and whose LHS or RHS is
-           # a name.
-           local canSimp := c -> #valOf(c) :: identical('undefined') and
-                                 condOf(c) :: `=` and (lhs(condOf(c)) :: name or rhs(condOf(c)) :: name);
+           # we can simplify the pieces which are equalities and whose LHS or
+           # RHS is a name.
+           local canSimp := c -> condOf(c) :: `=` and (lhs(condOf(c)) :: name or rhs(condOf(c)) :: name);
 
            # determines if a given variable `t' has the given upper/lower `bnd'.
-           local mentions_t_hi :=
-                    t -> bnd -> cl -> has(cl, t<bnd) or has(cl, bnd>t);
-
-           local mentions_t_lo :=
-                    t -> bnd -> cl -> has(cl, bnd<t) or has(cl, t>bnd);
+           local mentions_t_hi := t -> bnd -> cl -> has(cl, t<bnd) or has(cl, bnd>t);
+           local mentions_t_lo := t -> bnd -> cl -> has(cl, bnd<t) or has(cl, t>bnd);
 
            # replace bounds with what we would get if the equality can be
            # integrated into other pieces
            local replace_with := t -> bnd -> x ->
-                    if mentions_t_hi(t)(bnd)(x) then
-                        t <= bnd
-                    elif mentions_t_lo(t)(bnd)(x) then
-                        t >= bnd
-                    else
-                        x
-                    end if;
+             if   mentions_t_hi(t)(bnd)(x) then t <= bnd
+             elif mentions_t_lo(t)(bnd)(x) then t >= bnd
+             else x end if;
 
-           local set_xor := proc(a,b,$) (a union b) intersect (a minus b) end proc;
+           local set_xor := ((a,b)->(a union b) intersect (a minus b));
 
            # this loops over the pieces to replace, keeping a state consisting of
            # the "rest" of the pieces
-           local tryReplacePieces :=
-                   proc(replPieces, otherPieces,cmp,$)
-                     local rpp := replPieces, otp := otherPieces, nm, val, rp, rpv;
-                     for rp in rpp do
-                         rp, rpv := op(rp);
-                         nm   := `if`(lhs(rp)::name, lhs(rp), rhs(rp));
-                         val  := `if`(lhs(rp)::name, rhs(rp), lhs(rp));
-                         otp := tryReplacePiece( nm, val, rpv, otp, cmp )
-                     end do;
-                     otp;
-                   end proc;
+           local tryReplacePieces := proc(replPieces, otherPieces,cmp,$)
+             local rpp := replPieces, otp := otherPieces, nm, val, rp, rpv;
+             for rp in rpp do
+                 rp, rpv := op(rp);
+                 nm   := `if`(lhs(rp)::name, lhs(rp), rhs(rp));
+                 val  := `if`(lhs(rp)::name, rhs(rp), lhs(rp));
+                 otp := tryReplacePiece( nm, val, rpv, otp, cmp )
+             end do;
+             otp;
+           end proc;
 
            local do_eval_for_cmp := proc(eval_cmp, ev, x, $)
              local r;
              try
-               return eval_cmp(subs(ev,x));
+               r := eval_cmp(subs(ev,x));
              catch "numeric exception: division by zero":
-               r := limit(x, ev);
-               r := subsindets(r,And(specfunc(NewSLO:-applyintegrand),anyfunc(anything, identical(0)))
-                              ,_->0);
-               return eval_cmp(r);
+               r := eval_cmp(limit(x, ev));
              end try;
+             subsindets(r,And(specfunc(NewSLO:-applyintegrand),anyfunc(anything, identical(0))),_->0);
            end proc;
 
-           local tryReplacePiece :=
-               proc(vrNm, vrVal, pc0val, pcs, eval_cmp,$)
-                 local pcs0 := pcs, pcs1, qs0, qs1, qs2, vrEq := vrNm=vrVal, vs2, ret, q, q_i;
-                 ret := [ Piece(vrEq, pc0val), op(pcs0) ] ;
-                 # speculatively replace the conditions
-                 pcs1 := subsindets(pcs0, relation, replace_with(vrNm)(vrVal));
-                 # convert to sets and take the "set xor", which will contain
-                 # only those elements which are not common to both sets.
-                 qs0, qs1 := seq({op(qs)},qs=(pcs0,pcs1));
-                 qs2 := set_xor(qs1, qs0);
-                 # if we have updated precisely two pieces (an upper and lower bound)
-                 if nops(qs2) = 2 then
-                     # get the values of those pieces, and the value of the
-                     # piece to be replaced, if that isn't undefined
-                     vs2 := map(valOf, qs2);
-                     if not pc0val :: identical('undefined') then
-                         vs2 := { pc0val, op(vs2) };
-                     end if;
-                     # substitute the equality over the piece values
-                     vs2 := map(x->do_eval_for_cmp(eval_cmp,vrEq,x), vs2);
-                     # if they are identically equal, return the original
-                     # "guess"
-                     if nops(vs2) = 1 then
-                       # arbitrarily pick the first candidate to be the one to
-                       # be replaced
-                       q := op(1,qs2);
-                       q_i := seq(`if`(op(i,pcs1)=q,[i],[])[],i=1..nops(pcs1));
-                       ret := subsop(q_i=op(q_i,pcs0), pcs1);
-                     end if;
-                 end if;
-                 ret;
-               end proc;
+           local tryReplacePiece := proc(vrNm, vrVal, pc0val, pcs, eval_cmp,$)
+             local pcs0 := pcs, pcs1, qs0, qs1, qs2, vrEq := vrNm=vrVal, vs2, ret, q, q_i;
+             ret := [ Piece(vrEq, pc0val), op(pcs0) ] ;
+             # speculatively replace the conditions
+             pcs1 := subsindets(pcs0, relation, replace_with(vrNm)(vrVal));
+             # convert to sets and take the "set xor", which will contain
+             # only those elements which are not common to both sets.
+             qs0, qs1 := seq({op(qs)},qs=(pcs0,pcs1));
+             qs2 := set_xor(qs1, qs0);
+             # if we have updated precisely two pieces (an upper and lower bound)
+             if nops(qs2) = 2 then
+               # get the values of those pieces, and the value of the
+               # piece to be replaced, if that isn't undefined
+               vs2 := map(valOf, qs2);
+               if not pc0val :: identical('undefined') then
+                 vs2 := { pc0val, op(vs2) };
+               end if;
+               # substitute the equality over the piece values
+               vs2 := map(x->do_eval_for_cmp(eval_cmp,vrEq,x), vs2);
+               # if they are identically equal, return the original
+               # "guess"
+               if nops(vs2) = 1 then
+                 # arbitrarily pick the first candidate to be the one to
+                 # be replaced
+                 q := op(1,qs2);
+                 q_i := seq(`if`(op(i,pcs1)=q,[i],[])[],i=1..nops(pcs1));
+                 ret := subsop(q_i=op(q_i,pcs0), pcs1);
+               end if;
+             end if;
+             ret;
+           end proc;
 
            export ModuleApply := proc(p_,{eval_cmp:='value'},$)
               local p := p_, r := p, uc, oc;
