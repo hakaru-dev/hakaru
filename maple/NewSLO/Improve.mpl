@@ -82,10 +82,7 @@
           op(1,
            [ map(x->op(2,x),select(x->x::list and op(1,x)="reduce_on", opts))[]
            , reduce_on_prod ]);
-    if ed = ee then
-      vars := indets(Domain:-Bound:-varsOf(dvars), name);
-      ed := do_r(mkDom, body, vars, kb);
-    else
+    if ed <> ee then
       ed := reduce(ee,h,kb,opts);
     end if;
     kb_assuming_mb(Partition:-Simpl)(ed, kb, x->x);
