@@ -778,15 +778,16 @@ flattenBucket lo hi red = \loc -> do
         initRed s (Red_Nop) = return s
         initRed s (Red_Add sr _) =
           case S.viewl s of
+            S.EmptyL -> return mempty
             (h S.:< tl) ->
-              let identityE = case sing_HSemiring sr of
-                                SNat  -> intE 0
-                                SInt  -> intE 0
-                                SReal -> floatE 0
-                                SProb -> logE (floatE 0)
+              let identityE =
+                    case sing_HSemiring sr of
+                      SNat  -> intE 0
+                      SInt  -> intE 0
+                      SReal -> floatE 0
+                      SProb -> logE (floatE 0)
               in  do putExprStat $ (CVar h) .=. identityE
                      return tl
-            _ -> error "initRed: something went wrong!"
 
         accumRed
           :: (ABT Term abt)
@@ -795,36 +796,41 @@ flattenBucket lo hi red = \loc -> do
           -> CodeGen (S.Seq Ident)
         accumRed s (Red_Fanout mr1 mr2) =
           case S.viewl s of
+            S.EmptyL -> return mempty
             (h S.:< tl) -> accumRed (pure h) mr1 >> accumRed tl mr2
-            _ -> error "accumRed: something went wrong!"
         accumRed s (Red_Index _ _ _) =
           do putStat $ CComment "TODO: accumRed{Red_Index}"
              return s
         accumRed s (Red_Split b _ _) =
           case S.viewl s of
+            S.EmptyL -> return mempty
             (h S.:< tl) ->
-              caseBind b $ \_ b' ->
-                let (_,b'') = caseBinds b' in
-                   do bE <- flattenWithName' b'' "cond"
+              caseBind b $ \v b' ->
+                let (vs,b'') = caseBinds b' in
+                   do _ <- createIdent v
+                      sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                      bE <- flattenWithName' b'' "cond"
                       putStat $ CComment "TODO: accumRed{Red_Split}"
                       return tl
-            _ -> error "accumRed: something went wrong!"
         accumRed s (Red_Nop) =
           do putStat $ CComment "TODO: accumRed{Red_Nop}"
              return s
         accumRed s (Red_Add sr e) =
           case S.viewl s of
+            S.EmptyL -> return mempty
             (h S.:< tl) ->
-              caseBind e $ \_ e' ->
-                let (_,e'') = caseBinds e' in
-                   do eE <- flattenWithName e''
+              caseBind e $ \v e' ->
+                let (vs,e'') = caseBinds e' in
+                   do _ <- createIdent v
+                      sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                      eE <- flattenWithName e''
                       putExprStat $ (CVar h) .+=. eE
                       return tl
-            _ -> error "accumRed: something went wrong!"
 
         finRed :: CExpr -> S.Seq Ident -> CodeGen ()
         finRed loc ms =
           case S.viewl ms of
+            S.EmptyL -> return ()
             (h S.:< tl) ->
               case S.viewl tl of
                 S.EmptyL -> putExprStat $ loc .=. (CVar h)
