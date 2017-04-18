@@ -10,12 +10,13 @@ SemiAlgebraic := module()
         do_sh( dshape , dbnds, vs );
     end proc;
 
+    local extra_sol := (c -> c::`=` and (lhs(c)::DomBoundVar and evalb(lhs(c)=rhs(c))));
     local postproc := proc(sol, $)
       foldl((x,k)->subsindets(x,op(k)), sol
            ,[specfunc('piecewise')
             ,x->DSplit(Partition:-PWToPartition(x, 'do_solve'))]
            ,[list(list),DSum@op]
-           ,[list(relation),DConstrain@op]);
+           ,[list(relation),x->DConstrain(remove(extra_sol,x)[])]);
     end proc;
 
     local do_sh := proc( sh :: DomShape, ctx :: DomBound, vs, $)
