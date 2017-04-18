@@ -31,7 +31,7 @@ local classify_DConstrains := module()
         var_k := op([1,i,3], dbnd);
         q := Domain:-ExtBound[var_k]:-RecogBound(mk_k,rhs(r));
         if q <> NULL then
-          ret := [ DInto(lhs(r)), r0, q, bnd_k, countVs(vars,q) ];
+          ret := [ DInto(lhs(r)), r0, q, bnd_k, countVs(vars minus {lhs(r)},r0) ];
         end if;
       end if;
     end if;
@@ -55,7 +55,7 @@ local classify_DConstrains := module()
     rs := [ListTools[Categorize]( ((a,b) -> op(1,a)=op(1,b) ), rs )];
     cs1, rs := selectremove(x->op([1,1],x)=DConstrain, rs);
     rs, cs2 := selectremove(x->nops(x)=1 or (nops(x)=2 and op([1,4],x)<>op([2,4],x)), rs);
-    rs := sort(rs, key=(x->-(`+`( seq(op(3,z),z=x) ))));
+    rs := sort(rs, key=(x->(`+`( seq(op(3,z),z=x) ))));
     rs := map(r->make_DInto(r,dbnd),rs);
     cs := DConstrain(map(c->map(q->op(2,q),c)[], [op(cs1),op(cs2)])[]);
     foldr((f,g)->f@g,x->x,op(rs))(cs);
