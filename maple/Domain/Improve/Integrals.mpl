@@ -22,3 +22,16 @@ redundant_DIntos := module()
   export SimplOrder := 2;
 end module;
 
+
+empty_DIntos := module()
+  export ModuleApply := proc(vs,sh,$)
+    subsindets(sh, satisfies(is_empty), _->DSum());
+  end proc;
+
+  local is_empty := proc(e,$)
+    evalb(e = DSum()) or (evalb(op(0,e) = DInto) and is_empty(op(3,e)));
+  end proc;
+
+  export SimplName  := "Empty DIntos";
+  export SimplOrder := 15;
+end module;
