@@ -94,7 +94,11 @@ TestDisint := module()
         disint_args := [M,disint_var,ctx];
         expected := subs(:-`t`=disint_var,expected);
       end if;
-      do_test(disint_args, copy(expected), TLim, _rest);
+      try
+        do_test(disint_args, copy(expected), TLim, _rest);
+      catch "time expired":
+        error "Time expired while running: disint(%1)", disint_args;
+      end try;
     end proc;
 
     # This is necessary because CodeTools seems to forgot the value
