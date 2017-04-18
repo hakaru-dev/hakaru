@@ -138,7 +138,7 @@ classify_DConstrains := module()
     rs := [ListTools[Categorize]( ((a,b) -> op(1,a)=op(1,b) ), rs )];
     cs1, rs := selectremove(x->op([1,1],x)=DConstrain, rs);
     rs, cs2 := selectremove(x->nops(x)=1 or (nops(x)=2 and op([1,4],x)<>op([2,4],x)), rs);
-    rs := sort(rs, key=(x->(`+`( seq(op(3,z),z=x) ))));
+    rs := sort(rs, key=solOrder);
     rs := map(r->make_DInto(r,dbnd),rs);
     cs := DConstrain(map(c->map(q->op(2,q),c)[], [op(cs1),op(cs2)])[]);
     foldr((f,g)->f@g,x->x,op(rs))(cs);
@@ -158,6 +158,7 @@ classify_DConstrains := module()
   end proc;
   local flip_rel := table([`=`=`=`,`<>`=`<>`,`<=`=`>=`,`<`=`>`,`>=`=`<=`,`>`=`<`]);
   local countVs := ((vs,c)-> nops(indets(c, DomBoundVar) intersect {op(vs)} ));
+  local solOrder := (x->`+`(map(z->op(5,z),x)[]));
 end module;
 
 # todo; this should actually solve for a variable, then substitute
