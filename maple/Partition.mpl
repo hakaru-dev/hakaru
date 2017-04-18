@@ -297,7 +297,7 @@ export
    isShape := kind -> module()
      option record;
 
-     export MakeCtx := proc(p0,$)
+     export MakeCtx := proc(p0,_rec)
        local p := p0, pw, p1, wps, ws, vs, cs, w, ps;
 
        if kind='piecewise' then
@@ -309,7 +309,7 @@ export
            [ w, p1 ]
        else
            ps := op(1, p);
-           wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
+           wps := map(_rec@valOf, ps);
            ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
            if nops(vs) > 0 and
               andmap(v->op(1,vs)=v, vs) and

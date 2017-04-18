@@ -71,7 +71,7 @@ export Extract := module ()
               inds, rest := do_get(f, f_ty, op(1,e)) [] ;
               [ inds, subsop(1=rest, e) ]
             elif e:: f_ty then
-              f(e)
+              f(e,z->ModuleApply(z,'no_simpl'))
             else
               [ true, e ]
             end if
