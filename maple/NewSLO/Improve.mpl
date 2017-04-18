@@ -148,6 +148,8 @@
     elif el :: t_pw then
       if nops(el) >= 2 and Testzero(th - op(2,el)) then
         applyop(Or, 1, el, cond)
+      elif nops(el) = 2 then
+        piecewise(cond, th, op(el), 0)
       else
         piecewise(cond, th, op(el))
       end if
