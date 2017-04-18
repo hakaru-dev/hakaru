@@ -72,7 +72,7 @@ end module;
 pull_ctx_out := module()
   export ModuleApply :=
     do_ctx_dir(ctx->sh->subsindets(sh, DomConstrain
-              ,x->remove(c->c in ctx or (is(c) assuming ctx), x)));
+              ,x->remove(c->c in ctx or (is(c) assuming op(ctx)), x)));
   export SimplName  := "Pull context out";
   export SimplOrder := 20;
 end module;
