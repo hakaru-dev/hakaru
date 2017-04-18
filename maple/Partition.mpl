@@ -351,7 +351,7 @@ export
     export ModuleApply := proc(p, $)
       local ps, qs, qs1;
       if p :: Partition then
-        single_branch(remove_false_pieces(p));
+        single_branch(remove_false_pieces(Flatten(p)));
       elif p :: `+` then
         qs := convert(p, 'list', `+`);
         ps, qs := selectremove(type, qs, Partition);
@@ -359,9 +359,17 @@ export
         ps := map(Simpl, ps);
         ps, qs1 := selectremove(type, ps, Partition);
         if nops(ps)=0 then return p end if;
-        `+`(op(qs),foldr(Partition:-PProd,op(ps)));
+        `+`(op(qs),op(qs1),foldr(Partition:-PProd,op(ps)));
+      elif p :: `*` then
+        qs := [op(p)];
+        ps, qs := selectremove(type, qs, Partition);
+        if nops(ps)=0 then return p end if;
+        ps := map(Simpl, ps);
+        ps, qs1 := selectremove(type, ps, Partition);
+        if nops(ps)=0 then return p end if;
+        `*`(op(qs),op(qs1),foldr(((a,b)->Partition:-PProd(a,b,_add=`*`)),op(ps)));
       else
-        subsindets(p,{Partition,`+`},Simpl);
+        subsindets(p,{Partition,`+`,`*`},Simpl);
       end if;
     end proc;
 
