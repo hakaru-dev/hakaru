@@ -193,7 +193,7 @@ $include "Domain/Improve.mpl"
                 , f_apply
                 , f_nosimp := (_->FAIL), $)
       local F_INTO, F_BODY, e := e0, body
-           , dom_specb, dom_specw, dom_ctx, dom_spec,
+           , dom_specb, dom_specw, dom_ctx, dom_spec
            , mkDom, `result body` ;
       # Build the domain
       dom_specb, e := op(Domain:-Extract:-Bound(e));
