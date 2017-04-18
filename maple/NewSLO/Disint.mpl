@@ -136,7 +136,7 @@
     kb, var_rn := table(), mc_prts,
     V, #wrt vars
     v::name, #iterator over V
-    improve_opts := [["reduce_on", NewSLO:-reduce_on_sum]]
+    improve_opts := []
    ;
 
     #Init module variables.

@@ -77,11 +77,7 @@
   reduce_Integrals_post := proc(h,kb,opts,dvars,mkDom,body)
     local vars, e
       , ed := mkDom(body)
-      , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x))
-      , do_r :=
-          op(1,
-           [ map(x->op(2,x),select(x->x::list and op(1,x)="reduce_on", opts))[]
-           , reduce_on_prod ]);
+      , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x));
     if ed <> ee then
       ed := reduce(ee,h,kb,opts);
     end if;
@@ -106,21 +102,6 @@
     else
       return rr;
     end if
-  end proc;
-
-  # Helper function for performing reductions
-  # given an "ee" and a "var", pulls the portion
-  # of "ee" not depending on "var" out, and applies "f"
-  # to the portion depending on "var".
-  # the 'weights' (factors not depending on "var") are simplified
-  # under the given assumption context, "kb0"
-  reduce_on_sum := proc(f,ee,var,kb0,$)
-    `+`(map(s->reduce_on_prod(f,s,var,kb0), convert(expand(ee), 'list', `+`))[]);
-  end proc;
-  reduce_on_prod := proc(f,ee, var:: {name, list(name), set(name)} ,kb0::t_kb,$)
-      local e := ee, w;
-      e, w := selectremove(x->depends(x,var) or x :: realcons, list_of_mul(e));
-      nub_piecewise(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
   end proc;
 
   int_assuming := proc(e, v::name=anything, kb::t_kb, $)
