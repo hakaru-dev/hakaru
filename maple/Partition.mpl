@@ -309,7 +309,7 @@ export
 
   Simpl := module()
     export ModuleApply := proc(p, $)
-      local ps, qs, qs1;
+      local ps, qs, qs1, mk;
       if p :: Partition then
         single_branch(remove_false_pieces(flatten(p)));
       elif assigned(distrib_op_Partition[op(0,p)]) then
