@@ -22,12 +22,19 @@ export Bound := module ()
     end proc;
 
     export varIx := proc(dom0::DomBound, v::DomBoundVar, $)::nonnegint;
-        local dom := `if`(nops(dom0)>=3, (_->_), withVarsIxs)(dom0);
-        if assigned(op(3,dom)[v]) then
-            op(3,dom)[v]
-        else
-            error "cannot find var %1 in %2", v, dom0;
-        end if;
+      local i := varIx_mb(dom0,v);
+      if i = -1 then
+        error "cannot find var %1 in %2", v, dom0;
+      else i end if;
+    end proc;
+
+    export varIx_mb := proc(dom0::DomBound, v::DomBoundVar, $)::{nonnegint,identical(-1)};
+      local dom := `if`(nops(dom0)>=3, (_->_), withVarsIxs)(dom0);
+      if assigned(op(3,dom)[v]) then
+        op(3,dom)[v]
+      else
+        -1
+      end if;
     end proc;
 
     export isEmpty := proc(dom :: DomBound, $)::truefalse;

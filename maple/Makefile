@@ -13,11 +13,7 @@ ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Partition.mpl L
     Domain/Extract.mpl \
     Domain/Apply.mpl \
     Domain/Improve.mpl \
-    Domain/Improve/LMS.mpl \
-    Domain/Improve/redundant_DIntos.mpl \
-    Domain/Improve/constraints_about_vars.mpl \
-    Domain/Improve/singular_pts.mpl \
-    Domain/Improve/single_case_Partition.mpl \
+    Domain/Improve/*.mpl \
     NewSLO.mpl \
     NewSLO/Interface.mpl \
     NewSLO/To.mpl \

@@ -119,11 +119,6 @@ Domain := module()
                end if;
                protect(g);
            end do;
-
-           # unprotect(Domain:-ExtShape);
-           # ExtShape[`PARTITION`] :=
-           # ExtShape[`piecewise`] :=
-           # unprotect(Domain:-ExtShape);
     end proc;
 
     local ModuleUnload := proc($)
