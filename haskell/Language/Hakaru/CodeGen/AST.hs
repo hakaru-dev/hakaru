@@ -28,7 +28,7 @@ module Language.Hakaru.CodeGen.AST
 
   -- infix and smart constructors
   , (.>.),(.<.),(.==.),(.!=.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.)
-  , (.*=.),(.>=.),(.<=.)
+  , (.*=.),(.>=.),(.<=.),(...),(.->.)
   , seqCStat
   , indirect, address, index, intE, floatE, stringE, mkCallE, mkUnaryE
   ) where
@@ -339,12 +339,17 @@ a .=. b  = CAssign CAssignOp a b
 a .+=. b = CAssign CAddAssOp a b
 a .*=. b = CAssign CMulAssOp a b
 
+
 indirect, address :: CExpr -> CExpr
 indirect = CUnary CIndOp
 address  = CUnary CAdrOp
 
 index :: CExpr -> CExpr -> CExpr
 index = CIndex
+
+(...),(.->.) :: CExpr -> String -> CExpr
+i ... n  = CMember i (Ident n) True
+i .->. n = CMember i (Ident n) False
 
 intE :: Integer -> CExpr
 intE = CConstant . CIntConst

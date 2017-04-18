@@ -739,15 +739,13 @@ flattenBucket lo hi red = \loc -> do
     declare SNat itId
     let itE = CVar itId
     ids <- declRed red
-    initRed ids red
+    _ <- initRed ids red
     forCG (itE .=. loE)
           (itE .<. hiE)
           (CUnary CPostIncOp itE)
-          (accumRed ids red)
-    case S.viewl ids of
-      (h S.:< _) ->
-        do putExprStat $ loc .=. (CVar h)
-           putStat $ opComment "End Bucket"
+          (accumRed ids red >> return ())
+    finRed loc ids
+    putStat $ opComment "End Bucket"
   where declRed :: Reducer abt xs a -> CodeGen (S.Seq Ident)
         declRed (Red_Fanout mr1 mr2) =
           do ids1 <- declRed mr1
@@ -767,37 +765,72 @@ flattenBucket lo hi red = \loc -> do
              declare semiTyp mId
              return . S.singleton $ mId
 
-        initRed :: S.Seq Ident -> Reducer abt xs a -> CodeGen ()
-        initRed s (Red_Fanout mr1 mr2) = initRed s mr1 >> initRed s mr2
-        initRed _ (Red_Index _ _ _) = putStat $ CComment "TODO: initRed{Red_Index}"
-        initRed s (Red_Split _ mr1 mr2) = initRed s mr1 >> initRed s mr2
-        initRed _ (Red_Nop) = return ()
+        initRed :: S.Seq Ident -> Reducer abt xs a -> CodeGen (S.Seq Ident)
+        initRed s (Red_Fanout mr1 mr2) =
+          do s' <- initRed s mr1
+             initRed s' mr2
+        initRed s (Red_Index _ _ _) =
+          do putStat $ CComment "TODO: initRed{Red_Index}"
+             return s
+        initRed s (Red_Split _ mr1 mr2) =
+          do s' <- initRed s mr1
+             initRed s' mr2
+        initRed s (Red_Nop) = return s
         initRed s (Red_Add sr _) =
           case S.viewl s of
-            (h S.:< _) ->
+            (h S.:< tl) ->
               let identityE = case sing_HSemiring sr of
                                 SNat  -> intE 0
                                 SInt  -> intE 0
                                 SReal -> floatE 0
                                 SProb -> logE (floatE 0)
-              in  putExprStat $ (CVar h) .=. identityE
+              in  do putExprStat $ (CVar h) .=. identityE
+                     return tl
+            _ -> error "initRed: something went wrong!"
 
         accumRed
           :: (ABT Term abt)
           => S.Seq Ident
           -> Reducer abt xs a
-          -> CodeGen ()
-        accumRed _ (Red_Fanout _ _)  = putStat $ CComment "TODO: accumRed"
-        accumRed _ (Red_Index _ _ _) = putStat $ CComment "TODO: accumRed"
-        accumRed _ (Red_Split _ _ _) = putStat $ CComment "TODO: accumRed"
-        accumRed _ (Red_Nop)         = putStat $ CComment "TODO: accumRed"
+          -> CodeGen (S.Seq Ident)
+        accumRed s (Red_Fanout mr1 mr2) =
+          case S.viewl s of
+            (h S.:< tl) -> accumRed (pure h) mr1 >> accumRed tl mr2
+            _ -> error "accumRed: something went wrong!"
+        accumRed s (Red_Index _ _ _) =
+          do putStat $ CComment "TODO: accumRed{Red_Index}"
+             return s
+        accumRed s (Red_Split b _ _) =
+          case S.viewl s of
+            (h S.:< tl) ->
+              caseBind b $ \_ b' ->
+                let (_,b'') = caseBinds b' in
+                   do bE <- flattenWithName' b'' "cond"
+                      putStat $ CComment "TODO: accumRed{Red_Split}"
+                      return tl
+            _ -> error "accumRed: something went wrong!"
+        accumRed s (Red_Nop) =
+          do putStat $ CComment "TODO: accumRed{Red_Nop}"
+             return s
         accumRed s (Red_Add sr e) =
           case S.viewl s of
-            (h S.:< _) ->
+            (h S.:< tl) ->
               caseBind e $ \_ e' ->
                 let (_,e'') = caseBinds e' in
                    do eE <- flattenWithName e''
                       putExprStat $ (CVar h) .+=. eE
+                      return tl
+            _ -> error "accumRed: something went wrong!"
+
+        finRed :: CExpr -> S.Seq Ident -> CodeGen ()
+        finRed loc ms =
+          case S.viewl ms of
+            (h S.:< tl) ->
+              case S.viewl tl of
+                S.EmptyL -> putExprStat $ loc .=. (CVar h)
+                _ -> let nexLoc = loc ... "sum" ... "a" ... "b"
+                     in  do putExprStat $ (loc ... "sum" ... "a" ... "a") .=. (CVar h)
+                            finRed nexLoc tl
 
 
 --------------------------------------------------------------------------------
