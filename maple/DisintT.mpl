@@ -255,7 +255,8 @@ TestDisint(
 );
 
 TestDisint(pair_x_x, pair_x_x_r, label="(pair_x_x) Disintegrate U(0,1) over Ret(x,x)");
-TestDisint(d3_3, d3_3_r, label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
+TestDisint(d3_3, d3_3_r, [], 180
+          , label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
 TestDisint(d3posfam, d3posfam_r, d3posfam_ctx
           , label = "(d3posfam) Disintegrate U(0,1) twice, over x+y+K");
 
