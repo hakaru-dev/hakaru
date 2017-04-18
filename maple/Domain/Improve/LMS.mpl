@@ -14,16 +14,15 @@ local LMS := module()
 
     # transforms the solution to the form required by Domain
     # this is (now) a straightforward syntactic manipulation,
-    local postproc := proc(sol, ctx, vs, $)
-        local ret := sol;
-        ret := subsindets(ret, specfunc('piecewise')
-                         , x-> DSplit(Partition:-PWToPartition(x, 'do_solve')));
-        ret := subsindets(ret
-                         , Or(identical({}), set(list))
-                         , x -> DSum(op(x)) );
-        ret := subsindets(ret, list(set({relation,boolean, name}))
-                         , x -> DConstrain(indets(x,{relation,boolean})[]) );
-        subsindets(ret,[DomShape],op);
+    local postproc := proc(sol, $)
+      foldl((x,k)->subsindets(x,op(k)), sol
+           ,[specfunc('piecewise')
+            ,x->DSplit(Partition:-PWToPartition(x, 'do_solve'))]
+           ,[Or(identical({}), set(list))
+            ,x -> DSum(op(x))]
+           ,[list(set({relation,boolean, name}))
+            ,x -> DConstrain(indets(x,{relation,boolean})[])]
+           ,['[DomShape]',op]);
     end proc;
 
     # Note this will not simplify solutions, in the sense that if
@@ -35,11 +34,8 @@ local LMS := module()
         local sol;
         if sh :: DomConstrain then
             sol := do_LMS_Constrain(sh, ctx, vs);
-            if sol :: DomShape then
-                sol
-            else
-                postproc(sol, ctx, vs);
-            end if;
+            if sol :: DomShape then sol
+            else postproc(sol) end if;
         elif sh :: DomSplit then
             # todo: incorporate piece condition into context
             DSplit( Partition:-Pmap(p->do_LMS(p, ctx, vs), op(1, sh)) );
