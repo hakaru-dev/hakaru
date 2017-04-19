@@ -19,7 +19,8 @@ local
   end proc,
 
   isPartitionOf := proc( e, elem_t := anything )
-    type(e, 'PARTITION(list(PartitionPiece(elem_t)))' );
+    type(e, 'PARTITION(list(PartitionPiece(elem_t)))' ) or
+    type(e, 'PARTITION(list(PartitionPiece(Or(elem_t,PieceRef))),list(elem_t))' );
   end proc,
 
   ModuleLoad::static:= proc()
@@ -30,6 +31,7 @@ local
         seq([ condOf(eval(branch)), valOf(eval(branch))][], branch= SetOfRecords))
     end proc;
 
+    TypeTools:-AddType(PieceRef, And(specfunc(nonnegint,PieceRef),satisfies(x->nops(x)>0)));
     TypeTools:-AddType(PartitionCond, {relation, boolean, `::`, specfunc({`And`,`Or`,`Not`}), `and`, `or`, `not`});
     TypeTools:-AddType(PartitionPiece, isPartitionPieceOf);
     TypeTools:-AddType(Partition, isPartitionOf);
@@ -110,12 +112,43 @@ local
     end if
   end proc;
 export
+  piecesOf := proc(x::Partition, $)
+    local ps, rs;
+    ps := op(1,x);
+    if nops(x)=2 then
+      rs := op(2,x);
+      ps := map(mapPiece(proc(c0,v0)
+                  local c,c1,v,s; c,v := c0,v0; s := (x->x);
+                  if v::PieceRef then
+                    c1 := is_lhs(type,c,name);
+                    if c1<>FAIL then s := x->subs(c1,x) end if;
+                    c, s(op(op(1,v),rs))
+                  else
+                    c, v
+                  end if; end proc), ps );
+    elif has(x,PieceRef) then
+      error "found piece references (%1) but no table of pieces: %2", indets(x,PieceRef), x
+    end if;
+    ps;
+  end proc,
+
   condOf := proc(x::specfunc(`Piece`),$)
     op(1,x);
   end proc,
 
   valOf := proc(x::specfunc(`Piece`),$)
     op(2,x);
+  end proc,
+
+  mapPiece := proc(f,$) proc(x::PartitionPiece,$) Piece(f(condOf(x), valOf(x))) end proc; end proc,
+  unPiece := mapPiece(ident),
+  ident := proc() args end proc,
+  is_lhs := proc(test,x0)
+    local x := x0;
+    if test(rhs(x),_rest) then x := op(0,x)(rhs(x),lhs(x)) end if;
+    if test(lhs(x),_rest) then return x
+    else                       return FAIL
+    end if;
   end proc,
 
   Pieces := proc(cs0,es0)::list(PartitionPiece);
