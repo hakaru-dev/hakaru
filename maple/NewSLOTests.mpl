@@ -322,7 +322,11 @@ TestHakaru(unk4, unk4, label="Banish into Integrand 4");
 
 # Disintegration of easierRoadmapProg1 -- variables to be integrated out
 rmProg1 := Msum(Weight(1, Msum(Weight(1, Msum(Weight(1, Msum(Weight(1, Bind(Lebesgue(-infinity,infinity), a4, Msum(Weight(1, Msum(Weight(1, Bind(Lebesgue(-infinity,infinity), a5, Msum(Weight(1, Bind(Lebesgue(-infinity,infinity), a6, Msum(Weight(((exp((-(((p3-a6)*(p3-a6))*(1/(2*exp((ln(a5)*2)))))))*(1/a5))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(1, Bind(Lebesgue(-infinity,infinity), a7, Msum(Weight(((exp((-(((a6-a7)*(a6-a7))*(1/(2*exp((ln(a4)*2)))))))*(1/a4))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(((exp((-(((p2-a7)*(p2-a7))*(1/(2*exp((ln(a5)*2)))))))*(1/a5))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight(((exp((-((a7*a7)*(1/(2*exp((ln(a4)*2)))))))*(1/a4))*(1/exp((ln((2*Pi))*(1/2))))), Msum(Weight((1/3), Msum(Weight(1, piecewise((a5<4), piecewise((1<a5), Msum(Weight((1/5), Msum(Weight(1, piecewise((a4<8), piecewise((3<a4), Ret(Pair(a4, a5)), Msum()), Msum())), Weight(1, Msum())))), Msum()), Msum())), Weight(1, Msum())))))))))))))))))))))), Weight(1, Msum())))))), Weight(1, Msum())))))):
-TestHakaru(rmProg1, Weight(1/(2*Pi), Bind(Uniform(3, 8), a4, Bind(Uniform(1, 4), a5, Weight(exp(-(1/2)*(2*p2^2*a4^2+p2^2*a5^2-2*p2*p3*a4^2+p3^2*a4^2+p3^2*a5^2)/(a4^4+3*a4^2*a5^2+a5^4))/sqrt(a4^4+3*a4^2*a5^2+a5^4), Ret(Pair(a4, a5)))))), label="Tests.RoundTrip.rmProg1");
+rmProg1_w := Weight(exp(-(1/2)*(2*p2^2*a4^2+p2^2*a5^2-2*p2*p3*a4^2+p3^2*a4^2+p3^2*a5^2)/(a4^4+3*a4^2*a5^2+a5^4))/sqrt(a4^4+3*a4^2*a5^2+a5^4), Ret(Pair(a4, a5))):
+rmProg1_r := {
+Weight(1/(2*Pi), Bind(Uniform(1, 4), a5, Bind(Uniform(3, 8), a4, rmProg1_w))),
+Weight(1/(2*Pi), Bind(Uniform(3, 8), a4, Bind(Uniform(1, 4), a5, rmProg1_w)))}:
+TestHakaru(rmProg1, rmProg1_r, label="Tests.RoundTrip.rmProg1");
 # easierRoadmapProg4 -- MH transition kernel with unclamped acceptance ratio
 module()
   local unpair, fst, snd, rmProg4;

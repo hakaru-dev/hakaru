@@ -39,6 +39,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Datum hiding (Ident)
+import Language.Hakaru.Syntax.Reducer
 import qualified Language.Hakaru.Syntax.Prelude as HKP
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
@@ -48,7 +49,9 @@ import Language.Hakaru.Types.Sing
 
 import           Control.Monad.State.Strict
 import           Control.Monad (replicateM)
+import           Control.Applicative (pure)
 import           Data.Number.Natural
+import           Data.Monoid        hiding (Product,Sum)
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence      as S
@@ -125,7 +128,7 @@ flattenTerm (Empty_ _)        = error "TODO: flattenTerm{Empty}"
 flattenTerm (Datum_ d)        = flattenDatum d
 flattenTerm (Case_ c bs)      = flattenCase c bs
 
-flattenTerm (Bucket _ _ _)    = error "TODO: flattenTerm{Bucket}"
+flattenTerm (Bucket b e rs)   = flattenBucket b e rs
 
 flattenTerm (Array_ s e)      = flattenArray s e
 flattenTerm (ArrayLiteral_ s) = flattenArrayLiteral s
@@ -701,6 +704,141 @@ flattenArrayOp (Reduce _) = error "TODO: flattenArrayOp"
 
   --    return accE
 
+--------------------------------------------------------------------------------
+--                              Bucket and Recuders                           --
+--------------------------------------------------------------------------------
+{- Declarations for buckets -
+  since we will have some product of monoids we need unique names for each one.
+
+  Ex:
+    bucket i from 0 to 100:
+      fanout(add(\_ -> 1),add(\_ -> 2))
+
+  we will need to keep track of two ints:
+
+  int x;
+  int y;
+  for (i = 0; i < 100; i++) {
+    x += 1;
+    y += 2;
+  }
+
+  Summary objects are nested pairs, e.g. pair(nat,pair(real,array(nat)))
+-}
+
+flattenBucket
+  :: (ABT Term abt)
+  => abt '[] 'HNat
+  -> abt '[] 'HNat
+  -> Reducer abt '[] a
+  -> (CExpr -> CodeGen ())
+flattenBucket lo hi red = \loc -> do
+    putStat $ opComment "Begin Bucket"
+    loE <- flattenWithName' lo "lo"
+    hiE <- flattenWithName' hi "hi"
+    itId <- genIdent' "it"
+    declare SNat itId
+    let itE = CVar itId
+    ids <- declRed red
+    _ <- initRed ids red
+    forCG (itE .=. loE)
+          (itE .<. hiE)
+          (CUnary CPostIncOp itE)
+          (accumRed ids red >> return ())
+    finRed loc ids
+    putStat $ opComment "End Bucket"
+  where declRed :: Reducer abt xs a -> CodeGen (S.Seq Ident)
+        declRed (Red_Fanout mr1 mr2) =
+          do ids1 <- declRed mr1
+             ids2 <- declRed mr2
+             return (ids1 <> ids2)
+        declRed (Red_Index _ _ mr) = return mempty
+          -- caseBind mr $ \_ mr' ->
+          --   do return mempty -- declRed mr'
+        declRed (Red_Split _ mr1 mr2) =
+          do ids1 <- declRed mr1
+             ids2 <- declRed mr2
+             return (ids1 <> ids2)
+        declRed (Red_Nop) = return mempty
+        declRed (Red_Add sr _)    =
+          do let semiTyp = sing_HSemiring sr
+             mId <- genIdent' "m"
+             declare semiTyp mId
+             return . S.singleton $ mId
+
+        initRed :: S.Seq Ident -> Reducer abt xs a -> CodeGen (S.Seq Ident)
+        initRed s (Red_Fanout mr1 mr2) =
+          do s' <- initRed s mr1
+             initRed s' mr2
+        initRed s (Red_Index _ _ _) =
+          do putStat $ CComment "TODO: initRed{Red_Index}"
+             return s
+        initRed s (Red_Split _ mr1 mr2) =
+          do s' <- initRed s mr1
+             initRed s' mr2
+        initRed s (Red_Nop) = return s
+        initRed s (Red_Add sr _) =
+          case S.viewl s of
+            S.EmptyL -> return mempty
+            (h S.:< tl) ->
+              let identityE =
+                    case sing_HSemiring sr of
+                      SNat  -> intE 0
+                      SInt  -> intE 0
+                      SReal -> floatE 0
+                      SProb -> logE (floatE 0)
+              in  do putExprStat $ (CVar h) .=. identityE
+                     return tl
+
+        accumRed
+          :: (ABT Term abt)
+          => S.Seq Ident
+          -> Reducer abt xs a
+          -> CodeGen (S.Seq Ident)
+        accumRed s (Red_Fanout mr1 mr2) =
+          case S.viewl s of
+            S.EmptyL -> return mempty
+            (h S.:< tl) -> accumRed (pure h) mr1 >> accumRed tl mr2
+        accumRed s (Red_Index _ _ _) =
+          do putStat $ CComment "TODO: accumRed{Red_Index}"
+             return s
+        accumRed s (Red_Split b _ _) =
+          case S.viewl s of
+            S.EmptyL -> return mempty
+            (h S.:< tl) ->
+              caseBind b $ \v b' ->
+                let (vs,b'') = caseBinds b' in
+                   do _ <- createIdent v
+                      sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                      bE <- flattenWithName' b'' "cond"
+                      putStat $ CComment "TODO: accumRed{Red_Split}"
+                      return tl
+        accumRed s (Red_Nop) =
+          do putStat $ CComment "TODO: accumRed{Red_Nop}"
+             return s
+        accumRed s (Red_Add sr e) =
+          case S.viewl s of
+            S.EmptyL -> return mempty
+            (h S.:< tl) ->
+              caseBind e $ \v e' ->
+                let (vs,e'') = caseBinds e' in
+                   do _ <- createIdent v
+                      sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                      eE <- flattenWithName e''
+                      putExprStat $ (CVar h) .+=. eE
+                      return tl
+
+        finRed :: CExpr -> S.Seq Ident -> CodeGen ()
+        finRed loc ms =
+          case S.viewl ms of
+            S.EmptyL -> return ()
+            (h S.:< tl) ->
+              case S.viewl tl of
+                S.EmptyL -> putExprStat $ loc .=. (CVar h)
+                _ -> let nexLoc = loc ... "sum" ... "a" ... "b"
+                     in  do putExprStat $ (loc ... "sum" ... "a" ... "a") .=. (CVar h)
+                            finRed nexLoc tl
+
 
 --------------------------------------------------------------------------------
 --                                 Datum and Case                             --
@@ -828,8 +966,26 @@ flattenCase c [ Branch (PDatum _ (PInl PDone))        trueB
                      (CCompound . fmap CBlockStat . reverse . statements $ cg')
                      (Just alt)
 
+flattenCase e [ Branch (PDatum _ (PInl (PEt (PKonst PVar)
+                                            (PEt (PKonst PVar)
+                                                 PDone)))) b
+              ]
+  = \loc -> do
+    eE <- flattenWithName e
+    caseBind b $ \vfst@(Variable _ _ fstTyp) b' ->
+      caseBind b' $ \vsnd@(Variable _ _ sndTyp) b'' -> do
+        fstId <- createIdent vfst
+        sndId <- createIdent vsnd
+        declare fstTyp fstId
+        declare sndTyp sndId
+        let fstE = CVar fstId
+            sndE = CVar sndId
+            obj = CMember (CMember eE (Ident "sum") True) (Ident "a") True
+        putExprStat $ fstE .=. (CMember obj (Ident "a") True)
+        putExprStat $ sndE .=. (CMember obj (Ident "b") True)
+        flattenABT b'' loc
 
-flattenCase _ _ = error "TODO: flattenCase"
+flattenCase e _ = error $ "TODO: flattenCase{" ++ show (typeOf e) ++ "}"
 
 
 --------------------------------------------------------------------------------

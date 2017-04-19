@@ -7,6 +7,7 @@ module Main where
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Transforms (expandTransformations, optimizations)
+import Language.Hakaru.Summary
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
 import Language.Hakaru.CodeGen.CodeGenMonad
@@ -28,6 +29,7 @@ import           Prelude hiding (concat)
 data Options =
  Options { debug            :: Bool
          , optimize         :: Bool
+         , summaryOpt       :: Bool
          , make             :: Maybe String
          , asFunc           :: Maybe String
          , fileIn           :: String
@@ -53,7 +55,10 @@ options = Options
              <> help "Prints Hakaru src, Hakaru AST, C AST, C src" )
   <*> switch (  long "optimize"
              <> short 'O'
-             <> help "Performs constant folding on Hakaru AST" )
+             <> help "Performs Hakaru AST Optimizations" )
+  <*> switch (  long "summary"
+             <> short 'S'
+             <> help "Performs summarization optimization" )
   <*> (optional $ strOption (  long "make"
                             <> short 'm'
                             <> help "Compiles generated C code with the compiler ARG"))
@@ -88,7 +93,10 @@ compileHakaru prog = ask >>= \config -> lift $ do
   case prog' of
     Left err -> IO.hPutStrLn stderr err
     Right (TypedAST typ ast) -> do
-      let ast'    = TypedAST typ $ foldr id ast (abtPasses $ optimize config)
+      astS <- case summaryOpt config of
+                True  -> summary (expandTransformations ast)
+                False -> return ast
+      let ast'    = TypedAST typ $ foldr id astS (abtPasses $ optimize config)
           outPath = case fileOut config of
                       (Just f) -> f
                       Nothing  -> "-"

@@ -41,7 +41,8 @@ d3r := {
             ,Piece(And(t <= 1, 0 < t)
                   ,Weight(1-t,Bind(Uniform(t,1),`x`,Ret(f(x,-t+x)))))
             ,Piece(1 < t,Msum())
-            ])
+            ]),
+PARTITION([Piece(t <= -1,Msum()), Piece(And(-1 < t,t <= 0),Weight(t+1,Bind(Uniform(0,t+1),x,Ret(f(x,-t+x))))), Piece(And(0 < t,t < 1),Weight(1-t,Bind(Uniform(t,1),x,Ret(f(x,-t+x))))), Piece(1 <= t,Msum())])
 }:
 
 
@@ -62,7 +63,8 @@ d4r := {
     Msum()),
   PARTITION([Piece(t <= 0,Msum())
            , Piece(And(t <= 1, 0 < t),Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x)))))
-           , Piece(1 < t,Weight(1/2/t^2,BetaD(2,1)))])
+           , Piece(1 < t,Weight(1/2/t^2,BetaD(2,1)))]),
+  PARTITION([Piece(t <= 0,Msum()), Piece(0 < t and t < 1,Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x))))), Piece(1 <= t,Weight(1/2/t^2,BetaD(2,1)))])
 }:
 
 # like d3 but positive, and the entire parametric family.
@@ -254,7 +256,8 @@ TestDisint(
 );
 
 TestDisint(pair_x_x, pair_x_x_r, label="(pair_x_x) Disintegrate U(0,1) over Ret(x,x)");
-TestDisint(d3_3, d3_3_r, label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
+TestDisint(d3_3, d3_3_r, [], 180
+          , label = "(d3_3) Disintegrate U(0,1) thrice, over x+y+z");
 TestDisint(d3posfam, d3posfam_r, d3posfam_ctx
           , label = "(d3posfam) Disintegrate U(0,1) twice, over x+y+K");
 

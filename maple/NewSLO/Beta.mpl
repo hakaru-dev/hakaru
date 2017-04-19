@@ -11,6 +11,29 @@
       return false;
     end proc;
 
+    hack_Beta_pw := proc(pw::specfunc(piecewise), x::name, bounds::range, $)
+      local i, cond, via, dif, k;
+      # Remove a particular superfluous inequality
+      for i from 1 by 2 to nops(pw)-1 do
+        cond := op(i,pw);
+        if cond :: 'specfunc(And)' and membertype('{`<=`,`<>`}', cond) then
+          for via in select(has, select(type, cond, `=`), x) do
+            dif := lhs(via)-rhs(via)+rhs(bounds)-x;
+            for k from 1 to nops(cond) do
+              if op(k,cond) :: `<=`
+                 and Testzero(op([k,1],cond)-op([k,2],cond)+dif)
+              or op(k,cond) :: `<>`
+                 and Normalizer(op([k,1],cond)-op([k,2],cond)+dif) :: negative
+              then
+                return subsop(i=bool_And(op(subsop(k=NULL,cond))), pw);
+              end if;
+            end do;
+          end do;
+        end if;
+      end do;
+      return pw;
+    end proc;
+
     hack_Beta := proc(e :: specfunc(Beta), kb :: t_kb,
                       loops :: list([identical(product,Product,sum,Sum),
                                      name=range]),
@@ -19,19 +42,7 @@
       # Temporary hack to show desired output for examples/{dice_predict,gmm_gibbs,naive_bayes_gibbs}.hk
       if nops(loops) > 0 and e :: 'specfunc(`+`, Beta)' and has(e, piecewise) then
         x, bounds := op(op([-1,2],loops));
-        res := subsindets(e, 'specfunc(piecewise)', proc(pw, $)
-          # Remove a particular superfluous inequality
-          if op(1,pw) :: 'And(specfunc(And), anyfunc(relation, name=anything))' and has(op(1,pw),x) then
-            if op([1,1],pw) :: `<=`
-               and Testzero(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(bounds)-x) or
-               op([1,1],pw) :: `<>`
-               and Normalizer(op([1,1,1],pw)-op([1,1,2],pw)+op([1,2,1],pw)-op([1,2,2],pw)+rhs(bounds)-x) :: negative
-            then
-              return subsop(1=op([1,2],pw), pw)
-            end if
-          end if;
-          return pw
-        end proc);
+        res := subsindets(e, 'specfunc(piecewise)', hack_Beta_pw, x, bounds);
         s1, r1 := selectremove(has, op(1,res), piecewise);
         s2, r2 := selectremove(has, op(2,res), piecewise);
         sg := graft_pw(combine(combine(s1+s2), 'sum'));

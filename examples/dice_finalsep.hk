@@ -1,0 +1,17 @@
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from i+1 to size(as): as[j],
+                 as[i])
+    return ( array i of int2nat(size(as)-1):
+               real2prob(1-xs[i]) * product j from 0 to i: xs[j]
+           , product j from 0 to int2nat(size(as)-1): xs[j] )
+
+fn ns array(nat):
+  fn n nat:
+    psp <~ dirichlet(array i of size(ns)+1: 1.0)
+    match psp:
+      (ps,p):
+        weight( (product i from 0 to size(ps):
+                   ps[i]^ns[i])
+                * p^n
+              , return psp )

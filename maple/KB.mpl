@@ -60,6 +60,9 @@ KB := module ()
       empty, genLebesgue, genType, genSummation, genIntVar, genLet,
       assert, assert_deny, assert_mb, assert_deny_mb, build_kb,
 
+     # for debugging
+     build_unsafely,
+
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
      negated_relation, negate_rel, negate_rels,
@@ -110,7 +113,7 @@ KB := module ()
   # Some types
   # A particular form of Introduce, containing those types
   # about which Maple currently knows
-  t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt,EveryInteger}))';
+  t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
 
   # Low and high bounds (?)
   t_lo    := 'identical(`>`,`>=`)';
@@ -448,6 +451,12 @@ KB := module ()
           # technically this means the KB was already contradictory, we
           # just didn't know?
           return false;
+      catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
+          # This is seemingly a Maple bug - the condition could still be, but we
+          # don't know, so conservatively return true.
+          WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling coulditbe(%%1) assuming (%%2)"
+                          , StringTools[FormatMessage](lastexception[2..-1])), a, as0 );
+          return true;
       catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
           error expr_indp_errMsg(), a, as;
       catch "when calling '%2'. Received: 'expression independent of, %0'":
@@ -481,8 +490,8 @@ KB := module ()
       foldr(((b,kb) -> assert_deny_mb(b, not pol, kb)), kb, op(bb))
 
     else
-      bb := chill(bb);
       as := chill(kb_to_assumptions(kb, bb));
+      bb := chill(bb);
 
       # try to evaluate under the assumptions, but some assumptions break
       # with eval, so remove any of those we tried to chill to prevent them breaking
@@ -505,16 +514,7 @@ KB := module ()
         x, k := op(op(1,k));
         # Found the innermost scope where b makes sense.
         # Reduce (in)equality between exp(A) and exp(B) to between A and B.
-        do
-          try log_b := map(simplify@ln, b) assuming op(as); catch: break; end try;
-
-          if log_metric(log_b, x) < log_metric(b, x)
-             and (andmap(e->is(e,real)=true, log_b) assuming op(as)) then
-            b := log_b;
-          else
-            break;
-          end if;
-        end do;
+        b := try_improve_exp(b, x, as);
 
         # syntactic adjustment
         # If `b' is of a particular form (a bound on `x'), simplification
@@ -558,9 +558,10 @@ KB := module ()
     local m, L;
     m := select(depends, indets(e, 'exp(anything)'), x);
     length(subsindets(map2(op, 1, m), name, _->L));
-  end proc:
+  end proc;
 
-
+  # This should be local to KB (or even to assert_deny) but it is used
+  # by Domain.
   try_improve_exp := proc(b0, x, ctx, $)
         local b := b0, log_b;
         do
@@ -602,7 +603,7 @@ KB := module ()
   kb_subtract := proc(kb::t_kb, kb0::t_kb, $)
     local cut;
     cut := nops(kb) - nops(kb0);
-    if cut < 0 or KB(op(cut+1..-1, kb)) <> kb0 then
+    if cut < 0 or [op(cut+1..-1, kb)] <> [op(kb0)] then
       error "%1 is not an extension of %2", kb, kb0;
     end if;
     map(proc(k, $)
@@ -824,19 +825,23 @@ KB := module ()
 
   htype_to_property := proc(t::t_type, $)
     if t :: 'specfunc({AlmostEveryReal, HReal})' then real
-    elif t :: 'specfunc({HInt, EveryInteger})' then integer
+    elif t :: 'specfunc({HInt})' then integer
     else TopProp end if
   end proc;
 
-  # implementing this in terms of Partition (as opposed to algebraic
-  # manipulations with the piecewise) cause d0_2(DisintT) to fail
+  # See kb_Partition
   kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen, $)
     Partition:-PartitionToPW(
         kb_Partition( Partition:-PWToPartition(e), kb, doIf, doThen )
         ) ;
   end proc;
 
-  #For now at least, this procedure is parallel to kb_piecewise.
+  # A sort of map over a Partition with the given KB as a context, such that:
+  #    kb_Partition( PARTITION ( Piece( c_i , v_i ), .. )  , kb, doIf, doThen )
+  #    =
+  #    PARTITION ( Piece( doIf(c_i, kb), doThen(v_i, assert(c_i, kb)) ) )
+  # Semantics originally given here:
+  #  https://github.com/hakaru-dev/hakaru/commit/6f1c1ea2d039a91c157462f09f15760c98884303
   kb_Partition:= proc(e::Partition, kb::t_kb, doIf, doThen, $)::Partition;
   local br;
     #Unlike `piecewise`, the conditions in a Partition are necessarily
@@ -844,7 +849,7 @@ KB := module ()
     #simply `assert` the condition (i.e., roll it into the kb) without
     #needing to `assert` the negation of all previous conditions.
 
-    Partition:-Amap([doIf, doThen, z -> kb], e);
+    Partition:-Amap([(x,_) -> doIf(x, kb), (x,c) -> doThen(x, assert(c,kb)), z -> z], e);
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
@@ -908,6 +913,14 @@ KB := module ()
 
   chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
   warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
+
+  # The KB constructors are local, but sometimes for debugging purposes one
+  # would like to construct the KB directly. This converts the global names
+  # Introduce,Constrain,Let, and Bound to KB:-<..> and replaces the 0-th operand
+  # with KB:-KB.
+  build_unsafely := proc(kb,$)
+    KB(op(subs([ :-Introduce=Introduce, :-Let=Let, :-Bound=Bound, :-Constrain=Constrain ], kb)));
+  end proc;
 
   ModuleLoad := proc($)
     Hakaru; # Make sure the KB module is loaded, for the type t_type

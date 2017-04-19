@@ -57,18 +57,18 @@ end proc:
 
 Hakaru := module ()
   option package;
-  local p_true, p_false, make_piece, lift1_piecewise,
+  local p_true, p_false, make_piece, Mk_Plus, lift1_piecewise,
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
-         verify_measure, pattern_equiv,
+         verify_measure, verify_hboolean, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
          flatten_piecewise,
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
-         htype_patterns, extract_bound, extract_bound_lo, extract_bound_hi,
+         htype_patterns,
          bool_And, bool_Or, bool_Not;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
@@ -240,7 +240,17 @@ Hakaru := module ()
     end if
   end proc:
 
-  verify_measure := proc(m, n, v:='boolean', $)
+  verify_hboolean := proc(a, b, $)
+    local x,y,conv_tbl,and_fn,or_fn,not_fn;
+    and_fn := ((x->AND({op(x)}))@`bool_And`);
+    or_fn  := ((x->OR({op(x)}))@`bool_Or`);
+    not_fn := bool_Not;
+    conv_tbl := table([`and`=and_fn,`And`=and_fn,`Or`=or_fn,`or`=or_fn,`Not`=not_fn,`not`=not_fn]);
+    x,y := subsindets([a,b], Or(`and`,`or`,`not`, specfunc({`And`,`Or`,`Not`})), x->conv_tbl[op(0,x)](op(x)))[];
+    evalb(x=y);
+  end proc;
+
+  verify_measure := proc(m, n, v:='hboolean', $)
     local mv, x, i, j, k;
     mv := measure(v);
     if m :: specfunc({Bind, Plate}) and n :: specfunc({Bind, Plate}) and
@@ -257,10 +267,10 @@ Hakaru := module ()
                         j=1..k), i=1..k)}))[1]);
     elif andmap(type, [m,n], 'specfunc(piecewise)') and nops(m) = nops(n) then
       k := nops(m);
-      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, boolean), i=1..k)));
+      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, hboolean), i=1..k)));
 
     elif andmap(type, [m,n], 'specfunc(PARTITION)') then
-      Partition:-SamePartition(verify_measure, verify_measure)(m, n);
+      Partition:-SamePartition(verify_hboolean, verify_measure, m, n);
 
     elif m :: specfunc('case') and
         verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
@@ -530,61 +540,32 @@ Hakaru := module ()
     Bound(`>`, lhs(r)), Bound(`<`, rhs(r))
   end proc;
 
+  # Creates an N-ary operator `Plus` such:
+  #  Plus(Plus(a,b),c)=Plus(a,Plus(a,b))
+  #  Plus(a,Zero)=a
+  #  Plus(a)=a
+  #  Plus(x,x)=x
+  Mk_Plus := proc(plus,zero,$) proc()
+    local as := {args};
+    as := map(a->if op(0,a)=plus then op(a) else a end if, as);
+    if nops(as)=0 then zero
+    elif nops(as)=1 then op(1,as)
+    else plus(op(as))
+    end if;
+  end proc; end proc;
 
-  extract_bound :=
-    proc( side, rels, v, $ )
-      local lhs_f, rhs_f, lhs_r, rhs_r;
+  # Replacements for `and` and `or` which do not
+  # evaluate "x = y" to "false" when "x,y" are unbound vars.
+  bool_And := Mk_Plus('And','true' );
+  bool_Or  := Mk_Plus('Or' ,'false');
 
-      lhs_f, rhs_f := op(side);
-      lhs_r, rhs_r := op(rels);
-
-      proc(x,$)
-          if x :: relation then
-              if lhs_f(x) = evaln(v) and
-                 op(0,x) in lhs_r then
-                  rhs_f(x);
-              elif rhs_f(x) = evaln(v) and
-                 op(0,x) in rhs_r then
-                  lhs_f(x);
-              else
-                  NULL
-              end if;
-          else NULL end if;
-      end proc;
+  bool_Not := proc(a,$)
+    if a :: KB:-t_kb_atom then
+      subsindets(KB:-negate_rel(a), `not`, Not@op);
+    else
+      Not(a)
+    end if;
   end proc;
-
-  extract_bound_hi := v -> extract_bound( [lhs,rhs]
-                                        , [ {`<`, `<=`}, {`>`, `>=`} ]
-                                        , v
-                                        );
-  extract_bound_lo := v -> extract_bound( [rhs,lhs]
-                                        , [ {`<`, `<=`}, {`>`, `>=`} ]
-                                        , v
-                                        );
-
-   # Replacements for `and` and `or` which do not
-   # evaluate "x = y" to "false" when "x,y" are unbound vars.
-   bool_And := proc()
-       if nargs=0 then true
-       elif nargs=1 then args[1]
-       else `And`(args)
-       end if;
-   end proc;
-
-   bool_Or := proc()
-       if nargs=0 then false
-       elif nargs=1 then args[1]
-       else `Or`(args)
-       end if;
-   end proc;
-
-   bool_Not := proc(a,$)
-       if a :: KB:-t_kb_atom then
-           subsindets(KB:-negate_rel(a), `not`, Not@op);
-       else
-           Not(a)
-       end if;
-   end proc;
 
   # Enumerate patterns for a given Hakaru type
   htype_patterns := proc(t::t_type, $)
@@ -620,6 +601,7 @@ Hakaru := module ()
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
     VerifyTools[AddVerification](measure = eval(verify_measure));
+    VerifyTools[AddVerification](hboolean = eval(verify_hboolean));
 
     TypeTools:-AddType(
          `&implies`,

@@ -3,8 +3,9 @@
   simplify_factor_assuming := module ()
 
     export ModuleApply;
-    local graft_pw, GAMMAratio, wrap, and_info, hack_Beta, hackier_Beta,
-          bounds_are_simple, eval_piecewise, eval_factor;
+    local graft_pw, GAMMAratio, wrap, and_info,
+          hack_Beta_pw, hack_Beta, hackier_Beta,
+          eval_piecewise, bounds_are_simple, eval_loop, eval_factor;
 
 $include "NewSLO/Beta.mpl"
 $include "NewSLO/Piecewise.mpl"
@@ -26,6 +27,33 @@ $include "NewSLO/Piecewise.mpl"
       true
     end proc;
 
+    eval_loop := proc(e :: And(specfunc({product,Product,sum,Sum}),
+                               anyfunc(anything, name=range)),
+                      kb :: t_kb,
+                      mode :: identical(`*`,`+`),
+                      loops, $)
+      local o, body, x, bounds, res, go, y, kb1;
+      o := op(0,e);
+      body, bounds := op(e);
+      x, bounds := op(bounds);
+      bounds := map(eval_factor, bounds, kb, `+`, []);
+      if bounds_are_simple(bounds) then
+        # Expand {product,sum} to {mul,add}
+        if o=Product then o:=product elif o=Sum then o:=sum end if;
+        bounds := lift_piecewise(bounds,
+                    'And(range, Not(range(Not(specfunc(piecewise)))))');
+        res := `if`(bounds :: 'specfunc(piecewise)', map_piecewiselike, apply)
+                   ((b -> o(go(x), x=b)), bounds);
+        # Work around this bug:
+        # > product(Sum(f(j),j=0..n-1),j=0..0)
+        # Sum(f(0),0=0..n-1)
+        res := eval(res, go = (i -> eval(body, x=i)));
+        return eval_factor(res, kb, mode, loops);
+      end if;
+      y, kb1 := genType(x, HInt(closed_bounds(bounds)), kb);
+      return eval_factor(subs(x=y,body), kb1, mode, [[o,y=bounds],op(loops)]);
+    end proc;
+
     # eval_factor is a simplifier.  It maintains the following invariants:
     #   eval_factor(e, kb, mode, []) = e
     #   eval_factor(e, kb, `*` , [...,[product,i=lo..hi]])
@@ -35,7 +63,7 @@ $include "NewSLO/Piecewise.mpl"
     # It recursively traverses e while "remembering" the loops traversed,
     # as ``context'' information, to help with transformations.
     eval_factor := proc(e, kb :: t_kb, mode :: identical(`*`,`+`), loops, $)
-      local o, body, x, bounds, res, go, y, kb1, i, j, k, s, r;
+      local res, i, j, k, s, r;
       if not (loops :: 'list'([`if`(mode=`*`, 'identical(product,Product)',
                                               'identical(sum    ,Sum    )'),
                                'name=range'])) then
@@ -50,26 +78,8 @@ $include "NewSLO/Piecewise.mpl"
         return e;
       end if;
       if e :: And(specfunc(`if`(mode=`*`, '{product,Product}', '{sum,Sum}')),
-                    'anyfunc(anything, name=range)') then
-        o := op(0,e);
-        body, bounds := op(e);
-        x, bounds := op(bounds);
-        bounds := map(eval_factor, bounds, kb, `+`, []);
-        if bounds_are_simple(bounds) then
-          # Expand {product,sum} to {mul,add}
-          if o=Product then o:=product elif o=Sum then o:=sum end if;
-          bounds := lift_piecewise(bounds,
-                      'And(range, Not(range(Not(specfunc(piecewise)))))');
-          res := `if`(bounds :: 'specfunc(piecewise)', map_piecewiselike, apply)
-                     ((b -> o(go(x), x=b)), bounds);
-          # Work around this bug:
-          # > product(Sum(f(j),j=0..n-1),j=0..0)
-          # Sum(f(0),0=0..n-1)
-          res := eval(res, go = (i -> eval(body, x=i)));
-          return eval_factor(res, kb, mode, loops);
-        end if;
-        y, kb1 := genType(x, HInt(closed_bounds(bounds)), kb);
-        return eval_factor(subs(x=y,body), kb1, mode, [[o,y=bounds],op(loops)]);
+                  'anyfunc(anything, name=range)') then
+        return eval_loop(e, kb, mode, loops);
       end if;
       if e :: 'specfunc(piecewise)' then
         return eval_piecewise(e, kb, mode, loops);
@@ -84,7 +94,7 @@ $include "NewSLO/Piecewise.mpl"
         end if;
       end if;
       if mode = `*` then
-	i := map2(op,[2,1],loops);
+        i := map2(op,[2,1],loops);
         if e :: '`^`' then
           # Transform product(a(i)^b,i=...) to product(a(i),i=...)^b
           if not depends(op(2,e), i) then
@@ -119,7 +129,7 @@ $include "NewSLO/Piecewise.mpl"
       if mode = `*` and e :: 'specfunc(Beta)' then
         res := hack_Beta(e, kb, loops);
         if res <> FAIL then
-          userinfo(3, `beta_hack`,
+          userinfo(3, 'hack_Beta',
                    printf("Beta hack was applied to %a, %a, %a\n"
                           "\tto produce %a\n", e, kb, loops, res));
           return res

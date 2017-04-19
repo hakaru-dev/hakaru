@@ -22,27 +22,14 @@
 # should get rid of all sorts of unnecessary conversions.
 
 # Broad TODOs:
-# Make bound extraction look into products ('integrate out GammaD with PoissonD likelihood to NegativeBinomial')
 #
 # Mechanism for 'checking if' and 'making' constraints about variables should
 #   be abstracted out into its own module (it is needed in multiple places, and
 #   done sort of ad-hoc) (this could be fixed by a broader design - see "merging
 #   KB with Domain")
 #
-# General interface for folding over a domain while including the domain
-#   information in a context; basically a function of type
-#      (X -> X) -> X where X = DomBound -> DomShape -> r
-#   Pretty much everything in Domain does this, or should be doing it! and this
-#   insulates against future additions of new constructors which may have
-#   'interesting' contexts.
-#
-# All the global setup should be done through some kind of table
-#
 # Shape extraction needs to be reworked; we "flatten" constraints multiple
 #   times; This should be done once after shape extraction, not at every step
-#
-# Several 'simplifications' other than LMS are done in LMS. These need to have
-#   their own entry in Simplifiers (and work properly in their own context).
 #
 # DInto should also optionally omit the bounds if they are identical to the
 #   bounds in the a-priori domain bounds (i.e. just `DInto(x)`); DInto sort of
@@ -52,24 +39,8 @@
 #   we still want to be able to omit bounds which would be identical. It should
 #   also allow specifying only a subset of the bounds.
 #
-# A mechanism for Bound to use it as a table. In particular, we don't want to
-#   represent the bound as a table, but we do "table lookup" on variables quite
-#   a bit. (perhaps add a function which places the table as a second component
-#   in the bounds, and have the Bound functions use it; or even a big record,
-#   containing the table and other things; so long as we update the original
-#   bound concurrently with the table, we should be okay with `has`, etc. I
-#   believe that another table which provides lookup from names to indices in
-#   the list would allow it to be done efficiently?)
-#
 # A more granular interface for composing/re-composing simplifiers, including
 #   call simplifier A {before/after} B
-#
-# Domain should support Ints/Sums. Currently pretty much all of the hard work is
-#   in place; the concept of 'variables' needs to be generalized to 'indexed
-#   variables' and 'ranges' to 'collections of ranges'. Perhaps the 'variable'
-#   and 'range' types should actually be part of ExtBound, and ExtBound provides
-#   a consistent way for dealing with different variable types that have an
-#   entirely different syntactic form but essentially identical semantics.
 #
 # Domain bounds should store a representation of 'dependancy' of variables
 #   (a more refined representation; the current one is a linear order of variables)
@@ -127,101 +98,46 @@ Domain := module()
     global DOMAIN; global DBound; global DConstrain; global DSum; global DSplit; global DInto; global DNoSol;
 
     local ModuleLoad := proc($)
-           local ty_nm, g;
-           for ty_nm in [ indices(DomainTypes, nolist) ] do
-               TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
-           end do;
+      local ty_nm, g;
+      for ty_nm in [ indices(DomainTypes, nolist) ] do
+        TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
+      end do;
 
-           #op([2,6], ...) of a module is its globals.
-           for g in op([2,6], thismodule) do
-               if g <> eval(g) then
-                   unassign(g);
-                   WARNING("Previous value of global name '%1' erased.", g)
-               end if;
-               if assigned(Domain:-GLOBALS[g]) then
-                   assign(g = copy(Domain:-GLOBALS[g]));
-               end if;
-               protect(g);
-           end do;
-
-           unprotect(Domain:-ExtBound);
-           ExtBound[`Int`] :=
-               Record('MakeKB'=KB:-genLebesgue
-                     ,'ExtractVar'=(e->op(1,e))
-                     ,'ExtractRange'=(e->op(2,e))
-                     ,'SplitRange'=(e->op(e))
-                     ,'Constrain'=`<`
-                     ,'MakeEqn'=`=`
-                     ,'VarType'='name'
-                     ,'RangeType'='range'
-                     ,'MapleType'='And(specfunc({Int}), anyfunc(anything,name=range))'
-                     ,'BoundType'='real'
-                     );
-
-           ExtBound[`Sum`] :=
-               Record('MakeKB'=KB:-genSummation
-                     ,'ExtractVar'=(e->op(1,e))
-                     ,'ExtractRange'=(e->op(2,e))
-                     ,'SplitRange'=(e->op(e))
-                     ,'Constrain'=`<=`
-                     ,'MakeEqn'=`=`
-                     ,'VarType'='name'
-                     ,'RangeType'='range'
-                     ,'MapleType'='And(specfunc({Sum}), anyfunc(anything,name=range))'
-                     ,'BoundType'='integer'
-                     );
-           protect(Domain:-ExtBound);
-
-           unprotect(Domain:-ExtShape);
-
-           ExtShape[`PARTITION`] :=
-               Record('MakeCtx'=
-                      (proc(p0,$)
-                           local p := p0, pw, wps, ws, vs, cs, w, ps;
-                           w, p := Partition:-Simpl:-single_nonzero_piece(p);
-                           if not w :: identical(true) then
-                               [ w, p ]
-                           else
-                               ps := op(1, p0);
-                               wps := map(x->Domain:-Extract:-Shape(valOf(x), 'no_simpl'), ps);
-                               ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
-                               if nops(vs) > 0 and
-                                  andmap(v->op(1,vs)=v, vs) and
-                                  ormap(a->a<>{}, ws)
-                               then
-                                   [ `or`( op( zip(`and`, ws, cs) ) ) , op(1,vs) ];
-                               else
-                                   [ true, p0 ];
-                               end if;
-                           end if;
-                       end proc)
-                     ,'MapleType'='Partition');
-
-           ExtShape[`piecewise`] :=
-               Record('MakeCtx'=
-                       (proc(p, $)
-                         local w, p1;
-                         w, p1 := Domain:-ExtShape[`PARTITION`]:-MakeCtx( PWToPartition(p, 'do_solve') ) [] ;
-                         if w = true then
-                             [ true, p ] ;
-                         else
-                             [ w, p1 ];
-                         end if;
-                        end proc)
-                     ,'MapleType'=specfunc(`piecewise`));
-           unprotect(Domain:-ExtShape);
+      #op([2,6], ...) of a module is its globals.
+      for g in op([2,6], thismodule) do
+        if g <> eval(g) then
+          unassign(g);
+          WARNING("Previous value of global name '%1' erased.", g)
+        end if;
+        if assigned(Domain:-GLOBALS[g]) then
+          assign(g = copy(Domain:-GLOBALS[g]));
+        end if;
+        protect(g);
+      end do;
     end proc;
 
     local ModuleUnload := proc($)
-        local ty_nm;
-        for ty_nm in [ indices(DomainTypes, nolist) ] do
-            if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
-        end do;
+      local ty_nm;
+      for ty_nm in [ indices(DomainTypes, nolist) ] do
+        if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
+      end do;
     end proc;
 
     # Extending domain extraction and replacement.
     export ExtBound := table();
     export ExtShape := table();
+
+    export Set_ExtBound := proc(nm,val,$)
+      unprotect(Domain:-ExtBound);
+      Domain:-ExtBound[nm] := val;
+      protect(Domain:-ExtBound);
+    end proc;
+
+    export Set_ExtShape := proc(nm,val,$)
+      unprotect(Domain:-ExtShape);
+      Domain:-ExtShape[nm] := val;
+      protect(Domain:-ExtShape);
+    end proc;
 
 $include "Domain/Has.mpl"
 $include "Domain/Bound.mpl"
@@ -269,4 +185,21 @@ $include "Domain/Improve.mpl"
         if not expr :: outty then expr := outmk(expr) end if;
         map(x -> if not x :: inty then inmk(x) else x end if, expr);
     end proc;
+
+    # The main interface to Domain
+    export Reduce := proc(e0,kb::t_kb,f_into,f_body,f_nosimp:=(_->FAIL),$)
+      local e := e0, dom_specb, dom_specw, dom_ctx, dom_spec;
+      # Build the domain
+      dom_specb, e := op(Domain:-Extract:-Bound(e));
+      if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
+      dom_specw, e := op(Domain:-Extract:-Shape(e));
+      dom_ctx := {op(KB:-kb_to_constraints(kb))};
+      dom_specb := DBound(op(1,dom_specb), dom_ctx);
+      dom_spec := DOMAIN(dom_specb, dom_specw);
+
+      # Improve, if necessary, then apply back to the expression
+      if dom_specw <> DConstrain() then dom_spec := Domain:-Improve(dom_spec) end if;
+      Domain:-Apply(dom_spec, kb, f_into, f_body)(e);
+    end proc;
+
 end module;

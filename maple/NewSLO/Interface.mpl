@@ -94,7 +94,11 @@ TestDisint := module()
         disint_args := [M,disint_var,ctx];
         expected := subs(:-`t`=disint_var,expected);
       end if;
-      do_test(disint_args, copy(expected), TLim, _rest);
+      try
+        do_test(disint_args, copy(expected), TLim, _rest);
+      catch "time expired":
+        error "Time expired while running: disint(%1)", disint_args;
+      end try;
     end proc;
 
     # This is necessary because CodeTools seems to forgot the value
@@ -153,4 +157,23 @@ Efficient := proc(mm, $)
     end if;
   end do;
   return true;
+end proc;
+
+# Load a file in concrete Hakaru syntax (using the "momiji" command)
+# and return its term (in which Sum and Product are inert) and type.
+Concrete := proc(path::string, $)
+  local cmd, res, dangerous_chars;
+  cmd := FileTools:-AbsolutePath(path,
+    (FileTools:-ParentDirectory@@2)(LibraryTools:-FindLibrary(Hakaru)));
+  dangerous_chars := [ " ", "'", """", `if`(kernelopts(platform)="windows", [], ["\\"])[] ];
+  if ormap((c->StringTools:-Has(cmd,c)), dangerous_chars) then
+    error "Dangerous characters in path: %1", cmd;
+  end if;
+  cmd := cat("momiji ", cmd);
+  res := ssystem(cmd);
+  if res :: [0, string] then
+    parse(cat("use Hakaru in ", op(2,res), " end use"));
+  else
+    error "ssystem %1: %2", cmd, res;
+  end if;
 end proc;

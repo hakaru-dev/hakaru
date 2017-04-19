@@ -15,30 +15,14 @@
   reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     local e, elim, subintegral, w, ww, x, c, kb1, with_kb1, dom_specw, dom_specb
          , body, dom_spec, ed, mkDom, vars, rr
-         , do_domain := evalb( not ( ['no', 'domain'] in {op(opts)} ) ) ;
+         , do_domain := evalb( not ( "no_domain" in {op(opts)} ) ) ;
     e := ee;
 
     if do_domain then
-        dom_specb, body := op(Domain:-Extract:-Bound(e));
-        if not Domain:-Bound:-isEmpty(dom_specb) then # we have found bounds
-            rr := reduce_Integrals(body, h, kb, opts, dom_specb);
-            if rr = FAIL then return e else return rr end if;
-        end if;
+      rr := reduce_Integrals(e, h, kb, opts);
+      if rr <> FAIL then return rr end if;
     end if;
-    if do_domain and e :: 'And(specfunc({Ints,Sums}),
-                   anyfunc(anything, name, range, list(name=range)))' then
-      x, kb1 := genType(op(2,e),
-                        mk_HArray(`if`(op(0,e)=Ints,
-                                       HReal(open_bounds(op(3,e))),
-                                       HInt(closed_bounds(op(3,e)))),
-                                  op(4,e)),
-                        kb);
-      if nops(op(4,e)) > 0 then
-        kb1 := assert(size(x)=op([4,-1,2,2],e)-op([4,-1,2,1],e)+1, kb1);
-      end if;
-      reduce_IntsSums(op(0,e), reduce(subs(op(2,e)=x, op(1,e)), h, kb1, opts), x,
-        op(3,e), op(4,e), h, kb1, opts)
-    elif e :: 'applyintegrand(anything, anything)' then
+    if e :: 'applyintegrand(anything, anything)' then
       map(simplify_assuming, e, kb)
     elif e :: `+` then
       map(reduce, e, h, kb, opts)
@@ -49,15 +33,21 @@
       (subintegral, ww) := selectremove(depends, subintegral, h);
       nub_piecewise(simplify_factor_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
-    elif e :: t_pw then
-      e:= flatten_piecewise(e);
-      e := kb_piecewise(e, kb, simplify_assuming,
+    elif e :: Or(Partition,t_pw) then
+      if e :: t_pw then e := PWToPartition(e); end if;
+      e := Partition:-Simpl(e);
+      e := kb_Partition(e, kb, simplify_assuming,
                         ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
       e := eval(e, %reduce=reduce);
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      nub_piecewise(e);
+      e := PartitionToPW(e);
+      e := nub_piecewise(e);
+      if ee::Partition and e :: t_pw then
+        e := Partition:-PWToPartition(e,'do_solve');
+      end if;
+      e;
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='reduce'(op(2,b),x,c,opts),b),
@@ -86,61 +76,24 @@
 
   # "Integrals" refers to any types of "integrals" understood by domain (Int,
   # Sum currently)
-  reduce_Integrals := proc(body_, h, kb, opts, dom_specb_, $)
-    local body := body_, dom_specb := dom_specb_, elim, e, mkDom, vars
-        , kb1, with_kb1, dom_specw, dom_spec, dom_ctx, ed;
+  reduce_Integrals := proc(expr, h, kb, opts, $)
+    local rr, elim;
+    rr := Domain:-Reduce(expr, kb
+      ,proc() elim_intsum:-for_Domain(h,args) end proc
+      ,((x,kb1)->reduce(x,h,kb1,opts))
+      ,(_->:-DOM_FAIL));
 
-    # First simplify the body; this may discover other nested domains, simplify
-    # them, and allow a further simplification to occur in this step of domain
-    # improvement. To do this we currently need a KB for the recursive call to reduce
-    kb1, with_kb1 := op(Domain:-Bound:-toKB(dom_specb, kb));
+    elim := subsindets(rr, specfunc(ELIMED), x->op(1,x));
+    if elim <> rr then rr := reduce(elim,h,kb,opts) end if;
+    rr := kb_assuming_mb(Partition:-Simpl)(rr, kb, x->x);
 
-    # kb may produce variable substitutions
-    dom_specb, body := op( subs(with_kb1, [dom_specb, body])  );
-    e := reduce(body, h, kb1, opts);
-
-    # Extract the shape of the domain
-    (dom_specw, e) := op(Domain:-Extract:-Shape(e));
-    # if dom_specw = DConstrain() then return FAIL end if;
-
-    dom_ctx := {op(kb_to_constraints(kb))};
-    dom_specb := DBound(op(1,dom_specb), dom_ctx);
-
-    # Construct the domain from the bounds and the shape
-    dom_spec := DOMAIN(dom_specb, dom_specw);
-
-    # Improve the domain
-    dom_spec := Domain:-Improve(dom_spec);
-
-    # Apply the domain back to the expression
-    mkDom := Domain:-Apply(dom_spec); ed := mkDom(e);
-
-    # Some extra simplification may be needed
-    elim := elim_intsum( ed, h, kb );
-
-    if elim = FAIL then
-      # that simplification fails, so build the domain individually
-      # on each multiplicand of the produce (reduce_on_prod)
-      vars := op(1, dom_specb);
-      e := reduce_on_prod( mkDom, e, map(x->op(1,x), vars), kb);
-      # simplify partitions (might not be needed?)
-      kb_assuming_mb(x->subsindets(x, Partition, Partition:-Simpl))(e, kb, x->x);
-    else
-      # that simplification fails, so reduce again (might not be needed?)
-      reduce(elim, h, kb, opts);
+    if has(rr, :-DOM_FAIL) then
+      return FAIL;
+    elif has(rr, FAIL) then
+      error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
+          , expr, kb, kb, opts, rr;
     end if;
-  end proc;
-
-  # Helper function for performing reductions
-  # given an "ee" and a "var", pulls the portion
-  # of "ee" not depending on "var" out, and applies "f"
-  # to the portion depending on "var".
-  # the 'weights' (factors not depending on "var") are simplified
-  # under the given assumption context, "kb0"
-  reduce_on_prod := proc(f,ee, var:: {name, list(name), set(name)} ,kb0::t_kb,$)
-      local e := ee, w;
-      e, w := selectremove(depends, list_of_mul(e), var);
-      nub_piecewise(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
+    rr;
   end proc;
 
   int_assuming := proc(e, v::name=anything, kb::t_kb, $)
@@ -165,6 +118,8 @@
     elif el :: t_pw then
       if nops(el) >= 2 and Testzero(th - op(2,el)) then
         applyop(Or, 1, el, cond)
+      elif nops(el) = 2 then
+        piecewise(cond, th, op(el), 0)
       else
         piecewise(cond, th, op(el))
       end if
@@ -175,101 +130,132 @@
     end if
   end proc;
 
-  reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, opts, $)
-    local e, elim;
-    # TODO we should apply domain restrictions like reduce_IntSum does.
-    e := makes(ee, var, rng, bds);
-    elim := elim_intsum(e, h, kb);
-    if elim = FAIL then e else reduce(elim, h, kb, opts) end if
-  end proc;
+  # Int( .., var=var_ty ) == var &X var_ty
+  isBound_IntSum := kind -> module()
+    option record;
+
+    export MakeKB := (`if`(kind=Sum,KB:-genSummation,KB:-genLebesgue));
+    export ExtractVar := (e->op(1,e));
+    export ExtractRange := (e->op(2,e));
+    export MakeRange := `..`;
+    export SplitRange := (e->op(e));
+    export Constrain := `if`(kind=Sum,`<=`,`<`);
+    export DoMk := ((e,v,t)->kind(e,v=t));
+    export EvalInCtx    := `if`(kind=Sum,'sum_assuming','int_assuming');
+    export Min := `min`; export Max := `max`;
+    export VarType := 'name';
+    export RangeType := 'range';
+    export MapleType := 'And'('specfunc'(kind), 'anyfunc(anything,name=range)');
+    export BoundType := `if`(kind=Sum,'integer','real');
+    export RecogBound := `if`(kind=Sum,
+              (proc(k,b)
+                 if   k = `<=` then (x->subsop(2=b,x))
+                 elif k = `>=` then (x->subsop(1=b,x))
+                 elif k = `<`  then (x->subsop(2=(b-1),x))
+                 elif k = `>`  then (x->subsop(1=b+1,x))
+                 end if;
+               end proc),
+              (proc(k,b)
+                 if   k in {`<=`,`<`} then (x->subsop(2=b,x))
+                 elif k in {`>=`,`>`} then (x->subsop(1=b,x))
+                 end if;
+               end proc));
+  end module;
+
+  # Ints( .., var::name, var_ty::range, dims::list(name=range) ) ==
+  #        [ var   , map(lhs,dims) ] :: list(name)  &X
+  #        [ var_ty, map(rhs,dims) ] :: list(range)
+  isBound_IntsSums := kind -> module()
+    option record;
+
+    export MakeKB := proc(vars, lo, hi, kb, $)
+      local var, dims, ty, rngs, x, kb1;
+      var  := op(1, vars);
+      rngs := zip(`..`,lo,hi);
+      ty   := op(1, rngs);
+      dims := subsop(1=NULL,zip(`=`,vars,rngs));
+
+      x, kb1 := genType(var,
+                        mk_HArray(`if`(kind=Ints,
+                                       HReal(open_bounds(ty)),
+                                       HInt(closed_bounds(ty))),
+                                  dims),kb);
+      if nops(dims) > 0 then
+        kb1 := assert(size(x)=op([-1,2,2],dims)-op([-1,2,1],dims)+1, kb1);
+      end if;
+      x, kb1;
+    end proc;
+    export ExtractVar   := ((v,t,d)->[v,map(lhs,d)[]]);
+    export ExtractRange := ((v,t,d)->[t,map(rhs,d)[]]);
+    export MakeRange    := ((a,b)->zip(`..`,a,b));
+    export SplitRange   := (rs->(map(x->op(1,x),rs), map(x->op(2,x),rs)));
+    export Constrain    := ((a,b)->zip(`if`(kind=Ints, `<`, `<=`),a,b)[]);
+    export DoMk         := ((e,v,t)->kind( e,op(1,v),op(1,t), subsop(1=NULL,zip(`=`,v,t)) ));
+    export EvalInCtx    := `if`(kind=Ints,'ints','sums');
+    export Min          := ((a,b)->zip(`min`,a,b));
+    export Max          := ((a,b)->zip(`max`,a,b));
+    export VarType      := 'And(list(name),satisfies(x->x<>[]))';
+    export RangeType    := 'And(list(range),satisfies(x->x<>[]))';
+    export MapleType    := 'And'('specfunc'(kind),'anyfunc'('anything', 'name', 'range', 'list(name=range)'));
+    export BoundType    := TopProp;
+    export RecogBound   := (_->NULL);
+  end module;
 
   # Try to find an eliminate (by evaluation, or simplification) integrals which
   # are free of `applyintegrand`s.
   elim_intsum := module ()
-    export ModuleApply := proc(e, h :: name, kb :: t_kb, $)
-      local todo, elim;
-      todo := extract_elim(e,h,true);
-      elim := apply_elim(h,kb,todo);
-      check_elim(e, elim);
+    export ModuleApply := proc(inert0, h :: name, kb :: t_kb, $)
+       local ex, un_elim, e1, inert := inert0, done_e := false;
+
+       un_elim := subsindets(inert, specfunc('ELIMED'), x->op(1,x));
+       if un_elim <> inert then
+         inert := un_elim; done_e := true;
+       end if;
+
+       ex := extract_elim(inert, h);
+       e1 := apply_elim(h, kb, ex);
+       e1 := check_elim(inert, e1);
+       if e1 = FAIL then
+         `if`(done_e,ELIMED,_->_)(inert)
+       else
+         ELIMED(e1)
+       end if
     end proc;
 
-    local extract_elim := proc(e, h::name, toplevel :: truefalse := true, $)
-      local t, var, mk_bnd, lo_bnd, hi_bnd, f, do_elim, mk_kb, todo0, body, todo;
+    export for_Domain := proc(h, kind, e, vn, vt, kb, $)
+       ModuleApply(Domain:-Apply:-do_mk(args[2..-1]), h, kb);
+    end proc;
+
+    local extract_elim := proc(e, h::name, $)
+      local t, intapps, var, f, e_k, e_args;
       t := 'applyintegrand'('identical'(h), 'anything');
-      if e :: Int(anything, name=anything) then
-          var := op([2,1],e);
-          mk_bnd := `<`;
-          lo_bnd, hi_bnd := op(op([2,2],e));
-        if not depends(indets(op(1,e), t), op([2,1],e)) then
-          f := 'int_assuming';
-        else
-          f := proc(e,v) `Int`(e,v) end proc;
-        end if;
-      elif e :: Sum(anything, name=anything) then
-        var := op([2,1],e);
-        mk_bnd := `<=`;
-        lo_bnd, hi_bnd := op(op([2,2],e));
-        if not depends(indets(op(1,e), t), op([2,1],e)) then
-          f := 'sum_assuming';
-        else
-          f := proc(e,v) `Sum`(e,v) end proc;
-        end if;
-      elif e :: Ints(anything, name, range, list(name=range)) then
+      intapps := indets(op(1,e), t);
+      if intapps = {} then
+        return FAIL;
+      end if;
+      e_k := op(0,e); e_args := op([2..-1],e);
 
-        var := op(2,e);
-        mk_bnd := `<`;
-        lo_bnd, hi_bnd := op(op(3,e));
+      if Domain:-Has:-Bound(e) then
+        var := Domain:-ExtBound[e_k]:-ExtractVar(e_args);
+        ASSERT(var::DomBoundVar);
+        if var :: list then var := op(1,var) end if;
 
-        if not depends(indets(op(1,e), t), op(2,e)) then
-          f := 'ints';
+        if not depends(intapps, var) then
+          f := Domain:-ExtBound[e_k]:-EvalInCtx;
         else
-          f := `Ints`;
+          return FAIL;
         end if;
-
-      elif e :: Sums(anything, name, range, list(name=range)) then
-        var := op(2,e);
-        mk_bnd := `<=`;
-        lo_bnd, hi_bnd := op(op(3,e));
-
-        if not depends(indets(op(1,e), t), op(2,e)) then
-          f := 'sums';
-        else
-          f := `Sums`;
-        end if;
-      else
-        return `if`(toplevel, FAIL, [ e, [] ]);
       end if;
 
-      do_elim := evalb(f in {'sums','ints','int_assuming','sum_assuming'});
-
-      mk_kb := kb -> KB:-assert(And(mk_bnd(lo_bnd,var),mk_bnd(var,hi_bnd)), kb);
-
-      todo0      := [ f, var, [op(2..-1,e)], mk_kb, do_elim ];
-      body, todo := extract_elim(op(1,e), h, false)[];
-      [ body, [ todo0, op(todo) ] ];
+      [ op(1,e), f, var, [e_args] ];
     end proc;
 
     local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
-      local body, todos, kbs, i, f, var, rrest, mk_kb, do_elim;
-      if todo = FAIL or not(ormap(x->op(5,x),op(2,todo))) then
-        return FAIL;
-      end if;
-
-      body, todos := op(todo); kbs[nops(todos)+1] := kb;
-
-      for i from nops(todos) to 1 by -1 do
-        f, var, rrest, mk_kb, do_elim := op(op(i,todos));
-        kbs[i] := mk_kb(kbs[i+1]);
-
-        if do_elim then
-          body := banish(body, h, kbs[i], infinity, var,
-                         proc (kb,g,$) do_elim_intsum(kb, f, g, op(rrest)) end proc);
-        else
-          body := f(body, op(rrest));
-        end if;
-      end do;
-
-      body;
+      local body, f, var, rrest;
+      if todo = FAIL then return FAIL; end if;
+      body, f, var, rrest := op(todo);
+      banish(body, h, kb, infinity, var,
+             proc (kb1,g,$) do_elim_intsum(kb1, f, g, op(rrest)) end proc);
     end proc;
 
     local check_elim := proc(e, elim,$)

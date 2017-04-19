@@ -1,47 +1,50 @@
 export Improve := module ()
     export Simplifiers := table();
     export ModuleApply := proc(dom :: HDomain, $)::HDomain_mb;
-        local es := map(si->Simplifiers[si]:-DO
+        local es := map(si->Simplifiers[si]
                        , sort( [indices(Domain:-Improve:-Simplifiers,nolist) ]
-                             , key=(si->Simplifiers[si]:-Order)))
+                             , key=(si->Simplifiers[si]:-SimplOrder)))
              , bnd, sh;
         bnd, sh := op([1..2], dom);
-        sh := foldr(cmp_simp_sh, (proc(_,b,$) b end proc), op(es))(bnd, sh);
+        sh := foldr(((f,q)->proc() cmp_simp_sh(f,q,args) end proc)
+                   ,(proc(_,b,$) b end proc), op(es))(bnd, sh);
         DOMAIN(bnd, sh);
     end proc;
 
-# our simplifiers
-$include "Domain/Improve/LMS.mpl"
-$include "Domain/Improve/redundant_DIntos.mpl"
-$include "Domain/Improve/constraints_about_vars.mpl"
-$include "Domain/Improve/singular_pts.mpl"
-$include "Domain/Improve/single_case_Partition.mpl"
-
-    export ModuleLoad := proc($)
-        unprotect(Domain:-Improve:-Simplifiers):
-        Simplifiers["Push context down"] :=
-             Record('Order'=1
-                   ,'DO'=Domain:-Improve:-push_ctx_down);
-        Simplifiers["Obviously redundant 'DInto's"] :=
-             Record('Order'=2
-                   ,'DO'=Domain:-Improve:-redundant_DIntos);
-        Simplifiers["Make constraints abouts vars"] :=
-             Record('Order'=6
-                   ,'DO'=Domain:-Improve:-constraints_about_vars);
-        Simplifiers["LMS"] :=
-             Record('Order'=10
-                   ,'DO'=evaln(Domain:-Improve:-LMS));
-        Simplifiers["Single case partition"] :=
-             Record('Order'=11
-                   ,'DO'=Domain:-Improve:-single_case_Partition);
-        Simplifiers["Single_pts"] :=
-             Record('Order'=14
-                   ,'DO'=Domain:-Improve:-singular_pts);
-        Simplifiers["Pull context out"] :=
-             Record('Order'=20
-                   ,'DO'=Domain:-Improve:-pull_ctx_out);
-        # protect(Domain:-Improve:-Simplifiers):
+    local ModuleLoad := proc($)
+      LoadSimplifiers();
+      LoadSimplifiers := (proc() end proc);
     end proc;#ModuleLoad
+
+    local LoadSimplifiers := proc($)
+      local lib_path, drs, improve_path, simpls_paths, simpl_path, names0, names1, new_names, nm;
+      unprotect(Simplifiers);
+      lib_path := LibraryTools:-FindLibrary(Hakaru);
+      ASSERT(lib_path<>NULL);
+      lib_path := FileTools:-ParentDirectory(lib_path);
+      drs := kernelopts(dirsep);
+      improve_path := `cat`(lib_path,drs,"Domain",drs,"Improve");
+
+      simpls_paths := FileTools:-ListDirectory(improve_path);
+      for simpl_path in simpls_paths do
+        names0 := {anames(user)};
+        read(`cat`(improve_path,drs,simpl_path));
+        names1 := {anames(user)};
+        new_names := names1 minus names0;
+        for nm in new_names minus {entries(Simplifiers,nolist)} do
+          if nm :: `module`(SimplName,SimplOrder) then
+            if assigned(Simplifiers[nm:-SimplName])
+            and not Simplifiers[nm:-SimplName] = nm then
+              WARNING("overwriting old simplifier! (%1)", Simplifiers[nm:-SimplName]):
+            end if;
+            Simplifiers[nm:-SimplName] := eval(nm);
+          else
+            WARNING("not recognized as a simplifier: %1", nm);
+          end if;
+        end do;
+      end do;
+      protect(Simplifiers);
+    end proc;#LoadSimplifiers
 
     local combine_errs := proc(err::DomNoSol, mb, $)
         if mb :: DomNoSol then
@@ -52,14 +55,12 @@ $include "Domain/Improve/single_case_Partition.mpl"
     end proc;
 
     # compose two simplifiers, combining errors if both fail
-    local cmp_simp_sh :=
-        proc(simp0, simp1, $)
-        proc(bnd, sh :: {DomShape,DomNoSol}, $)::{DomShape,DomNoSol};
-            local res, sh1; sh1 := simp0(bnd, sh);
-            if not sh1 :: DomNoSol then
-                res := simp1(bnd, sh1); res;
-            else
-                res := combine_errs( sh1, simp1(bnd, sh) ); res;
-            end if;
-    end proc end proc;
+    local cmp_simp_sh := proc(simp0, simp1, bnd, sh :: {DomShape,DomNoSol}, $)::{DomShape,DomNoSol};
+      local res, sh1; sh1 := simp0(bnd, sh); simp0:-SimplName;
+      if not sh1 :: DomNoSol then
+          simp1(bnd, sh1);
+      else
+          combine_errs( sh1, simp1(bnd, sh) );
+      end if;
+    end proc;
 end module;

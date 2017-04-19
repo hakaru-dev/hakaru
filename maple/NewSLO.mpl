@@ -24,18 +24,19 @@ NewSLO := module ()
         t_sum, t_product,
         mysolve, Shiftop, Diffop, Recognized,
         bind, weight,
-        reduce_on_prod,
-        reduce_IntsSums, reduce_Integrals,
-        elim_intsum, do_elim_intsum, int_assuming, sum_assuming,
+        reduce_IntsSums, reduce_Integrals, reduce_Integrals_post,
+        elim_intsum, int_assuming, sum_assuming,
         banish,
-        nub_piecewise, piecewise_if,
+        nub_piecewise, piecewise_if, isBound_IntsSums, isBound_IntSum,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt, SimplifyKB_,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
+         RoundTrip, Simplify, SimplifyKB,
+         TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
+         Concrete,
          toLO, fromLO, improve, reduce,
          density, bounds, unweight,
 
@@ -43,7 +44,7 @@ NewSLO := module ()
      # which helps some things simplify.
          simplify_factor_assuming,
 
-         ReparamDetermined, determined, reparam, disint;
+         ReparamDetermined, determined, reparam, disint ;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global LO, Integrand, SumIE, ProductIE;
@@ -242,7 +243,7 @@ $include "NewSLO/Factor.mpl"
   end proc;
 
   ModuleLoad := proc($)
-    local prev;
+    local prev, ex;
     Hakaru; # Make sure the Hakaru module is loaded for the types t_type and t_Hakaru.
     KB;     # Make sure the KB module is loaded, for the type t_kb
     prev := kernelopts(opaquemodules=false);
@@ -259,7 +260,17 @@ $include "NewSLO/Factor.mpl"
          )
     finally
       kernelopts(opaquemodules=prev);
-    end try
+    end try;
+
+    for ex in [ [`Int`,isBound_IntSum], [`Sum`,isBound_IntSum]
+              , [`Ints`,isBound_IntsSums], [`Sums`,isBound_IntsSums] ] do
+      Domain:-Set_ExtBound(op(1,ex), op(2,ex)(op(1,ex)));
+    end do;
+
+    for ex in [ [`PARTITION`, Partition:-isShape] , [ 'piecewise', Partition:-isShape] ] do
+      Domain:-Set_ExtShape(op(1,ex), op(2,ex)(op(1,ex)));
+    end do;
+
   end proc; #ModuleLoad
 
   ModuleLoad();

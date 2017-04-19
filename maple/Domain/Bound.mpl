@@ -22,12 +22,19 @@ export Bound := module ()
     end proc;
 
     export varIx := proc(dom0::DomBound, v::DomBoundVar, $)::nonnegint;
-        local dom := `if`(nops(dom0)>=3, (_->_), withVarsIxs)(dom0);
-        if assigned(op(3,dom)[v]) then
-            op(3,dom)[v]
-        else
-            error "cannot find var %1 in %2", v, dom0;
-        end if;
+      local i := varIx_mb(dom0,v);
+      if i = -1 then
+        error "cannot find var %1 in %2", v, dom0;
+      else i end if;
+    end proc;
+
+    export varIx_mb := proc(dom0::DomBound, v::DomBoundVar, $)::{nonnegint,identical(-1)};
+      local dom := `if`(nops(dom0)>=3, (_->_), withVarsIxs)(dom0);
+      if assigned(op(3,dom)[v]) then
+        op(3,dom)[v]
+      else
+        -1
+      end if;
     end proc;
 
     export isEmpty := proc(dom :: DomBound, $)::truefalse;
@@ -46,18 +53,39 @@ export Bound := module ()
         end if;
     end proc;
 
+    export upd := proc(dom0 :: DomBound, vr :: DomBoundVar, ty :: DomBoundRange, $)
+        local dom := `if`(nops(dom0)>=3, (_->_), withVarsIxs)(dom0), i
+            , old_lo,old_hi, lo,hi, old_ty, new_ty, _, vr_k;
+        i := varIx(dom, vr);
+
+        _, old_ty, vr_k := op(op([1,i], dom));
+        old_lo,old_hi := Domain:-ExtBound[vr_k]:-SplitRange(old_ty);
+        lo, hi        := Domain:-ExtBound[vr_k]:-SplitRange(ty);
+
+        if lo :: realcons then
+          lo := Domain:-ExtBound[vr_k]:-Max(old_lo, lo);
+        end if;
+        if hi :: realcons then
+          hi := Domain:-ExtBound[vr_k]:-Min(old_hi, hi);
+        end if;
+
+        new_ty := Domain:-ExtBound[vr_k]:-MakeRange(lo,hi);
+
+        subsop([1,i,2]=new_ty, dom);
+    end proc;
+
     local constrain := proc( opts, vn::DomBoundVar, ty::DomBoundRange, mk :: DomBoundKind, $ )
                     :: set({relation, `::`});
         local lo, hi, noi, bt
             , noinf := evalb('no_infinity' in opts)
             , btys  := evalb('bound_types' in opts);
         lo,hi := Domain:-ExtBound[mk]:-SplitRange(ty);
-        noi := `if`(noinf,mk->b->if b in {infinity,-infinity} then {} else {mk(b)} end if
-                         ,mk->b->{mk(b)} );
         bt  := `if`(btys, { vn :: Domain:-ExtBound[mk]:-BoundType }, {});
-        { noi(x->Domain:-ExtBound[mk]:-Constrain( x, vn ))(lo)[]
-        , noi(x->Domain:-ExtBound[mk]:-Constrain( vn, x ))(hi)[]
-        , bt[]}
+        bt := { Domain:-ExtBound[mk]:-Constrain( lo, vn )
+        , Domain:-ExtBound[mk]:-Constrain( vn, hi )
+        , bt[]};
+        `if`(noinf,x->remove(c->c::relation and ormap(s->s(c)::identical(infinity,-infinity),[lhs,rhs]), x),_->_)
+            (bt);
     end proc;
 
     local toConstraints_opts := { 'no_infinity', 'bound_types' };
@@ -68,6 +96,7 @@ export Bound := module ()
         if bad_opts <> {} then
             error "invalid arguments: %1", bad_opts;
         end if;
-        {op(map(b->constrain(opts, op(b))[], op(1,bnd)))};
+        {op(map(b->constrain(opts, op(b))[], op(1,bnd)))
+        ,op( `if`(nops(bnd)>1,op(2,bnd),{}) ) };
     end proc;
 end module;#Bound

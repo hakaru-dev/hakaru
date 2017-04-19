@@ -6,7 +6,7 @@
                            loops :: list([identical(product,Product,sum,Sum),
                                           name=range]),
                            $)
-      local default, kbs, pieces, i, cond, inds, res, x, b, a;
+      local default, kbs, pieces, i, cond, inds, res, s, r, x, b, a;
       default := 0; # the catch-all "else" result
       kbs[1] := kb;
       for i from 1 by 2 to nops(e) do
@@ -61,14 +61,18 @@
       if nops(res) <= 1 then
         return eval_factor(default, kb, mode, loops);
       end if;
-      if nops(res) <= 3 and op(1,res) :: `=` and Testzero(default - mode()) then
+      if nops(res) <= 3
+         and op(1,res) :: '{`=`,And(specfunc(And),Not(specfunc(Not(`=`),And)))}'
+         and Testzero(default - mode()) then
         # Reduce product(piecewise(i=3,f(i),1),i=1..10) to f(3)
+        r := op(1,res);
+        r := `if`(r::`=`, And(r), select(type,r,`=`));
         for i from 1 to nops(loops) do
           x := op([i,2,1],loops);
-          if depends(op(1,res), x) then
-            if ispoly(`-`(op(op(1,res))), 'linear', x, 'b', 'a') then
+          s, r := selectremove(depends, r, x);
+          for cond in s do
+            if ispoly(lhs(cond)-rhs(cond), 'linear', x, 'b', 'a') then
               b := Normalizer(-b/a);
-
               if kb_entails(kb,
                             And(b :: integer,
                                 op([i,2,2,1],loops) <= b,
@@ -76,14 +80,18 @@
                             ) then
                 kb := assert(x=b, kb);# TODO: why not just use kb?
                 ASSERT(type(kb,t_kb), "eval_piecewise{product of pw}: not a kb");
-                return eval_factor(eval(op(2,res), x=b),
+                res := `if`(op(1,res) = cond,
+                            op(2,res),
+                            piecewise(bool_And(op(remove(`=`, op(1,res), cond))),
+                                      op(2..-1,res)));
+                return eval_factor(eval(res, x=b),
                                    kb,
                                    mode,
                                    eval(subsop(i=NULL, loops), x=b));
               end if;
             end if;
-            break;
-          end if;
+          end do;
+          if nops(r) = 0 then break end if;
         end do;
       end if;
       # Recursively process pieces

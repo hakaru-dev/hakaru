@@ -1,4 +1,5 @@
-local redundant_DIntos := proc(vs :: DomBound, sh :: DomShape, $)
+redundant_DIntos := module()
+  export ModuleApply := proc(vs :: DomBound, sh :: DomShape, $)
     # This 'simplification' removes redundant information, but it is
     # entirely pointless as the result should be the same anyways. This
     # is mainly here as an assertion that Apply properly
@@ -15,5 +16,22 @@ local redundant_DIntos := proc(vs :: DomBound, sh :: DomShape, $)
                       x
                   end if;
                 end proc );
-end proc;
+  end proc;
 
+  export SimplName  := "Obviously redundant 'DInto's";
+  export SimplOrder := 2;
+end module;
+
+
+empty_DIntos := module()
+  export ModuleApply := proc(vs,sh,$)
+    subsindets(sh, satisfies(is_empty), _->DSum());
+  end proc;
+
+  local is_empty := proc(e,$)
+    evalb(e = DSum()) or (evalb(op(0,e) = DInto) and is_empty(op(3,e)));
+  end proc;
+
+  export SimplName  := "Empty DIntos";
+  export SimplOrder := 15;
+end module;

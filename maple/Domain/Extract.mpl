@@ -18,10 +18,10 @@ export Extract := module ()
             [ vars , arg ];
         end proc;
 
-        local do_extract_arg := proc(kind, arg_, bound, $)
+        local do_extract_arg := proc(kind, arg_)
             local x0, x, vars, arg := arg_, rng;
-            x0  := ExtBound[kind]:-ExtractVar(bound);   # variable name
-            rng := ExtBound[kind]:-ExtractRange(bound); # variable range
+            x0  := ExtBound[kind]:-ExtractVar(_rest);   # variable name
+            rng := ExtBound[kind]:-ExtractRange(_rest); # variable range
             x   := DInto(x0, rng, kind);                # the variable spec
             arg, vars := do_extract(arg)[];
             [ arg, [ op(vars), x ] ];
@@ -29,16 +29,16 @@ export Extract := module ()
 
         local do_extract := proc(arg, $)
             local sub, prod, svars;
-            # if arg :: `*` then
-            #     sub := map(do_extract, [op(arg)]);
-            #     prod, svars := selectremove(x->op(2,x)=[],sub);
-            #     if nops(svars) = 1 then
-            #         [ `*`(op([1,1],svars),op(map2(op,1,prod)))
-            #         , op([1,2], svars) ];
-            #     else
-            #         [ arg, [] ];
-            #     end if;
-            if Domain:-Has:-Bound(arg) then
+            if arg :: `*` then
+                sub := map(do_extract, [op(arg)]);
+                prod, svars := selectremove(x->op(2,x)=[],sub);
+                if nops(svars) = 1 then
+                    [ `*`(op([1,1],svars),op(map2(op,1,prod)))
+                    , op([1,2], svars) ];
+                else
+                    [ arg, [] ];
+                end if;
+            elif Domain:-Has:-Bound(arg) then
                 do_extract_arg(op(0,arg), op(arg));
             else
                 [ arg, [] ]
@@ -71,7 +71,7 @@ export Extract := module ()
               inds, rest := do_get(f, f_ty, op(1,e)) [] ;
               [ inds, subsop(1=rest, e) ]
             elif e:: f_ty then
-              f(e)
+              f(e,z->ModuleApply(z,'no_simpl'))
             else
               [ true, e ]
             end if
@@ -86,16 +86,11 @@ export Extract := module ()
             else
                 t0 := op(1, todo);
                 ts := op(subsop(1=NULL, todo));
-                if indets(e, specfunc(t0)) <> {} then
-                    w1, e1 :=
-                      do_get(ExtShape[t0]:-MakeCtx
-                            ,ExtShape[t0]:-MapleType
-                            ,e) [] ;
-                    ts := `if`(is(w1), [ts], [ts, t0]);
-                    do_gets( ts, And(w1, w), e1 );
-                else
-                    do_gets( [ ts ], w, e );
-                end if;
+                w1, e1 := do_get(ExtShape[t0]:-MakeCtx
+                                ,ExtShape[t0]:-MapleType
+                                ,e) [] ;
+                ts := `if`(is(w1), [ts], [ts, t0]);
+                do_gets( ts, bool_And(w1, w), e1 );
             end if;
         end proc;
 

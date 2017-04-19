@@ -8,9 +8,10 @@ fromLO := module()
   end proc;
 
   export
-  unintegrate := proc(h :: name, e, kb :: t_kb, $)
+  unintegrate := proc(h :: name, e, kb :: t_kb_mb, $)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
           i, kb1, kb2, loops, subst, hh, pp, t, bnds, br;
+    if kb :: t_not_a_kb then return Msum(); end if;
     if e :: 'And'('specfunc({Int,int})',
                   'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],e));
@@ -90,7 +91,12 @@ fromLO := module()
         Msum()
       end if;
     elif e :: t_pw and not Partition:-ConditionsDepend(Partition:-PWToPartition(e), h) then
-        kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
+        m := kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
+        if m :: t_pw and nops(m) = 2 then
+          piecewise(op(m), Msum());
+        else
+          m;
+        end if;
     elif e :: Partition and not Partition:-ConditionsDepend(e, h) then
         kb_Partition(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)));
     elif e :: t_case then

@@ -135,7 +135,8 @@
          #of each disintegration step
     kb, var_rn := table(), mc_prts,
     V, #wrt vars
-    v::name #iterator over V
+    v::name, #iterator over V
+    improve_opts := []
    ;
 
     #Init module variables.
@@ -174,7 +175,7 @@
     userinfo(3, Disint, "Disint defn:", eval(mc), kb);
     userinfo(3, Disint, "Disint path:", path);
 
-    mc:= improve(toLO(mc), _ctx= kb);
+    mc:= improve(toLO(mc), _ctx= kb,improve_opts);
 
     userinfo(3, Disint, "Disint improved:", eval(mc));
 
@@ -186,6 +187,7 @@
           Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator,
           2, mc, DV[v]:-disintegrator_arg
         );
+        mc := improve(mc, _ctx=kb,improve_opts);
         userinfo(3, Disint, "Disint diff:", eval(mc));
     end do;
 
