@@ -89,7 +89,11 @@ unif2 =
 
 match_norm_unif :: Text
 match_norm_unif = unlines
-    [ "x <~ bern(0.5)"
+    [ "def bern(p prob):"
+    , "    x <~ categorical([p, real2prob(1 - p)])"
+    , "    return [true, false][x]"
+    , ""
+    , "x <~ bern(0.5)"
     , "y <~ match x:"
     , "       true:  normal(0,1)"
     , "       false: uniform(0,1)"

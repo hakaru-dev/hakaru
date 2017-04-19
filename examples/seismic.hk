@@ -1,3 +1,7 @@
+def bern(p prob):
+    x <~ categorical([p, real2prob(1 - p)])
+    return [true, false][x]
+
 def invgamma(k prob, t prob):
     x <~ gamma(k, 1/t)
     return (1/x)
