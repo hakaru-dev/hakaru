@@ -216,7 +216,9 @@ sum_assuming := proc(e, v::name=anything, kb::t_kb)
 end proc;
 
 nub_piecewise := proc(pw, $) # pw may or may not be piecewise
-  foldr_piecewise(piecewise_if, 0, pw)
+  local res := foldr_piecewise(piecewise_if, 0, pw);
+  `if`(res=pw,'NULL',userinfo(3, procname, printf("nub_piecewise(%a) produced\n\t%a\n", pw, res)));
+  res;
 end proc;
 
 piecewise_if := proc(cond, th, el, $)
