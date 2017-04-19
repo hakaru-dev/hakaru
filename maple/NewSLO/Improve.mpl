@@ -76,25 +76,61 @@
 
   # "Integrals" refers to any types of "integrals" understood by domain (Int,
   # Sum currently)
-  reduce_Integrals := proc(expr, h, kb, opts, $)
-    local rr, elim;
-    rr := Domain:-Reduce(expr, kb
-      ,proc() elim_intsum:-for_Domain(h,args) end proc
-      ,((x,kb1)->reduce(x,h,kb1,opts))
-      ,(_->:-DOM_FAIL));
+  reduce_Integrals := module()
+    export ModuleApply;
 
-    elim := subsindets(rr, specfunc(ELIMED), x->op(1,x));
-    if elim <> rr then rr := reduce(elim,h,kb,opts) end if;
-    rr := kb_assuming_mb(Partition:-Simpl)(rr, kb, x->x);
+    local
+    # The callbacks passed by reduce_Integrals to Domain:-Reduce
+      reduce_Integrals_body, reduce_Integrals_into
 
-    if has(rr, :-DOM_FAIL) then
-      return FAIL;
-    elif has(rr, FAIL) then
-      error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
-          , expr, kb, kb, opts, rr;
-    end if;
-    rr;
-  end proc;
+    # tries to evaluate a RootOf
+    , try_eval_Root;
+
+    reduce_Integrals_body := proc(h,opts,x,kb1) reduce(x,h,kb1,opts) end proc;
+    reduce_Integrals_into := proc(h,kind,e,vn,vt,kb,$)
+      local rr;
+      rr := elim_intsum(Domain:-Apply:-do_mk(args[2..-1]), h, kb);
+      rr := subsindets(rr, specfunc(RootOf), x->try_eval_Root(x,a->a));
+      return rr;
+    end proc;
+
+    ModuleApply := proc(expr, h, kb, opts, $)
+      local rr, elim;
+      rr := Domain:-Reduce(expr, kb
+        ,curry(reduce_Integrals_into,h)
+        ,curry(reduce_Integrals_body,h,opts)
+        ,(_->:-DOM_FAIL));
+
+      elim := subsindets(rr, specfunc(ELIMED), x->op(1,x));
+      if elim <> rr then rr := reduce(elim,h,kb,opts) end if;
+      rr := kb_assuming_mb(Partition:-Simpl)(rr, kb, x->x);
+
+      if has(rr, :-DOM_FAIL) then
+        return FAIL;
+      elif has(rr, FAIL) then
+        error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
+            , expr, kb, kb, opts, rr;
+      end if;
+      rr;
+    end proc;
+
+    try_eval_Root := proc(e0::specfunc(`RootOf`),on_fail := (_->FAIL), $)
+      local ix,e := e0;
+      try
+        if nops(e)=2 or nops(e)=3
+        and op(-1,e) :: `=`(identical(index),{specindex(real),nonnegint}) then
+          ix := op([2,-1],e);
+          if ix :: specindex(real) then ix := op(ix); end if;
+          e := op(0,e)(op(1,e));
+        else
+          ix := NULL;
+        end if;
+        e := convert(e, 'radical', ix);
+        if e :: specfunc(RootOf) then return on_fail(e) end if;
+        return e;
+      catch: return on_fail(e0); end try;
+    end proc;
+  end module;
 
   int_assuming := proc(e, v::name=anything, kb::t_kb, $)
     simplify_factor_assuming('int'(e, v), kb);
@@ -220,10 +256,6 @@
        else
          ELIMED(e1)
        end if
-    end proc;
-
-    export for_Domain := proc(h, kind, e, vn, vt, kb, $)
-       ModuleApply(Domain:-Apply:-do_mk(args[2..-1]), h, kb);
     end proc;
 
     local extract_elim := proc(e, h::name, $)
