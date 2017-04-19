@@ -28,13 +28,8 @@
 #   done sort of ad-hoc) (this could be fixed by a broader design - see "merging
 #   KB with Domain")
 #
-# All the global setup should be done through some kind of table
-#
 # Shape extraction needs to be reworked; we "flatten" constraints multiple
 #   times; This should be done once after shape extraction, not at every step
-#
-# Several 'simplifications' other than LMS are done in LMS. These need to have
-#   their own entry in Simplifiers (and work properly in their own context).
 #
 # DInto should also optionally omit the bounds if they are identical to the
 #   bounds in the a-priori domain bounds (i.e. just `DInto(x)`); DInto sort of
@@ -103,29 +98,29 @@ Domain := module()
     global DOMAIN; global DBound; global DConstrain; global DSum; global DSplit; global DInto; global DNoSol;
 
     local ModuleLoad := proc($)
-           local ty_nm, g;
-           for ty_nm in [ indices(DomainTypes, nolist) ] do
-               TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
-           end do;
+      local ty_nm, g;
+      for ty_nm in [ indices(DomainTypes, nolist) ] do
+        TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
+      end do;
 
-           #op([2,6], ...) of a module is its globals.
-           for g in op([2,6], thismodule) do
-               if g <> eval(g) then
-                   unassign(g);
-                   WARNING("Previous value of global name '%1' erased.", g)
-               end if;
-               if assigned(Domain:-GLOBALS[g]) then
-                   assign(g = copy(Domain:-GLOBALS[g]));
-               end if;
-               protect(g);
-           end do;
+      #op([2,6], ...) of a module is its globals.
+      for g in op([2,6], thismodule) do
+        if g <> eval(g) then
+          unassign(g);
+          WARNING("Previous value of global name '%1' erased.", g)
+        end if;
+        if assigned(Domain:-GLOBALS[g]) then
+          assign(g = copy(Domain:-GLOBALS[g]));
+        end if;
+        protect(g);
+      end do;
     end proc;
 
     local ModuleUnload := proc($)
-        local ty_nm;
-        for ty_nm in [ indices(DomainTypes, nolist) ] do
-            if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
-        end do;
+      local ty_nm;
+      for ty_nm in [ indices(DomainTypes, nolist) ] do
+        if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
+      end do;
     end proc;
 
     # Extending domain extraction and replacement.
@@ -191,34 +186,20 @@ $include "Domain/Improve.mpl"
         map(x -> if not x :: inty then inmk(x) else x end if, expr);
     end proc;
 
-    export Fold := proc(e0, kb :: t_kb
-                , f_into, f_body
-                , f_apply
-                , f_nosimp := (_->FAIL), $)
-      local F_INTO, F_BODY, e := e0, rn
-           , dom_specb, dom_specw, dom_ctx, dom_spec1, dom_spec, mkDom ;
-      rn := [F_INTO=f_into, F_BODY=f_body,%subs=subs];
-
+    # The main interface to Domain
+    export Reduce := proc(e0,kb::t_kb,f_into,f_body,f_nosimp:=(_->FAIL),$)
+      local e := e0, dom_specb, dom_specw, dom_ctx, dom_spec;
+      # Build the domain
       dom_specb, e := op(Domain:-Extract:-Bound(e));
       if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
       dom_specw, e := op(Domain:-Extract:-Shape(e));
-
       dom_ctx := {op(KB:-kb_to_constraints(kb))};
       dom_specb := DBound(op(1,dom_specb), dom_ctx);
       dom_spec := DOMAIN(dom_specb, dom_specw);
 
-      if dom_specw <> DConstrain() then
-        dom_spec := Domain:-Improve(dom_spec);
-      end if;
-
-      mkDom := Domain:-Apply(dom_spec, kb, F_INTO, F_BODY);
-      e := f_apply(dom_specb, x->eval(mkDom(x),rn), e);
-      if has(e, FAIL) then
-        # TODO: check for type(e, LO)
-        f_nosimp(e0);
-      else
-        e
-      end if;
+      # Improve, if necessary, then apply back to the expression
+      if dom_specw <> DConstrain() then dom_spec := Domain:-Improve(dom_spec) end if;
+      Domain:-Apply(dom_spec, kb, f_into, f_body)(e);
     end proc;
 
 end module;

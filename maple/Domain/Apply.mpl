@@ -127,7 +127,7 @@ export Apply := module ()
 
            ctx1, rn := into_mk(dbnd, v_td, vt, ctx);
            if rn <> [] then
-             r := %subs(rn,r);
+             r := subs(rn,r);
            end if;
 
            r := do_mks(r, kont, vs, dbnd, ctx1);

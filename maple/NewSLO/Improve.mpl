@@ -35,7 +35,7 @@
         * `*`(op(subintegral));
     elif e :: Or(Partition,t_pw) then
       if e :: t_pw then e := PWToPartition(e); end if;
-      e := Partition:-Flatten(e);
+      e := Partition:-Simpl(e);
       e := kb_Partition(e, kb, simplify_assuming,
                         ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
       e := eval(e, %reduce=reduce);
@@ -74,56 +74,26 @@
     end if;
   end proc;
 
-  reduce_Integrals_post := proc(h,kb,opts,dvars,mkDom,body)
-    local vars, e
-      , ed := mkDom(body)
-      , ee := subsindets(ed, specfunc(ELIMED), x->op(1,x))
-      , do_r :=
-          op(1,
-           [ map(x->op(2,x),select(x->x::list and op(1,x)="reduce_on", opts))[]
-           , reduce_on_prod ]);
-    if ed = ee then
-      vars := indets(Domain:-Bound:-varsOf(dvars), name);
-      ed := do_r(mkDom, body, vars, kb);
-    else
-      ed := reduce(ee,h,kb,opts);
-    end if;
-    kb_assuming_mb(Partition:-Simpl)(ed, kb, x->x);
-  end proc;
-
   # "Integrals" refers to any types of "integrals" understood by domain (Int,
   # Sum currently)
   reduce_Integrals := proc(expr, h, kb, opts, $)
-    local rr;
-    rr := Domain:-Fold(expr, kb
+    local rr, elim;
+    rr := Domain:-Reduce(expr, kb
       ,proc() elim_intsum:-for_Domain(h,args) end proc
       ,((x,kb1)->reduce(x,h,kb1,opts))
-      , proc() reduce_Integrals_post(h,kb,opts,args) end proc
       ,(_->:-DOM_FAIL));
+
+    elim := subsindets(rr, specfunc(ELIMED), x->op(1,x));
+    if elim <> rr then rr := reduce(elim,h,kb,opts) end if;
+    rr := kb_assuming_mb(Partition:-Simpl)(rr, kb, x->x);
 
     if has(rr, :-DOM_FAIL) then
       return FAIL;
     elif has(rr, FAIL) then
       error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
           , expr, kb, kb, opts, rr;
-    else
-      return rr;
-    end if
-  end proc;
-
-  # Helper function for performing reductions
-  # given an "ee" and a "var", pulls the portion
-  # of "ee" not depending on "var" out, and applies "f"
-  # to the portion depending on "var".
-  # the 'weights' (factors not depending on "var") are simplified
-  # under the given assumption context, "kb0"
-  reduce_on_sum := proc(f,ee,var,kb0,$)
-    `+`(map(s->reduce_on_prod(f,s,var,kb0), convert(expand(ee), 'list', `+`))[]);
-  end proc;
-  reduce_on_prod := proc(f,ee, var:: {name, list(name), set(name)} ,kb0::t_kb,$)
-      local e := ee, w;
-      e, w := selectremove(x->depends(x,var) or x :: realcons, list_of_mul(e));
-      nub_piecewise(simplify_factor_assuming(`*`(op(w)), kb0)) * f(`*`(op(e))) ;
+    end if;
+    rr;
   end proc;
 
   int_assuming := proc(e, v::name=anything, kb::t_kb, $)

@@ -24,7 +24,6 @@ NewSLO := module ()
         t_sum, t_product,
         mysolve, Shiftop, Diffop, Recognized,
         bind, weight,
-        reduce_on_prod, reduce_on_sum,
         reduce_IntsSums, reduce_Integrals, reduce_Integrals_post,
         elim_intsum, int_assuming, sum_assuming,
         banish,

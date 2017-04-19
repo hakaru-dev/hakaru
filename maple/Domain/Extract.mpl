@@ -71,7 +71,7 @@ export Extract := module ()
               inds, rest := do_get(f, f_ty, op(1,e)) [] ;
               [ inds, subsop(1=rest, e) ]
             elif e:: f_ty then
-              f(e)
+              f(e,z->ModuleApply(z,'no_simpl'))
             else
               [ true, e ]
             end if
@@ -86,16 +86,11 @@ export Extract := module ()
             else
                 t0 := op(1, todo);
                 ts := op(subsop(1=NULL, todo));
-                if indets(e, specfunc(t0)) <> {} then
-                    w1, e1 :=
-                      do_get(ExtShape[t0]:-MakeCtx
-                            ,ExtShape[t0]:-MapleType
-                            ,e) [] ;
-                    ts := `if`(is(w1), [ts], [ts, t0]);
-                    do_gets( ts, And(w1, w), e1 );
-                else
-                    do_gets( [ ts ], w, e );
-                end if;
+                w1, e1 := do_get(ExtShape[t0]:-MakeCtx
+                                ,ExtShape[t0]:-MapleType
+                                ,e) [] ;
+                ts := `if`(is(w1), [ts], [ts, t0]);
+                do_gets( ts, bool_And(w1, w), e1 );
             end if;
         end proc;
 
