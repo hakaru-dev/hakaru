@@ -130,7 +130,86 @@
         return e;
       catch: return on_fail(e0); end try;
     end proc;
-  end module;
+
+    # Try to find an eliminate (by evaluation, or simplification) integrals which
+    # are free of `applyintegrand`s.
+    elim_intsum := module ()
+      export ModuleApply := proc(inert0, h :: name, kb :: t_kb, $)
+         local ex, un_elim, e1, inert := inert0, done_e := false;
+         un_elim := subsindets(inert, specfunc('ELIMED'), x->op(1,x));
+         if un_elim <> inert then
+           inert := un_elim; done_e := true;
+         end if;
+         ex := extract_elim(inert, h);
+         e1 := apply_elim(h, kb, ex);
+         e1 := check_elim(inert, e1);
+         if e1 = FAIL then
+           `if`(done_e,ELIMED,_->_)(inert)
+         else
+           ELIMED(e1)
+         end if
+      end proc;
+
+      local extract_elim := proc(e, h::name, $)
+        local t, intapps, var, f, e_k, e_args;
+        t := 'applyintegrand'('identical'(h), 'anything');
+        intapps := indets(op(1,e), t);
+        if intapps = {} then
+          return FAIL;
+        end if;
+        e_k := op(0,e); e_args := op([2..-1],e);
+        if Domain:-Has:-Bound(e) then
+          var := Domain:-ExtBound[e_k]:-ExtractVar(e_args);
+          ASSERT(var::DomBoundVar);
+          if var :: list then var := op(1,var) end if;
+          if not depends(intapps, var) then
+            f := Domain:-ExtBound[e_k]:-EvalInCtx;
+          else
+            return FAIL;
+          end if;
+        end if;
+        [ op(1,e), f, var, [e_args] ];
+      end proc;
+
+      local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
+        local body, f, var, rrest;
+        if todo = FAIL then return FAIL; end if;
+        body, f, var, rrest := op(todo);
+        banish(body, h, kb, infinity, var,
+               proc (kb1,g,$) do_elim_intsum(kb1, f, g, op(rrest)) end proc);
+      end proc;
+
+      local check_elim := proc(e, elim,$)
+        if has(elim, {MeijerG, undefined, FAIL}) or e = elim or elim :: SymbolicInfinity then
+          return FAIL;
+        end if;
+        return elim;
+      end proc;
+
+      local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
+        local w, e, x, g, t, r;
+        w, e := op(Domain:-Extract:-Shape(ee));
+        w := Domain:-Shape:-toConstraints(w);
+        e := piecewise_And(w, e, 0);
+        e := f(e,v,_rest,kb);
+        x := `if`(v::name, v, lhs(v));
+        g := '{sum, sum_assuming, sums}';
+        if f in g then
+          t := {'identical'(x),
+                'identical'(x) = 'Not(range(Not({SymbolicInfinity, undefined})))'};
+        else
+          g := '{int, int_assuming, ints}';
+          t := {'identical'(x),
+                'identical'(x) = 'anything'};
+          if not f in g then g := {f} end if;
+        end if;
+        for r in indets(e, 'specfunc'(g)) do
+          if 1<nops(r) and op(2,r)::t then return FAIL end if
+        end do;
+        e
+      end proc;
+    end module; # elim
+  end module; # reduce_Integrals
 
   int_assuming := proc(e, v::name=anything, kb::t_kb, $)
     simplify_factor_assuming('int'(e, v), kb);
@@ -235,89 +314,4 @@
     export MapleType    := 'And'('specfunc'(kind),'anyfunc'('anything', 'name', 'range', 'list(name=range)'));
     export BoundType    := TopProp;
     export RecogBound   := (_->NULL);
-  end module;
-
-  # Try to find an eliminate (by evaluation, or simplification) integrals which
-  # are free of `applyintegrand`s.
-  elim_intsum := module ()
-    export ModuleApply := proc(inert0, h :: name, kb :: t_kb, $)
-       local ex, un_elim, e1, inert := inert0, done_e := false;
-
-       un_elim := subsindets(inert, specfunc('ELIMED'), x->op(1,x));
-       if un_elim <> inert then
-         inert := un_elim; done_e := true;
-       end if;
-
-       ex := extract_elim(inert, h);
-       e1 := apply_elim(h, kb, ex);
-       e1 := check_elim(inert, e1);
-       if e1 = FAIL then
-         `if`(done_e,ELIMED,_->_)(inert)
-       else
-         ELIMED(e1)
-       end if
-    end proc;
-
-    local extract_elim := proc(e, h::name, $)
-      local t, intapps, var, f, e_k, e_args;
-      t := 'applyintegrand'('identical'(h), 'anything');
-      intapps := indets(op(1,e), t);
-      if intapps = {} then
-        return FAIL;
-      end if;
-      e_k := op(0,e); e_args := op([2..-1],e);
-
-      if Domain:-Has:-Bound(e) then
-        var := Domain:-ExtBound[e_k]:-ExtractVar(e_args);
-        ASSERT(var::DomBoundVar);
-        if var :: list then var := op(1,var) end if;
-
-        if not depends(intapps, var) then
-          f := Domain:-ExtBound[e_k]:-EvalInCtx;
-        else
-          return FAIL;
-        end if;
-      end if;
-
-      [ op(1,e), f, var, [e_args] ];
-    end proc;
-
-    local apply_elim := proc(h::name,kb::t_kb,todo::{list,identical(FAIL)})
-      local body, f, var, rrest;
-      if todo = FAIL then return FAIL; end if;
-      body, f, var, rrest := op(todo);
-      banish(body, h, kb, infinity, var,
-             proc (kb1,g,$) do_elim_intsum(kb1, f, g, op(rrest)) end proc);
-    end proc;
-
-    local check_elim := proc(e, elim,$)
-      if has(elim, {MeijerG, undefined, FAIL}) or e = elim or elim :: SymbolicInfinity then
-        return FAIL;
-      end if;
-      return elim;
-    end proc;
-
-    local do_elim_intsum := proc(kb, f, ee, v::{name,name=anything})
-      local w, e, x, g, t, r;
-      w, e := op(Domain:-Extract:-Shape(ee));
-      w := Domain:-Shape:-toConstraints(w);
-      e := piecewise_And(w, e, 0);
-      e := f(e,v,_rest,kb);
-      x := `if`(v::name, v, lhs(v));
-      g := '{sum, sum_assuming, sums}';
-      if f in g then
-        t := {'identical'(x),
-              'identical'(x) = 'Not(range(Not({SymbolicInfinity, undefined})))'};
-      else
-        g := '{int, int_assuming, ints}';
-        t := {'identical'(x),
-              'identical'(x) = 'anything'};
-        if not f in g then g := {f} end if;
-      end if;
-      for r in indets(e, 'specfunc'(g)) do
-        if 1<nops(r) and op(2,r)::t then return FAIL end if
-      end do;
-      e
-    end proc;
-
   end module;
