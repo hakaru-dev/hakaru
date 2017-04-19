@@ -191,14 +191,10 @@ export
     foldr(proc(p, x) cons(condOf(p), valOf(p), x); end proc,nil,op(op(1, prt)));
   end proc,
 
-  Foldr_mb := proc( cons, nil, prt, $ )
-    if prt :: Partition then Foldr(_passed)
-    else                     cons( true, prt, nil ) end if;
-  end proc,
-
-  PartitionToPW_mb := proc(x, $)
-    if x :: Partition then PartitionToPW(x) else x end if;
-  end proc,
+  Case := proc(ty,f,g) proc(x) if x::ty then f(x) else g(x) end if end proc end proc,
+  Foldr_mb := proc(cons,nil,prt) Case(Partition, x->Foldr(cons,nil,x), x->cons(true,x,nil)) end proc,
+  PartitionToPW_mb := Case(Partition, PartitionToPW, x->x),
+  PWToPartition_mb := Case(specfunc(piecewise), PWToPartition, x->x),
 
   PartitionToPW := module()
     export ModuleApply; local pw_cond_ctx;
