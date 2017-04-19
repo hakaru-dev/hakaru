@@ -462,10 +462,22 @@ export
         otp;
       end proc;
 
+      local eval_IntSum := proc(r,ev,$)
+        local q,vs,body,BODY,range,mk,mk_e;
+        if r::specfunc({Int,Sum}) then
+          mk,body,range := op([0..-1],r);
+          mk_e := `if`(mk=Int,'int','sum');
+          q := mk_e( BODY(body), eval(range,ev) );
+          if not(q :: specfunc(mk_e)) and not has(q,BODY)
+          then return q end if;
+        end if;
+        eval(r,ev);
+      end proc;
+
       local do_eval_for_cmp := proc(eval_cmp, ev, x, $)
         local r;
         try
-          r := eval_cmp(subs(ev,x));
+          r := eval_cmp(eval_IntSum(x,ev));
           userinfo(3, 'Partition', printf("evaluating\n\tsubs(%a,%a)\n\tproduced %a\n",x,ev,r)):
         catch "numeric exception: division by zero":
           r := eval_cmp(limit(x, ev));
