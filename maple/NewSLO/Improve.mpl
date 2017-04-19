@@ -150,6 +150,7 @@
          end if
       end proc;
 
+      local known_tys := table([Int=int_assuming,Sum=sum_assuming,Ints=ints,Sums=sums]);
       local extract_elim := proc(e, h::name, $)
         local t, intapps, var, f, e_k, e_args;
         t := 'applyintegrand'('identical'(h), 'anything');
@@ -158,12 +159,12 @@
           return FAIL;
         end if;
         e_k := op(0,e); e_args := op([2..-1],e);
-        if Domain:-Has:-Bound(e) then
+        if Domain:-Has:-Bound(e) and assigned(known_tys[e_k]) then
           var := Domain:-ExtBound[e_k]:-ExtractVar(e_args);
           ASSERT(var::DomBoundVar);
           if var :: list then var := op(1,var) end if;
           if not depends(intapps, var) then
-            f := Domain:-ExtBound[e_k]:-EvalInCtx;
+            f := eval(known_tys[e_k]);
           else
             return FAIL;
           end if;
@@ -256,7 +257,6 @@
     export SplitRange := (e->op(e));
     export Constrain := `if`(kind=Sum,`<=`,`<`);
     export DoMk := ((e,v,t)->kind(e,v=t));
-    export EvalInCtx    := `if`(kind=Sum,'sum_assuming','int_assuming');
     export Min := `min`; export Max := `max`;
     export VarType := 'name';
     export RangeType := 'range';
@@ -306,7 +306,6 @@
     export SplitRange   := (rs->(map(x->op(1,x),rs), map(x->op(2,x),rs)));
     export Constrain    := ((a,b)->zip(`if`(kind=Ints, `<`, `<=`),a,b)[]);
     export DoMk         := ((e,v,t)->kind( e,op(1,v),op(1,t), subsop(1=NULL,zip(`=`,v,t)) ));
-    export EvalInCtx    := `if`(kind=Ints,'ints','sums');
     export Min          := ((a,b)->zip(`min`,a,b));
     export Max          := ((a,b)->zip(`max`,a,b));
     export VarType      := 'And(list(name),satisfies(x->x<>[]))';
