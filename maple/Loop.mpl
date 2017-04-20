@@ -196,7 +196,8 @@ Loop := module ()
         #   used in ind.
         kb  := assert(lhs(loop)=ind, kb1); # BUG! bijectivity assumed!
         # if the assertion makes the KB false, it isn't needed(?)
-        if kb :: t_not_a_kb then kb := kb1 end if;
+        ASSERT(type(kb, t_kb),
+          sprintf("assert(%a,%a) produced a false KB!\n", lhs(loop)=ind,kb1)):
         res := subs(idx(var,ind) = idx(var,lhs(loop)), w);
         res := wrap(heap, res, mode, kb, kb0);
         res := subs(idx(var,lhs(loop))=dummy, res);
