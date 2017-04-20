@@ -345,7 +345,7 @@ export
     export ModuleApply := proc(p, $)
       local ps, qs, qs1, mk;
       if p :: Partition then
-        single_branch(remove_false_pieces(flatten(p)));
+        reduce_branches(remove_false_pieces(flatten(p)));
       elif assigned(distrib_op_Partition[op(0,p)]) then
         mk := distrib_op_Partition[op(0,p)];
         ps := [op(p)];
@@ -423,16 +423,29 @@ export
       PARTITION(remove(p -> not(coulditbe(condOf(p))), piecesOf(e)));
     end proc;
 
-    export single_branch := proc(e::Partition, { _testequal := ((a,b) -> Testzero(a-b)) })
-      local vs, ps := piecesOf(e);
-      vs := map(valOf,ps);
-      if nops(ps) = 1 or
-        `and`(zip(_testequal, vs, subsop(1=NULL,vs))[])
-      then
-        op([1,2], ps)
-      else
-        e
-      end if;
+   local `&on` := proc(f,k,$) proc(a,b,$) f(k(a),k(b)) end proc end proc;
+   local condition_complexity := proc(x) nops(indets(x,PartitionCond)) end proc;
+
+   export reduce_branches := proc(e::Partition, { _testequal := ((a,b) -> Testzero(a-b)) })
+     local vs, ps1, ps; ps := piecesOf(e); vs := map(valOf,ps);
+     userinfo(3, :-reduce_branches, printf("Input: %a\n", ps));
+
+     if nops(ps)=1 then return op([1,2],ps); end if;
+     ps1 := [ListTools:-Categorize(_testequal &on valOf, ps)];
+     if nops(ps1) >= nops(ps) then return e; end if;
+     userinfo(3, :-reduce_branches, printf("Categorize: %a\n", ps1));
+
+     ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve')[])
+                        ,valOf(op(1,p)))
+               ,ps1);
+     userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
+
+     if nops(ps1)=2 then
+       ps1 := sort(ps1, key=tree_size);
+       ps1 := subsop([2,1]=Not(op([1,1],ps1)),ps1);
+     end if;
+
+     return PARTITION(ps1);
     end proc;
 
     # Removal of singular points from partitions
