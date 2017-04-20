@@ -88,6 +88,8 @@ KB := module ()
      # which is somehow 'representative' of the KB
      kb_to_variables, kb_to_assumptions, kb_to_constraints, kb_to_equations, kb_piecewise, kb_Partition,
 
+     kb_atom_to_assumptions,
+
      # Various utilities ...
      list_of_mul, for_poly, range_of_HInt, eval_kb, kb_is_false, try_improve_exp,
 
@@ -112,10 +114,9 @@ KB := module ()
      `product/indef/indef`, `convert/Beta`;
   uses Hakaru, SolveTools:-Inequality ;
 
-  # Some types
-  # A particular form of Introduce, containing those types
-  # about which Maple currently knows
-  t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
+  # The type of introductions about which we want to pass some useful
+  # information to Maple.
+  t_intro := 'Introduce(name, And(t_type, Not(specfunc({HMeasure,HFunction}))))';
 
   # Low and high bounds (?)
   t_lo    := 'identical(`>`,`>=`)';
@@ -807,26 +808,31 @@ KB := module ()
     # These are dealt with otherwise and aren't understood by Maple
   end proc;
 
+  # Note that this returns potentially any number of operands.
+  kb_atom_to_assumptions := proc(k, $)
+    local x, x_ty, x_typ;
+    if k :: t_intro then
+      x, x_ty := op(k);
+      x_typ := htype_to_property(x_ty);
+      (x :: x_typ),
+       op(`if`(x_typ<>TopProp, map((b -> `if`(nops(b)>=2,[op(1,b)(x, op(2,b))],[])[]), x_ty),[]))
+    elif k :: t_kb_Let then
+      `=`(op(k))
+    elif k :: t_kb_Bound then
+      op(2,k)(op(1,k), op(3,k))
+    elif k :: t_kb_Constrain then
+      op(1,k)
+    else
+      NULL # Maple doesn't understand our other types
+    end if
+  end proc;
+
   kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption_pw, $)
     local n, as;
     as := remove(to_remove,
-    map(proc(k, $)
-      local x;
-      if k :: t_intro then
-        x := op(1,k);
-        (x :: htype_to_property(op(2,k))),
-        op(map((b -> op(1,b)(x, op(2,b))), op(2,k)))
-      elif k :: t_kb_Let then
-        `=`(op(k))
-      elif k :: t_kb_Bound then
-        op(2,k)(op(1,k), op(3,k))
-      elif k :: t_kb_Constrain then
-        op(1,k)
-      else
-        NULL # Maple doesn't understand our other types
-      end if
-    end proc, [op(coalesce_bounds(kb)),
-               seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]));
+          map( kb_atom_to_assumptions ,
+             [op(coalesce_bounds(kb))
+             ,seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]));
   end proc;
 
   # extract Lets and equality constraints (only!) from a KB
