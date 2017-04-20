@@ -44,7 +44,7 @@ KB := module ()
      # Some sort of hideous hack to get built-in maple
      # functions (assuming,eval,is...) to work with
      # Hakaru types
-     chilled, chill, warm,
+     chilled,
 
      ModuleLoad, ModuleUnload,
 
@@ -62,6 +62,8 @@ KB := module ()
 
      # for debugging
      build_unsafely,
+
+     chill, warm,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -923,6 +925,7 @@ KB := module ()
   end proc;
 
   ModuleLoad := proc($)
+    ModuleUnload();
     Hakaru; # Make sure the KB module is loaded, for the type t_type
     TypeTools[AddType](t_kb,
       'specfunc({
@@ -1017,4 +1020,5 @@ KB := module ()
     map(proc(x::uneval) try eval(x) catch: NULL; end try end proc,
          ['TypeTools[RemoveType](t_kb)']);
   end proc;
+  ModuleLoad();
 end module; # KB
