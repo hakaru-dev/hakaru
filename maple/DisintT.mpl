@@ -27,19 +27,19 @@ d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
 d3r := {
   PARTITION([Piece(t <= -1
                   ,Msum())
-            ,Piece(t <= 0 and -1 < t
-                  ,Weight(t+1,Bind(Uniform(-t,1),`y`,Ret(f(t+`y`,`y`)))))
-            ,Piece(t <= 1 and 0 < t
-                  ,Weight(1-t,Bind(Uniform(0,1-t),`y`,Ret(f(t+`y`,`y`)))))
+            ,Piece(And(t <= 0, -1 < t)
+                  ,Weight(t+1,Bind(Uniform(-t,1),`y`,Ret(f(t+y,y)))))
+            ,Piece(And(t <= 1, 0 < t)
+                  ,Weight(1-t,Bind(Uniform(0,1-t),`y`,Ret(f(t+y,y)))))
             ,Piece(1 < t
                   ,Msum())
             ]) ,
   PARTITION([Piece(t <= -1
                   ,Msum())
-            ,Piece(t <= 0 and -1 < t
-                  ,Weight(t+1,Bind(Uniform(0,t+1),`x`,Ret(f(`x`,-t+`x`)))))
-            ,Piece(t <= 1 and 0 < t
-                  ,Weight(1-t,Bind(Uniform(t,1),`x`,Ret(f(`x`,-t+`x`)))))
+            ,Piece(And(t <= 0, -1 < t)
+                  ,Weight(t+1,Bind(Uniform(0,t+1),`x`,Ret(f(x,-t+x)))))
+            ,Piece(And(t <= 1, 0 < t)
+                  ,Weight(1-t,Bind(Uniform(t,1),`x`,Ret(f(x,-t+x)))))
             ,Piece(1 < t,Msum())
             ]),
 PARTITION([Piece(t <= -1,Msum()), Piece(And(-1 < t,t <= 0),Weight(t+1,Bind(Uniform(0,t+1),x,Ret(f(x,-t+x))))), Piece(And(0 < t,t < 1),Weight(1-t,Bind(Uniform(t,1),x,Ret(f(x,-t+x))))), Piece(1 <= t,Msum())])
@@ -62,7 +62,7 @@ d4r := {
            Msum())),
     Msum()),
   PARTITION([Piece(t <= 0,Msum())
-           , Piece(t <= 1 and 0 < t,Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x)))))
+           , Piece(And(t <= 1, 0 < t),Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x)))))
            , Piece(1 < t,Weight(1/2/t^2,BetaD(2,1)))]),
   PARTITION([Piece(t <= 0,Msum()), Piece(0 < t and t < 1,Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x))))), Piece(1 <= t,Weight(1/2/t^2,BetaD(2,1)))])
 }:
@@ -71,8 +71,8 @@ d4r := {
 d3posfam := Bind(Uniform(0, 1), x, Bind(Uniform(0, 1), y, Ret(Pair(x+y+K_0, f(x, y))))):
 d3posfam_r := {
   PARTITION([ Piece(t <= K_0, Msum())
-            , Piece(K_0 < t and t <= 1+K_0, Weight(t-K_0, Bind(Uniform(0, t-K_0), x, Ret(f(x, t-x-K_0)))))
-            , Piece(t < 2+K_0 and 1+K_0 < t, Weight(2-t+K_0, Bind(Uniform(-1+t-K_0, 1), x, Ret(f(x, t-x-K_0)))))
+            , Piece(And(K_0 < t, t <= 1+K_0), Weight(t-K_0, Bind(Uniform(0, t-K_0), x, Ret(f(x, t-x-K_0)))))
+            , Piece(And(t < 2+K_0, 1+K_0 < t), Weight(2-t+K_0, Bind(Uniform(-1+t-K_0, 1), x, Ret(f(x, t-x-K_0)))))
             , Piece(2+K_0 <= t, Msum())]) }:
 d3posfam_ctx := [K_0::real]:
 
@@ -184,7 +184,8 @@ helloWorldr:= {
 
 pair_x_x := Bind(Uniform(0, 1), x, Ret(Pair(x, x))):
 pair_x_x_r := {
-  PARTITION([Piece(t < 0, Msum()), Piece(0 <= t and t <= 1, Ret(t)), Piece(1 < t, Msum())]) }:
+  PARTITION([Piece(t < 0, Msum()), Piece(And(0 <= t, t <= 1), Ret(t)),
+             Piece(1 < t, Msum())]) }:
 
 #This first block of tests is to test the basic functionality of disint, and,
 #to some extent, the system as a whole. These tests may be meaningless to you,
