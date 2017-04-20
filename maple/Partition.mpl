@@ -421,12 +421,16 @@ export
       PARTITION(remove(p -> not(coulditbe(condOf(p))), op(1, e)));
     end proc;
 
-    export single_branch := proc(e::Partition, $)
-     if nops(op(1,e)) = 1 then
-       op([1,1,2], e)
-     else
-       e
-     end if;
+    export single_branch := proc(e::Partition, { _testequal := ((a,b) -> Testzero(a-b)) })
+      local vs, ps := piecesOf(e);
+      vs := map(valOf,ps);
+      if nops(ps) = 1 or
+        `and`(zip(_testequal, vs, subsop(1=NULL,vs))[])
+      then
+        op([1,1,2], e)
+      else
+        e
+      end if;
     end proc;
 
     # Removal of singular points from partitions
