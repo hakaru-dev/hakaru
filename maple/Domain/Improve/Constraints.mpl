@@ -4,7 +4,7 @@ constraints_about_vars := module()
 
     export ModuleApply := proc(vs0 :: DomBound, sh :: DomShape, $)
         local vs := vs0, ctx;
-        if assigned(_Env_HakaruSolve) and _Env_HakaruSolve=false then
+        if _Env_HakaruSolve=false then
            return sh end if;
         vs  := {op(Domain:-Bound:-varsOf(vs))};
         ctx := Domain:-Bound:-toConstraints(vs0, 'bound_types');

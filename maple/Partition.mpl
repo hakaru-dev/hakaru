@@ -608,9 +608,7 @@ export
           error "Simpl:-condition: don't know what to do with %1", ctxC;
         end if;
         ctxC := KB:-chill(ctxC);
-        if 'do_solve' in {_rest}
-        and (not assigned(_Env_HakaruSolve) or _Env_HakaruSolve=true)
-        then
+        if 'do_solve' in {_rest} and _Env_HakaruSolve<>false then
           ctxC := solve({ctxC}, 'useassumptions'=true);
           if ctxC = NULL and indets(ctx, specfunc(`exp`)) <> {} then
             ctxC := [ctx];

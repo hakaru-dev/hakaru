@@ -392,9 +392,7 @@ KB := module ()
    # bound_simp
    not_bound_simp := proc(b,x,k,kb,pol,as,$)
      local c, bad;
-     if assigned(_Env_HakaruSolve) and _Env_HakaruSolve=false then
-       return FAIL
-     end if;
+     if _Env_HakaruSolve=false then return FAIL; end if;
 
      # don't even try to solve bad cases, we might get a RootOf !
      bad := select(depends, indets(b, specfunc(chilled)),x);
