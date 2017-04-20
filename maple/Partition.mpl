@@ -51,7 +51,7 @@ local
     # end proc;
 
     :-`diff/PARTITION` := proc()
-      local pw, dpw, r, r0, r1;
+      local pw, wrt, dpw, r, r0, r1;
       wrt := args[-1];
       pw := PARTITION(args[1..-2]);
       pw  := PartitionToPW(pw);
