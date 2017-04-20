@@ -140,7 +140,9 @@ Efficient := proc(mm, $)
   end if;
   while m :: '{lam(name, anything, anything),
                Context(anything, anything),
-               And(specfunc(piecewise), anyfunc(anything, anything, Msum()))}' do
+               And(specfunc(piecewise)
+                  ,{anyfunc(anything, anything, Msum())
+                   ,anyfunc(anything, anything, anything, Msum())})}' do
     m := op(`if`(op(0,m)='lam',3,2),m);
   end do;
   if m :: 'Weight(anything, anything)' then m := op(2,m) end if;
