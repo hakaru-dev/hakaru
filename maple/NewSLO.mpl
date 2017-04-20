@@ -243,6 +243,7 @@ $include "NewSLO/Factor.mpl"
 
   ModuleLoad := proc($)
     local prev, ex;
+    ModuleUnload();
     Hakaru; # Make sure the Hakaru module is loaded for the types t_type and t_Hakaru.
     KB;     # Make sure the KB module is loaded, for the type t_kb
     prev := kernelopts(opaquemodules=false);
@@ -271,4 +272,5 @@ $include "NewSLO/Factor.mpl"
     end do;
 
   end proc; #ModuleLoad
+  ModuleLoad():
 end module; # NewSLO
