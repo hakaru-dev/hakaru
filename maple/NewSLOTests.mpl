@@ -237,6 +237,11 @@ TestHakaru(model_pw , model_pw1, label = "multi-branch choice");
 TestHakaru(model_pw3, model_pw3_r, label = "fake multi-branch weight");
 TestHakaru(model_pw2, model_pw5, label = "proper multi-branch weight");
 
+fake_pw1 := Bind(Uniform(1,3),x, piecewise(0 < x, Msum(), Ret(x))):
+fake_pw2 := Bind(Uniform(1,3),x, piecewise(x < 0, Ret(x), Msum())):
+TestHakaru(fake_pw1, Msum(), label = "fake piecewise 1"):
+TestHakaru(fake_pw2, Msum(), label = "fake piecewise 2"):
+
 # t43 without the explicit lam
 t43 := piecewise(x0=true, Uniform(0, 1), Bind(BetaD(1, 1), a1, Ret(a1))):
 t43s := Uniform(0, 1):
