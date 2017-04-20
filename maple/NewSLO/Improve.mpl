@@ -161,7 +161,7 @@ reduce_Integrals := module()
         ASSERT(var::DomBoundVar);
         if var :: list then var := op(1,var) end if;
         if not depends(intapps, var) then
-          f := eval(known_tys[e_k]);
+          f := known_tys[e_k];
         else
           return FAIL;
         end if;
