@@ -683,6 +683,8 @@ Hakaru := module ()
         ,'TypeTools:-RemoveType(known_discrete)'
         ,'TypeTools:-RemoveType(t_Hakaru)'
         ,'TypeTools:-RemoveType(t_pw)'
+        ,'TypeTools:-RemoveType(t_partition)'
+        ,'TypeTools:-RemoveType(t_pw_or_part)'
         ,'TypeTools:-RemoveType(t_piecewiselike)'
         ,'TypeTools:-RemoveType(t_case)'
         ,'TypeTools:-RemoveType(t_type)'
@@ -691,4 +693,5 @@ Hakaru := module ()
     unprotect(op([2,6], thismodule)); #See comment in ModuleLoad.
     #Skip restoring the globals to any prior value they had.
   end proc;
+  ModuleLoad();
 end module; # Hakaru
