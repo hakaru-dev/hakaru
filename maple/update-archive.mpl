@@ -19,8 +19,10 @@ UpdateArchive := proc(lib_::string:="ppaml.mla")
     try
       FileTools:-Remove(lib)
     catch:
-      WARNING("Hakaru archive %1 already exists, but failed to delete it... "
-              "overwriting old archive.", lib):
+      map(curry(march,'delete',lib)@curry(op,1),march('list', lib));
+      if nops( march('list', lib) ) <> 0 then
+        WARNING("Failed to delete all contents of %1",lib);
+      end if;
     end try;
   end if:
   olddir := currentdir(libdir):
