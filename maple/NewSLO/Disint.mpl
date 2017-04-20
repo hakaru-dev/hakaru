@@ -32,13 +32,13 @@
               cond_constructor= `<=`,
               disintegrator= diff,
               disintegrator_arg_extractor= (A-> op(1,A)),
-              disintegrator_type_extractor= (ll-> kb-> KB:-genLebesgue(op(1,ll), op(op(2,ll)), kb))
+              disintegrator_type_extractor= [ (ll-> kb-> KB:-genLebesgue(op(1,ll), op(op(2,ll)), kb)), AlmostEveryReal ]
          ),
          Counting= Record(
               cond_constructor= `<=`,
               disintegrator= LREtools[delta],
               disintegrator_arg_extractor= (A-> op(1,A)),
-              disintegrator_type_extractor= (ll-> kb-> KB:-genSummation(op(1,ll), op(op(2,ll)), kb))
+              disintegrator_type_extractor= [ (ll-> kb-> KB:-genSummation(op(1,ll), op(op(2,ll)), kb)), HInt ]
          ),
          #Ret is aka Dirac.
          Ret= Record(
@@ -47,7 +47,7 @@
               disintegrator_arg_extractor= (A-> op(1,A)= op([2,1], A)),
               #E.g., (x &M Ret(3)) --> (x= 3).
 
-              disintegrator_type_extractor=(ll -> kb -> (op(1,ll), kb))
+              disintegrator_type_extractor= [ (ll -> kb -> (op(1,ll), kb)) ]
               # disintegrator_type_extractor= (ll-> kb-> KB:-genLet(op(1,ll), op([2,1],ll), kb))
          )
     ]),
@@ -88,20 +88,25 @@
          v::name, #the wrt var
          M::NewSLO:-disint:-t_wrt_var_type,
          pp, #iterator over [fst, snd]---the deconstructors of Pair
-         vM, vK
+         vM, vK, mks, mk_ty, mk_ctx
     ;
          if T::t_disint_var then
               #Add a default wrt-var type if none appears.
               (v,M):= op(`if`(T::name, T &M 'Lebesgue'((-1,1)*~infinity), T));
               vK   := op(0,M);
               vM   := v &M M;
+              mks := Wrt_var_types[vK]:-disintegrator_type_extractor;
+              mk_ty := op(1,mks);
+              if nops(mks)=2 then mk_ctx := ((e)->lam(v,op(2,mks)(),e));
+              else                mk_ctx := ((e)->e);
+              end if;
               DV[v]:= Record(
                    'wrt_var_type'= M,
                    'path'= path,
                    'disintegrator_arg'=
                         Wrt_var_types[vK]:-disintegrator_arg_extractor(vM),
-                   'disintegrator_mktype'=
-                        Wrt_var_types[vK]:-disintegrator_type_extractor(vM)
+                   'disintegrator_mktype'=mk_ty(vM),
+                   'disintegrator_mkctx' =mk_ctx
               );
               path:= op(path) #Peel off outer layer: fst or snd.
          else #T::Pair(..., ...)---deconstruct recursively.
@@ -129,7 +134,7 @@
     #var &M wrt-var type, or Pairs thereof
     A::{t_disint_var, t_disint_var_pair},
     ctx::t_kb_atoms:= [] #context: parameter assumptions, "knowledge"
-   ,$)::t_Hakaru;
+   )::t_Hakaru;
    local
     mc,  #final integral to be passed to improve @ toLO; then result
          #of each disintegration step
@@ -138,6 +143,9 @@
     v::name, #iterator over V
     improve_opts := []
    ;
+    if not {_rest} in {{'do_lam'},{}} then
+      error "bad extra args: %1", {_rest};
+    end if;
 
     #Init module variables.
     DV:= table();
@@ -225,8 +233,13 @@
 
     mc := subs_disint_data( table([seq(var_rn[v]=v, v=V)]), mc );
 
-    mc
+    if 'do_lam' in {_rest} then
+      for v in ListTools[Reverse](V) do
+        mc := DV[v]:-disintegrator_mkctx(mc);
+      end do;
+    end if;
 
+    mc
    end proc; #disint:-ModuleApply
    ModuleLoad();
   end module; #disint
