@@ -1,5 +1,5 @@
 UpdateArchive := proc(lib_::string:="ppaml.mla")
-  local libdir, drs, do_read, do_save, prev, fn, lib := lib_;
+  local libdir, drs, olddir, do_read, do_save, prev, fn, lib := lib_;
   drs := kernelopts(dirsep);
 
   libdir := eval(`if`(nargs=2,'args[2]','currentdir()'));
@@ -23,9 +23,9 @@ UpdateArchive := proc(lib_::string:="ppaml.mla")
               "overwriting old archive.", lib):
     end try;
   end if:
-  currentdir(libdir):
+  olddir := currentdir(libdir):
 
-  do_read := proc(x,$) read(cat(libdir,drs,x,".mpl")); NULL; end proc;
+  do_read := proc(x,$) read(cat(".",drs,x,".mpl")); NULL; end proc;
   do_save := proc(x,$) LibraryTools:-Save(x,lib); NULL; end proc;
 
   map(do_read,
@@ -42,7 +42,9 @@ UpdateArchive := proc(lib_::string:="ppaml.mla")
 
   Domain:-Improve:-ModuleLoad():
   kernelopts(opaquemodules=prev):
-  do_save('Domain:-Improve');
+  do_save('Domain:-Improve'):
+  currentdir(olddir);
+  NULL;
 end proc:
 
-UpdateArchive();
+UpdateArchive():
