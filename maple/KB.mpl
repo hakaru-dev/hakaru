@@ -393,6 +393,10 @@ KB := module ()
    not_bound_simp := proc(b,x,k,kb,pol,as,$)
      local c, bad;
      if _Env_HakaruSolve=false then return FAIL; end if;
+     if x::relation then
+       userinfo(6, 'KB', printf("Chose not to solve %a\n",x));
+       return FAIL;
+     end if;
 
      # don't even try to solve bad cases, we might get a RootOf !
      bad := select(depends, indets(b, specfunc(chilled)),x);
