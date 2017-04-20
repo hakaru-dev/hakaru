@@ -156,6 +156,23 @@ export
     end if;
   end proc,
 
+  # This is an alternate (to PARTITION) constructor for partition, which has the
+  # same call convention as piecewise, except there are no implicit cases. if
+  # there is an otherwise case, its condition is the conjunction of negations of
+  # the other conditions.
+  ModuleApply := proc()::Partition;
+    local ps, as, VAR;
+    if nargs=2 then
+      error "empty partition";
+    end if;
+    ps := [args]; ops_r := seq(1..iquo(nops(ps),2));
+    if nops(ps)::odd then
+      ps := [op(1..-2,ps), Not(bool_And(seq(op(2*i-1,ps),i=ops_r))), op(-1,ps)];
+    end if;
+    ps := [seq(Piece(op(2*i-1,ps),op(2*i,ps)),i=ops_r)];
+    PARTITION(ps);
+  end proc,
+
   Pieces := proc(cs0,es0)::list(PartitionPiece);
     local es, cs;
     es := `if`(es0::{set,list},x->x,x->{x})(es0);
