@@ -69,7 +69,8 @@ Hakaru := module ()
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
          htype_patterns,
-         bool_And, bool_Or, bool_Not;
+         bool_And, bool_Or, bool_Not,
+         UpdateArchive;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global
@@ -101,7 +102,6 @@ Hakaru := module ()
      # Type constructors for Hakaru
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
          Bound, DatumStruct;
-
   p_true  := 'PDatum(true,PInl(PDone))';
   p_false := 'PDatum(false,PInr(PInl(PDone)))';
 
@@ -600,6 +600,7 @@ Hakaru := module ()
 
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
+    ModuleUnload();
     VerifyTools[AddVerification](measure = eval(verify_measure));
     VerifyTools[AddVerification](hboolean = eval(verify_hboolean));
 
@@ -676,19 +677,18 @@ Hakaru := module ()
   end proc;
 
   ModuleUnload := proc($)
-    TypeTools:-RemoveType(`&implies`);
-    TypeTools:-RemoveType(known_continuous);
-    TypeTools:-RemoveType(known_discrete);
-    TypeTools:-RemoveType(t_Hakaru);
-    TypeTools:-RemoveType(t_pw);
-    TypeTools:-RemoveType(t_piecewiselike);
-    TypeTools:-RemoveType(t_case);
-    TypeTools:-RemoveType(t_type);
-    VerifyTools[RemoveVerification](measure);
+    map(proc(x::uneval) try eval(x) catch: NULL; end try end proc,
+        ['TypeTools:-RemoveType(`&implies`)'
+        ,'TypeTools:-RemoveType(known_continuous)'
+        ,'TypeTools:-RemoveType(known_discrete)'
+        ,'TypeTools:-RemoveType(t_Hakaru)'
+        ,'TypeTools:-RemoveType(t_pw)'
+        ,'TypeTools:-RemoveType(t_piecewiselike)'
+        ,'TypeTools:-RemoveType(t_case)'
+        ,'TypeTools:-RemoveType(t_type)'
+        ,'VerifyTools[RemoveVerification](measure)'
+        ]);
     unprotect(op([2,6], thismodule)); #See comment in ModuleLoad.
     #Skip restoring the globals to any prior value they had.
   end proc;
-
-  ModuleLoad();
-
 end module; # Hakaru

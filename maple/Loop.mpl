@@ -550,7 +550,4 @@ Loop := module ()
       sum]);
     protect(sum);
   end proc;
-
-  ModuleLoad();
-
 end module; # Loop

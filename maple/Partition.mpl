@@ -24,6 +24,7 @@ local
   end proc,
 
   ModuleLoad::static:= proc()
+    ModuleUnload();
     :-`print/PARTITION`:=
     proc(SetOfRecords)
     local branch;
@@ -76,8 +77,10 @@ local
   end proc,
 
   ModuleUnload::static:= proc()
-    TypeTools:-RemoveType(Partition);
-    TypeTools:-RemoveType(PartitionPiece);
+    map(proc(x::uneval) try eval(x) catch: NULL; end try end proc,
+        ['TypeTools:-RemoveType(Partition)'
+        ,'TypeTools:-RemoveType(PartitionPiece)'
+        ]);
     NULL
   end proc,
 
@@ -612,5 +615,4 @@ export
   end proc
 ;
   uses Hakaru;
-  ModuleLoad():
 end module:

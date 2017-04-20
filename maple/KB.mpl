@@ -1014,8 +1014,7 @@ KB := module ()
   end proc;
 
   ModuleUnload := proc($)
-    TypeTools[RemoveType](t_kb);
+    map(proc(x::uneval) try eval(x) catch: NULL; end try end proc,
+         ['TypeTools[RemoveType](t_kb)']);
   end proc;
-
-  ModuleLoad();
 end module; # KB

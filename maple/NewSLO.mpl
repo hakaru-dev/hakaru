@@ -24,7 +24,7 @@ NewSLO := module ()
         t_sum, t_product,
         mysolve, Shiftop, Diffop, Recognized,
         bind, weight,
-        reduce_IntsSums, reduce_Integrals, reduce_Integrals_post,
+        reduce_IntsSums, reduce_Integrals,
         elim_intsum, int_assuming, sum_assuming,
         banish,
         nub_piecewise, piecewise_if, isBound_IntsSums, isBound_IntSum,
@@ -272,7 +272,4 @@ $include "NewSLO/Factor.mpl"
     end do;
 
   end proc; #ModuleLoad
-
-  ModuleLoad();
-
 end module; # NewSLO

@@ -1,60 +1,48 @@
+UpdateArchive := proc(lib_::string:="ppaml.mla")
+  local libdir, drs, do_read, do_save, prev, fn, lib := lib_;
+  drs := kernelopts(dirsep);
 
-lib := "ppaml.mla":
-if FileTools:-Exists(lib) then FileTools:-Remove(lib) end if:
-LibraryTools:-Create(lib):
+  libdir := eval(`if`(nargs=2,'args[2]','currentdir()'));
+  if nargs=2 then
+    libdir := args[2];
+  else
+    libdir := LibraryTools:-FindLibrary(Hakaru);
+    if libdir <> NULL then
+      libdir := FileTools:-ParentDirectory(libdir);
+    else
+      libdir := currentdir();
+    end if;
+  end if;
+  if not FileTools:-Exists(lib) then
+    LibraryTools:-Create(lib):
+  else
+    try
+      FileTools:-Remove(lib)
+    catch:
+      WARNING("Hakaru archive %1 already exists, but failed to delete it... "
+              "overwriting old archive.", lib):
+    end try;
+  end if:
+  currentdir(libdir):
 
-read("./BindingTools.mpl"):
-read("./Hakaru.mpl"):
-read("./KB.mpl"):
-read("./Partition.mpl"):
-read("./Loop.mpl"):
-read("./Domain.mpl"):
-read("./NewSLO.mpl"):
-read("./Summary.mpl"):
-LibraryTools:-Save(`gensym`, lib):
-LibraryTools:-Save('BindingTools', lib):
-LibraryTools:-Save(`depends/lam`, lib):
-LibraryTools:-Save(`depends/Branch`, lib):
-LibraryTools:-Save(`depends/Bind`, lib):
-LibraryTools:-Save(`depends/ary`, lib):
-LibraryTools:-Save(`depends/Plate`, lib):
-LibraryTools:-Save(`eval/lam`, lib):
-LibraryTools:-Save(`eval/Branch`, lib):
-LibraryTools:-Save(`eval/Bind`, lib):
-LibraryTools:-Save(`eval/ary`, lib):
-LibraryTools:-Save(`eval/Plate`, lib):
-LibraryTools:-Save('Hakaru', lib):
-LibraryTools:-Save('KB', lib):
-LibraryTools:-Save(`depends/forall`, lib):
-LibraryTools:-Save(`depends/Ints`, lib):
-LibraryTools:-Save(`depends/Sums`, lib):
-LibraryTools:-Save(`depends/ints`, lib):
-LibraryTools:-Save(`depends/sums`, lib):
-LibraryTools:-Save(`eval/forall`, lib):
-LibraryTools:-Save(`eval/Ints`, lib):
-LibraryTools:-Save(`eval/Sums`, lib):
-LibraryTools:-Save(`eval/ints`, lib):
-LibraryTools:-Save(`eval/sums`, lib):
-LibraryTools:-Save(`eval/Int`, lib):
-LibraryTools:-Save(`eval/Sum`, lib):
-LibraryTools:-Save(`eval/Product`, lib):
-LibraryTools:-Save(`eval/int`, lib):
-LibraryTools:-Save(`eval/sum`, lib):
-LibraryTools:-Save(`eval/product`, lib):
-LibraryTools:-Save('Loop', lib):
-LibraryTools:-Save(`depends/Integrand`, lib):
-LibraryTools:-Save(`depends/LO`, lib):
-LibraryTools:-Save(`eval/Integrand`, lib):
-LibraryTools:-Save(`eval/LO`, lib):
-LibraryTools:-Save('Domain', lib):
-prev := kernelopts(opaquemodules=false):
-Domain:-Improve:-ModuleLoad():
-kernelopts(opaquemodules=prev):
-LibraryTools:-Save('Domain:-Improve', lib):
-LibraryTools:-Save('NewSLO', lib):
-LibraryTools:-Save('Partition', lib):
-LibraryTools:-Save(`depends/Bucket`, lib):
-LibraryTools:-Save(`depends/Index`, lib):
-LibraryTools:-Save(`eval/Bucket`, lib):
-LibraryTools:-Save(`eval/Index`, lib):
-LibraryTools:-Save('Summary', lib):
+  do_read := proc(x,$) read(cat(libdir,drs,x,".mpl")); NULL; end proc;
+  do_save := proc(x,$) LibraryTools:-Save(x,lib); NULL; end proc;
+
+  map(do_read,
+   ["BindingTools", "Hakaru", "KB", "Partition", "Loop"
+   ,"Domain", "NewSLO", "Summary"]);
+
+  prev := kernelopts(opaquemodules=false):
+  unprotect(Hakaru:-UpdateArchive);
+  Hakaru:-UpdateArchive := copy(procname);
+  protect(Hakaru:-UpdateArchive);
+
+  map(do_save,
+   [`gensym`, 'BindingTools', `depends/lam`, `depends/Branch`, `depends/Bind`, `depends/ary`, `depends/Plate`, `eval/lam`, `eval/Branch`, `eval/Bind`, `eval/ary`, `eval/Plate`, 'Hakaru', 'KB', `depends/forall`, `depends/Ints`, `depends/Sums`, `depends/ints`, `depends/sums`, `eval/forall`, `eval/Ints`, `eval/Sums`, `eval/ints`, `eval/sums`, `eval/Int`, `eval/Sum`, `eval/Product`, `eval/int`, `eval/sum`, `eval/product`, 'Loop', `depends/Integrand`, `depends/LO`, `eval/Integrand`, `eval/LO`, 'Domain', 'NewSLO', 'Partition', `depends/Bucket`, `depends/Index`, `eval/Bucket`, `eval/Index`, 'Summary']);
+
+  Domain:-Improve:-ModuleLoad():
+  kernelopts(opaquemodules=prev):
+  do_save('Domain:-Improve');
+end proc:
+
+UpdateArchive();

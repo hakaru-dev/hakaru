@@ -81,7 +81,9 @@ reduce_Integrals := module()
   # The callbacks passed by reduce_Integrals to Domain:-Reduce
     reduce_Integrals_body, reduce_Integrals_into
   # tries to evaluate a RootOf
-  , try_eval_Root;
+  , try_eval_Root
+  # tries to evaluate Int/Sum/Ints/Sums
+  , elim_intsum;
 
   reduce_Integrals_body := proc(h,opts,x,kb1) reduce(x,h,kb1,opts) end proc;
   reduce_Integrals_into := proc(h,kind,e,vn,vt,kb,$)
