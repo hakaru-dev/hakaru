@@ -25,26 +25,25 @@ d2r := {Weight(7, Ret(3))}:
 #https://en.wikipedia.org/wiki/Borel-Kolmogorov_paradox
 d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
 d3r := {
-  PARTITION([Piece(t <= -1
+  PARTITION([Piece(Or(t <= -1,1 < t)
                   ,Msum())
             ,Piece(And(t <= 0, -1 < t)
                   ,Weight(t+1,Bind(Uniform(-t,1),`y`,Ret(f(t+y,y)))))
             ,Piece(And(t <= 1, 0 < t)
                   ,Weight(1-t,Bind(Uniform(0,1-t),`y`,Ret(f(t+y,y)))))
-            ,Piece(1 < t
-                  ,Msum())
             ]) ,
-  PARTITION([Piece(t <= -1
+  PARTITION([Piece(Or(t <= -1,1 < t)
                   ,Msum())
             ,Piece(And(t <= 0, -1 < t)
                   ,Weight(t+1,Bind(Uniform(0,t+1),`x`,Ret(f(x,-t+x)))))
             ,Piece(And(t <= 1, 0 < t)
                   ,Weight(1-t,Bind(Uniform(t,1),`x`,Ret(f(x,-t+x)))))
-            ,Piece(1 < t,Msum())
             ]),
-PARTITION([Piece(t <= -1,Msum()), Piece(And(-1 < t,t <= 0),Weight(t+1,Bind(Uniform(0,t+1),x,Ret(f(x,-t+x))))), Piece(And(0 < t,t < 1),Weight(1-t,Bind(Uniform(t,1),x,Ret(f(x,-t+x))))), Piece(1 <= t,Msum())])
+PARTITION([Piece(Or(t <= -1,1 <= t),Msum())
+          ,Piece(And(-1 < t,t <= 0),Weight(t+1,Bind(Uniform(0,t+1),x,Ret(f(x,-t+x)))))
+          ,Piece(And(0 < t,t < 1),Weight(1-t,Bind(Uniform(t,1),x,Ret(f(x,-t+x)))))
+          ])
 }:
-
 
 BUniform := proc(x,b,$) Bind(Uniform(0,1), x, b) end proc:
 d3_3 := BUniform(x, BUniform(y, BUniform(z, Ret(Pair(x+y+z,f(x,y,z)))))):
