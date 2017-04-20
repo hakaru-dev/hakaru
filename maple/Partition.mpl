@@ -26,12 +26,12 @@ local
 
   ModuleLoad::static:= proc()
     ModuleUnload();
-    # :-`print/PARTITION`:= proc()
-    #   local SetOfRecords, branch;
-    #   SetOfRecords := piecesOf(PARTITION(args));
-    #   `print/%piecewise`(
-    #     seq([ condOf(eval(branch)), valOf(eval(branch))][], branch= SetOfRecords))
-    # end proc;
+    :-`print/PARTITION`:= proc()
+      local SetOfRecords, branch;
+      SetOfRecords := piecesOf(PARTITION(args));
+      `print/%piecewise`(
+        seq([ condOf(eval(branch)), valOf(eval(branch))][], branch= SetOfRecords))
+    end proc;
 
     TypeTools:-AddType(PieceRef, And(specfunc(nonnegint,PieceRef),satisfies(x->nops(x)>0)));
     TypeTools:-AddType(PartitionCond, {relation, boolean, `::`, specfunc({`And`,`Or`,`Not`}), `and`, `or`, `not`});
@@ -117,7 +117,7 @@ local
     end if
   end proc;
 export
-  piecesOf := proc(x::Partition, $)
+  piecesOf := proc(x, $)
     local ps, rs;
     ps := op(1,x);
     if nops(x)=2 then
