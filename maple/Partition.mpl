@@ -11,7 +11,8 @@ Partition:= module()
 
 local
   Umap := proc(f,x,$)
-    f(op(0,x))( map( p -> Piece(f(condOf(p)),f(valOf(p))), op(1,x) ))
+    f(op(0,x))( map( p -> Piece(f(condOf(p)),f(valOf(p))), piecesOf(x) )
+              , `if`(nops(x)>1,map(f,[op(2..-1,x)]),[])[] )
   end proc,
 
   isPartitionPieceOf := proc( p, elem_t := anything )
@@ -25,9 +26,9 @@ local
 
   ModuleLoad::static:= proc()
     ModuleUnload();
-    :-`print/PARTITION`:=
-    proc(SetOfRecords)
-    local branch;
+    :-`print/PARTITION`:= proc()
+      local SetOfRecords, branch;
+      SetOfRecords := piecesOf(PARTITION(args));
       `print/%piecewise`(
         seq([ condOf(eval(branch)), valOf(eval(branch))][], branch= SetOfRecords))
     end proc;
@@ -43,18 +44,19 @@ local
       Partition:-Simpl(Umap(x->eval(x,eqs), p));
     end proc;
 
-    :-`depends/PARTITION` :=
-    proc(parts, nms, $)
-    local dp := (x -> depends(x, nms));
-      `or`(op ( map(p-> dp(condOf(p)) or dp(valOf(p)), parts) ));
-    end proc;
+    # :-`depends/PARTITION` :=
+    # proc(parts, nms, $)
+    # local dp := (x -> depends(x, nms));
+    #   # `or`(op ( map(p-> dp(condOf(p)) or dp(valOf(p)), parts) ), dp(x,);
+    # end proc;
 
-    :-`diff/PARTITION` :=
-    proc(parts, wrt, $)
-    local pw  := PartitionToPW(PARTITION(parts))
-        , dpw := diff(pw, wrt)
-        , r   := PWToPartition(dpw, 'do_solve')
-        , r0, r1;
+    :-`diff/PARTITION` := proc()
+      local pw, dpw, r, r0, r1;
+      wrt := args[-1];
+      pw := PARTITION(args[1..-2]);
+      pw  := PartitionToPW(pw);
+      dpw := diff(pw, wrt);
+      r   := PWToPartition(dpw, 'do_solve');
       r0 := Simpl:-singular_pts(r);
 
       # probably a better way to do this; we really only want to simplify
@@ -170,7 +172,7 @@ export
     PARTITION([seq(
       Piece(condOf(pair)
             ,f(args[2..pos], valOf(pair), args[pos+2..])
-         ),pair= op(1, args[pos+1]))])
+         ),pair= piecesOf(args[pos+1]))])
   end proc,
 
   # a more complex mapping combinator which works on all 3 parts
@@ -187,11 +189,11 @@ export
       Piece( f(condOf(pair), kb0),
              g(valOf(pair), kb0));
     end proc;
-    PARTITION(map(doIt,op(1,part)));
+    PARTITION(map(doIt,piecesOf(part)));
   end proc,
 
   Foldr := proc( cons, nil, prt :: Partition, $ )
-    foldr(proc(p, x) cons(condOf(p), valOf(p), x); end proc,nil,op(op(1, prt)));
+    foldr(proc(p, x) cons(condOf(p), valOf(p), x); end proc,nil,op(piecesOf(prt)));
   end proc,
 
   Case := proc(ty,f,g) proc(x) if x::ty then f(x) else g(x) end if end proc end proc,
@@ -202,7 +204,7 @@ export
   PartitionToPW := module()
     export ModuleApply; local pw_cond_ctx;
     ModuleApply := proc(x::Partition, $)
-    local parts := op(1,x);
+    local parts := piecesOf(x);
       if nops(parts) = 1 and is(op([1,1],parts)) then return op([1,2], parts) end if;
       parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
       parts := [seq([condOf(p), valOf(p)][], p=op(1,parts))];
@@ -239,7 +241,7 @@ export
       if not w :: identical(true) or p1 <> p then
         [ w, p1 ]
       else
-        ps := op(1, p);
+        ps := piecesOf(p);
         wps := map(_rec@valOf, ps);
         ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
         if nops(vs) > 0 and
@@ -318,14 +320,14 @@ export
   #Check whether the conditions of a Partition depend on any of a set of names.
   ConditionsDepend:= proc(P::Partition, V::{name, list(name), set(name)}, $)
     local p;
-    for p in op(1,P) do if depends(condOf(p), V) then return true end if end do;
+    for p in piecesOf(P) do if depends(condOf(p), V) then return true end if end do;
     false
   end proc,
 
   # The cartesian product of two Partitions
   PProd := proc(p0::Partition,p1::Partition,{_add := `+`})::Partition;
   local ps0, ps1, cs, rs, rs0, rs1;
-    ps0,ps1 := map(ps -> sort(op(1,ps), key=(z->condOf(z))), [p0,p1])[];
+    ps0,ps1 := map(ps -> sort(piecesOf(ps), key=(z->condOf(z))), [p0,p1])[];
     cs := zip(proc(p0,p1)
                 if condOf(p0)=condOf(p1) then
                   Piece(condOf(p0),_add(valOf(p0),valOf(p1))) ;
@@ -376,13 +378,13 @@ export
       # like Piece, but tries to not be a Piece
       unpiece := proc(c, pr, $)
         if pr :: Partition then
-          map(q -> applyop(z->bool_And(z,c),1,q), op(1,pr))[]
+          map(q -> applyop(z->bool_And(z,c),1,q), piecesOf(pr))[]
         else Piece(c, pr) end if
       end proc;
 
       unpart := proc(pr, $)
         if pr :: Partition then
-          PARTITION(map(q -> unpiece(condOf(q),valOf(q)), op(1,pr)))
+          PARTITION(map(q -> unpiece(condOf(q),valOf(q)), piecesOf(pr)))
         else pr end if
       end proc:
 
@@ -391,7 +393,7 @@ export
         if pr :: `*` then
           ps, ws := selectremove(q->type(q,Partition), [op(pr)]);
           if nops(ps) = 1 then
-            Pmap(x->`*`(op(ws),x), unpartProd(op(1,ps)));
+            Pmap(x->`*`(op(ws),x), unpartProd(piecesOf(pr)));
           else pr end if;
         else unpart(pr) end if;
       end proc;
@@ -409,7 +411,7 @@ export
     export single_nonzero_piece := proc(e, { _testzero := Testzero })
       local zs, nzs;
       if e :: Partition then
-        zs, nzs := selectremove(p -> _testzero(valOf(p)), op(1, e));
+        zs, nzs := selectremove(p -> _testzero(valOf(p)), piecesOf(e));
         if nops(nzs) = 1 then
           return condOf(op(1,nzs)) , valOf(op(1,nzs))
         end if;
@@ -418,7 +420,7 @@ export
     end proc;
 
     export remove_false_pieces := proc(e::Partition, $)
-      PARTITION(remove(p -> not(coulditbe(condOf(p))), op(1, e)));
+      PARTITION(remove(p -> not(coulditbe(condOf(p))), piecesOf(e)));
     end proc;
 
     export single_branch := proc(e::Partition, { _testequal := ((a,b) -> Testzero(a-b)) })
@@ -427,7 +429,7 @@ export
       if nops(ps) = 1 or
         `and`(zip(_testequal, vs, subsop(1=NULL,vs))[])
       then
-        op([1,1,2], e)
+        op([1,2], ps)
       else
         e
       end if;
@@ -527,7 +529,7 @@ export
         # constant (or term??) and `x' is a variable, and the value of that
         # case is `undefined', then we may be able to eliminate it (if another
         # case includes that point)
-        r := op(1,r);
+        r := piecesOf(r);
         uc, oc := selectremove(canSimp, r);
         PARTITION(tryReplacePieces(uc, oc, eval_cmp));
       end proc;
@@ -556,7 +558,7 @@ export
             ctxC := PWToPartition(ctxC, _rest);
             ctxC := [ seq( map( o -> condOf(c) and o
                                 , postproc_for_solve(ctx, valOf(c), _rest))[]
-                           , c=op(1, ctxC) )] ;
+                           , c=piecesOf(ctxC) )] ;
           else
             ctxC := FAIL;
           end if;
@@ -604,7 +606,7 @@ export
 
   SamePartition := proc(eqCond, eqPart, p0 :: Partition, p1 :: Partition, $)
     local ps0, ps1, pc0, the;
-    ps0, ps1 := seq(op(1,p),p=(p0,p1));
+    ps0, ps1 := map(piecesOf,[p0,p1])[];
     if nops(ps0) <> nops(ps1) then return false end if;
     for pc0 in ps0 do
       the, ps1 :=
