@@ -609,7 +609,7 @@ export
         end if;
         ctxC := KB:-chill(ctxC);
         if 'do_solve' in {_rest}
-        and not assigned(_Env_HakaruSolve) or _Env_HakaruSolve=true
+        and (not assigned(_Env_HakaruSolve) or _Env_HakaruSolve=true)
         then
           ctxC := solve({ctxC}, 'useassumptions'=true);
           if ctxC = NULL and indets(ctx, specfunc(`exp`)) <> {} then
