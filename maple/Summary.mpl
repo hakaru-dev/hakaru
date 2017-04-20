@@ -108,8 +108,9 @@ Summary := module ()
       subsop(2=x, 3=e1, e);
     elif e :: 'And(specfunc({sum, Sum, product, Product}),
                    anyfunc(anything, name=range))' then
-      rng := map(SummarizeKB, op([2,2],e), kb);
+      rng := op([2,2],e);
       x, kb1 := genType(op([2,1],e), HInt(closed_bounds(rng)), kb);
+      rng := map(SummarizeKB, rng, kb);
       e1 := eval(op(1,e), op([2,1],e)=x);
       if op(0, e) in '{sum, Sum}' and has(e1, 'piecewise') then
         mr, f := summarize(e1, kb, x, summary);
