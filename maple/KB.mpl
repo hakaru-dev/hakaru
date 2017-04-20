@@ -398,23 +398,27 @@ KB := module ()
 
      # otherwise go ahead
      c := solve({chill(b)},[x], 'useassumptions'=true) assuming op(as);
-     postproc_for_solve(warm(c), kb, pol, as);
+     postproc_for_solve((x,kb)->assert_deny_mb(x,pol,kb), warm(c), kb, as);
    end proc;
 
-   postproc_for_solve := proc(c, kb, pol, as, $)
+   postproc_for_solve := proc(reduce_op, c, kb, as, $)
      local p, c0, c1;
      if c :: list and nops(c) = 0 then # false
        return FAIL;
 
      elif c :: list({relation, specfunc(`And`), `and`}) then # conjunction
        c0 := map(c -> if c::{specfunc(`And`),`and`} then op(c) else c end if,c);
-       return foldr(((z,kb)->postproc_for_solve(z, kb, pol, as)), kb, op(c0));
+       return foldr(((z,kb)->postproc_for_solve(reduce_op, z, kb, as)), kb, op(c0));
 
-     elif c :: list and nops(c)=1 then # disjunction
-       return postproc_for_solve(op(1,c), kb, pol, as);
+     elif c :: list then # disjunction
+       if nops(c)=1 then
+         return postproc_for_solve(reduce_op, op(1,c), kb, as);
+       else
+         return FAIL;
+       end if;
 
      elif c :: {relation,specfunc(`Not`)} then # atom
-       return assert_deny_mb(c, pol, kb);
+       return reduce_op(c, kb);
 
      elif c :: specfunc(`piecewise`) then # try to make it into a conjunction
        p := Partition:-PWToPartition(c);
@@ -428,7 +432,7 @@ KB := module ()
          else
              return FAIL;
          end if;
-         try return postproc_for_solve([ c0, c1 ], kb, pol, as);
+         try return postproc_for_solve(reduce_op, [ c0, c1 ], kb, as);
          catch "when calling '%1'. Received: 'cannot assume on a constant object'": NULL; end try;
        end if;
        return FAIL;
@@ -476,7 +480,7 @@ KB := module ()
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
    # Great deal of magic happens behind the scenes
-   ModuleApply := proc(bb0::t_kb_atom, pol::identical(true,false), kb::t_kb, $)
+   ModuleApply := proc(bb0::t_kb_atom, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
     local as, bb, bbv, b, k, x, log_b, todo, kb0, ch;
     bb := bb0;
@@ -834,7 +838,7 @@ KB := module ()
   # See kb_Partition
   kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen)
     Partition:-PartitionToPW(
-        kb_Partition( Partition:-PWToPartition(e, _rest), kb, doIf, doThen, _rest)
+        kb_Partition(Partition:-PWToPartition(e, _rest), kb, doIf, doThen)
         ) ;
   end proc;
 
