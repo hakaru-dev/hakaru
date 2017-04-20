@@ -644,7 +644,8 @@ Hakaru := module ()
           'Bind(t_Hakaru, name, t_Hakaru)',
           'specfunc(t_Hakaru, Msum)',
           'Weight(algebraic, t_Hakaru)',
-          'Plate(algebraic, name, t_Hakaru)'
+          'Plate(algebraic, name, t_Hakaru)',
+          t_lam
          )
     );
     TypeTools:-AddType(t_type,
@@ -661,6 +662,7 @@ Hakaru := module ()
     TypeTools:-AddType(t_partition, 'specfunc(PARTITION)'); #Appropriate to put this here?
     TypeTools:-AddType(t_piecewiselike,
       '{specfunc(piecewise), t_case, idx(list, anything)}');
+    TypeTools:-AddType(t_lam, 'lam(name, t_type, t_Hakaru)');
 
     # A temporary type which should be removed when piecewise is gone
     TypeTools:-AddType(t_pw_or_part, Or(t_pw,t_partition));
@@ -688,6 +690,7 @@ Hakaru := module ()
         ,'TypeTools:-RemoveType(t_piecewiselike)'
         ,'TypeTools:-RemoveType(t_case)'
         ,'TypeTools:-RemoveType(t_type)'
+        ,'TypeTools:-RemoveType(t_lam)'
         ,'VerifyTools[RemoveVerification](measure)'
         ]);
     unprotect(op([2,6], thismodule)); #See comment in ModuleLoad.
