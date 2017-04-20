@@ -613,6 +613,9 @@ export
             ctxC := [ctxC];
           end if;
         end if;
+        if 'no_split_disj' in {_rest} then
+          ctxC := [ bool_Or(op(ctxC)) ];
+        end if;
         KB:-warm(ctxC);
       end proc;
     end module; #Simpl:-condition
