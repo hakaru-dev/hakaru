@@ -832,9 +832,9 @@ KB := module ()
   end proc;
 
   # See kb_Partition
-  kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen, $)
+  kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen)
     Partition:-PartitionToPW(
-        kb_Partition( Partition:-PWToPartition(e), kb, doIf, doThen )
+        kb_Partition( Partition:-PWToPartition(e, _rest), kb, doIf, doThen, _rest)
         ) ;
   end proc;
 
@@ -844,7 +844,7 @@ KB := module ()
   #    PARTITION ( Piece( doIf(c_i, kb), doThen(v_i, assert(c_i, kb)) ) )
   # Semantics originally given here:
   #  https://github.com/hakaru-dev/hakaru/commit/6f1c1ea2d039a91c157462f09f15760c98884303
-  kb_Partition:= proc(e::Partition, kb::t_kb, doIf, doThen, $)::Partition;
+  kb_Partition:= proc(e::Partition, kb::t_kb, doIf, doThen,$)::Partition;
   local br;
     #Unlike `piecewise`, the conditions in a Partition are necessarily
     #disjoint, so the `update` used in kb_piecewise isn't needed. We may
