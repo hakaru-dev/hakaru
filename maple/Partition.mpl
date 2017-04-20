@@ -590,6 +590,7 @@ export
         if ctx :: identical(true) then
           error "Simpl:-condition: don't know what to do with %1", ctxC;
         end if;
+        ctxC := KB:-chill(ctxC);
         if 'do_solve' in {_rest} then
           ctxC := solve({ctxC}, 'useassumptions'=true);
           if ctxC = NULL and indets(ctx, specfunc(`exp`)) <> {} then
@@ -612,7 +613,7 @@ export
             ctxC := [ctxC];
           end if;
         end if;
-        ctxC;
+        KB:-warm(ctxC);
       end proc;
     end module; #Simpl:-condition
   end module, #Simpl
