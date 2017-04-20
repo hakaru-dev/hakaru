@@ -26,8 +26,7 @@ NewSLO := module ()
         bind, weight,
         reduce_IntsSums, reduce_Integrals,
         elim_intsum, int_assuming, sum_assuming,
-        banish,
-        nub_piecewise, piecewise_if, isBound_IntsSums, isBound_IntSum,
+        banish, isBound_IntsSums, isBound_IntSum,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt, SimplifyKB_,
         ModuleLoad;
   export

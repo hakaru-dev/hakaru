@@ -30,7 +30,7 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     if subintegral :: `*` then error "Nonlinear integral %1", e end if;
     subintegral := convert(reduce(subintegral, h, kb, opts), 'list', `*`);
     (subintegral, ww) := selectremove(depends, subintegral, h);
-    nub_piecewise(simplify_factor_assuming(`*`(w, op(ww)), kb))
+    simplify_factor_assuming(`*`(w, op(ww)), kb)
       * `*`(op(subintegral));
   elif e :: Or(Partition,t_pw) then
     if e :: t_pw then e := PWToPartition(e); end if;
@@ -41,10 +41,9 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     # big hammer: simplify knows about bound variables, amongst many
     # other things
     Testzero := x -> evalb(simplify(x) = 0);
-    e := PartitionToPW(e);
-    e := nub_piecewise(e);
-    if ee::Partition and e :: t_pw then
-      e := Partition:-PWToPartition(e,'do_solve');
+    e := Partition:-Simpl(e);
+    if ee::t_pw and e :: Partition then
+      e := Partition:-PartitionToPW(e);
     end if;
     e;
   elif e :: t_case then
@@ -215,34 +214,6 @@ end proc;
 
 sum_assuming := proc(e, v::name=anything, kb::t_kb)
   simplify_factor_assuming('sum'(e, v), kb);
-end proc;
-
-nub_piecewise := proc(pw, $) # pw may or may not be piecewise
-  local res := foldr_piecewise(piecewise_if, 0, pw);
-  `if`(res=pw,'NULL',userinfo(3, procname, printf("nub_piecewise(%a) produced\n\t%a\n", pw, res)));
-  res;
-end proc;
-
-piecewise_if := proc(cond, th, el, $)
-  # piecewise_if should be equivalent to `if`, but it produces
-  # 'piecewise' and optimizes for when the 3rd argument is 'piecewise'
-  if cond = true then
-    th
-  elif cond = false or Testzero(th - el) then
-    el
-  elif el :: t_pw then
-    if nops(el) >= 2 and Testzero(th - op(2,el)) then
-      applyop(Or, 1, el, cond)
-    elif nops(el) = 2 then
-      piecewise(cond, th, op(el), 0)
-    else
-      piecewise(cond, th, op(el))
-    end if
-  elif Testzero(el) then
-    piecewise(cond, th)
-  else
-    piecewise(cond, th, el)
-  end if
 end proc;
 
 # Int( .., var=var_ty ) == var &X var_ty

@@ -106,7 +106,7 @@
             banish(th, h, kb, levels-1, x, banish_guard(make, cond))
               + el(banish_guard(make, Not(cond)), kb)
           else
-            piecewise_if(cond,
+            piecewise(cond,
               banish(th, h, assert_mb(cond, kb), levels-1, x, make),
               el(make, assert_mb(Not(cond), kb)))
           end if
