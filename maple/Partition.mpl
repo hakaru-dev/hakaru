@@ -161,7 +161,7 @@ export
   # there is an otherwise case, its condition is the conjunction of negations of
   # the other conditions.
   ModuleApply := proc()::Partition;
-    local ps, as, VAR;
+    local ps, as, ops_r;
     if nargs=2 then
       error "empty partition";
     end if;
