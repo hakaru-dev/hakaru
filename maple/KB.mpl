@@ -527,11 +527,13 @@ KB := module ()
         # syntactic adjustment
         # If `b' is of a particular form (a bound on `x'), simplification
         # is in order
-        todo := `if`(b :: t_bound_on(`x`), bound_simp, not_bound_simp);
-        kb0 := todo(b,x,k,kb,pol,as);
+        if not b::`::` then
+          todo := `if`(b :: t_bound_on(`x`), bound_simp, not_bound_simp);
+          kb0 := todo(b,x,k,kb,pol,as);
 
-        # If it succeeds, return that result
-        if not kb0 :: identical(FAIL) then return kb0 end if;
+          # If it succeeds, return that result
+          if not kb0 :: identical(FAIL) then return kb0 end if;
+        end if;
       end if;
 
       # Normalize `=` and `<>` constraints a bit.
