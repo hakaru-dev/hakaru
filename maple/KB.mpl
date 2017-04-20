@@ -50,7 +50,7 @@ KB := module ()
 
      # Various utilities
      t_intro, t_lo, t_hi, log_metric,
-     boolean_if, coalesce_bounds, htype_to_property, bad_assumption
+     boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw
 
      ;
   export
@@ -788,9 +788,10 @@ KB := module ()
     [op(map2(op, 1, select(type, kb, t_intro)))];
   end proc;
 
+  bad_assumption_pw := (x->x::`=` and has(x,piecewise));
   # Returns true if the assumption is bad, false otherwise
   bad_assumption := proc(a, $)
-    (a :: `=` and has(a,piecewise)) or
+    bad_assumption_pw(a) or
     # The case above is because the following takes forever:
     # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_
     # = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1,
@@ -802,9 +803,9 @@ KB := module ()
     # These are dealt with otherwise and aren't understood by Maple
   end proc;
 
-  kb_to_assumptions := proc(kb, e:={}, $)
+  kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption_pw, $)
     local n, as;
-    as := remove(bad_assumption,
+    as := remove(to_remove,
     map(proc(k, $)
       local x;
       if k :: t_intro then
