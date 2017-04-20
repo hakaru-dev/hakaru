@@ -3,6 +3,7 @@
 improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, opts := [], $)
 local r, `&context`;
   userinfo(5, improve, "input: ", print(lo &context _ctx));
+  _Env_HakaruSolve := true;
   r:= LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx, opts));
   userinfo(5, improve, "output: ", print(r));
   r

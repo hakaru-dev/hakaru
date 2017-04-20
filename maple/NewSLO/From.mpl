@@ -4,6 +4,7 @@ fromLO := module()
   proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
     local h;
     h := gensym(op(1,lo));
+    _Env_HakaruSolve := false;
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
   end proc;
 

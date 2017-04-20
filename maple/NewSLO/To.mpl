@@ -5,6 +5,7 @@ toLO := module()
   ModuleApply := proc(m, $)
     local h;
     h := gensym('h');
+    _Env_HakaruSolve := false;
     LO(h, integrate(m, h, []))
   end proc;
 
