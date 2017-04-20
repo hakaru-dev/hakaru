@@ -436,7 +436,7 @@ surveyUnbias2 =
     dirac (pair answer (pair bias votes))
     where population   = var (Variable "population"   73 (SArray SNat))
           personGender = var (Variable "personGender" 41 (SArray SNat))
-
+    
 ----------------------------------------------------------------
 
 testEmissions :: Model ('HArray 'HReal) HUnit
@@ -444,6 +444,32 @@ testEmissions = plate n (\_ -> lebesgue) >>= \xs ->
                 plate n (\_ -> lebesgue) >>= \ys ->
                 dirac (pair (array n (\i -> (xs ! i) + (ys ! i))) unit)
     where n = nat_ 100
+
+-- Tug of war example for debugging scope extrusion errors
+-- https://github.com/hakaru-dev/hakaru/issues/30
+tow :: Model (HPair 'HReal 'HReal) 'HReal
+tow = normal zero one >>= \alice ->
+      normal zero one >>= \bob ->
+      normal zero one >>= \carol ->
+      (normal alice one >>= \a ->
+       normal bob   one >>= \b ->
+       dirac (a-b)) >>= \match1 ->
+      (normal bob   one >>= \b ->
+       normal carol one >>= \c ->
+       dirac (b-c)) >>= \match2 ->
+      (normal alice one >>= \a ->
+       normal carol one >>= \c ->
+       dirac (a-c)) >>= \match3 ->
+      dirac (pair (pair match1 match2) match3)
+
+-- Smaller version of tug of war
+minimaltow :: Model 'HReal HUnit
+minimaltow = normal zero one >>= \alice ->
+             normal zero one >>= \bob ->
+             (normal alice one >>= \a ->
+              normal bob   one >>= \b ->
+              dirac (a-b)) >>= \match ->
+             dirac (pair match unit)
 
 runPerform
     :: TrivialABT Term '[] ('HMeasure a)
