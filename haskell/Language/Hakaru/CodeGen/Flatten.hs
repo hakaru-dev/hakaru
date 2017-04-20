@@ -37,7 +37,7 @@ import Language.Hakaru.CodeGen.Types
 
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.TypeOf (typeOf)
+import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.Datum hiding (Ident)
 import Language.Hakaru.Syntax.Reducer
 import qualified Language.Hakaru.Syntax.Prelude as HKP
@@ -752,9 +752,11 @@ flattenBucket lo hi red = \loc -> do
           do ids1 <- declRed mr1
              ids2 <- declRed mr2
              return (ids1 <> ids2)
-        declRed (Red_Index _ _ mr) = return mempty
-          -- caseBind mr $ \_ mr' ->
-          --   do return mempty -- declRed mr'
+        declRed (Red_Index _ _ body) =
+          let typ = typeOfReducer body in
+            do mId <- genIdent' "m"
+               declare typ mId
+               return . S.singleton $ mId
         declRed (Red_Split _ mr1 mr2) =
           do ids1 <- declRed mr1
              ids2 <- declRed mr2
@@ -767,18 +769,18 @@ flattenBucket lo hi red = \loc -> do
              return . S.singleton $ mId
 
         initRed :: S.Seq Ident -> Reducer abt xs a -> CodeGen (S.Seq Ident)
-        initRed s (Red_Fanout mr1 mr2) =
-          do s' <- initRed s mr1
-             initRed s' mr2
-        initRed s (Red_Index _ _ _) =
+        initRed ms (Red_Fanout mr1 mr2) =
+          do ms' <- initRed ms mr1
+             initRed ms' mr2
+        initRed ms (Red_Index s _ _) =
           do putStat $ CComment "TODO: initRed{Red_Index}"
-             return s
-        initRed s (Red_Split _ mr1 mr2) =
-          do s' <- initRed s mr1
-             initRed s' mr2
-        initRed s (Red_Nop) = return s
-        initRed s (Red_Add sr _) =
-          case S.viewl s of
+             return ms
+        initRed ms (Red_Split _ mr1 mr2) =
+          do ms' <- initRed ms mr1
+             initRed ms' mr2
+        initRed ms (Red_Nop) = return ms
+        initRed ms (Red_Add sr _) =
+          case S.viewl ms of
             S.EmptyL -> return mempty
             (h S.:< tl) ->
               let identityE =
@@ -838,6 +840,14 @@ flattenBucket lo hi red = \loc -> do
                 _ -> let nexLoc = loc ... "sum" ... "a" ... "b"
                      in  do putExprStat $ (loc ... "sum" ... "a" ... "a") .=. (CVar h)
                             finRed nexLoc tl
+
+typeOfReducer :: Reducer abt xs a -> Sing a
+typeOfReducer (Red_Fanout a b)  = sPair  (typeOfReducer a) (typeOfReducer b)
+typeOfReducer (Red_Index _ _ a) = SArray (typeOfReducer a)
+typeOfReducer (Red_Split _ a b) = sPair  (typeOfReducer a) (typeOfReducer b)
+typeOfReducer Red_Nop           = sUnit
+typeOfReducer (Red_Add h _)     = sing_HSemiring h
+
 
 
 --------------------------------------------------------------------------------
