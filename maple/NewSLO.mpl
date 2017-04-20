@@ -33,7 +33,7 @@ NewSLO := module ()
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, SimplifyKB,
+         RoundTrip, Simplify, SimplifyKB,  apply_LO,
          TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
          Concrete,
          toLO, fromLO, improve, reduce,
@@ -66,10 +66,11 @@ $include "NewSLO/Factor.mpl"
   `integrate` := toLO:-integrate;
   `unweight`  := fromLO:-unweight;
 
+  apply_LO := proc(e::specfunc(LO),f,$) unapply(op(2,e),op(1,e))(f) end proc;
+
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
 # (probably proc, which should be applied immediately, or a generated symbol).
-
   applyintegrand := proc(h, x, $)
     local var, body, dummy;
     if h :: 'Integrand(name, anything)' then
