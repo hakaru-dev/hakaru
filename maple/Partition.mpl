@@ -359,19 +359,19 @@ export
   end proc,
 
   Simpl := module()
-    export ModuleApply := proc(p, $)
+    export ModuleApply := proc(p)
       local ps, qs, qs1, mk;
       if p :: Partition then
         reduce_branches(remove_false_pieces(flatten(p)));
       elif assigned(distrib_op_Partition[op(0,p)]) then
         mk := distrib_op_Partition[op(0,p)];
         ps := [op(p)];
-        ps := map(Simpl, ps);
+        ps := map(x->Simpl(x,_rest), ps);
         ps, qs := selectremove(type, ps, Partition);
         if nops(ps)=0 then return p end if;
         mk(op(qs),foldr(((a,b)->Partition:-PProd(a,b,_add=mk)),op(ps)));
       else
-        subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},Simpl);
+        subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->Simpl(x,_rest));
       end if;
     end proc;
     local distrib_op_Partition := table([`+`=`+`,`*`=`*`]);
@@ -437,7 +437,7 @@ export
     end proc;
 
     export remove_false_pieces := proc(e::Partition, $)
-      PARTITION(remove(p -> not(coulditbe(condOf(p))), piecesOf(e)));
+      PARTITION(remove(p -> type(KB:-assert(condOf(p), KB:-empty), t_not_a_kb), piecesOf(e)));
     end proc;
 
    local `&on` := proc(f,k,$) proc(a,b,$) f(k(a),k(b)) end proc end proc;
@@ -452,7 +452,7 @@ export
      if nops(ps1) >= nops(ps) then return e; end if;
      userinfo(3, :-reduce_branches, printf("Categorize: %a\n", ps1));
 
-     ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve')[])
+     ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb')[])
                         ,valOf(op(1,p)))
                ,ps1);
      userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
@@ -603,11 +603,27 @@ export
       end proc;
 
       export ModuleApply := proc(ctx)::list(PartitionCond);
-        local ctxC := ctx;
+        local ctxC, ctxC1, ctxC_c, ctxC1_c;
+        ctxC := ctx;
         if ctx :: identical(true) then
           error "Simpl:-condition: don't know what to do with %1", ctxC;
+        elif condition_complexity(ctx)=1 then
+          return [ctx];
+        end if;
+        if 'do_kb' in {_rest} then
+          ctxC1 := KB:-assert( ctxC, KB:-empty );
+          ctxC1 := KB:-kb_to_constraints(ctxC1);
+          ctxC1 := bool_And(op(ctxC1));
+          ctxC1_c, ctxC_c := map(condition_complexity, [ctxC1,ctxC])[];
+          if ctxC1_c < ctxC_c then
+            ctxC := ctxC1;
+            if ctxC1_c = 1 then
+              return [ctxC];
+            end if;
+          end if;
         end if;
         ctxC := KB:-chill(ctxC);
+
         if 'do_solve' in {_rest} and _Env_HakaruSolve<>false then
           ctxC := solve({ctxC}, 'useassumptions'=true);
           if ctxC = NULL and indets(ctx, specfunc(`exp`)) <> {} then
