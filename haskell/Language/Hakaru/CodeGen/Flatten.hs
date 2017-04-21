@@ -739,106 +739,121 @@ flattenBucket lo hi red = \loc -> do
     itId <- genIdent' "it"
     declare SNat itId
     let itE = CVar itId
-    ids <- declRed red
-    _ <- initRed ids red
+    mEs <- declRed red
+    _ <- initRed mEs red
     forCG (itE .=. loE)
           (itE .<. hiE)
           (CUnary CPostIncOp itE)
-          (accumRed ids red >> return ())
-    finRed loc ids
+          (accumRed mEs red >> return ())
+    finRed loc mEs
     putStat $ opComment "End Bucket"
-  where declRed :: Reducer abt xs a -> CodeGen (S.Seq Ident)
+  where declRed
+          :: (ABT Term abt)
+          => Reducer abt '[] a
+          -> CodeGen (S.Seq CExpr)
         declRed (Red_Fanout mr1 mr2) =
-          do ids1 <- declRed mr1
-             ids2 <- declRed mr2
-             return (ids1 <> ids2)
+          do es1 <- declRed mr1
+             es2 <- declRed mr2
+             return (es1 <> es2)
         declRed (Red_Index _ _ body) =
           let typ = typeOfReducer body in
             do mId <- genIdent' "m"
-               declare typ mId
-               return . S.singleton $ mId
+               declare (SArray typ) mId
+               return . S.singleton . CVar $ mId
         declRed (Red_Split _ mr1 mr2) =
-          do ids1 <- declRed mr1
-             ids2 <- declRed mr2
-             return (ids1 <> ids2)
-        declRed (Red_Nop) = return mempty
-        declRed (Red_Add sr _)    =
+          do es1 <- declRed mr1
+             es2 <- declRed mr2
+             return (es1 <> es2)
+        declRed (Red_Nop) =
+          do mId <- genIdent' "mu"
+             declare sUnit mId
+             return . S.singleton . CVar $ mId
+        declRed (Red_Add sr _) =
           do let semiTyp = sing_HSemiring sr
              mId <- genIdent' "m"
              declare semiTyp mId
-             return . S.singleton $ mId
+             return . S.singleton . CVar $ mId
 
-        initRed :: S.Seq Ident -> Reducer abt xs a -> CodeGen (S.Seq Ident)
-        initRed ms (Red_Fanout mr1 mr2) =
-          do ms' <- initRed ms mr1
-             initRed ms' mr2
-        initRed ms (Red_Index s _ _) =
-          do putStat $ CComment "TODO: initRed{Red_Index}"
-             return ms
-        initRed ms (Red_Split _ mr1 mr2) =
-          do ms' <- initRed ms mr1
-             initRed ms' mr2
-        initRed ms (Red_Nop) = return ms
-        initRed ms (Red_Add sr _) =
+        initRed
+          :: (ABT Term abt)
+          => S.Seq CExpr
+          -> Reducer abt '[] a
+          -> CodeGen (S.Seq CExpr)
+        initRed ms mr =
           case S.viewl ms of
             S.EmptyL -> return mempty
             (h S.:< tl) ->
-              let identityE =
-                    case sing_HSemiring sr of
-                      SNat  -> intE 0
-                      SInt  -> intE 0
-                      SReal -> floatE 0
-                      SProb -> logE (floatE 0)
-              in  do putExprStat $ (CVar h) .=. identityE
+              case mr of
+                (Red_Fanout mr1 mr2) ->
+                  do ms' <- initRed ms mr1
+                     initRed ms' mr2
+                (Red_Index s _ body) ->
+                  let typ = typeOfReducer body in
+                    do sE <- flattenWithName' s "s"
+                       isManagedMem <- managedMem <$> get
+                       let malloc' = if isManagedMem then gc_mallocE else mallocE
+                       putExprStat $ arraySize h .=. sE
+                       putExprStat $   (arrayData h)
+                                   .=. (CCast (CTypeName (buildType typ) True)
+                                              (malloc' (sE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
+                       itId  <- genIdent
+                       declare SNat itId
+                       let itE     = CVar itId
+                           currInd = index (arrayData h) itE
+                       forCG (itE .=. (intE 0))
+                             (itE .<. sE)
+                             (CUnary CPostIncOp itE)
+                             (putExprStat $ currInd .=. (addMonoidIdentity typ))
+                       return ms
+                (Red_Split _ mr1 mr2) ->
+                  do ms' <- initRed ms mr1
+                     initRed ms' mr2
+                Red_Nop -> return tl
+                (Red_Add sr _) ->
+                  do putExprStat $ h .=. (addMonoidIdentity $ sing_HSemiring sr)
                      return tl
 
         accumRed
           :: (ABT Term abt)
-          => S.Seq Ident
-          -> Reducer abt xs a
-          -> CodeGen (S.Seq Ident)
-        accumRed s (Red_Fanout mr1 mr2) =
-          case S.viewl s of
-            S.EmptyL -> return mempty
-            (h S.:< tl) -> accumRed (pure h) mr1 >> accumRed tl mr2
-        accumRed s (Red_Index _ _ _) =
-          do putStat $ CComment "TODO: accumRed{Red_Index}"
-             return s
-        accumRed s (Red_Split b _ _) =
-          case S.viewl s of
+          => S.Seq CExpr
+          -> Reducer abt '[] a
+          -> CodeGen (S.Seq CExpr)
+        accumRed ms mr =
+          case S.viewl ms of
             S.EmptyL -> return mempty
             (h S.:< tl) ->
-              caseBind b $ \v b' ->
-                let (vs,b'') = caseBinds b' in
-                   do _ <- createIdent v
-                      sequence_ . foldMap11 ((:[]) . createIdent) $ vs
-                      bE <- flattenWithName' b'' "cond"
-                      putStat $ CComment "TODO: accumRed{Red_Split}"
-                      return tl
-        accumRed s (Red_Nop) =
-          do putStat $ CComment "TODO: accumRed{Red_Nop}"
-             return s
-        accumRed s (Red_Add sr e) =
-          case S.viewl s of
-            S.EmptyL -> return mempty
-            (h S.:< tl) ->
-              caseBind e $ \v e' ->
-                let (vs,e'') = caseBinds e' in
-                   do _ <- createIdent v
-                      sequence_ . foldMap11 ((:[]) . createIdent) $ vs
-                      eE <- flattenWithName e''
-                      putExprStat $ (CVar h) .+=. eE
-                      return tl
+              case mr of
+                (Red_Fanout mr1 mr2) -> accumRed (pure h) mr1 >> accumRed tl mr2
+                (Red_Index _ _ _) ->
+                  do putStat $ CComment "TODO: accumRed{Red_Index}"
+                     return tl
+                (Red_Split b mr1 mr2) ->
+                  caseBind b $ \v b' ->
+                    let (vs,b'') = caseBinds b' in
+                      do _ <- createIdent v
+                         sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                         bE <- flattenWithName' b'' "cond"
+                         ms' <- accumRed tl mr1
+                         return tl
+                Red_Nop -> return tl
+                (Red_Add sr e) ->
+                  caseBind e $ \v e' ->
+                    let (vs,e'') = caseBinds e' in
+                      do _ <- createIdent v
+                         sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                         eE <- flattenWithName e''
+                         putExprStat $ h .+=. eE
+                         return tl
 
-        finRed :: CExpr -> S.Seq Ident -> CodeGen ()
+        finRed :: CExpr -> S.Seq CExpr -> CodeGen ()
         finRed loc ms =
           case S.viewl ms of
             S.EmptyL -> return ()
             (h S.:< tl) ->
               case S.viewl tl of
-                S.EmptyL -> putExprStat $ loc .=. (CVar h)
+                S.EmptyL -> putExprStat $ loc .=. h
                 _ -> let nexLoc = loc ... "sum" ... "a" ... "b"
-                     in  do putExprStat $ (loc ... "sum" ... "a" ... "a") .=. (CVar h)
+                     in  do putExprStat $ (loc ... "sum" ... "a" ... "a") .=. h
                             finRed nexLoc tl
 
 typeOfReducer :: Reducer abt xs a -> Sing a
@@ -848,7 +863,13 @@ typeOfReducer (Red_Split _ a b) = sPair  (typeOfReducer a) (typeOfReducer b)
 typeOfReducer Red_Nop           = sUnit
 typeOfReducer (Red_Add h _)     = sing_HSemiring h
 
-
+addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
+addMonoidIdentity sing =
+  case sing of
+    SNat  -> intE 0
+    SInt  -> intE 0
+    SReal -> floatE 0
+    SProb -> logE (floatE 0)
 
 --------------------------------------------------------------------------------
 --                                 Datum and Case                             --
