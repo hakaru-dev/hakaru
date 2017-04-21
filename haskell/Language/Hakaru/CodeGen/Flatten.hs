@@ -828,6 +828,7 @@ flattenBucket lo hi red = \loc -> do
                   caseBind a $ \v a' ->
                     let (vs,a'') = caseBinds a' in
                       do _ <- createIdent v
+                         sequence_ . foldMap11 ((:[]) . createIdent) $ vs
                          _ <- flattenWithName a''
                          itId  <- genIdent
                          declare SNat itId
@@ -844,8 +845,13 @@ flattenBucket lo hi red = \loc -> do
                       do _ <- createIdent v
                          sequence_ . foldMap11 ((:[]) . createIdent) $ vs
                          bE <- flattenWithName' b'' "cond"
-                         ms' <- accumRed tl mr1
-                         return tl
+                         case S.viewl tl of
+                           S.EmptyL -> error "accumRed, this shouldn't happen"
+                           (h' S.:< tl') -> do
+                             ifCG (bE ... "index" .==. (intE 0))
+                                  (accumRed (pure h) mr1 >> return ())
+                                  (accumRed (pure h') mr2 >> return ())
+                             return tl'
                 Red_Nop -> return tl
                 (Red_Add sr e) ->
                   caseBind e $ \v e' ->
@@ -868,12 +874,14 @@ flattenBucket lo hi red = \loc -> do
                             finRed nexLoc tl
 
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
-addMonoidIdentity sing =
-  case sing of
+addMonoidIdentity s =
+  case s of
     SNat  -> intE 0
     SInt  -> intE 0
     SReal -> floatE 0
     SProb -> logE (floatE 0)
+    SArray x -> addMonoidIdentity x
+    x -> error $ "addMonoidIdentity{" ++ show x ++ "}"
 
 --------------------------------------------------------------------------------
 --                                 Datum and Case                             --

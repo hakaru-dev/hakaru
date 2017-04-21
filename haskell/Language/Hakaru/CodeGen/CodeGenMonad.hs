@@ -58,6 +58,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , lookupIdent
 
   -- control mechanisms
+  , ifCG
   , whileCG
   , doWhileCG
   , forCG
@@ -335,6 +336,24 @@ lookupVar (Variable _ nat _) (Env env) =
 
 ----------------------------------------------------------------
 -- Control Flow
+
+ifCG :: CExpr -> CodeGen () -> CodeGen () -> CodeGen ()
+ifCG bE m1 m2 =
+  do cg <- get
+     let (_,cg') = runState m1 $ cg { statements   = []
+                                    , declarations = [] }
+     let (_,cg'') = runState m2 $ cg' { statements   = []
+                                      , declarations = [] }
+     put $ cg'' { statements = statements cg
+                , declarations = declarations cg }
+     putStat $ CIf bE
+                   (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
+                              ++ (fmap CBlockStat (reverse $ statements cg'))))
+                   (Just (CCompound $  (fmap CBlockDecl (reverse $ declarations cg'')
+                                    ++ (fmap CBlockStat (reverse $ statements cg'')))))
+
+
+
 
 whileCG :: CExpr -> CodeGen () -> CodeGen ()
 whileCG bE m =
