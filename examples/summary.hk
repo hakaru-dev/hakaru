@@ -1,0 +1,4 @@
+fn K nat:
+  fn z array(nat):
+    fn t array(real):
+       array k of K: summate i from 0 to size(z): if z[i]==k: t[i] else: 0
