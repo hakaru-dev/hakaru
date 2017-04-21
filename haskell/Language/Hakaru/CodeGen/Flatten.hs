@@ -856,13 +856,6 @@ flattenBucket lo hi red = \loc -> do
                      in  do putExprStat $ (loc ... "sum" ... "a" ... "a") .=. h
                             finRed nexLoc tl
 
-typeOfReducer :: Reducer abt xs a -> Sing a
-typeOfReducer (Red_Fanout a b)  = sPair  (typeOfReducer a) (typeOfReducer b)
-typeOfReducer (Red_Index _ _ a) = SArray (typeOfReducer a)
-typeOfReducer (Red_Split _ a b) = sPair  (typeOfReducer a) (typeOfReducer b)
-typeOfReducer Red_Nop           = sUnit
-typeOfReducer (Red_Add h _)     = sing_HSemiring h
-
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
 addMonoidIdentity sing =
   case sing of
