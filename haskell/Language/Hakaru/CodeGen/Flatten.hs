@@ -816,7 +816,7 @@ flattenBucket lo hi red = \loc -> do
         accumRed
           :: (ABT Term abt)
           => S.Seq CExpr
-          -> Reducer abt '[] a
+          -> Reducer abt xs a
           -> CodeGen (S.Seq CExpr)
         accumRed ms mr =
           case S.viewl ms of
@@ -824,9 +824,20 @@ flattenBucket lo hi red = \loc -> do
             (h S.:< tl) ->
               case mr of
                 (Red_Fanout mr1 mr2) -> accumRed (pure h) mr1 >> accumRed tl mr2
-                (Red_Index _ _ _) ->
-                  do putStat $ CComment "TODO: accumRed{Red_Index}"
-                     return tl
+                (Red_Index _ a body) ->
+                  caseBind a $ \v a' ->
+                    let (vs,a'') = caseBinds a' in
+                      do _ <- createIdent v
+                         _ <- flattenWithName a''
+                         itId  <- genIdent
+                         declare SNat itId
+                         let itE     = CVar itId
+                             currInd = index (arrayData h) itE
+                         forCG (itE .=. (intE 0))
+                               (itE .<. (arraySize h))
+                               (CUnary CPostIncOp itE)
+                               (accumRed (pure currInd) body >> return ())
+                         return tl
                 (Red_Split b mr1 mr2) ->
                   caseBind b $ \v b' ->
                     let (vs,b'') = caseBinds b' in
