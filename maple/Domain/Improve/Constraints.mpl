@@ -56,7 +56,7 @@ end module;
 
 clamp_extraneous_constraints := module()
   export SimplName  := "clamp_extraneous_constraints";
-  export SimplOrder := 26 + 1/10;
+  export SimplOrder := 6 - 1/10;
   export ModuleApply := Simplify_DConstrain(can, `try`);
 
   local can := proc(vs)
@@ -77,7 +77,7 @@ clamp_extraneous_constraints := module()
         b_ty := `if`(b_ty=B_LO, 'minimize', 'maximize');
         extremum := b_ty(b_bnd, op(b_bnd_vs)) assuming(op(ctx1));
         if not (ext :: SymbolicInfinity or has(extremum, {maximize,minimize})) then
-          q := b_rel(b_var,extremum);
+          q := q, b_rel(b_var,extremum);
         end if;
       end if;
     end if;
