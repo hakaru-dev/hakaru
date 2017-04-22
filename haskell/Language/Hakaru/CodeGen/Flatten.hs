@@ -757,7 +757,7 @@ flattenBucket lo hi red = \loc -> do
              return (es1 <> es2)
         declRed (Red_Index _ _ body) =
           let typ = typeOfReducer body in
-            do mId <- genIdent' "m"
+            do mId <- genIdent' "mi"
                declare (SArray typ) mId
                return . S.singleton . CVar $ mId
         declRed (Red_Split _ mr1 mr2) =
@@ -769,10 +769,10 @@ flattenBucket lo hi red = \loc -> do
              declare sUnit mId
              return . S.singleton . CVar $ mId
         declRed (Red_Add sr _) =
-          do let semiTyp = sing_HSemiring sr
-             mId <- genIdent' "m"
-             declare semiTyp mId
-             return . S.singleton . CVar $ mId
+          let semiTyp = sing_HSemiring sr in
+            do mId <- genIdent' "ma"
+               declare semiTyp mId
+               return . S.singleton . CVar $ mId
 
         initRed
           :: (ABT Term abt)
@@ -825,10 +825,14 @@ flattenBucket lo hi red = \loc -> do
               case mr of
                 (Red_Fanout mr1 mr2) -> accumRed (pure h) mr1 >> accumRed tl mr2
                 (Red_Index _ a body) ->
-                  caseBind a $ \v a' ->
+                  caseBind a $ \v@(Variable _ _ typ) a' ->
                     let (vs,a'') = caseBinds a' in
-                      do _ <- createIdent v
-                         sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                      do declare typ =<< createIdent v
+                         sequence_ . foldMap11
+                           (\v' -> case v' of
+                             (Variable _ _ typ') ->
+                               [declare typ' =<< createIdent v'])
+                           $ vs
                          _ <- flattenWithName a''
                          itId  <- genIdent
                          declare SNat itId
@@ -840,13 +844,17 @@ flattenBucket lo hi red = \loc -> do
                                (accumRed (pure currInd) body >> return ())
                          return tl
                 (Red_Split b mr1 mr2) ->
-                  caseBind b $ \v b' ->
+                  caseBind b $ \v@(Variable _ _ typ) b' ->
                     let (vs,b'') = caseBinds b' in
-                      do _ <- createIdent v
-                         sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                      do declare typ =<< createIdent v
+                         sequence_ . foldMap11
+                           (\v' -> case v' of
+                             (Variable _ _ typ') ->
+                               [declare typ' =<< createIdent v'])
+                           $ vs
                          bE <- flattenWithName' b'' "cond"
                          case S.viewl tl of
-                           S.EmptyL -> error "accumRed, this shouldn't happen"
+                           S.EmptyL -> error $ "accumRed, this shouldn't happen: " ++ show ms
                            (h' S.:< tl') -> do
                              ifCG (bE ... "index" .==. (intE 0))
                                   (accumRed (pure h) mr1 >> return ())
@@ -854,10 +862,14 @@ flattenBucket lo hi red = \loc -> do
                              return tl'
                 Red_Nop -> return tl
                 (Red_Add sr e) ->
-                  caseBind e $ \v e' ->
+                  caseBind e $ \v@(Variable _ _ typ) e' ->
                     let (vs,e'') = caseBinds e' in
-                      do _ <- createIdent v
-                         sequence_ . foldMap11 ((:[]) . createIdent) $ vs
+                      do declare typ =<< createIdent v
+                         sequence_ . foldMap11
+                           (\v' -> case v' of
+                             (Variable _ _ typ') ->
+                               [declare typ' =<< createIdent v'])
+                           $ vs
                          eE <- flattenWithName e''
                          putExprStat $ h .+=. eE
                          return tl
