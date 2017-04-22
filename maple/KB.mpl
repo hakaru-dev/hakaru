@@ -404,8 +404,14 @@ KB := module ()
      if not (bad = {}) then return FAIL; end if;
 
      # otherwise go ahead
-     c := solve({chill(b)},[x], 'useassumptions'=true) assuming op(as);
-     postproc_for_solve((x,kb)->assert_deny_mb(x,pol,kb), warm(c), kb, as);
+     try
+       c := solve({chill(b)},[x], 'useassumptions'=true) assuming op(as);
+       postproc_for_solve((x,kb)->assert_deny_mb(x,pol,kb), warm(c), kb, as);
+     catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
+       WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling solve(%%1, %%2) assuming (%%3)"
+                         , StringTools[FormatMessage](lastexception[2..-1])), b, x, as );
+       return FAIL;
+     end try;
    end proc;
 
    postproc_for_solve := proc(reduce_op, c, kb, as, $)
@@ -553,7 +559,12 @@ KB := module ()
       # If `b' reduces to `true' in the KB environment then there is no need to
       # add it
       ch := chill(b);
-      if is(ch) assuming op(as) then return kb end if;
+      try
+        if is(ch) assuming op(as) then return kb end if;
+      catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
+        WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling is(%%1) assuming (%%2)"
+                        , StringTools[FormatMessage](lastexception[2..-1])), b, as );
+      end try;
 
       # Add constraint to KB.
       KB(Constrain(b), op(kb))
