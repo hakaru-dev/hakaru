@@ -43,8 +43,7 @@ export Apply := module ()
            # guard.
            if sh :: DomConstrain then
                vars := Domain:-Bound:-varsOf(vs,"set") minus done_;
-               cond := remove(is, [op(sh)]);
-               cond, cond_outer := selectremove(c->has(c,indets(vars, And(name,Not(constant)))), cond);
+               cond, cond_outer := select_cond_outer(sh, vars);
                # if there are still integrals which have not been applied, apply
                # them now
                do_constrain(cond_outer)(do_mks(e, (r,kb1) -> do_constrain(cond)(op(3,ctx)(r, kb1)), vars, vs, ctx))
@@ -72,10 +71,13 @@ export Apply := module ()
                deps := `union`(deps, {vn});
                done_ := `union`(done_, deps) ;
 
+               shv, cond_outer := select_cond_outer(shv, done_);
+
                # build this integral, and the other this one depended on, then
                # recursively apply
-               do_mks(e, (r,kb1) -> do_apply(done_, r, vs, shv, subsop(1=kb1,ctx)),
-                      deps, Domain:-Bound:-upd(vs, vn, vt), ctx);
+               do_constrain(cond_outer)(
+                 do_mks(e, (r,kb1) -> do_apply(done_, r, vs, shv, subsop(1=kb1,ctx)),
+                      deps, Domain:-Bound:-upd(vs, vn, vt), ctx));
            else
                error "don't know how to apply %1", sh
            end if;
@@ -96,6 +98,23 @@ export Apply := module ()
            mk_cond := x->PARTITION([Piece(cond,x), Piece(Not(cond),0)]);
          end if;
          mk_cond;
+       end proc;
+
+       # A very cute way of pulling constraints out over other constructors
+       # which relies on the fact that constraints are required to be innermost;
+       # i.e. DomShape is a sum of products; i.e. this could also be called
+       # 'factoring'.
+       local select_cond_outer := proc(sh::DomShape, vars0::set({name,list(name)}), $)
+         local csd, cs0, cs, ots, sh1, ins, vars := vars0;
+         vars := map(v->`if`(v::list,v,[v])[],vars);
+         csd := [op(indets(sh, And(DomConstrain,Not(satisfies(x->has(x,vars))))))];
+         cs0 := map(x->{op(x)},csd);
+         if cs0=[] then return sh, {}; end if;
+         cs := map(x->[selectremove(z->andmap(c->z in c,cs0),x)], cs0);
+         ots := op([1,1],cs); ins := map(curry(op,2), cs);
+         sh1 := subs(zip(`=`, csd, map(DConstrain@op,ins)), sh);
+         userinfo(3, Domain, printf("select_cond_outer(%a, %a) = %a, %a\n", sh, vars, sh1, ots));
+         sh1, ots;
        end proc;
 
        # Move into an integral by augmenting the KB with the variables bound by
