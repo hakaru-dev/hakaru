@@ -267,23 +267,20 @@ TestHakaru(t80, t80, label = "t80");
 
 ## based on https://github.com/hakaru-dev/hakaru/issues/60
 module()
-  local kb, x, y, A, B, ub, clamp_ub, clamp_r, clamp_t:
-  kb := [A::positive,B::positive,A<B,y::real]:
-  ub := density[Gaussian](A,B);
+  local kb, clamp_t, clamp_r;
+  kb := [y::real]:
   clamp_t :=
-    Bind(Gaussian(A,B),x,
-      Partition(And(0<y,y<ub(x)),
-                Weight(density[Uniform](A,B)(y),
-                Ret(x)),
-                Msum())):
-  clamp_ub :=
-    (proc() local q;assume(op(kb));
-            q := maximize(ub(x), x);
-            MathematicalFunctions[Assume](clear=indets(kb,name)); q;
-     end proc());
-  clamp_r := Partition(And(0<y,y<clamp_ub)
-                      ,Weight(-1/(-B+A), Gaussian(A, B))
-                      ,Msum()):
+    Bind(Gaussian(0,1),x,
+         Partition(And(0<y,y<density[Gaussian](0,1)(x)),
+                   Weight(density[Uniform](0,density[Gaussian](0,1)(x))(y),
+                          Ret(x)),
+                   Msum())):
+  clamp_r :=
+    Partition(And(0<y, y<density[Gaussian](0,1)(0)),
+              Weight(2 * sqrt(-ln(2)-ln(Pi)-2*ln(y)),
+                     Uniform(-sqrt(-ln(2)-ln(Pi)-2*ln(y)),
+                             sqrt(-ln(2)-ln(Pi)-2*ln(y)))),
+              Msum()):
   TestHakaru( clamp_t, clamp_r, ctx=kb, label="clamp condition to move it out of integral" ):
 end module:
 
