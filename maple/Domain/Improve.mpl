@@ -66,7 +66,7 @@ export Improve := module ()
 
     export classify_relation := proc(r0::relation, vars0, $)
       ::{identical(FAIL), [identical(B_LO,B_HI,B_EQ,B_NEQ), satisfies(q->q in {indices(flip_relation,nolist)}), name, algebraic]};
-      local in_vars, vars := vars0, r := r0;
+      local r_k, r_s, in_vars, vars := vars0, r := r0;
       if vars :: ({set,list})(name) then
         vars := {op(vars)}; in_vars := x->x in vars;
       elif vars :: DomBound then
@@ -81,10 +81,11 @@ export Improve := module ()
 
       if r :: {`<=`,`<`, `=`, `<>`} then
         if in_vars(rhs(r)) then
-          r := op(0,r)(rhs(r), lhs(r));
-        end if;
-        if not in_vars(lhs(r)) then return FAIL end if;
-        [ classify_relop[op(0,r)], op(0,r), lhs(r), rhs(r) ];
+          r_k := flip_relation[op(0,r)]; r_s := rhs(r), lhs(r);
+        elif in_vars(lhs(r)) then
+          r_k := op(0,r); r_s := op(r);
+        else return FAIL end if;
+        [ classify_relop[r_k], r_k, r_s ];
       else FAIL
       end if;
     end proc;
