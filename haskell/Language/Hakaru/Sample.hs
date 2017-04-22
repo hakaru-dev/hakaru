@@ -632,16 +632,6 @@ evaluateBucket b e rs env =
             return (VDatum $ dPair_ s1 s2 v1' v2')
           done (VRed_Array v)          = VArray <$> V.sequence (V.map done v)
 
-typeOfReducer
-    :: Reducer abt xs a
-    -> Sing a
-typeOfReducer (Red_Fanout a b)  = sPair  (typeOfReducer a) (typeOfReducer b)
-typeOfReducer (Red_Index _ _ a) = SArray (typeOfReducer a)
-typeOfReducer (Red_Split _ a b) = sPair  (typeOfReducer a) (typeOfReducer b)
-typeOfReducer Red_Nop           = sUnit
-typeOfReducer (Red_Add h _)     = sing_HSemiring h
-
-
 evaluateDatum
     :: (ABT Term abt)
     => Datum (abt '[]) (HData' a)

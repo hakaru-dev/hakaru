@@ -25,6 +25,7 @@ module Language.Hakaru.Syntax.TypeOf
     (
     -- * Get singletons for well-typed ABTs
       typeOf
+    , typeOfReducer
     
     -- * Implementation details
     , getTermSing
@@ -93,6 +94,16 @@ typeOf_
         (LiftSing . getTermSing unLiftSing)
 
 
+
+typeOfReducer
+    :: Reducer abt xs a
+    -> Sing a
+typeOfReducer (Red_Fanout a b)  = sPair  (typeOfReducer a) (typeOfReducer b)
+typeOfReducer (Red_Index _ _ a) = SArray (typeOfReducer a)
+typeOfReducer (Red_Split _ a b) = sPair  (typeOfReducer a) (typeOfReducer b)
+typeOfReducer Red_Nop           = sUnit
+typeOfReducer (Red_Add h _)     = sing_HSemiring h
+
 -- | This newtype serves two roles. First we add the phantom @xs@
 -- so that we can fit this in with the types of 'paraABT'. And
 -- second, we wrap up the 'Sing' in a monad for capturing errors,
@@ -140,17 +151,6 @@ getTermSing singify = go
     getBranchSing (Branch _ e) = getSing e
     {-# INLINE getBranchSing #-}
 
-    typeOfReducer
-        :: forall xs a
-        .  Reducer (Pair2 abt r) xs a
-        -> Either String (Sing a)
-    typeOfReducer (Red_Fanout a b)  = sPair  <$> typeOfReducer a <*> typeOfReducer b
-    typeOfReducer (Red_Index _ _ a) = SArray <$> typeOfReducer a
-    typeOfReducer (Red_Split _ a b) = sPair  <$> typeOfReducer a <*> typeOfReducer b
-    typeOfReducer Red_Nop           = return sUnit
-    typeOfReducer (Red_Add h _)     = return (sing_HSemiring h)
-
-                                 
     go :: forall a. Term (Pair2 abt r) a -> Either String (Sing a)
     go (Lam_ :$ r1 :* End) =
         caseBind (fst2 r1) $ \x _ ->
@@ -182,7 +182,7 @@ getTermSing singify = go
     go (Empty_   typ)               = return typ
     go (Array_   _  r2)             = SArray <$> getSing r2
     go (ArrayLiteral_ es)           = SArray <$> tryAll "ArrayLiteral_" getSing es
-    go (Bucket _ _  r)              = typeOfReducer r
+    go (Bucket _ _  r)              = return (typeOfReducer r)
     go (Datum_ (Datum _ typ _))     = return typ
     go (Case_    _  bs) = tryAll "Case_"      getBranchSing   bs
     go (Superpose_ pes) = tryAll "Superpose_" (getSing . snd) pes
