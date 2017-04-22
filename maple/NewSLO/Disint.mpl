@@ -130,9 +130,9 @@
 
   ;
     ModuleApply := proc()::t_Hakaru;
-      local todo,expr;
+      local todo,expr,t;
       expr, todo := disint:-`do`(args)[];
-      foldr(`@`,_->_,op(ListTools[Reverse](todo)))(expr);
+      for t in todo do expr := t(expr); end do; expr;
     end proc;
 
    `do` := proc(
