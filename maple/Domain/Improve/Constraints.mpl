@@ -29,25 +29,26 @@ constraints_about_vars := module()
     c -> c::relation and (not(lhs(c) in vars) and not(rhs(c) in vars) and has(c,{ln,exp}));
   end proc;
   local try_make_about := proc(dbnd, ctx1, q0, $)
-      local vars_q, vars, q_s, q := q0;
+      local vars_q, vars, q_s, q_r, q := q0;
       vars := Domain:-Bound:-varsOf(dbnd,"set");
       vars_q := indets(q, name) intersect vars;
       if nops(vars_q)=0 then return q end if;
 
       vars_q := op(1,vars_q);
       q := KB:-try_improve_exp(q, vars_q, ctx1);
+      q_r := `if`(has(q,{ln,exp}),q0,q);
       q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
       q_s := eval(q_s);
       if q_s::list then
-        if nops(q_s)=0 then return q end if;
+        if nops(q_s)=0 then return q_r end if;
         q_s := map(s->remove(c->c in ctx1 or `and`(c::relation,lhs(c)::name,lhs(c)=rhs(c)), s), q_s);
         q_s := remove(x->x=[],q_s);
-        if nops(q_s)=0 then return q end if;
+        if nops(q_s)=0 then return q_r end if;
         userinfo(3, 'constraints_about_vars'
                 ,printf("Found a solution to %a (with solve):\n\t%a\n", q0, op(1,q_s)));
         op(op(1,q_s)); # pick the first solution arbitrarily!
       else
-        q
+        q_r
       end if;
   end proc;
 end module;
