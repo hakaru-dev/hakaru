@@ -78,7 +78,7 @@ Loop := module ()
          ints, sums,
      # while these are "proper functions"
          mk_HArray, genLoop, unproducts, unproduct,
-         peel, split, graft, rebase_lower, rebase_upper;
+         peel, split, graft, rebase_lower, rebase_upper, Print;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Ints, Sums, csgn, sum;
@@ -91,6 +91,13 @@ Loop := module ()
 
   ints := proc() intssums('ints', 'int', _passed) end proc;
   sums := proc() intssums('sums', 'sum', _passed) end proc;
+
+  Print := proc(kind::identical(Ints,Sums,ints,sums),e,v::name,r0::range,rs::list(name=range),$)
+    local k;
+    k := StringTools[Capitalize](StringTools[Chop](convert(kind,string)));
+    k := parse(cat("`print/",eval(k),"`"));
+    eval(k)(e,v[op(rs)]=r0);
+  end proc;
 
   intssums := proc(makes::name, make::name,
                    e::anything, x::name, rr::range, ll::list(name=range),
@@ -550,6 +557,12 @@ Loop := module ()
       end proc,
       sum]);
     protect(sum);
+
+    :-`print/Ints` := curry(thismodule:-Print,Ints);
+    :-`print/Sums` := curry(thismodule:-Print,Sums);
+    :-`print/ints` := curry(thismodule:-Print,ints);
+    :-`print/sums` := curry(thismodule:-Print,sums);
+
   end proc;
   ModuleLoad():
 end module; # Loop
