@@ -7,6 +7,7 @@ end if;
 
 with(Hakaru):
 with(NewSLO):
+with(Partition):
 
 # covers primitive constructs
 model1 :=
@@ -263,6 +264,22 @@ TestHakaru(t23, t23s, label = "t23");
 TestHakaru(t43, t43s, label = "t43"):
 
 TestHakaru(t80, t80, label = "t80");
+
+## based on https://github.com/hakaru-dev/hakaru/issues/60
+module()
+  local kb, y, A, B, clamp_r, clamp_t:
+  kb := [A::positive,B::positive,A<B,y::real]:
+  clamp_t :=
+    Bind(Gaussian(A,B),x->
+      Partition(And(0<y,y<density[Gaussian](A,B)(x)),
+                Weight(density[Uniform](A,B)(y),
+                Ret(x)),
+                Msum())):
+  clamp_r := Partition(And(0<y,y<(1/2)*2^(1/2)/(B*Pi^(1/2)))
+                      ,Weight(-1/(-B+A), Gaussian(A, B))
+                      ,Msum()):
+  TestHakaru( clamp_t, clamp_r, ctx=kb, label="clamp condition to move it out of integral" ):
+end module:
 
 ###
 # From disintegration paper
