@@ -63,4 +63,31 @@ export Improve := module ()
           combine_errs( sh1, simp1(bnd, sh) );
       end if;
     end proc;
+
+    export classify_relation := proc(r0::relation, vars0, $)
+      ::{identical(FAIL), [identical(B_LO,B_HI,B_EQ,B_NEQ), satisfies(q->q in {indices(flip_relation,nolist)}), name, algebraic]};
+      local in_vars, vars := vars0, r := r0;
+      if vars :: ({set,list})(name) then
+        vars := {op(vars)}; in_vars := x->x in vars;
+      elif vars :: DomBound then
+        vars := DomBound:-Bound:-varsOf(vars); in_vars := x->x in vars;
+      elif vars :: appliable then
+        in_vars := vars;
+      elif vars :: type then
+        in_vars := x->type(x,vars);
+      else error "unknown argument: %1 (expecting variables, variable membership check, "
+                 "or domain bounds)", vars;
+      end if;
+
+      if r :: {`<=`,`<`, `=`, `<>`} then
+        if in_vars(rhs(r)) then
+          r := op(0,r)(rhs(r), lhs(r));
+        end if;
+        if not in_vars(lhs(r)) then return FAIL end if;
+        [ classify_relop[op(0,r)], op(0,r), lhs(r), rhs(r) ];
+      else FAIL
+      end if;
+    end proc;
+    local flip_relation := table([`=`=`=`,`<>`=`<>`,`<=`=`>=`,`<`=`>`,`>=`=`<=`,`>`=`<`]);
+    local classify_relop := table([`=`=B_EQ,`<>`=B_NEQ,`<=`=B_HI,`<`=B_HI,`>=`=B_LO,`>`=B_LO]);
 end module;
