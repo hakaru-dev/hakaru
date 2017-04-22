@@ -196,11 +196,12 @@ singular_pts := module()
   export SimplName  := "Single_pts";
   export SimplOrder := 14;
 
-  local can_remove := ((x,vs_ty) ->
-     nops(x) = 1 and
-     op(1,x) :: `=` and
-     ormap(s->s(op(1,x))::vs_ty,[lhs,rhs]) and
-     not(is(op(1,x))) );
+  local can_remove := ((xs,vs_ty) ->
+     nops(xs)>0 and
+     andmap(x ->
+     x :: `=` and
+     ormap(s->s(x)::vs_ty,[lhs,rhs]) and
+     not(is(x)), xs));
 
   export ModuleApply := proc(bnds_ :: DomBound, sh_ :: DomShape, $)
     local bnds := bnds_, sh := sh_, vs, todo, sh1, vs_ty;
