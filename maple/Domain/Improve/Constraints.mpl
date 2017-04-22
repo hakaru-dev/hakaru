@@ -53,6 +53,38 @@ constraints_about_vars := module()
   end proc;
 end module;
 
+
+clamp_extraneous_constraints := module()
+  export SimplName  := "clamp_extraneous_constraints";
+  export SimplOrder := 26 + 1/10;
+  export ModuleApply := Simplify_DConstrain(can, `try`);
+
+  local can := proc(vs)
+    local vars := Domain:-Bound:-varsOf(vs,"set");
+    c-> c::relation and
+        (ormap(s->s(c)::And(name,Not(constant)) and not(c in vars),[lhs,rhs]) and has(c, vars));
+  end proc;
+
+  local `try` := proc(dbnd, ctx1, q0, $)
+    local bnd, b_ty, b_rel, b_var, b_bnd, b_bnd_vs, vars, extremum, q := q0;
+    if has(q, {ln,exp}) then
+      vars := Domain:-Bound:-varsOf(dbnd, "set");
+      bnd := Domain:-Improve:-classify_relation(q0, x -> type(x, And(name,Not(constant))) and not (x in vars));
+      if bnd=FAIL then return q0 end if;
+      b_ty, b_rel, b_var, b_bnd := op(bnd):
+      b_bnd_vs := indets(b_bnd, satisfies(x -> x in vars));
+      if b_bnd_vs <> {} then
+        b_ty := `if`(b_ty=B_LO, 'minimize', 'maximize');
+        extremum := b_ty(b_bnd, op(b_bnd_vs));
+        if not ext :: SymbolicInfinity then
+          q := b_rel(b_var,extremum);
+        end if;
+      end if;
+    end if;
+    q
+  end proc;
+end module;
+
 # Pushes constraints down, or pulls them up, when there are such constraints.
 local do_ctx_dir := dir -> proc(vs :: DomBound, sh :: DomShape, $)
     local ctx := `if`(nops(vs)=2,op(2,vs),{});
