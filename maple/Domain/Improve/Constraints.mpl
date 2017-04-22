@@ -75,8 +75,8 @@ clamp_extraneous_constraints := module()
       b_bnd_vs := indets(b_bnd, satisfies(x -> x in vars));
       if b_bnd_vs <> {} then
         b_ty := `if`(b_ty=B_LO, 'minimize', 'maximize');
-        extremum := b_ty(b_bnd, op(b_bnd_vs));
-        if not ext :: SymbolicInfinity then
+        extremum := b_ty(b_bnd, op(b_bnd_vs)) assuming(op(ctx1));
+        if not (ext :: SymbolicInfinity or has(extremum, {maximize,minimize})) then
           q := b_rel(b_var,extremum);
         end if;
       end if;
