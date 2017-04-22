@@ -67,11 +67,12 @@ export Improve := module ()
     export classify_relation := proc(r0::relation, vars0, $)
       ::{identical(FAIL), [identical(B_LO,B_HI,B_EQ,B_NEQ), satisfies(q->q in {indices(flip_relation,nolist)}), name, algebraic]};
       local r_k, r_s, in_vars, vars := vars0, r := r0;
-      if vars :: ({set,list})(name) then
+      if vars :: ({set,list})({name,list(name)}) then
+        vars := map(x->`if`(x::list,op(1,x),x),vars);
         vars := {op(vars)}; in_vars := x->x in vars;
       elif vars :: DomBound then
         vars := DomBound:-Bound:-varsOf(vars,"set"); in_vars := x->x in vars;
-      elif vars :: appliable then
+      elif vars :: procedure then
         in_vars := vars;
       elif vars :: type then
         in_vars := x->type(x,vars);
