@@ -36,23 +36,18 @@ export Apply := module ()
        # f_body := how to make the expression body
        local do_apply := proc(done__, e, vs, sh_, ctx, $)
            local sh := sh_, done_ := done__
-               , r, cond, mk_cond, vn, vt, shv, vars, deps, ctx1, rn;
+               , r, cond, cond_outer, vn, vt, shv, vars, deps, ctx1, rn;
            # If the solution is a constraint, and the constraint is true,
            # then just produce the expression. If it isn't necessarily true
            # (i.e. trivial) then produce a Partition with the constraint as a
            # guard.
            if sh :: DomConstrain then
-               cond := remove(is, sh);
-               if cond = DConstrain() then
-                   mk_cond := x->x;
-               else
-                   cond := bool_And(op(cond));
-                   mk_cond := x->PARTITION([Piece(cond,x), Piece(Not(cond),0)]);
-               end if;
+               vars := {op(Domain:-Bound:-varsOf(vs))} minus done_;
+               cond := remove(is, [op(sh)]);
+               cond, cond_outer := selectremove(c->has(c,indets(vars, And(name,Not(constant)))), cond);
                # if there are still integrals which have not been applied, apply
                # them now
-               do_mks(e, (r,kb1) -> mk_cond(op(3,ctx)(r, kb1)),
-                      {op(Domain:-Bound:-varsOf(vs))} minus done_, vs, ctx);
+               do_constrain(cond_outer)(do_mks(e, (r,kb1) -> do_constrain(cond)(op(3,ctx)(r, kb1)), vars, vs, ctx))
            # if the solution is a sum of solutions, produce the algebraic sum
            # of each summand of the solution applied to the expression.
            elif sh :: DomSum then
@@ -91,6 +86,17 @@ export Apply := module ()
        end proc;
 
        export do_body := proc(e, _kb) e end proc;
+
+       local do_constrain := proc(cond0::{list,set,DomConstrain},$)
+         local mk_cond, cond := cond0;
+         if nops(cond)=0 then
+           mk_cond := x->x;
+         else
+           cond := bool_And(op(cond));
+           mk_cond := x->PARTITION([Piece(cond,x), Piece(Not(cond),0)]);
+         end if;
+         mk_cond;
+       end proc;
 
        # Move into an integral by augmenting the KB with the variables bound by
        # that integral.
