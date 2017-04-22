@@ -86,27 +86,25 @@ reduce_Integrals := module()
   , elim_intsum;
 
   reduce_Integrals_body := proc(h,opts,x,kb1) reduce(x,h,kb1,opts) end proc;
-  reduce_Integrals_into := proc(h,kind,e,vn,vt,kb,$)
+  reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,$)
     local rr;
-    rr := elim_intsum(Domain:-Apply:-do_mk(args[2..-1]), h, kb);
+    rr := elim_intsum(Domain:-Apply:-do_mk(args[3..-1]), h, kb,opts);
     rr := subsindets(rr, specfunc(RootOf), x->try_eval_Root(x,a->a));
     return rr;
   end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
-    local rr, elim;
+    local rr;
     rr := Domain:-Reduce(expr, kb
-      ,curry(reduce_Integrals_into,h)
+      ,curry(reduce_Integrals_into,h,opts)
       ,curry(reduce_Integrals_body,h,opts)
       ,(_->:-DOM_FAIL));
-   elim := subsindets(rr, specfunc(ELIMED), x->op(1,x));
-    if elim <> rr then rr := reduce(elim,h,kb,opts) end if;
     rr := kb_assuming_mb(Partition:-Simpl)(rr, kb, x->x);
-   if has(rr, :-DOM_FAIL) then
+    if has(rr, :-DOM_FAIL) then
       return FAIL;
     elif has(rr, FAIL) then
       error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
-          , expr, kb, kb, opts, rr;
+           , expr, kb, kb, opts, rr;
     end if;
     rr;
   end proc;
@@ -131,19 +129,15 @@ reduce_Integrals := module()
   # Try to find an eliminate (by evaluation, or simplification) integrals which
   # are free of `applyintegrand`s.
   elim_intsum := module ()
-    export ModuleApply := proc(inert0, h :: name, kb :: t_kb, $)
-       local ex, un_elim, e1, inert := inert0, done_e := false;
-       un_elim := subsindets(inert, specfunc('ELIMED'), x->op(1,x));
-       if un_elim <> inert then
-         inert := un_elim; done_e := true;
-       end if;
+    export ModuleApply := proc(inert0, h :: name, kb :: t_kb, opts, $)
+       local ex, e, inert := inert0;
        ex := extract_elim(inert, h);
-       e1 := apply_elim(h, kb, ex);
-       e1 := check_elim(inert, e1);
-       if e1 = FAIL then
-         `if`(done_e,ELIMED,_->_)(inert)
+       e[0] := apply_elim(h, kb, ex);
+       e[1] := check_elim(inert, e[0]);
+       if e[1] = FAIL then inert
        else
-         ELIMED(e1)
+         e[2] := reduce(e[1],h,kb,opts);
+         if has(e[2], {erf,csgn}) then inert else e[2] end if;
        end if
     end proc;
 
