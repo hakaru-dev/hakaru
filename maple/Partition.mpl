@@ -162,14 +162,15 @@ export
   # the other conditions.
   ModuleApply := proc()::Partition;
     local ps, as, ops_r;
-    if nargs=2 then
+    if nargs=0 then
       error "empty partition";
     end if;
-    ps := [args]; ops_r := seq(1..iquo(nops(ps),2));
+    ps := [args]; ops_r := iquo(nops(ps),2);
     if nops(ps)::odd then
-      ps := [op(1..-2,ps), Not(bool_And(seq(op(2*i-1,ps),i=ops_r))), op(-1,ps)];
+      ps := [op(1..-2,ps), Not(bool_And(seq(op(2*i-1,ps),i=1..ops_r))), op(-1,ps)];
+      ops_r := ops_r+1;
     end if;
-    ps := [seq(Piece(op(2*i-1,ps),op(2*i,ps)),i=ops_r)];
+    ps := [seq(Piece(op(2*i-1,ps),op(2*i,ps)),i=1..ops_r)];
     PARTITION(ps);
   end proc,
 
