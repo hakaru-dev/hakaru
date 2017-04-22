@@ -131,19 +131,24 @@ reduce_Integrals := module()
   elim_intsum := module ()
     export ModuleApply := proc(inert0, h :: name, kb :: t_kb, opts, $)
        local ex, e, inert := inert0;
-       ex := extract_elim(inert, h);
+       ex := extract_elim(inert, h, kb);
        e[0] := apply_elim(h, kb, ex);
        e[1] := check_elim(inert, e[0]);
        if e[1] = FAIL then inert
        else
          e[2] := reduce(e[1],h,kb,opts);
-         if has(e[2], {erf,csgn}) then inert else e[2] end if;
+         if has(e[2], {csgn}) then
+           WARNING("Throwing away an eliminated result result containing csgn (this "
+                   "could be a bug!):\n%1\n(while running %2)", e[2], ex);
+           inert;
+         else e[2] end if;
        end if
     end proc;
 
     local known_tys := table([Int=int_assuming,Sum=sum_assuming,Ints=ints,Sums=sums]);
-    local extract_elim := proc(e, h::name, $)
-      local t, intapps, var, f, e_k, e_args;
+    local extract_elim := proc(e, h::name, kb::t_kb,$)
+      local t, intapps, var, f, e_k, e_args, vs, blo, bhi;
+      vs := {op(KB:-kb_to_variables(kb))};
       t := 'applyintegrand'('identical'(h), 'anything');
       intapps := indets(op(1,e), t);
       if intapps = {} then
@@ -153,6 +158,11 @@ reduce_Integrals := module()
       if Domain:-Has:-Bound(e) and assigned(known_tys[e_k]) then
         var := Domain:-ExtBound[e_k]:-ExtractVar(e_args);
         ASSERT(var::DomBoundVar);
+        blo, bhi := Domain:-ExtBound[e_k]:-SplitRange
+                    (Domain:-ExtBound[e_k]:-ExtractRange(e_args));
+        if ormap(b->op(1,b) in map((q-> (q,-q)), vs) and op(2,b)::SymbolicInfinity
+                ,[[blo,bhi],[bhi,blo]]) then
+          return FAIL end if;
         if var :: list then var := op(1,var) end if;
         if not depends(intapps, var) then
           f := known_tys[e_k];
