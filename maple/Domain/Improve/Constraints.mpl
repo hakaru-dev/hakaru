@@ -89,26 +89,21 @@ classify_DConstrains := module()
   #    bound_kind  :=   {LO/HI}
   #    numVars     :=   how many variables are mentioned by the bound
   local classify_Rel := proc(r0,dbnd,$)
-    local ret, vars, mk_k, bnd_k, i, var_k, q, r := r0;
+    local ret, vars, mk_k, bnd_k, i, var_k, q, cl, lhs_r, rhs_r, r := r0;
     ret := [ DConstrain, r0 ];
     vars := {Domain:-Bound:-varsOf(dbnd)[]};
-    if r :: {`<=`,`<`} then
-      if rhs(r) in vars then
-        r := op(0,r)(rhs(r),lhs(r));
-        mk_k := flip_rel[op(0,r)]; bnd_k := B_LO;
-      elif lhs(r) in vars then
-        mk_k := op(0,r);           bnd_k := B_HI;
-      else
-        return ret;
-      end if;
 
-      i := Domain:-Bound:-varIx_mb(dbnd, lhs(r));
-      if i >= 0 then
-        var_k := op([1,i,3], dbnd);
-        q := Domain:-ExtBound[var_k]:-RecogBound(mk_k,rhs(r));
-        if q <> NULL then
-          ret := [ DInto(lhs(r)), r0, q, bnd_k, countVs(vars minus {lhs(r)},r0) ];
-        end if;
+    # extract a representation of the relation, and check that it is a bound
+    cl := Domain:-Improve:-classify_relation(r, vars);
+    if cl=FAIL or not (op(1,cl) in {B_LO,B_HI}) then return ret; end if;
+    bnd_k,mk_k,lhs_r,rhs_r := op(cl);
+
+    i := Domain:-Bound:-varIx_mb(dbnd, lhs_r);
+    if i >= 0 then
+      var_k := op([1,i,3], dbnd);
+      q := Domain:-ExtBound[var_k]:-RecogBound(mk_k,rhs_r);
+      if q <> NULL then
+        ret := [ DInto(lhs_r), r0, q, bnd_k, countVs(vars minus {lhs_r},r0) ];
       end if;
     end if;
     ret;
