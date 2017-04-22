@@ -1,9 +1,9 @@
-Simplify_DConstrain := (can_simp, do_simp) -> module()
+local Simplify_DConstrain := (can_simp, do_simp) -> module()
     export ModuleApply := proc(vs0 :: DomBound, sh :: DomShape, $)
         local vs := vs0, ctx;
         if _Env_HakaruSolve=false then
            return sh end if;
-        vs  := {op(Domain:-Bound:-varsOf(vs))};
+        vs  := Domain:-Bound:-varsOf(vs,"set");
         ctx := Domain:-Bound:-toConstraints(vs0, 'bound_types');
         subsindets(sh, DomConstrain
                   ,x->do_simpl_constraints(vs0, vs, ctx, x));
@@ -25,12 +25,12 @@ constraints_about_vars := module()
   export ModuleApply := Simplify_DConstrain(can_make_about, try_make_about);
 
   local can_make_about := proc(vs)
-    local vars := Domain:-Bound:-varsOf(vs);
+    local vars := Domain:-Bound:-varsOf(vs,"set");
     c -> c::relation and (not(lhs(c) in vars) and not(rhs(c) in vars) and has(c,{ln,exp}));
   end proc;
   local try_make_about := proc(dbnd, ctx1, q0, $)
       local vars_q, vars, q_s, q := q0;
-      vars := {op(Domain:-Bound:-varsOf(dbnd))};
+      vars := Domain:-Bound:-varsOf(dbnd,"set");
       vars_q := indets(q, name) intersect vars;
       if nops(vars_q)=0 then return q end if;
 
@@ -98,7 +98,7 @@ classify_DConstrains := module()
   local classify_Rel := proc(r0,dbnd,$)
     local ret, vars, mk_k, bnd_k, i, var_k, q, cl, lhs_r, rhs_r, r := r0;
     ret := [ DConstrain, r0 ];
-    vars := {Domain:-Bound:-varsOf(dbnd)[]};
+    vars := Domain:-Bound:-varsOf(dbnd,"set");
 
     # extract a representation of the relation, and check that it is a bound
     cl := Domain:-Improve:-classify_relation(r, vars);
@@ -172,8 +172,8 @@ singular_pts := module()
   export ModuleApply := proc(bnds_ :: DomBound, sh_ :: DomShape, $)
     local bnds := bnds_, sh := sh_, vs, todo, sh1, vs_ty;
     vs := applyop(bl -> select(b->op(3,b)=`Int`, bl), 1, bnds);
-    vs := Domain:-Bound:-varsOf(vs);
-    vs_ty := 'satisfies(x->x in {op(vs)})';
+    vs := Domain:-Bound:-varsOf(vs,"set");
+    vs_ty := 'satisfies(x->x in vs)';
     todo := indets(sh, specfunc(`DConstrain`));
     todo := select(x->can_remove(x,vs_ty), todo);
     subs([seq(t=DSum(),t=todo)], sh);

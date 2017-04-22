@@ -42,7 +42,7 @@ export Apply := module ()
            # (i.e. trivial) then produce a Partition with the constraint as a
            # guard.
            if sh :: DomConstrain then
-               vars := {op(Domain:-Bound:-varsOf(vs))} minus done_;
+               vars := Domain:-Bound:-varsOf(vs,"set") minus done_;
                cond := remove(is, [op(sh)]);
                cond, cond_outer := selectremove(c->has(c,indets(vars, And(name,Not(constant)))), cond);
                # if there are still integrals which have not been applied, apply
@@ -67,7 +67,7 @@ export Apply := module ()
                # extract bounds which have not been applied upon which this
                # bound depends. Those are applied after this one, so are not
                # in 'scope' in the recursive call
-               vars := {op(Domain:-Bound:-varsOf(vs))};
+               vars := Domain:-Bound:-varsOf(vs,"set");
                deps := (indets(vt, DomBoundVar) intersect vars) minus done_ ;
                deps := `union`(deps, {vn});
                done_ := `union`(done_, deps) ;

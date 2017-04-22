@@ -13,8 +13,9 @@ export Bound := module ()
         [ kb, rn ]
     end proc;
 
-    export varsOf := proc(dom :: DomBound, $)::list(DomBoundVar);
-        map(x->op(1,x), op(1, dom));
+    export varsOf := proc(dom :: DomBound, output::identical("list","set","seq"):="list")
+      local v := map(x->op(1,x), op(1, dom));
+      op(table(["list"=[v],"set"=[{op(v)}],"seq"=v])[output]);
     end proc;
 
     export withVarsIxs := proc(dom :: DomBound, $) :: DomBound;

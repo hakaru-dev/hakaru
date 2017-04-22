@@ -70,7 +70,7 @@ export Improve := module ()
       if vars :: ({set,list})(name) then
         vars := {op(vars)}; in_vars := x->x in vars;
       elif vars :: DomBound then
-        vars := {op(DomBound:-Bound:-varsOf(vars))}; in_vars := x->x in vars;
+        vars := DomBound:-Bound:-varsOf(vars,"set"); in_vars := x->x in vars;
       elif vars :: appliable then
         in_vars := vars;
       elif vars :: type then
