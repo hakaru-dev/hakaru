@@ -261,7 +261,7 @@ KB := module ()
    # The type representing equalities
    # between something which is neither a name nor 'size' applied to a name
    # and another thing which is a name which is neither constant nor undefined
-   t_constraint_flipped := 'Not({name, size(name)}) = And(name, Not(constant), Not(undefined))';
+   t_constraint_flipped := 'Not({name, size(name)}) = Name';
 
    # The 'type' representing bounds on `x', where `x' is a name
    t_bound_on := proc(x,$) And(relation, Or(anyop(identical(x), freeof(x)), anyop(freeof(x), identical(x)))) end proc;

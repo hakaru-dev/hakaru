@@ -11,7 +11,7 @@ local Simplify_DConstrain := (can_simp, do_simp) -> module()
 
     local do_simpl_constraints := proc(vs0, vars, ctx_vs, x, $)
         local ctx1, ctx, ss, td, rest, d, in_vs;
-        ss, ctx := selectremove(q->depends(q,indets(vars,And(name,Not(constant)))), x);
+        ss, ctx := selectremove(q->depends(q,indets(vars,Name)), x);
         td, rest := selectremove(can_simp(vs0), ss);
         ctx1 := { op(ctx), op(ctx_vs), op(rest) };
         d := map(x->do_simp(vs0,ctx1,x), td);
@@ -62,14 +62,14 @@ clamp_extraneous_constraints := module()
   local can := proc(vs)
     local vars := Domain:-Bound:-varsOf(vs,"set");
     c-> c::relation and
-        (ormap(s->s(c)::And(name,Not(constant)) and not(c in vars),[lhs,rhs]) and has(c, vars));
+        (ormap(s->s(c)::Name and not(c in vars),[lhs,rhs]) and has(c, vars));
   end proc;
 
   local `try` := proc(dbnd, ctx1, q0, $)
     local bnd, b_ty, b_rel, b_var, b_bnd, b_bnd_vs, vars, extremum, q := q0;
     if has(q, {ln,exp}) then
       vars := Domain:-Bound:-varsOf(dbnd, "set");
-      bnd := Domain:-Improve:-classify_relation(q0, x -> type(x, And(name,Not(constant))) and not (x in vars));
+      bnd := Domain:-Improve:-classify_relation(q0, x -> type(x, Name) and not (x in vars));
       if bnd=FAIL then return q0 end if;
       b_ty, b_rel, b_var, b_bnd := op(bnd):
       b_bnd_vs := indets(b_bnd, satisfies(x -> x in vars));

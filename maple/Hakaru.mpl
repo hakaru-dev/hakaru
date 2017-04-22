@@ -618,6 +618,7 @@ Hakaru := module ()
          `&implies`,
          proc(e, t1, t2, $) type(e, Or(Not(t1), t2)) end proc
     );
+    TypeTools:-AddType(Name, And(name, Not({constant,undefined})));
     TypeTools:-AddType(known_continuous,
          '{
               Lebesgue(anything, anything), Uniform(anything, anything),
@@ -694,6 +695,7 @@ Hakaru := module ()
   ModuleUnload := proc($)
     map(proc(x::uneval) try eval(x) catch: NULL; end try end proc,
         ['TypeTools:-RemoveType(`&implies`)'
+        ,'TypeTools:-RemoveType(Name)'
         ,'TypeTools:-RemoveType(known_continuous)'
         ,'TypeTools:-RemoveType(known_discrete)'
         ,'TypeTools:-RemoveType(t_Hakaru)'
