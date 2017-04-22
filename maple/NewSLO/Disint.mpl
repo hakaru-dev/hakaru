@@ -9,7 +9,7 @@
   #     wrt-var type: Each wrt var may be continuous (Lebesgue), discrete (Counting),
   #          point evaluation (Dirac), and there may be other types added later.
   disint:= module()
-  export ModuleApply;
+  export ModuleApply, `do`;
   local
     #Dispatch table for wrt-var types. For each, there is a "cond constructor",
     #a "disintegrator", and a "disintegrator_arg_extractor". The cond constructor
@@ -129,19 +129,28 @@
     end proc;
 
   ;
-   ModuleApply := proc(
+    ModuleApply := proc()::t_Hakaru;
+      local todo,expr;
+      expr, todo := disint:-`do`(args)[];
+      foldr(`@`,_->_,op(ListTools[Reverse](todo)))(expr);
+    end proc;
+
+   `do` := proc(
     m::t_Hakaru,
     #var &M wrt-var type, or Pairs thereof
     A::{t_disint_var, t_disint_var_pair},
     ctx::t_kb_atoms:= [] #context: parameter assumptions, "knowledge"
-   )::t_Hakaru;
+   ):: [t_Hakaru, list(appliable)];
    local
     mc,  #final integral to be passed to improve @ toLO; then result
          #of each disintegration step
     kb, var_rn := table(), mc_prts,
     V, #wrt vars
     v::name, #iterator over V
-    improve_opts := []
+    improve_opts := [],
+    todo := NULL,
+    atodo := proc(z) todo := eval(todo), z; end proc,
+    di, da
    ;
     if not {_rest} in {{'do_lam'},{}} then
       error "bad extra args: %1", {_rest};
@@ -153,9 +162,7 @@
     path:= fst(p);
 
     traverse_var_tree(A); # collect information about A in DV
-    userinfo(3, Disint, "DV:", eval(DV));
     V:= [indices(DV, 'nolist')];
-
 
     mc:= Bind(
          m, p,
@@ -169,39 +176,28 @@
           )),
           Ret(snd(p)),
           Msum()
-         )
-    );
+         ));
 
     kb := empty;
     for v in ListTools[Reverse](V) do
         var_rn[v], kb := DV[v]:-disintegrator_mktype(kb);
     end do;
     kb := build_kb(ctx,"disint",kb);
-
     mc := subs_disint_data(var_rn, mc);
 
-    userinfo(3, Disint, "Disint defn:", eval(mc), kb);
-    userinfo(3, Disint, "Disint path:", path);
-
-    mc:= improve(toLO(mc), _ctx= kb,improve_opts);
-
-    userinfo(3, Disint, "Disint improved:", eval(mc));
-
+    atodo(x->toLO(x));
+    atodo(x->improve(x, _ctx=kb,improve_opts));
     #Does the order of application of the disintegrators matter?
     #Theoretically, I think not, it's just like differentiation. As far
     #as Maple's ability to do the computation, maybe it matters.
     for v in V do
-         mc:= applyop(
-          Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator,
-          2, mc, DV[v]:-disintegrator_arg
-        );
-        mc := improve(mc, _ctx=kb,improve_opts);
-        userinfo(3, Disint, "Disint diff:", eval(mc));
+      di   := Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator;
+      da   := DV[v]:-disintegrator_arg;
+      atodo(x->applyop(di, 2, x, da));
+      atodo(x->improve(x, _ctx=kb,improve_opts));
     end do;
 
-    mc := fromLO(mc, _ctx= kb);
-
-
+    atodo(x->fromLO(x, _ctx= kb));
     ## simplify integrals which do not mention the LO var (i.e. integrals in
     ## weights). this is a hack, we should do this inside of `improve'* in
     ## the correct place.  It is required to see the correct output for
@@ -217,7 +213,8 @@
     ## domain problem that can be improved significanly.
     # 'Simplify' partitions in weights by converting them to piecewise and
     # letting piecewise simplify do the work; and evaluate integrals in weights
-    mc := subsindets( mc, 'Weight(anything, anything)'
+    atodo(x->
+          subsindets( x, 'Weight(anything, anything)'
                     , mw -> applyop(x->simplify_assuming(
                         subsindets( subsindets(x,Partition,PartitionToPW)
                                   , And(specfunc(`Int`)
@@ -225,21 +222,17 @@
                                        )
                                   , value
                                   )
-                        , kb ), 1, mw)
-                    );
+                        , kb ), 1, mw)));
 
-
-    userinfo(3, Disint, "Disint hakaru:", eval(mc));
-
-    mc := subs_disint_data( table([seq(var_rn[v]=v, v=V)]), mc );
+    atodo(x->subs_disint_data( table([seq(var_rn[v]=v, v=V)]), x));
 
     if 'do_lam' in {_rest} then
       for v in ListTools[Reverse](V) do
-        mc := DV[v]:-disintegrator_mkctx(mc);
+        atodo(x->DV[v]:-disintegrator_mkctx(x));
       end do;
     end if;
 
-    mc
+    [mc, [todo]];
    end proc; #disint:-ModuleApply
    ModuleLoad();
   end module; #disint
