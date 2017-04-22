@@ -193,7 +193,7 @@ $include "Domain/Improve.mpl"
       dom_specb, e := op(Domain:-Extract:-Bound(e));
       if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
       dom_specw, e := op(Domain:-Extract:-Shape(e));
-      dom_ctx := {op(KB:-kb_to_constraints(kb))};
+      dom_ctx := {op(KB:-kb_to_assumptions(kb))};
       dom_specb := DBound(op(1,dom_specb), dom_ctx);
       dom_spec := DOMAIN(dom_specb, dom_specw);
 
