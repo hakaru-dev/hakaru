@@ -1,7 +1,4 @@
-constraints_about_vars := module()
-  export SimplName  := "Make constraints abouts vars";
-  export SimplOrder := 6;
-
+Simplify_DConstrain := (can_simp, do_simp) -> module()
     export ModuleApply := proc(vs0 :: DomBound, sh :: DomShape, $)
         local vs := vs0, ctx;
         if _Env_HakaruSolve=false then
@@ -14,35 +11,45 @@ constraints_about_vars := module()
 
     local do_simpl_constraints := proc(vs0, vars, ctx_vs, x, $)
         local ctx1, ctx, ss, td, rest, d, in_vs;
-        ss, ctx := selectremove(q->depends(q,indets(vars,And(name,Not(constant)) )), x);
-        in_vs := q-> not(lhs(q) in vars) and not(rhs(q) in vars);
-        td, rest := selectremove(type, ss, And(relation,satisfies(x->in_vs(x) and has(x,{ln,exp}))));
+        ss, ctx := selectremove(q->depends(q,indets(vars,And(name,Not(constant)))), x);
+        td, rest := selectremove(can_simp(vs0), ss);
         ctx1 := { op(ctx), op(ctx_vs), op(rest) };
-        d := map(x->try_make_about(vs0, vars,ctx1,x), td);
+        d := map(x->do_simp(vs0,ctx1,x), td);
         DConstrain(op(d), op(ctx), op(rest));
     end proc;
+end module;
 
-    local try_make_about := proc(dbnd, vars, ctx1, q0, $)
-        local vars_q, q_s, q := q0;
-        vars_q := indets(q, name) intersect vars;
-        if nops(vars_q)=0 then return q end if;
+constraints_about_vars := module()
+  export SimplName  := "Make constraints abouts vars";
+  export SimplOrder := 6;
+  export ModuleApply := Simplify_DConstrain(can_make_about, try_make_about);
 
-        vars_q := op(1,vars_q);
-        q := KB:-try_improve_exp(q, vars_q, ctx1);
-        q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
-        q_s := eval(q_s);
-        if q_s::list then
-          if nops(q_s)=0 then return q end if;
-          q_s := map(s->remove(c->c in ctx1 or `and`(c::relation,lhs(c)::name,lhs(c)=rhs(c)), s), q_s);
-          q_s := remove(x->x=[],q_s);
-          if nops(q_s)=0 then return q end if;
-          userinfo(3, 'constraints_about_vars'
-                  ,printf("Found a solution to %a (with solve):\n\t%a\n", q0, op(1,q_s)));
-          op(op(1,q_s)); # pick the first solution arbitrarily!
-        else
-          q
-        end if;
-    end proc;
+  local can_make_about := proc(vs)
+    local vars := Domain:-Bound:-varsOf(vs);
+    c -> c::relation and (not(lhs(c) in vars) and not(rhs(c) in vars) and has(c,{ln,exp}));
+  end proc;
+  local try_make_about := proc(dbnd, ctx1, q0, $)
+      local vars_q, vars, q_s, q := q0;
+      vars := {op(Domain:-Bound:-varsOf(dbnd))};
+      vars_q := indets(q, name) intersect vars;
+      if nops(vars_q)=0 then return q end if;
+
+      vars_q := op(1,vars_q);
+      q := KB:-try_improve_exp(q, vars_q, ctx1);
+      q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
+      q_s := eval(q_s);
+      if q_s::list then
+        if nops(q_s)=0 then return q end if;
+        q_s := map(s->remove(c->c in ctx1 or `and`(c::relation,lhs(c)::name,lhs(c)=rhs(c)), s), q_s);
+        q_s := remove(x->x=[],q_s);
+        if nops(q_s)=0 then return q end if;
+        userinfo(3, 'constraints_about_vars'
+                ,printf("Found a solution to %a (with solve):\n\t%a\n", q0, op(1,q_s)));
+        op(op(1,q_s)); # pick the first solution arbitrarily!
+      else
+        q
+      end if;
+  end proc;
 end module;
 
 # Pushes constraints down, or pulls them up, when there are such constraints.
