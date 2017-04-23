@@ -604,11 +604,12 @@ flattenArray arity body =
       let itE     = CVar itId
           currInd = index dataE itE
 
-      putStat $ opComment "Create Array"
+      putStat $ opComment "Begin Array"
       forCG (itE .=. (intE 0))
             (itE .<. arityE)
             (CUnary CPostIncOp itE)
             (flattenABT body' currInd)
+      putStat $ opComment "End Array"
 
 flattenArrayLiteral
   :: ( ABT Term abt )
@@ -739,151 +740,148 @@ flattenBucket lo hi red = \loc -> do
     itId <- genIdent' "it"
     declare SNat itId
     let itE = CVar itId
-    mEs <- declRed red
-    _ <- initRed mEs red
+    mE <- declRed red
+    initRed mE red
     forCG (itE .=. loE)
           (itE .<. hiE)
           (CUnary CPostIncOp itE)
-          (accumRed mEs red >> return ())
-    finRed loc mEs
+          (accumRed mE red)
+    finRed loc mE
     putStat $ opComment "End Bucket"
   where declRed
           :: (ABT Term abt)
-          => Reducer abt '[] a
-          -> CodeGen (S.Seq CExpr)
+          => Reducer abt xs a
+          -> CodeGen (ProductM CExpr)
         declRed (Red_Fanout mr1 mr2) =
           do es1 <- declRed mr1
              es2 <- declRed mr2
-             return (es1 <> es2)
-        declRed (Red_Index _ _ body) =
-          let typ = typeOfReducer body in
-            do mId <- genIdent' "mi"
+             return (PairM es1 es2)
+        declRed (Red_Index _ _ b) =
+          let typ = typeOfReducer b in
+            do mId <- genIdent' "mIndex"
                declare (SArray typ) mId
-               return . S.singleton . CVar $ mId
+               r <- declRed b
+               return (ArrayM (CVar mId) r)
         declRed (Red_Split _ mr1 mr2) =
           do es1 <- declRed mr1
              es2 <- declRed mr2
-             return (es1 <> es2)
+             return (PairM es1 es2)
         declRed (Red_Nop) =
-          do mId <- genIdent' "mu"
+          do mId <- genIdent' "mNoOp"
              declare sUnit mId
-             return . S.singleton . CVar $ mId
+             return (BaseM . CVar $ mId)
         declRed (Red_Add sr _) =
           let semiTyp = sing_HSemiring sr in
-            do mId <- genIdent' "ma"
+            do mId <- genIdent' "mAdd"
                declare semiTyp mId
-               return . S.singleton . CVar $ mId
+               return (BaseM . CVar $ mId)
 
         initRed
           :: (ABT Term abt)
-          => S.Seq CExpr
+          => ProductM CExpr
           -> Reducer abt '[] a
-          -> CodeGen (S.Seq CExpr)
-        initRed ms mr =
-          case S.viewl ms of
-            S.EmptyL -> return mempty
-            (h S.:< tl) ->
-              case mr of
-                (Red_Fanout mr1 mr2) ->
-                  do ms' <- initRed ms mr1
-                     initRed ms' mr2
-                (Red_Index s _ body) ->
-                  let typ = typeOfReducer body in
-                    do sE <- flattenWithName' s "s"
-                       isManagedMem <- managedMem <$> get
-                       let malloc' = if isManagedMem then gc_mallocE else mallocE
-                       putExprStat $ arraySize h .=. sE
-                       putExprStat $   (arrayData h)
-                                   .=. (CCast (CTypeName (buildType typ) True)
-                                              (malloc' (sE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
-                       itId  <- genIdent
-                       declare SNat itId
-                       let itE     = CVar itId
-                           currInd = index (arrayData h) itE
-                       forCG (itE .=. (intE 0))
-                             (itE .<. sE)
-                             (CUnary CPostIncOp itE)
-                             (putExprStat $ currInd .=. (addMonoidIdentity typ))
-                       return ms
-                (Red_Split _ mr1 mr2) ->
-                  do ms' <- initRed ms mr1
-                     initRed ms' mr2
-                Red_Nop -> return tl
-                (Red_Add sr _) ->
-                  do putExprStat $ h .=. (addMonoidIdentity $ sing_HSemiring sr)
-                     return tl
+          -> CodeGen ()
+        initRed pm mr =
+          case (pm,mr) of
+            (PairM m1 m2, Red_Fanout mr1 mr2) ->
+              initRed m1 mr1 >> initRed m2 mr2
+            (PairM m1 m2, Red_Split _ mr1 mr2) ->
+              initRed m1 mr1 >> initRed m2 mr2
+            (ArrayM m mr', Red_Index s _ body) ->
+              let typ = typeOfReducer body in
+                do sE <- flattenWithName' s "s"
+                   isManagedMem <- managedMem <$> get
+                   let malloc' = if isManagedMem then gc_mallocE else mallocE
+                   putExprStat $ arraySize m .=. sE
+                   putExprStat $   (arrayData m)
+                               .=. (CCast (CTypeName (buildType typ) True)
+                                          (malloc' (sE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
+                   itId  <- genIdent
+                   declare SNat itId
+                   let itE     = CVar itId
+                       currInd = index (arrayData m) itE
+                   forCG (itE .=. (intE 0))
+                         (itE .<. sE)
+                         (CUnary CPostIncOp itE)
+                         (putExprStat $ currInd .=. (addMonoidIdentity typ))
+            (BaseM _, Red_Nop) -> return ()
+            (BaseM m, Red_Add sr _) ->
+              putExprStat $ m .=. (addMonoidIdentity . sing_HSemiring $ sr)
+            _ -> error $ "initRed{" ++ show pm ++ "}"
 
         accumRed
           :: (ABT Term abt)
-          => S.Seq CExpr
+          => ProductM CExpr
           -> Reducer abt xs a
-          -> CodeGen (S.Seq CExpr)
-        accumRed ms mr =
-          case S.viewl ms of
-            S.EmptyL -> return mempty
-            (h S.:< tl) ->
-              case mr of
-                (Red_Fanout mr1 mr2) -> accumRed (pure h) mr1 >> accumRed tl mr2
-                (Red_Index _ a body) ->
-                  caseBind a $ \v@(Variable _ _ typ) a' ->
-                    let (vs,a'') = caseBinds a' in
-                      do declare typ =<< createIdent v
-                         sequence_ . foldMap11
-                           (\v' -> case v' of
-                             (Variable _ _ typ') ->
-                               [declare typ' =<< createIdent v'])
-                           $ vs
-                         _ <- flattenWithName a''
-                         itId  <- genIdent
-                         declare SNat itId
-                         let itE     = CVar itId
-                             currInd = index (arrayData h) itE
-                         forCG (itE .=. (intE 0))
-                               (itE .<. (arraySize h))
-                               (CUnary CPostIncOp itE)
-                               (accumRed (pure currInd) body >> return ())
-                         return tl
-                (Red_Split b mr1 mr2) ->
-                  caseBind b $ \v@(Variable _ _ typ) b' ->
-                    let (vs,b'') = caseBinds b' in
-                      do declare typ =<< createIdent v
-                         sequence_ . foldMap11
-                           (\v' -> case v' of
-                             (Variable _ _ typ') ->
-                               [declare typ' =<< createIdent v'])
-                           $ vs
-                         bE <- flattenWithName' b'' "cond"
-                         case S.viewl tl of
-                           S.EmptyL -> error $ "accumRed, this shouldn't happen: " ++ show ms
-                           (h' S.:< tl') -> do
-                             ifCG (bE ... "index" .==. (intE 0))
-                                  (accumRed (pure h) mr1 >> return ())
-                                  (accumRed (pure h') mr2 >> return ())
-                             return tl'
-                Red_Nop -> return tl
-                (Red_Add sr e) ->
-                  caseBind e $ \v@(Variable _ _ typ) e' ->
-                    let (vs,e'') = caseBinds e' in
-                      do declare typ =<< createIdent v
-                         sequence_ . foldMap11
-                           (\v' -> case v' of
-                             (Variable _ _ typ') ->
-                               [declare typ' =<< createIdent v'])
-                           $ vs
-                         eE <- flattenWithName e''
-                         putExprStat $ h .+=. eE
-                         return tl
+          -> CodeGen ()
+        accumRed pm mr =
+          case (pm,mr) of
+            (ArrayM m mr', Red_Index _ a body) ->
+              caseBind a $ \v@(Variable _ _ typ) a' ->
+                let (vs,a'') = caseBinds a' in
+                  do declare typ =<< createIdent v
+                     sequence_ . foldMap11
+                       (\v' -> case v' of
+                         (Variable _ _ typ') ->
+                           [declare typ' =<< createIdent v'])
+                       $ vs
+                     _ <- flattenWithName a''
+                     itId  <- genIdent
+                     declare SNat itId
+                     let itE     = CVar itId
+                         currInd = index (arrayData m) itE
+                     forCG (itE .=. (intE 0))
+                           (itE .<. (arraySize m))
+                           (CUnary CPostIncOp itE)
+                           (accumRed (BaseM currInd) body)
+            (PairM m1 m2, Red_Fanout mr1 mr2) ->
+              accumRed m1 mr1 >> accumRed m2 mr2
+            (PairM m1 m2, Red_Split b mr1 mr2) ->
+              caseBind b $ \v@(Variable _ _ typ) b' ->
+                let (vs,b'') = caseBinds b' in
+                  do declare typ =<< createIdent v
+                     sequence_ . foldMap11
+                       (\v' -> case v' of
+                         (Variable _ _ typ') ->
+                           [declare typ' =<< createIdent v'])
+                       $ vs
+                     bE <- flattenWithName' b'' "cond"
+                     ifCG (bE ... "index" .==. (intE 0))
+                          (accumRed m1 mr1)
+                          (accumRed m2 mr2)
+            (BaseM _, Red_Nop) -> return ()
+            (BaseM m, Red_Add sr e) ->
+              caseBind e $ \v@(Variable _ _ typ) e' ->
+                let (vs,e'') = caseBinds e' in
+                  do declare typ =<< createIdent v
+                     sequence_ . foldMap11
+                       (\v' -> case v' of
+                         (Variable _ _ typ') ->
+                           [declare typ' =<< createIdent v'])
+                       $ vs
+                     eE <- flattenWithName e''
+                     putExprStat $ m .+=. eE
+            (_, k) -> let ks = case k of
+                                 Red_Nop -> "Nop"
+                                 (Red_Add _ _) -> "Add"
+                                 (Red_Split _ _ _) -> "Split"
+                                 (Red_Fanout _ _) -> "Fanout"
+                                 (Red_Index _ _ _) -> "Index"
+                      in
+              error $ "accumRed{" ++ show pm ++ "," ++ ks ++ "}"
 
-        finRed :: CExpr -> S.Seq CExpr -> CodeGen ()
-        finRed loc ms =
-          case S.viewl ms of
-            S.EmptyL -> return ()
-            (h S.:< tl) ->
-              case S.viewl tl of
-                S.EmptyL -> putExprStat $ loc .=. h
-                _ -> let nexLoc = loc ... "sum" ... "a" ... "b"
-                     in  do putExprStat $ (loc ... "sum" ... "a" ... "a") .=. h
-                            finRed nexLoc tl
+        finRed :: CExpr -> ProductM CExpr -> CodeGen ()
+        finRed loc (BaseM m) = putExprStat $ loc .=. m
+        finRed loc (ArrayM m mr) = putExprStat $ loc .=. m
+        finRed loc (PairM m1 m2)
+          =  finRed (loc ... "sum" ... "a" ... "a") m1
+          >> finRed (loc ... "sum" ... "a" ... "b") m2
+
+data ProductM a
+  = PairM (ProductM a) (ProductM a)
+  | ArrayM a (ProductM a)
+  | BaseM a
+  deriving Show
 
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
 addMonoidIdentity s =
