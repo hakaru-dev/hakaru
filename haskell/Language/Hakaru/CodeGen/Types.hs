@@ -50,6 +50,8 @@ module Language.Hakaru.CodeGen.Types
   , datumStruct
   , datumSum
   , datumProd
+  , datumFst
+  , datumSnd
 
   -- functions and closures
   , functionDef
@@ -325,7 +327,11 @@ datumPrim dat prim =
                    (SKonst k) -> typeDeclaration k ident
      return [decl]
 
+datumFst :: CExpr -> CExpr
+datumFst x = x ... "sum" ... "a" ... "a"
 
+datumSnd :: CExpr -> CExpr
+datumSnd x = x ... "sum" ... "a" ... "b"
 
 --------------------------------------------------------------------------------
 --                                Functions                                   --

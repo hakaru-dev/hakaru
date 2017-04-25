@@ -706,7 +706,7 @@ flattenArrayOp (Reduce _) = error "TODO: flattenArrayOp"
   --    return accE
 
 --------------------------------------------------------------------------------
---                              Bucket and Recuders                           --
+--                              Bucket and Reducers                           --
 --------------------------------------------------------------------------------
 {- Declarations for buckets -
   since we will have some product of monoids we need unique names for each one.
@@ -740,83 +740,52 @@ flattenBucket lo hi red = \loc -> do
     itId <- genIdent' "it"
     declare SNat itId
     let itE = CVar itId
-    mE <- declRed red
-    initRed mE red
+    initRed red loc
     forCG (itE .=. loE)
           (itE .<. hiE)
           (CUnary CPostIncOp itE)
-          (accumRed mE red)
-    finRed loc mE
+          (accumRed red loc)
     putStat $ opComment "End Bucket"
-  where declRed
+  where initRed
           :: (ABT Term abt)
           => Reducer abt xs a
-          -> CodeGen (ProductM CExpr)
-        declRed (Red_Fanout mr1 mr2) =
-          do es1 <- declRed mr1
-             es2 <- declRed mr2
-             return (PairM es1 es2)
-        declRed (Red_Index _ _ b) =
-          let typ = typeOfReducer b in
-            do mId <- genIdent' "mIndex"
-               declare (SArray typ) mId
-               r <- declRed b
-               return (ArrayM (CVar mId) r)
-        declRed (Red_Split _ mr1 mr2) =
-          do es1 <- declRed mr1
-             es2 <- declRed mr2
-             return (PairM es1 es2)
-        declRed (Red_Nop) =
-          do mId <- genIdent' "mNoOp"
-             declare sUnit mId
-             return (BaseM . CVar $ mId)
-        declRed (Red_Add sr _) =
-          let semiTyp = sing_HSemiring sr in
-            do mId <- genIdent' "mAdd"
-               declare semiTyp mId
-               return (BaseM . CVar $ mId)
-
-        initRed
-          :: (ABT Term abt)
-          => ProductM CExpr
-          -> Reducer abt '[] a
-          -> CodeGen ()
-        initRed pm mr =
-          case (pm,mr) of
-            (PairM m1 m2, Red_Fanout mr1 mr2) ->
-              initRed m1 mr1 >> initRed m2 mr2
-            (PairM m1 m2, Red_Split _ mr1 mr2) ->
-              initRed m1 mr1 >> initRed m2 mr2
-            (ArrayM m mr', Red_Index s _ body) ->
-              let typ = typeOfReducer body in
-                do sE <- flattenWithName' s "s"
-                   isManagedMem <- managedMem <$> get
-                   let malloc' = if isManagedMem then gc_mallocE else mallocE
-                   putExprStat $ arraySize m .=. sE
-                   putExprStat $   (arrayData m)
-                               .=. (CCast (CTypeName (buildType typ) True)
-                                          (malloc' (sE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
+          -> (CExpr -> CodeGen ())
+        initRed mr = \loc ->
+          case mr of
+            (Red_Fanout mr1 mr2) -> initRed mr1 (datumFst loc)
+                                 >> initRed mr2 (datumSnd loc)
+            (Red_Split _ mr1 mr2) -> initRed mr1 (datumFst loc)
+                                  >> initRed mr2 (datumSnd loc)
+            (Red_Index s _ body) ->
+              let (vs,s') = caseBinds s
+                  btyp     = typeOfReducer body in
+                do sequence_ . foldMap11
+                     (\v' -> case v' of
+                       (Variable _ _ typ') ->
+                         [declare typ' =<< createIdent v'])
+                     $ vs
+                   sE <- flattenWithName s'
+                   putExprStat $ arraySize loc .=. sE
+                   putMallocStat (arrayData loc) sE btyp
                    itId  <- genIdent
                    declare SNat itId
-                   let itE     = CVar itId
-                       currInd = index (arrayData m) itE
+                   let itE = CVar itId
                    forCG (itE .=. (intE 0))
                          (itE .<. sE)
                          (CUnary CPostIncOp itE)
-                         (putExprStat $ currInd .=. (addMonoidIdentity typ))
-            (BaseM _, Red_Nop) -> return ()
-            (BaseM m, Red_Add sr _) ->
-              putExprStat $ m .=. (addMonoidIdentity . sing_HSemiring $ sr)
-            _ -> error $ "initRed{" ++ show pm ++ "}"
+                         (initRed body (index (arrayData loc) itE))
+            Red_Nop -> return ()
+            (Red_Add sr _) ->
+              putExprStat $ loc .=. (addMonoidIdentity . sing_HSemiring $ sr)
+            _ -> putStat . CComment $ "initRed{}"
 
         accumRed
           :: (ABT Term abt)
-          => ProductM CExpr
-          -> Reducer abt xs a
-          -> CodeGen ()
-        accumRed pm mr =
-          case (pm,mr) of
-            (ArrayM m mr', Red_Index _ a body) ->
+          => Reducer abt xs a
+          -> (CExpr -> CodeGen ())
+        accumRed mr = \loc ->
+          case mr of
+            (Red_Index _ a body) ->
               caseBind a $ \v@(Variable _ _ typ) a' ->
                 let (vs,a'') = caseBinds a' in
                   do declare typ =<< createIdent v
@@ -828,15 +797,14 @@ flattenBucket lo hi red = \loc -> do
                      _ <- flattenWithName a''
                      itId  <- genIdent
                      declare SNat itId
-                     let itE     = CVar itId
-                         currInd = index (arrayData m) itE
+                     let itE = CVar itId
                      forCG (itE .=. (intE 0))
-                           (itE .<. (arraySize m))
+                           (itE .<. (arraySize loc))
                            (CUnary CPostIncOp itE)
-                           (accumRed (BaseM currInd) body)
-            (PairM m1 m2, Red_Fanout mr1 mr2) ->
-              accumRed m1 mr1 >> accumRed m2 mr2
-            (PairM m1 m2, Red_Split b mr1 mr2) ->
+                           (accumRed body (index (arrayData loc) itE))
+            (Red_Fanout mr1 mr2) -> accumRed mr1 (datumFst loc)
+                                 >> accumRed mr2 (datumSnd loc)
+            (Red_Split b mr1 mr2) ->
               caseBind b $ \v@(Variable _ _ typ) b' ->
                 let (vs,b'') = caseBinds b' in
                   do declare typ =<< createIdent v
@@ -847,10 +815,10 @@ flattenBucket lo hi red = \loc -> do
                        $ vs
                      bE <- flattenWithName' b'' "cond"
                      ifCG (bE ... "index" .==. (intE 0))
-                          (accumRed m1 mr1)
-                          (accumRed m2 mr2)
-            (BaseM _, Red_Nop) -> return ()
-            (BaseM m, Red_Add sr e) ->
+                          (accumRed mr1 (datumFst loc))
+                          (accumRed mr2 (datumSnd loc))
+            Red_Nop -> return ()
+            (Red_Add sr e) ->
               caseBind e $ \v@(Variable _ _ typ) e' ->
                 let (vs,e'') = caseBinds e' in
                   do declare typ =<< createIdent v
@@ -860,28 +828,8 @@ flattenBucket lo hi red = \loc -> do
                            [declare typ' =<< createIdent v'])
                        $ vs
                      eE <- flattenWithName e''
-                     putExprStat $ m .+=. eE
-            (_, k) -> let ks = case k of
-                                 Red_Nop -> "Nop"
-                                 (Red_Add _ _) -> "Add"
-                                 (Red_Split _ _ _) -> "Split"
-                                 (Red_Fanout _ _) -> "Fanout"
-                                 (Red_Index _ _ _) -> "Index"
-                      in
-              error $ "accumRed{" ++ show pm ++ "," ++ ks ++ "}"
-
-        finRed :: CExpr -> ProductM CExpr -> CodeGen ()
-        finRed loc (BaseM m) = putExprStat $ loc .=. m
-        finRed loc (ArrayM m mr) = putExprStat $ loc .=. m
-        finRed loc (PairM m1 m2)
-          =  finRed (loc ... "sum" ... "a" ... "a") m1
-          >> finRed (loc ... "sum" ... "a" ... "b") m2
-
-data ProductM a
-  = PairM (ProductM a) (ProductM a)
-  | ArrayM a (ProductM a)
-  | BaseM a
-  deriving Show
+                     putExprStat $ loc .+=. eE
+            _ -> putStat . CComment $ "accumRed{}"
 
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
 addMonoidIdentity s =

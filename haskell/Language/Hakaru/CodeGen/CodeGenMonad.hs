@@ -63,6 +63,9 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , doWhileCG
   , forCG
   , reductionCG
+
+  -- memory
+  , putMallocStat
   ) where
 
 import Control.Monad.State.Strict
@@ -78,6 +81,7 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.Types
 import Language.Hakaru.CodeGen.AST
 import Language.Hakaru.CodeGen.Pretty
+import Language.Hakaru.CodeGen.Libs
 
 import Data.Number.Nat (fromNat)
 import qualified Data.IntMap.Strict as IM
@@ -416,3 +420,16 @@ reductionCG op acc iter cond inc body =
                     (Just inc)
                     (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
                                ++ (fmap CBlockStat (reverse $ statements cg'))))
+
+
+--------------------------------------------------------------------------------
+-- ^ Takes a cexpression for the location and size and a hakaru type, and
+--   generates a statement for allocating the memory
+putMallocStat :: CExpr -> CExpr -> Sing (a :: Hakaru) -> CodeGen ()
+putMallocStat loc size typ = do
+  isManagedMem <- managedMem <$> get
+  let malloc' = if isManagedMem then gc_mallocE else mallocE
+      typ' = buildType typ
+  putExprStat $   loc
+              .=. ( CCast (CTypeName typ' True)
+                  $ malloc' (size .*. (CSizeOfType (CTypeName typ' False))))
