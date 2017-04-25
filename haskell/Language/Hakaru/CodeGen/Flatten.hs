@@ -777,7 +777,6 @@ flattenBucket lo hi red = \loc -> do
             Red_Nop -> return ()
             (Red_Add sr _) ->
               putExprStat $ loc .=. (addMonoidIdentity . sing_HSemiring $ sr)
-            _ -> putStat . CComment $ "initRed{}"
 
         accumRed
           :: (ABT Term abt)
@@ -831,7 +830,6 @@ flattenBucket lo hi red = \loc -> do
                      case sing_HSemiring sr of
                        SProb -> logSumExpCG (S.fromList [loc,eE]) loc
                        _ -> putExprStat $ loc .+=. eE
-            _ -> putStat . CComment $ "accumRed{}"
 
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
 addMonoidIdentity s =
