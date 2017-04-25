@@ -39,6 +39,7 @@ type instance MinBoxVec v        V.Vector = V.Vector
 type instance MinBoxVec U.Vector U.Vector = U.Vector
 
 type family MayBoxVec a :: * -> *
+type instance MayBoxVec ()           = U.Vector
 type instance MayBoxVec Int          = U.Vector
 type instance MayBoxVec Double       = U.Vector
 type instance MayBoxVec LogFloat     = U.Vector
