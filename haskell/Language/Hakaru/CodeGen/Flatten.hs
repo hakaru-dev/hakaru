@@ -828,7 +828,9 @@ flattenBucket lo hi red = \loc -> do
                            [declare typ' =<< createIdent v'])
                        $ vs
                      eE <- flattenWithName e''
-                     putExprStat $ loc .+=. eE
+                     case sing_HSemiring sr of
+                       SProb -> logSumExpCG (S.fromList [loc,eE]) loc
+                       _ -> putExprStat $ loc .+=. eE
             _ -> putStat . CComment $ "accumRed{}"
 
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
