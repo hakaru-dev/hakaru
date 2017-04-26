@@ -140,10 +140,11 @@ Efficient := proc(mm, $)
   end if;
   while m :: '{lam(name, anything, anything),
                Context(anything, anything),
+               case(anything, Branches(Branch(anything, anything))),
                And(specfunc(piecewise)
                   ,{anyfunc(anything, anything, Msum())
                    ,anyfunc(anything, anything, anything, Msum())})}' do
-    m := op(`if`(op(0,m)='lam',3,2),m);
+    m := op(`if`(op(0,m)='lam',3,`if`(op(0,m)='case',[2,1,2],2)),m);
   end do;
   if m :: 'Weight(anything, anything)' then m := op(2,m) end if;
   if has(m, '{infinity, Lebesgue, int, Int, Beta, GAMMA}') then
