@@ -1,4 +1,6 @@
 single_case_Partition := module()
+  uses Domain;
+
   export SimplName  := "Single case partition";
   export SimplOrder := 11;
 
@@ -23,6 +25,8 @@ single_case_Partition := module()
 end module;
 
 redundant_Partition_Pieces := module()
+  uses Domain;
+
   export SimplName  := "Redundant Partition pieces";
   export SimplOrder := (10+1/2);
 

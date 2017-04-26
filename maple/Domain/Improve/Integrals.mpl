@@ -24,6 +24,8 @@ end module;
 
 
 empty_DIntos := module()
+  uses Domain;
+
   export ModuleApply := proc(vs,sh,$)
     subsindets(sh, satisfies(is_empty), _->DSum());
   end proc;

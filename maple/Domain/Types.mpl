@@ -36,34 +36,33 @@ local DomBoundRange_type := proc(nm)
     ormap(i->type(nm,Domain:-ExtBound[i]:-RangeType), ixs);
 end proc;
 
-local GLOBALS := table(
-  ['DOMAIN' =
-   (proc()
-      local errs := indets([args[2..-1]], DomNoSol);
-      if errs <> {} then
-          'procname'(args[1], 'DNoSol'(map(op,errs)[]));
-      end if;
-      'procname'(args);
-    end proc)
- , 'DBound' = (proc(a)
-     local b,cs;
-     b := `if`(nargs>=2,[args[2]],[{}])[];
-     cs := `if`(nargs>=3,[args[3..-1]],[])[];
-     'procname'(a,b,cs) ;
-     end proc)
- , 'DConstrain' =
-   (proc()
-     local as := {args};
-     if false in as then return DSum() end if;
-     as := remove(x->x::identical(false),as);
-     'procname'(op(as));
-   end proc)
- , 'DSum' =
-   (proc()
-     local as := [args];
-     as := subsindets(as, specfunc(`DSum`), xs->
-                      map(x->if op(0,x)=`DSum` then op(x) else x end if,
-                          xs));
-     if nops(as) = 1 then return op(1,as) end if;
-     'procname'(op(as));
-   end proc) ]);
+export DOMAIN := proc()
+    local errs := indets([args[2..-1]], DomNoSol);
+    if errs <> {} then
+        'procname'(args[1], 'DNoSol'(map(op,errs)[]));
+    end if;
+    'procname'(args);
+end proc;
+
+export DBound := proc(a)
+    local b,cs;
+    b := `if`(nargs>=2,[args[2]],[{}])[];
+    cs := `if`(nargs>=3,[args[3..-1]],[])[];
+    'procname'(a,b,cs) ;
+end proc;
+
+export DConstrain := proc()
+    local as := {args};
+    if false in as then return DSum() end if;
+    as := remove(x->x::identical(false),as);
+    'procname'(op(as));
+end proc;
+
+export DSum := proc()
+    local as := [args];
+    as := subsindets(as, specfunc(`DSum`), xs->
+                     map(x->if op(0,x)=`DSum` then op(x) else x end if,
+                         xs));
+    if nops(as) = 1 then return op(1,as) end if;
+    'procname'(op(as));
+end proc;

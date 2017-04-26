@@ -1,4 +1,6 @@
 local Simplify_DConstrain := (can_simp, do_simp) -> module()
+    uses Domain;
+
     export ModuleApply := proc(vs0 :: DomBound, sh :: DomShape, $)
         local vs := vs0, ctx;
         if _Env_HakaruSolve=false then
@@ -97,6 +99,7 @@ local do_ctx_dir := dir -> proc(vs :: DomBound, sh :: DomShape, $)
 end proc;
 
 push_ctx_down := module()
+  uses Domain;
   export ModuleApply := do_ctx_dir(ctx->sh->subsindets(sh, DomConstrain, x->if nops(x)<>0 then DConstrain(op(x), op(ctx)) else DConstrain() end if));
   export SimplName  := "Push context down";
   export SimplOrder := 1;
@@ -112,6 +115,8 @@ end module;
 
 # Turns constraints(relations) into bounds
 classify_DConstrains := module()
+  uses Domain;
+
   export SimplName  := "Classify constraints";
   export SimplOrder := 8;
 

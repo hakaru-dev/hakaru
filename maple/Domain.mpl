@@ -95,7 +95,7 @@
 
 Domain := module()
     uses Hakaru, Partition, SolveTools[Inequality] ;
-    global DOMAIN; global DBound; global DConstrain; global DSum; global DSplit; global DInto; global DNoSol;
+    global DSplit; global DInto; global DNoSol;
 
     local ModuleLoad := proc($)
       local ty_nm, g;
@@ -108,9 +108,6 @@ Domain := module()
         if g <> eval(g) then
           unassign(g);
           WARNING("Previous value of global name '%1' erased.", g)
-        end if;
-        if assigned(Domain:-GLOBALS[g]) then
-          assign(g = copy(Domain:-GLOBALS[g]));
         end if;
         protect(g);
       end do;

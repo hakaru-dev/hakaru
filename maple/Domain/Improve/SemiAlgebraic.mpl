@@ -1,5 +1,5 @@
 SemiAlgebraic := module()
-    uses SolveTools;
+    uses Domain, SolveTools;
     export SimplName  := "SemiAlgebraic";
     export SimplOrder := 6+(1/2);
 
