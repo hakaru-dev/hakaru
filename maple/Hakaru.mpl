@@ -56,7 +56,7 @@ end proc:
 Hakaru := module ()
   option package;
   local p_true, p_false, make_piece, Mk_Plus, lift1_piecewise,
-        ModuleLoad, ModuleUnload, GLOBALS;
+        ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, fst, snd, size, Datum,
@@ -596,18 +596,6 @@ Hakaru := module ()
     end if
   end proc;
 
-  GLOBALS := table([
-     Bind = (proc()
-       local x;
-       if nargs=2 and args[2]::appliable then
-         'procname'(args[1],x,args[2](x));
-       elif nargs=3 then
-         'procname'(args);
-       else
-         error "unknown args: %1 (expecting 2 or 3 args)", [args];
-       end if
-     end proc)]);
-
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
     ModuleUnload();
@@ -681,12 +669,9 @@ Hakaru := module ()
     #Protect the keywords of the Hakaru language.
     #op([2,6], ...) of a module is its globals.
     for g in op([2,6], thismodule) do
-         if g <> eval(g) and not(assigned(GLOBALS[g])) then
+         if g <> eval(g) then
            unassign(g);
            WARNING("Previous value of Hakaru keyword '%1' erased.", g);
-         end if;
-         if assigned(GLOBALS[g]) then
-           assign(g = copy(GLOBALS[g]));
          end if;
          protect(g)
     end do
