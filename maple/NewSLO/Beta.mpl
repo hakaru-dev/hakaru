@@ -12,18 +12,20 @@
     end proc;
 
     hack_Beta_pw := proc(pw::specfunc(piecewise), x::name, bounds::range, $)
-      local i, cond, via, dif, k;
+      local i, cond, via, dif, ineq, k;
       # Remove a particular superfluous inequality
       for i from 1 by 2 to nops(pw)-1 do
         cond := op(i,pw);
         if cond :: 'specfunc(And)' and membertype('{`<=`,`<>`}', cond) then
           for via in select(has, select(type, cond, `=`), x) do
-            dif := lhs(via)-rhs(via)+rhs(bounds)-x;
+            dif := lhs(via)-rhs(via)+rhs(bounds)-x; # known nonnegative
             for k from 1 to nops(cond) do
+              ineq := op([k,1],cond)-op([k,2],cond);
               if op(k,cond) :: `<=`
-                 and Testzero(op([k,1],cond)-op([k,2],cond)+dif)
+                 and Testzero(dif+ineq)
               or op(k,cond) :: `<>`
-                 and Normalizer(op([k,1],cond)-op([k,2],cond)+dif) :: negative
+                 and (Normalizer(dif+ineq) :: negative
+                   or Normalizer(dif-ineq) :: negative)
               then
                 return subsop(i=bool_And(op(subsop(k=NULL,cond))), pw);
               end if;
