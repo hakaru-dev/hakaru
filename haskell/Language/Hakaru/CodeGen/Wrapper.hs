@@ -83,10 +83,7 @@ wrapProgram tast@(TypedAST typ _) mn pc =
                       typ'
                       (Ident name)
                       []
-                      $ do outId <- genIdent' "out"
-                           let outE = CVar outId
-                           flattenABT abt outE
-                           putStat $ CReturn . Just $ outE
+                      ((putStat . CReturn . Just) =<< flattenWithName' abt "out")
 
                ( TypedAST typ'       abt, Nothing   ) ->
                  mainFunction pc typ' abt
@@ -128,11 +125,7 @@ mainFunction pc typ@(SMeasure _) abt =
 
          -- defined a measure function that returns mdata
          funCG (head . buildType $ typ) ident [] $
-           do sampId <- genIdent' "samp"
-              declare typ sampId
-              let sampE = CVar sampId
-              flattenABT abt sampE
-              putStat . CReturn . Just $ sampE
+            (putStat . CReturn . Just) =<< flattenWithName' abt "samp"
 
          -- need to set seed?
          -- srand(time(NULL));
@@ -297,11 +290,7 @@ flattenTopLambda abt name =
         typ   = typeOf abt'
     in  do argDecls <- sequence varMs
            cg <- get
-           let m       = do outId <- genIdent' "out"
-                            declare (typeOf abt') outId
-                            let outE = CVar outId
-                            flattenABT abt' outE
-                            putStat . CReturn . Just $ outE
+           let m = (putStat . CReturn . Just) =<< flattenWithName' abt' "out"
                (_,cg') = runState m $ cg { statements = []
                                          , declarations = [] }
            put $ cg' { statements   = statements cg

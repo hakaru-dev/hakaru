@@ -27,8 +27,10 @@
 module Language.Hakaru.CodeGen.Flatten
   ( flattenABT
   , flattenVar
-  , flattenTerm )
-  where
+  , flattenTerm
+  , flattenWithName
+  , flattenWithName'
+  ) where
 
 import Language.Hakaru.CodeGen.CodeGenMonad
 import Language.Hakaru.CodeGen.AST
