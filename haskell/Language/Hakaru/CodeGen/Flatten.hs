@@ -208,25 +208,14 @@ flattenSCon Lam_ =
         extDeclClosure vars body'= do
           funcId <- genIdent' "fn"
           idAndSpecs <- sequence $ foldMap11 (\v -> [mkVarIdandSpec v]) vars
-          cg <- get
           let fVars   = freeVars body'
               typ     = typeOf body'
-              m       = do outId <- genIdent' "out"
-                           declare typ outId
-                           let outE = CVar outId
-                           flattenABT body' outE
-                           putStat . CReturn . Just $ outE
-              (_,cg') = runState m $ cg { statements = []
-                                        , declarations = [] }
-          put $ cg' { statements   = statements cg
-                    , declarations = declarations cg }
           sId@(Ident sname) <- extDeclClosureStruct typ (fmap snd idAndSpecs) fVars
-          extDeclare . CFunDefExt
-            $ functionDef typ funcId
+          funCG (head . buildType $ typ)
+                funcId
                 ([buildDeclaration (callStruct sname) (Ident "env")]
                  ++ (fmap (\(vId,specs) -> buildDeclaration' specs vId) idAndSpecs))
-                (reverse $ declarations cg')
-                (reverse $ statements cg')
+                ((putStat . CReturn . Just) =<< flattenWithName body')
           return (callStruct sname)
 
         extDeclClosureStruct
@@ -1409,18 +1398,11 @@ logSumExpCG seqE =
       name   = "logSumExp" ++ (show size)
       funcId = Ident name
   in \loc -> do -- reset the names so that the function is the same for each arity
-       cg <- get
-       put (cg { freshNames = cNameStream })
-       argIds <- replicateM size genIdent
-       let decls = fmap (typeDeclaration SProb) argIds
-           vars  = fmap CVar argIds
-       extDeclare . CFunDefExt $ functionDef SProb
-                                             funcId
-                                             decls
-                                             []
-                                             [CReturn . Just $ logSumExp $ S.fromList vars ]
-       cg' <- get
-       put (cg' { freshNames = freshNames cg })
+       let argIds = fmap Ident (take size cNameStream)
+           decls  = fmap (typeDeclaration SProb) argIds
+           vars   = fmap CVar argIds
+       funCG CDouble funcId decls
+         (putStat . CReturn . Just . logSumExp . S.fromList $ vars)
        putExprStat $ loc .=. (CCall (CVar funcId) (F.toList seqE))
 
 -------------------------------------

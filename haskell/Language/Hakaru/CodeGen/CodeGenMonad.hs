@@ -42,7 +42,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , putExprStat
   , extDeclare
   , extDeclareTypes
-  , defineFunction
+
   , funCG
   , isParallel
   , mkParallel
@@ -273,36 +273,18 @@ extDeclare d = do cg <- get
                                else d:extds
                   put $ cg { extDecls = extds' }
 
-defineFunction :: Sing (a :: Hakaru) -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
-defineFunction typ ident args mbody =
-  do cg <- get
-     mbody
-     !cg' <- get
-     let decls = reverse . declarations $ cg'
-         stmts = reverse . statements   $ cg'
-         def :: Sing (a :: Hakaru) -> CFunDef
-         def SInt         = functionDef SInt  ident args decls stmts
-         def SNat         = functionDef SNat  ident args decls stmts
-         def SProb        = functionDef SProb ident args decls stmts
-         def SReal        = functionDef SReal ident args decls stmts
-         def (SMeasure t) = functionDef (SMeasure t) ident args decls stmts
-         def t            = error $ "TODO: defined function of type: " ++ show t
-
-     -- reset local statements and declarations
-     put $ cg' { statements   = statements cg
-               , declarations = declarations cg }
-     extDeclare . CFunDefExt $ def typ
-
 funCG :: CTypeSpec -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
-funCG ts ident args mbody =
+funCG ts ident args m =
   do cg <- get
-     mbody
-     !cg' <- get
+     let (_,cg') = runState m $ cg { statements   = []
+                                   , declarations = []
+                                   , freshNames   = cNameStream }
      let decls = reverse . declarations $ cg'
          stmts = reverse . statements   $ cg'
      -- reset local statements and declarations
      put $ cg' { statements   = statements cg
-               , declarations = declarations cg }
+               , declarations = declarations cg
+               , freshNames   = freshNames cg }
      extDeclare . CFunDefExt $
        CFunDef [CTypeSpec ts]
                (CDeclr Nothing (CDDeclrIdent ident))

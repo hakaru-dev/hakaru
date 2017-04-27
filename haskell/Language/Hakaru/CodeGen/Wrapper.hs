@@ -79,11 +79,11 @@ wrapProgram tast@(TypedAST typ _) mn pc =
                ( TypedAST typ' abt,       Just name ) ->
                  -- still buggy for measures
                  do reserveName name
-                    defineFunction
-                      typ'
-                      (Ident name)
-                      []
-                      ((putStat . CReturn . Just) =<< flattenWithName' abt "out")
+                    funCG (head . buildType $ typ')
+                          (Ident name)
+                          []
+                          (do outE <- flattenWithName' abt "out"
+                              putStat . CReturn . Just $ outE)
 
                ( TypedAST typ'       abt, Nothing   ) ->
                  mainFunction pc typ' abt
@@ -115,56 +115,41 @@ mainFunction
 
 -- when measure, compile to a sampler
 mainFunction pc typ@(SMeasure _) abt =
-  let ident   = Ident "measure"
-      funId   = Ident "main"
-  in  do reserveName "measure"
-         reserveName "mdata"
-         reserveName "main"
+  do reserveName "measure"
+     reserveName "mdata"
+     reserveName "main"
+     let measureFunId = Ident "measure"
+     extDeclareTypes typ
 
-         extDeclareTypes typ
+     -- defined a measure function that returns mdata
+     funCG (head . buildType $ typ) measureFunId  [] $
+       (putStat . CReturn . Just) =<< flattenWithName' abt "samp"
 
-         -- defined a measure function that returns mdata
-         funCG (head . buildType $ typ) ident [] $
-            (putStat . CReturn . Just) =<< flattenWithName' abt "samp"
+     funCG CInt (Ident "main") [] $
+       do isManagedMem <- managedMem <$> get
+          when isManagedMem (putExprStat gc_initE)
 
-         -- need to set seed?
-         -- srand(time(NULL));
-         isManagedMem <- managedMem <$> get
-         when isManagedMem (putExprStat gc_initE)
-
-         printf pc typ (CVar ident)
-         putStat . CReturn . Just $ intE 0
-
-         !cg <- get
-         extDeclare . CFunDefExt $ functionDef SInt
-                                               funId
-                                               []
-                                               (P.reverse $ declarations cg)
-                                               (P.reverse $ statements cg)
+          -- need to set seed?
+          -- srand(time(NULL));
+          printf pc typ (CVar measureFunId)
+          putStat . CReturn . Just $ intE 0
 
 -- just a computation
 mainFunction pc typ abt =
-  let resId = Ident "result"
-      resE  = CVar resId
-      funId = Ident "main"
-  in  do reserveName "result"
-         reserveName "main"
-         declare typ resId
+  do reserveName "result"
+     reserveName "main"
+     let resId = Ident "result"
+         resE  = CVar resId
 
-         isManagedMem <- managedMem <$> get
-         when isManagedMem (putExprStat gc_initE)
+     funCG CInt (Ident "main") [] $
+       do declare typ resId
 
-         flattenABT abt resE
+          isManagedMem <- managedMem <$> get
+          when isManagedMem (putExprStat gc_initE)
 
-         printf pc typ resE
-         putStat . CReturn . Just $ intE 0
-
-         cg <- get
-         extDeclare . CFunDefExt $ functionDef SInt
-                                              funId
-                                              []
-                                              (P.reverse $ declarations cg)
-                                              (P.reverse $ statements cg)
+          flattenABT abt resE
+          printf pc typ resE
+          putStat . CReturn . Just $ intE 0
 
 
 --------------------------------------------------------------------------------
