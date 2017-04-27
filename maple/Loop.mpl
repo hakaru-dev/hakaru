@@ -310,8 +310,8 @@ Loop := module ()
 
   wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),
                kb1::t_kb, kb0::t_kb, $)
-    local e, kb, mode, i, entry, rest, var, new_rng, make,
-       dom_spec, w, arrrgs;
+    local e, kb, mode, i, entry, rest, var, new_rng, make, logmake,
+       dom_spec, w, wPow, wExp, arrrgs;
     e    := e1;
     kb   := kb1;
     mode := mode1;
@@ -342,11 +342,20 @@ Loop := module ()
         dom_spec, rest := selectremove(depends,
           map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest),
           var);
+
+        # Like e := make(piecewise(And(op(dom_spec)), e, mode()), var=new_rng);
+        # but try to simplify by pushing the make and the piecewise into e
         (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
         w := `*`(op(w));
-        if mode = `*` and not (w = 1) then
-          w := w ^ `if`(make=eval,eval,Sum)
-                       (piecewise_And(dom_spec, 1, 0), var=new_rng);
+        if mode = `*` then
+          (wPow, e) := selectremove(type, e, '`^`'('freeof'(var), 'anything'));
+          (wExp, e) := selectremove(type, e, 'exp(anything)');
+          wExp := `+`(op(map2(op, 1, wExp)));
+          logmake := t -> `if`(make=eval,eval,Sum)
+                              (piecewise_And(dom_spec,t,0), var=new_rng);
+          w := `*`( `if`(w = 1, 1, w ^ logmake(1))
+                  , op(map((f -> op(1,f) ^ logmake(op(2,f))), wPow))
+                  , `if`(wExp = 0, 1, exp(logmake(wExp))) );
         end if;
         e := w * make(piecewise_And(dom_spec, `*`(op(e)), mode()), var=new_rng);
 
