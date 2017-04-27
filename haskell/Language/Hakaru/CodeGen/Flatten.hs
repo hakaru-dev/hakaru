@@ -138,7 +138,7 @@ flattenTerm (ArrayLiteral_ s) = flattenArrayLiteral s
 -- Mochastic Terms --
 ---------------------
 flattenTerm (Superpose_ wes)  = flattenSuperpose wes
-flattenTerm (Reject_ _)       = \loc -> putExprStat (mdataPtrWeight loc .=. (intE 0)) -- fail to draw a sample
+flattenTerm (Reject_ _)       = \loc -> putExprStat (mdataWeight loc .=. (intE 0))
 
 
 --------------------------------------------------------------------------------
@@ -273,109 +273,87 @@ flattenSCon (ArrayOp_ op) = flattenArrayOp op
 flattenSCon (Summate _ sr) =
   \(lo :* hi :* body :* End) ->
     \loc ->
-      do loId <- genIdent
-         hiId <- genIdent
-         declare (typeOf lo) loId
-         declare (typeOf hi) hiId
-         let loE     = CVar loId
-             hiE     = CVar hiId
-             semiTyp = sing_HSemiring sr
-         flattenABT lo loE
-         flattenABT hi hiE
+      let  semiTyp = sing_HSemiring sr in
+        do loE <- flattenWithName' lo "lo"
+           hiE <- flattenWithName' hi "hi"
 
-         putStat $ opComment "Begin Summate"
+           putStat $ opComment "Begin Summate"
 
-         case semiTyp of
-           -- special prob branch
-           SProb -> do
-             summateArrId <- genIdent' "summate_arr"
-             declare (SArray SProb) summateArrId
-             let summateArrE = CVar summateArrId
-             putExprStat $ arraySize summateArrE .=. (hiE .-. loE)
-             putExprStat $ arrayData summateArrE
-                   .=. (castToPtrOf CDouble
-                         (mallocE ((arraySize summateArrE) .*.
-                                  (CSizeOfType (CTypeName [CDouble] False)))))
-             lseSummateArrayCG body summateArrE loc
-             putExprStat $ freeE $ arrayData summateArrE
+           case semiTyp of
+             -- special prob branch
+             SProb -> do
+               summateArrId <- genIdent' "summate_arr"
+               declare (SArray SProb) summateArrId
+               let summateArrE = CVar summateArrId
+               putExprStat $ arraySize summateArrE .=. (hiE .-. loE)
+               putExprStat $ arrayData summateArrE
+                     .=. (castToPtrOf CDouble
+                           (mallocE ((arraySize summateArrE) .*.
+                                    (CSizeOfType (CTypeName [CDouble] False)))))
+               lseSummateArrayCG body summateArrE loc
+               putExprStat $ freeE $ arrayData summateArrE
 
-           _ -> do
-             caseBind body $ \v body' -> do
-               iterI <- createIdent v
-               declare SNat iterI
+             _ ->
+               caseBind body $ \v body' -> do
+                 iterI <- createIdent v
+                 declare SNat iterI
 
-               accI <- genIdent' "acc"
-               declare semiTyp accI
-               assign accI (case semiTyp of
-                              SReal -> floatE 0
-                              _     -> intE 0)
+                 accI <- genIdent' "acc"
+                 declare semiTyp accI
+                 assign accI (case semiTyp of
+                                SReal -> floatE 0
+                                _     -> intE 0)
 
-               let accVar  = CVar accI
-                   iterVar = CVar iterI
+                 let accVar  = CVar accI
+                     iterVar = CVar iterI
 
-               reductionCG CAddOp
-                           accI
-                           (iterVar .=. loE)
-                           (iterVar .<. hiE)
-                           (CUnary CPostIncOp iterVar) $
-                 do tmpId <- genIdent
-                    declare (typeOf body') tmpId
-                    let tmpE = CVar tmpId
-                    flattenABT body' tmpE
-                    putStat . CExpr . Just $ (accVar .+=. tmpE)
-                    putExprStat (loc .=. accVar)
+                 reductionCG CAddOp
+                             accI
+                             (iterVar .=. loE)
+                             (iterVar .<. hiE)
+                             (CUnary CPostIncOp iterVar) $
+                   (putExprStat . (accVar .+=.) =<< flattenWithName body')
+                 putExprStat $ loc .=. accVar
 
-         putStat $ opComment "End Summate"
+           putStat $ opComment "End Summate"
 
 
 
 flattenSCon (Product _ sr) =
   \(lo :* hi :* body :* End) ->
-    \loc -> do
-      loId <- genIdent
-      hiId <- genIdent
-      declare (typeOf lo) loId
-      declare (typeOf hi) hiId
-      let loE     = CVar loId
-          hiE     = CVar hiId
-          semiTyp = sing_HSemiring sr
-      flattenABT lo loE
-      flattenABT hi hiE
+    \loc ->
+      let  semiTyp = sing_HSemiring sr in
+        do loE <- flattenWithName' lo "lo"
+           hiE <- flattenWithName' hi "hi"
 
-      putStat $ opComment "Begin Product"
+           putStat $ opComment "Begin Product"
 
-      case semiTyp of
-      -- special prob branch
-        SProb -> kahanSummationCG body loE hiE loc
+           case semiTyp of
+           -- special prob branch
+             SProb -> kahanSummationCG body loE hiE loc
 
-        _ -> do
-          caseBind body $ \v body' -> do
-            iterI <- createIdent v
-            declare SNat iterI
+             _ ->
+               caseBind body $ \v body' -> do
+                 iterI <- createIdent v
+                 declare SNat iterI
 
-            accI <- genIdent' "acc"
-            declare semiTyp accI
-            assign accI (case semiTyp of
-                           SReal -> floatE 1
-                           _     -> intE 1)
+                 accI <- genIdent' "acc"
+                 declare semiTyp accI
+                 assign accI (case semiTyp of
+                                SReal -> floatE 1
+                                _     -> intE 1)
 
-            let accVar  = CVar accI
-                iterVar = CVar iterI
+                 let accVar  = CVar accI
+                     iterVar = CVar iterI
 
-            reductionCG CMulOp
-                         accI
-                         (iterVar .=. loE)
-                         (iterVar .<. hiE)
-                         (CUnary CPostIncOp iterVar) $
-               do tmpId <- genIdent
-                  declare (typeOf body') tmpId
-                  let tmpE = CVar tmpId
-                  flattenABT body' tmpE
-                  putExprStat (accVar .*=. tmpE)
-
-            putExprStat (loc .=. accVar)
-
-      putStat $ opComment "End Product"
+                 reductionCG CMulOp
+                             accI
+                             (iterVar .=. loE)
+                             (iterVar .<. hiE)
+                             (CUnary CPostIncOp iterVar) $
+                    (putExprStat . (accVar .*=.) =<< flattenWithName body')
+                 putExprStat (loc .=. accVar)
+           putStat $ opComment "End Product"
 
 
 --------------------
