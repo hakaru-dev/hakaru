@@ -327,6 +327,7 @@ datumPrim dat prim =
                    (SKonst k) -> typeDeclaration k ident
      return [decl]
 
+-- index into pair
 datumFst :: CExpr -> CExpr
 datumFst x = x ... "sum" ... "a" ... "a"
 

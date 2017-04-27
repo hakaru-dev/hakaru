@@ -895,20 +895,9 @@ flattenCase c [ Branch (PDatum _ (PInl PDone))        trueB
               , Branch (PDatum _ (PInr (PInl PDone))) falseB ] =
   \loc ->
     do cE <- flattenWithName c
-
-       cg <- get
-       let trueM    = flattenABT trueB loc
-           falseM   = flattenABT falseB loc
-           (_,cg')  = runState trueM $ cg { statements = [] }
-           (_,cg'') = runState falseM $ cg' { statements = [] }
-       put $ cg'' { statements = statements cg }
-
-       let alt = CIf ((CMember cE (Ident "index") True) .==. (intE 1))
-                     (CCompound . fmap CBlockStat . reverse . statements $ cg'')
-                     Nothing
-       putStat $ CIf ((CMember cE (Ident "index") True) .==. (intE 0))
-                     (CCompound . fmap CBlockStat . reverse . statements $ cg')
-                     (Just alt)
+       ifCG ((cE ... "index") .==. (intE 0))
+            (flattenABT trueB  loc)
+            (flattenABT falseB loc)
 
 flattenCase e [ Branch (PDatum _ (PInl (PEt (PKonst PVar)
                                             (PEt (PKonst PVar)
@@ -922,11 +911,8 @@ flattenCase e [ Branch (PDatum _ (PInl (PEt (PKonst PVar)
         sndId <- createIdent vsnd
         declare fstTyp fstId
         declare sndTyp sndId
-        let fstE = CVar fstId
-            sndE = CVar sndId
-            obj = CMember (CMember eE (Ident "sum") True) (Ident "a") True
-        putExprStat $ fstE .=. (CMember obj (Ident "a") True)
-        putExprStat $ sndE .=. (CMember obj (Ident "b") True)
+        putExprStat $ (CVar fstId) .=. (datumFst eE)
+        putExprStat $ (CVar sndId) .=. (datumSnd eE)
         flattenABT b'' loc
 
 flattenCase e _ = error $ "TODO: flattenCase{" ++ show (typeOf e) ++ "}"
