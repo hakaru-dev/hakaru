@@ -33,7 +33,6 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , runCodeGenBlock
   , runCodeGenWith
   , emptyCG
-  , suffixes
 
   -- codegen effects
   , declare
@@ -90,13 +89,6 @@ import qualified Data.Set           as S
 
 import Text.PrettyPrint (render)
 
-suffixes :: [String]
-suffixes = filter (\n -> not $ elem (head n) ['0'..'9']) names
-  where base :: [Char]
-        base = ['0'..'9'] ++ ['a'..'z']
-        names = [[x] | x <- base] `mplus` (do n <- names
-                                              [n++[x] | x <- base])
-
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generations
              , reservedNames :: S.Set String -- ^ reserve names during code generations
@@ -111,7 +103,7 @@ data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generatio
              }
 
 emptyCG :: CG
-emptyCG = CG suffixes mempty mempty [] [] emptyEnv False False False True
+emptyCG = CG cNameStream mempty mempty [] [] emptyEnv False False False True
 
 type CodeGen = State CG
 

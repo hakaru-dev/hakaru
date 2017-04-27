@@ -31,7 +31,12 @@ module Language.Hakaru.CodeGen.AST
   , (.*=.),(.>=.),(.<=.),(...),(.->.)
   , seqCStat
   , indirect, address, index, intE, floatE, stringE, mkCallE, mkUnaryE
+
+  -- util
+  , cNameStream
   ) where
+
+import Control.Monad (mplus)
 
 
 --------------------------------------------------------------------------------
@@ -365,3 +370,12 @@ mkCallE s = CCall (CVar . Ident $ s)
 
 mkUnaryE :: String -> CExpr -> CExpr
 mkUnaryE s a = mkCallE s [a]
+
+--------------------------------------------------------------------------------
+
+cNameStream :: [String]
+cNameStream = filter (\n -> not $ elem (head n) ['0'..'9']) names
+  where base :: [Char]
+        base = ['0'..'9'] ++ ['a'..'z']
+        names = [[x] | x <- base] `mplus` (do n <- names
+                                              [n++[x] | x <- base])

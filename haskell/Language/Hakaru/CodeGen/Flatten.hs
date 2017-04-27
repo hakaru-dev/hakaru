@@ -808,12 +808,6 @@ flattenDatum (Datum _ typ code) =
     do extDeclareTypes typ
        assignDatum code loc
 
-datumNames :: [String]
-datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
-  where base = ['0'..'9'] ++ ['a'..'z']
-        names = [[x] | x <- base] `mplus` (do n <- names
-                                              [n++[x] | x <- base])
-
 assignDatum
   :: (ABT Term abt)
   => DatumCode xss (abt '[]) c
@@ -833,7 +827,7 @@ assignSum
   => DatumCode xs (abt '[]) c
   -> CExpr
   -> [CodeGen ()]
-assignSum code ident = fst $ runState (assignSum' code ident) datumNames
+assignSum code ident = fst $ runState (assignSum' code ident) cNameStream
 
 assignSum'
   :: (ABT Term abt)
@@ -855,7 +849,7 @@ assignProd
   -> CExpr
   -> [CodeGen ()]
 assignProd dstruct topIdent sumIdent =
-  fst $ runState (assignProd' dstruct topIdent sumIdent) datumNames
+  fst $ runState (assignProd' dstruct topIdent sumIdent) cNameStream
 
 assignProd'
   :: (ABT Term abt)
@@ -1416,7 +1410,7 @@ logSumExpCG seqE =
       funcId = Ident name
   in \loc -> do -- reset the names so that the function is the same for each arity
        cg <- get
-       put (cg { freshNames = suffixes })
+       put (cg { freshNames = cNameStream })
        argIds <- replicateM size genIdent
        let decls = fmap (typeDeclaration SProb) argIds
            vars  = fmap CVar argIds

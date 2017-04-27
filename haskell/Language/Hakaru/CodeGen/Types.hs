@@ -75,7 +75,6 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.AST
 import Language.Hakaru.CodeGen.Libs
 
-
 buildDeclaration :: CTypeSpec -> Ident -> CDecl
 buildDeclaration ctyp ident =
   CDecl [ CTypeSpec ctyp ]
@@ -245,13 +244,6 @@ mdataPtrSample d = CMember d (Ident "sample") False
     for the code to compile
 -}
 
-datumNames :: [String]
-datumNames = filter (\n -> not $ elem (head n) ['0'..'9']) names
-  where base = ['0'..'9'] ++ ['a'..'z']
-        names = [[x] | x <- base] `mplus` (do n <- names
-                                              [n++[x] | x <- base])
-
-
 datumStruct :: (Sing (HData' t)) -> CExtDecl
 datumStruct dat@(SData _ typ)
   = CDeclExt $ datumSum dat typ (Ident (typeName dat))
@@ -268,7 +260,7 @@ datumSum
   -> Ident
   -> CDecl
 datumSum dat funs ident =
-  let declrs = fst $ runState (datumSum' dat funs) datumNames
+  let declrs = fst $ runState (datumSum' dat funs) cNameStream
       union  = buildDeclaration (buildUnion declrs) (Ident "sum")
       index  = buildDeclaration CInt (Ident "index")
       struct = buildStruct (Just ident) $ case declrs of
@@ -298,7 +290,7 @@ datumProd
   -> Maybe CDecl
 datumProd _ SDone _       = Nothing
 datumProd dat funs ident  =
-  let declrs = fst $ runState (datumProd' dat funs) datumNames
+  let declrs = fst $ runState (datumProd' dat funs) cNameStream
   in  Just $ buildDeclaration (buildStruct Nothing $ declrs) ident
 
 -- datumProd uses a store of names, which needs to match up with the names used
