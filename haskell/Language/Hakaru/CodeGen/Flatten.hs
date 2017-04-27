@@ -256,14 +256,8 @@ flattenSCon Lam_ =
 flattenSCon App_  =
  \(fun :* arg :* End) ->
    \loc -> do
-     closId <- genIdent' "clos"
-     paramId <- genIdent' "param"
-     declare (typeOf fun) closId
-     declare (typeOf arg) paramId
-     let closE  = CVar closId
-         paramE = CVar paramId
-     flattenABT fun closE
-     flattenABT arg paramE
+     closE <- flattenWithName' fun "clos"
+     paramE <- flattenWithName' fun "param"
      putExprStat $ loc .=. (CCall (CMember closE (Ident "fn") True) [paramE])
 
 flattenSCon (PrimOp_ op) = flattenPrimOp op
@@ -291,7 +285,7 @@ flattenSCon (Summate _ sr) =
                            (mallocE ((arraySize summateArrE) .*.
                                     (CSizeOfType (CTypeName [CDouble] False)))))
                lseSummateArrayCG body summateArrE loc
-               putExprStat $ freeE $ arrayData summateArrE
+               putExprStat $ freeE (arrayData summateArrE)
 
              _ ->
                caseBind body $ \v body' -> do
@@ -364,12 +358,9 @@ flattenSCon (Product _ sr) =
 flattenSCon (CoerceTo_ ctyp) =
   \(e :* End) ->
     \loc ->
-       do eId <- genIdent
-          let eT = typeOf e
-              eE = CVar eId
-          declare eT eId
-          flattenABT e eE
-          putExprStat . (CAssign CAssignOp loc) =<< coerceToType ctyp eT eE
+      do eE <- flattenWithName e
+         cE <- coerceToType ctyp (typeOf e) eE
+         putExprStat $ loc .=. cE
   where coerceToType
           :: Coercion a b
           -> Sing (c :: Hakaru)
@@ -419,22 +410,16 @@ flattenSCon (MeasureOp_ op) = flattenMeasureOp op
 flattenSCon Dirac           =
   \(e :* End) ->
     \loc ->
-       do sId <- genIdent' "samp"
-          declare (typeOf e) sId
-          let sE = CVar sId
-          flattenABT e sE
-          putExprStat $ mdataWeight loc .=. (floatE 0)
-          putExprStat $ mdataSample loc .=. sE
+      do sE <- flattenWithName' e "samp"
+         putExprStat $ mdataWeight loc .=. (floatE 0)
+         putExprStat $ mdataSample loc .=. sE
 
 flattenSCon MBind           =
   \(ma :* b :* End) ->
     \loc ->
       caseBind b $ \v@(Variable _ _ typ) mb ->
         do -- first
-           mId <- genIdent' "m"
-           declare (typeOf ma) mId
-           let mE = CVar mId
-           flattenABT ma mE
+           mE <- flattenWithName' ma "m"
 
            -- assign that sample to var
            vId <- createIdent v
@@ -452,6 +437,7 @@ flattenSCon Plate           =
            declare SNat sizeId
            let sizeE = CVar sizeId
            flattenABT size sizeE
+           sizeE <- flattenWithName' size "s"
 
            isManagedMem <- managedMem <$> get
            if isManagedMem
@@ -506,23 +492,15 @@ flattenNAryOp :: ABT Term abt
               -> (CExpr -> CodeGen ())
 flattenNAryOp op args =
   \loc ->
-    do es <- T.forM args $ \a ->
-               do aId <- genIdent
-                  let aE = CVar aId
-                  declare (typeOf a) aId
-                  _ <- flattenABT a aE
-                  return aE
+    do es <- T.mapM flattenWithName args
        case op of
          And -> boolNaryOp op es loc
          Or  -> boolNaryOp op es loc
          Xor -> boolNaryOp op es loc
          Iff -> boolNaryOp op es loc
-
          (Sum HSemiring_Prob) -> logSumExpCG es loc
-
          _ -> let opE = F.foldr (binaryOp op) (S.index es 0) (S.drop 1 es)
               in  putExprStat (loc .=. opE)
-
 
   where boolNaryOp op' es' loc' =
           let indexOf x = CMember x (Ident "index") True
@@ -618,10 +596,7 @@ flattenArrayLiteral es =
           -> Integer
           -> (CExpr -> CodeGen ())
         assignIndex e index loc = do
-          eId <- genIdent
-          declare (typeOf e) eId
-          let eE = CVar eId
-          flattenABT e eE
+          eE <- flattenWithName e
           putExprStat $ indirect ((arrayData loc) .+. (intE index)) .=. eE
 
 --------------
@@ -641,24 +616,15 @@ flattenArrayOp
 flattenArrayOp (Index _)  =
   \(arr :* ind :* End) ->
     \loc ->
-      do arrId <- genIdent' "arr"
-         indId <- genIdent
-         let arrE = CVar arrId
-             indE = CVar indId
-         declare (typeOf arr) arrId
-         declare SNat indId
-         flattenABT arr arrE
-         flattenABT ind indE
+      do indE <- flattenWithName ind
+         arrE <- flattenWithName arr
          let valE = index (CMember arrE (Ident "data") True) indE
          putExprStat (loc .=. valE)
 
 flattenArrayOp (Size _)   =
   \(arr :* End) ->
     \loc ->
-      do arrId <- genIdent' "arr"
-         declare (typeOf arr) arrId
-         let arrE = CVar arrId
-         flattenABT arr arrE
+      do arrE <- flattenWithName arr
          putExprStat (loc .=. (CMember arrE (Ident "size") True))
 
 flattenArrayOp (Reduce _) = error "TODO: flattenArrayOp"
@@ -926,10 +892,7 @@ flattenCase
 flattenCase c [ Branch (PDatum _ (PInl PDone))        trueB
               , Branch (PDatum _ (PInr (PInl PDone))) falseB ] =
   \loc ->
-    do cId <- genIdent
-       declare (typeOf c) cId
-       let cE = (CVar cId)
-       flattenABT c cE
+    do cE <- flattenWithName c
 
        cg <- get
        let trueM    = flattenABT trueB loc
@@ -987,29 +950,22 @@ flattenPrimOp Pi =
 
 flattenPrimOp Not =
   \(a :* End) ->
-    \_ ->
-      -- this is currently incorrect, need to use memcpy to preserve value of
-      -- 'a'
-      do tmpId <- genIdent' "not"
-         declare sBool tmpId
-         let tmpE = CVar tmpId
-         flattenABT a tmpE
-         let datumIndex = CMember tmpE (Ident "index") True
-         putExprStat $ datumIndex .=. (CCond (datumIndex .==. (intE 1))
-                                             (intE 0)
-                                             (intE 1))
+    \loc ->
+      do aE <- flattenWithName a
+         bId <- genIdent
+         declare (typeOf a) bId
+         let datumIndex e = CMember e (Ident "index") True
+             bE = CVar bId
+         putExprStat $ datumIndex bE .=. (CCond (datumIndex aE .==. (intE 1))
+                                               (intE 0)
+                                               (intE 1))
+         putExprStat $ loc .=. bE
 
 flattenPrimOp RealPow =
   \(base :* power :* End) ->
     \loc ->
-      do baseId <- genIdent
-         powerId <- genIdent
-         declare SProb baseId
-         declare SReal powerId
-         let baseE     = CVar baseId
-             powerE = CVar powerId
-         flattenABT base baseE -- first argument is a Prob
-         flattenABT power powerE
+      do baseE <- flattenWithName base
+         powerE <- flattenWithName power
          let realPow = CCall (CVar . Ident $ "pow")
                              [ expm1E baseE .+. (intE 1), powerE]
          putExprStat $ loc .=. (log1pE (realPow .-. (intE 1)))
@@ -1019,13 +975,10 @@ flattenPrimOp (NatPow baseTyp) =
     \loc ->
       let sBase = sing_HSemiring baseTyp in
       do baseId <- genIdent
-         powerId <- genIdent
          declare sBase baseId
-         declare SReal powerId
-         let baseE     = CVar baseId
-             powerE = CVar powerId
+         let baseE = CVar baseId
          flattenABT base baseE
-         flattenABT power powerE
+         powerE <- flattenWithName power
          let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
              value = case sBase of
                        SProb -> log1pE $ (powerOf (expm1E baseE .+. (intE 1)) powerE)
@@ -1038,13 +991,10 @@ flattenPrimOp (NatRoot baseTyp) =
     \loc ->
       let sBase = sing_HRadical baseTyp in
       do baseId <- genIdent
-         rootId <- genIdent
          declare sBase baseId
-         declare SReal rootId
          let baseE = CVar baseId
-             rootE = CVar rootId
          flattenABT base baseE
-         flattenABT root rootE
+         rootE <- flattenWithName root
          let powerOf x y = CCall (CVar . Ident $ "pow") [x,y]
              recipE = (floatE 1) ./. rootE
              value = case sBase of
@@ -1091,15 +1041,11 @@ flattenPrimOp (Less _) =
          putExprStat $ (CMember loc (Ident "index") True)
                      .=. (CCond (aE .<. bE) (intE 0) (intE 1))
 
-flattenPrimOp (Negate HRing_Real) =
+flattenPrimOp (Negate _) =
  \(a :* End) ->
    \loc ->
-     do negId <- genIdent' "neg"
-        declare SReal negId
-        let negE = CVar negId
-        flattenABT a negE
-        putExprStat $ loc .=. (CUnary CMinOp $ negE)
-
+     do aE <- flattenWithName a
+        putExprStat $ loc .=. (CUnary CMinOp $ aE)
 
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
