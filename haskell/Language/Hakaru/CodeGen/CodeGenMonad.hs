@@ -346,15 +346,19 @@ ifCG bE m1 m2 =
   do cg <- get
      let (_,cg') = runState m1 $ cg { statements   = []
                                     , declarations = [] }
-     let (_,cg'') = runState m2 $ cg' { statements   = []
+         (_,cg'') = runState m2 $ cg' { statements   = []
                                       , declarations = [] }
+         thnBlock =  (fmap CBlockDecl (reverse $ declarations cg'))
+                  ++ (fmap CBlockStat (reverse $ statements cg'))
+         elsBlock =  (fmap CBlockDecl (reverse $ declarations cg'')
+                  ++ (fmap CBlockStat (reverse $ statements cg'')))
      put $ cg'' { statements = statements cg
                 , declarations = declarations cg }
      putStat $ CIf bE
-                   (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
-                              ++ (fmap CBlockStat (reverse $ statements cg'))))
-                   (Just (CCompound $  (fmap CBlockDecl (reverse $ declarations cg'')
-                                    ++ (fmap CBlockStat (reverse $ statements cg'')))))
+                   (CCompound thnBlock)
+                   (case elsBlock of
+                      [] -> Nothing
+                      _  -> Just . CCompound $ elsBlock)
 
 
 

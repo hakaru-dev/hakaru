@@ -1056,10 +1056,7 @@ flattenPrimOp (NatRoot baseTyp) =
 flattenPrimOp (Recip t) =
   \(a :* End) ->
     \loc ->
-      do aId <- genIdent
-         declare (typeOf a) aId
-         let aE = CVar aId
-         flattenABT a aE
+      do aE <- flattenWithName a
          case t of
            HFractional_Real -> putExprStat $ loc .=. ((intE 1) ./. aE)
            HFractional_Prob -> putExprStat $ loc .=. (CUnary CMinOp aE)
@@ -1071,22 +1068,14 @@ flattenPrimOp Exp = \(a :* End) -> flattenABT a
 flattenPrimOp (Equal _) =
   \(a :* b :* End) ->
     \loc ->
-      do aId <- genIdent
-         bId <- genIdent
-         let aE = CVar aId
-             bE = CVar bId
-             aT = typeOf a
-             bT = typeOf b
-         declare aT aId
-         declare bT bId
-         flattenABT a aE
-         flattenABT b bE
+      do aE <- flattenWithName a
+         bE <- flattenWithName b
 
          -- special case for booleans
-         let aE' = case aT of
+         let aE' = case (typeOf a) of
                      (SData _ (SPlus SDone (SPlus SDone SVoid))) -> (CMember aE (Ident "index") True)
                      _ -> aE
-         let bE' = case bT of
+         let bE' = case (typeOf b) of
                      (SData _ (SPlus SDone (SPlus SDone SVoid))) -> (CMember bE (Ident "index") True)
                      _ -> bE
 
@@ -1097,14 +1086,8 @@ flattenPrimOp (Equal _) =
 flattenPrimOp (Less _) =
   \(a :* b :* End) ->
     \loc ->
-      do aId <- genIdent
-         bId <- genIdent
-         let aE = CVar aId
-             bE = CVar bId
-         declare (typeOf a) aId
-         declare (typeOf b) bId
-         flattenABT a aE
-         flattenABT b bE
+      do aE <- flattenWithName a
+         bE <- flattenWithName b
          putExprStat $ (CMember loc (Ident "index") True)
                      .=. (CCond (aE .<. bE) (intE 0) (intE 1))
 
@@ -1288,39 +1271,24 @@ flattenMeasureOp
 flattenMeasureOp Uniform =
   \(a :* b :* End) ->
     \loc ->
-      do (aId:bId:[]) <- replicateM 2 genIdent
-         let aE = CVar aId
-             bE = CVar bId
-         declare SReal aId
-         declare SReal bId
-         flattenABT a aE
-         flattenABT b bE
+      do aE <- flattenWithName a
+         bE <- flattenWithName b
          uniformCG aE bE loc
 
 
 flattenMeasureOp Normal  =
   \(a :* b :* End) ->
     \loc ->
-      do (aId:bId:[]) <- replicateM 2 genIdent
-         let aE = CVar aId
-             bE = CVar bId
-         declare SReal aId
-         declare SReal bId
-         flattenABT a aE
-         flattenABT b bE
+      do aE <- flattenWithName a
+         bE <- flattenWithName b
          normalCG aE (expE bE) loc
 
 
 flattenMeasureOp Gamma =
   \(a :* b :* End) ->
     \loc ->
-      do (aId:bId:[]) <- replicateM 2 genIdent
-         let aE = CVar aId
-             bE = CVar bId
-         declare SReal aId
-         declare SReal bId
-         flattenABT a aE
-         flattenABT b bE
+      do aE <- flattenWithName a
+         bE <- flattenWithName b
          gammaCG (expE aE) bE loc
 
 
@@ -1353,18 +1321,18 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        assign wMaxId (logE (floatE 0))
 
        let currE = index (arrayData arrE) itE
-           cond  = itE .<. (arraySize arrE)
-           inc   = CUnary CPostIncOp itE
 
        isPar <- isParallel
        mkSequential
 
        -- Calculate the maximum value of the input array
        -- And calculate the total weight
-       forCG (itE .=. (intE 0)) cond inc $ do
-         let test = wMaxE .<. currE
-             thn  = CExpr $ Just (wMaxE .=. currE)
-         putStat $ CIf test (seqCStat [thn]) Nothing
+       forCG (itE .=. (intE 0))
+             (itE .<. (arraySize arrE))
+             (CUnary CPostIncOp itE) $ do
+         ifCG (wMaxE .<. currE)
+              (putExprStat $ wMaxE .=. currE)
+              (return ())
          logSumExpCG (S.fromList [wSumE, currE]) wSumE
        putExprStat $ wSumE .=. (wSumE .-. wMaxE)
 
@@ -1374,18 +1342,18 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        let r    = castTo CDouble randE
            rMax = castTo CDouble (CVar . Ident $ "RAND_MAX")
            rE = CVar rId
-       assign rId ((r ./. rMax) .*. (expE wSumE))
+       assign rId (logE (r ./. rMax) .+. wSumE)
 
        assign wSumId (logE (intE 0))
        assign itId (intE 0)
-       whileCG (intE 1)
-         $ do stat <- runCodeGenBlock $
-                        do putExprStat $ mdataWeight loc .=. (intE 0)
-                           putExprStat $ mdataSample loc .=. (itE .-. (intE 1))
-                           putStat CBreak
-              putStat $ CIf (rE .<. (expE wSumE)) stat Nothing
-              logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
-              putExprStat $ CUnary CPostIncOp itE
+       whileCG (intE 1) $
+         do ifCG (rE .<. wSumE)
+                 (do putExprStat $ mdataWeight loc .=. (intE 0)
+                     putExprStat $ mdataSample loc .=. (itE .-. (intE 1))
+                     putStat CBreak)
+                 (return ())
+            logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
+            putExprStat $ CUnary CPostIncOp itE
 
        when isPar mkParallel
 
@@ -1407,24 +1375,13 @@ flattenSuperpose pairs =
 
   if length pairs' == 1
   then \loc -> let (w,m) = head pairs' in
-         do mId <- genIdent
-            wId <- genIdent
-            declare (typeOf m) mId
-            declare SProb wId
-            let mE = CVar $ mId
-                wE = CVar wId
-            flattenABT w wE
-            flattenABT m mE
+         do mE <- flattenWithName m
+            wE <- flattenWithName w
             putExprStat $ mdataWeight loc .=. ((mdataWeight mE) .+. wE)
             putExprStat $ mdataSample loc .=. (mdataSample mE)
 
   else \loc ->
-         do wEs <- forM pairs' $ \(w,_) ->
-                     do wId <- genIdent' "w"
-                        declare SProb wId
-                        let wE = CVar wId
-                        flattenABT w wE
-                        return wE
+         do wEs <- mapM (\(w,_) -> flattenWithName' w "w") pairs'
 
             wSumId <- genIdent' "ws"
             declare SProb wSumId
@@ -1455,8 +1412,9 @@ flattenSuperpose pairs =
             forM_ (zip wEs pairs')
               $ \(wE,(_,m)) ->
                   do logSumExpCG (S.fromList [itE,wE]) itE
-                     stat <- runCodeGenBlock (flattenABT m outE >> putStat (CGoto outLabel))
-                     putStat $ CIf (rE .<. (expE itE)) stat Nothing
+                     ifCG (rE .<. (expE itE))
+                          (flattenABT m outE >> putStat (CGoto outLabel))
+                          (return ())
 
             putStat $ CLabel outLabel (CExpr Nothing)
             putExprStat $ mdataWeight loc .=. ((mdataWeight outE) .+. wSumE)
