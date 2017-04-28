@@ -175,47 +175,27 @@ printf
   -> CodeGen ()
 
 printf pc mt@(SMeasure t) sampleFunc =
-  case t of
-    _ -> do mId <- genIdent' "m"
-            declare mt mId
-            let mE = CVar mId
-                getSampleS   = CExpr . Just $ mE .=. (CCall sampleFunc [])
-                printSampleE = CExpr . Just
-                             $ printfE
-                             $ [ stringE $ printfText pc mt "\n"]
-                             ++ (if showWeights pc
-                                 then [ if showProbInLog pc
-                                        then mdataWeight mE
-                                        else expE $ mdataWeight mE ]
-                                 else [])
-                             ++ [ case t of
-                                    SProb -> if showProbInLog pc
-                                             then mdataSample mE
-                                             else expE $ mdataSample mE
-                                    _ -> mdataSample mE ]
-                wrapSampleFunc = CCompound $ [CBlockStat getSampleS
-                                             ,CBlockStat $ CIf ((expE $ mdataWeight mE) .>. (floatE 0)) printSampleE Nothing]
-            putStat $ CWhile (intE 1) wrapSampleFunc False
+  do mId <- genIdent' "m"
+     declare mt mId
+     let mE = CVar mId
+     whileCG (intE 1) $
+       do putExprStat $ mE .=. (CCall sampleFunc [])
+          printf pc t (mdataSample mE)
 
 
 printf pc (SArray t) arg =
   do iterId <- genIdent' "it"
      declare SInt iterId
      let iter   = CVar iterId
-         result = arg
-         dataPtr = CMember result (Ident "data") True
-         sizeVar = CMember result (Ident "size") True
-         cond     = iter .<. sizeVar
-         inc      = CUnary CPostIncOp iter
-         currInd  = indirect (dataPtr .+. iter)
-         loopBody = putExprStat $ CCall (CVar . Ident $ "printf")
-                                        [ stringE $ printfText pc t " "
-                                        , currInd ]
-
-
      putString "[ "
      mkSequential -- cant print arrays in parallel
-     forCG (iter .=. (intE 0)) cond inc loopBody
+     forCG (iter .=. (intE 0))
+           (iter .<. (arraySize arg))
+           (CUnary CPostIncOp iter)
+           (putExprStat
+           $ CCall (CVar . Ident $ "printf")
+                   [ stringE $ printfText pc t " "
+                   , index (arrayData arg) iter ])
      putString "]\n"
   where putString s = putExprStat $ CCall (CVar . Ident $ "printf")
                                           [stringE s]

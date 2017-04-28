@@ -424,18 +424,11 @@ flattenSCon Plate           =
   \(size :* b :* End) ->
     \loc ->
       caseBind b $ \v@(Variable _ _ typ) body ->
-        do sizeId <- genIdent' "s"
-           declare SNat sizeId
-           let sizeE = CVar sizeId
-           flattenABT size sizeE
-           sizeE <- flattenWithName' size "s"
-
-           isManagedMem <- managedMem <$> get
-           if isManagedMem
-              then putExprStat $   (arrayPtrData . mdataPtrSample $ loc)
-                               .=. (CCast (CTypeName (buildType typ) True)
-                                      (gc_mallocE (sizeE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
-              else error "plate requires used of the garbage collector, '-g' flag"
+        do sizeE <- flattenWithName' size "s"
+           isMM <- managedMem <$> get
+           when (not isMM) (error "plate will leak memory without the '-g' flag and boehm-gc")
+           putExprStat $ (arraySize . mdataSample $ loc) .=. sizeE
+           putMallocStat (arrayData . mdataSample $ loc) sizeE (typeOf body)
 
            weightId <- genIdent' "w"
            declare SProb weightId

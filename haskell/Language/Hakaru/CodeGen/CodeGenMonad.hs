@@ -334,18 +334,22 @@ ifCG bE m1 m2 =
                       [] -> Nothing
                       _  -> Just . CCompound $ elsBlock)
 
-
-
-
+whileCG' :: Bool -> CExpr -> CodeGen () -> CodeGen ()
+whileCG' isDoWhile bE m =
+  do cg <- get
+     let (_,cg') = runState m $ cg { statements = []
+                                   , declarations = [] }
+     put $ cg' { statements = statements cg
+               , declarations = declarations cg }
+     putStat $ CWhile bE
+                      (CCompound $ (fmap CBlockDecl (reverse $ declarations cg')
+                                ++ (fmap CBlockStat (reverse $ statements cg'))))
+                      isDoWhile
 whileCG :: CExpr -> CodeGen () -> CodeGen ()
-whileCG bE m =
-  let (_,_,stmts) = runCodeGen m
-  in putStat $ CWhile bE (CCompound $ fmap CBlockStat stmts) False
+whileCG = whileCG' False
 
 doWhileCG :: CExpr -> CodeGen () -> CodeGen ()
-doWhileCG bE m =
-  let (_,_,stmts) = runCodeGen m
-  in putStat $ CWhile bE (CCompound $ fmap CBlockStat stmts) True
+doWhileCG = whileCG' True
 
 -- forCG and reductionCG both create C for loops, their difference lies in the
 -- parallel code they generate
