@@ -1063,6 +1063,7 @@ uniformCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 uniformCG aE bE =
   \loc -> do
     reserveName "uniform"
+    extDeclareTypes (SMeasure SReal)
     extDeclare . CFunDefExt $ uniformFun
     putExprStat $ loc .=. CCall (CVar . Ident $ "uniform") [aE,bE]
 
@@ -1112,6 +1113,7 @@ normalCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 normalCG aE bE =
   \loc -> do
     reserveName "normal"
+    extDeclareTypes (SMeasure SReal)
     extDeclare . CFunDefExt $ normalFun
     putExprStat $ loc .=. (CCall (CVar . Ident $ "normal") [aE,bE])
 
@@ -1193,6 +1195,28 @@ flattenMeasureOp Normal  =
          bE <- flattenWithName b
          normalCG aE (expE bE) loc
 
+flattenMeasureOp Poisson =
+  \(lam :* End) ->
+    \loc ->
+      do lamE <- flattenWithName lam
+         (lId:kId:pId:[]) <- mapM genIdent' ["l","k","p"]
+         declare SProb lId
+         declare SNat  kId
+         declare SProb pId
+         let (lE:kE:pE:[]) = fmap CVar [lId,kId,pId]
+         putExprStat $ lE .=. (expE (CUnary CMinOp $ expE lamE))
+         putExprStat $ kE .=. (intE 0)
+         putExprStat $ pE .=. (floatE 1)
+         doWhileCG (pE .>. lE) $
+           do uId <- genIdent' "u"
+              declare (SMeasure SReal) uId
+              let uE = CVar uId
+              uniformCG (intE 0) (intE 1) uE
+              putExprStat $ pE .*=. (mdataSample uE)
+              putExprStat $ kE .+=. (intE 1)
+
+         putExprStat $ mdataWeight loc .=. (intE 0)
+         putExprStat $ mdataSample loc .=. (kE .-. (intE 1))
 
 flattenMeasureOp Gamma =
   \(a :* b :* End) ->
