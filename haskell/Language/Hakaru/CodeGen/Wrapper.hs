@@ -60,12 +60,11 @@ wrapProgram
   -> Maybe String               -- ^ Maybe an output name
   -> PrintConfig                -- ^ show weights?
   -> CodeGen ()
-wrapProgram tast@(TypedAST typ _) mn pc =
+wrapProgram tast@(TypedAST typ _) mn pconfig =
   do sequence_ . fmap (extDeclare . CPPExt) . header $ typ
      isManagedMem <- managedMem <$> get
      when isManagedMem $ extDeclare . CPPExt . PPInclude $ "gc.h"
      baseCG
-     return ()
   where baseCG = case (tast,mn) of
                ( TypedAST (SFun _ _) abt, Just name ) ->
                  do reserveName name
@@ -86,7 +85,7 @@ wrapProgram tast@(TypedAST typ _) mn pc =
                               putStat . CReturn . Just $ outE)
 
                ( TypedAST typ'       abt, Nothing   ) ->
-                 mainFunction pc typ' abt
+                 mainFunction pconfig typ' abt
 
 
 
@@ -114,7 +113,7 @@ mainFunction
   -> CodeGen ()
 
 -- when measure, compile to a sampler
-mainFunction pc typ@(SMeasure _) abt =
+mainFunction pconfig typ@(SMeasure _) abt =
   do reserveName "measure"
      reserveName "mdata"
      reserveName "main"
@@ -131,11 +130,11 @@ mainFunction pc typ@(SMeasure _) abt =
 
           -- need to set seed?
           -- srand(time(NULL));
-          printf pc typ (CVar measureFunId)
+          printCG pconfig typ (CVar measureFunId)
           putStat . CReturn . Just $ intE 0
 
 -- just a computation
-mainFunction pc typ abt =
+mainFunction pconfig typ abt =
   do reserveName "result"
      reserveName "main"
      let resId = Ident "result"
@@ -148,7 +147,7 @@ mainFunction pc typ abt =
           when isManagedMem (putExprStat gc_initE)
 
           flattenABT abt resE
-          printf pc typ resE
+          printCG pconfig typ resE
           putStat . CReturn . Just $ intE 0
 
 
@@ -168,67 +167,57 @@ data PrintConfig
                 } deriving Show
 
 
-printf
+printCG
   :: PrintConfig
   -> Sing (a :: Hakaru) -- ^ Hakaru type to be printed
   -> CExpr              -- ^ CExpr representing value
   -> CodeGen ()
-
-printf pc mt@(SMeasure t) sampleFunc =
-  do mId <- genIdent' "m"
-     declare mt mId
-     let mE = CVar mId
+printCG pconfig mtyp@(SMeasure typ) sampleFunc =
+  do mE <- localVar' mtyp "m"
      whileCG (intE 1) $
        do putExprStat $ mE .=. (CCall sampleFunc [])
-          printf pc t (mdataSample mE)
+          printCG pconfig typ (mdataSample mE)
 
-
-printf pc (SArray t) arg =
-  do iterId <- genIdent' "it"
-     declare SInt iterId
-     let iter   = CVar iterId
+printCG pconfig (SArray typ) arg =
+  do itE <- localVar' SInt "it"
      putString "[ "
-     mkSequential -- cant print arrays in parallel
-     forCG (iter .=. (intE 0))
-           (iter .<. (arraySize arg))
-           (CUnary CPostIncOp iter)
+     mkSequential
+     forCG (itE .=. (intE 0))
+           (itE .<. (arraySize arg))
+           (CUnary CPostIncOp itE)
            (putExprStat
-           $ CCall (CVar . Ident $ "printf")
-                   [ stringE $ printfText pc t " "
-                   , index (arrayData arg) iter ])
+           $ printfE [ stringE $ printFormat pconfig typ " "
+                     , index (arrayData arg) itE ])
      putString "]\n"
-  where putString s = putExprStat $ CCall (CVar . Ident $ "printf")
-                                          [stringE s]
+  where putString s = putExprStat $ printfE [stringE s]
 
-printf pc SProb arg =
+printCG pconfig SProb arg =
   putExprStat $ printfE
-                      [ stringE $ printfText pc SProb "\n"
-                      , if showProbInLog pc
+                      [ stringE $ printFormat pconfig SProb "\n"
+                      , if showProbInLog pconfig
                         then arg
                         else expE arg ]
 
-printf pc typ arg =
+printCG pconfig typ arg =
   putExprStat $ printfE
-              [ stringE $ printfText pc typ "\n"
+              [ stringE $ printFormat pconfig typ "\n"
               , arg ]
 
-
-
-printfText :: PrintConfig -> Sing (a :: Hakaru) -> (String -> String)
-printfText _ SInt         = \s -> "%d" ++ s
-printfText _ SNat         = \s -> "%d" ++ s
-printfText c SProb        = \s -> if showProbInLog c
+printFormat :: PrintConfig -> Sing (a :: Hakaru) -> (String -> String)
+printFormat _ SInt         = \s -> "%d" ++ s
+printFormat _ SNat         = \s -> "%d" ++ s
+printFormat c SProb        = \s -> if showProbInLog c
                                   then "exp(%.15f)" ++ s
                                   else "%.15f" ++ s
-printfText _ SReal        = \s -> "%.17f" ++ s
-printfText c (SMeasure t) = if showWeights c
+printFormat _ SReal        = \s -> "%.17f" ++ s
+printFormat c (SMeasure t) = if showWeights c
                             then \s -> if showProbInLog c
-                                       then "exp(%.15f) " ++ printfText c t s
-                                       else "%.15f " ++ printfText c t s
-                            else printfText c t
-printfText c (SArray t)   = printfText c t
-printfText _ (SFun _ _)   = id
-printfText _ (SData _ _)  = \s -> "TODO: printft datum" ++ s
+                                       then "exp(%.15f) " ++ printFormat c t s
+                                       else "%.15f " ++ printFormat c t s
+                            else printFormat c t
+printFormat c (SArray t)   = printFormat c t
+printFormat _ (SFun _ _)   = id
+printFormat _ (SData _ _)  = \s -> "TODO: printft datum" ++ s
 
 
 --------------------------------------------------------------------------------
@@ -254,17 +243,9 @@ flattenTopLambda abt name =
     let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
         typ   = typeOf abt'
     in  do argDecls <- sequence varMs
-           cg <- get
-           let m = (putStat . CReturn . Just) =<< flattenWithName' abt' "out"
-               (_,cg') = runState m $ cg { statements = []
-                                         , declarations = [] }
-           put $ cg' { statements   = statements cg
-                     , declarations = declarations cg }
-           extDeclare . CFunDefExt
-             $ functionDef typ name
-                 argDecls
-                 (P.reverse $ declarations cg')
-                 (P.reverse $ statements cg')
+           funCG (head . buildType $ typ) name argDecls $
+             (putStat . CReturn . Just) =<< flattenWithName' abt' "out"
+
   -- do at top level
   where coalesceLambda
           :: ABT Term abt

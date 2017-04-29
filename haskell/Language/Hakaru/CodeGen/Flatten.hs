@@ -30,6 +30,8 @@ module Language.Hakaru.CodeGen.Flatten
   , flattenTerm
   , flattenWithName
   , flattenWithName'
+  , localVar
+  , localVar'
   ) where
 
 import Language.Hakaru.CodeGen.CodeGenMonad
@@ -83,6 +85,16 @@ there is a Reject inside the ABT. Therefore it is only needed when computing
 mochastic values
 
 -}
+
+localVar :: Sing (a :: Hakaru) -> CodeGen CExpr
+localVar typ = localVar' typ ""
+
+localVar' :: Sing (a :: Hakaru) -> String -> CodeGen CExpr
+localVar' typ s =
+  do eId <- genIdent' s
+     declare typ eId
+     return (CVar eId)
+
 
 flattenWithName'
   :: ABT Term abt
