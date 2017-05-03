@@ -48,7 +48,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , mkParallel
   , mkSequential
 
-  , reserveName
+  , reserveIdent
   , genIdent
   , genIdent'
 
@@ -145,9 +145,10 @@ mkSequential =
 
 --------------------------------------------------------------------------------
 
-reserveName :: String -> CodeGen ()
-reserveName s =
+reserveIdent :: String -> CodeGen Ident
+reserveIdent s = do
   get >>= \cg -> put $ cg { reservedNames = s `S.insert` reservedNames cg }
+  return (Ident s)
 
 
 genIdent :: CodeGen Ident

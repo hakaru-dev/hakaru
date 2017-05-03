@@ -46,6 +46,11 @@ parensPrec x y = if x <= y then parens else id
 newline :: Doc
 newline = char '\n'
 
+instance Pretty a => Pretty (Maybe a) where
+  pretty Nothing  = empty
+  pretty (Just x) = pretty x
+
+
 --------------------------------------------------------------------------------
 --                                  Top Level                                 --
 --------------------------------------------------------------------------------

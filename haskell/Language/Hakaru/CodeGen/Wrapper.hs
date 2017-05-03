@@ -64,28 +64,19 @@ wrapProgram tast@(TypedAST typ _) mn pconfig =
   do sequence_ . fmap (extDeclare . CPPExt) . header $ typ
      isManagedMem <- managedMem <$> get
      when isManagedMem $ extDeclare . CPPExt . PPInclude $ "gc.h"
-     baseCG
-  where baseCG = case (tast,mn) of
-               ( TypedAST (SFun _ _) abt, Just name ) ->
-                 do reserveName name
-                    flattenTopLambda abt $ Ident name
+     case (tast,mn) of
+       ( TypedAST (SFun _ _) abt, Just name ) ->
+         flattenTopLambda abt =<< reserveIdent name
 
-               ( TypedAST (SFun _ _) abt, Nothing   ) ->
-                 genIdent' "fn" >>= \name ->
-                   flattenTopLambda abt name
+       ( TypedAST typ' abt,       Just name ) ->
+         -- still buggy for measures
+         do mfId <- reserveIdent name
+            funCG (head . buildType $ typ') mfId [] $
+              do outE <- flattenWithName' abt "out"
+                 putStat . CReturn . Just $ outE
 
-
-               ( TypedAST typ' abt,       Just name ) ->
-                 -- still buggy for measures
-                 do reserveName name
-                    funCG (head . buildType $ typ')
-                          (Ident name)
-                          []
-                          (do outE <- flattenWithName' abt "out"
-                              putStat . CReturn . Just $ outE)
-
-               ( TypedAST typ'       abt, Nothing   ) ->
-                 mainFunction pconfig typ' abt
+       ( TypedAST typ'       abt, Nothing   ) ->
+         mainFunction pconfig typ' abt
 
 
 
@@ -114,33 +105,54 @@ mainFunction
 
 -- when measure, compile to a sampler
 mainFunction pconfig typ@(SMeasure _) abt =
-  do reserveName "measure"
-     reserveName "mdata"
-     reserveName "main"
-     let measureFunId = Ident "measure"
+  do mfId    <- reserveIdent "measure"
+     mdataId <- reserveIdent "mdata"
+     mainId  <- reserveIdent "main"
      extDeclareTypes typ
 
      -- defined a measure function that returns mdata
-     funCG (head . buildType $ typ) measureFunId  [] $
+     funCG (head . buildType $ typ) mfId  [] $
        (putStat . CReturn . Just) =<< flattenWithName' abt "samp"
 
-     funCG CInt (Ident "main") [] $
+     funCG CInt mainId [] $
        do isManagedMem <- managedMem <$> get
           when isManagedMem (putExprStat gc_initE)
 
           -- need to set seed?
           -- srand(time(NULL));
-          printCG pconfig typ (CVar measureFunId)
+          printCG pconfig typ (CVar mfId)
           putStat . CReturn . Just $ intE 0
+
+mainFunction pconfig typ@(SFun _ _) abt =
+  coalesceLambda abt $ \vars abt' ->
+    do resId <- reserveIdent "result"
+       mainId   <- reserveIdent "main"
+       funId <- genIdent' "fn"
+       flattenTopLambda abt funId
+       let (resE:funE:[]) = fmap CVar [resId,funId]
+
+       funCG CInt mainId mainArgs $
+         do isManagedMem <- managedMem <$> get
+            when isManagedMem (putExprStat gc_initE)
+
+            -- parseArgs
+            --applyFunction
+            putExprStat $ resE .=. (CCall funE [])  
+
+            printCG pconfig typ resE
+            putStat . CReturn . Just $ intE 0
+
+  where mainArgs = [ CDecl [CTypeSpec CInt] [(CDeclr Nothing (CDDeclrIdent (Ident "argc")), Nothing)]
+                   , CDecl [CTypeSpec CChar] [(CDeclr (Just (CPtrDeclr [])) (CDDeclrArr (CDDeclrIdent (Ident "argv")) Nothing), Nothing)]
+                   ]
 
 -- just a computation
 mainFunction pconfig typ abt =
-  do reserveName "result"
-     reserveName "main"
-     let resId = Ident "result"
-         resE  = CVar resId
+  do resId  <- reserveIdent "result"
+     mainId <- reserveIdent "main"
+     let resE  = CVar resId
 
-     funCG CInt (Ident "main") [] $
+     funCG CInt mainId [] $
        do declare typ resId
 
           isManagedMem <- managedMem <$> get
@@ -247,21 +259,7 @@ flattenTopLambda abt name =
              (putStat . CReturn . Just) =<< flattenWithName' abt' "out"
 
   -- do at top level
-  where coalesceLambda
-          :: ABT Term abt
-          => abt '[] a
-          -> ( forall (ys :: [Hakaru]) b
-             . List1 Variable ys -> abt '[] b -> r)
-          -> r
-        coalesceLambda abt_ k =
-          caseVarSyn abt_ (const (k Nil1 abt_)) $ \term ->
-            case term of
-              (Lam_ :$ body :* End) ->
-                caseBind body $ \v body' ->
-                  coalesceLambda body' $ \vars body'' -> k (Cons1 v vars) body''
-              _ -> k Nil1 abt_
-
-        mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
+  where mkVarDecl :: Variable (a :: Hakaru) -> Ident -> CodeGen CDecl
         mkVarDecl (Variable _ _ SInt)  = return . typeDeclaration SInt
         mkVarDecl (Variable _ _ SNat)  = return . typeDeclaration SNat
         mkVarDecl (Variable _ _ SProb) = return . typeDeclaration SProb
@@ -273,3 +271,17 @@ flattenTopLambda abt name =
           extDeclareTypes d >> (return $ datumDeclaration d i)
 
         mkVarDecl v = error $ "flattenSCon.Lam_.mkVarDecl cannot handle vars of type " ++ show v
+
+coalesceLambda
+  :: ABT Term abt
+  => abt '[] a
+  -> ( forall (ys :: [Hakaru]) b
+     . List1 Variable ys -> abt '[] b -> r)
+  -> r
+coalesceLambda abt_ k =
+  caseVarSyn abt_ (const (k Nil1 abt_)) $ \term ->
+    case term of
+      (Lam_ :$ body :* End) ->
+        caseBind body $ \v body' ->
+           coalesceLambda body' $ \vars body'' -> k (Cons1 v vars) body''
+      _ -> k Nil1 abt_

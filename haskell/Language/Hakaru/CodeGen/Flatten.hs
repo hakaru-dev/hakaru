@@ -1074,10 +1074,10 @@ uniformFun = CFunDef (CTypeSpec <$> retTyp)
 uniformCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 uniformCG aE bE =
   \loc -> do
-    reserveName "uniform"
+    uId <- reserveIdent "uniform"
     extDeclareTypes (SMeasure SReal)
     extDeclare . CFunDefExt $ uniformFun
-    putExprStat $ loc .=. CCall (CVar . Ident $ "uniform") [aE,bE]
+    putExprStat $ loc .=. CCall (CVar uId) [aE,bE]
 
 
 {-
@@ -1124,10 +1124,10 @@ normalFun = CFunDef (CTypeSpec <$> retTyp)
 normalCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 normalCG aE bE =
   \loc -> do
-    reserveName "normal"
+    nId <- reserveIdent "normal"
     extDeclareTypes (SMeasure SReal)
     extDeclare . CFunDefExt $ normalFun
-    putExprStat $ loc .=. (CCall (CVar . Ident $ "normal") [aE,bE])
+    putExprStat $ loc .=. (CCall (CVar nId) [aE,bE])
 
 {-
   This method is from Marsaglia and Tsang "a simple method for generating gamma variables"
@@ -1177,9 +1177,9 @@ gammaCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 gammaCG aE bE =
   \loc -> do
      extDeclareTypes (SMeasure SReal)
-     mapM_ reserveName ["uniform","normal","gamma"]
+     (_:_:gId:[]) <- mapM reserveIdent ["uniform","normal","gamma"]
      mapM_ (extDeclare . CFunDefExt) [uniformFun,normalFun,gammaFun]
-     putExprStat $ loc .=. (CCall (CVar . Ident $ "gamma") [aE,bE])
+     putExprStat $ loc .=. (CCall (CVar gId) [aE,bE])
 
 
 flattenMeasureOp

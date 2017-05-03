@@ -175,7 +175,7 @@ data CPtrDeclr = CPtrDeclr [CTypeQual]
 
 data CDirectDeclr
   = CDDeclrIdent Ident
-  | CDDeclrArr   CDirectDeclr CExpr
+  | CDDeclrArr   CDirectDeclr (Maybe CExpr)
   | CDDeclrFun   CDirectDeclr [CTypeSpec]
   | CDDeclrRec   CDeclr
   deriving (Show, Eq, Ord)
