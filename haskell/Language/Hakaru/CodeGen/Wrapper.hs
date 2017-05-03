@@ -123,7 +123,7 @@ mainFunction pconfig typ@(SMeasure _) abt =
           printCG pconfig typ (CVar mfId)
           putStat . CReturn . Just $ intE 0
 
-mainFunction pconfig typ@(SFun _ _) abt =
+mainFunction pconfig typ@(SFun targ tres) abt =
   coalesceLambda abt $ \vars abt' ->
     do resId <- reserveIdent "result"
        mainId   <- reserveIdent "main"
@@ -135,9 +135,11 @@ mainFunction pconfig typ@(SFun _ _) abt =
          do isManagedMem <- managedMem <$> get
             when isManagedMem (putExprStat gc_initE)
 
-            -- parseArgs
-            --applyFunction
-            putExprStat $ resE .=. (CCall funE [])  
+            declare tres resId
+
+            argE <- localVar' targ "arg"
+            parseCG targ (index (CVar $ Ident $ "argv") (intE 1)) (address argE)
+            putExprStat $ resE .=. (CCall funE [argE])
 
             printCG pconfig typ resE
             putStat . CReturn . Just $ intE 0
@@ -162,6 +164,12 @@ mainFunction pconfig typ abt =
           printCG pconfig typ resE
           putStat . CReturn . Just $ intE 0
 
+--------------------------------------------------------------------------------
+--                               Parsing Values                               --
+--------------------------------------------------------------------------------
+
+parseCG :: Sing (a :: Hakaru) -> CExpr -> CExpr -> CodeGen ()
+parseCG SNat from to = putExprStat $ sscanfE [from,stringE "%d",to]
 
 --------------------------------------------------------------------------------
 --                               Printing Values                              --

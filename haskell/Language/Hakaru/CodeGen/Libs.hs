@@ -18,7 +18,7 @@ module Language.Hakaru.CodeGen.Libs
     infinityE,negInfinityE,
 
     -- stdio.h
-    printfE,
+    printfE, sscanfE,
 
     -- stdlib.h
     randE, srandE, mallocE, freeE,
@@ -82,12 +82,9 @@ freeE = mkUnaryE "free"
 -- stdlio.h --
 --------------
 
-
-
-printfE :: [CExpr] -> CExpr
+printfE,sscanfE :: [CExpr] -> CExpr
 printfE = mkCallE "printf"
-
-
+sscanfE = mkCallE "sscanf"
 
 --------------------------------------------------------------------------------
 --                            Boehm Garbage Collector                         --
