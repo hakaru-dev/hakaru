@@ -30,7 +30,7 @@ module Language.Hakaru.CodeGen.AST
   , (.>.),(.<.),(.==.),(.!=.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.)
   , (.*=.),(.>=.),(.<=.),(...),(.->.)
   , seqCStat
-  , indirect, address, index, intE, floatE, stringE, mkCallE, mkUnaryE
+  , indirect, address, index, intE, floatE, stringE, mkCallE, mkUnaryE, nullE
 
   -- util
   , cNameStream
@@ -370,6 +370,9 @@ mkCallE s = CCall (CVar . Ident $ s)
 
 mkUnaryE :: String -> CExpr -> CExpr
 mkUnaryE s a = mkCallE s [a]
+
+nullE :: CExpr
+nullE = CVar . Ident $ "NULL"
 
 --------------------------------------------------------------------------------
 

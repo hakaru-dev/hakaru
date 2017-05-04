@@ -174,12 +174,7 @@ mainFunction pconfig typ abt =
 --                               Parsing Values                               --
 --------------------------------------------------------------------------------
 
-parseCG :: Sing (a :: Hakaru) -> CExpr -> CExpr -> CodeGen ()
-parseCG SInt from to = putExprStat $ sscanfE [from,stringE "%d",address to]
-parseCG SNat from to = putExprStat $ sscanfE [from,stringE "%u",address to]
-parseCG SReal from to = putExprStat $ sscanfE [from,stringE "%lf",address to]
-parseCG SProb from to = do putExprStat $ sscanfE [from,stringE "%lf",address to]
-                           putExprStat $ to .=. (logE to)
+parseCG :: Sing (a :: Hakaru) -> CExpr -> CExpr -> CodeGen CExpr
 parseCG (SArray t) from to =
   do fpId <- genIdent' "fp"
      buffId <- genIdent' "buff"
@@ -196,20 +191,31 @@ parseCG (SArray t) from to =
      putExprStat $ fpE .=. (fopenE from (stringE "r"))
      itE <- localVar SNat
      putExprStat $ itE .=. (intE 0)
-     whileCG (CUnary CNegOp (feofE fpE))
-             (do putExprStat $ fgetsE buffE (intE 1024) fpE
-                 putExprStat $ CUnary CPostIncOp itE)
+     whileCG (fgetsE buffE (intE 1024) fpE .!=. nullE)
+             (putExprStat $ CUnary CPostIncOp itE)
      putExprStat $ arraySize to .=. itE
      putMallocStat (arrayData to) itE t
      putExprStat $ itE .=. (intE 0)
      putExprStat $ rewindE fpE
-     whileCG (CUnary CNegOp (feofE fpE))
-             (do putExprStat $ fgetsE buffE (intE 1024) fpE
-                 parseCG t buffE (index (arrayData to) itE)
-                 putExprStat $ CUnary CPostIncOp itE)
+     whileCG (fgetsE buffE (intE 1024) fpE .!=. nullE)
+             (do checkE <- parseCG t buffE (index (arrayData to) itE)
+                 ifCG (checkE .==. (intE 1))
+                      (putExprStat $ CUnary CPostIncOp itE)
+                      (putExprStat $ CUnary CPostDecOp (arraySize to)))
      putExprStat $ fcloseE fpE
+     localVar SNat
+parseCG t from to =
+  do checkE <- localVar SNat
+     putExprStat $ checkE .=. sscanfE [from,stringE . parseFormat $ t,address to]
+     return checkE
 
-parseCG t _ _ = error $ "parseCG{" ++ show t ++ "}: no available parsing form"
+parseFormat :: Sing (a :: Hakaru) -> String
+parseFormat SInt  = "%d"
+parseFormat SNat  = "%u"
+parseFormat SReal = "%lf"
+parseFormat SProb = "%lf"
+parseFormat t = error $ "parseCG{" ++ show t ++ "}: no available parsing form"
+
 
 --------------------------------------------------------------------------------
 --                               Printing Values                              --
