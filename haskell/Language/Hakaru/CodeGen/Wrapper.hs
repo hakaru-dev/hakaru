@@ -6,7 +6,8 @@
              GADTs,
              KindSignatures,
              RankNTypes,
-             ScopedTypeVariables #-}
+             ScopedTypeVariables,
+             TypeOperators #-}
 
 ----------------------------------------------------------------
 --                                                    2016.06.23
@@ -123,30 +124,33 @@ mainFunction pconfig typ@(SMeasure _) abt =
           printCG pconfig typ (CVar mfId)
           putStat . CReturn . Just $ intE 0
 
-mainFunction pconfig typ@(SFun targ tres) abt =
+mainFunction pconfig typ@(SFun _ _) abt =
   coalesceLambda abt $ \vars abt' ->
-    do resId <- reserveIdent "result"
-       mainId   <- reserveIdent "main"
-       funId <- genIdent' "fn"
+    do resId  <- reserveIdent "result"
+       mainId <- reserveIdent "main"
+       argVId <- reserveIdent "argv"
+       funId  <- genIdent' "fn"
        flattenTopLambda abt funId
        let (resE:funE:[]) = fmap CVar [resId,funId]
 
        funCG CInt mainId mainArgs $
          do isManagedMem <- managedMem <$> get
             when isManagedMem (putExprStat gc_initE)
+            declare (typeOf abt') resId
 
-            declare tres resId
+            argEs <- foldLambdaWithIndex 1 abt $ \i (Variable _ _ t) ->
+                       do argE <- localVar' t "arg"
+                          parseCG t (index (CVar argVId) (intE i)) argE
+                          return argE
 
-            argE <- localVar' targ "arg"
-            parseCG targ (index (CVar $ Ident $ "argv") (intE 1)) (address argE)
-            putExprStat $ resE .=. (CCall funE [argE])
-
-            printCG pconfig typ resE
+            putExprStat $ resE .=. (CCall funE argEs)
+            printCG pconfig (typeOf abt') resE
             putStat . CReturn . Just $ intE 0
 
   where mainArgs = [ CDecl [CTypeSpec CInt] [(CDeclr Nothing (CDDeclrIdent (Ident "argc")), Nothing)]
                    , CDecl [CTypeSpec CChar] [(CDeclr (Just (CPtrDeclr [])) (CDDeclrArr (CDDeclrIdent (Ident "argv")) Nothing), Nothing)]
                    ]
+
 
 -- just a computation
 mainFunction pconfig typ abt =
@@ -169,7 +173,13 @@ mainFunction pconfig typ abt =
 --------------------------------------------------------------------------------
 
 parseCG :: Sing (a :: Hakaru) -> CExpr -> CExpr -> CodeGen ()
-parseCG SNat from to = putExprStat $ sscanfE [from,stringE "%d",to]
+parseCG SInt from to = putExprStat $ sscanfE [from,stringE "%d",address to]
+parseCG SNat from to = putExprStat $ sscanfE [from,stringE "%u",address to]
+parseCG SReal from to = putExprStat $ sscanfE [from,stringE "%lf",address to]
+parseCG SProb from to = do putExprStat $ sscanfE [from,stringE "%lf",address to]
+                           putExprStat $ to .=. (logE to)
+parseCG (SArray t) from to = error "TODO: parseCG{SArray _}"
+parseCG t _ _ = error $ "parseCG{" ++ show t ++ "}: no available parsing form"
 
 --------------------------------------------------------------------------------
 --                               Printing Values                              --
@@ -293,3 +303,24 @@ coalesceLambda abt_ k =
         caseBind body $ \v body' ->
            coalesceLambda body' $ \vars body'' -> k (Cons1 v vars) body''
       _ -> k Nil1 abt_
+
+foldLambdaWithIndex
+  :: ABT Term abt
+  => Integer
+  -> abt '[] a
+  -> ( forall (x :: Hakaru)
+     .  Integer
+     -> Variable x
+     -> CodeGen CExpr)
+  -> CodeGen [CExpr]
+foldLambdaWithIndex n abt_ k =
+  caseVarSyn abt_
+    (\v -> ((:[]) <$> k n v))
+    (\term ->
+      case term of
+        (Lam_ :$ body :* End) ->
+          caseBind body $ \v abt_' ->
+            (do x <- k n v
+                xs <- foldLambdaWithIndex (succ n) abt_' k
+                return (x:xs))
+        _ -> return [])
