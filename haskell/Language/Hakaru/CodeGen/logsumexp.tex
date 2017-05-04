@@ -166,18 +166,11 @@ We can use {\tt log1p} because where $x_i$ is the maximum
 $e^{x_i - \hat x} = 1$. We use {\tt log1p} and {\tt expm1} because they can be
 more accurate for small values.
 
-\subsection*{Future Improvements}
+\subsection*{Discussion}
 
-The LogSumExp code generation will be the same for each $n$ number of
-arguments. If we have several LogSumExp operations of size $n$ in the same
-program, then we will be generating the same code multiple times. Creating
-different LogSumExp C functions for different numbers of arguments will reduce
-code size.
-
-Kahan summation is another improvement that keeps track of the accumulated
-error in each addition, which would add more robustness to our operations.
-
-% \bibliographystyle{te}
-% \bibliography{research}
+The method presented here and used in HKC for code generation produces an amount
+of code that is exponential in the number of arguments. In practice (thus far),
+this is not a major issue because {\tt summate} is often used to sum a large
+number of probabilities.
 
 \end{document}
