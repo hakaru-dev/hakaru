@@ -32,6 +32,7 @@ module Language.Hakaru.CodeGen.Flatten
   , flattenWithName'
   , localVar
   , localVar'
+  , opComment
   ) where
 
 import Language.Hakaru.CodeGen.CodeGenMonad

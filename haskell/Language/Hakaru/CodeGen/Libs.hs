@@ -18,7 +18,7 @@ module Language.Hakaru.CodeGen.Libs
     infinityE,negInfinityE,
 
     -- stdio.h
-    printfE, sscanfE,
+    printfE, sscanfE, fopenE, fcloseE, fileT, feofE, fgetsE, rewindE,
 
     -- stdlib.h
     randE, srandE, mallocE, freeE,
@@ -79,12 +79,29 @@ freeE :: CExpr -> CExpr
 freeE = mkUnaryE "free"
 
 --------------
--- stdlio.h --
+-- stdio.h --
 --------------
 
 printfE,sscanfE :: [CExpr] -> CExpr
 printfE = mkCallE "printf"
 sscanfE = mkCallE "sscanf"
+
+fopenE :: CExpr -> CExpr -> CExpr
+fopenE e0 e1 = mkCallE "fopen" [e0,e1]
+
+fcloseE,feofE,rewindE :: CExpr -> CExpr
+fcloseE e = mkCallE "fclose" [e]
+feofE e = mkCallE "feof" [e]
+rewindE e = mkCallE "rewind" [e]
+
+fgetsE :: CExpr -> CExpr -> CExpr -> CExpr
+fgetsE e0 e1 e2 = mkCallE "fgets" [e0,e1,e2]
+
+
+
+
+fileT :: CTypeSpec
+fileT = CTypeDefType (Ident "FILE")
 
 --------------------------------------------------------------------------------
 --                            Boehm Garbage Collector                         --

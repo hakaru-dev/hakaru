@@ -146,7 +146,7 @@ instance Pretty CTypeSpec where
   pretty CSigned = text "signed"
   pretty CUnsigned = text "unsigned"
   pretty (CSUType cs) = pretty cs
-  pretty (CTypeDefType _) = error "TODO: Pretty TypeDef"
+  pretty (CTypeDefType sid) = pretty sid
   pretty (CEnumType _) = error "TODO: Pretty EnumType"
 
 instance Pretty CTypeName where

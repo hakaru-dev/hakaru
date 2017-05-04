@@ -138,12 +138,14 @@ mainFunction pconfig typ@(SFun _ _) abt =
             when isManagedMem (putExprStat gc_initE)
             declare (typeOf abt') resId
 
+            putStat $ opComment "Parse Args"
             argEs <- foldLambdaWithIndex 1 abt $ \i (Variable _ _ t) ->
                        do argE <- localVar' t "arg"
                           parseCG t (index (CVar argVId) (intE i)) argE
                           return argE
-
+            putStat $ opComment "Run Hakaru Program"
             putExprStat $ resE .=. (CCall funE argEs)
+            putStat $ opComment "Print Result"
             printCG pconfig (typeOf abt') resE
             putStat . CReturn . Just $ intE 0
 
@@ -178,7 +180,35 @@ parseCG SNat from to = putExprStat $ sscanfE [from,stringE "%u",address to]
 parseCG SReal from to = putExprStat $ sscanfE [from,stringE "%lf",address to]
 parseCG SProb from to = do putExprStat $ sscanfE [from,stringE "%lf",address to]
                            putExprStat $ to .=. (logE to)
-parseCG (SArray t) from to = error "TODO: parseCG{SArray _}"
+parseCG (SArray t) from to =
+  do fpId <- genIdent' "fp"
+     buffId <- genIdent' "buff"
+     declare' $ CDecl [CTypeSpec fileT]
+                      [(CDeclr (Just (CPtrDeclr []))
+                               (CDDeclrIdent fpId)
+                               , Nothing)]
+     declare' $ CDecl [CTypeSpec CChar]
+                      [(CDeclr Nothing
+                               (CDDeclrArr (CDDeclrIdent buffId) (Just (intE 1024)))
+                               , Nothing)]
+     let fpE = CVar fpId
+         buffE = CVar buffId
+     putExprStat $ fpE .=. (fopenE from (stringE "r"))
+     itE <- localVar SNat
+     putExprStat $ itE .=. (intE 0)
+     whileCG (CUnary CNegOp (feofE fpE))
+             (do putExprStat $ fgetsE buffE (intE 1024) fpE
+                 putExprStat $ CUnary CPostIncOp itE)
+     putExprStat $ arraySize to .=. itE
+     putMallocStat (arrayData to) itE t
+     putExprStat $ itE .=. (intE 0)
+     putExprStat $ rewindE fpE
+     whileCG (CUnary CNegOp (feofE fpE))
+             (do putExprStat $ fgetsE buffE (intE 1024) fpE
+                 parseCG t buffE (index (arrayData to) itE)
+                 putExprStat $ CUnary CPostIncOp itE)
+     putExprStat $ fcloseE fpE
+
 parseCG t _ _ = error $ "parseCG{" ++ show t ++ "}: no available parsing form"
 
 --------------------------------------------------------------------------------
@@ -315,7 +345,7 @@ foldLambdaWithIndex
   -> CodeGen [CExpr]
 foldLambdaWithIndex n abt_ k =
   caseVarSyn abt_
-    (\v -> ((:[]) <$> k n v))
+    (const (return []))
     (\term ->
       case term of
         (Lam_ :$ body :* End) ->
