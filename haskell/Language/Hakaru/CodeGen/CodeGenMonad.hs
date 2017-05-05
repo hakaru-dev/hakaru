@@ -54,6 +54,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
 
   -- Hakaru specific
   , createIdent
+  , createIdent'
   , lookupIdent
 
   -- control mechanisms
@@ -152,19 +153,7 @@ reserveIdent s = do
 
 
 genIdent :: CodeGen Ident
-genIdent =
-  do cg <- get
-     let (freshNs,name) = pullName (freshNames cg) (reservedNames cg)
-     put $ cg { freshNames = freshNs }
-     return $ Ident name
-  where pullName :: [String] -> S.Set String -> ([String],String)
-        pullName (n:names) reserved =
-          let name = "_" ++ n in
-          if S.member name reserved
-          then let (names',out) = pullName names reserved
-               in  (n:names',out)
-          else (names,name)
-        pullName _ _ = error "should not happen, names is infinite"
+genIdent = genIdent' ""
 
 genIdent' :: String -> CodeGen Ident
 genIdent' s =
@@ -184,10 +173,13 @@ genIdent' s =
 
 
 createIdent :: Variable (a :: Hakaru) -> CodeGen Ident
-createIdent var@(Variable name _ _) =
+createIdent = createIdent' ""
+
+createIdent' :: String -> Variable (a :: Hakaru) -> CodeGen Ident
+createIdent' s var@(Variable name _ _) =
   do !cg <- get
-     let ident = Ident $ concat [ concatMap toAscii . T.unpack $ name
-                                , "_",head $ freshNames cg ]
+     let ident = Ident $ concat [concatMap toAscii . T.unpack $ name
+                                ,"_",s,"_",head $ freshNames cg ]
          env'  = updateEnv var ident (varEnv cg)
      put $! cg { freshNames = tail $ freshNames cg
                , varEnv     = env' }

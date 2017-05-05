@@ -306,7 +306,7 @@ flattenTopLambda
   -> CodeGen ()
 flattenTopLambda abt name =
     coalesceLambda abt $ \vars abt' ->
-    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent v]) vars
+    let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent' "param" v]) vars
         typ   = typeOf abt'
     in  do argDecls <- sequence varMs
            funCG (head . buildType $ typ) name argDecls $
