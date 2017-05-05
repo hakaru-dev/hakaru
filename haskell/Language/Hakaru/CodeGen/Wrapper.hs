@@ -129,19 +129,30 @@ mainFunction pconfig typ@(SFun _ _) abt =
     do resId  <- reserveIdent "result"
        mainId <- reserveIdent "main"
        argVId <- reserveIdent "argv"
+       argCId <- reserveIdent "argc"
        funId  <- genIdent' "fn"
        flattenTopLambda abt funId
-       let (resE:funE:[]) = fmap CVar [resId,funId]
+       let (resE:funE:argCE:argVE:[]) = fmap CVar [resId,funId,argCId,argVId]
 
        funCG CInt mainId mainArgs $
          do isManagedMem <- managedMem <$> get
             when isManagedMem (putExprStat gc_initE)
             declare (typeOf abt') resId
 
+            withLambdaDepth' 0 abt $ \d ->
+              let argErr 0 = ""
+                  argErr n = "<arg" ++ show n ++ "> " ++ (argErr (pred n)) in
+                ifCG (argCE .!=. (intE (d+1)))
+                     (do putExprStat $ printfE
+                           [ stringE $ "Usage: %s " ++ argErr d ++ "\n"
+                           , (index argVE (intE 0)) ]
+                         putExprStat $ mkCallE "abort" [ ])
+                     (return ())
+
             putStat $ opComment "Parse Args"
             argEs <- foldLambdaWithIndex 1 abt $ \i (Variable _ _ t) ->
                        do argE <- localVar' t "arg"
-                          parseCG t (index (CVar argVId) (intE i)) argE
+                          parseCG t (index argVE (intE i)) argE
                           return argE
             putStat $ opComment "Run Hakaru Program"
             putExprStat $ resE .=. (CCall funE argEs)
@@ -152,6 +163,24 @@ mainFunction pconfig typ@(SFun _ _) abt =
   where mainArgs = [ CDecl [CTypeSpec CInt] [(CDeclr Nothing (CDDeclrIdent (Ident "argc")), Nothing)]
                    , CDecl [CTypeSpec CChar] [(CDeclr (Just (CPtrDeclr [])) (CDDeclrArr (CDDeclrIdent (Ident "argv")) Nothing), Nothing)]
                    ]
+        withLambdaDepth'
+          :: ABT Term abt
+          => Integer
+          -> abt '[] a
+          -> ( forall (x :: Hakaru)
+             .  Integer
+             -> CodeGen ())
+          -> CodeGen ()
+        withLambdaDepth' n abt_ k =
+          caseVarSyn abt_
+            (const (k n))
+            (\term ->
+              case term of
+                (Lam_ :$ body :* End) ->
+                  caseBind body $ \_ abt_' ->
+                    withLambdaDepth' (succ n) abt_' k
+                _ -> k n)
+
 
 
 -- just a computation
@@ -204,6 +233,7 @@ parseCG (SArray t) from to =
                       (putExprStat $ CUnary CPostDecOp (arraySize to)))
      putExprStat $ fcloseE fpE
      localVar SNat
+
 parseCG t from to =
   do checkE <- localVar SNat
      putExprStat $ checkE .=. sscanfE [from,stringE . parseFormat $ t,address to]
