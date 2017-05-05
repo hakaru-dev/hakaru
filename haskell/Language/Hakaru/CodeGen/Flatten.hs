@@ -685,7 +685,7 @@ flattenBucket lo hi red = \loc -> do
     forCG (itE .=. loE)
           (itE .<. hiE)
           (CUnary CPostIncOp itE)
-          (accumRed red loc)
+          (accumRed red itE loc)
     putStat $ opComment "End Bucket"
   where initRed
           :: (ABT Term abt)
@@ -722,28 +722,25 @@ flattenBucket lo hi red = \loc -> do
         accumRed
           :: (ABT Term abt)
           => Reducer abt xs a
+          -> CExpr
           -> (CExpr -> CodeGen ())
-        accumRed mr = \loc ->
+        accumRed mr itE = \loc ->
           case mr of
             (Red_Index _ a body) ->
               caseBind a $ \v@(Variable _ _ typ) a' ->
                 let (vs,a'') = caseBinds a' in
-                  do declare typ =<< createIdent v
+                  do vId <- createIdent v
+                     declare typ vId
+                     putExprStat $ (CVar vId) .=. itE
                      sequence_ . foldMap11
                        (\v' -> case v' of
                          (Variable _ _ typ') ->
                            [declare typ' =<< createIdent v'])
                        $ vs
-                     _ <- flattenWithName a''
-                     itId  <- genIdent
-                     declare SNat itId
-                     let itE = CVar itId
-                     forCG (itE .=. (intE 0))
-                           (itE .<. (arraySize loc))
-                           (CUnary CPostIncOp itE)
-                           (accumRed body (index (arrayData loc) itE))
-            (Red_Fanout mr1 mr2) -> accumRed mr1 (datumFst loc)
-                                 >> accumRed mr2 (datumSnd loc)
+                     aE <- flattenWithName' a'' "index"
+                     accumRed body itE (index (arrayData loc) aE)
+            (Red_Fanout mr1 mr2) -> accumRed mr1 itE (datumFst loc)
+                                 >> accumRed mr2 itE (datumSnd loc)
             (Red_Split b mr1 mr2) ->
               caseBind b $ \v@(Variable _ _ typ) b' ->
                 let (vs,b'') = caseBinds b' in
@@ -755,8 +752,8 @@ flattenBucket lo hi red = \loc -> do
                        $ vs
                      bE <- flattenWithName' b'' "cond"
                      ifCG (bE ... "index" .==. (intE 0))
-                          (accumRed mr1 (datumFst loc))
-                          (accumRed mr2 (datumSnd loc))
+                          (accumRed mr1 itE (datumFst loc))
+                          (accumRed mr2 itE (datumSnd loc))
             Red_Nop -> return ()
             (Red_Add sr e) ->
               caseBind e $ \v@(Variable _ _ typ) e' ->
