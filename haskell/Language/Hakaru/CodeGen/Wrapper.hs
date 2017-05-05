@@ -141,7 +141,7 @@ mainFunction pconfig typ@(SFun _ _) abt =
 
             withLambdaDepth' 0 abt $ \d ->
               let argErr 0 = ""
-                  argErr n = "<arg" ++ show n ++ "> " ++ (argErr (pred n)) in
+                  argErr n = (argErr (pred n)) ++ "<arg" ++ show n ++ "> " in
                 ifCG (argCE .!=. (intE (d+1)))
                      (do putExprStat $ printfE
                            [ stringE $ "Usage: %s " ++ argErr d ++ "\n"
