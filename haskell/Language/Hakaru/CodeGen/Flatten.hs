@@ -547,7 +547,7 @@ flattenArray arity body =
       flattenABT arity arityE
 
       isManagedMem <- managedMem <$> get
-      let malloc' = if isManagedMem then gc_mallocE else mallocE
+      let malloc' = if isManagedMem then gcMalloc else mallocE
       putExprStat $   dataE
                   .=. (CCast (CTypeName (buildType typ) True)
                              (malloc' (arityE .*. (CSizeOfType (CTypeName (buildType typ) False)))))
@@ -575,7 +575,7 @@ flattenArrayLiteral es =
     let arity = fromIntegral . length $ es
         typ   = typeOf . head $ es
         arrE = CVar arrId
-        malloc' = if isManagedMem then gc_mallocE else mallocE
+        malloc' = if isManagedMem then gcMalloc else mallocE
 
     declare (SArray typ) arrId
     putExprStat $   (arrayData arrE)

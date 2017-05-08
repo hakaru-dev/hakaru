@@ -403,7 +403,7 @@ reductionCG op acc iter cond inc body =
 putMallocStat :: CExpr -> CExpr -> Sing (a :: Hakaru) -> CodeGen ()
 putMallocStat loc size typ = do
   isManagedMem <- managedMem <$> get
-  let malloc' = if isManagedMem then gc_mallocE else mallocE
+  let malloc' = if isManagedMem then gcMalloc else mallocE
       typ' = buildType typ
   putExprStat $   loc
               .=. ( CCast (CTypeName typ' True)

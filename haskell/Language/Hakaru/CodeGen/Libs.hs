@@ -24,7 +24,10 @@ module Language.Hakaru.CodeGen.Libs
     randE, srandE, mallocE, freeE,
 
     -- Boehm Gargbage Collector
-    gc_initE, gc_mallocE, gc_malloc_atomicE, gc_reallocE, gc_freeE
+    gcHeader, gcInit, gcMalloc,
+
+    -- OpenMP
+    openMpHeader, ompGetNumThreads, ompGetThreadNum,
   ) where
 
 import Language.Hakaru.CodeGen.AST
@@ -97,9 +100,6 @@ rewindE e = mkCallE "rewind" [e]
 fgetsE :: CExpr -> CExpr -> CExpr -> CExpr
 fgetsE e0 e1 e2 = mkCallE "fgets" [e0,e1,e2]
 
-
-
-
 fileT :: CTypeSpec
 fileT = CTypeDefType (Ident "FILE")
 
@@ -113,21 +113,14 @@ fileT = CTypeDefType (Ident "FILE")
    employed here.
 -}
 
-gc_initE :: CExpr
-gc_initE = mkCallE "GC_INIT" []
+gcHeader :: Preprocessor
+gcHeader = PPInclude "gc.h"
 
-gc_mallocE :: CExpr -> CExpr
-gc_mallocE e = mkCallE "GC_MALLOC" [e]
+gcInit :: CExpr
+gcInit = mkCallE "GC_INIT" []
 
-gc_malloc_atomicE :: CExpr -> CExpr
-gc_malloc_atomicE e = mkCallE "GC_MALLOC_ATOMIC" [e]
-
-gc_reallocE :: CExpr -> CExpr
-gc_reallocE e = mkCallE "GC_REALLOC" [e]
-
-gc_freeE :: CExpr -> CExpr
-gc_freeE e = mkCallE "GC_FREE" [e]
-
+gcMalloc :: CExpr -> CExpr
+gcMalloc e = mkCallE "GC_MALLOC" [e]
 
 --------------------------------------------------------------------------------
 --                                  OpenMP                                    --
@@ -138,12 +131,11 @@ gc_freeE e = mkCallE "GC_FREE" [e]
    interface is implemented in most C compilers and is accessed through pragmas
 -}
 
+openMpHeader :: Preprocessor
+openMpHeader = PPInclude "omp.h"
 
+ompGetNumThreads :: CExpr
+ompGetNumThreads = mkCallE "omp_get_num_threads" []
 
-
---------------------------------------------------------------------------------
---                                    MPI                                     --
---------------------------------------------------------------------------------
-{-
-   Necessary bindings to the Message Passing Inferface for distributed programs
--}
+ompGetThreadNum :: CExpr
+ompGetThreadNum = mkCallE "omp_get_thread_num" []

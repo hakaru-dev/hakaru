@@ -63,8 +63,9 @@ wrapProgram
   -> CodeGen ()
 wrapProgram tast@(TypedAST typ _) mn pconfig =
   do sequence_ . fmap (extDeclare . CPPExt) . header $ typ
-     isManagedMem <- managedMem <$> get
-     when isManagedMem $ extDeclare . CPPExt . PPInclude $ "gc.h"
+     cg <- get
+     when (managedMem cg)  $ extDeclare . CPPExt $ gcHeader
+     when (sharedMem cg)   $ extDeclare . CPPExt $ openMpHeader
      case (tast,mn) of
        ( TypedAST (SFun _ _) abt, Just name ) ->
          flattenTopLambda abt =<< reserveIdent name
@@ -117,7 +118,7 @@ mainFunction pconfig typ@(SMeasure _) abt =
 
      funCG CInt mainId [] $
        do isManagedMem <- managedMem <$> get
-          when isManagedMem (putExprStat gc_initE)
+          when isManagedMem (putExprStat gcInit)
 
           -- need to set seed?
           -- srand(time(NULL));
@@ -136,7 +137,7 @@ mainFunction pconfig typ@(SFun _ _) abt =
 
        funCG CInt mainId mainArgs $
          do isManagedMem <- managedMem <$> get
-            when isManagedMem (putExprStat gc_initE)
+            when isManagedMem (putExprStat gcInit)
             declare (typeOf abt') resId
 
             withLambdaDepth' 0 abt $ \d ->
@@ -193,7 +194,7 @@ mainFunction pconfig typ abt =
        do declare typ resId
 
           isManagedMem <- managedMem <$> get
-          when isManagedMem (putExprStat gc_initE)
+          when isManagedMem (putExprStat gcInit)
 
           flattenABT abt resE
           printCG pconfig typ resE
