@@ -682,10 +682,26 @@ flattenBucket lo hi red = \loc -> do
     declare SNat itId
     let itE = CVar itId
     initRed red loc
-    forCG (itE .=. loE)
-          (itE .<. hiE)
-          (CUnary CPostIncOp itE)
-          (accumRed red itE loc)
+    isPar <- isParallel
+    if isPar
+    then do mkSequential
+            numThreadsE <- localVar SInt
+            chunkE <- localVar SNat
+            putExprStat $ numThreadsE .=. ompGetNumThreads
+            putExprStat $ chunkE .=. ((hiE .-. loE) ./. numThreadsE)
+            putStat . CPPStat . PPPragma $ ["omp","parallel"]
+            codeBlockCG $
+              do threadNumE  <- localVar SInt
+                 putExprStat $ threadNumE .=. ompGetThreadNum
+                 forCG (itE .=. (loE .+. (chunkE .*. threadNumE)))
+                       (itE .<. (hiE .-. (chunkE .*. threadNumE)))
+                       (CUnary CPostIncOp itE)
+                       (accumRed red itE loc)
+
+    else forCG (itE .=. loE)
+               (itE .<. hiE)
+               (CUnary CPostIncOp itE)
+               (accumRed red itE loc)
     putStat $ opComment "End Bucket"
   where initRed
           :: (ABT Term abt)

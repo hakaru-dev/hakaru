@@ -63,6 +63,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , doWhileCG
   , forCG
   , reductionCG
+  , codeBlockCG
 
   -- memory
   , putMallocStat
@@ -395,6 +396,19 @@ reductionCG op acc iter cond inc body =
                     (Just inc)
                     (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
                                ++ (fmap CBlockStat (reverse $ statements cg'))))
+
+
+-- not control flow, but like these it creates a block with local variables
+codeBlockCG :: CodeGen () -> CodeGen ()
+codeBlockCG body =
+  do cg <- get
+     let (_,cg') = runState body $ cg { statements = []
+                                      , declarations = [] }
+     put $ cg' { statements = statements cg
+               , declarations = declarations cg }
+     putStat $ (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
+                          ++ (fmap CBlockStat (reverse $ statements cg'))))
+
 
 
 --------------------------------------------------------------------------------
