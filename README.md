@@ -3,86 +3,38 @@
 [![Windows Build Status](https://ci.appveyor.com/api/projects/status/3dbdr2hjfk40x697?svg=true)](https://ci.appveyor.com/project/zaxtax/hakaru)
 [![licence](http://img.shields.io/badge/licence-BSD-blue.svg?style=flat)](https://github.com/hakaru-dev/hakaru/blob/master/LICENSE)
 
-Hakaru
-======
+# Hakaru #
 
-A simply-typed probabilistic programming language, designed for easy
-specification of probabilistic models, and inference algorithms.
+Hakaru is a simply-typed probabilistic programming language, designed for easy specification of probabilistic models and inference algorithms. Hakaru enables the design of 
+modular probabilistic inference programs by providing:
 
-Warning: this code is alpha and experimental.
+-  A language for representing probabilistic distributions, queries, and inferences
+-  Methods for transforming probabilistic information, such as conditional probability and probabilistic inference, using computer algebra
 
-Contact us at ppaml@indiana.edu
+It can be used to aid in the creation of machine-learning applications and stochastic modeling to help answer variable queries and distributions.
 
-Documentation
--------------
-Learn more at [hakaru-dev.github.io](http://hakaru-dev.github.io).
+**Warning: This code is alpha and experimental.**
 
-Installation
-------------
+For Hakaru documentation, including an [installation guide](http://hakaru-dev.github.io/intro/installation/) and some sample programs, visit the [hakaru-dev.github.io](http://hakaru-dev.github.io) GitHub Pages.
 
-Hakaru has multiple components. To build it by default run
+Contact us at ppaml@indiana.edu if you have any questions or concerns.
 
-    cabal update
-    cabal install -j --only-dependencies
-    cabal configure --enable-tests
-    cabal build
-    cabal test
+## Citing us ##
 
-If you have Maple (2016 or newer) installed and wish to take advantage
-of Hakaru's program simplifier run
+When referring to Hakaru, please cite the following [academic paper](http://homes.soic.indiana.edu/ccshan/rational/system.pdf):
 
-    export LOCAL_MAPLE="`which maple`"
-    cd hakaru/maple
-    maple update-archive.mpl
-    echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >> ~/.mapleinit
+P. Narayanan, J. Carette, W. Romano, C. Shan and R. Zinkov, "Probabilistic Inference by Program Transformation in Hakaru (System Description)", Functional and Logic 
+Programming, pp. 62-79, 2016.
 
-Installation - Windows
-------------
-
-It is possible to use Hakaru on Windows; there are some possible concerns. Due to a
-[ghc bug](https://ghc.haskell.org/trac/ghc/ticket/3242), one of the dependencies
-(logfloat) must be installed separately:
-  
-    cabal install -j logfloat -f -useffi
-    cabal install -j --only-dependencies
-    ...
-
-In order to use Maple for simplification, set the LOCAL_MAPLE environment
-variable in the command prompt (cmd) to cmaple.exe (instead of `export LOCAL_MAPLE...'):
-
-    SETX LOCAL_MAPLE "<path to Maple bin directory>\cmaple.exe"
-
-The other commands can be run with in a cygwin shell. Lacking a cygwin shell,
-the following will work in a command prompt: 
-
-    cd hakaru\maple 
-    cmaple update-archive.mpl
-    echo 'libname := "C:\\<path to hakaru>\\hakaru\\maple",libname:' >> "C:\<path to maple>\lib\maple.ini"
-
-Note the escaped backslashes.
-
-Citing us
----------
-When referring to Hakaru please cite the following [paper](http://homes.soic.indiana.edu/ccshan/rational/system.pdf):
-
-Probabilistic inference by program transformation in Hakaru (system description).
-Praveen Narayanan, Jacques Carette, Wren Romano, Chung-chieh Shan, and Robert Zinkov,
-FLOPS 2016 (13th international symposium on functional and logic programming).
-
-	@article{NarayananCRSZ16,
-	  author  = {Praveen Narayanan and
-			     Jacques Carette and
-			     Wren Romano and
-			     Chung{-}chieh Shan and
-			     Robert Zinkov},
-	  title   = {Probabilistic Inference by Program Transformation in Hakaru (System
-			     Description)},
-	  journal = {Functional and Logic Programming - 13th International Symposium, {FLOPS}
-			     2016, Kochi, Japan, March 4-6, 2016, Proceedings},
-	  pages   = {62--79},
-	  year    = {2016},
-	  url     = {http://dx.doi.org/10.1007/978-3-319-29604-3_5},
-	  doi     = {10.1007/978-3-319-29604-3_5},
-    }
-
-
+```nohighlight
+@inproceedings{narayanan2016probabilistic,
+	title = {Probabilistic inference by program transformation in Hakaru (system description)},
+	author = {Narayanan, Praveen and Carette, Jacques and Romano, Wren and Shan, Chung{-}chieh and Zinkov, Robert},
+	booktitle = {International Symposium on Functional and Logic Programming - 13th International Symposium, {FLOPS} 2016, Kochi, Japan, March 4-6, 2016, Proceedings},
+	pages = {62--79},
+	year = {2016},
+	organization = {Springer},
+	url = {http://dx.doi.org/10.1007/978-3-319-29604-3_5},
+	doi = {10.1007/978-3-319-29604-3_5},
+}
+```
