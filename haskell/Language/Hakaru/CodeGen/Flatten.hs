@@ -396,7 +396,7 @@ flattenSCon (CoerceTo_ ctyp) =
         nat2int   = return
         nat2prob  = \n -> do ident <- genIdent' "p"
                              declare SProb ident
-                             assign ident . log1pE $ n .-. (intE 1)
+                             assign ident . logE $ n
                              return (CVar ident)
         prob2real = \p -> do ident <- genIdent' "r"
                              declare SReal ident
@@ -1492,7 +1492,7 @@ lseSummateArrayCG body arrayE =
                            (CExpr . Just $ sumE .+=. (expE ((derefIndex itE) .-. (maxVE))))
                            Nothing)
 
-      putExprStat $ loc .=. (maxVE .+. (logE sumE))
+      putExprStat $ loc .=. (maxVE .+. (log1pE sumE))
 
   where derefIndex xE = index (arrayData arrayE) xE
 
