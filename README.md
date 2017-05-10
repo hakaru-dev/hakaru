@@ -15,7 +15,7 @@ It can be used to aid in the creation of machine-learning applications and stoch
 
 **Warning: This code is alpha and experimental.**
 
-For Hakaru documentation, including an [installation guide](http://hakaru-dev.github.io/intro/installation/) and some sample programs, visit the [hakaru-dev.github.io](http://hakaru-dev.github.io) GitHub Pages.
+For Hakaru documentation, including an [installation guide](http://hakaru-dev.github.io/intro/installation/) and some sample programs, visit [hakaru-dev.github.io](http://hakaru-dev.github.io).
 
 Contact us at ppaml@indiana.edu if you have any questions or concerns.
 
@@ -38,3 +38,4 @@ Programming, pp. 62-79, 2016.
 	doi = {10.1007/978-3-319-29604-3_5},
 }
 ```
+
