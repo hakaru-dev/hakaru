@@ -238,6 +238,9 @@ parseCG (SArray t) from to =
 parseCG t from to =
   do checkE <- localVar SNat
      putExprStat $ checkE .=. sscanfE [from,stringE . parseFormat $ t,address to]
+     case t of
+       SProb -> putExprStat $ to .=. logE to
+       _ -> return ()
      return checkE
 
 parseFormat :: Sing (a :: Hakaru) -> String
