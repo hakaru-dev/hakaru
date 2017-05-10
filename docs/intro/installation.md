@@ -1,67 +1,81 @@
-# Installation
+# Installing Hakaru #
 
-Install Hakaru by cloning the latest version from our Github repo
+You can download Hakaru by cloning the latest version from our GitHub repository:
 
-````bash
-git clone https://github.com/hakaru-dev/hakaru
-cd hakaru
-````
+```bash
+git clone git@github.com:hakaru-dev/hakaru
+```
 
-Hakaru can then be installed either with `cabal install` or `stack install`
+Hakaru can be installed by using either `stack install` or `cabal install` inside the `hakaru` directory. One way that you can access these tools is by installing the [Haskell Platform](https://www.haskell.org/platform/) which supports Linux, OSX, and Windows operating systems.
 
-Due to a [ghc bug](https://ghc.haskell.org/trac/ghc/ticket/3242), Windows users
-using GHC 7.10 and below need to install the logfloat library separately
+If you are using `stack install`, you can install and verify your installation of Hakaru by running the commands:
 
-````bash
+```bash
+stack install
+stack test
+```
+
+You can find the output of `stack test` in the `.stack-work/logs/hakaru-0.4.0-test.txt` file.
+
+If you are using `cabal install`, you can install Hakaru by running the commands:
+
+```bash
+cabal update    
+cabal install -j --only-dependencies --enable-tests
+cabal configure --enable-tests
+cabal build
+cabal test
+```
+
+On Windows systems, you can use the `stack install` and `cabal install` commands by running them in a Linux shell such as [Cygwin](https://www.cygwin.com/) or Git Bash.
+
+**Note:** If you want to use `cabal install` and have installed the Haskell Platform, you might need to add a reference to the directory containing `cabal.exe` to the `PATH` environment variable.
+
+If you are using GHC 7.10 or earlier on a Windows system and want to use the `cabal install` command, you must install the `logfloat` dependency manually after running `cabal update` due to a
+[GHC bug](https://ghc.haskell.org/trac/ghc/ticket/3242):
+
+```bash  
+cabal update    
 cabal install -j logfloat -f -useffi
-cd hakaru
-cabal install
-````
+cabal install -j --only-dependencies --enable-tests
+cabal configure --enable-tests
+cabal build
+cabal test
+```
 
-# Maple extension
+## Extending Hakaru with Maple ##
 
-Within Hakaru, we use [Maple](http://www.maplesoft.com/) to perform
-computer-algebra guided optimizations. To get access to these optimizations
-you must have a licensed copy of Maple installed.
+Hakaru uses [Maple](http://www.maplesoft.com/products/maple/) to perform computer-algebra guided optimizations. You must have a licensed copy of Maple installed to access this component of the Hakaru language.
 
-In addition to this, we must autoload some Maple libraries that come
-with the system to access this functionality
+On Linux systems, Hakaru can be setup to use Maple by running:
 
-````bash
+```bash
 export LOCAL_MAPLE="`which maple`"
 cd hakaru/maple
 maple update-archive.mpl
 echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >> ~/.mapleinit
-````
+```
 
-Under Windows the instructions become
+On Windows systems, Hakaru can be setup to use Maple by performing the following steps in Administrator mode:
 
-````bash
-SETX LOCAL_MAPLE "<path to Maple bin directory>\cmaple.exe"
-cd hakaru\maple 
-cmaple update-archive.mpl
-echo 'libname := "C:\\<path to hakaru>\\hakaru\\maple",libname:' >> "C:\<path to maple>\lib\maple.ini"
-````
+1. Create a User Environment Variable `LOCAL_MAPLE` using the Windows command prompt (cmd) by running:
+	
+	`SETX LOCAL_MAPLE "<path to Maple bin directory>\cmaple.exe"`
 
-If the Maple extension has been properly installed running
+	This variable can also be created via the Advanced System Properties.
+	
+	**Note:** You might need to restart your computer for the variable to be recognized.
 
-````bash
-echo "normal(0,1)" | simplify -
-````
+2. In a `bash` command line, navigate to the `hakaru\maple` directory and run:
+	
+	`cmaple update-archive.mpl`
 
-should return
+3. In the Windows command prompt (cmd), create a file `maple.ini` by running:
 
-````bash
-normal(0, 1)
-````
+	`echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: >> "C:\<path to maple>\lib\maple.ini"`
+	
+### Testing Your Maple Installation with Hakaru ###
 
-If the `LOCAL_MAPLE` environment variable is not set, then `simplify`
-defaults to invoking `ssh` to access a remote installation of Maple.
-The invocation is
-````bash
-"$MAPLE_SSH" -l "$MAPLE_USER" "$MAPLE_SERVER" "$MAPLE_COMMAND -q -t"
-````
-and defaults to
-````bash
-/usr/bin/ssh -l ppaml karst.uits.iu.edu "maple -q -t"
-````
+If you have correctly installaed Hakaru's Maple extension, running `echo "normal(0,1)" | simplify -` in a `bash` command line will return `normal(0, 1)`.
+
+If you have not set the `LOCAL_MAPLE` environment variable, then `simplify` command might try to locate a `SSH` file that might not exist on your machine to try and access a remote installation of Maple.

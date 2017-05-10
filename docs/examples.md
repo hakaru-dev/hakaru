@@ -49,7 +49,7 @@ return (x, mu). pair(array(real), array(real))
 
 ### Latent Dirichlet Allocation
 
-Below is the LDA topic model.
+Below is the LDA topic model, a form of Bayesian Naives Bayes.
 
 ````nohighlight
 K = 2 # number of topics

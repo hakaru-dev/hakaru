@@ -22,9 +22,9 @@ Assuming we save this file to `twomixture.hk` we can sample from it by
 passing it as an argument to the `hakaru` command. 
 
 
-````bash
+```bash
 hakaru twomixture.hk
-````
+```
 
 Hakaru will then produce an infinite stream of samples from the
 distribution this program represents.

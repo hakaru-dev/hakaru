@@ -8,9 +8,10 @@ extra_javascript:
 pages:
 - Home: 'index.md'
 - Introduction:
-  - 'What is Probabilistic Programming': 'intro/probprog.md'
-  - 'Installation':  'intro/installation.md'
-  - 'Quick Example': 'intro/quickstart.md'
+  - 'What is Probabilistic Programming?': 'intro/probprog.md'
+  - 'Installing Hakaru':  'intro/installation.md'
+  - 'Quick Start': 'intro/quickstart.md'
+  - 'Examples': 'examples.md'
 - Language Guide:
   - 'Random Primitives':   'lang/rand.md'
   - 'Let and Bind':        'lang/letbind.md'
@@ -33,8 +34,7 @@ pages:
   - 'Coercions':                 'internals/coercions.md'
   - 'Transformaitons':           'internals/transforms.md'
   - 'Testing':                   'internals/testing.md'
-  - 'Adding a Language Feautre': 'internals/newfeature.md'
-- Examples: 'examples.md'
+  - 'Adding a Language Feature': 'internals/newfeature.md'
 theme: yeti
 
 markdown_extensions:
