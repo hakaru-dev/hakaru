@@ -1,6 +1,8 @@
 all: ppaml.mla NewSLOTests.out PlateT.out SummaryT.out PlateT2.out # call-graph.pdf
 
-PlateT2.out: ../examples/dice_index.hk ../examples/gmm_gibbs.hk
+PlateT2.out: ../examples/dice_index.hk \
+  ../examples/gmm_gibbs.hk \
+  ../examples/naive_bayes_gibbs.hk
 
 disint: ppaml.mla DisintT.out 
 
