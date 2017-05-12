@@ -42,7 +42,6 @@ import           Language.Hakaru.CodeGen.Types
 import           Language.Hakaru.CodeGen.AST
 import           Language.Hakaru.CodeGen.Libs
 import           Language.Hakaru.Types.DataKind (Hakaru(..))
-
 import           Control.Monad.State.Strict
 import           Prelude            as P hiding (unlines,exp)
 
@@ -110,19 +109,24 @@ mainFunction pconfig typ@(SMeasure _) abt =
   do mfId    <- reserveIdent "measure"
      mdataId <- reserveIdent "mdata"
      mainId  <- reserveIdent "main"
+     argVId <- reserveIdent "argv"
+     argCId <- reserveIdent "argc"
+     let (argCE:argVE:[]) = fmap CVar [argCId,argVId]
      extDeclareTypes typ
 
      -- defined a measure function that returns mdata
      funCG (head . buildType $ typ) mfId  [] $
        (putStat . CReturn . Just) =<< flattenWithName' abt "samp"
 
-     funCG CInt mainId [] $
+     funCG CInt mainId mainArgs $
        do isManagedMem <- managedMem <$> get
           when isManagedMem (putExprStat gcInit)
 
+          nSamples <- parseNumSamples argCE argVE
+
           -- need to set seed?
           -- srand(time(NULL));
-          printCG pconfig typ (CVar mfId)
+          printCG pconfig typ (CVar mfId) (Just nSamples)
           putStat . CReturn . Just $ intE 0
 
 mainFunction pconfig typ@(SFun _ _) abt =
@@ -155,16 +159,14 @@ mainFunction pconfig typ@(SFun _ _) abt =
                        do argE <- localVar' t "arg"
                           parseCG t (index argVE (intE i)) argE
                           return argE
+
             putStat $ opComment "Run Hakaru Program"
             putExprStat $ resE .=. (CCall funE argEs)
             putStat $ opComment "Print Result"
-            printCG pconfig (typeOf abt') resE
+            printCG pconfig (typeOf abt') resE Nothing
             putStat . CReturn . Just $ intE 0
 
-  where mainArgs = [ CDecl [CTypeSpec CInt] [(CDeclr Nothing (CDDeclrIdent (Ident "argc")), Nothing)]
-                   , CDecl [CTypeSpec CChar] [(CDeclr (Just (CPtrDeclr [])) (CDDeclrArr (CDDeclrIdent (Ident "argv")) Nothing), Nothing)]
-                   ]
-        withLambdaDepth'
+  where withLambdaDepth'
           :: ABT Term abt
           => Integer
           -> abt '[] a
@@ -183,7 +185,6 @@ mainFunction pconfig typ@(SFun _ _) abt =
                 _ -> k n)
 
 
-
 -- just a computation
 mainFunction pconfig typ abt =
   do resId  <- reserveIdent "result"
@@ -197,8 +198,32 @@ mainFunction pconfig typ abt =
           when isManagedMem (putExprStat gcInit)
 
           flattenABT abt resE
-          printCG pconfig typ resE
+          printCG pconfig typ resE Nothing
           putStat . CReturn . Just $ intE 0
+
+mainArgs :: [CDecl]
+mainArgs = [ CDecl [CTypeSpec CInt]
+                   [(CDeclr Nothing (CDDeclrIdent (Ident "argc")), Nothing)]
+           , CDecl [CTypeSpec CChar]
+                   [(CDeclr (Just (CPtrDeclr []))
+                            (CDDeclrArr (CDDeclrIdent (Ident "argv")) Nothing)
+                     , Nothing)]
+           ]
+
+parseNumSamples :: CExpr -> CExpr -> CodeGen CExpr
+parseNumSamples argc argv =
+  do itE <- localVar SInt
+     outE <- localVar SInt
+     forCG (itE .=. (intE 1))
+           (itE .<. argc)
+           (CUnary CPostIncOp itE)
+           (ifCG ((index (index argv itE) (intE 0) .==. (charE '-')) .&&.
+                  (index (index argv itE) (intE 1) .==. (charE 'n')))
+                 (putExprStat $
+                   sscanfE [index argv itE,stringE "-n%d",address outE])
+                 (return ()))
+     return outE
+
 
 --------------------------------------------------------------------------------
 --                               Parsing Values                               --
@@ -271,14 +296,20 @@ printCG
   :: PrintConfig
   -> Sing (a :: Hakaru) -- ^ Hakaru type to be printed
   -> CExpr              -- ^ CExpr representing value
+  -> Maybe CExpr        -- ^ If measure type, expr for num samples
   -> CodeGen ()
-printCG pconfig mtyp@(SMeasure typ) sampleFunc =
+printCG pconfig mtyp@(SMeasure typ) sampleFunc (Just numSamples) =
   do mE <- localVar' mtyp "m"
-     whileCG (intE 1) $
+     itE <- localVar SInt
+     putExprStat $ itE .=. numSamples
+     whileCG (itE .!=. (intE 0)) $
        do putExprStat $ mE .=. (CCall sampleFunc [])
-          printCG pconfig typ (mdataSample mE)
+          printCG pconfig typ (mdataSample mE) Nothing
+          ifCG (numSamples .>=. (intE 0))
+               (putExprStat $ CUnary CPostDecOp itE)
+               (return ())
 
-printCG pconfig (SArray typ) arg =
+printCG pconfig (SArray typ) arg Nothing =
   do itE <- localVar' SInt "it"
      putString "[ "
      mkSequential
@@ -291,14 +322,14 @@ printCG pconfig (SArray typ) arg =
      putString "]\n"
   where putString s = putExprStat $ printfE [stringE s]
 
-printCG pconfig SProb arg =
+printCG pconfig SProb arg Nothing =
   putExprStat $ printfE
                       [ stringE $ printFormat pconfig SProb "\n"
                       , if showProbInLog pconfig
                         then arg
                         else expE arg ]
 
-printCG pconfig typ arg =
+printCG pconfig typ arg Nothing =
   putExprStat $ printfE
               [ stringE $ printFormat pconfig typ "\n"
               , arg ]
