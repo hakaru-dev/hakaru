@@ -1,62 +1,54 @@
 # What is Probabilistic Programming?
 
-Probabilistic programs are programs which represent probability
-distributions. For example, the program `poisson(5)` represents the
-poisson distribution with a rate of five. Why do we need a
-language for describing probability distributions?
+Probablilistic programming is a software-driven method for creating and testing probabilistic models and distributions to automate parts of the model testing process. It 
+provides a means for writing programs which describe probabilistic models and distributions such that they can be used to make probabilistic inferences. For example, the 
+Hakaru program \(poisson(5)\) represents the Poisson distribution with a rate of five. A Probabilistic Programming Language (PPL) is a computer language designed to 
+describe probabalistic models and distributions such that probabilistic inferences can be made programmatically[^1]. Hakaru is an example of a PPL. 
 
-The world is intrinsically an uncertain place. When we try to predict
-what will happen in the world given some data we have collected, we
-are inherently engaging in some sort of probabilistic modeling. In
-probabilistic modeling, we treat the quantity we wish to predict as a
-parameter, and then describe our data as some noisy function of this
-parameter. This function is called *likelihood*, and depending on which
-statistical regime you use can be used in predominately two ways.
+Why do we need a programming language for describing probability distributions? Consider a machine learning problem. A typical workflow for this type of design is, when 
+presented with a problem, to design an inference algorithm for a specific probabilistic distribution and query. The development of a distribution, query, and inference
+algorithm can be a time consuming task, even for someone that is skilled in these areas. Automating this process via a PPL allows for a broader exploration of the design
+space without the added effort that is required to using a traditional approach.
 
-For instance, we might want to estimate the average time it takes for
-a bus to arrive at a stop, based on actual arrival times. In this situation,
-the likelihood function would be:
+## Probabilistic Models ##
+
+The world is intrinsically an uncertain place. When you try to predict what will happen in the world given some data you have collected, you are engaging in some
+sort of probabilistic modeling. A distribution or program that describes your data is called the *model*. In probabilistic modeling, the quantity you wish to predict is 
+treated as a parameter and known data is described as some noisy function of this parameter. This function is called the *likelihood* of the parameter. 
+
+For example, you might want to estimate the average time it takes for a bus to arrive at a stop based on actual arrival times. In this situation, you determine that you
+can represent the likelihood function using a Poisson distribution:
 
 $$ x \sim \text{Poisson}(\lambda) $$
 
-where $x$ is the actual arrival time, and $\lambda$ is the quantity we
-wish to predict. In other words, this likelihood says our data is a
-noisy measurement of the average waiting time which follows a Poisson
-distribution. We can also represent this likelihood function as a
-density function which for a given choice of $\lambda$ returns how
-likely it is for $x$ to be generated under that parameter.
+where \( x \) is the actual arrival time, and \(\lambda\) is the quantity you are using to make the prediction. 
+
+You can also represent this likelihood function as a density function which returns how likely it is for \(x\) to be generated for a given choice of \(\lambda\):
 
 $$ f(\lambda) = \frac{\lambda^x e^{-\lambda}}{x!} $$
 
-Under a frequentist regime we perform maximum likelihood, where we find
-the best parameter by finding the $\lambda$ which maximizes $f$.
+## Methods of Probabilistic Reasoning ##
 
-Under a Bayesian regime, we don't estimate a single best value for the
-parameter. Instead we place a prior distribution on the parameters and
-estimate that posterior distribution conditioned on our data.
+There are two main approaches to statistical reasoning: Frequentist and Bayesian. In Frequentist reasoning, the goal is to maximize the liklihood function. In the density
+model for our bus arrival times, this would mean finding a value for \(\lambda\) that maximizes \(f\). In Bayesian reasoning, an estimation is made using the given 
+function parameters and a conditioned data set collected for the event. For our density model, we would design an estimation functions using our parameters and given it
+our set of bus arrival times to predict a value for \(f\). You can use either approach to probabilistic reasoning in your Hakaru programs. 
 
-In Hakaru, it is possible to use either regime for solving your
-problems.  We will call the distribution or program which describes
-our data the *model*.
+## Example: Bayesian Tug-of-War ##
 
-## Tug of War
+To demonstrate the value of this problem-solving approach, we will write a Hakaru program to represent a simplified version of the 
+[tug-of-war](https://probmods.org/v1/generative-models.html#example-bayesian-tug-of-war) example from probmods.org.
 
-We demonstrate the value of this problem-solving approach using a
-simplified version of the
-[tug of war](https://probmods.org/generative-models.html#example-bayesian-tug-of-war)
-example from probmods.org. For this problem we will take a Bayesian
-approach to prediction.
+Three friends, Alice, Bob and Carol, want to know which of them is the strongest. They decide that the winner of a game of tug-of-war must be stronger than their opponent,
+and arrange to take turns playing tug-of-war against each other. The person who wins the most matches will be deemed the strongest of them.
 
-For this problem, we have three friends, Alice, Bob and Carol who take
-turns playing a tug of war against each other and we'd like to know
-which of them is the strongest. We can pose this problem as a
-probabilistic program. In particular, we will try to predict who will
-win match3 given we have observed who won the first two matches.
+You can write a probabilistic program to represent this scenario. In this simulation, the friends are only interested in knowing who will win the third match (`match3`) 
+when they already know who won the first two matches. You can represent this problem using either the frequentist or Bayesian reasoning methods, but this example will use 
+the Bayesian approach.
 
-We can start by assuming each player's strength comes from a standard
-normal distribution. Then we assume the strength they pull with some
-normal distribution centered around their true strength, and the
-person who pulled harder wins.
+Your program will begin with the description of the probabilistic model. You can assume that each friend's strength comes from a standard normal distribution and that the 
+strength that they pull with also follows some normal distribution centered around their true strength. You can also trivially assume that the friend that pulled the 
+hardest will win the match. You can represent this model in Hakaru by writing:
 
 ````nohighlight
 def pulls(strength real):
@@ -76,9 +68,14 @@ match2 <~ winner(bob, carol)
 match3 <~ winner(alice, carol)
 ````
 
-We then restrict the set of events to only those where Alice won the
-first match and Bob won the second, and return the results of the
-third match.
+**Note:** This Hakaru code will not compile yet.
+
+Now that you have created your model, you can create inference rules based on known data. In the third match, Alice is competing against Carol. She wants to know how 
+likely she is to win the match. She won her match against Bob (`match1`) and that Carol lost her match to Bob (`match2`). 
+
+In your model, the result of `match1` is `True` when Alice wins and the result of `match2` is `True` when Carol loses. You can use this knowledge to write an inference
+rule for your scenario that will return the result of `match3` when Alice wins `match1` and Carol loses `match2`. If a simulation is run that does not match this pattern,
+it is rejected. This inference rule can be written in Hakaru as:
 
 ````nohighlight
 if match1 && match2:
@@ -87,8 +84,12 @@ else:
    reject. measure(bool)
 ````
 
-We can then run the above model using hakaru, which shows that Alice
-is likely to win her match against Carol.
+You have now created a Hakaru program that describes a probabilistic model and an inference rule based on known data. You should save your program as `tugofwar.hk` so that
+you can run Hakaru to infer the outcome of `match3`. 
+
+If you call `hakaru tugofwar.hk`, you will get a continuous stream of Boolean results. You can make the calculations more legible by restricting the number of program 
+executions and counting how many of each Boolean appears. For example, if you restrict the number of program executions to 10000 and collect the results, you will see that 
+`True` occurs much more frequently than `False`. This means that Alice is likely to win `match3` against Carol.
 
 ````bash
 hakaru tugofwar.hk | head -n 10000 | sort | uniq -c
@@ -98,22 +99,16 @@ hakaru tugofwar.hk | head -n 10000 | sort | uniq -c
 
 ## Simulation vs Inference
 
-Of course, in the above program we performed inference, by taking
-our model and throwing out all events that didn't agree with
-the data we had. How well would this work if we changed our
-model slightly? Suppose our data wasn't boolean values, but instead
-the difference of strengths, and we want to not just whether Alice
-will win, but by how much.
+Of course, in the above program we performed inference, by taking our model and throwing out all events that didn't agree with the data we had. How well would this work if 
+we changed our model slightly? Suppose our data wasn't boolean values, but instead the difference of strengths, and we want to not just whether Alice will win, but by how 
+much.
 
-As we pose more complex questions, posing our models as rejection
-samplers becomes increasing inefficient. Instead we would like to
-directly transform our models into those which only generate the
-data we observed and don't waste any computation simulating data
-which we know will never exist.
+As we pose more complex questions, posing our models as rejection samplers becomes increasing inefficient. Instead we would like to directly transform our models into those 
+which only generate the data we observed and don't waste any computation simulating data which we know will never exist.
 
 ### Metropolis Hastings
 
-By default hakaru performs importance sampling. This works well
-for inference in low dimensions, but we want to use MCMC for
-more realistic problems. Hakaru provides a `mh` command tool
-to transform probabilistic programs into a Markov Chain.
+By default hakaru performs importance sampling. This works well for inference in low dimensions, but we want to use MCMC for more realistic problems. Hakaru provides a `mh` 
+command tool to transform probabilistic programs into a Markov Chain.
+
+[^1]: [Proababilistic programming language (Wikipedia)](https://en.wikipedia.org/wiki/Probabilistic_programming_language)

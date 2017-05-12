@@ -3,8 +3,10 @@ repo_url: https://github.com/hakaru-dev/hakaru
 site_favicon: favicon.ico
 site_author: Hakaru Team
 extra_javascript:
-    - 'https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML'
     - 'js/mathjaxhelper.js'
+    - 'https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML'
+
+
 pages:
 - Home: 'index.md'
 - Introduction:
@@ -39,3 +41,5 @@ theme: yeti
 
 markdown_extensions:
   - markdown.extensions.smarty
+  - mdx_math
+  - footnotes

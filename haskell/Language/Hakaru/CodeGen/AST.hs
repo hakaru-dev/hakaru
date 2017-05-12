@@ -30,7 +30,8 @@ module Language.Hakaru.CodeGen.AST
   , (.>.),(.<.),(.==.),(.!=.),(.||.),(.&&.),(.*.),(./.),(.-.),(.+.),(.=.),(.+=.)
   , (.*=.),(.>=.),(.<=.),(...),(.->.)
   , seqCStat
-  , indirect, address, index, intE, floatE, stringE, mkCallE, mkUnaryE, nullE
+  , indirect, address, index, intE, charE, floatE, stringE, mkCallE, mkUnaryE
+  , nullE
 
   -- util
   , cNameStream
@@ -333,7 +334,7 @@ a .>. b  = CBinary CGrOp a b
 a .==. b = CBinary CEqOp a b
 a .!=. b = CBinary CNeqOp a b
 a .||. b = CBinary CLorOp a b
-a .&&. b = CBinary CAndOp a b
+a .&&. b = CBinary CLndOp a b
 a .*. b  = CBinary CMulOp a b
 a ./. b  = CBinary CDivOp a b
 a .-. b  = CBinary CSubOp a b
@@ -361,6 +362,9 @@ intE = CConstant . CIntConst
 
 floatE :: Float -> CExpr
 floatE = CConstant . CFloatConst
+
+charE :: Char -> CExpr
+charE = CConstant . CCharConst
 
 stringE :: String -> CExpr
 stringE = CConstant . CStringConst

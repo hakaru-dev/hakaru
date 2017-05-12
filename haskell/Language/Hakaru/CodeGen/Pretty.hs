@@ -303,6 +303,6 @@ instance Pretty CUnaryOp where
 
 instance Pretty CConst where
   pretty (CIntConst i)    = text . show $ i
-  pretty (CCharConst c)   = char c
+  pretty (CCharConst c)   = text . show $ c
   pretty (CFloatConst f)  = float f
   pretty (CStringConst s) = text . show $ s
