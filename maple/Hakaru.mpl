@@ -55,7 +55,7 @@ end proc:
 #############################################################################
 Hakaru := module ()
   option package;
-  local p_true, p_false, make_piece, Mk_Plus, lift1_piecewise,
+  local p_true, p_false, make_piece, Mk_Plus, lift1_piecewise, TYPES,
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
@@ -596,45 +596,38 @@ Hakaru := module ()
     end if
   end proc;
 
-  ModuleLoad := proc($)
-    local g; #Iterator over thismodule's globals
-    ModuleUnload();
-    VerifyTools[AddVerification](measure = eval(verify_measure));
-    VerifyTools[AddVerification](hboolean = eval(verify_hboolean));
-
-    TypeTools:-AddType(
-         `&implies`,
-         proc(e, t1, t2, $) type(e, Or(Not(t1), t2)) end proc
-    );
-    TypeTools:-AddType(Name, And(name, Not({constant,undefined})));
-    TypeTools:-AddType(known_continuous,
-         '{
+  TYPES := table(
+    [(`&implies` =
+         'proc(e, t1, t2, $) type(e, Or(Not(t1), t2)) end proc')
+    ,(Name = 'And(name, Not({constant,undefined}))')
+    ,(known_continuous =
+         ''{
               Lebesgue(anything, anything), Uniform(anything, anything),
               Gaussian(anything, anything), Cauchy(anything, anything),
               StudentT(anything, anything, anything), ChiSquared(anything),
               BetaD(anything, anything), GammaD(anything, anything),
               InverseGammaD(anything, anything)
-         }'
-    );
-    TypeTools:-AddType(known_discrete,
-         '{
+         }''
+    )
+    ,(known_discrete =
+         ''{
               Counting(anything, anything),
               Categorical(anything),
               Binomial(anything,anything),
               NegativeBinomial(anything,anything),
               PoissonD(anything)
-          }'
-    );
+          }''
+    )
     #This type t_Hakaru is the basic syntax checker for that part of the
     #Maple/Hakaru language accessible by the external user.--Carl 2016Sep20
-    TypeTools:-AddType(t_Hakaru,
+    ,(t_Hakaru =
          #Alternation/conjunction of types via {} or And follows the McCarthy
          #short-cut rule: Proceeding left to right, once satisfaction of the type
          #can be determined, the remaining elements aren't evaluated. Therefore,
          #recursive types are possible by placing the base cases at the beginning.
          #But use Or instead of {} because you can't control the order of
          #expressions with {}.
-         Or(
+         'Or(
            'known_continuous', 'known_discrete',
            t_pw, #Needs to be more specific!
            t_partition,
@@ -645,26 +638,34 @@ Hakaru := module ()
           'Weight(algebraic, t_Hakaru)',
           'Plate(algebraic, name, t_Hakaru)',
           t_lam
-         )
-    );
-    TypeTools:-AddType(t_type,
-      '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
+         )'
+    )
+    ,(t_type =
+     ''{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
                  {AlmostEveryReal, HReal, HInt}),
         specfunc(DatumStruct(anything, list({Konst(t_type), Ident(t_type)})),
                  HData),
         HMeasure(t_type),
         HArray(t_type),
-        HFunction(t_type, t_type)}');
-    TypeTools:-AddType(t_case,
-      'case(anything, specfunc(Branch(anything, anything), Branches))');
-    TypeTools:-AddType(t_pw, 'specfunc(piecewise)');
-    TypeTools:-AddType(t_partition, 'specfunc(PARTITION)'); #Appropriate to put this here?
-    TypeTools:-AddType(t_piecewiselike,
-      '{specfunc(piecewise), t_case, idx(list, anything)}');
-    TypeTools:-AddType(t_lam, 'lam(name, t_type, t_Hakaru)');
+        HFunction(t_type, t_type)}'')
+    ,(t_case =
+      ''case(anything, specfunc(Branch(anything, anything), Branches))'')
+    ,(t_pw = ''specfunc(piecewise)'')
+    ,(t_partition = ''specfunc(PARTITION)'') #Appropriate to put this here?
+    ,(t_piecewiselike =
+      ''{specfunc(piecewise), t_case, idx(list, anything)}'')
+    ,(t_lam = ''lam(name, t_type, t_Hakaru)'')
 
     # A temporary type which should be removed when piecewise is gone
-    TypeTools:-AddType(t_pw_or_part, Or(t_pw,t_partition));
+    ,(t_pw_or_part = 'Or(t_pw,t_partition)')
+    ]);
+
+  ModuleLoad := proc($)
+    local g; #Iterator over thismodule's globals
+    VerifyTools[AddVerification](measure = eval(verify_measure));
+    VerifyTools[AddVerification](hboolean = eval(verify_hboolean));
+
+    BindingTools:-load_types_from_table(TYPES);
 
     #Protect the keywords of the Hakaru language.
     #op([2,6], ...) of a module is its globals.
@@ -678,21 +679,6 @@ Hakaru := module ()
   end proc;
 
   ModuleUnload := proc($)
-    map(proc(x::uneval) try eval(x) catch: NULL; end try end proc,
-        ['TypeTools:-RemoveType(`&implies`)'
-        ,'TypeTools:-RemoveType(Name)'
-        ,'TypeTools:-RemoveType(known_continuous)'
-        ,'TypeTools:-RemoveType(known_discrete)'
-        ,'TypeTools:-RemoveType(t_Hakaru)'
-        ,'TypeTools:-RemoveType(t_pw)'
-        ,'TypeTools:-RemoveType(t_partition)'
-        ,'TypeTools:-RemoveType(t_pw_or_part)'
-        ,'TypeTools:-RemoveType(t_piecewiselike)'
-        ,'TypeTools:-RemoveType(t_case)'
-        ,'TypeTools:-RemoveType(t_type)'
-        ,'TypeTools:-RemoveType(t_lam)'
-        ,'VerifyTools[RemoveVerification](measure)'
-        ]);
     unprotect(op([2,6], thismodule)); #See comment in ModuleLoad.
     #Skip restoring the globals to any prior value they had.
   end proc;

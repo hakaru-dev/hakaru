@@ -98,10 +98,8 @@ Domain := module()
     global DSplit; global DInto; global DNoSol;
 
     local ModuleLoad := proc($)
-      local ty_nm, g;
-      for ty_nm in [ indices(DomainTypes, nolist) ] do
-        TypeTools[AddType]( ty_nm, DomainTypes[ty_nm] );
-      end do;
+      local g;
+      BindingTools:-load_types_from_table(DomainTypes);
 
       #op([2,6], ...) of a module is its globals.
       for g in op([2,6], thismodule) do
@@ -113,12 +111,7 @@ Domain := module()
       end do;
     end proc;
 
-    local ModuleUnload := proc($)
-      local ty_nm;
-      for ty_nm in [ indices(DomainTypes, nolist) ] do
-        if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
-      end do;
-    end proc;
+    local ModuleUnload := proc($) NULL; end proc;
 
     # Extending domain extraction and replacement.
     export ExtBound := table();
@@ -199,4 +192,5 @@ $include "Domain/Improve.mpl"
       Domain:-Apply(dom_spec, kb, f_into, f_body)(e);
     end proc;
 
+    ModuleLoad();
 end module;

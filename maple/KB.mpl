@@ -46,7 +46,7 @@ KB := module ()
      # Hakaru types
      chilled,
 
-     ModuleLoad, ModuleUnload,
+     ModuleLoad, ModuleUnload, TYPES,
 
      # Various utilities
      t_intro, t_lo, t_hi, log_metric,
@@ -954,28 +954,32 @@ KB := module ()
     KB(op(subs([ :-Introduce=Introduce, :-Let=Let, :-Bound=Bound, :-Constrain=Constrain ], kb)));
   end proc;
 
-  ModuleLoad := proc($)
-    ModuleUnload();
-    Hakaru; # Make sure the KB module is loaded, for the type t_type
-    TypeTools[AddType](t_kb,
-      'specfunc({
+  TYPES := table(
+    [(t_kb=
+      ''specfunc({
          Introduce(name, t_type),
          Let(name, anything),
          Bound(name, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
          Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
-       }, KB)');
+       }, KB)'')
 
     # KB 'atoms' , i.e. single pieces of knowledge, in "maple form".
     # Note that boolean already includes `Bound`s in the form `x R y`
-    TypeTools[AddType](t_kb_atom,
-      '{`::`, boolean, `in`, specfunc(anything,{Or,Not,And})}');
-    TypeTools[AddType](t_kb_atoms,list(t_kb_atom));
+    ,(t_kb_atom =
+      ''{`::`, boolean, `in`, specfunc(anything,{Or,Not,And})}'')
+    ,(t_kb_atoms = 'list(t_kb_atom)')
 
     # The 'false' KB, produced when a contradiction arises in a KB
-    TypeTools[AddType](t_not_a_kb, 'specfunc(NotAKB)');
+    ,(t_not_a_kb = ''specfunc(NotAKB)'')
 
     # Something that might be a KB, or is the false KB
-    TypeTools[AddType](t_kb_mb, '{t_kb, t_not_a_kb}');
+    ,(t_kb_mb = ''{t_kb, t_not_a_kb}'')
+    ]);
+
+  ModuleLoad := proc($)
+    Hakaru; # Make sure the KB module is loaded, for the type t_type
+
+    BindingTools:-load_types_from_table(TYPES);
 
     # Prevent expand(product(f(i),i=0..n-1))
     # from producing (product(f(i),i=0..n))/f(n)
@@ -1047,8 +1051,7 @@ KB := module ()
   end proc;
 
   ModuleUnload := proc($)
-    map(proc(x::uneval) try eval(x) catch: NULL; end try end proc,
-         ['TypeTools[RemoveType](t_kb)']);
+    NULL;
   end proc;
   ModuleLoad();
 end module; # KB

@@ -24,8 +24,14 @@ local
     type(e, 'PARTITION(list(PartitionPiece(Or(elem_t,PieceRef))),list(elem_t))' );
   end proc,
 
+  TYPES := table(
+    [(PieceRef = 'And(specfunc(nonnegint,PieceRef),satisfies(x->nops(x)>0))')
+    ,(PartitionCond = '{relation, boolean, `::`, specfunc({`And`,`Or`,`Not`}), `and`, `or`, `not`}')
+    ,(PartitionPiece = 'isPartitionPieceOf')
+    ,(Partition = 'isPartitionOf')
+    ]),
+
   ModuleLoad::static:= proc()
-    ModuleUnload();
     :-`print/PARTITION`:= proc()
       local SetOfRecords, branch;
       SetOfRecords := piecesOf(PARTITION(args));
@@ -33,10 +39,7 @@ local
         seq([ condOf(eval(branch)), valOf(eval(branch))][], branch= SetOfRecords))
     end proc;
 
-    TypeTools:-AddType(PieceRef, And(specfunc(nonnegint,PieceRef),satisfies(x->nops(x)>0)));
-    TypeTools:-AddType(PartitionCond, {relation, boolean, `::`, specfunc({`And`,`Or`,`Not`}), `and`, `or`, `not`});
-    TypeTools:-AddType(PartitionPiece, isPartitionPieceOf);
-    TypeTools:-AddType(Partition, isPartitionOf);
+    BindingTools:-load_types_from_table(TYPES);
 
     # global extensions to maple functionality
     :-`eval/PARTITION` :=
@@ -79,10 +82,6 @@ local
   end proc,
 
   ModuleUnload::static:= proc()
-    map(proc(x::uneval) try eval(x) catch: NULL; end try end proc,
-        ['TypeTools:-RemoveType(Partition)'
-        ,'TypeTools:-RemoveType(PartitionPiece)'
-        ]);
     NULL
   end proc,
 
@@ -672,4 +671,5 @@ export
   end proc
 ;
   uses Hakaru;
+  ModuleLoad();
 end module:

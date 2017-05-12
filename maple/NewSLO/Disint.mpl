@@ -57,16 +57,18 @@
     t_disint_var, #Curiosity: giving this a type `type` causes a kernel crash
                   #during update-archive.
     t_disint_var_pair,
+
+    TYPES := table(
+         [(t_wrt_var_type=
+              'satisfies(t-> assigned(Wrt_var_types[op(0,t)]))')
+         ,(t_disint_var = '{name, name &M t_wrt_var_type}')
+         ,(     #Caution: recursive type: Make sure base cases
+           t_disint_var_pair = #are on left (a la McCarthy rule).
+              ''Pair'(Or(t_disint_var, t_disint_var_pair) $ 2)')
+         ]),
+
     ModuleLoad::static:= proc($) #Needed to declare types.
-         TypeTools:-AddType(
-              t_wrt_var_type,
-              satisfies(t-> assigned(Wrt_var_types[op(0,t)]))
-         );
-         TypeTools:-AddType(t_disint_var, {name, name &M t_wrt_var_type});
-         TypeTools:-AddType(     #Caution: recursive type: Make sure base cases
-           t_disint_var_pair, #are on left (a la McCarthy rule).
-              'Pair'(Or(t_disint_var, t_disint_var_pair) $ 2)
-         )
+      BindingTools:-load_types_from_table(TYPES);
     end proc,
     #end of types for disint
 
