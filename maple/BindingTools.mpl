@@ -35,7 +35,20 @@ end module: # gensym
 
 BindingTools := module ()
   option package;
-  export generic_evalat, generic_evalatstar;
+  export generic_evalat, generic_evalatstar, load_types_from_table;
+
+  load_types_from_table := proc(types, unload::truefalse:=true, $)
+    local ty_nm;
+    if unload then
+      for ty_nm in [ indices(types, nolist) ] do
+        if TypeTools[Exists](ty_nm) then TypeTools[RemoveType](ty_nm) end if;
+      end do;
+    end if;
+
+    for ty_nm in [ indices(types, nolist) ] do
+      TypeTools[AddType]( ty_nm, types[ty_nm] );
+    end do;
+  end proc;
 
   generic_evalat := proc(vv::{name,list(name)}, mm, eqs, $)
     local v, m, eqsRemain, eq, rename, funs;
