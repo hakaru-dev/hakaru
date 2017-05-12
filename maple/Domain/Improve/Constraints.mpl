@@ -198,6 +198,8 @@ end module;
 # that variable in. In most cases, it would probably be enough to
 # leave that as it is; it would simplify later.
 singular_pts := module()
+  uses Domain;
+
   export SimplName  := "Single_pts";
   export SimplOrder := 14;
 
