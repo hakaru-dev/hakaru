@@ -126,7 +126,8 @@ mainFunction pconfig typ@(SMeasure _) abt =
 
           -- need to set seed?
           -- srand(time(NULL));
-          printCG pconfig typ (CVar mfId) (Just nSamples)
+          putStat $ opComment "Run Hakaru Sampler"
+          printCG pconfig typ (CCall (CVar mfId) []) (Just nSamples)
           putStat . CReturn . Just $ intE 0
 
 mainFunction pconfig typ@(SFun _ _) abt =
@@ -138,16 +139,19 @@ mainFunction pconfig typ@(SFun _ _) abt =
        funId  <- genIdent' "fn"
        flattenTopLambda abt funId
        let (resE:funE:argCE:argVE:[]) = fmap CVar [resId,funId,argCId,argVId]
+           typ' = typeOf abt'
 
        funCG CInt mainId mainArgs $
          do isManagedMem <- managedMem <$> get
             when isManagedMem (putExprStat gcInit)
-            declare (typeOf abt') resId
+            declare typ' resId
+
+            mns <- maybeNumSamples argCE argVE typ'
 
             withLambdaDepth' 0 abt $ \d ->
               let argErr 0 = ""
                   argErr n = (argErr (pred n)) ++ "<arg" ++ show n ++ "> " in
-                ifCG (argCE .!=. (intE (d+1)))
+                ifCG (argCE .<. (intE (d+1)))
                      (do putExprStat $ printfE
                            [ stringE $ "Usage: %s " ++ argErr d ++ "\n"
                            , (index argVE (intE 0)) ]
@@ -160,11 +164,17 @@ mainFunction pconfig typ@(SFun _ _) abt =
                           parseCG t (index argVE (intE i)) argE
                           return argE
 
-            putStat $ opComment "Run Hakaru Program"
-            putExprStat $ resE .=. (CCall funE argEs)
-            putStat $ opComment "Print Result"
-            printCG pconfig (typeOf abt') resE Nothing
+            case typ' of
+              SMeasure _ -> do putStat $ opComment "Run Hakaru Sampler"
+                               printCG pconfig typ' (CCall funE argEs) mns
+
+              _ -> do putStat $ opComment "Run Hakaru Program"
+                      putExprStat $ resE .=. (CCall funE argEs)
+                      putStat $ opComment "Print Result"
+                      printCG pconfig typ' resE mns
+
             putStat . CReturn . Just $ intE 0
+
 
   where withLambdaDepth'
           :: ABT Term abt
@@ -184,6 +194,10 @@ mainFunction pconfig typ@(SFun _ _) abt =
                     withLambdaDepth' (succ n) abt_' k
                 _ -> k n)
 
+        maybeNumSamples
+          :: CExpr -> CExpr -> Sing (a :: Hakaru) -> CodeGen (Maybe CExpr)
+        maybeNumSamples c v (SMeasure _) = Just <$> parseNumSamples c v
+        maybeNumSamples _ _ _ = return Nothing
 
 -- just a computation
 mainFunction pconfig typ abt =
@@ -214,6 +228,8 @@ parseNumSamples :: CExpr -> CExpr -> CodeGen CExpr
 parseNumSamples argc argv =
   do itE <- localVar SInt
      outE <- localVar SInt
+     putStat $ opComment "Num Samples?"
+     putExprStat $ outE .=. (intE (-1))
      forCG (itE .=. (intE 1))
            (itE .<. argc)
            (CUnary CPostIncOp itE)
@@ -222,6 +238,7 @@ parseNumSamples argc argv =
                  (putExprStat $
                    sscanfE [index argv itE,stringE "-n%d",address outE])
                  (return ()))
+     putStat $ opComment "End Num Samples?"
      return outE
 
 
@@ -303,7 +320,7 @@ printCG pconfig mtyp@(SMeasure typ) sampleFunc (Just numSamples) =
      itE <- localVar SInt
      putExprStat $ itE .=. numSamples
      whileCG (itE .!=. (intE 0)) $
-       do putExprStat $ mE .=. (CCall sampleFunc [])
+       do putExprStat $ mE .=. sampleFunc
           printCG pconfig typ (mdataSample mE) Nothing
           ifCG (numSamples .>=. (intE 0))
                (putExprStat $ CUnary CPostDecOp itE)
