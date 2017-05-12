@@ -3,7 +3,7 @@
 Probablilistic programming is a software-driven method for creating and testing probabilistic models and distributions to automate parts of the model testing process. It 
 provides a means for writing programs which describe probabilistic models and distributions such that they can be used to make probabilistic inferences. For example, the 
 Hakaru program \(poisson(5)\) represents the Poisson distribution with a rate of five. A Probabilistic Programming Language (PPL) is a computer language designed to 
-describe probabalistic models and distributions such that probabilistic inferences can be made programmatically. Hakaru is an example of a PPL. 
+describe probabalistic models and distributions such that probabilistic inferences can be made programmatically[^1]. Hakaru is an example of a PPL. 
 
 Why do we need a programming language for describing probability distributions? Consider a machine learning problem. A typical workflow for this type of design is, when 
 presented with a problem, to design an inference algorithm for a specific probabilistic distribution and query. The development of a distribution, query, and inference
@@ -110,3 +110,5 @@ which only generate the data we observed and don't waste any computation simulat
 
 By default hakaru performs importance sampling. This works well for inference in low dimensions, but we want to use MCMC for more realistic problems. Hakaru provides a `mh` 
 command tool to transform probabilistic programs into a Markov Chain.
+
+[^1]: [Proababilistic programming language (Wikipedia)](https://en.wikipedia.org/wiki/Probabilistic_programming_language)
