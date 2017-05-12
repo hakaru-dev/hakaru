@@ -42,3 +42,4 @@ theme: yeti
 markdown_extensions:
   - markdown.extensions.smarty
   - mdx_math
+  - footnotes
