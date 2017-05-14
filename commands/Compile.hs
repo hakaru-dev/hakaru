@@ -4,7 +4,8 @@
              KindSignatures,
              GADTs,
              FlexibleContexts,
-             TypeOperators
+             TypeOperators,
+             RankNTypes
              #-}
 
 module Main where
@@ -13,6 +14,7 @@ import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
+import           Language.Hakaru.Syntax.TypeOf
 
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Types.Sing
@@ -29,6 +31,7 @@ import           System.IO (stderr)
 import           Text.PrettyPrint    hiding ((<>))
 import           Options.Applicative hiding (header,footer)
 import           System.FilePath
+import           Control.Monad
 
 
 data Options =
@@ -94,7 +97,7 @@ compileHakaru opts = do
           header (logFloatPrelude opts) (asModule opts) ++
           [ pack $ prettyProg "prog" (et ast) ] ++
           (case asModule opts of
-             Nothing -> footer typ
+             Nothing -> footer (et ast)
              Just _  -> [])
   where et = expandTransformations
 
@@ -147,6 +150,7 @@ header logfloats mmodule =
   , if logfloats
     then "import           Language.Hakaru.Runtime.LogFloatPrelude"
     else "import           Language.Hakaru.Runtime.Prelude"
+  , "import           Language.Hakaru.Runtime.CmdLine"
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
@@ -154,16 +158,49 @@ header logfloats mmodule =
   , ""
   ]
 
-footer :: Sing (a :: Hakaru) -> [Text]
-footer typ =
-  [ ""
-  , "main :: IO ()"
-  , "main = do"
-  , "  g <- MWC.createSystemRandom"
-  , case typ of
-      SMeasure _ -> "  forever $ run g prog"
-      _          -> "  print prog"
-  ]
+footer :: ABT T.Term abt => abt '[] (a :: Hakaru) -> [Text]
+footer _ = ["main :: IO ()","main = makeMain prog"]
+
+-- footer :: ABT T.Term abt => abt '[] (a :: Hakaru) -> [Text]
+-- footer abt =
+--   [ ""
+--   , "main :: IO ()"
+--   , "main = do"
+--   , case typeOf abt of
+--       SMeasure _ -> "  forever $ run g prog"
+--       SFun _ _ -> parseUnderLambdas "" names abt (const "")
+--       _ -> "  print prog"
+--   ]
+--   where base  =  ['a'..'z']
+--         names :: [Text]
+--         names = [pack [x] | x <- base] `mplus` (do n <- names
+--                                                    [n <> pack [x] | x <- base])
+
+--         parseUnderLambdas
+--           :: ABT T.Term abt
+--           => Text
+--           -> [Text]
+--           -> abt '[] a
+--           -> (forall (a :: Hakaru) . Sing a -> Text)
+--           -> Text -- a list of argument names, and the string of parses
+--         parseUnderLambdas s (n:ns) abt k =
+--           caseVarSyn abt
+--             (const $ s <> "  print $ prog ")
+--             (\term ->
+--               case term of
+--                 (T.Lam_ T.:$ abt' T.:* T.End) ->
+--                   caseBind abt' $ \(Variable _ _ typ) abt'' ->
+--                     let pstring = case typ of
+--                                     SNat      -> "  " <> n <> " <- parseRank0\n"
+--                                     SInt      -> "  " <> n <> " <- parseRank0\n"
+--                                     SReal     -> "  " <> n <> " <- parseRank0\n"
+--                                     SProb     -> "  " <> n <> " <- parseRank0\n"
+--                                     SArray xs -> "  " <> n <> " <- parseRank1\n"
+--                         recc = parseUnderLambdas (s <> pstring) ns abt'' k
+--                     in recc <> n <> " "
+--                 _ -> s <> "  print $ prog ")
+
+
 
 footerWalk :: [Text]
 footerWalk =
