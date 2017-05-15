@@ -1,7 +1,7 @@
 # What is Probabilistic Programming?
 
-Probablilistic programming is a software-driven method for creating and testing probabilistic models and distributions to automate parts of the model testing process. It 
-provides a means for writing programs which describe probabilistic models and distributions such that they can be used to make probabilistic inferences. For example, the 
+Probablilistic programming is a software-driven method for creating probabilistic models and then using them to make probabilistic inferences. It 
+provides a means for writing programs which describe probabilistic models such that they can be used to make probabilistic inferences. For example, the 
 Hakaru program \(poisson(5)\) represents the Poisson distribution with a rate of five. A Probabilistic Programming Language (PPL) is a computer language designed to 
 describe probabalistic models and distributions such that probabilistic inferences can be made programmatically[^1]. Hakaru is an example of a PPL. 
 
