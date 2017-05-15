@@ -378,11 +378,11 @@ buildType d@(SData _ _) = [callStruct . typeName $ d]
 
 
 -- these mk...Decl functions are used in coersions
-castTo :: CTypeSpec -> CExpr -> CExpr
-castTo t = CCast (CTypeName [t] False)
+castTo :: [CTypeSpec] -> CExpr -> CExpr
+castTo t = CCast (CTypeName t False)
 
-castToPtrOf :: CTypeSpec -> CExpr -> CExpr
-castToPtrOf t = CCast (CTypeName [t] True)
+castToPtrOf :: [CTypeSpec] -> CExpr -> CExpr
+castToPtrOf t = CCast (CTypeName t True)
 
 buildStruct :: Maybe Ident -> [CDecl] -> CTypeSpec
 buildStruct mi decls =

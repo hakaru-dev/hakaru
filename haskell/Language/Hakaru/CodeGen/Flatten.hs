@@ -161,7 +161,9 @@ flattenTerm (Reject_ _)       = \loc -> putExprStat (mdataWeight loc .=. (intE 0
 --------------------------------------------------------------------------------
 
 flattenSCon
-  :: ( ABT Term abt )
+  :: ( ABT Term abt
+     , typs ~ UnLCs args
+     , args ~ LCs typs)
   => SCon args a
   -> SArgs abt args
   -> (CExpr -> CodeGen ())
@@ -285,7 +287,7 @@ flattenSCon (Summate _ sr) =
                let summateArrE = CVar summateArrId
                putExprStat $ arraySize summateArrE .=. (hiE .-. loE)
                putExprStat $ arrayData summateArrE
-                     .=. (castToPtrOf CDouble
+                     .=. (castToPtrOf [CDouble]
                            (mallocE ((arraySize summateArrE) .*.
                                     (CSizeOfType (CTypeName [CDouble] False)))))
                lseSummateArrayCG body summateArrE loc
@@ -355,55 +357,23 @@ flattenSCon (Product _ sr) =
 
 
 --------------------
--- SCon Coersions --
+-- SCon Coercions --
 --------------------
+{- Helpers found by searching "Coercion Helpers" -}
 
--- at this point, only nonrecusive coersions are implemented
 flattenSCon (CoerceTo_ ctyp) =
   \(e :* End) ->
     \loc ->
       do eE <- flattenWithName e
-         cE <- coerceToType ctyp (typeOf e) eE
+         cE <- coerceToCG ctyp (typeOf e) eE
          putExprStat $ loc .=. cE
-  where coerceToType
-          :: Coercion a b
-          -> Sing (c :: Hakaru)
-          -> CExpr
-          -> CodeGen CExpr
-        coerceToType (CCons p rest) typ =
-          \e ->  primitiveCoerce p typ e >>= coerceToType rest typ
-        coerceToType CNil            _  = return . id
 
-        primitiveCoerce
-          :: PrimCoercion a b
-          -> Sing (c :: Hakaru)
-          -> CExpr
-          -> CodeGen CExpr
-        primitiveCoerce (Signed HRing_Int)            SNat  = nat2int
-        primitiveCoerce (Signed HRing_Real)           SProb = prob2real
-        primitiveCoerce (Continuous HContinuous_Prob) SNat  = nat2prob
-        primitiveCoerce (Continuous HContinuous_Real) SInt  = int2real
-        primitiveCoerce (Continuous HContinuous_Real) SNat  = int2real
-        primitiveCoerce a b = error $ "flattenSCon CoerceTo_: cannot preform coersion "
-                                    ++ show a
-                                    ++ " to "
-                                    ++ show b
-
-
-        -- implementing ONLY functions found in Hakaru.Syntax.AST
-        nat2int,nat2prob,prob2real,int2real
-          :: CExpr -> CodeGen CExpr
-        nat2int   = return
-        nat2prob  = \n -> do ident <- genIdent' "p"
-                             declare SProb ident
-                             assign ident . logE $ n
-                             return (CVar ident)
-        prob2real = \p -> do ident <- genIdent' "r"
-                             declare SReal ident
-                             assign ident $ (expm1E p) .+. (intE 1)
-                             return (CVar ident)
-        int2real  = return . castTo CDouble
-
+flattenSCon (UnsafeFrom_ ctyp) =
+  \(e :* End) ->
+    \loc ->
+      do eE <- flattenWithName e
+         cE <- coerceFromCG ctyp (typeOf e) eE
+         putExprStat $ loc .=. cE
 
 -----------------------------------
 -- SCons in the Stochastic Monad --
@@ -468,14 +438,11 @@ flattenSCon Plate           =
 
            putExprStat $ mdataWeight loc .=. weightE
 
-
 -----------------------------------
 -- SCon's that arent implemented --
 -----------------------------------
 
 flattenSCon x               = \_ -> \_ -> error $ "TODO: flattenSCon: " ++ show x
-
-
 
 
 
@@ -1069,8 +1036,8 @@ uniformFun = CFunDef (CTypeSpec <$> retTyp)
                      $ [ CBlockDecl <$> [declMD]
                        , CBlockStat <$> comment ++ [assW,assS,CReturn . Just $ mE]]
                      )
-  where r          = castTo CDouble randE
-        rMax       = castTo CDouble (CVar . Ident $ "RAND_MAX")
+  where r          = castTo [CDouble] randE
+        rMax       = castTo [CDouble] (CVar . Ident $ "RAND_MAX")
         retTyp     = buildType (SMeasure SReal)
         (mId,mE)   = let ident = Ident "mdata" in (ident,CVar ident)
         (loId,loE) = let ident = Ident "lo" in (ident,CVar ident)
@@ -1107,8 +1074,8 @@ normalFun = CFunDef (CTypeSpec <$> retTyp)
                     ( CCompound . concat
                     $ [[CBlockDecl declMD],comment,decls,stmts])
 
-  where r      = castTo CDouble randE
-        rMax   = castTo CDouble (CVar . Ident $ "RAND_MAX")
+  where r      = castTo [CDouble] randE
+        rMax   = castTo [CDouble] (CVar . Ident $ "RAND_MAX")
         retTyp = buildType (SMeasure SReal)
         (aId,aE) = let ident = Ident "a" in (ident,CVar ident)
         (bId,bE) = let ident = Ident "b" in (ident,CVar ident)
@@ -1299,8 +1266,8 @@ flattenMeasureOp Categorical = \(arr :* End) ->
        -- draw number from uniform(0, weightSum)
        rId <- genIdent' "r"
        declare SReal rId
-       let r    = castTo CDouble randE
-           rMax = castTo CDouble (CVar . Ident $ "RAND_MAX")
+       let r    = castTo [CDouble] randE
+           rMax = castTo [CDouble] (CVar . Ident $ "RAND_MAX")
            rE = CVar rId
        assign rId (logE (r ./. rMax) .+. wSumE)
 
@@ -1351,8 +1318,8 @@ flattenSuperpose pairs =
             -- draw number from uniform(0, weightSum)
             rId <- genIdent' "r"
             declare SReal rId
-            let r    = castTo CDouble randE
-                rMax = castTo CDouble (CVar . Ident $ "RAND_MAX")
+            let r    = castTo [CDouble] randE
+                rMax = castTo [CDouble] (CVar . Ident $ "RAND_MAX")
                 rE = CVar rId
             assign rId ((r ./. rMax) .*. (expE wSumE))
 
@@ -1379,8 +1346,6 @@ flattenSuperpose pairs =
             putStat $ CLabel outLabel (CExpr Nothing)
             putExprStat $ mdataWeight loc .=. ((mdataWeight outE) .+. wSumE)
             putExprStat $ mdataSample loc .=. (mdataSample outE)
-
-
 
 --------------------------------------------------------------------------------
 --                           Specialized Arithmetic                           --
@@ -1529,3 +1494,85 @@ kahanSummationCG body loE hiE =
                 putExprStat $ cE .=.  ((zE .-. tE) .-. yE)
                 putExprStat $ tE .=. zE)
       putExprStat $ loc .=. tE
+
+--------------------------------------------------------------------------------
+--                            Coercion Helpers                                --
+--------------------------------------------------------------------------------
+    -- CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
+    -- UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
+
+coerceToCG
+  :: -- (b ~ LC a)
+     Coercion a b
+  -> Sing (a :: Hakaru)
+  -> CExpr
+  -> CodeGen CExpr
+coerceToCG (CCons p rest) typ e =
+  do e' <- primCoerceCG p True (primCoerceTo p typ) e
+     coerceToCG rest typ e'
+coerceToCG CNil _ e = return e
+
+coerceFromCG
+  :: -- (b ~ LC b)
+     Coercion a b
+  -> Sing (b :: Hakaru)
+  -> CExpr
+  -> CodeGen CExpr
+coerceFromCG (CCons p rest) typ e =
+  do e' <- coerceFromCG rest typ e
+     primCoerceCG p False (primCoerceFrom p typ) e'
+coerceFromCG CNil _ e = return e
+
+primCoerceCG
+  :: PrimCoercion a b
+  -> Bool
+  -> Sing (c :: Hakaru)
+  -> CExpr
+  -> CodeGen CExpr
+primCoerceCG (Signed HRing_Int)            True  SNat  = nat2int
+primCoerceCG (Signed HRing_Int)            False SNat  = int2nat
+primCoerceCG (Signed HRing_Real)           True  SProb = prob2real
+primCoerceCG (Signed HRing_Real)           False SProb = real2prob
+primCoerceCG (Continuous HContinuous_Prob) True  SNat  = nat2prob
+primCoerceCG (Continuous HContinuous_Prob) False SNat  = prob2nat
+primCoerceCG (Continuous HContinuous_Real) True  SInt  = int2real
+primCoerceCG (Continuous HContinuous_Real) False SInt  = real2int
+
+primCoerceCG a b s = error $
+  concat [ "flattenSCon: primCoerce cannot preform coercion "
+         , show a," ",show b," ",show s]
+
+-- safe
+nat2int,nat2prob,prob2real,int2real
+  :: CExpr -> CodeGen CExpr
+nat2int   x = return x
+nat2prob  x = do x' <- localVar' SProb "n2p"
+                 putExprStat $ x' .=. (logE x)
+                 return x'
+prob2real x = do x' <- localVar' SProb "p2r"
+                 putExprStat $ x' .=. ((expm1E x) .+. (floatE 1))
+                 return x'
+int2real  x = return (castTo [CDouble] x)
+
+-- unsafe
+{- Because of the hkc representation of reals and probs as doubles, (instead of
+   rationals). we will just silently truncate values for prob2nat and real2int
+-}
+int2nat,prob2nat,real2prob,real2int
+  :: CExpr -> CodeGen CExpr
+int2nat x =
+  do x' <- localVar' SNat "i2n"
+     ifCG (x .<. (intE 0))
+          (do putExprStat $ printfE [ stringE "cannot coerce negative int to nat" ]
+              putExprStat $ mkCallE "abort" [] )
+          (putExprStat $ x' .=. (castTo [CUnsigned, CInt] x))
+     return x'
+prob2nat x = return (castTo [CUnsigned, CInt] x)
+real2prob x =
+  do x' <- localVar' SProb "r2p"
+     ifCG (x .<. (intE 0))
+          (do putExprStat $ printfE [ stringE "cannot coerce negative real to prob" ]
+              putExprStat $ mkCallE "abort" [] )
+          (putExprStat $ x' .=. (logE x))
+     return x'
+real2int x =  return (castTo [CInt] x)
