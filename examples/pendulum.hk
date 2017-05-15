@@ -1,0 +1,4 @@
+θ <~ normal(42,1)
+x <~ return(sin(θ))
+ε <~ normal(0,1)
+return (x+ε, θ)
