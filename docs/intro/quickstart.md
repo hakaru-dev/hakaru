@@ -1,22 +1,34 @@
 # Quickstart
 
-Assuming you have Hakaru [installed](/intro/installation), let's
-sample a simple a model.
+Let's start with a simple model of a coin toss experiment so that you can become familiar with some of Hakaru's functionality. We will use the `categorical` Hakaru
+[Random Primitive](../lang/rand.md), a generalized Bernoulli distribution for our model. The `categorical` primitive requires an array representing the probability of
+achieving each category in the experiement. Since we want a fair experiment, we will state that each side of the coin has an equal chance of being picked. The result of
+the coin toss is stored in the variable `x` using Hakaru's notation for [bind](../lang/letbind):
 
 ````nohighlight
-x <~ bern(0.5)
-y <~ match x:
-      true:  normal(0,1)
-      false: uniform(0,1)
-return (y,x)
+x <~ categorical([0.5, 0.5])
 ````
 
-The generative model here has us flip a coin with bias 0.5, and then
-have *x* be a draw from that distribution. We then check if *x* is
+(Why are we doing this?) We will use the value in `x` to choose which distribution, `normal` or `uniform`, to generate a value to bind to another variable `y`. Both the 
+`normal` and `uniform` functions are included in Hakaru's [Random Primitives](../lang/rand.md). Since we are selecting values from two probabilistic distributions, we
+are creating a *mixture model*.
+
+We want to generate a value from a normal distribution for `x < 0.5` and from a uniform distribution otherwise. For this task, we must use Hakaru's 
+[pattern matching functionality](../lang/datatypes.md).
+
+````nohighlight
+y <~ match x < 0.5:
+	true: normal(0,1)
+	false: uniform(0,1)
+````
+
+````nohighlight
+return(y,x)
+````
+
+We then check if *x* is
 true or false. Based on that we either have *y* be a draw from
 a normal or uniform distribution, and then we return both *x* and *y*.
-Because we are choosing between a normal and a uniform distribution,
-programs like these are sometimes called *mixture* models.
 
 Assuming we save this file to `twomixture.hk` we can sample from it by
 passing it as an argument to the `hakaru` command. 
@@ -26,20 +38,20 @@ passing it as an argument to the `hakaru` command.
 hakaru twomixture.hk
 ```
 
-Hakaru will then produce an infinite stream of samples from the
-distribution this program represents.
+Hakaru will then produce an infinite stream of samples from the model we created where the first value is from either a normal or uniform distribution, and the second value
+is from a categorical distribution:
 
 ````bash
-(0.8614855008328531, false)
-(0.27145378737815007, false)
-(6.137461559047042e-4, false)
-(0.9699201771404777, true)
-(1.2904529857533733, true)
-(8.605226081336681e-2, false)
-(-0.7713069511457459, true)
-(0.18162205213257607, true)
-(-1.143049106224509, true)
-(0.3667084406816875, false)
+(0.8614855008328531, 0)
+(0.27145378737815007, 0)
+(6.137461559047042e-4, 0)
+(0.9699201771404777, 1)
+(1.2904529857533733, 1)
+(8.605226081336681e-2, 0)
+(-0.7713069511457459, 1)
+(0.18162205213257607, 1)
+(-1.143049106224509, 1)
+(0.3667084406816875, 0)
 ...
 ````
 
