@@ -471,6 +471,11 @@ minimaltow = normal zero one >>= \alice ->
               dirac (a-b)) >>= \match ->
              dirac (pair match unit)
 
+slice :: Model 'HReal 'HReal 
+slice = normal zero one >>= \x ->
+        uniform zero (fromProb (densityNormal zero one x)) >>= \y ->
+        dirac (pair y x)
+
 runPerform
     :: TrivialABT Term '[] ('HMeasure a)
     -> [TrivialABT Term '[] ('HMeasure a)]
