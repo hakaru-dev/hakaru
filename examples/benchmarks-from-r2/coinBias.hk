@@ -1,0 +1,7 @@
+def bern(p prob):
+    i <~ categorical([p, real2prob(1 - p)])
+    return [true, false][i]
+
+bias <~ beta(2,5)
+tossResults <~ plate _ of 5: bern(bias)
+return (tossResults, bias)
