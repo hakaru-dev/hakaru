@@ -402,7 +402,7 @@ linearRegression =
     normal (real_ 0) (prob_ 1) >>= \a ->
     normal (real_ 5) (prob_ 1.82574185835055371152) >>= \b ->
     gamma (prob_ 1) (prob_ 1) >>= \invNoise ->
-    plate n (\i -> normal (a * (dataX ! i)) (recip $ sqrt invNoise)) >>= \y ->
+    plate n (\i -> normal (a * (dataX ! i) + b) (recip $ sqrt invNoise)) >>= \y ->
     dirac (pair y (arrayLit [a, b, fromProb invNoise]))
     where n     = nat_ 1000
           dataX = var (Variable "dataX" 73 (SArray SReal)) -- hack :(
