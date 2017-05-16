@@ -37,7 +37,8 @@ our set of bus arrival times to predict a value for \(f\). You can use either ap
 ## Example: Bayesian Tug-of-War ##
 
 To demonstrate the value of this problem-solving approach, we will write a Hakaru program to represent a simplified version of the 
-[tug-of-war](https://probmods.org/v1/generative-models.html#example-bayesian-tug-of-war) example from probmods.org.
+[tug-of-war](https://probmods.org/v1/generative-models.html#example-bayesian-tug-of-war) example from probmods.org. A completed version of this program can be found
+in the [Hakaru examples directory](https://github.com/hakaru-dev/hakaru/blob/master/examples/tugofwar.hk).
 
 Three friends, Alice, Bob and Carol, want to know which of them is the strongest. They decide that the winner of a game of tug-of-war must be stronger than their opponent,
 and arrange to take turns playing tug-of-war against each other. The person who wins the most matches will be deemed the strongest of them.
