@@ -1,7 +1,7 @@
-This directory contains the following Hakaru programs, illustrating
-our symbolic array disintegrator, as described in our ICFP 2017
-submission "Symbolic conditioning of arrays in probabilistic
-programs".
+This directory contains Hakaru programs that illustrate our symbolic
+array disintegrator. The following programs have been described in our
+ICFP 2017 submission "Symbolic conditioning of arrays in probabilistic
+programs":
 
 * The `pendulum` example developed throughout the paper, as it appears
   in its final version in Section 4
