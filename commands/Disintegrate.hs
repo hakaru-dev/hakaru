@@ -54,17 +54,19 @@ runDisintegrate prog =
                           Nothing   -> IO.hPutStrLn stderr
                                        "No disintegration found"
               SFun _ b ->
-                caseVarSyn ast (const putErrorMsg) $ \t ->
+                caseVarSyn ast putErrorMsg $ \t ->
                 case t of
                   Lam_ :$ body :* End ->
                       caseBind body $ \x e ->
                       go (append1 xs (Cons1 x Nil1)) (TypedAST b e)
-                  _ -> putErrorMsg
-              _ -> putErrorMsg
+                  _ -> putErrorMsg ast
+              _ -> putErrorMsg ast
                    
-putErrorMsg :: IO ()
-putErrorMsg = IO.hPutStrLn stderr
-              "Can only disintegrate (functions over) measures over pairs"
+putErrorMsg :: (Show a) => a -> IO ()
+putErrorMsg a = IO.hPutStrLn stderr . pack $
+                "Can only disintegrate (functions over) measures over pairs"
+                ++ "\nGiven\n" -- ++ show a
+                
               
 lams :: (ABT T.Term abt)
      => List1 Variable (xs :: [Hakaru])
