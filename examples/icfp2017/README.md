@@ -34,7 +34,8 @@ programs":
       to infer the gender bias of a population modeled using a
       normal distribution
       
-* Microbenchmarks to test array manipulation
+* Microbenchmarks to test array manipulation (inside the `micro/`
+  directory)
     
     * Probabilistic hello world, where we infer the mean of a Gaussian
       that is observed several times

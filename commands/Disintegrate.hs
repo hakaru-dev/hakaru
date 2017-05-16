@@ -5,7 +5,8 @@
            , GADTs
            , KindSignatures
            , FlexibleContexts
-           , RankNTypes #-}
+           , RankNTypes
+           , CPP #-}
 
 module Main where
 
@@ -21,12 +22,15 @@ import           Language.Hakaru.Disintegrate
 import           Language.Hakaru.Evaluation.ConstantPropagation
 import           Language.Hakaru.Command
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
+
+import           Data.Monoid
 import           Control.Monad (when)
 import qualified Data.Text as T
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
-
-import           System.Environment
 
 import           Options.Applicative as O
 
@@ -50,8 +54,7 @@ options = Options
                 short 'i' <>
                 metavar "INDEX" <>
                 value 0 <>
-                help "The index of the desired result in the \
-                     \ list of disintegrations" )
+                help "The index of the desired result in the list of disintegrations (default: 0)" )
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options) $
