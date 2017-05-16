@@ -53,6 +53,17 @@ programs":
        
         * mapIncr.hk
         * mapDouble.hk
-        
-               
+                       
+
+
+Additionally, we include the following programs:
+
+* Gaussian mixture model for clustering
+  
+      * gaussian_mixture.hk
       
+* Latent Dirichlet allocation and Naive bayes models for document
+  classification
+
+      * lda.hk
+      * naiveBayes.hk
