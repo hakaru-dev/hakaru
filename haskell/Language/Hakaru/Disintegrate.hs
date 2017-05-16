@@ -82,9 +82,9 @@
 -- statement.
 ----------------------------------------------------------------
 module Language.Hakaru.Disintegrate
-    (
+    ( lam_
     -- * the Hakaru API
-      disintegrateWithVar
+    , disintegrateWithVar
     , disintegrate
     , densityWithVar
     , density

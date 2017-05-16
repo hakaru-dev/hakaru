@@ -1,0 +1,11 @@
+fn dataPrior array(prob) :
+   fn dataParams array(array(prob)):
+
+      def bern(p prob):
+          i <~ categorical([p, real2prob(1 - p)])
+          return [true, false][i]
+          
+      y <~ categorical(dataPrior)
+      x <~ plate i of 784: bern(dataParams[y][i])
+      return (x,y)
+         

@@ -1,0 +1,3 @@
+u <~ plate i of 2000: normal(0,1)
+v <~ return u
+return (v, ())

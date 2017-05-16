@@ -1,0 +1,8 @@
+fn g real:
+   fn σ1 prob:
+      fn σ prob:
+         fn k nat:
+            θ <~ normal(g,σ1)
+            x <~ return(sin(θ))
+            ε <~ plate _ of k: normal(0,σ)
+            return (array i of k: x+ε[i], θ)

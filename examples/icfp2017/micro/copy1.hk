@@ -1,0 +1,4 @@
+n <~ return 85
+u <~ plate i of n: normal(0,1)
+v <~ return (array i of n: u[i])
+return (v, ())
