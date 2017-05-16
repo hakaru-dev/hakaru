@@ -1,0 +1,4 @@
+n <~ return 100000
+u <~ plate i of n: normal(0,1)
+v <~ plate i of n: return u[i]
+return (v, ())

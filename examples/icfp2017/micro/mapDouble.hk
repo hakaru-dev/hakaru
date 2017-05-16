@@ -1,0 +1,4 @@
+n <~ return 7000
+u <~ plate i of n: normal(0,1)
+v <~ return (array j of n: u[j] * 2)
+return (v, ())

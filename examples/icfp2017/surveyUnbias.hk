@@ -1,9 +1,10 @@
-def bern(p prob):
-    i <~ categorical([p, real2prob(1 - p)])
-    return [true, false][i]
-
 fn population array(prob):
    fn personGender array(nat):
+
+      def bern(p prob):
+          i <~ categorical([p, real2prob(1 - p)])
+          return [true, false][i]
+      
       n <~ return size(population)
       bias <~ plate _ of n: beta(1,1)
       mean <~ return (array i of n: population[i]*bias[i])
