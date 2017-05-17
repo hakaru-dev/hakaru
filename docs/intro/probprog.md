@@ -71,12 +71,12 @@ match3 <~ winner(alice, carol)
 
 **Note:** This Hakaru code will not compile yet.
 
-Now that you have created your model, you can create inference rules based on known data. In the third match, Alice is competing against Carol. She wants to know how 
-likely she is to win the match. She won her match against Bob (`match1`) and that Carol lost her match to Bob (`match2`). 
+Now that you have created your model, you can condition your sample generation based on known data. In the third match, Alice is competing against Carol. She wants to know 
+how likely she is to win the match. She won her match against Bob (`match1`) and that Carol lost her match to Bob (`match2`). 
 
-In your model, the result of `match1` is `True` when Alice wins and the result of `match2` is `True` when Carol loses. You can use this knowledge to write an inference
-rule for your scenario that will return the result of `match3` when Alice wins `match1` and Carol loses `match2`. If a simulation is run that does not match this pattern,
-it is rejected. This inference rule can be written in Hakaru as:
+In your model, the result of `match1` is `True` when Alice wins and the result of `match2` is `True` when Carol loses. You can use this knowledge to write a conditions for 
+your scenario that will return the result of `match3` when Alice wins `match1` and Carol loses `match2`. If a simulation is run that does not match this pattern, it is 
+rejected. This condition can be written in Hakaru as:
 
 ````nohighlight
 if match1 && match2:
@@ -85,7 +85,7 @@ else:
    reject. measure(bool)
 ````
 
-You have now created a Hakaru program that describes a probabilistic model and an inference rule based on known data. You should save your program as `tugofwar.hk` so that
+You have now created a Hakaru program that describes a probabilistic model and a condition based on known data. You should save your program as `tugofwar.hk` so that
 you can run Hakaru to infer the outcome of `match3`. 
 
 If you call `hakaru tugofwar.hk`, you will get a continuous stream of Boolean results. You can make the calculations more legible by restricting the number of program 
@@ -107,9 +107,9 @@ additional samples for calculating distributions. But what if you were only inte
 someone is to drink a glass of water after eating salty popcorn. You need to add reasoning mechanisms to your model so that you can make an *inference* using your existing
 samples.
 
-In the tug-of-war example, you used Hakaru to define *inference rules* to determine which samples were kept (Alice must have won `match1` and Bob must have won `match2`)
-and which ones were discarded. This inference approach is called *rejection sampling* because samples generated from your model that do not obey the inference rules are 
-discarded. Would this approach still work if the model were changed? Could we use this same technique to determine if Alice will win her match and by how much?
+In the tug-of-war example, you used Hakaru to define conditions to determine which samples were kept (Alice must have won `match1` and Bob must have won `match2`)
+and which ones were discarded. This inference approach is called *rejection sampling* because samples generated from your model that do not obey the acceptance conditions 
+are discarded. Would this approach still work if the model were changed? Could we use this same technique to determine if Alice will win her match and by how much?
 
 As you pose more complex questions, creating models as rejection samplers becomes increasing inefficient because of the number of discarded samples. It would be
 better if your model could be transformed such that only observed data points are generated so that compuational resources are not wasted on data that will not exist in 
@@ -119,8 +119,15 @@ Hakaru uses *importance sampling* where, instead of being rejected immediately, 
 samples are generated, sample weights are updated to reflect the likelihood of that sample's rejection. While this works well for model inferencing when the model has
 only a few dimensions, there are more powerful tools that can be used for more complex scenarios.
 
-### Metropolis Hastings
+### The Metropolis-Hastings Algorithm: A Markov Chain Monte Carlo Method
 
-We want to use MCMC for more realistic problems. Hakaru provides a `mh` command tool to transform probabilistic programs into a Markov Chain.
+You might encounter situations where direct sampling from your model is difficult, such as a multi-dimensional model. For these scenarios, a Markov Chain Monte Carlo (MCMC)
+method can be used. The MCMC methods are used to sample probability distributions by constructing a Markov Chain. A Markov Chain is used to make predictions solely based on
+a process's current state, so it does not require any memory for its calculations. Real-world models are rarely simple, so an MCMC method should be used to help manage
+computational resources.
+
+The Metropolis-Hastings algorithm is an MCMC method for generating a sequence of random samples from a probabilistic distribution. This is useful for approximating a 
+distribution that fits your existing data. The algorithm is included in Hakaru's transformations as the command tool [`mh`](../transforms/mh.md). This transform converts
+your probabilistic program into a Markov Chain which can be used for sample generation.
 
 [^1]: [Proababilistic programming language (Wikipedia)](https://en.wikipedia.org/wiki/Probabilistic_programming_language)
