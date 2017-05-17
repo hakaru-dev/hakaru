@@ -76,7 +76,7 @@ how likely she is to win the match. She won her match against Bob (`match1`) and
 
 In your model, the result of `match1` is `True` when Alice wins and the result of `match2` is `True` when Carol loses. You can use this knowledge to write a conditions for 
 your scenario that will return the result of `match3` when Alice wins `match1` and Carol loses `match2`. If a simulation is run that does not match this pattern, it is 
-rejected. This condition can be written in Hakaru as:
+rejected. This restriction can be written in Hakaru as:
 
 ````nohighlight
 if match1 && match2:
@@ -85,8 +85,8 @@ else:
    reject. measure(bool)
 ````
 
-You have now created a Hakaru program that describes a probabilistic model and a condition based on known data. You should save your program as `tugofwar.hk` so that
-you can run Hakaru to infer the outcome of `match3`. 
+You have now created a Hakaru program that describes a probabilistic model and restricted the accepted samples based on known data. You should save your program as 
+`tugofwar.hk` so that you can run Hakaru to infer the outcome of `match3`. 
 
 If you call `hakaru tugofwar.hk`, you will get a continuous stream of Boolean results. You can make the calculations more legible by restricting the number of program 
 executions and counting how many of each Boolean appears. For example, if you restrict the number of program executions to 10000 and collect the results, you will see that 
@@ -107,9 +107,9 @@ additional samples for calculating distributions. But what if you were only inte
 someone is to drink a glass of water after eating salty popcorn. You need to add reasoning mechanisms to your model so that you can make an *inference* using your existing
 samples.
 
-In the tug-of-war example, you used Hakaru to define conditions to determine which samples were kept (Alice must have won `match1` and Bob must have won `match2`)
-and which ones were discarded. This inference approach is called *rejection sampling* because samples generated from your model that do not obey the acceptance conditions 
-are discarded. Would this approach still work if the model were changed? Could we use this same technique to determine if Alice will win her match and by how much?
+In the tug-of-war example, you used Hakaru to restrict which samples were kept (Alice must have won `match1` and Bob must have won `match2`) and which ones were discarded. 
+This inference approach is called *rejection sampling* because restricted samples generated from your model are discarded. Would this approach still work if the model were 
+changed? Could we use this same technique to determine if Alice will win her match and by how much?
 
 As you pose more complex questions, creating models as rejection samplers becomes increasing inefficient because of the number of discarded samples. It would be
 better if your model could be transformed such that only observed data points are generated so that compuational resources are not wasted on data that will not exist in 
