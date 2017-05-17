@@ -774,7 +774,9 @@ flattenBucket lo hi red = \loc -> do
             (Red_Add sr e) ->
               caseBind e $ \v@(Variable _ _ typ) e' ->
                 let (vs,e'') = caseBinds e' in
-                  do declare typ =<< createIdent v
+                  do vId <- createIdent v
+                     declare typ vId
+                     putExprStat $ (CVar vId) .=. itE
                      sequence_ . foldMap11
                        (\v' -> case v' of
                          (Variable _ _ typ') ->
