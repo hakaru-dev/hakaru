@@ -98,18 +98,29 @@ hakaru tugofwar.hk | head -n 10000 | sort | uniq -c
    6940 true
 ````
 
-## Simulation vs Inference
+## Simulation and Inference
 
-Of course, in the above program we performed inference, by taking our model and throwing out all events that didn't agree with the data we had. How well would this work if 
-we changed our model slightly? Suppose our data wasn't boolean values, but instead the difference of strengths, and we want to not just whether Alice will win, but by how 
-much.
+Ideally, you could collect a sufficient number of samples from your observed population to create your probabilistic model. This could be accomplished with populations that
+only require a manageable number of samples or that are easy to collect. However, for many experiments this is not possible due to limited resources and time. In cases like
+this, a *simulation* is prefered. In a simulation, you can use the data you have already collected to create a probabilistic model. You can then use this model to generate
+additional samples for calculating distributions. But what if you were only interested in particular event sequences? For example, you might want to know how likely
+someone is to drink a glass of water after eating salty popcorn. You need to add reasoning mechanisms to your model so that you can make an *inference* using your existing
+samples.
 
-As we pose more complex questions, posing our models as rejection samplers becomes increasing inefficient. Instead we would like to directly transform our models into those 
-which only generate the data we observed and don't waste any computation simulating data which we know will never exist.
+In the tug-of-war example, you used Hakaru to define *inference rules* to determine which samples were kept (Alice must have won `match1` and Bob must have won `match2`)
+and which ones were discarded. This inference approach is called *rejection sampling* because samples generated from your model that do not obey the inference rules are 
+discarded. Would this approach still work if the model were changed? Could we use this same technique to determine if Alice will win her match and by how much?
+
+As you pose more complex questions, creating models as rejection samplers becomes increasing inefficient because of the number of discarded samples. It would be
+better if your model could be transformed such that only observed data points are generated so that compuational resources are not wasted on data that will not exist in 
+your data set.
+
+Hakaru uses *importance sampling* where, instead of being rejected immediately, each sample is assigned a weight so that a sample average can be calculated. As more 
+samples are generated, sample weights are updated to reflect the likelihood of that sample's rejection. While this works well for model inferencing when the model has
+only a few dimensions, there are more powerful tools that can be used for more complex scenarios.
 
 ### Metropolis Hastings
 
-By default hakaru performs importance sampling. This works well for inference in low dimensions, but we want to use MCMC for more realistic problems. Hakaru provides a `mh` 
-command tool to transform probabilistic programs into a Markov Chain.
+We want to use MCMC for more realistic problems. Hakaru provides a `mh` command tool to transform probabilistic programs into a Markov Chain.
 
 [^1]: [Proababilistic programming language (Wikipedia)](https://en.wikipedia.org/wiki/Probabilistic_programming_language)
