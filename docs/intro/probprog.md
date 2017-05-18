@@ -126,8 +126,9 @@ method can be used. The MCMC methods are used to sample probability distribution
 a process's current state, so it does not require any memory for its calculations. Real-world models are rarely simple, so an MCMC method should be used to help manage
 computational resources.
 
-The Metropolis-Hastings algorithm is an MCMC method for generating a sequence of random samples from a probabilistic distribution. This is useful for approximating a 
+The Metropolis-Hastings algorithm[^2] is an MCMC method for generating a sequence of random samples from a probabilistic distribution. This is useful for approximating a 
 distribution that fits your existing data. The algorithm is included in Hakaru's transformations as the command tool [`mh`](../transforms/mh.md). This transform converts
 your probabilistic program into a Markov Chain which can be used for sample generation.
 
 [^1]: [Proababilistic programming language (Wikipedia)](https://en.wikipedia.org/wiki/Probabilistic_programming_language)
+[^2]: D.J.C. MacKay, "Introduction to Monte Carlo Methods", Learning in Graphical Models, vol. 89, pp. 175-204, 1998.
