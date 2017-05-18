@@ -102,10 +102,13 @@ hakaru tugofwar.hk | head -n 10000 | sort | uniq -c
 
 Ideally, you could collect a sufficient number of samples from your observed population to create your probabilistic model. This could be accomplished with populations that
 only require a manageable number of samples or that are easy to collect. However, for many experiments this is not possible due to limited resources and time. In cases like
-this, a *simulation* is prefered. In a simulation, you can use the data you have already collected to create a probabilistic model. You can then use this model to generate
-additional samples for calculating distributions. But what if you were only interested in particular event sequences? For example, you might want to know how likely
-someone is to drink a glass of water after eating salty popcorn. You need to add reasoning mechanisms to your model so that you can make an *inference* using your existing
-samples.
+this, a *simulation* is prefered. In a simulation, you can select the population's mean and then generate values around this data point. If you wanted to know what a 
+population would look like with a different mean, you simply need to change that value in your model and run the simulation again. 
+
+What about the cases where you do have some samples? In this case, you would want to work contrary to a simulation -- instead of generating samples using arbitrarily
+chosen population means, you use the data that you have collected to try to reason about what the corresponding population mean is. This approach is called *inference*. To
+be able to make inferences from your known samples, you must add reasoning mechanisms to your model to gauge the usefulness of a generated scenario with respect to the
+target population mean.
 
 In the tug-of-war example, you used Hakaru to restrict which samples were kept (Alice must have won `match1` and Bob must have won `match2`) and which ones were discarded. 
 This inference approach is called *rejection sampling* because restricted samples generated from your model are discarded. Would this approach still work if the model were 
