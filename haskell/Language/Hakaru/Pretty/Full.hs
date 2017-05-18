@@ -10,6 +10,12 @@
            #-}
 module Language.Hakaru.Pretty.Full where
 
+import System.IO (stderr)
+import Data.Ratio
+import Data.Text (Text)
+import Data.Sequence (Seq)
+
+import Data.Text as Text
 import Data.Number.Nat (fromNat)
 import Data.Number.Natural (fromNatural, fromNonNegativeRational)
 import Data.Ratio
