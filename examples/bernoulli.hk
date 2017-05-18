@@ -1,0 +1,5 @@
+def bern (p prob):
+	b <~ categorical([p, real2prob(1 - p)])
+	return [true, false][b]
+	
+bern(0.5)
