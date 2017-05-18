@@ -1,12 +1,12 @@
 # Quick Start: A Mixture Model Example
 
 Let's start with a simple model of a coin toss experiment so that you can become familiar with some of Hakaru's data types and functionality. We will assume that a single 
-coin flip can be represented using a Bernoulli distribution. After we have created the Bernoulli model, we will use it to create a mixture model and condition the experiment 
-to see how different trick coins impact the mixture model over multiple samples.
+coin flip can be represented using a Bernoulli distribution. After we have created the Bernoulli model, we will use it to create a mixture model and condition the 
+experiment to see how different trick coins impact the mixture model over multiple samples.
 
 ## Modeling a Bernoulli Experiment
 
-We will use the `categorical` Hakaru [Random Primitive](../lang/rand.md), to write a Bernoulli distribution for our model. The `categorical` primitive requires an 
+We will use the `categorical` Hakaru [Random Primitive](../lang/rand.md), to write a Bernoulli distribution[^1] for our model. The `categorical` primitive requires an 
 [array](../lang/arrays.md) representing the probability of achieving each category in the experiement. Let's start with a fair experiment and state that each side of the 
 coin has an equal chance of being picked. The result of the coin toss is stored in the variable `b` using Hakaru's notation for [bind](../lang/letbind):
 
@@ -76,20 +76,25 @@ Now that we have set up our Bernoulli experiment, let's use it to create a mixtu
 
 ## Creating a Mixture Model
 
-Let's use our coin flip experiment to create a mixture model. Save a copy of your Bernoulli function into a new program and call it `twomixture.hk`.
+Let's use our coin flip experiment to create a mixture model by drawing a sample from a normal distribution when the coin is Heads (`true`) and from a uniform distribution
+when it is Tails (`false`). This is called a *mixture model*[^2] because we are selecting samples from different distributions. Let's start by saving a copy of your 
+Bernoulli function into a new program so that we can use it in our new model. For this example, we will call it `twomixture.hk`.
 
-to decide if a value is picked from a normal distribution or a uniform distribution. Since we stored the outcome of the coin toss
-in the variable `x`, we can use it to determine which value to generate. We want to use the new value later, so we will store it in another variable `y`. Both the 
-`normal` and `uniform` functions are included in Hakaru's [Random Primitives](../lang/rand.md). Since we are selecting values from two probabilistic distributions, we
-are creating a *mixture model*[^1].
+Let's start by binding the return value of our `bern` function to a variable called `coin` to represent the outcome of an experiment:
 
 ````nohighlight
 coin <~ bern(0.5)
 ````
 
-Our coin toss experiment has an equal chance of producing *Heads* or *Tails*, so we will use a value of `0.5` to divide the selection process. We want to generate a value 
-from a normal distribution for `x < 0.5` and from a uniform distribution otherwise. For this task, we must use Hakaru's [pattern matching functionality](../lang/datatypes.md).
-We then store the result of the match in `y`:
+Now that we have stored the result of our experiment, let's use it to generate a sample. Our model has a selection condition where Heads causes a sample to be drawn from 
+achieving normal distribution and Tails draws from a uniform distribution. There are two ways of handling this in Hakaru -- [conditionals](../lang/cond.md) and 
+[pattern matching](../lang/datatypes.md). Since we are working with Booleans, let's use patern matching so that we can see what it looks like in Hakaru.
+
+Hakaru pattern matching requires a sequence and a set of possible patterns to compare the sequence to. In our model, our sequence would be `coin` because that is what we are
+using to select a distribution. Our possible patterns are the possible values that `coin` could have -- `true` and `false`. When the pattern is `true`, we call the normal
+distribution and when it is `false` we call the uniform distribution. Both the `normal` and `uniform` functions are included in Hakaru's [Random Primitives](../lang/rand.md),
+so we do not need to define our own functions for them. The outcome of the pattern match will not be saved unless we bind it to a variable, so let's bind it to a variable
+called `sample`:
 
 ````nohighlight
 sample <~ match coin:
@@ -97,33 +102,34 @@ sample <~ match coin:
 	false: uniform(0,1)
 ````
 
-Now that we have both the result of our coin toss experiment (`x`) and our mixture model (`y`), we can return the values:
+Now that we have both the result of our coin toss experiment (`coin`) and our mixture model (`sample`), we can return the values:
 
 ````nohighlight
-return(sample, coin)
+return(coin, sample)
 ````
 
-We have now completed the mixture model script. If you save the program as `twomixture.hk`, you can run the program using the command `hakaru twomixture.hk' to collect
-samples indefinitely:
+We have now completed the mixture model program. You can run the program using the command `hakaru twomixture.hk' to collect samples indefinitely:
 
 ````bash
-(-1.395602051006621, true)
-(1.327998279831012, true)
-(0.6096020267128114, true)
-(8.391489905355709e-2, false)
-(-0.31296413142229, true)
-(0.9949687121707352, false)
-(-0.6575376566451158, true)
-(0.8439456991407505, true)
-(0.8409098253407205, false)
-(0.12109472056947934, false)
-(1.0591255892006863, true)
+(true, -0.37622272051934547)
+(false, 4.666320977960081e-2)
+(true, 1.3351978120820147)
+(true, 0.4657111228024136)
+(false, 0.6528078075939211)
+(false, 0.2410145787295287)
+(false, 0.624335005419879)
+(true, -1.5127939371882644)
+(false, 0.15925713370352967)
+(true, 2.2762774663914114e-2)
 ...
 ````
 
+Of course, Hakaru would not be very interesting if it only provided the means for you to define your model. Let's try conditioning our model so that we can experiment with 
+trick coins (\(P \neq 0.5\)) to see how it affects our mixture model.
+
 ## Conditioning a Hakaru Program
 
-Of course, Hakaru wouldn't be very interesting if that was all it did. It is also common to condition a distribution using known data. Suppose for our `twomixture.hk` 
+Suppose for our `twomixture.hk` 
 program, we knew `y` and want to sample `x` using this information. We can symbolically produce the unnormalized conditional distribution from which `x` samples are taken
 by using Hakaru's [disintegration](../transforms/disintegrate.md) transform. You can use this transform on your program by calling `disintegrate twomixture.hk`, which 
 returns a new model written as a function so that it is easier to draw samples from it. In this model, the variable `x2` is used to set a value for `y`:
@@ -190,8 +196,7 @@ x5 = 0.3
    _: reject. measure(bool))
 ````
 
-Which we can run through some unix commands to get a sense of
-the distribution
+Which we can run through some unix commands to get a sense of the distribution
 
 ````bash
 hakaru twomixture_D.hk | head -n 1000 | sort | uniq -c
@@ -209,4 +214,5 @@ hakaru twomixture_D.hk | head -n 1000 | sort | uniq -c
     1000 true
 ````
 
-[^1]: [Mixture Model (Wikipedia)](https://en.wikipedia.org/wiki/Mixture_model)
+[^1]: [Bernoulli distribution (Wikipedia)](https://en.wikipedia.org/wiki/Bernoulli_distribution)
+[^2]: [Mixture Model (Wikipedia)](https://en.wikipedia.org/wiki/Mixture_model)
