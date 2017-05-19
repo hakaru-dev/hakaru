@@ -102,13 +102,14 @@ hakaru tugofwar.hk | head -n 10000 | sort | uniq -c
 
 Ideally, you could collect a sufficient number of samples from your observed population to create your probabilistic model. This could be accomplished with populations that
 only require a manageable number of samples or that are easy to collect. However, for many experiments this is not possible due to limited resources and time. In cases like
-this, a *simulation* is prefered. In a simulation, you can select the population's mean and then generate values around this data point. If you wanted to know what a 
-population would look like with a different mean, you simply need to change that value in your model and run the simulation again. 
+this, you could generate samples using a *simulation*. In a simulation, you can select the population's mean and then generate values around this data point. If you wanted 
+to know what a population would look like with a different mean, you simply need to change that value in your model and run the simulation again. 
 
-What about the cases where you do have some samples? In this case, you would want to work contrary to a simulation -- instead of generating samples using arbitrarily
-chosen population means, you use the data that you have collected to try to reason about what the corresponding population mean is. This approach is called *inference*. To
-be able to make inferences from your known samples, you must add reasoning mechanisms to your model to gauge the usefulness of a generated scenario with respect to the
-target population mean.
+What about the cases where you do have some samples and you want to know something about it? In this case, you use the data you have to guide the generation of samples in 
+order to learn how the data occured. This approach is called *inference*. To be able to make inferences from your known samples, you must add reasoning mechanisms to your 
+model to gauge the usefulness of a model-generated sample with respect to some data that you have already collected. For example, you might have collected some disease data 
+from a hospital and want to know how it spread in the affected patients. After creating a proababilistic model of disease transmission, you can use your collected data 
+to reason about the samples generated from your model to judge its relevance in the creation of the data that you have collected.
 
 In the tug-of-war example, you used Hakaru to restrict which samples were kept (Alice must have won `match1` and Bob must have won `match2`) and which ones were discarded. 
 This inference approach is called *rejection sampling* because restricted samples generated from your model are discarded. Would this approach still work if the model were 
