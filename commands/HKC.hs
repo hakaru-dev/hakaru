@@ -95,7 +95,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
     Right (TypedAST typ ast) -> do
       astS <- case summaryOpt config of
                 True  -> summary (expandTransformations ast)
-                False -> return ast
+                False -> return (expandTransformations ast)
       let ast'    = TypedAST typ $ foldr id astS (abtPasses $ optimize config)
           outPath = case fileOut config of
                       (Just f) -> f
@@ -110,11 +110,11 @@ compileHakaru prog = ask >>= \config -> lift $ do
       when (debug config) $ do
         putErrorLn $ hrule "Hakaru Type"
         putErrorLn . pack . show $ typ
-        when (optimize config) $ do
-          putErrorLn $ hrule "Hakaru AST"
-          putErrorLn $ pack $ show ast
-        putErrorLn $ hrule "Hakaru AST'"
+        putErrorLn $ hrule "Hakaru AST"
         putErrorLn $ pack $ show ast
+        when (optimize config) $ do
+          putErrorLn $ hrule "Hakaru AST'"
+          putErrorLn $ pack $ show ast'
         putErrorLn $ hrule "C AST"
         putErrorLn $ pack $ show cast
         putErrorLn $ hrule "Fin"
@@ -124,12 +124,8 @@ compileHakaru prog = ask >>= \config -> lift $ do
 
   where hrule s = concat ["\n<=======================| "
                          ,s," |=======================>\n"]
-        -- abtPasses :: forall (a :: Hakaru)
-        --           .  Bool
-        --           -> [TrivialABT Term '[] a -> TrivialABT Term '[] a]
-        abtPasses b = [ expandTransformations
-                      , constantPropagation ]
-                      ++ (if b then [optimizations] else [])
+        abtPasses b = [constantPropagation]
+                   ++ (if b then [optimizations] else [])
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr
