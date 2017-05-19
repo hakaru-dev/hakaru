@@ -124,10 +124,15 @@ only a few dimensions, there are more powerful tools that can be used for more c
 
 ### The Metropolis-Hastings Algorithm: A Markov Chain Monte Carlo Method
 
-You might encounter situations where direct sampling from your model is difficult, such as a multi-dimensional model. For these scenarios, a Markov Chain Monte Carlo (MCMC)
-method can be used. The MCMC methods are used to sample probability distributions by constructing a Markov Chain. A Markov Chain is used to make predictions solely based on
-a process's current state, so it does not require any memory for its calculations. Real-world models are rarely simple, so an MCMC method should be used to help manage
-computational resources.
+You might encounter situations where direct sampling from your model is difficult, which is common for multi-dimensional models. In models with high dimensionality, sample 
+points tend to cluster in regions so that when a "good" sample is found, there is a higher chance of finding other good samples in the same area. This means that we want to 
+stay in that region to collect more. In this situation, importance sampling becomes less efficient because it does not consider what other samples it has already found when
+generating a new one. Instead, a Markov Chain Monte Carlo (MCMC) method should be used. 
+
+The MCMC methods are used to sample probability distributions by constructing a Markov Chain. A Markov Chain is used to make predictions solely based on a process's current 
+state, so it does not require extensive memory for its calculations. In MCMC, a Markov chain is used to generate the next sample based on the current one, making it more 
+likely to stay in densely packed probability regions. As a model increases in dimensions, MCMC methods become essential for the generation of samples because the task of 
+finding high-value samples becomes more difficult.
 
 The Metropolis-Hastings algorithm[^2] is an MCMC method for generating a sequence of random samples from a probabilistic distribution. This is useful for approximating a 
 distribution that fits your existing data. The algorithm is included in Hakaru's transformations as the command tool [`mh`](../transforms/mh.md). This transform converts
