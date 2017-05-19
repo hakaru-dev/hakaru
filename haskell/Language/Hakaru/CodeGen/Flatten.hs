@@ -1267,7 +1267,7 @@ flattenMeasureOp Categorical = \(arr :* End) ->
     do arrE <- flattenWithName arr
 
        itId <- genIdent' "it"
-       declare SInt itId
+       declare SNat itId
        let itE = CVar itId
 
        -- Accumulator for the total probability of the input array
