@@ -102,13 +102,14 @@ hakaru tugofwar.hk | head -n 10000 | sort | uniq -c
 
 Ideally, you could collect a sufficient number of samples from your observed population to create your probabilistic model. This could be accomplished with populations that
 only require a manageable number of samples or that are easy to collect. However, for many experiments this is not possible due to limited resources and time. In cases like
-this, a *simulation* is prefered. In a simulation, you can select the population's mean and then generate values around this data point. If you wanted to know what a 
-population would look like with a different mean, you simply need to change that value in your model and run the simulation again. 
+this, you could generate samples using a *simulation*. In a simulation, you can select the population's mean and then generate values around this data point. If you wanted 
+to know what a population would look like with a different mean, you simply need to change that value in your model and run the simulation again. 
 
-What about the cases where you do have some samples? In this case, you would want to work contrary to a simulation -- instead of generating samples using arbitrarily
-chosen population means, you use the data that you have collected to try to reason about what the corresponding population mean is. This approach is called *inference*. To
-be able to make inferences from your known samples, you must add reasoning mechanisms to your model to gauge the usefulness of a generated scenario with respect to the
-target population mean.
+What about the cases where you do have some samples and you want to know something about it? In this case, you use the data you have to guide the generation of samples in 
+order to learn how the data occured. This approach is called *inference*. To be able to make inferences from your known samples, you must add reasoning mechanisms to your 
+model to gauge the usefulness of a model-generated sample with respect to some data that you have already collected. For example, you might have collected some disease data 
+from a hospital and want to know how it spread in the affected patients. After creating a proababilistic model of disease transmission, you can use your collected data 
+to reason about the samples generated from your model to judge its relevance in the creation of the data that you have collected.
 
 In the tug-of-war example, you used Hakaru to restrict which samples were kept (Alice must have won `match1` and Bob must have won `match2`) and which ones were discarded. 
 This inference approach is called *rejection sampling* because restricted samples generated from your model are discarded. Would this approach still work if the model were 
@@ -124,10 +125,15 @@ only a few dimensions, there are more powerful tools that can be used for more c
 
 ### The Metropolis-Hastings Algorithm: A Markov Chain Monte Carlo Method
 
-You might encounter situations where direct sampling from your model is difficult, such as a multi-dimensional model. For these scenarios, a Markov Chain Monte Carlo (MCMC)
-method can be used. The MCMC methods are used to sample probability distributions by constructing a Markov Chain. A Markov Chain is used to make predictions solely based on
-a process's current state, so it does not require any memory for its calculations. Real-world models are rarely simple, so an MCMC method should be used to help manage
-computational resources.
+You might encounter situations where direct sampling from your model is difficult, which is common for multi-dimensional models. In models with high dimensionality, sample 
+points tend to cluster in regions so that when a "good" sample is found, there is a higher chance of finding other good samples in the same area. This means that we want to 
+stay in that region to collect more. In this situation, importance sampling becomes less efficient because it does not consider what other samples it has already found when
+generating a new one. Instead, a Markov Chain Monte Carlo (MCMC) method should be used. 
+
+The MCMC methods are used to sample probability distributions by constructing a Markov Chain. A Markov Chain is used to make predictions solely based on a process's current 
+state, so it does not require extensive memory for its calculations. In MCMC, a Markov chain is used to generate the next sample based on the current one, making it more 
+likely to stay in densely packed probability regions. As a model increases in dimensions, MCMC methods become essential for the generation of samples because the task of 
+finding high-value samples becomes more difficult.
 
 The Metropolis-Hastings algorithm[^2] is an MCMC method for generating a sequence of random samples from a probabilistic distribution. This is useful for approximating a 
 distribution that fits your existing data. The algorithm is included in Hakaru's transformations as the command tool [`mh`](../transforms/mh.md). This transform converts
