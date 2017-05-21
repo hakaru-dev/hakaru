@@ -161,9 +161,7 @@ flattenTerm (Reject_ _)       = \loc -> putExprStat (mdataWeight loc .=. (intE 0
 --------------------------------------------------------------------------------
 
 flattenSCon
-  :: ( ABT Term abt
-     , typs ~ UnLCs args
-     , args ~ LCs typs)
+  :: ( ABT Term abt )
   => SCon args a
   -> SArgs abt args
   -> (CExpr -> CodeGen ())
@@ -365,14 +363,14 @@ flattenSCon (CoerceTo_ ctyp) =
   \(e :* End) ->
     \loc ->
       do eE <- flattenWithName e
-         cE <- coerceToCG ctyp (typeOf e) eE
+         cE <- coerceToCG ctyp eE
          putExprStat $ loc .=. cE
 
 flattenSCon (UnsafeFrom_ ctyp) =
   \(e :* End) ->
     \loc ->
       do eE <- flattenWithName e
-         cE <- coerceFromCG ctyp (typeOf e) eE
+         cE <- coerceFromCG ctyp eE
          putExprStat $ loc .=. cE
 
 -----------------------------------
@@ -1500,49 +1498,49 @@ kahanSummationCG body loE hiE =
 --------------------------------------------------------------------------------
 --                            Coercion Helpers                                --
 --------------------------------------------------------------------------------
-    -- CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
-    -- UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
+
+-- instance PrimCoerce Value where
+--     primCoerceTo c l =
+--         case (c,l) of
+--         (Signed HRing_Int,            VNat  a) -> VInt  $ fromNat a
+--         (Signed HRing_Real,           VProb a) -> VReal $ LF.fromLogFloat a
+--         (Continuous HContinuous_Prob, VNat  a) ->
+--             VProb $ LF.logFloat (fromIntegral (fromNat a) :: Double)
+--         (Continuous HContinuous_Real, VInt  a) -> VReal $ fromIntegral a
+--         _ -> error "no a defined primitive coercion"
+
+--     primCoerceFrom c l =
+--         case (c,l) of
+--         (Signed HRing_Int,            VInt  a) -> VNat  $ unsafeNat a
+--         (Signed HRing_Real,           VReal a) -> VProb $ LF.logFloat a
+--         (Continuous HContinuous_Prob, VProb a) ->
+--             VNat $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
+--         (Continuous HContinuous_Real, VReal a) -> VInt  $ floor a
+--         _ -> error "no a defined primitive coercion"
+
+
 
 coerceToCG
-  :: -- (b ~ LC a)
-     Coercion a b
-  -> Sing (a :: Hakaru)
+  :: forall (a :: Hakaru) (b :: Hakaru)
+  .  Coercion a b
   -> CExpr
   -> CodeGen CExpr
-coerceToCG (CCons p rest) typ e =
-  do e' <- primCoerceCG p True (primCoerceTo p typ) e
-     coerceToCG rest typ e'
-coerceToCG CNil _ e = return e
+coerceToCG (CCons (Signed HRing_Int)            cs) e = nat2int e   >>= coerceToCG cs
+coerceToCG (CCons (Signed HRing_Real)           cs) e = prob2real e >>= coerceToCG cs
+coerceToCG (CCons (Continuous HContinuous_Prob) cs) e = nat2prob e  >>= coerceToCG cs
+coerceToCG (CCons (Continuous HContinuous_Real) cs) e = int2real e  >>= coerceToCG cs
+coerceToCG CNil e = return e
 
 coerceFromCG
-  :: -- (b ~ LC b)
-     Coercion a b
-  -> Sing (b :: Hakaru)
+  :: forall (a :: Hakaru) (b :: Hakaru)
+  .  Coercion a b
   -> CExpr
   -> CodeGen CExpr
-coerceFromCG (CCons p rest) typ e =
-  do e' <- coerceFromCG rest typ e
-     primCoerceCG p False (primCoerceFrom p typ) e'
-coerceFromCG CNil _ e = return e
-
-primCoerceCG
-  :: PrimCoercion a b
-  -> Bool
-  -> Sing (c :: Hakaru)
-  -> CExpr
-  -> CodeGen CExpr
-primCoerceCG (Signed HRing_Int)            True  SNat  = nat2int
-primCoerceCG (Signed HRing_Int)            False SNat  = int2nat
-primCoerceCG (Signed HRing_Real)           True  SProb = prob2real
-primCoerceCG (Signed HRing_Real)           False SProb = real2prob
-primCoerceCG (Continuous HContinuous_Prob) True  SNat  = nat2prob
-primCoerceCG (Continuous HContinuous_Prob) False SNat  = prob2nat
-primCoerceCG (Continuous HContinuous_Real) True  SInt  = int2real
-primCoerceCG (Continuous HContinuous_Real) False SInt  = real2int
-
-primCoerceCG a b s = error $
-  concat [ "flattenSCon: primCoerce cannot preform coercion "
-         , show a," ",show b," ",show s]
+coerceFromCG (CCons (Signed HRing_Int)            cs) e = int2nat e   >>= coerceFromCG cs
+coerceFromCG (CCons (Signed HRing_Real)           cs) e = real2prob e >>= coerceFromCG cs
+coerceFromCG (CCons (Continuous HContinuous_Prob) cs) e = prob2nat e  >>= coerceFromCG cs
+coerceFromCG (CCons (Continuous HContinuous_Real) cs) e = real2int e  >>= coerceFromCG cs
+coerceFromCG CNil e = return e
 
 -- safe
 nat2int,nat2prob,prob2real,int2real
@@ -1565,7 +1563,7 @@ int2nat,prob2nat,real2prob,real2int
 int2nat x =
   do x' <- localVar' SNat "i2n"
      ifCG (x .<. (intE 0))
-          (do putExprStat $ printfE [ stringE "cannot coerce negative int to nat" ]
+          (do putExprStat $ printfE [ stringE "error: cannot coerce negative int to nat\n" ]
               putExprStat $ mkCallE "abort" [] )
           (putExprStat $ x' .=. (castTo [CUnsigned, CInt] x))
      return x'
@@ -1573,7 +1571,7 @@ prob2nat x = return (castTo [CUnsigned, CInt] x)
 real2prob x =
   do x' <- localVar' SProb "r2p"
      ifCG (x .<. (intE 0))
-          (do putExprStat $ printfE [ stringE "cannot coerce negative real to prob" ]
+          (do putExprStat $ printfE [ stringE "error: cannot coerce negative real to prob\n" ]
               putExprStat $ mkCallE "abort" [] )
           (putExprStat $ x' .=. (logE x))
      return x'
