@@ -226,8 +226,8 @@ mainArgs = [ CDecl [CTypeSpec CInt]
 
 parseNumSamples :: CExpr -> CExpr -> CodeGen CExpr
 parseNumSamples argc argv =
-  do itE <- localVar SInt
-     outE <- localVar SInt
+  do itE <- localVar SNat
+     outE <- localVar SNat
      putStat $ opComment "Num Samples?"
      putExprStat $ outE .=. (intE (-1))
      forCG (itE .=. (intE 1))
@@ -317,7 +317,7 @@ printCG
   -> CodeGen ()
 printCG pconfig mtyp@(SMeasure typ) sampleFunc (Just numSamples) =
   do mE <- localVar' mtyp "m"
-     itE <- localVar SInt
+     itE <- localVar SNat
      putExprStat $ itE .=. numSamples
      whileCG (itE .!=. (intE 0)) $
        do putExprStat $ mE .=. sampleFunc
@@ -327,7 +327,7 @@ printCG pconfig mtyp@(SMeasure typ) sampleFunc (Just numSamples) =
                (return ())
 
 printCG pconfig (SArray typ) arg Nothing =
-  do itE <- localVar' SInt "it"
+  do itE <- localVar' SNat "it"
      putString "[ "
      mkSequential
      forCG (itE .=. (intE 0))

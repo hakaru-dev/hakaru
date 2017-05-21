@@ -26,7 +26,8 @@ import Language.Hakaru.Parser.AST
 
 
 ops, types, names :: [String]
-ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_", "<|>"]
+ops   = ["+","*","-","^", "**", ":",".", "<~",
+         "==", "=", "_", "<|>", "&&", "||"]
 types = ["->"]
 names = ["def", "fn", "if", "else", "∞", "expect", "observe",
          "return", "match", "integrate", "summate", "product",
@@ -176,6 +177,7 @@ binop s x y
     | s == ">="  = NaryOp Or [ app2 "less"  y x
                              , app2 "equal" x y]
     | s == "&&"  = NaryOp And  [x, y]
+    | s == "||"  = NaryOp Or   [x, y]
     | s == "<|>" = Msum [x, y]
     | otherwise  = app2 s x y
 
@@ -208,7 +210,8 @@ table =
       , binary "<="  Ex.AssocLeft
       , binary ">="  Ex.AssocLeft
       , binary "=="  Ex.AssocLeft]
-    , [ binary "&&"  Ex.AssocLeft]]
+    , [ binary "&&"  Ex.AssocLeft]
+    , [ binary "||"  Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
 unit_ = Unit <$ symbol "()"

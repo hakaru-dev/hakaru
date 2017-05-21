@@ -741,7 +741,9 @@ flattenBucket lo hi red = \loc -> do
             (Red_Add sr e) ->
               caseBind e $ \v@(Variable _ _ typ) e' ->
                 let (vs,e'') = caseBinds e' in
-                  do declare typ =<< createIdent v
+                  do vId <- createIdent v
+                     declare typ vId
+                     putExprStat $ (CVar vId) .=. itE
                      sequence_ . foldMap11
                        (\v' -> case v' of
                          (Variable _ _ typ') ->
@@ -1232,7 +1234,7 @@ flattenMeasureOp Categorical = \(arr :* End) ->
     do arrE <- flattenWithName arr
 
        itId <- genIdent' "it"
-       declare SInt itId
+       declare SNat itId
        let itE = CVar itId
 
        -- Accumulator for the total probability of the input array

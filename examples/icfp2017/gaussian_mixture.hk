@@ -1,0 +1,26 @@
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from i+1 to size(as): as[j],
+                 as[i])
+    return array i of size(as):
+             x = product j from 0 to i: xs[j]
+             x * if i+1==size(as): 1 else: real2prob(1-xs[i])
+
+# num of clusters
+K = 5
+# num of points
+N = 20
+
+# prior probability of picking cluster K
+pi  <~ dirichlet(array _ of K: 1)
+# prior on mean and precision
+mu  <~ plate _ of K:
+         normal(0, 5e-9)
+tau <~ plate _ of K:
+         gamma(2, 0.05) 
+# observed data
+x   <~ plate _ of N:
+         i <~ categorical(pi)
+         normal(mu[i], tau[i])
+
+return (x, mu). pair(array(real), array(real))

@@ -157,7 +157,7 @@ arrayStruct t = CDeclExt (CDecl [CTypeSpec $ arrayStruct' t] [])
 
 arrayStruct' :: Sing (a :: Hakaru) -> CTypeSpec
 arrayStruct' t = aStruct
-  where aSize   = buildDeclaration CInt (Ident "size")
+  where aSize   = buildDeclaration' [CUnsigned,CInt] (Ident "size")
         aData   = typePtrDeclaration t (Ident "data")
         aStruct = buildStruct (Just . Ident . typeName . SArray $ t) [aSize,aData]
 
