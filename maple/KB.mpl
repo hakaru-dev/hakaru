@@ -203,11 +203,23 @@ KB := module ()
       subsindets(e, { specfunc(relation, `Not`), `not`(relation) }, negate_rel@op );
   end proc;
 
-  # Builds a kb from a list of atoms - simply foldr(assert,empty,as) except
-  # and extra check is (optionally) done for the resulting KB to be valid.
-  build_kb := proc(as::t_kb_atoms, shouldBeValid::{identical(false),string} := false, initKb::t_kb := empty, $)
-      local
-      kb := initKb;
+  # Builds a kb from:
+  # - a list of atoms - simply foldr(assert,initKB,as) except
+  #   and extra check is (optionally) done for the resulting KB to be valid; or
+  # - a kb, in which case the first kb is deconstructed into a list of atoms
+  # additionally takes an initial KB into which to fold the atoms; if one KB is
+  # empty and the other is not, returns the non-empty one directly.
+  build_kb := proc(as_::{t_kb_atoms,t_kb}, shouldBeValid::{identical(false),string} := false, initKb::t_kb := empty, $)
+      local kb := initKb, as := as_;
+      if as :: t_kb then
+        if initKb = empty then
+          return as;
+        elif as = empty then
+          return initKB;
+        else # initKb <> empty
+          as := kb_to_constraints(as);
+        end if;
+      end if;
 
       kb := foldr(assert,kb, op(as));
       if shouldBeValid :: string then
