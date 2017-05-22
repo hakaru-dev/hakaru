@@ -836,12 +836,8 @@ KB := module ()
 
   # Note that this returns potentially any number of operands.
   kb_atom_to_assumptions := proc(k, $)
-    local x, x_ty, x_typ;
     if k :: t_intro then
-      x, x_ty := op(k);
-      x_typ := htype_to_property(x_ty);
-      (x :: x_typ),
-       op(`if`(x_typ<>TopProp, map((b -> `if`(nops(b)>=2,[op(1,b)(x, op(2,b))],[])[]), x_ty),[]))
+      kb_intro_to_assumptions(op(k));
     elif k :: t_kb_Let then
       `=`(op(k))
     elif k :: t_kb_Bound then
@@ -851,6 +847,16 @@ KB := module ()
     else
       NULL # Maple doesn't understand our other types
     end if
+  end proc;
+
+  # converts an introduction form (a pair of a 'name' and a type) into a
+  # sequence of assumtions. `x' is typically an actual name, but need not be;
+  # it may be any algebraic term which can appear on the lhs of a `::`
+  kb_intro_to_assumptions := proc(x,x_ty::t_type, $)
+    local x_typ;
+    x_typ := htype_to_property(x_ty);
+    (x :: x_typ),
+    op(`if`(x_typ<>TopProp, map((b -> `if`(nops(b)>=2,[op(1,b)(x, op(2,b))],[])[]), x_ty),[]))
   end proc;
 
   kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption_pw, $)
