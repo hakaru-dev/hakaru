@@ -14,13 +14,6 @@
 # bounds but before extracting the domain shape, as the shape ends up
 # becoming part of the bounds of an inner simplification.
 
-# Note that large parts of this are not very nice. It is a very literal
-# translation of the code which it replaced, which a very thin amount
-# of abstraction on top. But it does the hard work of factoring
-# out all of the domain-related code into a single module.
-# At some point, the interface should be improved, and the implementation
-# should get rid of all sorts of unnecessary conversions.
-
 # Broad TODOs:
 #
 # Mechanism for 'checking if' and 'making' constraints about variables should
