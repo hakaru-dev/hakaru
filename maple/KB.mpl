@@ -50,7 +50,10 @@ KB := module ()
 
      # Various utilities
      t_intro, t_lo, t_hi, log_metric,
-     boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw
+     boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw,
+     array_size_assumptions, array_elem_assumptions, kb_intro_to_assumptions,
+
+     simpl_range_of_htype, zip_k
 
      ;
   export
@@ -91,7 +94,7 @@ KB := module ()
      kb_atom_to_assumptions,
 
      # Various utilities ...
-     list_of_mul, for_poly, range_of_HInt, eval_kb, kb_is_false, try_improve_exp,
+     list_of_mul, for_poly, range_of_HInt, range_of_htype, eval_kb, kb_is_false, try_improve_exp,
 
      # Types corresponding to the constructor forms of the 'atoms' of KBs
      t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
@@ -901,7 +904,7 @@ KB := module ()
 
   htype_to_property := proc(t::t_type, $)
     if t :: 'specfunc({AlmostEveryReal, HReal})' then real
-    elif t :: 'specfunc({HInt})' then integer
+    elif t :: 'specfunc(HInt)' then integer
     else TopProp end if
   end proc;
 
