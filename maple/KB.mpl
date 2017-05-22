@@ -864,7 +864,30 @@ KB := module ()
     as := remove(to_remove,
           map( kb_atom_to_assumptions ,
              [op(coalesce_bounds(kb))
-             ,seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]));
+
+              # additional assumptions which are derived from the expression
+              # to be simplified; these are to do with arrays
+             ,array_size_assumptions(kb,e)
+             ,array_elem_assumptions(kb,e)]));
+  end proc;
+
+  array_size_assumptions := proc(kb,e,$)
+    seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'));
+  end proc;
+
+  array_elem_assumptions := proc(kb,e,$)
+    op( map(proc(a)
+              local ty := getType(kb,op(1,a));
+              if   ty=FAIL then NULL
+              elif not(ty::specfunc(HArray)) then
+                WARNING("in array_elem_assumptions; Subterm %1 of %2 is an array index; but "
+                        "%3 is not an array in %4!", a, e, op(1,a), kb);
+                NULL
+              else
+                kb_intro_to_assumptions(a, op(1, ty))
+              end if;
+            end proc,
+            indets(e, And(specfunc(idx),anyfunc(name,anything)))) );
   end proc;
 
   # extract Lets and equality constraints (only!) from a KB
