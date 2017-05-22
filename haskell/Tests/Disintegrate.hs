@@ -476,6 +476,10 @@ slice = normal zero one >>= \x ->
         uniform zero (fromProb (densityNormal zero one x)) >>= \y ->
         dirac (pair y x)
 
+oneAndAll :: Model 'HReal ('HArray 'HReal)
+oneAndAll = plate (nat_ 100) (\_ -> normal zero one) >>= \x ->
+            dirac (pair (x ! nat_ 3) x)
+
 runPerform
     :: TrivialABT Term '[] ('HMeasure a)
     -> [TrivialABT Term '[] ('HMeasure a)]
