@@ -155,11 +155,12 @@ header logfloats mmodule =
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
   , "import           Data.Number.LogFloat hiding (product)"
+  , "import           System.Environment (getArgs)"
   , ""
   ]
 
 footer :: ABT T.Term abt => abt '[] (a :: Hakaru) -> [Text]
-footer _ = ["main :: IO ()","main = makeMain prog"]
+footer _ = ["","main :: IO ()","main = makeMain prog =<< getArgs"]
 
 -- footer :: ABT T.Term abt => abt '[] (a :: Hakaru) -> [Text]
 -- footer abt =
