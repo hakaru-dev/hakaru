@@ -865,13 +865,13 @@ KB := module ()
   kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption_pw, $)
     local n, as;
     as := remove(to_remove,
-          map( kb_atom_to_assumptions ,
-             [op(coalesce_bounds(kb))
+          [ map( kb_atom_to_assumptions ,
+                 [op(coalesce_bounds(kb))
 
-              # additional assumptions which are derived from the expression
-              # to be simplified; these are to do with arrays
-             ,array_size_assumptions(kb,e)
-             ,array_elem_assumptions(kb,e)]));
+                  # additional assumptions which are derived from the expression
+                  # to be simplified; these are to do with arrays
+                  ,array_size_assumptions(kb,e)] )[]
+            ,array_elem_assumptions(kb,e) ] );
   end proc;
 
   array_size_assumptions := proc(kb,e,$)
