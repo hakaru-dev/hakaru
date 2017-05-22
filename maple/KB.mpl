@@ -971,14 +971,30 @@ KB := module ()
   end proc;
 
   # Computes the range of (possible values of) a Hakaru Int,
-  # given a Hakaru type for that Int
+  # given a Hakaru type for that Int.
   range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)
-       op(1, [op(map((b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
-                     select(type, t, Bound(t_lo,anything)))),
-              -infinity])
-    .. op(1, [op(map((b -> `if`(op(1,b)=`<`, ceil(op(2,b))-1, op(2,b))),
-                     select(type, t, Bound(t_hi,anything)))),
-              infinity]);
+    range_of_htype(t);
+  end proc;
+
+  simpl_range_of_htype :=
+    table(
+      [`HInt`=[(b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
+               (b -> `if`(op(1,b)=`<`, ceil (op(2,b))-1, op(2,b)))]
+      ,`HReal`=[(b->`if`(op(1,b)in{`>`,`<`},Open,x->x)(op(2,b)))$2]
+      ,`AlmostEveryReal`=[curry(op,2) $ 2]
+      ]);
+
+  range_of_htype := proc(t :: And(specfunc({HInt,HReal,AlmostEveryReal}),t_type),$)
+    `..`(op(
+      zip_k((tt,db,sb)->
+            op(1,map(sb,[op(select(type, t, Bound(tt,anything))),db])) ,
+            [t_lo, t_hi] ,
+            [Bound(`>`,-infinity),Bound(`<`,infinity)] ,
+            simpl_range_of_htype[op(0,t)] )));
+  end proc;
+
+  zip_k := proc(f)
+    map(f@op@ListTools[Flatten], foldl((a,b)->zip(`[]`,a,b,[]), _rest));
   end proc;
 
   # Avoid FAILure modes of the assumption system
