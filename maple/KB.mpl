@@ -799,16 +799,19 @@ KB := module ()
 
   getType := proc(kb :: t_kb, x :: name, $)
     local res, over, bound;
-    res := op([1,2], select(type, kb, 'Introduce(identical(x), anything)'));
-    over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
-                   `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
-    for bound in select(type, kb, 'Bound(identical(x),
-                                         identical(`<`,`<=`,`>`,`>=`),
-                                         anything)') do
-      res := remove(type, res, 'Bound'(over[op(2,bound)], 'anything'));
-      res := op(0,res)(subsop(1=NULL,bound), op(res));
-    end do;
-    res
+    res := select(type, kb, 'Introduce(identical(x), anything)');
+    if nops(res)=0 then FAIL else
+      res := op([1,2], res);
+      over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
+                     `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
+      for bound in select(type, kb, 'Bound(identical(x),
+                                           identical(`<`,`<=`,`>`,`>=`),
+                                           anything)') do
+        res := remove(type, res, 'Bound'(over[op(2,bound)], 'anything'));
+        res := op(0,res)(subsop(1=NULL,bound), op(res));
+      end do;
+      res
+    end if;
   end proc;
 
   # extract all introduced variables from a KB
