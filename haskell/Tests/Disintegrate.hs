@@ -439,6 +439,21 @@ surveyUnbias2 =
     
 ----------------------------------------------------------------
 
+unzipFst :: Model ('HArray 'HReal) HUnit
+unzipFst = plate n (\_ -> liftM2 pair (normal zero one)
+                                      (normal zero one)) >>= \u ->
+           dirac (array n (\i -> fst (u ! i))) >>= \v ->
+           dirac (pair v unit)
+    where n = nat_ 1000
+
+transpose :: Model ('HArray ('HArray 'HReal)) HUnit
+transpose = plate n (\_ -> plate n (\_ -> normal zero one)) >>= \u ->
+            dirac (array n (\i -> array n (\j -> (u ! j) ! i))) >>= \v ->
+            dirac (pair v unit)
+    where n = nat_ 3500
+
+----------------------------------------------------------------
+
 testEmissions :: Model ('HArray 'HReal) HUnit
 testEmissions = plate n (\_ -> lebesgue) >>= \xs ->
                 plate n (\_ -> lebesgue) >>= \ys ->
