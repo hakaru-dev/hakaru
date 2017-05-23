@@ -116,6 +116,7 @@ import qualified Language.Hakaru.Syntax.Prelude as P
 #ifdef __TRACE_DISINTEGRATE__
 import qualified Text.PrettyPrint     as PP
 import Language.Hakaru.Pretty.Haskell
+import           Debug.Trace          (trace)
 #endif
 
 ----------------------------------------------------------------
@@ -899,6 +900,10 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     substVar x e = return . var
 
 
+    extFreeVars :: abt xs a -> m (VarSet (KindOf a))
+    extFreeVars e = return (freeVars e)
+
+
     -- The first argument to @evaluateCase@ will be the
     -- 'TermEvaluator' we're constructing (thus tying the knot).
     evaluateCase :: TermEvaluator abt m -> CaseEvaluator abt m
@@ -999,7 +1004,7 @@ defaultCaseEvaluator evaluate_ = evaluateCase_
 
 toVarStatements :: Assocs (abt '[]) -> [Statement abt Variable p]
 toVarStatements = map (\(Assoc x e) -> SLet x (Thunk e) []) .
-                  fromAssocs 
+                  fromAssocs
  
 extSubst
     :: forall abt a xs b m p. (EvaluationMonad abt m p)
