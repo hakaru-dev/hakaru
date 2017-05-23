@@ -17,7 +17,7 @@ Contact us at ppaml@indiana.edu if you have any questions or concerns.
 
 ## Introduction ##
 
-This section introduces probabilistic programming and illustrates how Hakaru can be used to solve and describe these types of problems, how to install Hakaru on your 
+The Introduction presents probabilistic programming and illustrates how Hakaru can be used to solve and describe these types of problems, how to install Hakaru on your 
 machine, and some sample programs to get you started.
 
 ### [What is Probabilistic Programming?](intro/probprog)
@@ -25,11 +25,11 @@ machine, and some sample programs to get you started.
 Probabilistic programming systems allow us to write programs which describe probability distributions, and provide mechanisms to sample and condition the distributions 
 they represent on data. In this page, we give a sense of the sorts of problems Hakaru is great at solving, and how you would describe them in Hakaru.
 
-### [Installation](intro/installation) ###
+### [Installing Hakaru](intro/installation) ###
 
 You can install Hakaru on Linux, OSX, and Windows and extend its functionality using MapleSoft's Maple. 
 
-### [Quickstart](intro/quickstart) ###
+### [Quick Start: A Mixture Model Example](intro/quickstart) ###
 
 This page will introduce you to Hakaru's basic functionality by creating a program to sample and condition a mixture model of a coin toss.
 
@@ -37,37 +37,42 @@ This page will introduce you to Hakaru's basic functionality by creating a progr
 
 Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
 
-## Language Guide
+## Language Guide ##
 
-The language section provides an overview of the syntax of Hakaru as well as some of the primitives in the language.
+The Language Guide presents an overview of Hakaru's language primitives and core functionality.
 
-### [Random Primitives](/lang/rand)
+### [Primitive Probability Distributions](/lang/rand) ###
 
-These are the built-in probability distributions.
+Common probability distributions, such as the normal distribution, are already encoded in Hakaru and are considered to be language primitives. This page provides usage
+instructions for accessing the primitive distributions in your programs.
 
-### [Let and Bind](/lang/letbind)
+### [Let and Bind](/lang/letbind) ###
 
-This is how we can give names to subexpressions and a draw from a probability distribution.
+Let (`=`) and Bind (`<~`) enable the use of variables in Hakaru programs, which is essential for extracting a value from a probability distribution.
 
-### [Conditionals](/lang/cond)
+### [Conditionals](/lang/cond) ###
 
-Hakaru supports a restricted `if` expression.
+Hakaru supports a restricted `if` expression for selections between two conditions.
 
-### [Types and Coercions](/lang/coercions)
+### [Loops](/lang/loops)
 
-Hakaru is a simply-typed language. This section describes the types available and functions for moving between them.
+We also express loops that compute sums and products.
 
 ### [Functions](/lang/functions)
 
 Defining and using functions
 
-### [Datatypes and match](/lang/datatypes)
+### [Types and Coercions](/lang/coercions)
+
+Hakaru is a simply-typed language. This section describes the types available and functions for moving between them.
+
+### [Data Types and Match](/lang/datatypes)
 
 Hakaru supports a few built-in datatypes, and offers functionality for taking them apart and reconstructing them.
 
-### [Arrays and loops](/lang/arrays)
+### [Arrays and Plate](/lang/arrays)
 
-We offer special support for arrays, and for probability distributions over arrays. We also express loops that compute sums and products.
+We offer special support for arrays, and for probability distributions over arrays.
 
 ## Transformations
 
@@ -97,19 +102,13 @@ Automatically transform a measure into a transition kernel usable in a Metropoli
 
 The internals section of the manual provides some insight into how Hakaru is implemented and offers guidance into how the system can be extended.
 
-[AST](/internals/ast)
-
-[ABT](/internals/abt)
-
-[Datums](/internals/datums)
-
-[Coercions](/internals/coercions)
-
-[Transformations](/internals/transforms)
-
-[Testing](/internals/testing)
-
-[Adding a Language Feature](/internals/newfeature)
+- [AST](/internals/ast)
+- [ABT](/internals/abt)
+- [Datums](/internals/datums)
+- [Coercions](/internals/coercions)
+- [Transformations](/internals/transforms)
+- [Testing Hakaru modules](/internals/testing)
+- [Adding a Language Feature](/internals/newfeature)
 
 ## Citing Us ##
 
