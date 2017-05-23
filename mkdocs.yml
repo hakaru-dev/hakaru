@@ -18,11 +18,11 @@ pages:
   - 'Primitive Probability Distributions': 'lang/rand.md'
   - 'Let and Bind':                        'lang/letbind.md'
   - 'Conditionals':                        'lang/cond.md'
-  - 'Loops' :                              'lang/loops.md'
   - 'Functions':                           'lang/functions.md'
   - 'Types and Coercions':                 'lang/coercions.md'
   - 'Data Types and Match':                'lang/datatypes.md'
   - 'Arrays and Plate':                    'lang/arrays.md'
+  - 'Loops' :                              'lang/loops.md'
 - Transformations:
   - 'Expect and Normalize':     'transforms/expect.md'
   - 'Disintegrate and Density': 'transforms/disintegrate.md'

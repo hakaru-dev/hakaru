@@ -54,10 +54,6 @@ Let (`=`) and Bind (`<~`) enable the use of variables in Hakaru programs, which 
 
 Hakaru supports a restricted `if` expression for selections between two conditions.
 
-### [Loops](/lang/loops)
-
-We also express loops that compute sums and products.
-
 ### [Functions](/lang/functions)
 
 Defining and using functions
@@ -73,6 +69,10 @@ Hakaru supports a few built-in datatypes, and offers functionality for taking th
 ### [Arrays and Plate](/lang/arrays)
 
 We offer special support for arrays, and for probability distributions over arrays.
+
+### [Loops](/lang/loops)
+
+You can use Hakaru loops to compute sums and products of arrays.
 
 ## Transformations
 
