@@ -54,25 +54,28 @@ Let (`=`) and Bind (`<~`) enable the use of variables in Hakaru programs, which 
 
 Hakaru supports a restricted `if` expression for selections between two conditions.
 
-### [Functions](/lang/functions)
+### [Functions](/lang/functions) ###
 
-Defining and using functions
+Hakaru supports both named and anonymous function definitions.
 
-### [Types and Coercions](/lang/coercions)
+### [Types and Coercions](/lang/coercions) ###
 
-Hakaru is a simply-typed language. This section describes the types available and functions for moving between them.
+Hakaru has basic types which can also be combined to make complex ones. To aid in the communication of information between Hakaru functions, coercions are defined to allow 
+conversions between compatible types.
 
-### [Data Types and Match](/lang/datatypes)
+### [Data Types and Match](/lang/datatypes) ###
 
-Hakaru supports a few built-in datatypes, and offers functionality for taking them apart and reconstructing them.
+Hakaru supports some built-in data types from Haskell. The `match` function is used for deconstructing them to extract their elements and to reconstructing data back into
+these data types.
 
-### [Arrays and Plate](/lang/arrays)
+### [Arrays and Plate](/lang/arrays) ###
 
-We offer special support for arrays, and for probability distributions over arrays.
+Hakaru has special syntax for arrays, which is considered distinct from the other supported data types. A specialized array, `plate`, is used for describing measures over
+arrays.
 
-### [Loops](/lang/loops)
+### [Loops](/lang/loops) ###
 
-You can use Hakaru loops to compute sums and products of arrays.
+Hakaru loops are specialized to compute the summation or product of the elements in an array.
 
 ## Transformations
 
