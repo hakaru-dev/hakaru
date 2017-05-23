@@ -78,11 +78,11 @@ We offer special support for arrays, and for probability distributions over arra
 
 Hakaru implements its inference algorithms predominately as program transformations. The following are the major ones our system provides.
 
-### [Expect](/transforms/expect)
+### [Expect and Normalize](/transforms/expect)
 
 Computing expectation of a measure
 
-### [Disintegrate](/transforms/disintegrate)
+### [Disintegrate and Density](/transforms/disintegrate)
 
 A transformation which takes a joint distribution and produces a program representing the conditional distribution.
 
