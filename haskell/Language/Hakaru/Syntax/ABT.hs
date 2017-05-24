@@ -165,6 +165,16 @@ instance Functor12 View where
     fmap12 _ (Var  x)   = Var  x
     fmap12 f (Bind x e) = Bind x (fmap12 f e)
 
+instance Foldable12 View where
+    foldMap12 f (Syn  t)   = f t
+    foldMap12 f (Var  x)   = mempty
+    foldMap12 f (Bind x e) = foldMap12 f e
+
+instance Traversable12 View where
+    traverse12 f (Syn t)    = Syn <$> f t
+    traverse12 _ (Var x)    = pure $ Var x
+    traverse12 f (Bind x e) = Bind x <$> traverse12 f e
+
 
 instance (Show1 (Sing :: k -> *), Show1 rec)
     => Show2 (View (rec :: k -> *))
