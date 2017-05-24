@@ -328,7 +328,10 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     -- TODO: would it be helpful to track which variable it's blocked
     -- on? To do so we'd need 'GotStuck' to return that info...
     --
-    -- TODO: is there some /clean/ way to ensure that the neutral term is exactly a chain of blocked redexes? That is, we want to be able to pull out neutral 'Case_' terms; so we want to make sure they're not wrapped in let-bindings, coercions, etc.
+    -- TODO: is there some /clean/ way to ensure that the neutral term
+    -- is exactly a chain of blocked redexes? That is, we want to be
+    -- able to pull out neutral 'Case_' terms; so we want to make sure
+    -- they're not wrapped in let-bindings, coercions, etc.
 
 -- | Forget that something is a WHNF.
 fromWhnf :: (ABT Term abt) => Whnf abt a -> abt '[] a
