@@ -907,7 +907,7 @@ instance Functor21 Term where
     fmap21 f (ArrayLiteral_ es) = ArrayLiteral_ (fmap f es)
     fmap21 f (Datum_     d)     = Datum_     (fmap11 f d)
     fmap21 f (Case_      e  bs) = Case_      (f e)  (map (fmap21 f) bs)
-    fmap21 f (Bucket     b e r) = Bucket (f b) (f e) (fmap31 f r)
+    fmap21 f (Bucket     b e r) = Bucket (f b) (f e) (fmap22 f r)
     fmap21 f (Superpose_ pes)   = Superpose_ (L.map (f *** f) pes)
     fmap21 _ (Reject_ t)        = Reject_ t
 
@@ -922,7 +922,7 @@ instance Foldable21 Term where
     foldMap21 f (ArrayLiteral_ es) = F.foldMap f es
     foldMap21 f (Datum_     d)     = foldMap11 f d
     foldMap21 f (Case_      e  bs) = f e `mappend` F.foldMap (foldMap21 f) bs
-    foldMap21 f (Bucket     b e r) = f b `mappend` f e `mappend` foldMap31 f r
+    foldMap21 f (Bucket     b e r) = f b `mappend` f e `mappend` foldMap22 f r
     foldMap21 f (Superpose_ pes)   = foldMapPairs f pes
     foldMap21 _ (Reject_    _)     = mempty
 
@@ -942,7 +942,7 @@ instance Traversable21 Term where
     traverse21 _ (Empty_     typ)   = pure $ Empty_   typ
     traverse21 f (Array_     e1 e2) = Array_ <$> f e1 <*> f e2
     traverse21 f (ArrayLiteral_ es) = ArrayLiteral_ <$> traverse f es
-    traverse21 f (Bucket b e r)     = Bucket <$> f b <*> f e <*> traverse31 f r
+    traverse21 f (Bucket b e r)     = Bucket <$> f b <*> f e <*> traverse22 f r
     traverse21 f (Datum_     d)     = Datum_ <$> traverse11 f d
     traverse21 f (Case_      e  bs) = Case_  <$> f e <*> traverse (traverse21 f) bs
     traverse21 f (Superpose_ pes)   = Superpose_ <$> traversePairs f pes

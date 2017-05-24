@@ -42,26 +42,26 @@ data Reducer (abt :: [Hakaru] -> Hakaru -> *)
          -> abt ( 'HNat ': xs) a         -- (bound i)
          -> Reducer abt xs a
 
-instance Functor31 Reducer where
-    fmap31 f (Red_Fanout r1 r2)  = Red_Fanout (fmap31 f r1) (fmap31 f r2)
-    fmap31 f (Red_Index n ix r)  = Red_Index (f n) (f ix) (fmap31 f r)
-    fmap31 f (Red_Split b r1 r2) = Red_Split (f b) (fmap31 f r1) (fmap31 f r2)
-    fmap31 _ Red_Nop             = Red_Nop
-    fmap31 f (Red_Add h e)       = Red_Add h (f e)
+instance Functor22 Reducer where
+    fmap22 f (Red_Fanout r1 r2)  = Red_Fanout (fmap22 f r1) (fmap22 f r2)
+    fmap22 f (Red_Index n ix r)  = Red_Index (f n) (f ix) (fmap22 f r)
+    fmap22 f (Red_Split b r1 r2) = Red_Split (f b) (fmap22 f r1) (fmap22 f r2)
+    fmap22 _ Red_Nop             = Red_Nop
+    fmap22 f (Red_Add h e)       = Red_Add h (f e)
 
-instance Foldable31 Reducer where
-    foldMap31 f (Red_Fanout r1 r2)  = foldMap31 f r1 `mappend` foldMap31 f r2
-    foldMap31 f (Red_Index n ix r)  = f n `mappend` f ix `mappend` foldMap31 f r
-    foldMap31 f (Red_Split b r1 r2) = f b `mappend` foldMap31 f r1 `mappend` foldMap31 f r2
-    foldMap31 _ Red_Nop             = mempty
-    foldMap31 f (Red_Add _ e)       = f e
+instance Foldable22 Reducer where
+    foldMap22 f (Red_Fanout r1 r2)  = foldMap22 f r1 `mappend` foldMap22 f r2
+    foldMap22 f (Red_Index n ix r)  = f n `mappend` f ix `mappend` foldMap22 f r
+    foldMap22 f (Red_Split b r1 r2) = f b `mappend` foldMap22 f r1 `mappend` foldMap22 f r2
+    foldMap22 _ Red_Nop             = mempty
+    foldMap22 f (Red_Add _ e)       = f e
 
-instance Traversable31 Reducer where
-    traverse31 f (Red_Fanout r1 r2)  = Red_Fanout <$> traverse31 f r1 <*> traverse31 f r2
-    traverse31 f (Red_Index n ix r)  = Red_Index  <$> f n <*> f ix <*> traverse31 f r
-    traverse31 f (Red_Split b r1 r2) = Red_Split <$> f b <*> traverse31 f r1 <*> traverse31 f r2
-    traverse31 f Red_Nop             = pure Red_Nop
-    traverse31 f (Red_Add h e)       = Red_Add h <$> f e
+instance Traversable22 Reducer where
+    traverse22 f (Red_Fanout r1 r2)  = Red_Fanout <$> traverse22 f r1 <*> traverse22 f r2
+    traverse22 f (Red_Index n ix r)  = Red_Index  <$> f n <*> f ix <*> traverse22 f r
+    traverse22 f (Red_Split b r1 r2) = Red_Split <$> f b <*> traverse22 f r1 <*> traverse22 f r2
+    traverse22 f Red_Nop             = pure Red_Nop
+    traverse22 f (Red_Add h e)       = Red_Add h <$> f e
 
 
 instance Eq2 abt => Eq1 (Reducer abt xs) where
