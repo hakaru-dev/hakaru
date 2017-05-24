@@ -367,7 +367,10 @@ class Eq2 a => JmEq2 (a :: k1 -> k2 -> *) where
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: rather than having this plethora of classes for different indexing, define newtypes for 1-natural transformations, 2-natural transformations, etc; and then define a single higher-order functor class which is parameterized by the input and output categories.
+-- TODO: rather than having this plethora of classes for different
+-- indexing, define newtypes for 1-natural transformations, 2-natural
+-- transformations, etc; and then define a single higher-order functor
+-- class which is parameterized by the input and output categories.
 
 -- | A functor on the category of @k@-indexed types (i.e., from
 -- @k@-indexed types to @k@-indexed types). We unify the two indices,
