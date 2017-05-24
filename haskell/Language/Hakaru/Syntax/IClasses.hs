@@ -58,9 +58,11 @@ module Language.Hakaru.Syntax.IClasses
     , Functor21(..)
     , Functor22(..)
     , Foldable11(..), Lift1(..)
+    , Foldable12(..)
     , Foldable21(..), Lift2(..)
     , Foldable22(..)
     , Traversable11(..)
+    , Traversable12(..)
     , Traversable21(..)
     , Traversable22(..)
 
@@ -457,6 +459,16 @@ class Functor11 f => Foldable11 (f :: (k1 -> *) -> k2 -> *) where
 -- TODO: standard Foldable wrappers 'and11', 'or11', 'all11', 'any11',...
 
 
+class Functor12 f => Foldable12 (f :: (k1 -> *) -> k2 -> k3 -> *) where
+    {-# MINIMAL fold12 | foldMap12 #-}
+
+    fold12 :: (Monoid m) => f (Lift1 m) j l -> m
+    fold12 = foldMap12 unLift1
+
+    foldMap12 :: (Monoid m) => (forall i. a i -> m) -> f a j l -> m
+    foldMap12 f = fold12 . fmap12 (Lift1 . f)
+                  
+
 class Functor21 f => Foldable21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
     {-# MINIMAL fold21 | foldMap21 #-}
 
@@ -493,6 +505,12 @@ class Foldable11 t => Traversable11 (t :: (k1 -> *) -> k2 -> *) where
     sequence :: Monad m => t (m a) -> m (t a)
     -}
 
+class Foldable12 t => Traversable12 (t :: (k1 -> *) -> k2 -> k3 -> *) where
+    traverse12
+        :: Applicative f
+        => (forall i. a i -> f (b i))
+        -> t a j l
+        -> f (t b j l)
 
 class Foldable21 t => Traversable21 (t :: (k1 -> k2 -> *) -> k3 -> *) where
     traverse21
