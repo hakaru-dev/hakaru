@@ -449,7 +449,11 @@ atomize e =
 #ifdef __TRACE_DISINTEGRATE__
     trace ("\n-- atomize --\n" ++ show (pretty e)) $
 #endif
-    traverse21 atomizeCore =<< evaluate_ e
+    do whnf <- evaluate_ e
+       case whnf of
+         Head_ v   -> Head_ <$> traverse21 atomizeCore v
+         Neutral e -> Neutral . unviewABT <$>
+                      traverse12 (traverse21 atomizeCore) (viewABT e)             
 
 
 -- | A variant of 'atomize' which is polymorphic in the locally
