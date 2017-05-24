@@ -25,6 +25,26 @@ local Simplify_DConstrain := (can_simp, do_simp) -> module()
     end proc;
 end module;
 
+try_improve_exp := module()
+  export SimplName  := "Try improve exp";
+  export SimplOrder := 6 - 2/10;
+  export ModuleApply := Simplify_DConstrain(can, `try`);
+
+  local can := proc(vs)
+    c -> c::relation and (not(lhs(c) :: Name) and not(rhs(c) :: Name) and has(c,{ln,exp}));
+  end proc;
+
+  local `try` := proc(dbnd, ctx1, q0, $)
+    local vars, vars_q, q := q0;
+    vars := Domain:-Bound:-varsOf(dbnd,"set");
+    vars_q := indets(q, name) intersect vars;
+    if nops(vars_q)=0 then return q end if;
+
+    vars_q := op(1,vars_q);
+    KB:-try_improve_exp(q, vars_q, ctx1);
+  end proc;
+end module;
+
 constraints_about_vars := module()
   export SimplName  := "Make constraints abouts vars";
   export SimplOrder := 6;
@@ -32,7 +52,7 @@ constraints_about_vars := module()
 
   local can_make_about := proc(vs)
     local vars := Domain:-Bound:-varsOf(vs,"set");
-    c -> c::relation and (not(lhs(c) in vars) and not(rhs(c) in vars) and has(c,{ln,exp}));
+    c -> c::relation and (not(lhs(c) in vars) and not(rhs(c) in vars));
   end proc;
   local try_make_about := proc(dbnd, ctx1, q0, $)
       local vars_q, vars, q_s, q_r, q := q0;
