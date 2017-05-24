@@ -1,4 +1,4 @@
-# Simplify transformation
+# Simplify
 
 The simplify transformation provides a way to automaticaly improve our
 programs. Simplify works by turning our programs into their expectation

@@ -190,7 +190,7 @@ residualizeListContext ss rho e0 =
         SLet (Location x) body _
             | not (x `memberVarSet` freeVars e) ->
 #ifdef __TRACE_DISINTEGRATE__
-               trace ("could not find location" ++ show x ++ "\n"
+               trace ("could not find location " ++ show x ++ "\n"
                      ++ "in term " ++ show (pretty e) ++ "\n"
                      ++ "given rho " ++ show (prettyAssocs rho)) $
 #endif                
@@ -636,6 +636,20 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
             then do inds' <- mapM (extSubst x e) inds
                     var <$> mkLoc Text.empty l inds'
             else defaultResult
+
+    extFreeVars e = do
+      extras <- getExtras
+      let fvs1 = freeVars e
+          indFVs (SomeVariable v) =
+              case (lookupAssoc v extras) of
+                Nothing -> emptyVarSet
+                Just (Loc _ is) -> foldr (unionVarSet.freeVars) emptyVarSet is
+          locVars (SomeVariable v) b =
+              case (lookupAssoc v extras) of
+                Nothing -> b
+                Just (Loc l _) -> insertVarSet (fromLocation l) b
+          fvs2 = foldr (unionVarSet.indFVs) fvs1 (fromVarSet fvs1)
+      return $ foldr locVars emptyVarSet (fromVarSet fvs2)
 
     -- | The forward disintegrator's function for evaluating case
     -- expressions. First we try calling 'defaultCaseEvaluator' which

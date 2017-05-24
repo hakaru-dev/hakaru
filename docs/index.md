@@ -17,7 +17,7 @@ Contact us at ppaml@indiana.edu if you have any questions or concerns.
 
 ## Introduction ##
 
-This section introduces probabilistic programming and illustrates how Hakaru can be used to solve and describe these types of problems, how to install Hakaru on your 
+The Introduction presents probabilistic programming and illustrates how Hakaru can be used to solve and describe these types of problems, how to install Hakaru on your 
 machine, and some sample programs to get you started.
 
 ### [What is Probabilistic Programming?](intro/probprog)
@@ -25,11 +25,11 @@ machine, and some sample programs to get you started.
 Probabilistic programming systems allow us to write programs which describe probability distributions, and provide mechanisms to sample and condition the distributions 
 they represent on data. In this page, we give a sense of the sorts of problems Hakaru is great at solving, and how you would describe them in Hakaru.
 
-### [Installation](intro/installation) ###
+### [Installing Hakaru](intro/installation) ###
 
 You can install Hakaru on Linux, OSX, and Windows and extend its functionality using MapleSoft's Maple. 
 
-### [Quickstart](intro/quickstart) ###
+### [Quick Start: A Mixture Model Example](intro/quickstart) ###
 
 This page will introduce you to Hakaru's basic functionality by creating a program to sample and condition a mixture model of a coin toss.
 
@@ -37,79 +37,90 @@ This page will introduce you to Hakaru's basic functionality by creating a progr
 
 Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
 
-## Language Guide
+## Language Guide ##
 
-The language section provides an overview of the syntax of Hakaru as well as some of the primitives in the language.
+The Language Guide presents an overview of Hakaru's language primitives and core functionality.
 
-### [Random Primitives](/lang/rand)
+### [Primitive Probability Distributions](/lang/rand) ###
 
-These are the built-in probability distributions.
+Common probability distributions, such as the normal distribution, are already encoded in Hakaru and are considered to be language primitives. This page provides usage
+instructions for accessing the primitive distributions in your programs.
 
-### [Let and Bind](/lang/letbind)
+### [Let and Bind](/lang/letbind) ###
 
-This is how we can give names to subexpressions and a draw from a probability distribution.
+Let (`=`) and Bind (`<~`) enable the use of variables in Hakaru programs, which is essential for extracting a value from a probability distribution.
 
-### [Conditionals](/lang/cond)
+### [Conditionals](/lang/cond) ###
 
-Hakaru supports a restricted `if` expression.
+Hakaru supports a restricted `if` expression for selections between two conditions.
 
-### [Types and Coercions](/lang/coercions)
+### [Functions](/lang/functions) ###
 
-Hakaru is a simply-typed language. This section describes the types available and functions for moving between them.
+Hakaru supports both named and anonymous function definitions.
 
-### [Functions](/lang/functions)
+### [Types and Coercions](/lang/coercions) ###
 
-Defining and using functions
+Hakaru has basic types which can also be combined to make complex ones. To aid in the communication of information between Hakaru functions, coercions are defined to allow 
+conversions between compatible types.
 
-### [Datatypes and match](/lang/datatypes)
+### [Data Types and Match](/lang/datatypes) ###
 
-Hakaru supports a few built-in datatypes, and offers functionality for taking them apart and reconstructing them.
+Hakaru supports some built-in data types from Haskell. The `match` function is used for deconstructing them to extract their elements and to reconstructing data back into
+these data types.
 
-### [Arrays and loops](/lang/arrays)
+### [Arrays and Plate](/lang/arrays) ###
 
-We offer special support for arrays, and for probability distributions over arrays. We also express loops that compute sums and products.
+Hakaru has special syntax for arrays, which is considered distinct from the other supported data types. A specialized array, `plate`, is used for describing measures over
+arrays.
 
-## Transformations
+### [Loops](/lang/loops) ###
 
-Hakaru implements its inference algorithms predominately as program transformations. The following are the major ones our system provides.
+Hakaru loops are specialized to compute the summation or product of the elements in an array.
 
-### [Expect](/transforms/expect)
+## Transformations ##
 
-Computing expectation of a measure
+Hakaru includes some inference algorithms that you can use to transform your probabilistic models into other forms to extract desireable information. Its inference 
+algorithms are implemented predominately as program transformations.
 
-### [Disintegrate](/transforms/disintegrate)
+### [Expect and Normalize](/transforms/expect) ###
 
-A transformation which takes a joint distribution and produces a program representing the conditional distribution.
+The expectation transformation (`expect`) computes expectation of a measure with respect to a given function. The normalization transformation (`normalize`) reweights a
+program so that it represents a normal distribution.
 
-### [Simplify](/transforms/simplify)
+### [Disintegrate and Density](/transforms/disintegrate) ###
 
-Any Hakaru expression can be simplified, using the Maple computer-algebra system.
+The disintegration transformation (`disintegrate`) produces a program representing the conditional distribution based on a joint probability distribution. The density
+transformation (`density`) is used to create a conditional distribution model that is used to estimate the density of the distribution at a particular point.
 
-### [Metropolis Hastings](/transforms/mh)
+### [Simplify](/transforms/simplify) ###
 
-Automatically transform a measure into a transition kernel usable in a Metropolis Hastings algorithm.
+The simplify transformation (`simplify`) is used to improve Hakaru programs by simplifying proababilistic models using computer algebra. This transformation requires the
+use of Maple.
 
-### [Compiling to Haskell](/transforms/compile)
+### [Metropolis Hastings](/transforms/mh) ###
 
-### [Compiling to C](/transforms/hkc)
+The Metropolis Hastings transform (`mh`) is used to convert a Hakaru program into a Metropolis Hastings transition kernel.
+
+### [Compiling to Haskell](/transforms/compile) ###
+
+A Hakaru program can be ported into Haskell which can then be converted into machine code for other applications.
+
+### [Compiling to C](/transforms/hkc) ###
+
+Depending on the scale, a Hakaru program might be resource-intensive to run. In these situations, you could port your Hakaru program to C using the `hkc` command to take
+advantage of other tools such as OpenMP for parallel processing. 
 
 ## Internals
 
 The internals section of the manual provides some insight into how Hakaru is implemented and offers guidance into how the system can be extended.
 
-[AST](/internals/ast)
-
-[ABT](/internals/abt)
-
-[Datums](/internals/datums)
-
-[Coercions](/internals/coercions)
-
-[Transformations](/internals/transforms)
-
-[Testing](/internals/testing)
-
-[Adding a Language Feature](/internals/newfeature)
+- [AST](/internals/ast)
+- [ABT](/internals/abt)
+- [Datums](/internals/datums)
+- [Coercions](/internals/coercions)
+- [Transformations](/internals/transforms)
+- [Testing Hakaru modules](/internals/testing)
+- [Adding a Language Feature](/internals/newfeature)
 
 ## Citing Us ##
 

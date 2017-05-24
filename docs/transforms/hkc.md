@@ -1,4 +1,4 @@
-# HKC Compilation
+# Compiling to C
 
 `hkc` is a command line tool to compiler Hakaru programs to C. HKC was
 created with portability and speed in mind. More recently, OpenMP support is

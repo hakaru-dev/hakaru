@@ -380,7 +380,8 @@ perform = \e0 ->
     performWhnf
         :: forall a. Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
     performWhnf (Head_   v) = perform $ fromHead v
-    performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
+    performWhnf (Neutral e) = (Neutral . var) <$>
+                              (emitMBind . fromWhnf =<< atomize e)
 
 
     -- TODO: right now we do the simplest thing. However, for better
@@ -467,20 +468,25 @@ atomize e =
 -- We factored this out because we often want this more polymorphic
 -- variant when using our indexed @TraversableMN@ classes.
 atomizeCore :: (ABT Term abt) => abt xs a -> Dis abt (abt xs a)
-atomizeCore e = do
+atomizeCore e =
     -- HACK: this check for 'disjointVarSet' is sufficient to catch
     -- the particular infinite loops we were encountering, but it
     -- will not catch all of them. If the call to 'evaluate_' in
     -- 'atomize' returns a neutral term which contains heap-bound
     -- variables, then we'll still loop forever since we don't
     -- traverse\/fmap over the top-level term constructor of neutral
-    -- terms.
-    xs <- getHeapVars
-    if disjointVarSet xs (freeVars e)
+    -- terms.    
+ do xs <- getHeapVars
+    vs <- extFreeVars e
+    if disjointVarSet xs vs
         then return e
         else
             let (ys, e') = caseBinds e
-            in  (binds_ ys . fromWhnf) <$> atomize e'
+            in
+#ifdef __TRACE_DISINTEGRATE__
+               trace ("\n-- atomizeCore --\n" ++ show (pretty e')) $
+#endif
+               (binds_ ys . fromWhnf) <$> atomize e'
     where
     -- TODO: does @IM.null . IM.intersection@ fuse correctly?
     disjointVarSet xs ys =

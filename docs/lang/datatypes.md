@@ -1,4 +1,4 @@
-# Data types and Match
+# Data Types and Match
 
 Hakaru with several built-in data types.
 
