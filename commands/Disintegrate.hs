@@ -34,18 +34,13 @@ import           System.IO (stderr)
 
 import           Options.Applicative as O
 
-data Options = Options { program :: String
-                       , total   :: Bool
-                       , index   :: Int }
+data Options = Options { total   :: Bool
+                       , index   :: Int
+                       , program :: String }
 
 options :: Parser Options
 options = Options
-          <$> strOption
-              ( long "program" <>
-                short 'p' <>
-                metavar "PROGRAM" <>
-                help "File containing program to disintegrate" )
-          <*> switch
+          <$> switch
               ( long "total" <>
                 short 't' <>
                 help "Whether to show the total number of disintegrations" )
@@ -55,6 +50,9 @@ options = Options
                 metavar "INDEX" <>
                 value 0 <>
                 help "The index of the desired result in the list of disintegrations (default: 0)" )
+          <*> strArgument
+              ( metavar "PROGRAM" <>
+                help "File containing program to disintegrate" )
 
 parseOpts :: IO Options
 parseOpts = execParser $ info (helper <*> options) $
@@ -67,7 +65,7 @@ main :: IO ()
 main = do
   args  <- parseOpts
   case args of
-    Options file t i -> do
+    Options t i file -> do
       prog <- readFromFile file
       runDisintegrate prog t i
 
