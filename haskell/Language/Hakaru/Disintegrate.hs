@@ -371,9 +371,12 @@ perform = \e0 ->
     performVar :: forall a. Variable ('HMeasure a) -> Dis abt (Whnf abt a)
     performVar = performWhnf <=< evaluateVar perform evaluate_
 
-    -- BUG: it's not clear this is actually doing the right thing for its call-sites. In particular, we should handle 'Case_' specially, to deal with the hygiene bug in 'testPerform1b'...
+    -- BUG: it's not clear this is actually doing the right thing for
+    -- its call-sites. In particular, we should handle 'Case_'
+    -- specially, to deal with the hygiene bug in 'testPerform1b'...
     --
-    -- BUG: found the 'testPerform1b' hygiene bug! We can't simply call 'emitMBind' on @e@, because @e@ may not be emissible!
+    -- BUG: found the 'testPerform1b' hygiene bug! We can't simply
+    -- call 'emitMBind' on @e@, because @e@ may not be emissible!
     performWhnf
         :: forall a. Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
     performWhnf (Head_   v) = perform $ fromHead v
@@ -405,7 +408,8 @@ perform = \e0 ->
             -- return (Neutral $ var x)
             return (Neutral x)
 
-        -- Try to be as complete as possible (i.e., 'bot' as little as possible), no matter how ugly the output code gets.
+        -- Try to be as complete as possible (i.e., 'bot' as little as
+        -- possible), no matter how ugly the output code gets.
         complete
             :: MeasureOp typs a
             -> SArgs abt args
@@ -702,9 +706,10 @@ constrainVariable v0 x =
     -- return 'bot' for neutral terms
        maybe bot lookForLoc (lookupAssoc x extras)
     where lookForLoc (Loc      l jxs) =
-              -- If we get 'Nothing', then it turns out @l@ is a free location.
-              -- This is an error because of the invariant:
-              --   if there exists an 'Assoc x ({Multi}Loc l _)' inside @extras@
+              -- If we get 'Nothing', then it turns out @l@ is a free
+              -- location. This is an error because of the
+              -- invariant:
+              --   if there exists an 'Assoc x (Loc l _)' inside @extras@
               --   then there must be a statement on the 'ListContext' that binds @l@
               (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
@@ -902,8 +907,11 @@ toProb_abs HSemiring_Prob = id
 toProb_abs HSemiring_Real = P.abs_
 
 
--- TODO: is there any way to optimise the zippering over the Seq, a la 'S.inits' or 'S.tails'?
--- TODO: really we want a dynamic programming approach to avoid unnecessary repetition of calling @evaluateNaryOp evaluate_@ on the two subsequences...
+-- TODO: is there any way to optimise the zippering over the Seq, a la
+-- 'S.inits' or 'S.tails'?
+-- TODO: really we want a dynamic programming
+-- approach to avoid unnecessary repetition of calling @evaluateNaryOp
+-- evaluate_@ on the two subsequences...
 lubSeq :: (Alternative m) => (Seq a -> a -> Seq a -> m b) -> Seq a -> m b
 lubSeq f = go S.empty
     where
@@ -1016,9 +1024,11 @@ constrainPrimOp v0 = go
     go Acosh     = \(e1 :* End)       -> error_TODO "Acosh"
     go Atanh     = \(e1 :* End)       -> error_TODO "Atanh"
     go RealPow   = \(e1 :* e2 :* End) ->
-        -- TODO: There's a discrepancy between @(**)@ and @pow_@ in the old code...
+        -- TODO: There's a discrepancy between @(**)@ and @pow_@ in
+        -- the old code...
         do
-            -- TODO: if @v1@ is 0 or 1 then bot. Maybe the @log v1@ in @w@ takes care of the 0 case?
+            -- TODO: if @v1@ is 0 or 1 then bot. Maybe the @log v1@ in
+            -- @w@ takes care of the 0 case?
             u <- emitLet' v0
             -- either this from @(**)@:
             --   emitGuard  $ P.zero P.< u
@@ -1031,7 +1041,8 @@ constrainPrimOp v0 = go
             constrainValue (P.log u P./ P.log e1) e2
             -- end.
         <|> do
-            -- TODO: if @v2@ is 0 then bot. Maybe the weight @w@ takes care of this case?
+            -- TODO: if @v2@ is 0 then bot. Maybe the weight @w@ takes
+            -- care of this case?
             u <- emitLet' v0
             let ex = v0 P.** P.recip e2
             -- either this from @(**)@:
@@ -1044,7 +1055,9 @@ constrainPrimOp v0 = go
             constrainValue ex e1
     go Exp = \(e1 :* End) -> do
         x0 <- emitLet' v0
-        -- TODO: do we still want\/need the @emitGuard (0 < x0)@ which is now equivalent to @emitGuard (0 /= x0)@ thanks to the types?
+        -- TODO: do we still want\/need the @emitGuard (0 < x0)@ which
+        -- is now equivalent to @emitGuard (0 /= x0)@ thanks to the
+        -- types?
         emitWeight (P.recip x0)
         constrainValue (P.log x0) e1
 
@@ -1060,8 +1073,11 @@ constrainPrimOp v0 = go
     go (Less   theOrd)  = \(e1 :* e2 :* End) -> error_TODO "Less"
     go (NatPow theSemi) = \(e1 :* e2 :* End) -> error_TODO "NatPow"
     go (Negate theRing) = \(e1 :* End) ->
-        -- TODO: figure out how to merge this implementation of @rr1 negate@ with the one in 'evaluatePrimOp' to DRY
-        -- TODO: just emitLet the @v0@ and pass the neutral term to the recursive call?
+        -- TODO: figure out how to merge this implementation of @rr1
+        -- negate@ with the one in 'evaluatePrimOp' to DRY
+        -- TODO: just
+        -- emitLet the @v0@ and pass the neutral term to the recursive
+        -- call?
         let negate_v0 = syn (PrimOp_ (Negate theRing) :$ v0 :* End)
                 -- case v0 of
                 -- Neutral e ->
@@ -1107,7 +1123,8 @@ constrainPrimOp v0 = go
         emitWeight
             . P.recip
             . P.unsafeProbFraction_ theFractional
-            -- TODO: define a dictionary-passing variant of 'P.square' instead, to include the coercion in there explicitly...
+            -- TODO: define a dictionary-passing variant of 'P.square'
+            -- instead, to include the coercion in there explicitly...
             $ square (hSemiring_HFractional theFractional) x0
         constrainValue (P.primOp1_ (Recip theFractional) x0) e1
 
@@ -1248,7 +1265,12 @@ constrainOutcomeMeasureOp v0 = go
     --  y <~ normal(x,1)
     --  return ((x+(y+y),x)::pair(real,real))
     go Normal = \(mu :* sd :* End) -> do
-        -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * exp (negate (norm_n (v0 - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
+        -- N.B., if\/when extending this to higher dimensions, the
+        -- real equation is
+        -- @recip (sqrt (2*pi*sd^2) ^ n) *
+        --  exp (negate (norm_n (v0 - mu) ^ 2) /
+        --  (2*sd^2))@
+        -- for @Real^n@.
         pushWeight (P.densityNormal mu sd v0)
 
     go Poisson = \(e1 :* End) -> do
