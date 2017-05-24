@@ -295,9 +295,6 @@ determine (m:_) = Just m
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
-firstM :: Functor f => (a -> f b) -> (a,c) -> f (b,c)
-firstM f (x,y) = (\z -> (z, y)) <$> f x
-
 
 -- N.B., forward disintegration is not identical to partial evaluation,
 -- as noted at the top of the file. For correctness we need to
@@ -423,18 +420,6 @@ perform = \e0 ->
             pushWeight (P.densityUniform lo hi x)
             return (Neutral x)
         complete _ = \_ -> bot
-
--- Calls unsafePush 
-pushWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
-pushWeight w = do
-  inds <- getIndices
-  unsafePush $ SWeight (Thunk w) inds
-
--- Calls unsafePush 
-pushGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
-pushGuard b = do
-  inds <- getIndices
-  unsafePush $ SGuard Nil1 pTrue (Thunk b) inds
                                
 
 -- | The goal of this function is to ensure the correctness criterion
@@ -500,22 +485,6 @@ getHeapVars =
     Dis $ \_ c h -> c (foldMap statementVars (statements h)) h
 
 ----------------------------------------------------------------
-isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
-isLitBool e = caseVarSyn e (const Nothing) $ \b ->
-                  case b of
-                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
-                                                  Just Refl -> Just d
-                                                  Nothing   -> Nothing
-                    _ -> Nothing
-
-isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
-isLitTrue (Datum tdTrue sBool (Inl Done)) = True
-isLitTrue _                               = False
-
-isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
-isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
-isLitFalse _                                      = False
-----------------------------------------------------------------
 -- | Given an emissible term @v0@ (the first argument) and another
 -- term @e0@ (the second argument), compute the constraints such
 -- that @e0@ must evaluate to @v0@. This is the function called
@@ -554,32 +523,7 @@ constrainValue v0 e0 =
                                                    constrainValue (v0 P.! (var x')) body'
                                                    -- TODO use meta-index
         ArrayLiteral_ _          -> error "TODO: disintegrate literal arrays"
-        ArrayOp_ o@(Index _) :$ args@(e1 :* e2 :* End) -> do
-            w1 <- evaluate_ e1
-            case w1 of
-              Neutral e1' -> bot
-              Head_ (WArray _ b) -> caseBind b $ \x body ->
-                                    extSubst x e2 body >>= constrainValue v0
-              Head_ (WEmpty _) -> bot -- TODO: check this
-              -- Special case for [true,false] ! i, and [false, true] ! i
-              -- This helps us disintegrate bern
-              Head_ (WArrayLiteral [a1,a2]) ->
-                  case (jmEq1 (typeOf v0) sBool) of
-                    Just Refl ->
-                        let constrainInd = flip constrainValue e2
-                        in case (isLitBool a1, isLitBool a2) of
-                             (Just b1, Just b2)
-                                 | isLitTrue b1 && isLitFalse b2 ->
-                                     constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
-                                 | isLitTrue b2 && isLitFalse b1 ->
-                                     constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
-                                 | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
-                             _ -> error "TODO: constrainValue (Index [b1,b2] i)"
-                    Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
-              Head_ (WArrayLiteral _) -> bot
-              _ -> error "constrainValue {ArrayOp Index}: uknown whnf of array type"
-                           
-        ArrayOp_ _ :$ _          -> error "TODO: disintegrate non-Index arrayOps"
+        ArrayOp_ o :$ args       -> constrainValueArrayOp v0 o args
         Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"
         App_  :$ _  :* _ :* End  -> error "TODO: disintegrate lambdas"
         Integrate :$ _ :* _ :* _ :* End ->
@@ -784,6 +728,82 @@ constrainVariable v0 x =
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SWeight _ _ -> Nothing
                     SGuard ls' pat scrutinee i -> error "TODO: constrainVariable{SGuard}"
+
+----------------------------------------------------------------
+-- | N.B., as with 'constrainValue', we assume that the first
+-- argument is emissible. So it is the caller's responsibility to
+-- ensure this (by calling 'atomize' as appropriate).
+--
+-- TODO: capture the emissibility requirement on the first argument
+-- in the types.
+constrainValueArrayOp
+    :: forall abt typs args a
+    .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => abt '[] a
+    -> ArrayOp typs a
+    -> SArgs abt args
+    -> Dis abt ()
+constrainValueArrayOp v0 = go
+    where
+      go :: ArrayOp typs a -> SArgs abt args -> Dis abt ()
+      go (Index  _) (e1 :* e2 :* End) = do
+        w1 <- evaluate_ e1
+        case w1 of
+          Neutral e1' -> bot
+          Head_ (WArray _ b) -> caseBind b $ \x body ->
+                                extSubst x e2 body >>= constrainValue v0
+          Head_ (WEmpty _) -> bot -- TODO: check this
+          Head_ a@(WArrayLiteral _) -> constrainValueIdxArrLit v0 e2 a
+          _ -> error "constrainValue {ArrayOp Index}: uknown whnf of array type"
+      go (Size   _) _ = error "TODO: disintegrate {ArrayOp Size}"
+      go (Reduce _) _ = error "TODO: disintegrate {ArrayOp Reduce}"
+      go _ _ = error "constrainValueArrayOp: unknown arrayOp"
+
+
+-- | Special case for [true,false] ! i, and [false, true] ! i
+-- This helps us disintegrate bern                                                    
+constrainValueIdxArrLit
+     :: forall abt a
+     .  (ABT Term abt)
+     => abt '[] a
+     -> abt '[] 'HNat
+     -> Head abt ('HArray a)
+     -> Dis abt ()
+constrainValueIdxArrLit v0 e2 = go
+    where
+      go :: Head abt ('HArray a) -> Dis abt ()
+      go (WArrayLiteral [a1,a2]) =
+          case (jmEq1 (typeOf v0) sBool) of
+            Just Refl ->
+                let constrainInd = flip constrainValue e2
+                in case (isLitBool a1, isLitBool a2) of
+                     (Just b1, Just b2)
+                         | isLitTrue b1 && isLitFalse b2 ->
+                             constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
+                         | isLitTrue b2 && isLitFalse b1 ->
+                             constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
+                         | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
+                     _ -> error "TODO: constrainValue (Index [b1,b2] i)"
+            Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
+      go (WArrayLiteral _) = bot
+      go _ = error "constrainValueIdxArrLit: unknown ArrayLiteral form"
+
+-- | Helpers for disintegrating bern             
+isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
+isLitBool e = caseVarSyn e (const Nothing) $ \b ->
+                  case b of
+                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
+                                                  Just Refl -> Just d
+                                                  Nothing   -> Nothing
+                    _ -> Nothing
+
+isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitTrue (Datum tdTrue sBool (Inl Done)) = True
+isLitTrue _                               = False
+
+isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
+isLitFalse _                                      = False             
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first

@@ -53,6 +53,8 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
+    , pushWeight
+    , pushGuard
     -- * Overrides for original in Evaluation.Types
     , pushPlate
     -- * For Arrays/Plate
@@ -734,6 +736,18 @@ pushPlate n e =
     unsafePush (SBind p (Thunk $ rename x (indVar i) body) inds')
     v <- mkLoc Text.empty p $ map fromIndex inds'
     return $ P.arrayWithVar n (indVar i) (var v)
+
+-- | Calls unsafePush 
+pushWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
+pushWeight w = do
+  inds <- getIndices
+  unsafePush $ SWeight (Thunk w) inds
+
+-- | Calls unsafePush 
+pushGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
+pushGuard b = do
+  inds <- getIndices
+  unsafePush $ SGuard Nil1 pTrue (Thunk b) inds           
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
