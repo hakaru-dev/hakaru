@@ -129,7 +129,6 @@ end module;
 
 Domain := module()
     uses Hakaru, Partition, SolveTools[Inequality], Domain_Type ;
-    global DSplit; global DInto; global DNoSol;
 
     local ModuleLoad := proc($)
       local g;
