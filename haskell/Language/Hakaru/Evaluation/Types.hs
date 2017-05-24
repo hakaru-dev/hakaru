@@ -457,19 +457,6 @@ caseLazy :: Lazy abt a -> (Whnf abt a -> r) -> (abt '[] a -> r) -> r
 caseLazy (Whnf_ e) k _ = k e
 caseLazy (Thunk e) _ k = k e
 
-instance Functor21 Lazy where
-    fmap21 f (Whnf_ v) = Whnf_ (fmap21 f v)
-    fmap21 f (Thunk e) = Thunk (f e)
-
-instance Foldable21 Lazy where
-    foldMap21 f (Whnf_ v) = foldMap21 f v
-    foldMap21 f (Thunk e) = f e
-
-instance Traversable21 Lazy where
-    traverse21 f (Whnf_ v) = Whnf_ <$> traverse21 f v
-    traverse21 f (Thunk e) = Thunk <$> f e
-
-
 -- | Is the lazy value a variable?
 getLazyVariable :: (ABT Term abt) => Lazy abt a -> Maybe (Variable a)
 getLazyVariable e =
