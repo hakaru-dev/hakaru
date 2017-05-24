@@ -1,5 +1,6 @@
 # Extract a domain from an expression
 export Extract := module ()
+    uses Domain_Type;
     export ModuleApply := proc(e, kb, $) :: [ HDomain, anything ];
         local b, eb, s, es;
         b, eb := op(Bound(e));

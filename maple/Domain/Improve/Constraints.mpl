@@ -1,3 +1,7 @@
+# Note this is valid only because this file is technically a top-level file,
+# i.e. it isn't included anywhere with `$include'
+with(Domain_Type):
+
 local Simplify_DConstrain := (can_simp, do_simp) -> module()
     uses Domain;
 

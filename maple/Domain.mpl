@@ -86,8 +86,49 @@
 #  most of the other functions in KB can be basically literally translated to
 #    the subset of Domain which corresponds to KB
 
+# The `Domain' type, i.e., its constructors. For a description of the
+# intended semantics (as an algebraic datatype), see Domain/Types.mpl
+Domain_Type := module()
+  option package;
+  export
+    DOMAIN, DBound, DConstrain, DSum,
+    # These intentionally have no definition
+    DSplit, DInto, DNoSol;
+
+  DOMAIN := proc()
+    local errs := indets([args[2..-1]], specfunc(`DNoSol`));
+    if errs <> {} then
+      'procname'(args[1], 'DNoSol'(map(op,errs)[]));
+    end if;
+    'procname'(args);
+  end proc;
+
+  DBound := proc(a)
+    local b,cs;
+    b := `if`(nargs>=2,[args[2]],[{}])[];
+    cs := `if`(nargs>=3,[args[3..-1]],[])[];
+    'procname'(a,b,cs) ;
+  end proc;
+
+  DConstrain := proc()
+    local as := {args};
+    if false in as then return DSum() end if;
+    as := remove(x->x::identical(false),as);
+    'procname'(op(as));
+  end proc;
+
+  DSum := proc()
+    local as := [args];
+    as := subsindets(as, specfunc(`DSum`), xs->
+                     map(x->if op(0,x)=`DSum` then op(x) else x end if,
+                         xs));
+    if nops(as) = 1 then return op(1,as) end if;
+    'procname'(op(as));
+  end proc;
+end module;
+
 Domain := module()
-    uses Hakaru, Partition, SolveTools[Inequality] ;
+    uses Hakaru, Partition, SolveTools[Inequality], Domain_Type ;
     global DSplit; global DInto; global DNoSol;
 
     local ModuleLoad := proc($)

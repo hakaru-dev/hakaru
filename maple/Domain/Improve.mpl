@@ -1,4 +1,5 @@
 export Improve := module ()
+    uses Domain_Type;
     export Simplifiers := table();
     export ModuleApply := proc(dom :: HDomain, $)::HDomain_mb;
         local es := map(si->Simplifiers[si]
