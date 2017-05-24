@@ -265,7 +265,7 @@ TestHakaru(t43, t43s, label = "t43"):
 
 TestHakaru(t80, t80, label = "t80");
 
-## based on https://github.com/hakaru-dev/hakaru/issues/60
+## "clamp" tests based on https://github.com/hakaru-dev/hakaru/issues/60
 module()
   local kb, clamp_t, clamp_r;
   kb := [y::real]:
@@ -282,6 +282,24 @@ module()
                              sqrt(-ln(2)-ln(Pi)-2*ln(y)))),
               Msum()):
   TestHakaru( clamp_t, clamp_r, ctx=kb, label="clamp condition to move it out of integral" ):
+end module:
+
+module()
+  local kb, clamp_t, clamp_r;
+  kb := [ly::real]:
+  clamp_t :=
+    Bind(Gaussian(0,1),x,
+         piecewise(And(exp(ly)<density[Gaussian](0,1)(x)),
+                   Weight(density[Uniform](0,density[Gaussian](0,1)(x))(exp(ly)),
+                          Ret(x)),
+                   Msum())):
+
+  clamp_r :=
+    Partition(ly < -(1/2)*ln(2)-(1/2)*ln(Pi),
+              Weight(2*(-ln(2)-ln(Pi)-2*ly)^(1/2), Uniform(-(-ln(2)-ln(Pi)-2*ly)^(1/2), (-ln(2)-ln(Pi)-2*ly)^(1/2))),
+              Msum()):
+  TestHakaru( clamp_t, clamp_r, ctx=kb,
+              label="clamp condition to move it out of integral (ln coordinate)" ):
 end module:
 
 ###
