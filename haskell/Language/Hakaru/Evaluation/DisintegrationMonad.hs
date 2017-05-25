@@ -53,6 +53,8 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
+    , pushWeight
+    , pushGuard
     -- * Overrides for original in Evaluation.Types
     , pushPlate
     -- * For Arrays/Plate
@@ -255,7 +257,8 @@ prettyExtras a = PP.vcat $ map go (fromAssocs a)
 -- to make. If we turn it back into some sort of normal form, then
 -- it must be one preserved by 'residualizeContext'.
 --
--- Also, we add the list in order to support "lub" without it living in the AST.
+-- Also, we add the list in order to support "lub" without it living
+-- in the AST.
 -- TODO: really we should use LogicT...
 type Ans abt a
   =  ListContext abt 'Impure
@@ -276,11 +279,15 @@ type Ans abt a
 --
 -- TODO: give this a better, more informative name!
 --
--- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
+-- N.B., This monad is used not only for both 'perform' and
+-- 'constrainOutcome', but also for 'constrainValue'.
 newtype Dis abt x =
     Dis { unDis :: forall a. [Index (abt '[])] -> (x -> Ans abt a) -> Ans abt a }
-    -- == @Codensity (Ans abt)@, assuming 'Codensity' is poly-kinded like it should be
-    -- If we don't want to allow continuations that can make nondeterministic choices, then we should use the right Kan extension itself, rather than the Codensity specialization of it.
+    -- == @Codensity (Ans abt)@, assuming 'Codensity' is poly-kinded
+    -- like it should be. If we don't want to allow continuations that
+    -- can make nondeterministic choices, then we should use the right
+    -- Kan extension itself, rather than the Codensity specialization
+    -- of it.
 
 
 -- | Run a computation in the 'Dis' monad, residualizing out all the
@@ -302,7 +309,11 @@ runDis d es =
     m0 [] c0 (ListContext i0 []) emptyAssocs
     where
     (Dis m0) = d >>= residualizeLocs
-    -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
+    -- TODO: we only use dirac because 'residualizeListContext'
+    -- requires it to already be a measure; unfortunately this can
+    -- result in an extraneous @(>>= \x -> dirac x)@ redex at the end
+    -- of the program. In principle, we should be able to eliminate
+    -- that redex by changing the type of 'residualizeListContext'...
     c0 (e,rho) ss _ = [residualizeListContext ss rho (syn(Dirac :$ e :* End))]
                   
     i0 = maxNextFree es
@@ -735,6 +746,18 @@ pushPlate n e =
     v <- mkLoc Text.empty p $ map fromIndex inds'
     return $ P.arrayWithVar n (indVar i) (var v)
 
+-- | Calls unsafePush 
+pushWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
+pushWeight w = do
+  inds <- getIndices
+  unsafePush $ SWeight (Thunk w) inds
+
+-- | Calls unsafePush 
+pushGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
+pushGuard b = do
+  inds <- getIndices
+  unsafePush $ SGuard Nil1 pTrue (Thunk b) inds           
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
@@ -902,7 +925,8 @@ emitMBind_ :: (ABT Term abt) => abt '[] ('HMeasure HUnit) -> Dis abt ()
 emitMBind_ m = emit_ (m P.>>)
 
 
--- TODO: if the argument is a value, then we can evaluate the 'P.if_' immediately rather than emitting it.
+-- TODO: if the argument is a value, then we can evaluate the 'P.if_'
+-- immediately rather than emitting it.
 -- | Emit an assertion that the condition is true.
 emitGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
 emitGuard b = emit_ (P.withGuard b) -- == emit_ $ \m -> P.if_ b m P.reject

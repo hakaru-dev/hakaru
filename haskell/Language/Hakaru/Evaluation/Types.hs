@@ -350,19 +350,6 @@ caseWhnf (Head_   e) k _ = k e
 caseWhnf (Neutral e) _ k = k e
 
 
-instance Functor21 Whnf where
-    fmap21 f (Head_   v) = Head_ (fmap21 f v)
-    fmap21 f (Neutral e) = Neutral (f e)
-
-instance Foldable21 Whnf where
-    foldMap21 f (Head_   v) = foldMap21 f v
-    foldMap21 f (Neutral e) = f e
-
-instance Traversable21 Whnf where
-    traverse21 f (Head_   v) = Head_ <$> traverse21 f v
-    traverse21 f (Neutral e) = Neutral <$> f e
-
-
 -- | Given some WHNF, try to extract a 'Datum' from it.
 viewWhnfDatum
     :: (ABT Term abt)
