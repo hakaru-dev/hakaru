@@ -376,7 +376,7 @@ export
         subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->Simpl(x,_rest));
       end if;
     end proc;
-    local distrib_op_Partition := table([`+`=`+`,`*`=`*`]);
+    export distrib_op_Partition := table([`+`=`+`,`*`=`*`]);
 
     export flatten := module()
       export ModuleApply;
