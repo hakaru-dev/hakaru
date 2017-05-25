@@ -369,7 +369,9 @@ export
         ps := map(x->Simpl(x,_rest), ps);
         ps, qs := selectremove(type, ps, Partition);
         if nops(ps)=0 then return p end if;
-        mk(op(qs),foldr(((a,b)->Partition:-PProd(a,b,_add=mk)),op(ps)));
+        mk(op(qs),foldr(((a,b)->
+                         remove_false_pieces(Partition:-PProd(a,b,_add=mk))),
+                        op(ps)));
       else
         subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->Simpl(x,_rest));
       end if;
