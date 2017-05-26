@@ -1,14 +1,18 @@
-{-# LANGUAGE FlexibleInstances,
-             UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts,
+             FlexibleInstances,
+             UndecidableInstances,
+             TypeFamilies #-}
 module Language.Hakaru.Runtime.CmdLine where
 
 import qualified Data.Vector                     as V
 import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
 import qualified Data.Vector.Generic.Mutable     as M
+import qualified System.Random.MWC               as MWC
+import Language.Hakaru.Runtime.Prelude
 import Data.Number.LogFloat
--- import Language.Hakaru.Syntax.IClasses
 import System.Environment
+import Control.Monad (forever)
 
 class Parseable a where
   parse :: String -> IO a
@@ -22,9 +26,8 @@ instance Parseable Double where
 instance Parseable LogFloat where
   parse = return . logFloat . read
 
--- instance (U.Unbox a, Read a) => Parseable (U.Vector a) where
---   parse s = U.fromList . fmap read . lines <$> readFile s
-
+instance (U.Unbox a, Read a) => Parseable (U.Vector a) where
+  parse s = U.fromList . fmap read . lines <$> readFile s
 
 {-
 Make main needs to recur down the function type while at the term level build up
@@ -32,18 +35,31 @@ a continuation of parses and partial application of the function
 
 The continuation, takes an
 -}
-class Main p where
-  makeMain :: (p,[String]) -> IO (p,[String])
 
-instance Main Int where
-  makeMain = return
+class MakeMain p where
+  makeMain :: p -> [String] -> IO ()
 
-instance Main Double where
-  makeMain = return
+instance MakeMain Int where
+  makeMain p _ = print p
 
-instance Main LogFloat where
-  makeMain = return
+instance MakeMain Double where
+  makeMain p _ = print p
 
-instance (Parseable a, Main b, Show b) => Main (a -> b) where
-  makeMain (prog,a:as) = do a' <- parse a
-                            return (prog a', as)
+instance MakeMain LogFloat where
+  makeMain p _ = print p
+
+-- instance (Show (MayBoxVec a a), (G.Vector (MayBoxVec a) a), b ~ (MayBoxVec a a))
+--          => MakeMain b where
+--   makeMain p _ = print p
+
+instance Show a => MakeMain (Measure a) where
+  makeMain p _ = MWC.createSystemRandom >>= \gen ->
+                   forever $ do
+                     ms <- unMeasure p gen
+                     case ms of
+                       Nothing -> return ()
+                       Just s -> print s
+
+instance (Parseable a, MakeMain b) => MakeMain (a -> b) where
+  makeMain p (a:as) = do a' <- parse a
+                         makeMain (p a') as
