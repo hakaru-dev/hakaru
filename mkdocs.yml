@@ -10,10 +10,11 @@ extra_javascript:
 pages:
 - Home: 'index.md'
 - Introduction:
-  - 'What is Probabilistic Programming?':   'intro/probprog.md'
-  - 'Installing Hakaru':                    'intro/installation.md'
-  - 'Quick Start: A Mixture Model Example': 'intro/quickstart.md'
-  - 'Examples':                             'examples.md'
+  - 'What is Probabilistic Programming?':          'intro/probprog.md'
+  - 'Installing Hakaru':                           'intro/installation.md'
+  - 'Generating Samples from your Hakaru Program': 'intro/samplegen.md'
+  - 'Quick Start: A Mixture Model Example':        'intro/quickstart.md'
+  - 'Examples':                                    'examples.md'
 - Language Guide:
   - 'Primitive Probability Distributions': 'lang/rand.md'
   - 'Let and Bind':                        'lang/letbind.md'
