@@ -2,9 +2,8 @@ export Improve := module ()
     uses Domain_Type;
     export Simplifiers := table();
     export ModuleApply := proc(dom :: HDomain, $)::HDomain_mb;
-        local es := map(si->Simplifiers[si]
-                       , sort( [indices(Domain:-Improve:-Simplifiers,nolist) ]
-                             , key=(si->Simplifiers[si]:-SimplOrder)))
+        local es := sort( [indices(Domain:-Improve:-Simplifiers,nolist) ]
+                          , key=(si->Simplifiers[si]:-SimplOrder))
              , bnd, sh;
         bnd, sh := op([1..2], dom);
         sh := foldr(((f,q)->proc() cmp_simp_sh(f,q,args) end proc)
@@ -57,7 +56,7 @@ export Improve := module ()
 
     # compose two simplifiers, combining errors if both fail
     local cmp_simp_sh := proc(simp0, simp1, bnd, sh :: {DomShape,DomNoSol}, $)::{DomShape,DomNoSol};
-      local res, sh1; sh1 := simp0(bnd, sh); simp0:-SimplName;
+      local res, sh1; sh1 := Simplifiers[simp0](bnd, sh);
       if not sh1 :: DomNoSol then
           simp1(bnd, sh1);
       else
