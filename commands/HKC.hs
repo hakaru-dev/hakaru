@@ -6,7 +6,12 @@ module Main where
 
 import Language.Hakaru.Evaluation.ConstantPropagation
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Syntax.AST.Transforms (expandTransformations, optimizations)
+import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
+import Language.Hakaru.Syntax.ANF      (normalize)
+import Language.Hakaru.Syntax.CSE      (cse)
+import Language.Hakaru.Syntax.Prune    (prune)
+import Language.Hakaru.Syntax.Uniquify (uniquify)
+import Language.Hakaru.Syntax.Hoist    (hoist)
 import Language.Hakaru.Summary
 import Language.Hakaru.Command
 import Language.Hakaru.CodeGen.Wrapper
@@ -17,6 +22,7 @@ import Language.Hakaru.CodeGen.Pretty
 import           Control.Monad.Reader
 
 import           Data.Monoid
+import           Data.Maybe (isJust)
 import           Data.Text hiding (any,map,filter,foldr)
 import qualified Data.Text.IO as IO
 import           Text.PrettyPrint (render)
@@ -28,7 +34,7 @@ import           Prelude hiding (concat)
 
 data Options =
  Options { debug            :: Bool
-         , optimize         :: Bool
+         , optimize         :: Maybe Int
          , summaryOpt       :: Bool
          , make             :: Maybe String
          , asFunc           :: Maybe String
@@ -53,8 +59,9 @@ options = Options
   <$> switch (  long "debug"
              <> short 'D'
              <> help "Prints Hakaru src, Hakaru AST, C AST, C src" )
-  <*> switch (  short 'O'
-             <> help "Performs Hakaru AST Optimizations" )
+  <*> (optional $ option auto (  short 'O'
+                              <> metavar "{0,1,2}"
+                              <> help "perform Hakaru AST optimizations. optimization levels 0,1,2." ))
   <*> switch (  long "summary"
              <> short 'S'
              <> help "Performs summarization optimization" )
@@ -111,7 +118,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
         putErrorLn . pack . show $ typ
         putErrorLn $ hrule "Hakaru AST"
         putErrorLn $ pack $ show ast
-        when (optimize config) $ do
+        when (isJust . optimize $ config) $ do
           putErrorLn $ hrule "Hakaru AST'"
           putErrorLn $ pack $ show ast'
         putErrorLn $ hrule "C AST"
@@ -123,8 +130,17 @@ compileHakaru prog = ask >>= \config -> lift $ do
 
   where hrule s = concat ["\n<=======================| "
                          ,s," |=======================>\n"]
-        abtPasses b = [constantPropagation]
-                   ++ (if b then [optimizations] else [])
+        abtPasses Nothing  = []
+        abtPasses (Just 0) = [ constantPropagation ]
+        abtPasses (Just 1) = [ constantPropagation
+                             , uniquify
+                             , prune
+                             , cse
+                             , hoist
+                             , uniquify ]
+        abtPasses (Just 2) = abtPasses (Just 1) ++ [normalize]
+
+        abtPasses _ = error "only optimization levels are 0, 1, and 2"
 
 putErrorLn :: Text -> IO ()
 putErrorLn = IO.hPutStrLn stderr
