@@ -46,13 +46,19 @@ illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
 illustrate (SMeasure s) g (VMeasure m) = do
     x <- m (VProb 1) g
     case x of
-      Just (samp, _) -> illustrate s g samp
+      Just (samp, w) -> withWeight w (illustrate s g samp)
       Nothing        -> illustrate (SMeasure s) g (VMeasure m)
 
-illustrate _ _ x = render x
+illustrate _ _ x = renderLn x
+
+withWeight :: Value 'HProb -> IO () -> IO ()
+withWeight w m = render w >> putStr "\t" >> m
 
 render :: Value a -> IO ()
-render = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
+render = putStr . renderStyle style {mode = LeftMode} . prettyValue
+
+renderLn :: Value a -> IO ()
+renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
 runHakaru :: MWC.GenIO -> Text -> IO ()
 runHakaru g prog =
@@ -98,7 +104,7 @@ randomWalk g p1 p2 =
     chain :: Value (a ':-> b) -> Value ('HMeasure a) -> IO (Value b)
     chain (VLam f) (VMeasure m) = do
       Just (samp,_) <- m (VProb 1) g
-      render samp
+      renderLn samp
       return (f samp)
 
 randomWalk' ::MWC.GenIO -> Text -> Text -> IO ()
@@ -122,7 +128,7 @@ randomWalk' g p1 p2 = do
     chain :: Value (a ':-> b) -> Value ('HMeasure a) -> IO (Value b)
     chain (VLam f) (VMeasure m) = do
       Just (samp,_) <- m (VProb 1) g
-      render samp
+      renderLn samp
       return (f samp)
 
 -- From monad-loops

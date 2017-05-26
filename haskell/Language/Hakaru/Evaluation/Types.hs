@@ -116,6 +116,7 @@ import qualified Language.Hakaru.Syntax.Prelude as P
 #ifdef __TRACE_DISINTEGRATE__
 import qualified Text.PrettyPrint     as PP
 import Language.Hakaru.Pretty.Haskell
+import           Debug.Trace          (trace)
 #endif
 
 ----------------------------------------------------------------
@@ -327,7 +328,10 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     -- TODO: would it be helpful to track which variable it's blocked
     -- on? To do so we'd need 'GotStuck' to return that info...
     --
-    -- TODO: is there some /clean/ way to ensure that the neutral term is exactly a chain of blocked redexes? That is, we want to be able to pull out neutral 'Case_' terms; so we want to make sure they're not wrapped in let-bindings, coercions, etc.
+    -- TODO: is there some /clean/ way to ensure that the neutral term
+    -- is exactly a chain of blocked redexes? That is, we want to be
+    -- able to pull out neutral 'Case_' terms; so we want to make sure
+    -- they're not wrapped in let-bindings, coercions, etc.
 
 -- | Forget that something is a WHNF.
 fromWhnf :: (ABT Term abt) => Whnf abt a -> abt '[] a
@@ -344,19 +348,6 @@ toWhnf e = Head_ <$> toHead e
 caseWhnf :: Whnf abt a -> (Head abt a -> r) -> (abt '[] a -> r) -> r
 caseWhnf (Head_   e) k _ = k e
 caseWhnf (Neutral e) _ k = k e
-
-
-instance Functor21 Whnf where
-    fmap21 f (Head_   v) = Head_ (fmap21 f v)
-    fmap21 f (Neutral e) = Neutral (f e)
-
-instance Foldable21 Whnf where
-    foldMap21 f (Head_   v) = foldMap21 f v
-    foldMap21 f (Neutral e) = f e
-
-instance Traversable21 Whnf where
-    traverse21 f (Head_   v) = Head_ <$> traverse21 f v
-    traverse21 f (Neutral e) = Neutral <$> f e
 
 
 -- | Given some WHNF, try to extract a 'Datum' from it.
@@ -455,19 +446,6 @@ fromLazy (Thunk e) = e
 caseLazy :: Lazy abt a -> (Whnf abt a -> r) -> (abt '[] a -> r) -> r
 caseLazy (Whnf_ e) k _ = k e
 caseLazy (Thunk e) _ k = k e
-
-instance Functor21 Lazy where
-    fmap21 f (Whnf_ v) = Whnf_ (fmap21 f v)
-    fmap21 f (Thunk e) = Thunk (f e)
-
-instance Foldable21 Lazy where
-    foldMap21 f (Whnf_ v) = foldMap21 f v
-    foldMap21 f (Thunk e) = f e
-
-instance Traversable21 Lazy where
-    traverse21 f (Whnf_ v) = Whnf_ <$> traverse21 f v
-    traverse21 f (Thunk e) = Thunk <$> f e
-
 
 -- | Is the lazy value a variable?
 getLazyVariable :: (ABT Term abt) => Lazy abt a -> Maybe (Variable a)
@@ -899,6 +877,10 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     substVar x e = return . var
 
 
+    extFreeVars :: abt xs a -> m (VarSet (KindOf a))
+    extFreeVars e = return (freeVars e)
+
+
     -- The first argument to @evaluateCase@ will be the
     -- 'TermEvaluator' we're constructing (thus tying the knot).
     evaluateCase :: TermEvaluator abt m -> CaseEvaluator abt m
@@ -999,7 +981,7 @@ defaultCaseEvaluator evaluate_ = evaluateCase_
 
 toVarStatements :: Assocs (abt '[]) -> [Statement abt Variable p]
 toVarStatements = map (\(Assoc x e) -> SLet x (Thunk e) []) .
-                  fromAssocs 
+                  fromAssocs
  
 extSubst
     :: forall abt a xs b m p. (EvaluationMonad abt m p)

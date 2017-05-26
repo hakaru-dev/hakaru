@@ -141,7 +141,7 @@
     m::t_Hakaru,
     #var &M wrt-var type, or Pairs thereof
     A::{t_disint_var, t_disint_var_pair},
-    ctx::t_kb_atoms:= [] #context: parameter assumptions, "knowledge"
+    ctx::{t_kb_atoms,t_kb}:= [] #context: parameter assumptions, "knowledge"
    ):: [t_Hakaru, list(appliable)];
    local
     mc,  #final integral to be passed to improve @ toLO; then result
@@ -152,8 +152,18 @@
     improve_opts := [],
     todo := NULL,
     atodo := proc(z) todo := eval(todo), z; end proc,
-    di, da
+    di, da, m_var, m_var_rn, m_ty, m_body, ctx1
    ;
+    if m :: t_lam then
+      m_var, m_ty, m_body := op(m);
+      ctx1 := KB:-build_kb(ctx,"disint",KB:-empty);
+      m_var_rn, ctx1 := KB:-genType(m_var, m_ty, ctx1);
+      return
+        applyop( t->[op(t),x->'lam'(m_var_rn, m_ty, x)]
+               , 2,`do`(subs(m_var=m_var_rn, m_body)
+                       , A, ctx1, _rest));
+    end if;
+
     if not {_rest} in {{'do_lam'},{}} then
       error "bad extra args: %1", {_rest};
     end if;

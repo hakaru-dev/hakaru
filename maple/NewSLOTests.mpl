@@ -249,6 +249,10 @@ t43s := Uniform(0, 1):
 
 t80 := Bind(GammaD(1, 1), a0, Gaussian(0, a0)):
 
+t57 := Msum(Weight(1, Partition(t < 1, Ret(Datum(unit, Inl(Done))), Msum() )),
+            Weight(1, Partition(0 < t, Ret(Datum(unit, Inl(Done))), Msum() ))):
+t57s := Partition( And(0 < t, t < 1), Weight(2, Ret(Datum(unit, Inl(Done)))), Ret(Datum(unit, Inl(Done))) ):
+
 TestHakaru(t1, t5s, label = "t1");
 TestHakaru(t2, t2s, label = "t2");
 TestHakaru(t3, t3, label = "t3");
@@ -262,10 +266,10 @@ TestHakaru(t9, t9s, label = "t9");
 TestHakaru(t9a, t9s, label = "t9a");
 TestHakaru(t23, t23s, label = "t23");
 TestHakaru(t43, t43s, label = "t43"):
-
+TestHakaru(t57, t57s, label = "t57"):
 TestHakaru(t80, t80, label = "t80");
 
-## based on https://github.com/hakaru-dev/hakaru/issues/60
+## "clamp" tests based on https://github.com/hakaru-dev/hakaru/issues/60
 module()
   local kb, clamp_t, clamp_r;
   kb := [y::real]:
@@ -282,6 +286,24 @@ module()
                              sqrt(-ln(2)-ln(Pi)-2*ln(y)))),
               Msum()):
   TestHakaru( clamp_t, clamp_r, ctx=kb, label="clamp condition to move it out of integral" ):
+end module:
+
+module()
+  local kb, clamp_t, clamp_r;
+  kb := [ly::real]:
+  clamp_t :=
+    Bind(Gaussian(0,1),x,
+         piecewise(And(exp(ly)<density[Gaussian](0,1)(x)),
+                   Weight(density[Uniform](0,density[Gaussian](0,1)(x))(exp(ly)),
+                          Ret(x)),
+                   Msum())):
+
+  clamp_r :=
+    Partition(ly < -(1/2)*ln(2)-(1/2)*ln(Pi),
+              Weight(2*(-ln(2)-ln(Pi)-2*ly)^(1/2), Uniform(-(-ln(2)-ln(Pi)-2*ly)^(1/2), (-ln(2)-ln(Pi)-2*ly)^(1/2))),
+              Msum()):
+  TestHakaru( clamp_t, clamp_r, ctx=kb,
+              label="clamp condition to move it out of integral (ln coordinate)" ):
 end module:
 
 ###

@@ -1,6 +1,7 @@
 # Convert Domain to a KB. Very partial, mainly for backwards compatibility
 # for parts of the code which still work with KB.
 export Bound := module ()
+    uses Domain_Type;
     export toKB := proc(dom :: DomBound, kb0 :: t_kb, $)::[t_kb_mb, list(name=name)];
         local kb := kb0, vs := op(1, dom), rn := []
             , vn, vt, make, lo, hi, vn_rn, rn_t, v ;

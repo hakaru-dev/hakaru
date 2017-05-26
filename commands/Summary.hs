@@ -35,6 +35,7 @@ data Options =
           , fileOut         :: Maybe String
           , asModule        :: Maybe String
           , logFloatPrelude :: Bool
+          , optimize        :: Bool
           } deriving Show
 
 main :: IO ()
@@ -64,6 +65,9 @@ options = Options
                             <> help "creates a haskell module with this name"))
   <*> switch (  long "logfloat-prelude"
              <> help "use logfloat prelude for numeric stability")
+  <*> switch (  short 'O'
+             <> help "perform Hakaru AST optimizations" )
+
 
 
 prettyProg :: (ABT T.Term abt)
@@ -85,14 +89,14 @@ compileHakaru opts = do
     case parseAndInfer prog of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
-        ast' <- summary (et ast)
+        ast' <- (if optimize opts then optimizations else id) <$> summary (et ast)
         writeHkHsToFile file (fileOut opts) . TxT.unlines $
           header (logFloatPrelude opts) (asModule opts) ++
           [ pack $ prettyProg "prog" ast' ] ++
           (case asModule opts of
              Nothing -> footer typ
              Just _  -> [])
-  where et  = expandTransformations
+  where et = expandTransformations
 
 writeHkHsToFile :: String -> Maybe String -> Text -> IO ()
 writeHkHsToFile inFile moutFile content =

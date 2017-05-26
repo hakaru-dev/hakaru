@@ -1,0 +1,14 @@
+fn dataPerson array(nat):
+   fn dataTime array(real):
+      μa1 <~ normal(0,1)
+      μa2 <~ normal(0,1)
+      σa1 <~ uniform(0,100)
+      σa2 <~ uniform(0,100)
+      a1 <~ plate _ of 84: normal(μa1,real2prob(σa1))
+      a2 <~ plate _ of 84: normal(0.1*μa2, real2prob(σa2))
+      yHat <~ return (array i of 369:
+                       a1[int2nat(nat2int(dataPerson[i])-1)] +
+                       a2[int2nat(nat2int(dataPerson[i])-1)] * dataTime[i])
+      σy <~ uniform(0,100)
+      y <~ plate i of 369: normal(yHat[i], real2prob(σy))
+      return (y, ((a1,a2), [μa1,μa2,σa1,σa2,σy]))

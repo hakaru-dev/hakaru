@@ -57,14 +57,13 @@ module Language.Hakaru.Syntax.IClasses
     , Functor12(..)
     , Functor21(..)
     , Functor22(..)
-    , Functor31(..)
     , Foldable11(..), Lift1(..)
+    , Foldable12(..)
     , Foldable21(..), Lift2(..)
     , Foldable22(..)
-    , Foldable31(..)
     , Traversable11(..)
+    , Traversable12(..)
     , Traversable21(..)
-    , Traversable31(..)
     , Traversable22(..)
 
     -- * Helper types
@@ -370,7 +369,10 @@ class Eq2 a => JmEq2 (a :: k1 -> k2 -> *) where
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: rather than having this plethora of classes for different indexing, define newtypes for 1-natural transformations, 2-natural transformations, etc; and then define a single higher-order functor class which is parameterized by the input and output categories.
+-- TODO: rather than having this plethora of classes for different
+-- indexing, define newtypes for 1-natural transformations, 2-natural
+-- transformations, etc; and then define a single higher-order functor
+-- class which is parameterized by the input and output categories.
 
 -- | A functor on the category of @k@-indexed types (i.e., from
 -- @k@-indexed types to @k@-indexed types). We unify the two indices,
@@ -457,6 +459,16 @@ class Functor11 f => Foldable11 (f :: (k1 -> *) -> k2 -> *) where
 -- TODO: standard Foldable wrappers 'and11', 'or11', 'all11', 'any11',...
 
 
+class Functor12 f => Foldable12 (f :: (k1 -> *) -> k2 -> k3 -> *) where
+    {-# MINIMAL fold12 | foldMap12 #-}
+
+    fold12 :: (Monoid m) => f (Lift1 m) j l -> m
+    fold12 = foldMap12 unLift1
+
+    foldMap12 :: (Monoid m) => (forall i. a i -> m) -> f a j l -> m
+    foldMap12 f = fold12 . fmap12 (Lift1 . f)
+                  
+
 class Functor21 f => Foldable21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
     {-# MINIMAL fold21 | foldMap21 #-}
 
@@ -478,11 +490,6 @@ class Functor22 f =>
     foldMap22 :: (Monoid m) => (forall h i. a h i -> m) -> f a j l -> m
     foldMap22 f = fold22 . fmap22 (Lift2 . f)
 
-class Functor31 (f :: (k1 -> k2 -> *) -> k3 -> k4 -> *) where
-    fmap31 :: (forall h i. a h i -> b h i) -> f a j k -> f b j k
-
-class Functor31 f => Foldable31 (f :: (k1 -> k2 -> *) -> k3 -> k4 -> *) where
-    foldMap31 :: (Monoid m) => (forall h i. a h i -> m) -> f a j k -> m
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -498,6 +505,12 @@ class Foldable11 t => Traversable11 (t :: (k1 -> *) -> k2 -> *) where
     sequence :: Monad m => t (m a) -> m (t a)
     -}
 
+class Foldable12 t => Traversable12 (t :: (k1 -> *) -> k2 -> k3 -> *) where
+    traverse12
+        :: Applicative f
+        => (forall i. a i -> f (b i))
+        -> t a j l
+        -> f (t b j l)
 
 class Foldable21 t => Traversable21 (t :: (k1 -> k2 -> *) -> k3 -> *) where
     traverse21
@@ -514,13 +527,6 @@ class Foldable22 t =>
         => (forall h i. a h i -> f (b h i))
         -> t a j l
         -> f (t b j l)
-
-class Foldable31 t => Traversable31 (t :: (k1 -> k2 -> *) -> k3 -> k4 -> *) where
-    traverse31
-        :: Applicative f
-        => (forall h i. a h i -> f (b h i))
-        -> t a j k
-        -> f (t b j k)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

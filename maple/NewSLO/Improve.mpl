@@ -24,6 +24,8 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
   end if;
   if e :: 'applyintegrand(anything, anything)' then
     map(simplify_assuming, e, kb)
+  elif can_reduce_Partition(e) then
+    reduce_Partition(e, h, kb, opts, false);
   elif e :: `+` then
     map(reduce, e, h, kb, opts)
   elif e :: `*` then
@@ -32,21 +34,7 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     subintegral := convert(reduce(subintegral, h, kb, opts), 'list', `*`);
     (subintegral, ww) := selectremove(depends, subintegral, h);
     simplify_factor_assuming(`*`(w, op(ww)), kb)
-      * `*`(op(subintegral));
-  elif e :: Or(Partition,t_pw) then
-    if e :: t_pw then e := PWToPartition(e); end if;
-    e := Partition:-Simpl(e);
-    e := kb_Partition(e, kb, simplify_assuming,
-                      ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
-    e := eval(e, %reduce=reduce);
-    # big hammer: simplify knows about bound variables, amongst many
-    # other things
-    Testzero := x -> evalb(simplify(x) = 0);
-    e := Partition:-Simpl(e);
-    if ee::t_pw and e :: Partition then
-      e := Partition:-PartitionToPW(e);
-    end if;
-    e;
+      * reduce_Partition(`*`(op(subintegral)), h, kb, opts, true);
   elif e :: t_case then
     subsop(2=map(proc(b :: Branch(anything, anything))
                    eval(subsop(2='reduce'(op(2,b),x,c,opts),b),
@@ -71,6 +59,47 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
   else
     simplify_assuming(e, kb)
   end if;
+end proc;
+
+# Returns true for expressions for which we could conceivably
+# do a Partition simplification.
+can_reduce_Partition := proc(e,$)
+  if   type(e,Or(Partition,t_pw)) then true
+  elif type(e,{indices(Partition:-Simpl:-distrib_op_Partition,nolist)}) then
+    nops(select(can_reduce_Partition, convert(e,list)))>1
+    # in this case, we hope to apply PProd and then maybe do some cleanup;
+    # this is only possible if the expression has at least two sub-Partitions
+  else false
+  end if;
+end proc;
+
+# Same as reduce, but for Partitions; and contains an additional flag which,
+# when true, checks `can_reduce_Partition' (when the check is false, there is a
+# great chance this function will throw an error!)
+reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,do_check::truefalse, $)
+  local e := ee;
+  if do_check and not(can_reduce_Partition(e)) then return e end if;
+
+  e := subsindets(e, t_pw, PWToPartition);
+  e := Partition:-Simpl(e);
+
+  # This is necessary because subsequent calls to kb_Partition do not work on
+  # nested Partitions; but Simpl calls flatten, which should gives us a
+  # Partition on the top level.
+  if not(e::Partition) then
+    error "simplifying %1 should have produced a Partition", ee;
+  end if;
+  e := kb_Partition(e, kb, simplify_assuming,
+                    ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
+  e := eval(e, %reduce=reduce);
+  # big hammer: simplify knows about bound variables, amongst many
+  # other things
+  Testzero := x -> evalb(simplify(x) = 0);
+  e := Partition:-Simpl(e);
+  if ee::t_pw and e :: Partition then
+    e := Partition:-PartitionToPW(e);
+  end if;
+  e;
 end proc;
 
 # "Integrals" refers to any types of "integrals" understood by domain (Int,

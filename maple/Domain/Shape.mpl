@@ -1,4 +1,5 @@
 export Shape := module ()
+    uses Domain_Type;
     export toConstraints := proc(sh_ :: DomShape, $)
            ::specfunc({boolean,relation,specfunc(`Or`)}, `And`);
         local sh := sh_;

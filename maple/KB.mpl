@@ -50,7 +50,10 @@ KB := module ()
 
      # Various utilities
      t_intro, t_lo, t_hi, log_metric,
-     boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw
+     boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw,
+     array_size_assumptions, array_elem_assumptions, kb_intro_to_assumptions,
+
+     simpl_range_of_htype, zip_k
 
      ;
   export
@@ -91,7 +94,7 @@ KB := module ()
      kb_atom_to_assumptions,
 
      # Various utilities ...
-     list_of_mul, for_poly, range_of_HInt, eval_kb, kb_is_false, try_improve_exp,
+     list_of_mul, for_poly, range_of_HInt, range_of_htype, eval_kb, kb_is_false, try_improve_exp,
 
      # Types corresponding to the constructor forms of the 'atoms' of KBs
      t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
@@ -203,11 +206,23 @@ KB := module ()
       subsindets(e, { specfunc(relation, `Not`), `not`(relation) }, negate_rel@op );
   end proc;
 
-  # Builds a kb from a list of atoms - simply foldr(assert,empty,as) except
-  # and extra check is (optionally) done for the resulting KB to be valid.
-  build_kb := proc(as::t_kb_atoms, shouldBeValid::{identical(false),string} := false, initKb::t_kb := empty, $)
-      local
-      kb := initKb;
+  # Builds a kb from:
+  # - a list of atoms - simply foldr(assert,initKB,as) except
+  #   and extra check is (optionally) done for the resulting KB to be valid; or
+  # - a kb, in which case the first kb is deconstructed into a list of atoms
+  # additionally takes an initial KB into which to fold the atoms; if one KB is
+  # empty and the other is not, returns the non-empty one directly.
+  build_kb := proc(as_::{t_kb_atoms,t_kb}, shouldBeValid::{identical(false),string} := false, initKb::t_kb := empty, $)
+      local kb := initKb, as := as_;
+      if as :: t_kb then
+        if initKb = empty then
+          return as;
+        elif as = empty then
+          return initKB;
+        else # initKb <> empty
+          as := kb_to_constraints(as);
+        end if;
+      end if;
 
       kb := foldr(assert,kb, op(as));
       if shouldBeValid :: string then
@@ -787,16 +802,19 @@ KB := module ()
 
   getType := proc(kb :: t_kb, x :: name, $)
     local res, over, bound;
-    res := op([1,2], select(type, kb, 'Introduce(identical(x), anything)'));
-    over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
-                   `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
-    for bound in select(type, kb, 'Bound(identical(x),
-                                         identical(`<`,`<=`,`>`,`>=`),
-                                         anything)') do
-      res := remove(type, res, 'Bound'(over[op(2,bound)], 'anything'));
-      res := op(0,res)(subsop(1=NULL,bound), op(res));
-    end do;
-    res
+    res := select(type, kb, 'Introduce(identical(x), anything)');
+    if nops(res)=0 then FAIL else
+      res := op([1,2], res);
+      over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
+                     `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
+      for bound in select(type, kb, 'Bound(identical(x),
+                                           identical(`<`,`<=`,`>`,`>=`),
+                                           anything)') do
+        res := remove(type, res, 'Bound'(over[op(2,bound)], 'anything'));
+        res := op(0,res)(subsop(1=NULL,bound), op(res));
+      end do;
+      res
+    end if;
   end proc;
 
   # extract all introduced variables from a KB
@@ -821,12 +839,8 @@ KB := module ()
 
   # Note that this returns potentially any number of operands.
   kb_atom_to_assumptions := proc(k, $)
-    local x, x_ty, x_typ;
     if k :: t_intro then
-      x, x_ty := op(k);
-      x_typ := htype_to_property(x_ty);
-      (x :: x_typ),
-       op(`if`(x_typ<>TopProp, map((b -> `if`(nops(b)>=2,[op(1,b)(x, op(2,b))],[])[]), x_ty),[]))
+      kb_intro_to_assumptions(op(k));
     elif k :: t_kb_Let then
       `=`(op(k))
     elif k :: t_kb_Bound then
@@ -838,12 +852,45 @@ KB := module ()
     end if
   end proc;
 
+  # converts an introduction form (a pair of a 'name' and a type) into a
+  # sequence of assumtions. `x' is typically an actual name, but need not be;
+  # it may be any algebraic term which can appear on the lhs of a `::`
+  kb_intro_to_assumptions := proc(x,x_ty::t_type, $)
+    local x_typ;
+    x_typ := htype_to_property(x_ty);
+    (x :: x_typ),
+    op(`if`(x_typ<>TopProp, map((b -> `if`(nops(b)>=2,[op(1,b)(x, op(2,b))],[])[]), x_ty),[]))
+  end proc;
+
   kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption_pw, $)
     local n, as;
     as := remove(to_remove,
-          map( kb_atom_to_assumptions ,
-             [op(coalesce_bounds(kb))
-             ,seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'))]));
+          [ map( kb_atom_to_assumptions ,
+                 [op(coalesce_bounds(kb))
+
+                  # additional assumptions which are derived from the expression
+                  # to be simplified; these are to do with arrays
+                  ,array_size_assumptions(kb,e)] )[]
+            ,array_elem_assumptions(kb,e) ] );
+  end proc;
+
+  array_size_assumptions := proc(kb,e,$)
+    seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'));
+  end proc;
+
+  array_elem_assumptions := proc(kb,e,$)
+    op( map(proc(a)
+              local ty := getType(kb,op(1,a));
+              if   ty=FAIL then NULL
+              elif not(ty::specfunc(HArray)) then
+                WARNING("in array_elem_assumptions; Subterm %1 of %2 is an array index; but "
+                        "%3 is not an array in %4!", a, e, op(1,a), kb);
+                NULL
+              else
+                kb_intro_to_assumptions(a, op(1, ty))
+              end if;
+            end proc,
+            indets(e, And(specfunc(idx),anyfunc(name,anything)))) );
   end proc;
 
   # extract Lets and equality constraints (only!) from a KB
@@ -857,7 +904,7 @@ KB := module ()
 
   htype_to_property := proc(t::t_type, $)
     if t :: 'specfunc({AlmostEveryReal, HReal})' then real
-    elif t :: 'specfunc({HInt})' then integer
+    elif t :: 'specfunc(HInt)' then integer
     else TopProp end if
   end proc;
 
@@ -927,14 +974,30 @@ KB := module ()
   end proc;
 
   # Computes the range of (possible values of) a Hakaru Int,
-  # given a Hakaru type for that Int
+  # given a Hakaru type for that Int.
   range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)
-       op(1, [op(map((b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
-                     select(type, t, Bound(t_lo,anything)))),
-              -infinity])
-    .. op(1, [op(map((b -> `if`(op(1,b)=`<`, ceil(op(2,b))-1, op(2,b))),
-                     select(type, t, Bound(t_hi,anything)))),
-              infinity]);
+    range_of_htype(t);
+  end proc;
+
+  simpl_range_of_htype :=
+    table(
+      [`HInt`=[(b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
+               (b -> `if`(op(1,b)=`<`, ceil (op(2,b))-1, op(2,b)))]
+      ,`HReal`=[(b->`if`(op(1,b)in{`>`,`<`},Open,x->x)(op(2,b)))$2]
+      ,`AlmostEveryReal`=[curry(op,2) $ 2]
+      ]);
+
+  range_of_htype := proc(t :: And(specfunc({HInt,HReal,AlmostEveryReal}),t_type),$)
+    `..`(op(
+      zip_k((tt,db,sb)->
+            op(1,map(sb,[op(select(type, t, Bound(tt,anything))),db])) ,
+            [t_lo, t_hi] ,
+            [Bound(`>`,-infinity),Bound(`<`,infinity)] ,
+            simpl_range_of_htype[op(0,t)] )));
+  end proc;
+
+  zip_k := proc(f)
+    map(f@op@ListTools[Flatten], foldl((a,b)->zip(`[]`,a,b,[]), _rest));
   end proc;
 
   # Avoid FAILure modes of the assumption system

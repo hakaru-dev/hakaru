@@ -4,7 +4,7 @@ def pulls(strength real):
 def winner(a real, b real):
     a_pull <~ pulls(a)
     b_pull <~ pulls(b)
-    return (a_pull < b_pull)
+    return (a_pull - b_pull)
 
 alice <~ normal(0,1)
 bob   <~ normal(0,1)
@@ -14,7 +14,4 @@ match1 <~ winner(alice, bob)
 match2 <~ winner(bob, carol)
 match3 <~ winner(alice, carol)
 
-if match1 && match2:
-   return match3
-else:
-   reject. measure(bool)
+return ((match1, match2), match3)
