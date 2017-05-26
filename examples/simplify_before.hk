@@ -1,0 +1,5 @@
+fn a prob:
+  x <~ normal(a,1)
+  y <~ normal(x,1)
+  z <~ normal(y,1)
+  return z
