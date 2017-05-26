@@ -53,8 +53,7 @@ options = Options
   <$> switch (  long "debug"
              <> short 'D'
              <> help "Prints Hakaru src, Hakaru AST, C AST, C src" )
-  <*> switch (  long "optimize"
-             <> short 'O'
+  <*> switch (  short 'O'
              <> help "Performs Hakaru AST Optimizations" )
   <*> switch (  long "summary"
              <> short 'S'

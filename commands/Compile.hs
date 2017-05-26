@@ -37,6 +37,7 @@ data Options =
           , asModule        :: Maybe String
           , fileIn2         :: Maybe String
           , logFloatPrelude :: Bool
+          , optimize        :: Bool
           } deriving Show
 
 main :: IO ()
@@ -70,6 +71,8 @@ options = Options
                             <> help "<transition kernel> <initial measure>"))
   <*> switch (  long "logfloat-prelude"
              <> help "use logfloat prelude for numeric stability")
+  <*> switch (  short 'O'
+             <> help "perform Hakaru AST optimizations" )
 
 prettyProg :: (ABT T.Term abt)
            => String
@@ -90,9 +93,10 @@ compileHakaru opts = do
     case parseAndInfer prog of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
+        let ast' = (if optimize opts then optimizations else id) (et ast)
         writeHkHsToFile file (fileOut opts) . TxT.unlines $
           header (logFloatPrelude opts) (asModule opts) ++
-          [ pack $ prettyProg "prog" (et ast) ] ++
+          [ pack $ prettyProg "prog" ast' ] ++
           (case asModule opts of
              Nothing -> footer typ
              Just _  -> [])
