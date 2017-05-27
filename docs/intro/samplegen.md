@@ -15,7 +15,7 @@ If a second program is given to the `hakaru` command, it will treat the two prog
 using the [Metropolis Hastings](../transforms/mh.md) transformation. To invoke the `hakaru` command with a transition kernal, you would call:
 
 ````bash
-hakaru transition.hk init.hk
+hakaru --transition-kernel transition.hk init.hk
 ````
 
 The first program, `transition.hk`,  is treated as the transition kernel and the second program, `init.hk`, is treated as the initial state of the Markov Chain. When the 
