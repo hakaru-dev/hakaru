@@ -40,15 +40,15 @@ data Options = Options
   , transition :: Maybe String
   , prog       :: String }
 
-
 options :: O.Parser Options
 options = Options
   <$> O.switch
       ( O.long "no-weights" <>
         O.help "Don't print the weights" )
-  <*> O.optional (O.strArgument
-      ( O.metavar "kernel" <>
-        O.help "Transition kernel for running as Markov Chain" ))
+  <*> O.optional (O.strOption
+      ( O.long "transition-kernel" <>
+        O.metavar "k" <>
+        O.help "Use this program as transition kernel for running a markov chain"))
   <*> O.strArgument
       ( O.metavar "PROGRAM" <>
         O.help "Hakaru program to run" )
@@ -62,19 +62,19 @@ main = do
   args   <- parseOpts
   g      <- MWC.createSystemRandom
   case transition args of
-      Nothing    -> runHakaru' g =<< readFromFile (prog args)
+      Nothing    -> runHakaru' g (noWeights args) =<< readFromFile (prog args)
       Just prog2 -> do prog' <- readFromFile (prog args)
                        trans <- readFromFile prog2
                        randomWalk' g trans prog'
 
-illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
-illustrate (SMeasure s) g (VMeasure m) = do
+illustrate :: Sing a -> Bool -> MWC.GenIO -> Value a -> IO ()
+illustrate (SMeasure s) weights g (VMeasure m) = do
     x <- m (VProb 1) g
     case x of
-      Just (samp, w) -> withWeight w (illustrate s g samp)
-      Nothing        -> illustrate (SMeasure s) g (VMeasure m)
+      Just (samp, w) -> (if weights then id else withWeight w) (illustrate s weights g samp)
+      Nothing        -> illustrate (SMeasure s) weights g (VMeasure m)
 
-illustrate _ _ x = renderLn x
+illustrate _ _ _ x = renderLn x
 
 withWeight :: Value 'HProb -> IO () -> IO ()
 withWeight w m = render w >> putStr "\t" >> m
@@ -85,7 +85,7 @@ render = putStr . renderStyle style {mode = LeftMode} . prettyValue
 renderLn :: Value a -> IO ()
 renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
-runHakaru :: MWC.GenIO -> Text -> IO ()
+{-runHakaru :: MWC.GenIO -> Text -> IO ()
 runHakaru g prog' =
     case parseAndInfer prog' of
       Left err                 -> IO.hPutStrLn stderr err
@@ -95,17 +95,17 @@ runHakaru g prog' =
           _          -> illustrate typ g $ run ast
     where
     run :: Term a -> Value a
-    run = runEvaluate . expandTransformations
+    run = runEvaluate . expandTransformations-}
 
-runHakaru' :: MWC.GenIO -> Text -> IO ()
-runHakaru' g prog' = do
-    prog' <- parseAndInfer' prog'
+runHakaru' :: MWC.GenIO -> Bool -> Text -> IO ()
+runHakaru' g weights prog = do
+    prog' <- parseAndInfer' prog
     case prog' of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
         case typ of
-          SMeasure _ -> forever (illustrate typ g $ run ast)
-          _          -> illustrate typ g $ run ast
+          SMeasure _ -> forever (illustrate typ weights g $ run ast)
+          _          -> illustrate typ weights g $ run ast
     where
     run :: Term a -> Value a
     run = runEvaluate . expandTransformations
