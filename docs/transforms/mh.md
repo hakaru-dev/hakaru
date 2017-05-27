@@ -1,4 +1,4 @@
-# Metropolis Hastings transform
+# Metropolis Hastings
 
 In Hakaru, all inference algorithms are represented as program
 transformations. In particular, the Metropolis-Hastings transform

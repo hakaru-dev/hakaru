@@ -65,12 +65,16 @@ On Windows systems, Hakaru can be setup to use Maple by performing the following
 	This variable can also be created via the Advanced System Properties.
 	
 	**Note:** You might need to restart your computer for the variable to be recognized.
+	
+2. Add the path to `cmaple.exe` to your PATH system environment variable. This can be done via the Advanced System Properties.
 
-2. In a `bash` command line, navigate to the `hakaru\maple` directory and run:
+	**Note:** You might need to restart your computer for the variable to be recognized.	
+
+3. In the Windows command prompt (cmd), Navigate to the `hakaru\maple` directory and run:
 	
 	`cmaple update-archive.mpl`
 
-3. In the Windows command prompt (cmd), create a file `maple.ini` by running:
+4. In the Windows command prompt (cmd), create a file `maple.ini` by running:
 
 	`echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: >> "C:\<path to maple>\lib\maple.ini"`
 	

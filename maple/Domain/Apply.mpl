@@ -7,6 +7,7 @@
 # basically, when we see an 'unbound' variable in the 'RHS' , we should bind
 # it with the default 'DInto'.
 export Apply := module ()
+       uses Domain_Type;
        export ModuleApply :=
          proc(dom :: HDomain_mb, kb0 :: t_kb
              ,f_into := "default"

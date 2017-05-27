@@ -1,0 +1,10 @@
+def bern(p prob):
+	b <~ categorical([p, real2prob(1 - p)])
+	return [true, false][b]
+	
+coin <~ bern(0.5)
+sample <~ match coin:
+	true: normal(0,1)
+	false: uniform(0,1)
+
+return (sample, coin)

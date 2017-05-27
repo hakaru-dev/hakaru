@@ -1,4 +1,6 @@
 redundant_DIntos := module()
+  uses Domain, Domain_Type;
+
   export ModuleApply := proc(vs :: DomBound, sh :: DomShape, $)
     # This 'simplification' removes redundant information, but it is
     # entirely pointless as the result should be the same anyways. This
@@ -24,7 +26,7 @@ end module;
 
 
 empty_DIntos := module()
-  uses Domain;
+  uses Domain, Domain_Type;
 
   export ModuleApply := proc(vs,sh,$)
     subsindets(sh, satisfies(is_empty), _->DSum());

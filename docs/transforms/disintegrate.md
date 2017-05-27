@@ -1,4 +1,4 @@
-# Disintegrations transformation
+# Disintegrate and Density
 
 The disintegration transformation takes as input a program
 representing a joint probability distribution, and returns

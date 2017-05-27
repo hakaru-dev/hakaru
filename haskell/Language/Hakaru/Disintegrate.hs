@@ -82,9 +82,9 @@
 -- statement.
 ----------------------------------------------------------------
 module Language.Hakaru.Disintegrate
-    (
+    ( lam_
     -- * the Hakaru API
-      disintegrateWithVar
+    , disintegrateWithVar
     , disintegrate
     , densityWithVar
     , density
@@ -295,9 +295,6 @@ determine (m:_) = Just m
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
-firstM :: Functor f => (a -> f b) -> (a,c) -> f (b,c)
-firstM f (x,y) = (\z -> (z, y)) <$> f x
-
 
 -- N.B., forward disintegration is not identical to partial evaluation,
 -- as noted at the top of the file. For correctness we need to
@@ -374,13 +371,17 @@ perform = \e0 ->
     performVar :: forall a. Variable ('HMeasure a) -> Dis abt (Whnf abt a)
     performVar = performWhnf <=< evaluateVar perform evaluate_
 
-    -- BUG: it's not clear this is actually doing the right thing for its call-sites. In particular, we should handle 'Case_' specially, to deal with the hygiene bug in 'testPerform1b'...
+    -- BUG: it's not clear this is actually doing the right thing for
+    -- its call-sites. In particular, we should handle 'Case_'
+    -- specially, to deal with the hygiene bug in 'testPerform1b'...
     --
-    -- BUG: found the 'testPerform1b' hygiene bug! We can't simply call 'emitMBind' on @e@, because @e@ may not be emissible!
+    -- BUG: found the 'testPerform1b' hygiene bug! We can't simply
+    -- call 'emitMBind' on @e@, because @e@ may not be emissible!
     performWhnf
         :: forall a. Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
     performWhnf (Head_   v) = perform $ fromHead v
-    performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
+    performWhnf (Neutral e) = (Neutral . var) <$>
+                              (emitMBind . fromWhnf =<< atomize e)
 
 
     -- TODO: right now we do the simplest thing. However, for better
@@ -407,7 +408,8 @@ perform = \e0 ->
             -- return (Neutral $ var x)
             return (Neutral x)
 
-        -- Try to be as complete as possible (i.e., 'bot' as little as possible), no matter how ugly the output code gets.
+        -- Try to be as complete as possible (i.e., 'bot' as little as
+        -- possible), no matter how ugly the output code gets.
         complete
             :: MeasureOp typs a
             -> SArgs abt args
@@ -422,18 +424,6 @@ perform = \e0 ->
             pushWeight (P.densityUniform lo hi x)
             return (Neutral x)
         complete _ = \_ -> bot
-
--- Calls unsafePush 
-pushWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
-pushWeight w = do
-  inds <- getIndices
-  unsafePush $ SWeight (Thunk w) inds
-
--- Calls unsafePush 
-pushGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
-pushGuard b = do
-  inds <- getIndices
-  unsafePush $ SGuard Nil1 pTrue (Thunk b) inds
                                
 
 -- | The goal of this function is to ensure the correctness criterion
@@ -459,7 +449,11 @@ atomize e =
 #ifdef __TRACE_DISINTEGRATE__
     trace ("\n-- atomize --\n" ++ show (pretty e)) $
 #endif
-    traverse21 atomizeCore =<< evaluate_ e
+    do whnf <- evaluate_ e
+       case whnf of
+         Head_ v   -> Head_ <$> traverse21 atomizeCore v
+         Neutral e -> Neutral . unviewABT <$>
+                      traverse12 (traverse21 atomizeCore) (viewABT e)             
 
 
 -- | A variant of 'atomize' which is polymorphic in the locally
@@ -467,20 +461,25 @@ atomize e =
 -- We factored this out because we often want this more polymorphic
 -- variant when using our indexed @TraversableMN@ classes.
 atomizeCore :: (ABT Term abt) => abt xs a -> Dis abt (abt xs a)
-atomizeCore e = do
+atomizeCore e =
     -- HACK: this check for 'disjointVarSet' is sufficient to catch
     -- the particular infinite loops we were encountering, but it
     -- will not catch all of them. If the call to 'evaluate_' in
     -- 'atomize' returns a neutral term which contains heap-bound
     -- variables, then we'll still loop forever since we don't
     -- traverse\/fmap over the top-level term constructor of neutral
-    -- terms.
-    xs <- getHeapVars
-    if disjointVarSet xs (freeVars e)
+    -- terms.    
+ do xs <- getHeapVars
+    vs <- extFreeVars e
+    if disjointVarSet xs vs
         then return e
         else
             let (ys, e') = caseBinds e
-            in  (binds_ ys . fromWhnf) <$> atomize e'
+            in
+#ifdef __TRACE_DISINTEGRATE__
+               trace ("\n-- atomizeCore --\n" ++ show (pretty e')) $
+#endif
+               (binds_ ys . fromWhnf) <$> atomize e'
     where
     -- TODO: does @IM.null . IM.intersection@ fuse correctly?
     disjointVarSet xs ys =
@@ -493,22 +492,6 @@ getHeapVars :: Dis abt (VarSet ('KProxy :: KProxy Hakaru))
 getHeapVars =
     Dis $ \_ c h -> c (foldMap statementVars (statements h)) h
 
-----------------------------------------------------------------
-isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
-isLitBool e = caseVarSyn e (const Nothing) $ \b ->
-                  case b of
-                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
-                                                  Just Refl -> Just d
-                                                  Nothing   -> Nothing
-                    _ -> Nothing
-
-isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
-isLitTrue (Datum tdTrue sBool (Inl Done)) = True
-isLitTrue _                               = False
-
-isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
-isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
-isLitFalse _                                      = False
 ----------------------------------------------------------------
 -- | Given an emissible term @v0@ (the first argument) and another
 -- term @e0@ (the second argument), compute the constraints such
@@ -548,32 +531,7 @@ constrainValue v0 e0 =
                                                    constrainValue (v0 P.! (var x')) body'
                                                    -- TODO use meta-index
         ArrayLiteral_ _          -> error "TODO: disintegrate literal arrays"
-        ArrayOp_ o@(Index _) :$ args@(e1 :* e2 :* End) -> do
-            w1 <- evaluate_ e1
-            case w1 of
-              Neutral e1' -> bot
-              Head_ (WArray _ b) -> caseBind b $ \x body ->
-                                    extSubst x e2 body >>= constrainValue v0
-              Head_ (WEmpty _) -> bot -- TODO: check this
-              -- Special case for [true,false] ! i, and [false, true] ! i
-              -- This helps us disintegrate bern
-              Head_ (WArrayLiteral [a1,a2]) ->
-                  case (jmEq1 (typeOf v0) sBool) of
-                    Just Refl ->
-                        let constrainInd = flip constrainValue e2
-                        in case (isLitBool a1, isLitBool a2) of
-                             (Just b1, Just b2)
-                                 | isLitTrue b1 && isLitFalse b2 ->
-                                     constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
-                                 | isLitTrue b2 && isLitFalse b1 ->
-                                     constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
-                                 | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
-                             _ -> error "TODO: constrainValue (Index [b1,b2] i)"
-                    Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
-              Head_ (WArrayLiteral _) -> bot
-              _ -> error "constrainValue {ArrayOp Index}: uknown whnf of array type"
-                           
-        ArrayOp_ _ :$ _          -> error "TODO: disintegrate non-Index arrayOps"
+        ArrayOp_ o :$ args       -> constrainValueArrayOp v0 o args
         Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"
         App_  :$ _  :* _ :* End  -> error "TODO: disintegrate lambdas"
         Integrate :$ _ :* _ :* _ :* End ->
@@ -752,9 +710,10 @@ constrainVariable v0 x =
     -- return 'bot' for neutral terms
        maybe bot lookForLoc (lookupAssoc x extras)
     where lookForLoc (Loc      l jxs) =
-              -- If we get 'Nothing', then it turns out @l@ is a free location.
-              -- This is an error because of the invariant:
-              --   if there exists an 'Assoc x ({Multi}Loc l _)' inside @extras@
+              -- If we get 'Nothing', then it turns out @l@ is a free
+              -- location. This is an error because of the
+              -- invariant:
+              --   if there exists an 'Assoc x (Loc l _)' inside @extras@
               --   then there must be a statement on the 'ListContext' that binds @l@
               (maybe (freeLocError l) return =<<) . select l $ \s ->
                   case s of
@@ -778,6 +737,82 @@ constrainVariable v0 x =
                              unsafePush (SLet l (Whnf_ (Neutral v0)) inds)
                     SWeight _ _ -> Nothing
                     SGuard ls' pat scrutinee i -> error "TODO: constrainVariable{SGuard}"
+
+----------------------------------------------------------------
+-- | N.B., as with 'constrainValue', we assume that the first
+-- argument is emissible. So it is the caller's responsibility to
+-- ensure this (by calling 'atomize' as appropriate).
+--
+-- TODO: capture the emissibility requirement on the first argument
+-- in the types.
+constrainValueArrayOp
+    :: forall abt typs args a
+    .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => abt '[] a
+    -> ArrayOp typs a
+    -> SArgs abt args
+    -> Dis abt ()
+constrainValueArrayOp v0 = go
+    where
+      go :: ArrayOp typs a -> SArgs abt args -> Dis abt ()
+      go (Index  _) (e1 :* e2 :* End) = do
+        w1 <- evaluate_ e1
+        case w1 of
+          Neutral e1' -> bot
+          Head_ (WArray _ b) -> caseBind b $ \x body ->
+                                extSubst x e2 body >>= constrainValue v0
+          Head_ (WEmpty _) -> bot -- TODO: check this
+          Head_ a@(WArrayLiteral _) -> constrainValueIdxArrLit v0 e2 a
+          _ -> error "constrainValue {ArrayOp Index}: uknown whnf of array type"
+      go (Size   _) _ = error "TODO: disintegrate {ArrayOp Size}"
+      go (Reduce _) _ = error "TODO: disintegrate {ArrayOp Reduce}"
+      go _ _ = error "constrainValueArrayOp: unknown arrayOp"
+
+
+-- | Special case for [true,false] ! i, and [false, true] ! i
+-- This helps us disintegrate bern                                                    
+constrainValueIdxArrLit
+     :: forall abt a
+     .  (ABT Term abt)
+     => abt '[] a
+     -> abt '[] 'HNat
+     -> Head abt ('HArray a)
+     -> Dis abt ()
+constrainValueIdxArrLit v0 e2 = go
+    where
+      go :: Head abt ('HArray a) -> Dis abt ()
+      go (WArrayLiteral [a1,a2]) =
+          case (jmEq1 (typeOf v0) sBool) of
+            Just Refl ->
+                let constrainInd = flip constrainValue e2
+                in case (isLitBool a1, isLitBool a2) of
+                     (Just b1, Just b2)
+                         | isLitTrue b1 && isLitFalse b2 ->
+                             constrainInd $ P.if_ v0 (P.nat_ 0) (P.nat_ 1) 
+                         | isLitTrue b2 && isLitFalse b1 ->
+                             constrainInd $ P.if_ v0 (P.nat_ 1) (P.nat_ 0)
+                         | otherwise -> error "constrainValue: cannot invert (Index [b,b] i)"
+                     _ -> error "TODO: constrainValue (Index [b1,b2] i)"
+            Nothing -> error "TODO: constrainValue (Index [a1,a2] i)"
+      go (WArrayLiteral _) = bot
+      go _ = error "constrainValueIdxArrLit: unknown ArrayLiteral form"
+
+-- | Helpers for disintegrating bern             
+isLitBool :: (ABT Term abt) => abt '[] a -> Maybe (Datum (abt '[]) HBool)
+isLitBool e = caseVarSyn e (const Nothing) $ \b ->
+                  case b of
+                    Datum_ d@(Datum _ typ _) -> case (jmEq1 typ sBool) of
+                                                  Just Refl -> Just d
+                                                  Nothing   -> Nothing
+                    _ -> Nothing
+
+isLitTrue :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitTrue (Datum tdTrue sBool (Inl Done)) = True
+isLitTrue _                               = False
+
+isLitFalse :: (ABT Term abt) => Datum (abt '[]) HBool -> Bool
+isLitFalse (Datum tdFalse sBool (Inr (Inl Done))) = True
+isLitFalse _                                      = False             
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
@@ -876,8 +911,11 @@ toProb_abs HSemiring_Prob = id
 toProb_abs HSemiring_Real = P.abs_
 
 
--- TODO: is there any way to optimise the zippering over the Seq, a la 'S.inits' or 'S.tails'?
--- TODO: really we want a dynamic programming approach to avoid unnecessary repetition of calling @evaluateNaryOp evaluate_@ on the two subsequences...
+-- TODO: is there any way to optimise the zippering over the Seq, a la
+-- 'S.inits' or 'S.tails'?
+-- TODO: really we want a dynamic programming
+-- approach to avoid unnecessary repetition of calling @evaluateNaryOp
+-- evaluate_@ on the two subsequences...
 lubSeq :: (Alternative m) => (Seq a -> a -> Seq a -> m b) -> Seq a -> m b
 lubSeq f = go S.empty
     where
@@ -990,9 +1028,11 @@ constrainPrimOp v0 = go
     go Acosh     = \(e1 :* End)       -> error_TODO "Acosh"
     go Atanh     = \(e1 :* End)       -> error_TODO "Atanh"
     go RealPow   = \(e1 :* e2 :* End) ->
-        -- TODO: There's a discrepancy between @(**)@ and @pow_@ in the old code...
+        -- TODO: There's a discrepancy between @(**)@ and @pow_@ in
+        -- the old code...
         do
-            -- TODO: if @v1@ is 0 or 1 then bot. Maybe the @log v1@ in @w@ takes care of the 0 case?
+            -- TODO: if @v1@ is 0 or 1 then bot. Maybe the @log v1@ in
+            -- @w@ takes care of the 0 case?
             u <- emitLet' v0
             -- either this from @(**)@:
             --   emitGuard  $ P.zero P.< u
@@ -1005,7 +1045,8 @@ constrainPrimOp v0 = go
             constrainValue (P.log u P./ P.log e1) e2
             -- end.
         <|> do
-            -- TODO: if @v2@ is 0 then bot. Maybe the weight @w@ takes care of this case?
+            -- TODO: if @v2@ is 0 then bot. Maybe the weight @w@ takes
+            -- care of this case?
             u <- emitLet' v0
             let ex = v0 P.** P.recip e2
             -- either this from @(**)@:
@@ -1018,7 +1059,9 @@ constrainPrimOp v0 = go
             constrainValue ex e1
     go Exp = \(e1 :* End) -> do
         x0 <- emitLet' v0
-        -- TODO: do we still want\/need the @emitGuard (0 < x0)@ which is now equivalent to @emitGuard (0 /= x0)@ thanks to the types?
+        -- TODO: do we still want\/need the @emitGuard (0 < x0)@ which
+        -- is now equivalent to @emitGuard (0 /= x0)@ thanks to the
+        -- types?
         emitWeight (P.recip x0)
         constrainValue (P.log x0) e1
 
@@ -1034,8 +1077,11 @@ constrainPrimOp v0 = go
     go (Less   theOrd)  = \(e1 :* e2 :* End) -> error_TODO "Less"
     go (NatPow theSemi) = \(e1 :* e2 :* End) -> error_TODO "NatPow"
     go (Negate theRing) = \(e1 :* End) ->
-        -- TODO: figure out how to merge this implementation of @rr1 negate@ with the one in 'evaluatePrimOp' to DRY
-        -- TODO: just emitLet the @v0@ and pass the neutral term to the recursive call?
+        -- TODO: figure out how to merge this implementation of @rr1
+        -- negate@ with the one in 'evaluatePrimOp' to DRY
+        -- TODO: just
+        -- emitLet the @v0@ and pass the neutral term to the recursive
+        -- call?
         let negate_v0 = syn (PrimOp_ (Negate theRing) :$ v0 :* End)
                 -- case v0 of
                 -- Neutral e ->
@@ -1081,7 +1127,8 @@ constrainPrimOp v0 = go
         emitWeight
             . P.recip
             . P.unsafeProbFraction_ theFractional
-            -- TODO: define a dictionary-passing variant of 'P.square' instead, to include the coercion in there explicitly...
+            -- TODO: define a dictionary-passing variant of 'P.square'
+            -- instead, to include the coercion in there explicitly...
             $ square (hSemiring_HFractional theFractional) x0
         constrainValue (P.primOp1_ (Recip theFractional) x0) e1
 
@@ -1222,7 +1269,12 @@ constrainOutcomeMeasureOp v0 = go
     --  y <~ normal(x,1)
     --  return ((x+(y+y),x)::pair(real,real))
     go Normal = \(mu :* sd :* End) -> do
-        -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * exp (negate (norm_n (v0 - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
+        -- N.B., if\/when extending this to higher dimensions, the
+        -- real equation is
+        -- @recip (sqrt (2*pi*sd^2) ^ n) *
+        --  exp (negate (norm_n (v0 - mu) ^ 2) /
+        --  (2*sd^2))@
+        -- for @Real^n@.
         pushWeight (P.densityNormal mu sd v0)
 
     go Poisson = \(e1 :* End) -> do

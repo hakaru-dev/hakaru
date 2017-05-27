@@ -41,7 +41,7 @@ UpdateArchive := proc(lib_::string:="ppaml.mla")
   protect(Hakaru:-UpdateArchive);
 
   map(do_save,
-   [`gensym`, 'BindingTools', `depends/lam`, `depends/Branch`, `depends/Bind`, `depends/ary`, `depends/Plate`, `eval/lam`, `eval/Branch`, `eval/Bind`, `eval/ary`, `eval/Plate`, 'Hakaru', 'KB', `depends/forall`, `depends/Ints`, `depends/Sums`, `depends/ints`, `depends/sums`, `eval/forall`, `eval/Ints`, `eval/Sums`, `eval/ints`, `eval/sums`, `eval/Int`, `eval/Sum`, `eval/Product`, `eval/int`, `eval/sum`, `eval/product`, 'Loop', `depends/Integrand`, `depends/LO`, `eval/Integrand`, `eval/LO`, 'Domain', 'NewSLO', 'Partition', `depends/Bucket`, `depends/Index`, `eval/Bucket`, `eval/Index`, 'Summary', 'Bind', seq(parse(cat("`print/",q,"`")),q=[ints,sums,Ints,Sums]) ]);
+   [`gensym`, 'BindingTools', `depends/lam`, `depends/Branch`, `depends/Bind`, `depends/ary`, `depends/Plate`, `eval/lam`, `eval/Branch`, `eval/Bind`, `eval/ary`, `eval/Plate`, 'Hakaru', 'KB', `depends/forall`, `depends/Ints`, `depends/Sums`, `depends/ints`, `depends/sums`, `eval/forall`, `eval/Ints`, `eval/Sums`, `eval/ints`, `eval/sums`, `eval/Int`, `eval/Sum`, `eval/Product`, `eval/int`, `eval/sum`, `eval/product`, 'Loop', `depends/Integrand`, `depends/LO`, `eval/Integrand`, `eval/LO`, 'Domain_Type', 'Domain', 'NewSLO', 'Partition', `depends/Bucket`, `depends/Index`, `eval/Bucket`, `eval/Index`, 'Summary', 'Bind', seq(parse(cat("`print/",q,"`")),q=[ints,sums,Ints,Sums]) ]);
 
   Domain:-Improve:-ModuleLoad():
   kernelopts(opaquemodules=prev):

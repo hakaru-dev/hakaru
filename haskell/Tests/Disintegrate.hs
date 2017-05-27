@@ -402,7 +402,7 @@ linearRegression =
     normal (real_ 0) (prob_ 1) >>= \a ->
     normal (real_ 5) (prob_ 1.82574185835055371152) >>= \b ->
     gamma (prob_ 1) (prob_ 1) >>= \invNoise ->
-    plate n (\i -> normal (a * (dataX ! i)) (recip $ sqrt invNoise)) >>= \y ->
+    plate n (\i -> normal (a * (dataX ! i) + b) (recip $ sqrt invNoise)) >>= \y ->
     dirac (pair y (arrayLit [a, b, fromProb invNoise]))
     where n     = nat_ 1000
           dataX = var (Variable "dataX" 73 (SArray SReal)) -- hack :(
@@ -439,6 +439,21 @@ surveyUnbias2 =
     
 ----------------------------------------------------------------
 
+unzipFst :: Model ('HArray 'HReal) HUnit
+unzipFst = plate n (\_ -> liftM2 pair (normal zero one)
+                                      (normal zero one)) >>= \u ->
+           dirac (array n (\i -> fst (u ! i))) >>= \v ->
+           dirac (pair v unit)
+    where n = nat_ 1000
+
+transpose :: Model ('HArray ('HArray 'HReal)) HUnit
+transpose = plate n (\_ -> plate n (\_ -> normal zero one)) >>= \u ->
+            dirac (array n (\i -> array n (\j -> (u ! j) ! i))) >>= \v ->
+            dirac (pair v unit)
+    where n = nat_ 3500
+
+----------------------------------------------------------------
+
 testEmissions :: Model ('HArray 'HReal) HUnit
 testEmissions = plate n (\_ -> lebesgue) >>= \xs ->
                 plate n (\_ -> lebesgue) >>= \ys ->
@@ -470,6 +485,15 @@ minimaltow = normal zero one >>= \alice ->
               normal bob   one >>= \b ->
               dirac (a-b)) >>= \match ->
              dirac (pair match unit)
+
+slice :: Model 'HReal 'HReal 
+slice = normal zero one >>= \x ->
+        uniform zero (fromProb (densityNormal zero one x)) >>= \y ->
+        dirac (pair y x)
+
+oneAndAll :: Model 'HReal ('HArray 'HReal)
+oneAndAll = plate (nat_ 100) (\_ -> normal zero one) >>= \x ->
+            dirac (pair (x ! nat_ 3) x)
 
 runPerform
     :: TrivialABT Term '[] ('HMeasure a)

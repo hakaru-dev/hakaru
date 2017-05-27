@@ -1,4 +1,4 @@
-# Expectation transformation
+# Expect and Normalize
 
 The expectation transformation takes a program representing a measure,
 and a function over the sample space, and returns a program computing

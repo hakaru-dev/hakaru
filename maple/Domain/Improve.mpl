@@ -1,4 +1,5 @@
 export Improve := module ()
+    uses Domain_Type;
     export Simplifiers := table();
     export ModuleApply := proc(dom :: HDomain, $)::HDomain_mb;
         local es := map(si->Simplifiers[si]
@@ -20,7 +21,7 @@ export Improve := module ()
       local lib_path, drs, improve_path, simpls_paths, simpl_path, names0, names1, new_names, nm;
       unprotect(Simplifiers);
       lib_path := LibraryTools:-FindLibrary(Hakaru);
-      ASSERT(lib_path<>NULL);
+      if lib_path=NULL then error "Hakaru library not found"; end if;
       lib_path := FileTools:-ParentDirectory(lib_path);
       drs := kernelopts(dirsep);
       improve_path := `cat`(lib_path,drs,"Domain",drs,"Improve");

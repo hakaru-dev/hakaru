@@ -1,0 +1,3 @@
+μ <~ normal(0,1)
+v <~ plate i of 100: normal(μ,1)
+return (v, μ)

@@ -1,5 +1,6 @@
 # Checks if an expression has domain bounds/shape, and check for either one.
 export Has := module ()
+    uses Domain_Type;
     export ModuleApply := proc(e, $)::truefalse;
         Bound(e) or Shape(e);
     end proc;
