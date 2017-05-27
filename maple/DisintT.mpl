@@ -212,10 +212,13 @@ TestDisint(
 );
 TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
 module()
+  # This test is like d1, but for a product measure
+  # it also tests that name binding is done correctly(?)
   local p, vt;
   local lb := Lebesgue(-infinity,infinity):
-  local expr := (p->Bind(lb, x, Bind(lb, y, Ret(Pair(Pair(p(-6*x,-5*y)),3/x*y))))):
-  local res := ((a,b)->Weight(1/30, Ret((18/5)*b/a))):
+  local K := -6; local R := -5; local Q := 3;
+  local expr := (p->Bind(lb, x, Bind(lb, y, Ret(Pair(Pair(p(K*x,R*y)),Q/x*y))))):
+  local res := ((a,b)->Weight(1/(R*K), Ret((Q*K/R)*b/a))):
   local flip2 := ((a,b)->(b,a)): local id2 := ((a,b)->(a,b)):
 
   for p in [ id2, flip2 ] do
