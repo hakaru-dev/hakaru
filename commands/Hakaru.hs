@@ -1,9 +1,10 @@
-{-# LANGUAGE OverloadedStrings,
-             PatternGuards,
-             DataKinds,
-             GADTs,
-             TypeOperators
-             #-}
+{-# LANGUAGE CPP
+           , OverloadedStrings
+           , PatternGuards
+           , DataKinds
+           , GADTs
+           , TypeOperators
+           #-}
 
 module Main where
 
@@ -20,27 +21,51 @@ import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Command ( parseAndInfer, parseAndInfer'
                                          , readFromFile, Term)
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
 import           Control.Monad
 
+import           Data.Monoid
 import           Data.Text
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
 import           Text.PrettyPrint (renderStyle, style, mode, Mode(LeftMode))
 
-import qualified System.Random.MWC as MWC
-import           System.Environment
+import qualified Options.Applicative as O
+import qualified System.Random.MWC   as MWC
+
+data Options = Options
+  { noWeights  :: Bool
+  , transition :: Maybe String
+  , prog       :: String }
+
+
+options :: O.Parser Options
+options = Options
+  <$> O.switch
+      ( O.long "no-weights" <>
+        O.help "Don't print the weights" )
+  <*> O.optional (O.strArgument
+      ( O.metavar "kernel" <>
+        O.help "Transition kernel for running as Markov Chain" ))
+  <*> O.strArgument
+      ( O.metavar "PROGRAM" <>
+        O.help "Hakaru program to run" )
+
+parseOpts :: IO Options
+parseOpts = O.execParser $ O.info (O.helper <*> options)
+      (O.fullDesc <> O.progDesc "Run a hakaru program")
 
 main :: IO ()
 main = do
-  args   <- getArgs
+  args   <- parseOpts
   g      <- MWC.createSystemRandom
-  progs  <- mapM readFromFile args
-  case progs of
-      [prog1, prog2] -> randomWalk' g prog1 prog2
-      [prog]         -> runHakaru'  g prog
-      _              -> IO.hPutStrLn stderr
-                          "Usage: hakaru <file>\n\
-                          \     | hakaru <transition_kernel> <initial_measure>"
+  case transition args of
+      Nothing    -> runHakaru' g =<< readFromFile (prog args)
+      Just prog2 -> do prog' <- readFromFile (prog args)
+                       trans <- readFromFile prog2
+                       randomWalk' g trans prog'
 
 illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
 illustrate (SMeasure s) g (VMeasure m) = do
@@ -61,8 +86,8 @@ renderLn :: Value a -> IO ()
 renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
 runHakaru :: MWC.GenIO -> Text -> IO ()
-runHakaru g prog =
-    case parseAndInfer prog of
+runHakaru g prog' =
+    case parseAndInfer prog' of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
         case typ of
@@ -73,8 +98,8 @@ runHakaru g prog =
     run = runEvaluate . expandTransformations
 
 runHakaru' :: MWC.GenIO -> Text -> IO ()
-runHakaru' g prog = do
-    prog' <- parseAndInfer' prog
+runHakaru' g prog' = do
+    prog' <- parseAndInfer' prog'
     case prog' of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
@@ -85,7 +110,7 @@ runHakaru' g prog = do
     run :: Term a -> Value a
     run = runEvaluate . expandTransformations
 
-randomWalk ::MWC.GenIO -> Text -> Text -> IO ()
+randomWalk :: MWC.GenIO -> Text -> Text -> IO ()
 randomWalk g p1 p2 =
     case (parseAndInfer p1, parseAndInfer p2) of
       (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) ->
@@ -107,7 +132,7 @@ randomWalk g p1 p2 =
       renderLn samp
       return (f samp)
 
-randomWalk' ::MWC.GenIO -> Text -> Text -> IO ()
+randomWalk' :: MWC.GenIO -> Text -> Text -> IO ()
 randomWalk' g p1 p2 = do
     p1' <- parseAndInfer' p1
     p2' <- parseAndInfer' p2
