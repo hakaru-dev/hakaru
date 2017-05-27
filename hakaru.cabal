@@ -164,6 +164,7 @@ Executable hakaru
                        mwc-random           >= 0.13 && < 0.14,
                        text                 >= 0.11 && < 1.3,
                        pretty               >= 1.1  && < 1.2,
+                       vector               >= 0.10,
                        optparse-applicative >= 0.11 && < 0.14,
                        hakaru               >= 0.3
 

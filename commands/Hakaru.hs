@@ -29,6 +29,8 @@ import           Control.Monad
 import           Data.Monoid
 import           Data.Text
 import qualified Data.Text.IO as IO
+import qualified Data.Vector  as V
+import           Data.Word
 import           System.IO (stderr)
 import           Text.PrettyPrint (renderStyle, style, mode, Mode(LeftMode))
 
@@ -37,6 +39,7 @@ import qualified System.Random.MWC   as MWC
 
 data Options = Options
   { noWeights  :: Bool
+  , seed       :: Maybe Word32
   , transition :: Maybe String
   , prog       :: String }
 
@@ -45,6 +48,10 @@ options = Options
   <$> O.switch
       ( O.long "no-weights" <>
         O.help "Don't print the weights" )
+  <*> O.optional (O.option O.auto
+      ( O.long "seed" <>
+        O.help "Set random seed" <>
+        O.metavar "seed"))
   <*> O.optional (O.strOption
       ( O.long "transition-kernel" <>
         O.metavar "k" <>
@@ -60,7 +67,9 @@ parseOpts = O.execParser $ O.info (O.helper <*> options)
 main :: IO ()
 main = do
   args   <- parseOpts
-  g      <- MWC.createSystemRandom
+  g      <- case seed args of
+              Nothing -> MWC.createSystemRandom
+              Just s  -> MWC.initialize (V.singleton s)
   case transition args of
       Nothing    -> runHakaru' g (noWeights args) =<< readFromFile (prog args)
       Just prog2 -> do prog' <- readFromFile (prog args)
@@ -85,17 +94,17 @@ render = putStr . renderStyle style {mode = LeftMode} . prettyValue
 renderLn :: Value a -> IO ()
 renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
-{-runHakaru :: MWC.GenIO -> Text -> IO ()
-runHakaru g prog' =
+runHakaru :: MWC.GenIO -> Bool -> Text -> IO ()
+runHakaru g weights prog' =
     case parseAndInfer prog' of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
         case typ of
-          SMeasure _ -> forever (illustrate typ g $ run ast)
-          _          -> illustrate typ g $ run ast
+          SMeasure _ -> forever (illustrate typ weights g $ run ast)
+          _          -> illustrate typ weights g $ run ast
     where
     run :: Term a -> Value a
-    run = runEvaluate . expandTransformations-}
+    run = runEvaluate . expandTransformations
 
 runHakaru' :: MWC.GenIO -> Bool -> Text -> IO ()
 runHakaru' g weights prog = do
