@@ -14,7 +14,6 @@ import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
-import           Language.Hakaru.Syntax.TypeOf
 
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Types.Sing
@@ -31,7 +30,6 @@ import           System.IO (stderr)
 import           Text.PrettyPrint    hiding ((<>))
 import           Options.Applicative hiding (header,footer)
 import           System.FilePath
-import           Control.Monad
 
 
 data Options =
@@ -101,7 +99,7 @@ compileHakaru opts = do
           header (logFloatPrelude opts) (asModule opts) ++
           [ pack $ prettyProg "prog" ast' ] ++
           (case asModule opts of
-             Nothing -> footer (et ast)
+             Nothing -> footer typ
              Just _  -> [])
   where et = expandTransformations
 
@@ -159,51 +157,27 @@ header logfloats mmodule =
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
   , "import           Data.Number.LogFloat hiding (product)"
+  , "import           System.Environment (getArgs)"
   , ""
   ]
 
-footer :: ABT T.Term abt => abt '[] (a :: Hakaru) -> [Text]
-footer _ = ["main :: IO ()","main = makeMain prog"]
-
--- footer :: ABT T.Term abt => abt '[] (a :: Hakaru) -> [Text]
--- footer abt =
---   [ ""
---   , "main :: IO ()"
---   , "main = do"
---   , case typeOf abt of
---       SMeasure _ -> "  forever $ run g prog"
---       SFun _ _ -> parseUnderLambdas "" names abt (const "")
---       _ -> "  print prog"
---   ]
---   where base  =  ['a'..'z']
---         names :: [Text]
---         names = [pack [x] | x <- base] `mplus` (do n <- names
---                                                    [n <> pack [x] | x <- base])
-
---         parseUnderLambdas
---           :: ABT T.Term abt
---           => Text
---           -> [Text]
---           -> abt '[] a
---           -> (forall (a :: Hakaru) . Sing a -> Text)
---           -> Text -- a list of argument names, and the string of parses
---         parseUnderLambdas s (n:ns) abt k =
---           caseVarSyn abt
---             (const $ s <> "  print $ prog ")
---             (\term ->
---               case term of
---                 (T.Lam_ T.:$ abt' T.:* T.End) ->
---                   caseBind abt' $ \(Variable _ _ typ) abt'' ->
---                     let pstring = case typ of
---                                     SNat      -> "  " <> n <> " <- parseRank0\n"
---                                     SInt      -> "  " <> n <> " <- parseRank0\n"
---                                     SReal     -> "  " <> n <> " <- parseRank0\n"
---                                     SProb     -> "  " <> n <> " <- parseRank0\n"
---                                     SArray xs -> "  " <> n <> " <- parseRank1\n"
---                         recc = parseUnderLambdas (s <> pstring) ns abt'' k
---                     in recc <> n <> " "
---                 _ -> s <> "  print $ prog ")
-
+footer :: forall (a :: Hakaru) . Sing a -> [Text]
+footer typ =
+    ["","main :: IO ()"
+    , TxT.concat ["main = makeMain (prog :: ",toHsType typ,")  =<< getArgs"]]
+  where toHsType :: forall (a :: Hakaru) . Sing a -> Text
+        toHsType SInt = "Int"
+        toHsType SNat = "Int"
+        toHsType SReal = "Double"
+        toHsType SProb = "LogFloat"
+        toHsType (SArray t) = let t' = toHsType t in
+                                TxT.concat ["(",TxT.unwords ["MayBoxVec",t',t'],")"]
+        toHsType (SMeasure t) = TxT.concat ["(",TxT.unwords ["Measure",toHsType t],")"]
+        toHsType (SFun t1 t2) = TxT.unwords [toHsType t1,"->",toHsType t2]
+        toHsType (SData _
+                   ((SKonst t1 `SEt` SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
+          TxT.concat ["(",toHsType t1,",",toHsType t2,")"]
+        toHsType _ = "type"
 
 
 footerWalk :: [Text]
