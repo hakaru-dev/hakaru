@@ -29,6 +29,10 @@ they represent on data. In this page, we give a sense of the sorts of problems H
 
 You can install Hakaru on Linux, OSX, and Windows and extend its functionality using MapleSoft's Maple. 
 
+### [Generating Samples from your Hakaru Program](intro/samplegen) ###
+
+You can use the `hakaru` command to generate samples from your probabilistic model.
+
 ### [Quick Start: A Mixture Model Example](intro/quickstart) ###
 
 This page will introduce you to Hakaru's basic functionality by creating a program to sample and condition a mixture model of a coin toss.
