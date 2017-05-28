@@ -4,10 +4,8 @@
              TypeFamilies #-}
 module Language.Hakaru.Runtime.CmdLine where
 
-import qualified Data.Vector                     as V
 import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
-import qualified Data.Vector.Generic.Mutable     as M
 import qualified System.Random.MWC               as MWC
 import Language.Hakaru.Runtime.LogFloatPrelude
 import Data.Number.LogFloat
@@ -62,3 +60,4 @@ instance {-# OVERLAPPING #-}(Parseable a, MakeMain b)
          => MakeMain (a -> b) where
   makeMain p (a:as) = do a' <- parse a
                          makeMain (p a') as
+  makeMain _ [] = error "not enough arguments"
