@@ -12,6 +12,12 @@ import Data.Number.LogFloat
 import System.Environment
 import Control.Monad (forever)
 
+#if __GLASGOW_HASKELL__ < 710
+import Data.Functor
+#endif
+
+
+
 -- A class of types that can be parsed from command line arguments
 class Parseable a where
   parse :: String -> IO a
