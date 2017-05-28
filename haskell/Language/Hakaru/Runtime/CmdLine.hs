@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts,
              FlexibleInstances,
+             UndecidableInstances,
              TypeFamilies #-}
 module Language.Hakaru.Runtime.CmdLine where
 
@@ -52,10 +53,12 @@ instance Show a => MakeMain (Measure a) where
                        Nothing -> return ()
                        Just s  -> print s
 
--- instance (Show b, (G.Vector (MayBoxVec a) a), b ~ (MayBoxVec a a))
---          => MakeMain b where
---   makeMain p _ = print p
+instance {-# OVERLAPPABLE #-}
+         ( Show (v a), (G.Vector (MayBoxVec a) a), v ~ MayBoxVec a)
+         => MakeMain (v a) where
+  makeMain p _ = print p
 
-instance (Parseable a, MakeMain b) => MakeMain (a -> b) where
+instance {-# OVERLAPPING #-}(Parseable a, MakeMain b)
+         => MakeMain (a -> b) where
   makeMain p (a:as) = do a' <- parse a
                          makeMain (p a') as
