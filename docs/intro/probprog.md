@@ -93,7 +93,7 @@ executions and counting how many of each Boolean appears. For example, if you re
 `True` occurs much more frequently than `False`. This means that Alice is likely to win `match3` against Carol.
 
 ````bash
-hakaru tugofwar.hk | head -n 10000 | cut -f 2 | sort | uniq -c
+hakaru --no-weights tugofwar.hk | head -n 10000 | sort | uniq -c
    3060 false
    6940 true
 ````
