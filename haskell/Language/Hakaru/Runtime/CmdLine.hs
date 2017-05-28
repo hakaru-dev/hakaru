@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts,
+{-# LANGUAGE CPP,
+             FlexibleContexts,
              FlexibleInstances,
              UndecidableInstances,
              TypeFamilies #-}
@@ -9,7 +10,6 @@ import qualified Data.Vector.Generic             as G
 import qualified System.Random.MWC               as MWC
 import Language.Hakaru.Runtime.LogFloatPrelude
 import Data.Number.LogFloat
-import System.Environment
 import Control.Monad (forever)
 
 #if __GLASGOW_HASKELL__ < 710
