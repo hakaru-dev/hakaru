@@ -1,0 +1,9 @@
+fn x2 real: 
+ x <~ normal(0, 1)
+ x7 <~ weight((exp((negate(((x2 - x) ^ 2)) / 2))
+                / 
+               1
+                / 
+               sqrt((2 * pi))),
+              return ())
+ return x
