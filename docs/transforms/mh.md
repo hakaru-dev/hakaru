@@ -82,7 +82,7 @@ and the second file represents a measure to initialize from.
 		
 
 ````bash
-mh target.hk proposal.hk | simplify - | hakaru - target.hk | head
+mh target.hk proposal.hk | simplify - | hakaru --transition-kernel - target.hk | head
 
 -0.6133542972818671
 -0.6111567543723275
