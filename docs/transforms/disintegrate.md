@@ -35,6 +35,9 @@ known values for `y`. If you save this program as `hello1.hk`, you would call th
 disintegrate hello1.hk
 ````
 
+**Note:** The output for `disintegrate` will be printed in the console. You can easily save this program to a file by redirecting the output to a file by calling 
+`disintegrate model1.hk > model2.hk`. For this example, we will call our new program `hello1_D.hk`.
+
 The resulting program renames the known-value variable `y` (here it is renamed to `x2`) and creates an anonymous function that, given a value for `y`, calculates the 
 corresponding value for `x`:
 
