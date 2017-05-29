@@ -307,6 +307,7 @@ maplePrimOp
 maplePrimOp Not              (e1 :* End)       = app1 "Not" e1
 maplePrimOp Pi               End               = showString "Pi"
 maplePrimOp Cos              (e1 :* End)       = app1 "cos" e1
+maplePrimOp Sin              (e1 :* End)       = app1 "sin" e1
 maplePrimOp RealPow          (e1 :* e2 :* End) =
     parens (arg e1 . showString " ^ " . arg e2)
 maplePrimOp Exp              (e1 :* End)       = app1 "exp"  e1
