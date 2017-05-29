@@ -121,7 +121,8 @@ Library
                        process            >= 1.1  && < 2.0,
                        HUnit              >= 1.2  && < 2.0,
                        mtl                >= 2.1,
-                       filepath           >= 1.1.0.2
+                       filepath           >= 1.1.0.2, 
+                       bytestring         >= 0.10.8.0
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite

@@ -12,9 +12,14 @@ import           Language.Hakaru.Syntax.TypeCheck
 import           Control.Monad.Trans.Except
 import           Control.Monad (when)
 import qualified Data.Text    as Text
+import           Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as IO
+import qualified Data.ByteString as BIO 
 import           Data.Vector
-import           System.IO (stderr)
+import           System.IO (stderr, Handle)
+import           System.Environment (getArgs) 
+import           Control.Applicative (liftA)
+import           Data.Monoid ((<>))
 
 type Term a = TrivialABT T.Term '[] a
 
@@ -65,10 +70,37 @@ parseAndInferWithDebug debug x =
 splitLines :: Text.Text -> Maybe (Vector Text.Text)
 splitLines = Just . fromList . Text.lines
 
+readFile_utf8 :: FilePath -> IO Text.Text
+readFile_utf8 = liftA (liftA decodeUtf8) BIO.readFile  
+
+getContents_utf8 :: IO Text.Text 
+getContents_utf8 = liftA decodeUtf8 BIO.getContents
+
 readFromFile :: String -> IO Text.Text
-readFromFile "-" = IO.getContents
-readFromFile x   = IO.readFile x
+readFromFile "-" = getContents_utf8
+readFromFile x   = readFile_utf8 x
+
+simpleCommand :: (Text.Text -> IO ()) -> Text.Text -> IO ()
+simpleCommand k fnName = do 
+  args <- getArgs
+  case args of
+      [prog] -> readFile_utf8 prog >>= k
+      []     -> getContents_utf8   >>= k 
+      _      -> IO.hPutStrLn stderr $ "Usage: " <> fnName <> " <file>"
+
+
+putStr_utf8 :: Text.Text -> IO ()
+putStr_utf8 = BIO.putStr . encodeUtf8
+
+putStrLn_utf8 :: Text.Text -> IO ()
+putStrLn_utf8 x = BIO.putStr (encodeUtf8 x <> "\n")
+
+writeFile_utf8 :: FilePath -> Text.Text -> IO ()
+writeFile_utf8 f x = BIO.writeFile f (encodeUtf8 x) 
+
+hPut_utf8 :: Handle -> Text.Text -> IO ()
+hPut_utf8 h x = BIO.hPut h (encodeUtf8 x) 
 
 writeToFile :: String -> (Text.Text -> IO ())
-writeToFile "-" = IO.putStrLn
-writeToFile x   = IO.writeFile x
+writeToFile "-" = putStrLn_utf8 
+writeToFile x   = writeFile_utf8 x

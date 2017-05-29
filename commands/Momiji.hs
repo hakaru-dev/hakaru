@@ -14,19 +14,14 @@ import           System.IO (stderr)
 import           System.Environment
 
 main :: IO ()
-main = do
-  args <- getArgs
-  case args of
-      [prog] -> IO.readFile prog >>= runPretty
-      []     -> IO.getContents   >>= runPretty
-      _      -> IO.hPutStrLn stderr "Usage: momiji <file>"
+main = simpleCommand runPretty "momiji"
 
 runPretty :: Text -> IO ()
 runPretty prog =
     case parseAndInfer prog of
-    Left  err              -> IO.hPutStrLn stderr err
+    Left  err              -> hPut_utf8 stderr err
     Right (TypedAST typ ast) -> do
-      putStrLn $ Maple.pretty (expandTransformations ast)
-      putStrLn $ ","
-      putStrLn $ Maple.mapleType typ ""
+      putStrLn_utf8 $ pack $ Maple.pretty (expandTransformations ast)
+      putStrLn_utf8 $ ","
+      putStrLn_utf8 $ pack $ Maple.mapleType typ ""
 

@@ -89,10 +89,10 @@ withWeight :: Value 'HProb -> IO () -> IO ()
 withWeight w m = render w >> putStr "\t" >> m
 
 render :: Value a -> IO ()
-render = putStr . renderStyle style {mode = LeftMode} . prettyValue
+render = putStr_utf8 . pack . renderStyle style {mode = LeftMode} . prettyValue
 
 renderLn :: Value a -> IO ()
-renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
+renderLn = putStrLn_utf8 . pack . renderStyle style {mode = LeftMode} . prettyValue
 
 runHakaru :: MWC.GenIO -> Bool -> Text -> IO ()
 runHakaru g weights prog' =
