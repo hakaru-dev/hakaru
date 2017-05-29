@@ -38,7 +38,7 @@ our set of bus arrival times to predict a value for \(f\). You can use either ap
 
 To demonstrate the value of this problem-solving approach, we will write a Hakaru program to represent a simplified version of the 
 [tug-of-war](https://probmods.org/v1/generative-models.html#example-bayesian-tug-of-war) example from probmods.org. A completed version of this program can be found
-in the [Hakaru examples directory](https://github.com/hakaru-dev/hakaru/blob/master/examples/tugofwar.hk).
+in the [Hakaru examples directory](https://github.com/hakaru-dev/hakaru/blob/master/examples/tugofwar_rejection.hk).
 
 Three friends, Alice, Bob and Carol, want to know which of them is the strongest. They decide that the winner of a game of tug-of-war must be stronger than their opponent,
 and arrange to take turns playing tug-of-war against each other. The person who wins the most matches will be deemed the strongest of them.
@@ -86,14 +86,14 @@ else:
 ````
 
 You have now created a Hakaru program that describes a probabilistic model and restricted the accepted samples based on known data. You should save your program as 
-`tugofwar.hk` so that you can run Hakaru to infer the outcome of `match3`. 
+`tugofwar_rejection.hk` so that you can run Hakaru to infer the outcome of `match3`. 
 
-If you call `hakaru tugofwar.hk`, you will get a continuous stream of Boolean results. You can make the calculations more legible by restricting the number of program 
-executions and counting how many of each Boolean appears. For example, if you restrict the number of program executions to 10000 and collect the results, you will see that 
-`True` occurs much more frequently than `False`. This means that Alice is likely to win `match3` against Carol.
+If you call `hakaru tugofwar_rejection.hk`, you will get a continuous stream of Boolean results. You can make the calculations more legible by restricting the number of 
+program executions and counting how many of each Boolean appears. For example, if you restrict the number of program executions to 10000 and collect the results, you will 
+see that `True` occurs much more frequently than `False`. This means that Alice is likely to win `match3` against Carol.
 
 ````bash
-hakaru --no-weights tugofwar.hk | head -n 10000 | sort | uniq -c
+hakaru --no-weights tugofwar_rejection.hk | head -n 10000 | sort | uniq -c
    3060 false
    6940 true
 ````
