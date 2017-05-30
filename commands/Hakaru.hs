@@ -19,7 +19,9 @@ import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Command ( parseAndInfer, parseAndInfer'
-                                         , readFromFile, Term, putStr_utf8, putStrLn_utf8 )
+                                         , readFromFile, Term
+                                         , putStr_utf8, putStrLn_utf8
+                                         )
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -46,7 +48,7 @@ data Options = Options
 options :: O.Parser Options
 options = Options
   <$> O.switch
-      ( O.short "w" <>
+      ( O.short 'w' <>
         O.long "no-weights" <>
         O.help "Don't print the weights" )
   <*> O.optional (O.option O.auto
