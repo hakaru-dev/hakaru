@@ -210,8 +210,25 @@ TestDisint(
      {Bind(Lebesgue((-1,1)*~infinity), x1, Ret(x1^2))},
      label= "(d0_4) `Dirac` test with `Bind`"
 );
-
 TestDisint(d1, d1r, label = "(d1) Disintegrate linear function");
+module()
+  # This test is like d1, but for a product measure
+  # it also tests that name binding is done correctly(?)
+  local p, vt;
+  local lb := Lebesgue(-infinity,infinity):
+  local K := -6; local R := -5; local Q := 3;
+  local expr := (p->Bind(lb, x, Bind(lb, y, Ret(Pair(Pair(p(K*x,R*y)),Q/x*y))))):
+  local res := ((a,b)->Weight(1/(R*K), Ret((Q*K/R)*b/a))):
+  local flip2 := ((a,b)->(b,a)): local id2 := ((a,b)->(a,b)):
+
+  for p in [ id2, flip2 ] do
+    for vt in [[t0,t1], [t1,t0]] do
+      TestDisint( [ expr(p) , Pair(seq(q &M lb,q=vt)) ] ,
+                  { res(p(op(vt))) },
+                  label=sprintf("(d1_%a_%a) Linear function x2", p, vt)):
+    end do:
+  end do:
+end module:
 TestDisint(d2, d2r, label = "(d2) Disintegrate linear function II");
 TestDisint(d5, d5r, label = "(d5) Disintegrate N(0,1)*N(x,1), over y");
 TestDisint(d6, d6r, label = "(d6) Disintegrate N(0,1)*N(x,1), over x");
@@ -229,7 +246,6 @@ TestDisint( normalFB1, normalFB1r,
             );
 
 TestDisint(d3, d3r, label = "(d3) Disintegrate U(0,1) twice, over x-y");
-
 ######################################################################
 #
 # These tests fail, and are expected to.  Move them up when they

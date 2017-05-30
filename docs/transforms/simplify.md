@@ -11,6 +11,8 @@ You can use the `simplify` transformation in the command line by calling:
 simplify hakaru_program.hk
 ````
 
+The output of this transformation is a new Hakaru program representing the algebraically-simplified model.
+
 ## Example ##
 
 This program takes in a value of type `prob` and returns a measure of type `real`:

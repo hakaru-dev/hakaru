@@ -108,7 +108,7 @@ Now that we have both the result of our coin toss experiment (`coin`) and our mi
 return(coin, sample)
 ````
 
-We have completed the mixture model program and can run it using the command `hakaru twomixture.hk' to collect samples indefinitely:
+We have completed the mixture model program and can run it using the command `hakaru twomixture.hk` to collect samples indefinitely:
 
 ````bash
 (true, -0.37622272051934547)

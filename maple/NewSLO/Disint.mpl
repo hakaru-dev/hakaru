@@ -152,7 +152,7 @@
     improve_opts := [],
     todo := NULL,
     atodo := proc(z) todo := eval(todo), z; end proc,
-    di, da, m_var, m_var_rn, m_ty, m_body, ctx1
+    di, da, m_var, m_var_rn, m_ty, m_body, ctx1, x
    ;
     if m :: t_lam then
       m_var, m_ty, m_body := op(m);
@@ -205,7 +205,7 @@
     for v in V do
       di   := Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator;
       da   := DV[v]:-disintegrator_arg;
-      atodo(x->applyop(di, 2, x, da));
+      atodo(unapply('applyop'(di, 2, x, da),x));
       atodo(x->improve(x, _ctx=kb,improve_opts));
     end do;
 

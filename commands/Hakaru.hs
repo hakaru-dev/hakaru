@@ -76,6 +76,7 @@ main = do
                        trans <- readFromFile prog2
                        randomWalk' g trans prog'
 
+-- TODO: A better needs to be found for passing weights around
 illustrate :: Sing a -> Bool -> MWC.GenIO -> Value a -> IO ()
 illustrate (SMeasure s) weights g (VMeasure m) = do
     x <- m (VProb 1) g
@@ -94,6 +95,7 @@ render = putStr . renderStyle style {mode = LeftMode} . prettyValue
 renderLn :: Value a -> IO ()
 renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
+-- TODO: A better needs to be found for passing weights around
 runHakaru :: MWC.GenIO -> Bool -> Text -> IO ()
 runHakaru g weights prog' =
     case parseAndInfer prog' of
@@ -106,6 +108,7 @@ runHakaru g weights prog' =
     run :: Term a -> Value a
     run = runEvaluate . expandTransformations
 
+-- TODO: A better needs to be found for passing weights around
 runHakaru' :: MWC.GenIO -> Bool -> Text -> IO ()
 runHakaru' g weights prog = do
     prog' <- parseAndInfer' prog

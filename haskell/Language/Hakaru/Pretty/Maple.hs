@@ -67,7 +67,6 @@ app3 :: (ABT Term abt)
 app3 fn x y z = op3 fn (arg x) (arg y) (arg z)
 {-# INLINE app3 #-}
 
--- HACK: why doesn't Foldable imply Functor anymore?
 appN :: (ABT Term abt, Functor f, F.Foldable f)
     => String -> f (abt '[] a) -> ShowS
 appN fn xs = opN fn (arg <$> xs)
@@ -307,6 +306,7 @@ maplePrimOp
 maplePrimOp Not              (e1 :* End)       = app1 "Not" e1
 maplePrimOp Pi               End               = showString "Pi"
 maplePrimOp Cos              (e1 :* End)       = app1 "cos" e1
+maplePrimOp Sin              (e1 :* End)       = app1 "sin" e1
 maplePrimOp RealPow          (e1 :* e2 :* End) =
     parens (arg e1 . showString " ^ " . arg e2)
 maplePrimOp Exp              (e1 :* End)       = app1 "exp"  e1

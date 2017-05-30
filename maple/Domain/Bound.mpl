@@ -91,6 +91,8 @@ export Bound := module ()
     end proc;
 
     local toConstraints_opts := { 'no_infinity', 'bound_types' };
+    local toConstraints_to_remove :=
+      (c->c::`::` and rhs(c)=TopProp);
     export toConstraints := proc( bnd :: DomBound )
         local cs, opts, bad_opts, noinf;
         opts := { args[2..-1] } ;
@@ -98,7 +100,8 @@ export Bound := module ()
         if bad_opts <> {} then
             error "invalid arguments: %1", bad_opts;
         end if;
-        {op(map(b->constrain(opts, op(b))[], op(1,bnd)))
-        ,op( `if`(nops(bnd)>1,op(2,bnd),{}) ) };
+        remove(toConstraints_to_remove,
+          {op(map(b->constrain(opts, op(b))[], op(1,bnd)))
+          ,op( `if`(nops(bnd)>1,op(2,bnd),{}) ) } );
     end proc;
 end module;#Bound
