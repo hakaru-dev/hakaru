@@ -93,7 +93,7 @@ Hakaru loops are specialized to compute the summation or product of the elements
 ## Transformations ##
 
 Hakaru includes some inference algorithms that you can use to transform your probabilistic models into other forms to extract desireable information. Its inference 
-algorithms are implemented predominately as program transformations.
+algorithms are implemented predominantly as program transformations.
 
 **Note:** By default, Hakaru assigns a weight to each generated sample. These weights are not printed by the `hakaru` command. For most programs, a weight of one is used.
 Otherwise it is possible for the weights to vary between samples. This might result in differing results from the original and transformed programs when summarizing a 
@@ -118,7 +118,7 @@ The density transformation (`density`) is used to create a conditional distribut
 
 ### [Simplify](/transforms/simplify) ###
 
-The simplify transformation (`simplify`) is used to improve Hakaru programs by simplifying proababilistic models using computer algebra. This transformation requires the
+The simplify transformation (`simplify`) is used to improve Hakaru programs by simplifying probabilistic models using computer algebra. This transformation requires the
 use of Maple.
 
 ### [Metropolis Hastings](/transforms/mh) ###
