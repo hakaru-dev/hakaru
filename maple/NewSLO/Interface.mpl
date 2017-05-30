@@ -58,7 +58,8 @@ SimplifyKB_ := proc(e, t::t_type, kb::t_kb, $)
 end proc;
 
 SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
-    eval(SimplifyKB_(args), [%fromLO=fromLO,%improve=improve,%toLO=toLO,%simplify_assuming=simplify_assuming]);
+    eval(SimplifyKB_(subs([int=Int,sum=Sum], e), t, kb),
+     [%fromLO=fromLO,%improve=improve,%toLO=toLO,%simplify_assuming=simplify_assuming]);
 end proc;
 
 # Testing
