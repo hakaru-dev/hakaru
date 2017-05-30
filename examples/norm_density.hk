@@ -1,0 +1,4 @@
+normalDensity = fn x0 real: 
+ (exp((negate(((x0 + 0) ^ 2)) / 2)) / 1 / sqrt((2 * pi)) / 1)
+
+return normalDensity(0.2)
