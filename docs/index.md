@@ -99,10 +99,13 @@ algorithms are implemented predominately as program transformations.
 Otherwise it is possible for the weights to vary between samples. This might result in differing results from the original and transformed programs when summarizing a 
 program's output by counting them.
 
-### [Expect and Normalize](/transforms/expect) ###
+### [Expect](/transforms/expect) ###
 
-The expectation transformation (`expect`) computes expectation of a measure with respect to a given function. The normalization transformation (`normalize`) reweights a
-program so that it represents a normal distribution.
+The expectation transformation (`expect`) computes expectation of a measure with respect to a given function. 
+
+### [Normalize](/transforms/normalize) ###
+
+The normalization transformation (`normalize`) reweights a program so that it represents a normal distribution.
 
 ### [Disintegrate](/transforms/disintegrate) ###
 
