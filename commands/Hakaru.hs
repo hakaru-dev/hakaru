@@ -19,7 +19,7 @@ import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Command ( parseAndInfer, parseAndInfer'
-                                         , readFromFile, Term)
+                                         , readFromFile, Term, putStr_utf8, putStrLn_utf8 )
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
