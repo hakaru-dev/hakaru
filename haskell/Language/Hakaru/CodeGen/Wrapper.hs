@@ -123,9 +123,10 @@ mainFunction pconfig typ@(SMeasure _) abt =
           when isManagedMem (putExprStat gcInit)
 
           nSamples <- parseNumSamples argCE argVE
+          seedE <- parseSeed argCE argVE
 
-          -- need to set seed?
-          -- srand(time(NULL));
+          putExprStat $ mkCallE "srand" [seedE]
+
           putStat $ opComment "Run Hakaru Sampler"
           printCG pconfig typ (CCall (CVar mfId) []) (Just nSamples)
           putStat . CReturn . Just $ intE 0
@@ -147,6 +148,10 @@ mainFunction pconfig typ@(SFun _ _) abt =
             declare typ' resId
 
             mns <- maybeNumSamples argCE argVE typ'
+            case typ' of
+              SMeasure _ -> do seedE <- parseSeed argCE argVE
+                               putExprStat $ mkCallE "srand" [seedE]
+              _ -> return ()
 
             withLambdaDepth' 0 abt $ \d ->
               let argErr 0 = ""
@@ -224,6 +229,7 @@ mainArgs = [ CDecl [CTypeSpec CInt]
                      , Nothing)]
            ]
 
+{- the number of samples is set to -1 by default -}
 parseNumSamples :: CExpr -> CExpr -> CodeGen CExpr
 parseNumSamples argc argv =
   do itE <- localVar SNat
@@ -239,6 +245,24 @@ parseNumSamples argc argv =
                    sscanfE [index argv itE,stringE "-n%d",address outE])
                  (return ()))
      putStat $ opComment "End Num Samples?"
+     return outE
+
+{- the randome seed is set to time(NULL) by default -}
+parseSeed :: CExpr -> CExpr -> CodeGen CExpr
+parseSeed argc argv =
+  do itE <- localVar SNat
+     outE <- localVar SNat
+     putStat $ opComment "Random Seed?"
+     putExprStat $ outE .=. (mkCallE "time" [ CVar . Ident $ "NULL"])
+     forCG (itE .=. (intE 1))
+           (itE .<. argc)
+           (CUnary CPostIncOp itE)
+           (ifCG ((index (index argv itE) (intE 0) .==. (charE '-')) .&&.
+                  (index (index argv itE) (intE 1) .==. (charE 's')))
+                 (putExprStat $
+                   sscanfE [index argv itE,stringE "-s%d",address outE])
+                 (return ()))
+     putStat $ opComment "End Random Seed?"
      return outE
 
 
