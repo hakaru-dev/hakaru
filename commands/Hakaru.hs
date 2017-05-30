@@ -46,7 +46,8 @@ data Options = Options
 options :: O.Parser Options
 options = Options
   <$> O.switch
-      ( O.long "no-weights" <>
+      ( O.short "w" <>
+        O.long "no-weights" <>
         O.help "Don't print the weights" )
   <*> O.optional (O.option O.auto
       ( O.long "seed" <>

@@ -93,7 +93,7 @@ program executions and counting how many of each Boolean appears. For example, i
 see that `True` occurs much more frequently than `False`. This means that Alice is likely to win `match3` against Carol.
 
 ````bash
-hakaru --no-weights tugofwar_rejection.hk | head -n 10000 | sort | uniq -c
+hakaru -w tugofwar_rejection.hk | head -n 10000 | sort | uniq -c
    3060 false
    6940 true
 ````
