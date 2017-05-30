@@ -41,6 +41,15 @@ This page will introduce you to Hakaru's basic functionality by creating a progr
 
 Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
 
+### [Compiling to Haskell](/transforms/compile) ###
+
+A Hakaru program can be ported into Haskell which can then be converted into machine code for other applications.
+
+### [Compiling to C](/transforms/hkc) ###
+
+Depending on the scale, a Hakaru program might be resource-intensive to run. In these situations, you could port your Hakaru program to C using the `hkc` command to take
+advantage of other tools such as OpenMP for parallel processing. 
+
 ## Language Guide ##
 
 The Language Guide presents an overview of Hakaru's language primitives and core functionality.
@@ -109,15 +118,6 @@ use of Maple.
 ### [Metropolis Hastings](/transforms/mh) ###
 
 The Metropolis Hastings transform (`mh`) is used to convert a Hakaru program into a Metropolis Hastings transition kernel.
-
-### [Compiling to Haskell](/transforms/compile) ###
-
-A Hakaru program can be ported into Haskell which can then be converted into machine code for other applications.
-
-### [Compiling to C](/transforms/hkc) ###
-
-Depending on the scale, a Hakaru program might be resource-intensive to run. In these situations, you could port your Hakaru program to C using the `hkc` command to take
-advantage of other tools such as OpenMP for parallel processing. 
 
 ## Internals
 
