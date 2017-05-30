@@ -104,11 +104,14 @@ program's output by counting them.
 The expectation transformation (`expect`) computes expectation of a measure with respect to a given function. The normalization transformation (`normalize`) reweights a
 program so that it represents a normal distribution.
 
-### [Disintegrate and Density](/transforms/disintegrate) ###
+### [Disintegrate](/transforms/disintegrate) ###
 
 The disintegration transformation (`disintegrate`) produces a program representing the conditional distribution based on a joint probability distribution. This command
-is equivalent to model conditioning in probability theory. The density transformation (`density`) is used to create a conditional distribution model that is used to estimate 
-the density of the distribution at a particular point.
+is equivalent to model conditioning in probability theory. 
+
+### [Density](/transforms/density) ###
+
+The density transformation (`density`) is used to create a conditional distribution model that is used to estimate the density of the distribution at a particular point.
 
 ### [Simplify](/transforms/simplify) ###
 

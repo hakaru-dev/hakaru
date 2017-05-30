@@ -27,10 +27,11 @@ pages:
   - 'Arrays and Plate':                    'lang/arrays.md'
   - 'Loops' :                              'lang/loops.md'
 - Transformations:
-  - 'Expect and Normalize':     'transforms/expect.md'
-  - 'Disintegrate and Density': 'transforms/disintegrate.md'
-  - 'Simplify':                 'transforms/simplify.md'
-  - 'Metropolis Hastings':      'transforms/mh.md'
+  - 'Expect and Normalize': 'transforms/expect.md'
+  - 'Disintegrate':         'transforms/disintegrate.md'
+  - 'Density':              'transforms/density.md'
+  - 'Simplify':             'transforms/simplify.md'
+  - 'Metropolis Hastings':  'transforms/mh.md'
 - Internals:
   - 'AST and Hakaru Datakind':   'internals/ast.md'
   - 'ABT':                       'internals/abt.md'
