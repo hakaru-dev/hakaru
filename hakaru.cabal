@@ -71,6 +71,8 @@ Library
                        Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Runtime.Prelude,
                        Language.Hakaru.Runtime.LogFloatPrelude,
+                       Language.Hakaru.Runtime.CmdLine,
+                       Language.Hakaru.Runtime.LogFloatCmdLine,
                        Language.Hakaru.Observe,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Summary,

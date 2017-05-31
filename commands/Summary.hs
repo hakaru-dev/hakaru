@@ -120,24 +120,35 @@ header logfloats mmodule =
                      ]
     else "import           Prelude hiding (product)"
   , if logfloats
-    then "import           Language.Hakaru.Runtime.LogFloatPrelude"
-    else "import           Language.Hakaru.Runtime.Prelude"
+    then TxT.unlines [ "import           Language.Hakaru.Runtime.LogFloatPrelude"
+                     , "import           Language.Hakaru.Runtime.LogFloatCmdLine" ]
+    else TxT.unlines [ "import           Language.Hakaru.Runtime.Prelude"
+                     , "import           Language.Hakaru.Runtime.CmdLine" ]
+  , "import           Language.Hakaru.Runtime.CmdLine"
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
+  , "import           System.Environment (getArgs)"
   , ""
   ]
 
 footer :: Sing (a :: Hakaru) -> [Text]
 footer typ =
-  [ ""
-  , "main :: IO ()"
-  , "main = do"
-  , "  g <- MWC.createSystemRandom"
-  , case typ of
-      SMeasure _ -> "  forever $ run g prog"
-      _          -> "  print prog"
-  ]
+    ["","main :: IO ()"
+    , TxT.concat ["main = makeMain (prog :: ",toHsType typ,")  =<< getArgs"]]
+  where toHsType :: Sing (a :: Hakaru) -> Text
+        toHsType SInt = "Int"
+        toHsType SNat = "Int"
+        toHsType SReal = "Double"
+        toHsType SProb = "LogFloat"
+        toHsType (SArray t) = let t' = toHsType t in
+                                TxT.concat ["(",TxT.unwords ["MayBoxVec",t',t'],")"]
+        toHsType (SMeasure t) = TxT.concat ["(",TxT.unwords ["Measure",toHsType t],")"]
+        toHsType (SFun t1 t2) = TxT.unwords [toHsType t1,"->",toHsType t2]
+        toHsType (SData _
+                   ((SKonst t1 `SEt` SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
+          TxT.concat ["(",toHsType t1,",",toHsType t2,")"]
+        toHsType _ = "type"
 
 footerWalk :: [Text]
 footerWalk =
