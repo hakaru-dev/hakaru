@@ -3,6 +3,8 @@
 The `disintegrate` transformation converts a Hakaru program representing a joint probability distribution into a Hakaru program representing a posterior distribution for a 
 target distribution variable. This transform is equivalent to model conditioning in probability theory, where the known data is provided to the transformed Hakaru model.
 
+**Note:** The `disintegrate` transform cannot be used to condition variables of type `bool` or expressions containing Boolean operators.
+
 ## Usage ##
 
 Before you use the `disintegrate` transform, your Hakaru program should contain a `return` statement containing the variables for your known and unknown data. The order of the
@@ -51,26 +53,4 @@ fn x2 real:
                sqrt((2 * pi))),
               return ())
  return x
-````
-
-# Density #
-
-Finding the density of a probability distribution at a particular point is a special-case use of `disintegrate`. It is defined in terms of it and the expectation 
-transformation.
-
-## Usage ##
-
-You can use the `density` transform in the command line by calling:
-
-````bash
-density hakaru_program.hk
-````
-
-## Example ##
-
-````nohighlight
-echo "normal(0,1)" | density -
-
-fn x0 real: 
- (exp((negate(((x0 + 0) ^ 2)) / 2)) / 1 / sqrt((2 * pi)) / 1)
 ````

@@ -11,15 +11,8 @@ import           Data.Text
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
 
-import           System.Environment
-
 main :: IO ()
-main = do
-  args <- getArgs
-  case args of
-      [prog] -> IO.readFile prog >>= runPretty
-      []     -> IO.getContents   >>= runPretty
-      _      -> IO.hPutStrLn stderr "Usage: pretty <file>"
+main = simpleCommand runPretty "pretty"
 
 runPretty :: Text -> IO ()
 runPretty prog =

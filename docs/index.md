@@ -41,6 +41,15 @@ This page will introduce you to Hakaru's basic functionality by creating a progr
 
 Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
 
+### [Compiling to Haskell](/transforms/compile) ###
+
+A Hakaru program can be ported into Haskell which can then be converted into machine code for other applications.
+
+### [Compiling to C](/transforms/hkc) ###
+
+Depending on the scale, a Hakaru program might be resource-intensive to run. In these situations, you could port your Hakaru program to C using the `hkc` command to take
+advantage of other tools such as OpenMP for parallel processing. 
+
 ## Language Guide ##
 
 The Language Guide presents an overview of Hakaru's language primitives and core functionality.
@@ -84,40 +93,37 @@ Hakaru loops are specialized to compute the summation or product of the elements
 ## Transformations ##
 
 Hakaru includes some inference algorithms that you can use to transform your probabilistic models into other forms to extract desireable information. Its inference 
-algorithms are implemented predominately as program transformations.
+algorithms are implemented predominantly as program transformations.
 
 **Note:** By default, Hakaru assigns a weight to each generated sample. These weights are not printed by the `hakaru` command. For most programs, a weight of one is used.
 Otherwise it is possible for the weights to vary between samples. This might result in differing results from the original and transformed programs when summarizing a 
 program's output by counting them.
 
-### [Expect and Normalize](/transforms/expect) ###
+### [Expect](/transforms/expect) ###
 
-The expectation transformation (`expect`) computes expectation of a measure with respect to a given function. The normalization transformation (`normalize`) reweights a
-program so that it represents a normal distribution.
+The expectation transformation (`expect`) computes expectation of a measure with respect to a given function. 
 
-### [Disintegrate and Density](/transforms/disintegrate) ###
+### [Normalize](/transforms/normalize) ###
+
+The normalization transformation (`normalize`) reweights a program so that it represents a normal distribution.
+
+### [Disintegrate](/transforms/disintegrate) ###
 
 The disintegration transformation (`disintegrate`) produces a program representing the conditional distribution based on a joint probability distribution. This command
-is equivalent to model conditioning in probability theory. The density transformation (`density`) is used to create a conditional distribution model that is used to estimate 
-the density of the distribution at a particular point.
+is equivalent to model conditioning in probability theory. 
+
+### [Density](/transforms/density) ###
+
+The density transformation (`density`) is used to create a conditional distribution model that is used to estimate the density of the distribution at a particular point.
 
 ### [Simplify](/transforms/simplify) ###
 
-The simplify transformation (`simplify`) is used to improve Hakaru programs by simplifying proababilistic models using computer algebra. This transformation requires the
+The simplify transformation (`simplify`) is used to improve Hakaru programs by simplifying probabilistic models using computer algebra. This transformation requires the
 use of Maple.
 
 ### [Metropolis Hastings](/transforms/mh) ###
 
 The Metropolis Hastings transform (`mh`) is used to convert a Hakaru program into a Metropolis Hastings transition kernel.
-
-### [Compiling to Haskell](/transforms/compile) ###
-
-A Hakaru program can be ported into Haskell which can then be converted into machine code for other applications.
-
-### [Compiling to C](/transforms/hkc) ###
-
-Depending on the scale, a Hakaru program might be resource-intensive to run. In these situations, you could port your Hakaru program to C using the `hkc` command to take
-advantage of other tools such as OpenMP for parallel processing. 
 
 ## Internals
 

@@ -11,10 +11,13 @@ import           Language.Hakaru.Syntax.TypeCheck
 
 import           Control.Monad.Trans.Except
 import           Control.Monad (when)
-import qualified Data.Text    as Text
-import qualified Data.Text.IO as IO
+import qualified Data.Text      as Text
+import qualified Data.Text.IO   as IO
+import qualified Data.Text.Utf8 as U
 import           Data.Vector
 import           System.IO (stderr)
+import           System.Environment (getArgs)
+import           Data.Monoid ((<>))
 
 type Term a = TrivialABT T.Term '[] a
 
@@ -60,15 +63,21 @@ parseAndInferWithDebug debug x =
         putErrorLn = IO.hPutStrLn stderr
 
 
-
-
 splitLines :: Text.Text -> Maybe (Vector Text.Text)
 splitLines = Just . fromList . Text.lines
 
 readFromFile :: String -> IO Text.Text
-readFromFile "-" = IO.getContents
-readFromFile x   = IO.readFile x
+readFromFile "-" = U.getContents
+readFromFile x   = U.readFile x
+
+simpleCommand :: (Text.Text -> IO ()) -> Text.Text -> IO ()
+simpleCommand k fnName = do 
+  args <- getArgs
+  case args of
+      [prog] -> U.readFile prog >>= k
+      []     -> U.getContents   >>= k 
+      _      -> IO.hPutStrLn stderr $ "Usage: " <> fnName <> " <file>"
 
 writeToFile :: String -> (Text.Text -> IO ())
-writeToFile "-" = IO.putStrLn
-writeToFile x   = IO.writeFile x
+writeToFile "-" = U.putStrLn 
+writeToFile x   = U.writeFile x

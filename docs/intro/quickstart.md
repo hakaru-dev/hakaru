@@ -209,7 +209,7 @@ coinToss(0.3)
 We can now run the program to estimate what values for `coin`. Let's use some Unix commands to run the program 1000 times and gather the results into counts:
 
 ````bash
-hakaru --no-weights twomixture_D.hk | head -n 1000 | sort | uniq -c
+hakaru -w twomixture_D.hk | head -n 1000 | sort | uniq -c
 
     526 false
     474 true
@@ -220,7 +220,7 @@ conditioned to pick values from the normal distribution much more frequently. Ru
 possible:
 
 ````bash
-hakaru --no-weights twomixture_D.hk | head -n 1000 | sort | uniq -c
+hakaru -w twomixture_D.hk | head -n 1000 | sort | uniq -c
 
     1000 true
 ````

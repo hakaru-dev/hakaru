@@ -1,9 +1,9 @@
 # What is Probabilistic Programming?
 
-Probablilistic programming is a software-driven method for creating probabilistic models and then using them to make probabilistic inferences. It 
+Probabilistic programming is a software-driven method for creating probabilistic models and then using them to make probabilistic inferences. It 
 provides a means for writing programs which describe probabilistic models such that they can be used to make probabilistic inferences. For example, the 
 Hakaru program \(poisson(5)\) represents the Poisson distribution with a rate of five. A Probabilistic Programming Language (PPL) is a computer language designed to 
-describe probabalistic models and distributions such that probabilistic inferences can be made programmatically[^1]. Hakaru is an example of a PPL. 
+describe probabilistic models and distributions such that probabilistic inferences can be made programmatically[^1]. Hakaru is an example of a PPL. 
 
 Why do we need a programming language for describing probability distributions? Consider a machine learning problem. A typical workflow for this type of design is, when 
 presented with a problem, to design an inference algorithm for a specific probabilistic distribution and query. The development of a distribution, query, and inference
@@ -29,7 +29,7 @@ $$ f(\lambda) = \frac{\lambda^x e^{-\lambda}}{x!} $$
 
 ## Methods of Probabilistic Reasoning ##
 
-There are two main approaches to statistical reasoning: Frequentist and Bayesian. In Frequentist reasoning, the goal is to maximize the liklihood function. In the density
+There are two main approaches to statistical reasoning: Frequentist and Bayesian. In Frequentist reasoning, the goal is to maximize the likelihood function. In the density
 model for our bus arrival times, this would mean finding a value for \(\lambda\) that maximizes \(f\). In Bayesian reasoning, an estimation is made using the given 
 function parameters and a conditioned data set collected for the event. For our density model, we would design an estimation functions using our parameters and given it
 our set of bus arrival times to predict a value for \(f\). You can use either approach to probabilistic reasoning in your Hakaru programs. 
@@ -93,7 +93,7 @@ program executions and counting how many of each Boolean appears. For example, i
 see that `True` occurs much more frequently than `False`. This means that Alice is likely to win `match3` against Carol.
 
 ````bash
-hakaru --no-weights tugofwar_rejection.hk | head -n 10000 | sort | uniq -c
+hakaru -w tugofwar_rejection.hk | head -n 10000 | sort | uniq -c
    3060 false
    6940 true
 ````
@@ -106,21 +106,21 @@ this, you could generate samples using a *simulation*. In a simulation, you can 
 to know what a population would look like with a different mean, you simply need to change that value in your model and run the simulation again. 
 
 What about the cases where you do have some samples and you want to know something about it? In this case, you use the data you have to guide the generation of samples in 
-order to learn how the data occured. This approach is called *inference*. To be able to make inferences from your known samples, you must add reasoning mechanisms to your 
+order to learn how the data occurred. This approach is called *inference*. To be able to make inferences from your known samples, you must add reasoning mechanisms to your 
 model to gauge the usefulness of a model-generated sample with respect to some data that you have already collected. For example, you might have collected some disease data 
-from a hospital and want to know how it spread in the affected patients. After creating a proababilistic model of disease transmission, you can use your collected data 
+from a hospital and want to know how it spread in the affected patients. After creating a probabilistic model of disease transmission, you can use your collected data 
 to reason about the samples generated from your model to judge its relevance in the creation of the data that you have collected.
 
 In the tug-of-war example, you used Hakaru to restrict which samples were kept (Alice must have won `match1` and Bob must have won `match2`) and which ones were discarded. 
 This inference approach is called *rejection sampling* because restricted samples generated from your model are discarded. Would this approach still work if the model were 
 changed? Could we use this same technique to determine if Alice will win her match and by how much?
 
-As you pose more complex questions, creating models as rejection samplers becomes increasing inefficient because of the number of discarded samples. It would be
-better if your model could be transformed such that only observed data points are generated so that compuational resources are not wasted on data that will not exist in 
+As you pose more complex questions, creating models as rejection samplers becomes increasingly inefficient because of the number of discarded samples. It would be
+better if your model could be transformed such that only observed data points are generated so that computational resources are not wasted on data that will not exist in 
 your data set.
 
 Hakaru uses *importance sampling* where, instead of being rejected immediately, each sample is assigned a weight so that a sample average can be calculated. As more 
-samples are generated, sample weights are updated to reflect the likelihood of that sample's rejection. While this works well for model inferencing when the model has
+samples are generated, sample weights are updated to reflect the likelihood of that sample's rejection. While this works well for model inference when the model has
 only a few dimensions, there are more powerful tools that can be used for more complex scenarios.
 
 ### The Metropolis-Hastings Algorithm: A Markov Chain Monte Carlo Method

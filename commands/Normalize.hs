@@ -15,15 +15,8 @@ import           Data.Text
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
 
-import           System.Environment
-
 main :: IO ()
-main = do
-  args <- getArgs
-  case args of
-      [prog] -> IO.readFile prog >>= runNormalize
-      []     -> IO.getContents   >>= runNormalize
-      _      -> IO.hPutStrLn stderr "Usage: normalize <file>"
+main = simpleCommand runNormalize "normalize" 
 
 runNormalize :: Text -> IO ()
 runNormalize prog = either (IO.hPutStrLn stderr) print $ do

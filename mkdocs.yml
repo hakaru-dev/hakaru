@@ -15,6 +15,8 @@ pages:
   - 'Generating Samples from your Hakaru Program': 'intro/samplegen.md'
   - 'Quick Start: A Mixture Model Example':        'intro/quickstart.md'
   - 'Examples':                                    'examples.md'
+  - 'Compiling to Haskell':                        'transforms/compile.md' 
+  - 'Compiling to C':                              'transforms/hkc.md' 
 - Language Guide:
   - 'Primitive Probability Distributions': 'lang/rand.md'
   - 'Let and Bind':                        'lang/letbind.md'
@@ -25,12 +27,12 @@ pages:
   - 'Arrays and Plate':                    'lang/arrays.md'
   - 'Loops' :                              'lang/loops.md'
 - Transformations:
-  - 'Expect and Normalize':     'transforms/expect.md'
-  - 'Disintegrate and Density': 'transforms/disintegrate.md'
-  - 'Simplify':                 'transforms/simplify.md'
-  - 'Metropolis Hastings':      'transforms/mh.md'
-  - 'Compiling to Haskell':     'transforms/compile.md' 
-  - 'Compiling to C':           'transforms/hkc.md' 
+  - 'Expect':              'transforms/expect.md'
+  - 'Normalize':           'transforms/normalize.md'
+  - 'Disintegrate':        'transforms/disintegrate.md'
+  - 'Density':             'transforms/density.md'
+  - 'Simplify':            'transforms/simplify.md'
+  - 'Metropolis Hastings': 'transforms/mh.md'
 - Internals:
   - 'AST and Hakaru Datakind':   'internals/ast.md'
   - 'ABT':                       'internals/abt.md'
