@@ -26,8 +26,8 @@ pages:
   - 'Data Types and Match':                'lang/datatypes.md'
   - 'Arrays and Plate':                    'lang/arrays.md'
   - 'Loops' :                              'lang/loops.md'
+  - 'Expect':                              'transforms/expect.md'
 - Transformations:
-  - 'Expect':              'transforms/expect.md'
   - 'Normalize':           'transforms/normalize.md'
   - 'Disintegrate':        'transforms/disintegrate.md'
   - 'Density':             'transforms/density.md'
