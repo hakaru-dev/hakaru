@@ -16,7 +16,9 @@ import Control.Monad (forever)
 import Data.Functor
 #endif
 
-
+-- This Read instance really should be the logfloat package
+instance Read LogFloat where
+    readsPrec p s = [(logFloat x, r) | (x, r) <- readsPrec p s]
 
 -- A class of types that can be parsed from command line arguments
 class Parseable a where
@@ -29,10 +31,13 @@ instance Parseable Double where
   parse = return . read
 
 instance Parseable LogFloat where
-  parse = return . logFloat . read
+  parse = return . read
 
 instance (U.Unbox a, Parseable a) => Parseable (U.Vector a) where
   parse s = U.fromList <$> ((mapM parse) =<< (lines <$> readFile s))
+
+instance (Read a, Read b, Parseable a, Parseable b) => Parseable (a, b) where
+  parse = return . read
 
 {- Make main needs to recur down the function type while at the term level build
 -- up a continuation of parses and partial application of the function
