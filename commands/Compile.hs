@@ -63,13 +63,14 @@ options :: Parser Options
 options = Options
   <$> strArgument (  metavar "INPUT"
                   <> help "Program to be compiled" )
-  <*> (optional $ strOption (  short 'o'
+  <*> (optional $ strOption (  metavar "FILE"
+                            <> short 'o'
                             <> help "Optional output file name"))
   <*> (optional $ strOption (  long "as-module"
                             <> short 'M'
                             <> help "creates a haskell module with this name"))
-  <*> (optional $ strOption (  long "with-kernel"
-                            <> help "<transition kernel> <initial measure>"))
+  <*> (optional $ strOption (  long "transition-kernel"
+                            <> help "Use this program as transition kernel for running a markov chain"))
   <*> switch (  long "logfloat-prelude"
              <> help "use logfloat prelude for numeric stability")
   <*> switch (  short 'O'
