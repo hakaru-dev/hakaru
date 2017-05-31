@@ -3,18 +3,20 @@
              FlexibleInstances,
              UndecidableInstances,
              TypeFamilies #-}
-module Language.Hakaru.Runtime.CmdLine where
+module Language.Hakaru.Runtime.LogFloatCmdLine where
 
 import qualified Data.Vector.Unboxed             as U
 import qualified Data.Vector.Generic             as G
 import qualified System.Random.MWC               as MWC
-import Language.Hakaru.Runtime.Prelude
+import Language.Hakaru.Runtime.LogFloatPrelude
 import Data.Number.LogFloat
 import Control.Monad (forever)
 
 #if __GLASGOW_HASKELL__ < 710
 import Data.Functor
 #endif
+
+
 
 -- A class of types that can be parsed from command line arguments
 class Parseable a where
@@ -25,6 +27,9 @@ instance Parseable Int where
 
 instance Parseable Double where
   parse = return . read
+
+instance Parseable LogFloat where
+  parse = return . logFloat . read
 
 instance (U.Unbox a, Parseable a) => Parseable (U.Vector a) where
   parse s = U.fromList <$> ((mapM parse) =<< (lines <$> readFile s))
@@ -39,6 +44,9 @@ instance MakeMain Int where
   makeMain p _ = print p
 
 instance MakeMain Double where
+  makeMain p _ = print p
+
+instance MakeMain LogFloat where
   makeMain p _ = print p
 
 instance Show a => MakeMain (Measure a) where

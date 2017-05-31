@@ -150,9 +150,10 @@ header logfloats mmodule =
                      ]
     else "import           Prelude hiding (product)"
   , if logfloats
-    then "import           Language.Hakaru.Runtime.LogFloatPrelude"
-    else "import           Language.Hakaru.Runtime.Prelude"
-  , "import           Language.Hakaru.Runtime.CmdLine"
+    then TxT.unlines [ "import           Language.Hakaru.Runtime.LogFloatPrelude"
+                     , "import           Language.Hakaru.Runtime.LogFloatCmdLine" ]
+    else TxT.unlines [ "import           Language.Hakaru.Runtime.Prelude"
+                     , "import           Language.Hakaru.Runtime.CmdLine" ]
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
