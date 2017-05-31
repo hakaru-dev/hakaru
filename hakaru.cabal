@@ -132,6 +132,67 @@ Test-Suite system-testsuite
     Hs-Source-Dirs:    haskell
     Default-Language:  Haskell2010
     GHC-Options:       -Wall -fwarn-tabs
+	
+    other-modules:     Data.Number.Nat
+                       Data.Number.Natural
+                       Data.Text.Utf8
+                       Language.Hakaru.Command
+                       Language.Hakaru.Disintegrate
+                       Language.Hakaru.Evaluation.Coalesce
+                       Language.Hakaru.Evaluation.ConstantPropagation
+                       Language.Hakaru.Evaluation.DisintegrationMonad
+                       Language.Hakaru.Evaluation.EvalMonad
+                       Language.Hakaru.Evaluation.ExpectMonad
+                       Language.Hakaru.Evaluation.Lazy
+                       Language.Hakaru.Evaluation.PEvalMonad
+                       Language.Hakaru.Evaluation.Types
+                       Language.Hakaru.Expect
+                       Language.Hakaru.Inference
+                       Language.Hakaru.Parser.AST
+                       Language.Hakaru.Parser.Import
+                       Language.Hakaru.Parser.Maple
+                       Language.Hakaru.Parser.Parser
+                       Language.Hakaru.Parser.SymbolResolve
+                       Language.Hakaru.Pretty.Concrete
+                       Language.Hakaru.Pretty.Haskell
+                       Language.Hakaru.Pretty.Maple
+                       Language.Hakaru.Sample
+                       Language.Hakaru.Simplify
+                       Language.Hakaru.Syntax.ABT
+                       Language.Hakaru.Syntax.ANF
+                       Language.Hakaru.Syntax.AST
+                       Language.Hakaru.Syntax.AST.Eq
+                       Language.Hakaru.Syntax.AST.Sing
+                       Language.Hakaru.Syntax.CSE
+                       Language.Hakaru.Syntax.Datum
+                       Language.Hakaru.Syntax.DatumABT
+                       Language.Hakaru.Syntax.DatumCase
+                       Language.Hakaru.Syntax.Gensym
+                       Language.Hakaru.Syntax.Hoist
+                       Language.Hakaru.Syntax.IClasses
+                       Language.Hakaru.Syntax.Prelude
+                       Language.Hakaru.Syntax.Prune
+                       Language.Hakaru.Syntax.Reducer
+                       Language.Hakaru.Syntax.TypeCheck
+                       Language.Hakaru.Syntax.TypeOf
+                       Language.Hakaru.Syntax.Uniquify
+                       Language.Hakaru.Syntax.Unroll
+                       Language.Hakaru.Syntax.Value
+                       Language.Hakaru.Syntax.Variable
+                       Language.Hakaru.Types.Coercion
+                       Language.Hakaru.Types.DataKind
+                       Language.Hakaru.Types.HClasses
+                       Language.Hakaru.Types.Sing
+                       System.MapleSSH
+                       Tests.ASTTransforms
+                       Tests.Disintegrate
+                       Tests.Models
+                       Tests.Parser
+                       Tests.RoundTrip
+                       Tests.Sample
+                       Tests.Simplify
+                       Tests.TestTools
+                       Tests.TypeCheck
 
     Build-Depends:     base               >= 4.6  && < 5.0,
                        Cabal              >= 1.16,
