@@ -8,10 +8,9 @@ import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Command
 
 import           Data.Text
-import qualified Data.Text.IO as IO
-import           System.IO (stderr)
+import qualified Data.Text.Utf8 as U
 
-import           System.Environment
+import           System.IO (stderr)
 
 main :: IO ()
 main = simpleCommand runPretty "momiji"
@@ -19,9 +18,9 @@ main = simpleCommand runPretty "momiji"
 runPretty :: Text -> IO ()
 runPretty prog =
     case parseAndInfer prog of
-    Left  err              -> hPut_utf8 stderr err
+    Left  err              -> U.hPut stderr err
     Right (TypedAST typ ast) -> do
-      putStrLn_utf8 $ pack $ Maple.pretty (expandTransformations ast)
-      putStrLn_utf8 $ ","
-      putStrLn_utf8 $ pack $ Maple.mapleType typ ""
+      U.putStrLnS $ Maple.pretty (expandTransformations ast)
+      U.putStrLn  $ ","
+      U.putStrLnS $ Maple.mapleType typ ""
 

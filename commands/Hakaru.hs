@@ -20,7 +20,6 @@ import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Command ( parseAndInfer, parseAndInfer'
                                          , readFromFile, Term
-                                         , putStr_utf8, putStrLn_utf8
                                          )
 
 #if __GLASGOW_HASKELL__ < 710
@@ -93,10 +92,10 @@ withWeight :: Value 'HProb -> IO () -> IO ()
 withWeight w m = render w >> putStr "\t" >> m
 
 render :: Value a -> IO ()
-render = putStr_utf8 . pack . renderStyle style {mode = LeftMode} . prettyValue
+render = putStr . renderStyle style {mode = LeftMode} . prettyValue
 
 renderLn :: Value a -> IO ()
-renderLn = putStrLn_utf8 . pack . renderStyle style {mode = LeftMode} . prettyValue
+renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
 -- TODO: A better needs to be found for passing weights around
 runHakaru :: MWC.GenIO -> Bool -> Text -> IO ()

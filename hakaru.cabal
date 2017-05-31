@@ -96,6 +96,7 @@ Library
                        Language.Hakaru.CodeGen.Libs,
                        Data.Number.Nat,
                        Data.Number.Natural
+                       Data.Text.Utf8
 
     other-modules:     System.MapleSSH
 

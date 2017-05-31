@@ -11,8 +11,6 @@ import           Data.Text
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
 
-import           System.Environment
-
 main :: IO ()
 main = simpleCommand runPretty "pretty"
 
