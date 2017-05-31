@@ -6,6 +6,9 @@ distribution as part of its work.
 
 ## Usage ##
 
+Your Hakaru program must be a proabability distribution (type `measure(x)`) in order to use the `density` transform. Most Hakaru programs that end
+with a `return` statement do not meet this requirement because they return values instead of functions on values.
+
 You can use the `density` transform in the command line by calling:
 
 ````bash
