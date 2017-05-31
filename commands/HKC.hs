@@ -41,7 +41,7 @@ data Options =
          , fileIn           :: String
          , fileOut          :: Maybe String
          , par              :: Bool
-         , showWeightsOpt   :: Bool
+         , noWeightsOpt     :: Bool
          , showProbInLogOpt :: Bool
          , garbageCollector :: Bool
          -- , logProbs         :: Bool
@@ -78,9 +78,9 @@ options = Options
                             <> help "output FILE"))
   <*> switch (  short 'j'
              <> help "Generates parallel programs using OpenMP directives")
-  <*> switch (  long "show-weights"
+  <*> switch (  long "no-weights"
              <> short 'w'
-             <> help "Shows the weights along with the samples in samplers")
+             <> help "Don't print the weights")
   <*> switch (  long "show-prob-log"
              <> help "Shows prob types as 'exp(<log-domain-value>)' instead of '<value>'")
   <*> switch (  long "garbage-collector"
@@ -108,7 +108,7 @@ compileHakaru prog = ask >>= \config -> lift $ do
                       Nothing  -> "-"
           codeGen = wrapProgram ast'
                                 (asFunc config)
-                                (PrintConfig { showWeights   = showWeightsOpt config
+                                (PrintConfig { noWeights     = noWeightsOpt config
                                              , showProbInLog = showProbInLogOpt config })
           codeGenConfig = emptyCG {sharedMem = par config, managedMem = garbageCollector config}
           cast    = CAST $ runCodeGenWith codeGen codeGenConfig
@@ -128,8 +128,9 @@ compileHakaru prog = ask >>= \config -> lift $ do
         Nothing -> writeToFile outPath output
         Just cc -> makeFile cc (fileOut config) (unpack output) config
 
-  where hrule s = concat ["\n<=======================| "
-                         ,s," |=======================>\n"]
+  where hrule s = concat [ "\n<=======================| "
+                         , s
+                         ," |=======================>\n"]
         abtPasses Nothing  = []
         abtPasses (Just 0) = [ constantPropagation ]
         abtPasses (Just 1) = [ constantPropagation

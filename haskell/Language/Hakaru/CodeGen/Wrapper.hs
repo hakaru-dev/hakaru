@@ -328,7 +328,7 @@ we don't show weights and probabilities are printed as normal real values.
 -}
 
 data PrintConfig
-  = PrintConfig { showWeights   :: Bool
+  = PrintConfig { noWeights   :: Bool
                 , showProbInLog :: Bool
                 } deriving Show
 
@@ -382,11 +382,11 @@ printFormat c SProb        = \s -> if showProbInLog c
                                   then "exp(%.15f)" ++ s
                                   else "%.15f" ++ s
 printFormat _ SReal        = \s -> "%.17f" ++ s
-printFormat c (SMeasure t) = if showWeights c
-                            then \s -> if showProbInLog c
-                                       then "exp(%.15f) " ++ printFormat c t s
-                                       else "%.15f " ++ printFormat c t s
-                            else printFormat c t
+printFormat c (SMeasure t) = if noWeights c
+                             then printFormat c t
+                             else \s -> if showProbInLog c
+                                        then "exp(%.15f) " ++ printFormat c t s
+                                        else "%.15f " ++ printFormat c t s
 printFormat c (SArray t)   = printFormat c t
 printFormat _ (SFun _ _)   = id
 printFormat _ (SData _ _)  = \s -> "TODO: printft datum" ++ s
