@@ -1,17 +1,24 @@
+{-# LANGUAGE CPP #-}
+
 module Data.Text.Utf8 where
 
 import           Prelude               hiding (putStr, putStrLn)
 import           Control.Applicative   (liftA)
+
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
+
 import qualified Data.ByteString.Char8 as BIO 
 import qualified Data.Text             as Text
 import           Data.Text.Encoding    (decodeUtf8, encodeUtf8)
 import           System.IO (Handle)
 
 readFile :: FilePath -> IO Text.Text
-readFile = liftA (liftA decodeUtf8) BIO.readFile  
+readFile f = decodeUtf8 <$> (BIO.readFile f)
 
 getContents :: IO Text.Text 
-getContents = liftA decodeUtf8 BIO.getContents
+getContents = decodeUtf8 <$> BIO.getContents
 
 putStr :: Text.Text -> IO ()
 putStr = BIO.putStr . encodeUtf8
