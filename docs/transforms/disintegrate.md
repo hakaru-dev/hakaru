@@ -3,6 +3,8 @@
 The `disintegrate` transformation converts a Hakaru program representing a joint probability distribution into a Hakaru program representing a posterior distribution for a 
 target distribution variable. This transform is equivalent to model conditioning in probability theory, where the known data is provided to the transformed Hakaru model.
 
+**Note:** The `disintegrate` transform cannot be used to condition variables of type `bool` or expressions containing Boolean operators.
+
 ## Usage ##
 
 Before you use the `disintegrate` transform, your Hakaru program should contain a `return` statement containing the variables for your known and unknown data. The order of the
