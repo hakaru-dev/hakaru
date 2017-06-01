@@ -100,7 +100,7 @@ compileHakaru opts = do
           header (logFloatPrelude opts) (asModule opts) ++
           [ pack $ prettyProg "prog" ast' ] ++
           (case asModule opts of
-             Nothing -> footer typ
+             Nothing -> footer (logFloatPrelude opts) typ
              Just _  -> [])
   where et = expandTransformations
 
@@ -158,20 +158,19 @@ header logfloats mmodule =
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
-  , "import           Data.Number.LogFloat hiding (product)"
   , "import           System.Environment (getArgs)"
   , ""
   ]
 
-footer :: forall (a :: Hakaru) . Sing a -> [Text]
-footer typ =
+footer :: forall (a :: Hakaru) . Bool -> Sing a -> [Text]
+footer logfloats typ =
     ["","main :: IO ()"
     , TxT.concat ["main = makeMain (prog :: ",toHsType typ,")  =<< getArgs"]]
   where toHsType :: forall (a :: Hakaru) . Sing a -> Text
         toHsType SInt = "Int"
         toHsType SNat = "Int"
         toHsType SReal = "Double"
-        toHsType SProb = "LogFloat"
+        toHsType SProb = if logfloats then "LogFloat" else "Double"
         toHsType (SArray t) = let t' = toHsType t in
                                 TxT.concat ["(",TxT.unwords ["MayBoxVec",t',t'],")"]
         toHsType (SMeasure t) = TxT.concat ["(",TxT.unwords ["Measure",toHsType t],")"]
