@@ -28,6 +28,7 @@ NewSLO := module ()
         elim_intsum, int_assuming, sum_assuming,
         banish, isBound_IntsSums, isBound_IntSum,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt, SimplifyKB_,
+        eval_for_Simplify, eval_for_Simplify_tbl, eval_in_ctx, eval_in_ctx_tbl,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):

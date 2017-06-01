@@ -10,7 +10,7 @@ RoundTrip := proc(e, t::t_type)
 end proc;
 
 Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
-  subsindets(SimplifyKB(value(e), t, build_kb(ctx, "Simplify")),
+  subsindets(SimplifyKB(e, t, build_kb(ctx, "Simplify")),
              And({t_sum, t_product}, anyfunc(anything, anything=range)),
              e -> subsop(0 = `if`(e::t_sum, SumIE, ProductIE),
                          applyop(`+`, [2,2,2], e, 1)))
@@ -58,8 +58,37 @@ SimplifyKB_ := proc(e, t::t_type, kb::t_kb, $)
 end proc;
 
 SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
-    eval(SimplifyKB_(subs([int=Int,sum=Sum], e), t, kb),
+    eval(SimplifyKB_(eval_for_Simplify(e,kb), t, kb),
      [%fromLO=fromLO,%improve=improve,%toLO=toLO,%simplify_assuming=simplify_assuming]);
+end proc;
+
+eval_for_Simplify_tbl := table(
+  [ `Int`=`int`
+  , `Sum`=`sum`
+  , `Product`=`product`
+  ]);
+
+eval_for_Simplify := proc(e,kb,$)
+  eval_in_ctx(
+    proc(x,kb1)
+      subsindets(x, {seq(specfunc(q),q=[indices(eval_for_Simplify_tbl, nolist)])},
+                 y -> KB:-kb_eval_mb(eval_for_Simplify_tbl[op(0,y)],y,kb1));
+    end proc, e, kb);
+end proc;
+
+eval_in_ctx_tbl := table(
+  [ `PARTITION` = ((e,kb,ev)->KB:-kb_Partition(e,kb,a->a,ev))
+  , `piecewise` = ((e,kb,ev)->KB:-kb_piecewise(e,kb,a->a,ev))
+  ]);
+
+eval_in_ctx := proc(ev, e, kb, $)
+  if assigned(eval_in_ctx_tbl[op(0,e)]) then
+    eval_in_ctx_tbl[op(0,e)](e,kb,curry(eval_in_ctx, ev));
+  elif has(e, {indices(eval_in_ctx_tbl,nolist)}) then
+    map(x->eval_in_ctx(ev,x,kb),e);
+  else
+    ev(e,kb);
+  end if;
 end proc;
 
 # Testing
