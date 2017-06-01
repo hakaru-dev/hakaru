@@ -25,7 +25,7 @@ local Simplify_DConstrain := (can_simp, do_simp) -> module()
     end proc;
 end module;
 
-try_improve_exp := module()
+Domain_try_improve_exp := module()
   export SimplName  := "Try improve exp";
   export SimplOrder := 6 - 2/10;
   export ModuleApply := Simplify_DConstrain(can, `try`);
