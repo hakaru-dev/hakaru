@@ -345,7 +345,12 @@ printCG pconfig mtyp@(SMeasure typ) sampleFunc (Just numSamples) =
      putExprStat $ itE .=. numSamples
      whileCG (itE .!=. (intE 0)) $
        do putExprStat $ mE .=. sampleFunc
-          printCG pconfig typ (mdataSample mE) Nothing
+          case noWeights pconfig of
+            True  -> printCG pconfig typ (mdataSample mE) Nothing
+            False -> do putExprStat $
+                          printfE [ stringE (printFormat pconfig SProb "\t")
+                                  , expE (mdataWeight mE) ]
+                        printCG pconfig typ (mdataSample mE) Nothing
           ifCG (numSamples .>=. (intE 0))
                (putExprStat $ CUnary CPostDecOp itE)
                (return ())
@@ -381,7 +386,7 @@ printFormat _ SNat         = \s -> "%d" ++ s
 printFormat c SProb        = \s -> if showProbInLog c
                                   then "exp(%.15f)" ++ s
                                   else "%.15f" ++ s
-printFormat _ SReal        = \s -> "%.17f" ++ s
+printFormat _ SReal        = \s -> "%.15f" ++ s
 printFormat c (SMeasure t) = if noWeights c
                              then printFormat c t
                              else \s -> if showProbInLog c
