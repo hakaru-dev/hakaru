@@ -81,7 +81,7 @@ KB := module ()
      # Simplify a Hakaru term assuming the knowledge of the kb
      # variants do different things in case of simplification error
      # (which should really only occur when the KB contains a contradicition)
-     kb_assuming_mb, simplify_assuming, simplify_assuming_mb, simplify_assuming_f,
+     kb_assuming_mb, kb_eval_mb, simplify_assuming, simplify_assuming_mb, simplify_assuming_f,
 
      # Gets the most refined (see refine_given) type of a given name under the
      # assumptions of the KB; & convert such a type to a range.
@@ -780,6 +780,13 @@ KB := module ()
 
     e := warm(e);                                            `warm (then expand@exp)`;
     eval(e, exp = expand @ exp);
+  end proc;
+
+  kb_eval_mb := proc(f,e,kb,$)
+    local fn, ty, e1;
+    fn,ty := `if`(f::[anything$2],f,[f,satisfies(q->has(q,f))])[];
+    e1 := kb_assuming_mb(fn@op)(e, kb, _->e);
+    if e1::ty then e else e1 end if;
   end proc;
 
   # Simplfies a given Hakaru term under knowledge of the
