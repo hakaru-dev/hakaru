@@ -124,7 +124,6 @@ header logfloats mmodule =
                      , "import           Language.Hakaru.Runtime.LogFloatCmdLine" ]
     else TxT.unlines [ "import           Language.Hakaru.Runtime.Prelude"
                      , "import           Language.Hakaru.Runtime.CmdLine" ]
-  , "import           Language.Hakaru.Runtime.CmdLine"
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
