@@ -16,11 +16,9 @@ Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
                          applyop(`+`, [2,2,2], e, 1)))
 end proc;
 
-SimplifyKB_ := proc(e, t::t_type, kb::t_kb, $)
+SimplifyKB_ := proc(leaf, e, t::t_type, kb::t_kb, $)
   local patterns, x, kb1, ex;
-  if t :: HMeasure(anything) then
-    %fromLO(%improve(%toLO(e), _ctx=kb), _ctx=kb);
-  elif t :: HFunction(anything, anything) then
+  if t :: HFunction(anything, anything) then
     patterns := htype_patterns(op(1,t));
     if patterns :: Branches(Branch(PVar(name),anything)) then
       # Eta-expand the function type
@@ -28,7 +26,7 @@ SimplifyKB_ := proc(e, t::t_type, kb::t_kb, $)
                 op([1,1,1],patterns));
       x, kb1 := genType(x, op(1,t), kb, e);
       ex := app(e,x);
-      lam(x, op(1,t), SimplifyKB_(ex, op(2,t), kb1))
+      lam(x, op(1,t), SimplifyKB_(leaf,ex, op(2,t), kb1))
     else
       # Eta-expand the function type and the sum-of-product argument-type
       x := `if`(e::lam(name,anything,anything), op(1,e), d);
@@ -48,19 +46,24 @@ SimplifyKB_ := proc(e, t::t_type, kb::t_kb, $)
               end do;
               pSubst1 := op(op(pSubst1));
               Branch(subs(pSubst1, p1),
-                     SimplifyKB_(eval(eval(ex,eSubst),pSubst1), op(2,t), kb1))
+                     SimplifyKB_(leaf,eval(eval(ex,eSubst),pSubst1), op(2,t), kb1))
             end proc,
             patterns)))
     end if
   else
-    %simplify_assuming(e, kb)
+    leaf(e,t,kb)
   end if
 end proc;
 
-SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
-    eval(SimplifyKB_(eval_for_Simplify(e,kb), t, kb),
-     [%fromLO=fromLO,%improve=improve,%toLO=toLO,%simplify_assuming=simplify_assuming]);
-end proc;
+SimplifyKB := curry(SimplifyKB_,
+  proc(e0,t,kb)
+    local e := eval_for_Simplify(e0,kb);
+    if t :: HMeasure(anything) then
+      fromLO(improve(toLO(e), _ctx=kb), _ctx=kb);
+    else
+      simplify_assuming(e,kb);
+    end if;
+  end proc);
 
 eval_for_Simplify_tbl := table(
   [ `Int`=`int`
