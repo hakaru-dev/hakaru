@@ -23,7 +23,7 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     if rr <> FAIL then return rr end if;
   end if;
   if e :: 'applyintegrand(anything, anything)' then
-    map(simplify_assuming, e, kb)
+    applyop(simplify_assuming, 2, e, kb)
   elif can_reduce_Partition(e) then
     reduce_Partition(e, h, kb, opts, false);
   elif e :: `+` then
