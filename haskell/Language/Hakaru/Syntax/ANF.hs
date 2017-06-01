@@ -26,14 +26,11 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ANF (normalize, isValue) where
 
-import qualified Data.Foldable                   as F
 import           Data.Maybe
-import           Data.Sequence                   ((<|))
-import qualified Data.Sequence                   as S
+import           Control.Monad.Cont              (Cont, runCont, cont)
 
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
-import           Language.Hakaru.Syntax.Datum
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Types.DataKind
 
@@ -69,7 +66,7 @@ freshVar
   => Variable a
   -> (Variable a -> abt xs b)
   -> abt (a ': xs) b
-freshVar var f = binder (varHint var) (varType var) (f . getVar)
+freshVar v f = binder (varHint v) (varType v) (f . getVar)
 
 remapVar
   :: (ABT Term abt)
@@ -77,7 +74,7 @@ remapVar
   -> Env
   -> (Env -> abt xs b)
   -> abt (a ': xs) b
-remapVar var env f = freshVar var $ \var' -> f (updateEnv var var' env)
+remapVar v env f = freshVar v $ \v' -> f (updateEnv v v' env)
 
 -- | Entry point for the normalization process. Initializes normalize' with the
 -- empty context.
@@ -88,22 +85,35 @@ normalize
 normalize abt = normalize' abt emptyAssocs id
 
 normalize'
-  :: forall abt xs a b . (ABT Term abt)
-  => abt xs a
+  :: (ABT Term abt)
+  => abt '[] a
   -> Env
   -> Context abt a b
-  -> abt xs b
-normalize' = loop . viewABT
-  where
-    loop :: forall c d ys . View (Term abt) ys c -> Env -> Context abt c d -> abt ys d
-    loop view env ctxt =
-      case view of
-        Var v    -> normalizeVar v env ctxt
-        Syn s    -> normalizeTerm s env ctxt
-        Bind v b -> remapVar v env (\env' -> loop b env' ctxt)
+  -> abt '[] b
+normalize' = normalizeTail . viewABT
 
-normalizeVar :: (ABT Term abt) => Variable a -> Env -> Context abt a b -> abt '[] b
-normalizeVar v env ctxt = ctxt . var $ fromMaybe v (lookupAssoc v env)
+normalizeTail, normalizeSave
+  :: (ABT Term abt)
+  => View (Term abt) xs a
+  -> Env
+  -> (abt xs a -> abt '[] b)
+  -> abt '[] b
+normalizeTail (Var v)     env ctxt = ctxt (normalizeVar v env)
+normalizeTail (Syn s)     env ctxt = normalizeTerm s env ctxt
+normalizeTail view@Bind{} env ctxt = ctxt (normalizeReset view env)
+normalizeSave (Var v)     env ctxt = ctxt (normalizeVar v env)
+normalizeSave (Syn s)     env ctxt = normalizeTerm s env giveName
+  where giveName abt' | isValue abt' = ctxt abt'
+                      | otherwise    = let_ abt' ctxt
+normalizeSave view@Bind{} env ctxt = ctxt (normalizeReset view env)
+
+normalizeReset :: (ABT Term abt) => View (Term abt) xs a -> Env -> abt xs a
+normalizeReset (Var v)    env = normalizeVar v env
+normalizeReset (Syn s)    env = normalizeTerm s env id
+normalizeReset (Bind v b) env = remapVar v env (normalizeReset b)
+
+normalizeVar :: (ABT Term abt) => Variable a -> Env -> abt '[] a
+normalizeVar v env = var $ fromMaybe v (lookupAssoc v env)
 
 isValue
   :: (ABT Term abt)
@@ -119,300 +129,41 @@ isValue abt =
     isValueTerm (Lam_ :$ _) = True
     isValueTerm _           = False
 
--- TODO: Probably need to implement Superpose_ and maybe Reject_
 normalizeTerm
-  :: (ABT Term abt)
+  :: forall abt a b
+  .  (ABT Term abt)
   => Term abt a
   -> Env
   -> Context abt a b
   -> abt '[] b
-normalizeTerm (NaryOp_ op args) = normalizeNaryOp op args
-normalizeTerm (x :$ args)       = normalizeSCon x args
-normalizeTerm (Case_ c bs)      = normalizeCase c bs
-normalizeTerm (Datum_ d)        = normalizeDatum d
-normalizeTerm (Array_ s b)      = normalizeArray s b
-normalizeTerm term              = const ($ syn term)
 
-normalizeArray
-  :: (ABT Term abt)
-  => abt '[] 'HNat
-  -> abt '[ 'HNat ] a
-  -> Env
-  -> Context abt ('HArray a) b
-  -> abt '[] b
-normalizeArray size body env ctxt =
-  normalizeName size env $ \size' ->
+normalizeTerm (Let_ :$ (rhs :* body :* End)) env ctxt =
   caseBind body $ \v body' ->
-  let body'' = normalizeBody body' v env
-  in ctxt $ syn (Array_ size' body'')
+  normalize' rhs env $ \rhs' ->
+  let mkbody env' = normalize' body' env' ctxt
+  in syn (Let_ :$ rhs' :* remapVar v env mkbody :* End)
 
--- TODO: This is not correct. Datums may have subcomponents referencing
--- arbitrary values. To be fully correct, we need to recursivly traverse the
--- datum, which should be like handling the application forms.
-normalizeDatum
-  :: (ABT Term abt)
-  => Datum (abt '[]) (HData' t)
-  -> Env
-  -> (abt '[] (HData' t) -> abt '[] r)
-  -> abt '[] r
-normalizeDatum d env ctxt = ctxt $ datum_ newdata
-  where newdata = fmap11 (\x -> normalize' x env id) d
-
-normalizeCase
-  :: forall a b c abt . (ABT Term abt)
-  => abt '[] a
-  -> [Branch a abt b]
-  -> Env
-  -> Context abt b c
-  -> abt '[] c
-normalizeCase cond bs env ctxt =
-  normalizeName cond env $ \ cond' ->
-    let normalizeBranch :: forall d e . Branch d abt e -> Branch d abt e
-        normalizeBranch (Branch pat body) = Branch pat (normalize' body env id)
-
-        branches :: [Branch a abt b]
-        branches = map normalizeBranch bs
-
+normalizeTerm (Case_ cond bs) env ctxt =
+  normalizeSave (viewABT cond) env $ \ cond' ->
+    let normalizeBranch :: forall xs d . abt xs d -> abt xs d
+        normalizeBranch body = normalizeReset (viewABT body) env
+        branches = map (fmap21 normalizeBranch) bs
     -- A possible optimization is to push the context into each conditional,
     -- possibly opening up other optimizations at the cost of code growth.
     in ctxt $ syn $ Case_ cond' branches
 
-normalizeBody
-  :: (ABT Term abt)
-  => abt '[] b
-  -> Variable a
-  -> Env
-  -> abt '[a] b
-normalizeBody body vold env =
-  freshVar vold $ \vnew -> normalize' body (updateEnv vold vnew env) id
-
-normalizeName
-  :: (ABT Term abt)
-  => abt '[] a
-  -> Env
-  -> Context abt a b
-  -> abt '[] b
-normalizeName abt env ctxt = normalize' abt env giveName
-  where
-    giveName abt' | isValue abt' = ctxt abt'
-                  | otherwise    = let_ abt' ctxt
-
-normalizeNames
-  :: (ABT Term abt)
-  => S.Seq (abt '[] a)
-  -> Env
-  -> (S.Seq (abt '[] a) -> abt '[] b)
-  -> abt '[] b
-normalizeNames abts env = F.foldr f ($ S.empty) abts
-  where
-    f x acc ctxt = normalizeName x env $ \t -> acc (ctxt . (t <|))
-
-normalizeNaryOp
-  :: (ABT Term abt)
-  => NaryOp a
-  -> S.Seq (abt '[] a)
-  -> Env
-  -> Context abt a b
-  -> abt '[] b
-normalizeNaryOp op args env ctxt = normalizeNames args env (ctxt . syn . NaryOp_ op)
-
-normalizeSCon
-  :: (ABT Term abt)
-  => SCon args a
-  -> SArgs abt args
-  -> Env
-  -> Context abt a b
-  -> abt '[] b
-
-normalizeSCon Lam_ =
-  \(body :* End) env ctxt -> caseBind body $
-    \v body' ->
-      let body'' = normalizeBody body' v env
-      in ctxt $ syn (Lam_ :$ body'' :* End)
-
-normalizeSCon App_ =
-  \(fun :* arg :* End) env ctxt ->
-    normalizeName fun env $ \fun' ->
-    normalizeName arg env $ \arg' ->
-    ctxt $ syn (App_ :$ fun' :* arg' :* End)
-
-normalizeSCon Let_ =
-  \(rhs :* body :* End) env ctxt -> caseBind body $
-    \v body' ->
-      normalize' rhs env $ \rhs' ->
-      let mkbody env' = normalize' body' env' ctxt
-      in syn (Let_ :$ rhs' :* remapVar v env mkbody :* End)
-
--- TODO: Remove code duplication between sum and product cases
-normalizeSCon s@Summate{} =
-  \(lo :* hi :* body :* End) env ctxt ->
-    normalizeName lo env $ \lo' ->
-    normalizeName hi env $ \hi' ->
-    caseBind body $ \v body' ->
-    let body'' = normalizeBody body' v env
-    in ctxt $ syn (s :$ lo' :* hi' :* body'' :* End)
-
-normalizeSCon p@Product{} =
-  \(lo :* hi :* body :* End) env ctxt ->
-    normalizeName lo env $ \lo' ->
-    normalizeName hi env $ \hi' ->
-    caseBind body $ \v body' ->
-    let body'' = normalizeBody body' v env
-    in ctxt $ syn (p :$ lo' :* hi' :* body'' :* End)
-
-normalizeSCon MBind =
-  \(ma :* b :* End) env ctxt ->
-    normalize' ma env $ \ma' ->
-    caseBind b $ \v b' ->
-    let b'' = normalizeBody b' v env
-    in ctxt $ syn (MBind :$ ma' :* b'' :* End)
-
-normalizeSCon Plate =
-  \(e :* b :* End) env ctxt ->
-    normalize' e env $ \e' ->
-    caseBind b $ \v b' ->
-    let b'' = normalizeBody b' v env
-    in ctxt $ syn (Plate :$ e' :* b'' :* End)
-
-normalizeSCon Dirac =
-  \(e :* End) env ctxt -> normalize' e env (ctxt . dirac)
-
-normalizeSCon (UnsafeFrom_ c) =
-  \(t :* End) env ctxt -> normalize' t env (ctxt . unsafeFrom_ c)
-
-normalizeSCon (CoerceTo_ c) =
-  \(t :* End) env ctxt -> normalize' t env (ctxt . coerceTo_ c)
-
-normalizeSCon (MeasureOp_ op) = normalizeMeasureOp op
-normalizeSCon (ArrayOp_ op)   = normalizeArrayOp op
-normalizeSCon (PrimOp_ op)    = normalizePrimOp op
-
-normalizeSCon Observe       =
-  \(a :* b :* End) env ctxt ->
-    normalizeName a env $ \a' ->
-    normalizeName b env $ \b' ->
-    ctxt $ syn (Observe :$ a' :* b' :* End)
-
-normalizeSCon op            = error $ "not implemented: normalizeSCon{" ++ show op ++ "}"
-
-normalizeArrayOp
-  :: (ABT Term abt, args ~ LCs typs)
-  => ArrayOp typs a
-  -> SArgs abt args
-  -> Env
-  -> Context abt a b
-  -> abt '[] b
-normalizeArrayOp op xs env ctxt =
-  case (op, xs) of
-    (Size _   ,           x :* End) -> normalizeOp1 (arrayOp1_ op) x env ctxt
-    (Index _  ,      x :* y :* End) -> normalizeOp2 (arrayOp2_ op) x y env ctxt
-    (Reduce _ , x :* y :* z :* End) -> normalizeOp3 (arrayOp3_ op) x y z env ctxt
-
-normalizePrimOp
-  :: (ABT Term abt, args ~ LCs typs)
-  => PrimOp typs a
-  -> SArgs abt args
-  -> Env
-  -> Context abt a b
-  -> abt '[] b
-normalizePrimOp op xs env ctxt =
-  case (op, xs) of
-    -- Logical operatons
-    (Not  ,      x :* End)       -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Impl , x :* y :* End)       -> normalizeOp2 (primOp2_ op) x y env ctxt
-    (Diff , x :* y :* End)       -> normalizeOp2 (primOp2_ op) x y env ctxt
-    (Nand , x :* y :* End)       -> normalizeOp2 (primOp2_ op) x y env ctxt
-    (Nor  , x :* y :* End)       -> normalizeOp2 (primOp2_ op) x y env ctxt
-
-    -- Trig stuff
-    (Pi    ,      End)           -> ctxt $ primOp0_ Pi
-    (Sin   , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Cos   , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Tan   , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Asin  , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Acos  , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Atan  , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Sinh  , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Cosh  , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Tanh  , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Asinh , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Acosh , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Atanh , x :* End)           -> normalizeOp1 (primOp1_ op) x env ctxt
-
-    (RealPow    , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
-    (Exp        ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Log        ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Infinity _ ,           End) -> ctxt $ primOp0_ op
-    (GammaFunc  ,      x :* End) -> normalizeOp1 (primOp1_ op) x env ctxt
-    (BetaFunc   , x :* y :* End) -> normalizeOp2 (primOp2_ op) x y env ctxt
-
-    -- Comparisons
-    (Equal _ , x :* y :* End)    -> normalizeOp2 (primOp2_ op) x y env ctxt
-    (Less _  , x :* y :* End)    -> normalizeOp2 (primOp2_ op) x y env ctxt
-
-    -- HSemiring operations
-    (NatPow _ , x :* y :* End)   -> normalizeOp2 (primOp2_ op) x y env ctxt
-
-    -- HRing operations
-    (Negate _  ,      x :* End)  -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Abs _     ,      x :* End)  -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Signum _  ,      x :* End)  -> normalizeOp1 (primOp1_ op) x env ctxt
-    (Recip _   ,      x :* End)  -> normalizeOp1 (primOp1_ op) x env ctxt
-    (NatRoot _ , x :* y :* End)  -> normalizeOp2 (primOp2_ op) x y env ctxt
-    (Erf _     ,      x :* End)  -> normalizeOp1 (primOp1_ op) x env ctxt
-
-normalizeOp1
-  :: (ABT Term abt)
-  => (abt '[] a -> t)
-  -> abt '[] a
-  -> Env
-  -> (t -> abt '[] c)
-  -> abt '[] c
-normalizeOp1 mk x env ctxt = normalizeName x env (ctxt . mk)
-
-normalizeOp2
-  :: (ABT Term abt)
-  => (abt '[] a -> abt '[] b -> t)
-  -> abt '[] a
-  -> abt '[] b
-  -> Env
-  -> (t -> abt '[] c)
-  -> abt '[] c
-normalizeOp2 mk x y env ctxt =
-  normalizeName x env $ \x' ->
-  normalizeName y env $ \y' ->
-  ctxt (mk x' y')
-
-normalizeOp3
-  :: (ABT Term abt)
-  => (abt '[] a -> abt '[] b -> abt '[] c -> t)
-  -> abt '[] a
-  -> abt '[] b
-  -> abt '[] c
-  -> Env
-  -> (t -> abt '[] d)
-  -> abt '[] d
-normalizeOp3 mk x y z env ctxt =
-  normalizeName x env $ \x' ->
-  normalizeName y env $ \y' ->
-  normalizeName z env $ \z' ->
-  ctxt (mk x' y' z')
-
-normalizeMeasureOp
-  :: (ABT Term abt, args ~ LCs typs)
-  => MeasureOp typs a
-  -> SArgs abt args
-  -> Env
-  -> Context abt ('HMeasure a) b
-  -> abt '[] b
-normalizeMeasureOp op xs env ctxt =
-  case (op, xs) of
-    (Lebesgue    ,           End) -> ctxt $ measure0_ op
-    (Counting    ,           End) -> ctxt $ measure0_ op
-    (Categorical ,      x :* End) -> normalizeName x env (ctxt . measure1_ op)
-    (Poisson     ,      x :* End) -> normalizeName x env (ctxt . measure1_ op)
-    (Uniform     , x :* y :* End) -> normalizeOp2 (measure2_ op) x y env ctxt
-    (Normal      , x :* y :* End) -> normalizeOp2 (measure2_ op) x y env ctxt
-    (Gamma       , x :* y :* End) -> normalizeOp2 (measure2_ op) x y env ctxt
-    (Beta        , x :* y :* End) -> normalizeOp2 (measure2_ op) x y env ctxt
-
+normalizeTerm term env ctxt = runCont (fmap syn (traverse21 f term)) ctxt
+  where f :: forall xs c . abt xs c -> Cont (abt '[] b) (abt xs c)
+        f abt = cont (n (viewABT abt) env)
+        n :: forall xs c
+          .  View (Term abt) xs c
+          -> Env
+          -> (abt xs c -> abt '[] b)
+          -> abt '[] b
+        -- TODO: Can we just let n=normalizeTail or n=normalizeSave?
+        n = case term of MBind         :$ _ -> normalizeTail
+                         Plate         :$ _ -> normalizeTail
+                         Dirac         :$ _ -> normalizeTail
+                         UnsafeFrom_ _ :$ _ -> normalizeTail
+                         CoerceTo_   _ :$ _ -> normalizeTail
+                         _                  -> normalizeSave
