@@ -185,7 +185,7 @@ mapleSCon Chain = \(e1 :* e2 :* e3 :* End) ->
     error "TODO: mapleSCon{Chain}"
 mapleSCon Integrate = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
-        showString "int("
+        showString "Int("
         . arg e3'
         . showString ", ["
         . var1 x
