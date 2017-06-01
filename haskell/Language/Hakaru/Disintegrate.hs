@@ -184,31 +184,6 @@ disintegrateWithVar hint typ m =
             ++ show (pretty_Statements ss PP.$+$ PP.sep(prettyPrec_ 11 ab))
             ++ "\n") $ return ()
 #endif
-        -- BUG: Why does 'testDisintegrate1a' return no solutions?
-        --
-        -- In older code (up to git#38889a5): It's because 'emitUnpair'
-        -- isn't quite smart enough. When the @ab@ expression is a
-        -- 'Neutral' case expression, we need to go underneath the
-        -- case expression and call 'constrainValue' on each branch.
-        -- Instead, what we currently do is emit an @unpair@ case
-        -- statement with the scrutinee being the 'Neutral' case
-        -- expression, and then just return the pair of variables
-        -- bound by the emitted @unpair@; but, of course,
-        -- 'constrainValue' can't do anything with those variables
-        -- (since they appear to be free, given as they've already
-        -- been emitted). Another way to think about what it is we
-        -- need to do to correct this is that we need to perform
-        -- the case-of-case transformation (where one of the cases
-        -- is the 'Neutral' one, and the other is the @unpair@).
-        --
-        -- In newer code (git#e8a0c66 and later): When we call 'perform'
-        -- on an 'SBind' statement we emit some code and update the
-        -- binding to become an 'SLet' of some local variable to
-        -- the emitted variable. Later on when we call 'constrainVariable'
-        -- on the local variable, we will look that 'SLet' statement
-        -- up; and then when we call 'constrainVariable' on the
-        -- emitted variable, things will @bot@ because we cannot
-        -- constrain free variables in general.
         (a,b) <- emitUnpair ab
 #ifdef __TRACE_DISINTEGRATE__
         trace ("-- disintegrate: finished emitUnpair: "
@@ -354,12 +329,6 @@ perform = \e0 ->
     -- directly, rather than calling 'syn' to rebuild @e0@ from
     -- @t0@ and then calling 'evaluate_' (which will just use
     -- 'caseVarSyn' to get the @t0@ back out from the @e0@).
-    --
-    -- BUG: when @t0@ is a 'Case_', this doesn't work right. This
-    -- is the source of the hygiene bug in 'testPerform1b'. Alas,
-    -- we cannot use 'emitCaseWith' here since that would require
-    -- the scrutinee to be emissible; but we'd want something pretty
-    -- similar...
     performTerm t0 = do
         w <- evaluate_ (syn t0)
 #ifdef __TRACE_DISINTEGRATE__
@@ -371,12 +340,6 @@ perform = \e0 ->
     performVar :: forall a. Variable ('HMeasure a) -> Dis abt (Whnf abt a)
     performVar = performWhnf <=< evaluateVar perform evaluate_
 
-    -- BUG: it's not clear this is actually doing the right thing for
-    -- its call-sites. In particular, we should handle 'Case_'
-    -- specially, to deal with the hygiene bug in 'testPerform1b'...
-    --
-    -- BUG: found the 'testPerform1b' hygiene bug! We can't simply
-    -- call 'emitMBind' on @e@, because @e@ may not be emissible!
     performWhnf
         :: forall a. Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
     performWhnf (Head_   v) = perform $ fromHead v
