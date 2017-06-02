@@ -380,7 +380,7 @@ export
 
     export flatten := module()
       export ModuleApply;
-      local unpiece, unpart, unpartProd;
+      local unpiece, unpart, flatten_with;
 
       ModuleApply := proc(pr0, { _with := [ 'Partition', unpart ] } )
         local ty, un_ty, pr1, pr2;
@@ -388,7 +388,7 @@ export
 
         pr1 := subsindets(pr0, ty, un_ty);
         if pr0 <> pr1 then
-          ModuleApply(pr1, _with=[ Or('Partiton',`*`), unpartProd ]);
+          ModuleApply(pr1, _with=[ Or('Partiton',`*`), unpart ]);
         else
           pr0
         end if;
@@ -396,25 +396,31 @@ export
 
       # like Piece, but tries to not be a Piece
       unpiece := proc(c, pr, $)
-        if pr :: Partition then
-          map(q -> applyop(z->bool_And(z,c),1,q), piecesOf(pr))[]
-        else Piece(c, pr) end if
+        flatten_with(proc(mk_q, ps)
+                       map(q -> Piece(bool_And(condOf(q),c),mk_q(valOf(q))), ps)[]
+                     end proc,
+                     x->Piece(c,x),
+                     pr);
       end proc;
 
-      unpart := proc(pr, $)
-        if pr :: Partition then
-          PARTITION(map(q -> unpiece(condOf(q),valOf(q)), piecesOf(pr)))
-        else pr end if
-      end proc:
+      unpart := curry(
+        flatten_with,proc(mk_q, ps)
+                       PARTITION(map(q -> unpiece(condOf(q),valOf(q)), ps))
+                     end proc, x->x);
 
-      unpartProd := proc(pr, $)
+      flatten_with := proc(rec, fail, pr, $)
       local ps, ws;
-        if pr :: `*` then
+        if pr :: Partition then
+          ps := piecesOf(pr); ws := [];
+        elif pr :: `*` then
           ps, ws := selectremove(q->type(q,Partition), [op(pr)]);
           if nops(ps) = 1 then
-            Pmap(x->`*`(op(ws),x), unpartProd(piecesOf(pr)));
-          else pr end if;
-        else unpart(pr) end if;
+            ps := piecesOf(op(1,ps));
+          else return fail(pr) end if;
+        else
+          return fail(pr);
+        end if;
+        rec(x->`*`(op(ws),x), ps);
       end proc;
     end module;
 
