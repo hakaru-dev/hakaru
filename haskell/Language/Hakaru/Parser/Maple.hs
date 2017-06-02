@@ -403,6 +403,10 @@ maple2AST (InertArgs Func
     Plate x (maple2AST e1) (maple2AST e2)
 
 maple2AST (InertArgs Func
+        [InertName "Or", InertArgs ExpSeq es]) =
+    NaryOp Or (map maple2AST es)
+
+maple2AST (InertArgs Func
         [InertName "And", InertArgs ExpSeq es]) =
     NaryOp And (map maple2AST es)
 
