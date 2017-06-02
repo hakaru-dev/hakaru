@@ -327,6 +327,7 @@ Profile := module()
     if   f::string then res := NULL; read(f);
     else                res := f(op(as)); end if;
     prf, tot := GetProf(names_to_profile,_rest);
+    unprofile();
     prf := remove(rm_ppr, prf);
     PPrProf(take(prf,nppr),tot,_rest);
     res;
