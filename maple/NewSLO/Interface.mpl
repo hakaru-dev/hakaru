@@ -1,20 +1,28 @@
 # This module forms part of NewSLO and is `$include`d there
 
-RoundTrip := proc(e, t::t_type, {_ret_type := {'print'}})
-  local result, ret_type; ret_type := _ret_type;
+RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition', 'piecewise'] }})
+  local result, ret_type, cs, ifc_opts; ret_type := _ret_type;
   if not(ret_type::set) then ret_type := {ret_type}; end if;
+  ifc_opts[0] := screenwidth=9999, prettyprint=0, warnlevel=0,
+    showassumed=0,quiet=true;
 
-  interface(screenwidth=9999, prettyprint=0, warnlevel=0,
-    showassumed=0,quiet=true);
-  kernelopts(assertlevel=0);
-  result := eval(ToInert(Simplify(e,t,_rest)), _Inert_ATTRIBUTE=NULL);
-  result := sprintf("%a",result);
-  if 'print' in ret_type then printf("%s\n",result); end if;
-  if 'string' in ret_type then
-    result;
-  else
-    NULL;
-  end if;
+  ifc_opts[1] := interface(ifc_opts[0]);
+  try
+    kernelopts(assertlevel=0);
+    result := Simplify(e,t,_rest);
+    for cs in select(type, ret_type, [ identical(convert), type, anything ]) do
+      result := subsindets(result, op(2,cs), x->convert(x,op(3,cs)));
+    end do;
+    result := eval(ToInert(result), _Inert_ATTRIBUTE=NULL);
+    result := sprintf("%a",result);
+    if 'print' in ret_type then printf("%s\n",result); end if;
+    if not ('string' in ret_type) then
+      result := NULL;
+    end if;
+  finally
+    interface(zip(`=`, map(lhs,[ifc_opts[0]]), [ifc_opts[1]])[]);
+  end try;
+  return result;
 end proc;
 
 Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
