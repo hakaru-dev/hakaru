@@ -32,6 +32,9 @@ ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Partition.mpl L
 %.out: %.mpl ppaml.mla
 	maple -q $< 2>&1 | tee $@ | (grep -v " passed$$" || true)
 
+prof/%.out: prof/%.mpl ppaml.mla
+	maple -q $< 2>&1 | tee $@ | (grep -v " passed$$" || true)
+
 call-graph.svg: call-graph.dot
 	dot -Tsvg $< > $@
 
