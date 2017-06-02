@@ -78,6 +78,12 @@ local
 
     :-`simplify/PARTITION` := Simpl;
 
+    :-`convert/piecewise` := overload(
+      [proc(p::Partition)
+         option overload(callseq_only);
+         PartitionToPW(p);
+       end proc, :-`convert/piecewise`]);
+
     NULL
   end proc,
 
