@@ -194,6 +194,153 @@ Efficient := proc(mm, $)
   return true;
 end proc;
 
+Profile := module()
+  option package;
+  export ModuleApply, GetProf, PPrProf, modules_to_profile, names_to_profile;
+  local ModuleLoad, cl, profile_flag_to_ord, name_to_string, take;
+
+  modules_to_profile := proc()
+    kernelopts(opaquemodules=false):
+    { 'BindingTools', 'Hakaru', 'KB', 'Partition', 'Loop'
+    , 'Domain', 'NewSLO', 'Summary'
+    , entries(Domain:-Improve:-Simplifiers, nolist)
+    };
+  end proc();
+
+  cl := proc(f,x,$)
+    local rs := f(x) minus x;
+    if rs={} then x else cl(f,rs) end if;
+  end proc;
+
+  take := proc(xs,n,$)
+    op(1,[ListTools[LengthSplit](xs,n)]);
+  end proc;
+
+  names_to_profile := proc()
+    local ns;
+    kernelopts(opaquemodules=false):
+    ns := cl(curry(map,x->CodeTools:-Profiling:-getMemberFuncs(x,true)), modules_to_profile);
+    map(proc(n)
+          if n::`module`('ModuleApply') then 'n[ModuleApply]' elif n::procedure then n else NULL end if
+        end proc, ns);
+  end proc();
+
+  name_to_string := (x->convert(x,'string'));
+
+  profile_flag_to_ord := table(
+     ['alpha' = (proc (a, b) lexorder(a[1],b[1]) end proc)
+     ,'ralpha' = (proc (a, b) not lexorder(a[1],b[1]) end proc)
+     ,'time' = (proc (a, b) evalb(a[4] < b[4]) end proc)
+     ,'rtime' = (proc (a, b) evalb(b[4] < a[4]) end proc)
+     ,'bytes' = (proc (a, b) evalb(a[6] < b[6]) end proc)
+     ,'rbytes' = (proc (a, b) evalb(b[6] < a[6]) end proc)
+     ,'load' = (proc (a, b) evalb(a[6]*a[6]*a[4] < b[6]*b[6]*b[4]) end proc)
+     ,'rload' = (proc (a, b) evalb(b[6]*b[6]*b[4] < a[6]*a[6]*a[4]) end proc)
+     ]);
+
+  GetProf := proc(fns::({list,set})(satisfies(x->member(x,:-profile_profiled)))
+                  ,flag:='rload'
+                  ,$)
+    local i, totaltime, totalbytes, totaldepth, totalcalls, timepc, bytespc, numargs, displist, totaltimepc, totalbytespc
+         , ix, get_timepc, get_bytespc, get_nm, nm ;
+    global profile_time, profile_bytes, profile_maxdepth, profile_calls, profile_profiled;
+
+    totaltime, totalbytes, totalcalls, totaldepth := 0$4;
+    numargs := nops(fns);
+
+    for i to nops(profile_profiled) do
+      ix := name_to_string(profile_profiled[i]);
+      totaltime := totaltime+profile_time[ix];
+      totalbytes := totalbytes+profile_bytes[ix];
+      totalcalls := totalcalls+profile_calls[ix];
+      totaldepth := totaldepth+profile_maxdepth[ix];
+    end do;
+
+    if totaltime = 0 then
+      get_timepc := i->0;
+      totaltimepc := 0;
+    else
+      get_timepc := i->100*profile_time[name_to_string(profile_profiled[i])]/totaltime;
+      totaltimepc := 100;
+    end if;
+    for i to nops(profile_profiled) do
+      timepc[name_to_string(profile_profiled[i])] := get_timepc(i);
+    end do;
+
+    if totalbytes = 0 then
+      get_bytespc := i->0;
+      totalbytespc := 0;
+    else
+      get_bytespc := i->100*profile_bytes[name_to_string(profile_profiled[i])]/totalbytes;
+      totalbytespc := 100;
+    end if;
+    for i to nops(profile_profiled) do
+      bytespc[name_to_string(profile_profiled[i])] := get_bytespc(i);
+    end do;
+
+    displist := [];
+    if 0 < numargs then
+      get_nm := i->op(i,fns);
+    else
+      numargs := nops(profile_profiled);
+      get_nm := i->profile_profiled[i];
+    end if;
+    for i to numargs do
+      nm := get_nm(i); ix := name_to_string(nm);
+      displist := [op(displist),
+                   [nm, map(q->q[ix],[profile_maxdepth, profile_calls,
+                                      profile_time, timepc, profile_bytes, bytespc])[]  ]];
+    end do;
+
+    displist := sort(displist, profile_flag_to_ord[flag]);
+    displist, [totaldepth,totalcalls,totaltime,totaltimepc,totalbytes,totalbytespc];
+  end proc;
+
+  PPrProf := proc(dat,tot,k:=55,$)
+    local i;
+    printf(cat(`function`,(" "$k-3),`depth    calls     time    time%%     `));
+    printf(`    bytes   bytes%%\n`);
+    printf(cat("--"$k+1,`\n`));
+    for i from 1 to nops(dat)-1 do
+      printf(cat(`%-`,convert(k,string),`a%7d%9d%9.3f%9.2f%14d%9.2f\n`),
+             dat[i][1],op(2,dat[i]),op(3,dat[i]),op(4,dat[i]),op(5,dat[i]),op(6,dat[i]),op(7,dat[i]));
+    end do;
+    printf(cat("--"$k+1,`\n`));
+    printf(cat(`%-`,convert(k,string),`a%7d%9d%9.3f%9.2f%14d%9.2f\n\n`),
+           `total:`,op(1,tot),op(2,tot),op(3,tot),op(4,tot),op(5,tot),op(6,tot));
+    return NULL
+  end proc;
+
+  ModuleApply := proc(f)
+    local res, nppr, rm_ppr, prf, tot;
+    if assigned(_Env_Profile_count_ppr) then
+      nppr := _Env_Profile_count_ppr;
+    else nppr := 25; end if;
+    if assigned(_Env_Profile_remove_ppr) then
+      rm_ppr := _Env_Profile_remove_ppr;
+    else rm_ppr := (x->andmap(q->op(q,x)<0.001,[3,4,6])); end if;
+
+    unprofile(); profile(op(names_to_profile));
+    if   f::string then res := NULL; read(f);
+    else                res := f(args[2..-1]); end if;
+    prf, tot := GetProf(names_to_profile);
+    prf := remove(rm_ppr, prf);
+    PPrProf(take(prf,nppr),tot);
+    res;
+  end proc;
+
+  ModuleLoad := proc($)
+    unprotect(:-convert);
+    :-convert := overload([proc(x::name,_::identical(string),$) option overload(callseq_only); sprintf("%a",x) end proc
+                          ,:-convert]);
+    protect(:-convert);
+    map(unprotect,[modules_to_profile, names_to_profile]);
+    NULL;
+  end proc;
+  ModuleLoad();
+end module;
+
+
 # Load a file in concrete Hakaru syntax (using the "momiji" command)
 # and return its term (in which Sum and Product are inert) and type.
 Concrete := proc(path::string, $)

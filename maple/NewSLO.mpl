@@ -36,7 +36,7 @@ NewSLO := module ()
      # while these are "proper functions"
          RoundTrip, Simplify, SimplifyKB,  apply_LO,
          TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
-         Concrete,
+         Concrete, Profile,
          toLO, fromLO, improve, reduce,
          density, bounds, unweight,
 
