@@ -306,11 +306,11 @@ Profile := module()
     printf(cat("--"$k+1,`\n`));
     for i from 1 to nops(dat)-1 do
       printf(cat(`%-`,convert(k,string),`a%7d%9d%9.3f%9.2f%14d%9.2f\n`),
-             dat[i][1],op(2,dat[i]),op(3,dat[i]),op(4,dat[i]),op(5,dat[i]),op(6,dat[i]),op(7,dat[i]));
+             op(1..7,dat[i]));
     end do;
     printf(cat("--"$k+1,`\n`));
     printf(cat(`%-`,convert(k,string),`a%7d%9d%9.3f%9.2f%14d%9.2f\n\n`),
-           `total:`,op(1,tot),op(2,tot),op(3,tot),op(4,tot),op(5,tot),op(6,tot));
+           `total:`,op(1..6,tot));
     return NULL
   end proc;
 
