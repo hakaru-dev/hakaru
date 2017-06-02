@@ -360,6 +360,7 @@ export
 
   Simpl := module()
     export ModuleApply := proc(p)
+      option remember;
       local ps, qs, qs1, mk;
       if p :: Partition then
         reduce_branches(remove_false_pieces(flatten(p)));
