@@ -494,15 +494,19 @@ end module:
 
 ###########
 #
-# RoundTrip tests; due to bug in CodeTest, use lower-level function directly
+# RoundTrip tests;
 
-TestTools:-SetRecord(false):
 module()
-  local kb, rt1, rt1r;
-  kb := [x::real]:
+  local ty, kb, rt1, rt1r, res, l;
+  kb := x::real:
   rt1 := Context(kb, Bind(Gaussian(0,1), x, Ret(0))):
+  ty  := HMeasure(HReal()):
   rt1r := sprintf("%a", eval(ToInert(Context(kb, Ret(0))), _Inert_ATTRIBUTE=NULL)):
-  TestTools:-Try("simple case of RoundTrip", RoundTrip(rt1), rt1r);
+  (proc(rt1r)
+     # due to bug in CodeTest, the expected arguement to `CodeTools' cannot be a
+     # local var, except a parameter
+     CodeTools[Test]( RoundTrip(rt1, ty, _ret_type='string'), rt1r, label="simple case of RoundTrip" );
+   end proc)(rt1r);
 end module:
 
 # Categorical distribution
