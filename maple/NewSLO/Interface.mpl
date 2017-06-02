@@ -148,12 +148,11 @@ TestDisint := module()
 end module;
 
 TestEfficient := proc(e, t::t_type, t_kb := KB:-empty, {label::string := "Test" })
-  local done_, result, todo;
-  todo := SimplifyKB_(args[1..3]);
-  done_ := eval(todo, [%fromLO=fromLO,%improve=improve,%toLO=toLO,%simplify_assuming=simplify_assuming]);
+  local out, result;
+  out := SimplifyKB(args[1..3]);
 
   _Env_TestTools_Try_printf := false;
-  result := TestTools[Try](label, Efficient(done_),true);
+  result := TestTools[Try](label, Efficient(out),true);
   if result = NULL then
     printf("%s passed.\n", label);
   else
