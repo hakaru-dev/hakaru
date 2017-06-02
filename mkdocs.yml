@@ -5,6 +5,8 @@ site_author: Hakaru Team
 extra_javascript:
     - 'js/mathjaxhelper.js'
     - 'https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML'
+extra_css:
+    - 'logo.css'
 
 
 pages:
