@@ -239,12 +239,13 @@ Profile := module()
      ]);
 
   GetProf := proc(fns::({list,set})(satisfies(x->member(x,:-profile_profiled)))
-                  ,flag:='rload'
-                  ,$)
+                 ,{_flag:='rload'}
+                 )
     local i, totaltime, totalbytes, totaldepth, totalcalls, timepc, bytespc, numargs, displist, totaltimepc, totalbytespc
-         , ix, get_timepc, get_bytespc, get_nm, nm ;
+         , ix, get_timepc, get_bytespc, get_nm, nm, flag ;
     global profile_time, profile_bytes, profile_maxdepth, profile_calls, profile_profiled;
 
+    flag := _flag;
     totaltime, totalbytes, totalcalls, totaldepth := 0$4;
     numargs := nops(fns);
 
@@ -296,9 +297,11 @@ Profile := module()
     displist, [totaldepth,totalcalls,totaltime,totaltimepc,totalbytes,totalbytespc];
   end proc;
 
-  PPrProf := proc(dat,tot,k:=55,$)
-    local i;
-    printf(cat(`function`,(" "$k-3),`depth    calls     time    time%%     `));
+  PPrProf := proc(dat,tot,{_max_name_len:=55,_prof_name:=`function`})
+    local i, k, pr_nm;
+    k := _max_name_len; pr_nm := _prof_name;
+
+    printf(cat(pr_nm,(" "$k-3),`depth    calls     time    time%%     `));
     printf(`    bytes   bytes%%\n`);
     printf(cat("--"$k+1,`\n`));
     for i from 1 to nops(dat)-1 do
@@ -311,8 +314,8 @@ Profile := module()
     return NULL
   end proc;
 
-  ModuleApply := proc(f)
-    local res, nppr, rm_ppr, prf, tot;
+  ModuleApply := proc(f,{_args:=[]})
+    local res, nppr, rm_ppr, prf, tot, as; as := _args;
     if assigned(_Env_Profile_count_ppr) then
       nppr := _Env_Profile_count_ppr;
     else nppr := 25; end if;
@@ -322,10 +325,10 @@ Profile := module()
 
     unprofile(); profile(op(names_to_profile));
     if   f::string then res := NULL; read(f);
-    else                res := f(args[2..-1]); end if;
-    prf, tot := GetProf(names_to_profile);
+    else                res := f(op(as)); end if;
+    prf, tot := GetProf(names_to_profile,_rest);
     prf := remove(rm_ppr, prf);
-    PPrProf(take(prf,nppr),tot);
+    PPrProf(take(prf,nppr),tot,_rest);
     res;
   end proc;
 
