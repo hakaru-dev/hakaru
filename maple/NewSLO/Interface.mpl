@@ -1,12 +1,20 @@
 # This module forms part of NewSLO and is `$include`d there
 
-RoundTrip := proc(e, t::t_type)
-  local result;
+RoundTrip := proc(e, t::t_type, {_ret_type := {'print'}})
+  local result, ret_type; ret_type := _ret_type;
+  if not(ret_type::set) then ret_type := {ret_type}; end if;
+
   interface(screenwidth=9999, prettyprint=0, warnlevel=0,
     showassumed=0,quiet=true);
   kernelopts(assertlevel=0);
-  result := eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL);
-  lprint(result)
+  result := eval(ToInert(Simplify(e,t,_rest)), _Inert_ATTRIBUTE=NULL);
+  result := sprintf("%a",result);
+  if 'print' in ret_type then printf("%s\n",result); end if;
+  if 'string' in ret_type then
+    result;
+  else
+    NULL;
+  end if;
 end proc;
 
 Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
