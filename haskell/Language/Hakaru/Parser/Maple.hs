@@ -367,10 +367,12 @@ maple2AST (InertArgs Func
   go (e1:e2:rest) = If (maple2AST e1) (maple2AST e2) (go rest)
 
 maple2AST (InertArgs Func [InertName "PARTITION"
-        ,InertArgs ExpSeq [InertArgs List [InertArgs ExpSeq es]]]) = foldr piece2AST (Var "reject") es where
-  piece2AST (InertArgs Func [InertName "Piece", InertArgs ExpSeq [pc,pv]]) e = 
-    If (maple2AST pc) (maple2AST pv) e
-  piece2AST x e = error $ "Invalid PARTITION contents: " ++ show x
+        ,InertArgs ExpSeq [InertArgs List [InertArgs ExpSeq es]]]) = 
+  maybe (Var "reject") id $ 
+  foldr piece2AST Nothing es 
+    where piece2AST (InertArgs Func [InertName "Piece", InertArgs ExpSeq cs]) e  
+            | [c,v] <- map maple2AST cs = Just $ maybe v (If c v) e
+          piece2AST x _ = error $ "Invalid PARTITION contents: " ++ show x
 
 maple2AST (InertArgs Func
         [InertName "max", InertArgs ExpSeq es]) =
