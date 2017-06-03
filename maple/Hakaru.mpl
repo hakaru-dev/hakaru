@@ -64,7 +64,7 @@ Hakaru := module ()
          verify_measure, verify_hboolean, pattern_equiv,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
          flatten_piecewise,
-         pattern_match, pattern_binds,
+         pattern_match, pattern_binds, bound_names_in,
          closed_bounds, open_bounds,
          htype_patterns,
          bool_And, bool_Or, bool_Not,
@@ -102,6 +102,21 @@ Hakaru := module ()
          Bound, DatumStruct;
   p_true  := 'PDatum(true,PInl(PDone))';
   p_false := 'PDatum(false,PInr(PInl(PDone)))';
+
+  bound_names_in := proc(e, $)
+    local ns, as;
+    ns := table(
+      [ `Bind`   = (x->op(2,x)),
+        `Plate`  = (x->op(2,x)),
+        `lam`    = (x->op(1,x)),
+        `PVar`   = (x->op(1,x)),
+        `&M`     = (x->op(1,x))
+      ]);
+
+    as := indets(e, 'specfunc'({indices(ns,nolist)}));
+    as := map(x->ns[op(0,x)](x),as);
+    as;
+  end proc;
 
   case := proc(e, bs :: specfunc(Branch(anything, anything), Branches), $)
     local ret, b, substs, eSubst, pSubst, p, binds, uncertain;
