@@ -128,12 +128,12 @@ Hakaru := module ()
                            Branch({identical(p_false),
                                    identical(PWild),
                                    PVar(anything)}, anything)) then
-        'Partition'(make_piece(e), op([1,2], ret), op([2,2], ret))
+        'piecewise'(make_piece(e), op([1,2], ret), op([2,2], ret))
       elif ret :: Branches(Branch(identical(p_false), anything),
                            Branch({identical(p_true),
                                    identical(PWild),
                                    PVar(anything)}, anything)) then
-        'Partition'(make_piece(e), op([2,2], ret), op([1,2], ret))
+        'piecewise'(make_piece(e), op([2,2], ret), op([1,2], ret))
       else
         'case'(e, ret)
       end if
