@@ -501,14 +501,15 @@ indentConfig =
     mkIndentStream 0 infIndentation True Ge . mkCharIndentStream
 
 parseHakaru :: Text -> Either ParseError (AST' Text)
-parseHakaru =
-    runParser (skipMany (comments <|> emptyLine) *>
-               expr <* eof) () "<input>" . indentConfig
+parseHakaru = parseAtTopLevel expr
 
 parseHakaruWithImports :: Text -> Either ParseError (ASTWithImport' Text)
-parseHakaruWithImports =
+parseHakaruWithImports = parseAtTopLevel exprWithImport
+
+parseAtTopLevel :: Parser a -> Text -> Either ParseError a 
+parseAtTopLevel p = 
     runParser (skipMany (comments <|> emptyLine) *>
-               exprWithImport <* eof) () "<input>" . indentConfig . Text.strip
+               p <* eof) () "<input>" . indentConfig . Text.strip 
 
 withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
