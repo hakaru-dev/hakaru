@@ -71,7 +71,9 @@ SimplifyKB_ := proc(leaf, e, t::t_type, kb::t_kb, $)
   end if
 end proc;
 
-SimplifyKB := curry(SimplifyKB_,
+SimplifyKB := proc(e,t,kb,$)
+  local res;
+  res[0] := SimplifyKB_(
   proc(e0,t,kb)
     local e := eval_for_Simplify(e0,kb);
     if t :: HMeasure(anything) then
@@ -79,7 +81,15 @@ SimplifyKB := curry(SimplifyKB_,
     else
       simplify_assuming(e,kb);
     end if;
-  end proc);
+  end proc, e, t, kb);
+
+  res[1] := eval(res[0]);
+  if res[1] <> res[0] then
+    KB:-simplify_assuming(res[1], kb);
+  else
+    res[0]
+  end if;
+end proc;
 
 eval_for_Simplify_tbl := table(
   [ `Int`=`int`
