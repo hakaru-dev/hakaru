@@ -795,7 +795,7 @@ KB := module ()
   # simplification might fail, in which case `failure(e)` where `e`
   # is the un-simplified (and chilled) expression is taken to be the result of
   # simplification. 'mb' for 'maybe'
-  simplify_assuming_mb := kb_assuming_mb(simplify);
+  simplify_assuming_mb := kb_assuming_mb(simplify@(e->subsindets(e,Partition,Partition:-PartitionToPW)));
 
   simplify_assuming := proc(ee, kb::t_kb, $)
     simplify_assuming_mb(ee,kb,e->e);
