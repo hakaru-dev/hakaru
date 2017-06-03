@@ -14,14 +14,11 @@ end proc;
 # kb - domain information
 reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
   local e, elim, subintegral, w, ww, x, c, kb1, with_kb1, dom_specw, dom_specb
-       , body, dom_spec, ed, mkDom, vars, rr
-       , do_domain := evalb( not ( "no_domain" in {op(opts)} ) ) ;
+       , body, dom_spec, ed, mkDom, vars, rr;
   e := ee;
 
-  if do_domain then
-    rr := reduce_Integrals(e, h, kb, opts);
-    if rr <> FAIL then return rr end if;
-  end if;
+  rr := reduce_Integrals(e, h, kb, opts);
+  if rr <> FAIL then return rr end if;
   if e :: 'applyintegrand(anything, anything)' then
     applyop(simplify_assuming, 2, e, kb)
   elif can_reduce_Partition(e) then
@@ -127,7 +124,7 @@ reduce_Integrals := module()
     rr := Domain:-Reduce(expr, kb
       ,curry(reduce_Integrals_into,h,opts)
       ,curry(reduce_Integrals_body,h,opts)
-      ,(_->:-DOM_FAIL));
+      ,(_->:-DOM_FAIL), opts);
     rr := kb_assuming_mb(Partition:-Simpl)(rr, kb, x->x);
     if has(rr, :-DOM_FAIL) then
       return FAIL;

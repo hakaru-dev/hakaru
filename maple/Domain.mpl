@@ -210,7 +210,7 @@ $include "Domain/Improve.mpl"
     end proc;
 
     # The main interface to Domain
-    export Reduce := proc(e0,kb::t_kb,f_into,f_body,f_nosimp:=(_->FAIL),$)
+    export Reduce := proc(e0,kb::t_kb,f_into,f_body,f_nosimp:=(_->FAIL),opts:=[],$)
       local e := e0, dom_specb, dom_specw, dom_ctx, dom_spec;
       # Build the domain
       dom_specb, e := op(Domain:-Extract:-Bound(e));
@@ -221,7 +221,8 @@ $include "Domain/Improve.mpl"
       dom_spec := DOMAIN(dom_specb, dom_specw);
 
       # Improve, if necessary, then apply back to the expression
-      if dom_specw <> DConstrain() then dom_spec := Domain:-Improve(dom_spec) end if;
+      if dom_specw <> DConstrain() and not ("no_domain" in {opts[]})
+      then dom_spec := Domain:-Improve(dom_spec) end if;
       Domain:-Apply(dom_spec, kb, f_into, f_body)(e);
     end proc;
 
