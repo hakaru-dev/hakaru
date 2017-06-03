@@ -84,6 +84,13 @@ local
          PartitionToPW(p);
        end proc, :-`convert/piecewise`]);
 
+    unprotect(:-solve);
+    :-`solve` := overload([
+      proc(x:: Not(freeof(`PARTITION`))  )
+        option overload(callseq_only), remember; FAIL;
+      end proc, :-`solve`]);
+    protect(:-solve);
+
     NULL
   end proc,
 
