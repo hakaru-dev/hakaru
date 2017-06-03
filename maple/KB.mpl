@@ -930,13 +930,15 @@ KB := module ()
   # Semantics originally given here:
   #  https://github.com/hakaru-dev/hakaru/commit/6f1c1ea2d039a91c157462f09f15760c98884303
   kb_Partition:= proc(e::Partition, kb::t_kb, doIf, doThen,$)::Partition;
-  local br;
+  local pr;
     #Unlike `piecewise`, the conditions in a Partition are necessarily
     #disjoint, so the `update` used in kb_piecewise isn't needed. We may
     #simply `assert` the condition (i.e., roll it into the kb) without
     #needing to `assert` the negation of all previous conditions.
 
-    Partition:-Amap([(x,_) -> doIf(x, kb), (x,c) -> doThen(x, assert(c,kb)), z -> z], e);
+    pr := Partition:-Amap([(x,_) -> doIf(x, kb), (x,c) -> %doThen(x, assert(c,kb)), z -> z], e);
+    pr := applyop(ps -> remove(x->type(op([2,2],x),t_not_a_kb),ps), 1, pr);
+    eval(pr, %doThen=doThen);
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
