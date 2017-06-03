@@ -173,8 +173,8 @@ TestEfficient := proc(e, t::t_type, t_kb := KB:-empty, {label::string := "Test" 
     printf("%s passed.\n", label);
   else
     error sprintf("%s FAILED.\n"
-                  "The result of\n\t%a\n\tis not efficient.\n"
-                 , label, todo );
+                  "The result of\n\tSimplifyKB(%a,%a,%a)\n\tis not efficient.\n"
+                 , label, args[1..3] );
   end if;
 end proc;
 
