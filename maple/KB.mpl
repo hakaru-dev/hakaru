@@ -524,6 +524,7 @@ KB := module ()
       foldr(((b,kb) -> assert_deny_mb(b, not pol, kb)), kb, op(bb))
 
     else
+      bb := subsindets(bb, Partition, Partition:-PartitionToPW);
       as := chill(kb_to_assumptions(kb, bb));
       bb := chill(bb);
 
