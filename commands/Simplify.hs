@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings, DataKinds, GADTs #-}
+{-# LANGUAGE CPP, OverloadedStrings, DataKinds, GADTs, RecordWildCards #-}
 
 module Main where
 
@@ -7,6 +7,7 @@ import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Command (parseAndInfer, readFromFile, Term)
 
+import           Language.Hakaru.Syntax.Rename
 import           Language.Hakaru.Simplify
 
 #if __GLASGOW_HASKELL__ < 710
@@ -20,12 +21,13 @@ import           System.IO (stderr)
 
 import qualified Options.Applicative as O
 
-data Options = Options
-  { debug     :: Bool
-  , timelimit :: Int
-  , program   :: String }
+data Options a = Options
+  { debug      :: Bool
+  , timelimit  :: Int
+  , no_unicode :: Bool
+  , program    :: a }
 
-options :: O.Parser Options
+options :: O.Parser (Options FilePath)
 options = Options
   <$> O.switch
       ( O.long "debug" <>
@@ -36,11 +38,15 @@ options = Options
         O.showDefault <>
         O.value 90 <>
         O.metavar "N")
+  <*> O.switch 
+      ( O.long "no-unicode" <> 
+        O.short 'u' <> 
+        O.help "Removes unicode characters from names in the Maple output")
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
         O.help "Program to be simplified" )
 
-parseOpts :: IO Options
+parseOpts :: IO (Options FilePath)
 parseOpts = O.execParser $ O.info (O.helper <*> options)
       (O.fullDesc <> O.progDesc "Simplify a hakaru program")
 
@@ -50,15 +56,15 @@ et = expandTransformations
 main :: IO ()
 main = do
   args <- parseOpts
-  case args of
-   Options debug_ timelimit file -> do
-    prog <- readFromFile file
-    runSimplify prog debug_ timelimit
+  prog <- readFromFile (program args) 
+  runSimplify args{program=prog}
 
-runSimplify :: Text -> Bool -> Int -> IO ()
-runSimplify prog debug_ timelimit =
-    case parseAndInfer prog of
+runSimplify :: Options Text -> IO ()
+runSimplify Options{..} =
+    case parseAndInfer program of
     Left  err              -> IO.hPutStrLn stderr err
-    Right (TypedAST _ ast) -> do ast' <- simplifyDebug debug_ timelimit (et ast)
-                                 print (pretty ast')
+    Right (TypedAST _ ast) -> do ast' <- simplifyDebug debug timelimit (et ast)
+                                 print $ pretty 
+                                  $ (if no_unicode then renameAST removeUnicodeChars else id) 
+                                  $ ast' 
 
