@@ -251,7 +251,9 @@ t80 := Bind(GammaD(1, 1), a0, Gaussian(0, a0)):
 
 t57 := Msum(Weight(1, Partition(t < 1, Ret(Datum(unit, Inl(Done))), Msum() )),
             Weight(1, Partition(0 < t, Ret(Datum(unit, Inl(Done))), Msum() ))):
-t57s := Partition( And(0 < t, t < 1), Weight(2, Ret(Datum(unit, Inl(Done)))), Ret(Datum(unit, Inl(Done))) ):
+t57s :=
+  { Partition( And(0 < t, t < 1), Weight(2, Ret(Datum(unit, Inl(Done)))), Ret(Datum(unit, Inl(Done))) )
+  , Partition( And(0 < t, t < 1), Weight(2, Ret(Datum(unit, Inl(Done)))), Or(t <= 0, 1 <= t), Ret(Datum(unit, Inl(Done))) )}:
 
 TestHakaru(t1, t5s, label = "t1");
 TestHakaru(t2, t2s, label = "t2");
