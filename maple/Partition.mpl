@@ -466,24 +466,51 @@ export
    local condition_complexity := proc(x) nops(indets(x,PartitionCond)) end proc;
 
    export reduce_branches := proc(e::Partition, { _testequal := ((a,b) -> Testzero(a-b)) })
-     local vs, ps1, ps; ps := piecesOf(e); vs := map(valOf,ps);
+     local k, ks, i, vs, ps1, ps; ps := piecesOf(e); vs := map(valOf,ps);
      userinfo(3, :-reduce_branches, printf("Input: %a\n", ps));
 
      if nops(ps)=1 then return op([1,2],ps); end if;
+
+     # Categorize(group) by equality of piece values
      ps1 := [ListTools:-Categorize(_testequal &on valOf, ps)];
-     if nops(ps1) > nops(ps) then return e; end if;
-     if nops(ps1) < nops(ps) then
-       ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb')[])
-                           ,valOf(op(1,p)))
-                  ,ps1);
-       userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
-     else
-       ps1 := ps;
-     end if;
-     ps1 := sort(ps1, key=condition_complexity);
-     ps1 := subsop([-1,1]=Not(Or(map(condOf,subsop(-1=NULL,ps1))[])),ps1);
+     if nops(ps1) >= nops(ps) then return e; end if;
+     # unless there are fewer groups than original pieces ...
+
+     ks  := map(nops, ps1); # number of pieces per group
+
+     # build the result
+     ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb')[])
+                         ,valOf(op(1,p)))
+                ,ps1);
+     userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
+
+     # replace the condition of each piece built from many others
+     for i in select(x->op(1,x)>1,sort(zip(`[]`,ks,[seq(1..nops(ks))]), key=(x->-op(1,x)))) do
+       ps1 := piecesOf( replace_piece_cond(PARTITION(ps1), op(2,i)) );
+     end do;
 
      return PARTITION(ps1);
+    end proc;
+
+    # Replaces a piece (at given index) condition with the logically equivalent
+    # one formed from the other pieces.
+    export replace_piece_cond := proc(e::Partition, n::integer := -1, failure:=(x->x), $)
+      local p_n, p_n1,ps; ps := piecesOf(e);
+      if abs(n)>nops(ps) then
+        error "index out of bound: %1", n;
+      elif nops(ps)=1 then
+        error "cannot replace in single piece Partition: %1", e
+      end if;
+      p_n := condOf(op(n, ps));                              # old condition
+      p_n1 := Not(bool_Or(map(condOf,subsop(n=NULL,ps))[])); # new condition
+
+      # a cheap metric for determining if the new condition is an improvement
+      if condition_complexity(p_n1) <= condition_complexity(p_n)-5 then
+        ps := subsop([n,1]=p_n1, ps);
+        PARTITION(ps);
+      else
+        failure(PARTITION(ps));
+      end if;
     end proc;
 
     # Removal of singular points from partitions
