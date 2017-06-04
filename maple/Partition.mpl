@@ -458,8 +458,8 @@ export
       true, e
     end proc;
 
-    export remove_false_pieces := proc(e::Partition, $)
-      PARTITION(remove(p -> type(KB:-assert(condOf(p), KB:-empty), t_not_a_kb), piecesOf(e)));
+    export remove_false_pieces := proc(e::Partition, kb := KB:-empty, $)
+      PARTITION(remove(p -> type(KB:-assert(condOf(p), kb), t_not_a_kb), piecesOf(e)));
     end proc;
 
     local `&on` := proc(f,k,$) proc(a,b,$) f(k(a),k(b)) end proc end proc;
