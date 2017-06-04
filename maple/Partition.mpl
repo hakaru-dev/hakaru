@@ -471,18 +471,17 @@ export
 
      if nops(ps)=1 then return op([1,2],ps); end if;
      ps1 := [ListTools:-Categorize(_testequal &on valOf, ps)];
-     if nops(ps1) >= nops(ps) then return e; end if;
-     userinfo(3, :-reduce_branches, printf("Categorize: %a\n", ps1));
-
-     ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb')[])
-                        ,valOf(op(1,p)))
-               ,ps1);
-     userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
-
-     if nops(ps1)=2 then
-       ps1 := sort(ps1, key=tree_size);
-       ps1 := subsop([2,1]=Not(op([1,1],ps1)),ps1);
+     if nops(ps1) > nops(ps) then return e; end if;
+     if nops(ps1) < nops(ps) then
+       ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb')[])
+                           ,valOf(op(1,p)))
+                  ,ps1);
+       userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
+     else
+       ps1 := ps;
      end if;
+     ps1 := sort(ps1, key=condition_complexity);
+     ps1 := subsop([-1,1]=Not(Or(map(condOf,subsop(-1=NULL,ps1))[])),ps1);
 
      return PARTITION(ps1);
     end proc;
