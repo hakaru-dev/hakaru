@@ -209,7 +209,9 @@ Efficient := proc(mm, $)
                case(anything, Branches(Branch(anything, anything))),
                And(specfunc(piecewise)
                   ,{anyfunc(anything, anything, Msum())
-                   ,anyfunc(anything, anything, anything, Msum())})}' do
+                   ,anyfunc(anything, Msum(), anything)
+                   ,anyfunc(anything, anything, anything, Msum())
+                   ,anyfunc(anything, Msum(), anything, anything)})}' do
     m := op(`if`(op(0,m)='lam',3,`if`(op(0,m)='case',[2,1,2],2)),m);
   end do;
   if m :: 'Weight(anything, anything)' then m := op(2,m) end if;
