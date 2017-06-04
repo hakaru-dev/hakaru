@@ -421,7 +421,12 @@ KB := module ()
      # otherwise go ahead
      try
        c := solve({chill(b)},[x], 'useassumptions'=true) assuming op(as);
-       postproc_for_solve((x,kb)->assert_deny_mb(x,pol,kb), warm(c), kb, as);
+       c := postproc_for_solve(warm(c), kb);
+       if c = FAIL or c = b then
+         FAIL
+       else
+         assert_deny_mb(c, pol, kb);
+       end if;
      catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
        WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling solve(%%1, %%2) assuming (%%3)"
                          , StringTools[FormatMessage](lastexception[2..-1])), b, x, as );
@@ -429,28 +434,27 @@ KB := module ()
      end try;
    end proc;
 
-   postproc_for_solve := proc(reduce_op, c, kb, as, $)
+   postproc_for_solve := proc(c, kb, $)
      local p, c0, c1;
      if c :: list and nops(c) = 0 then # false
        return FAIL;
 
+     elif c :: relation then
+       return c;
+
      elif c :: list({relation, specfunc(`And`), `and`}) then # conjunction
        c0 := map(c -> if c::{specfunc(`And`),`and`} then op(c) else c end if,c);
-       return foldr(((z,kb)->postproc_for_solve(reduce_op, z, kb, as)), kb, op(c0));
+       return bool_And(op(map(postproc_for_solve, c0, kb)));
 
-     elif c :: list then # disjunction
-       if nops(c)=1 then
-         return postproc_for_solve(reduce_op, op(1,c), kb, as);
-       else
-         return FAIL;
-       end if;
+     elif c :: list(list) then # disjunction
+       return bool_Or(op(map(postproc_for_solve, c, kb)));
 
-     elif c :: {relation,specfunc(`Not`)} then # atom
-       return reduce_op(c, kb);
+     elif c :: specfunc(`Not`) then # atom
+       return bool_Not(postproc_for_solve(op(1,c), kb));
 
      elif c :: specfunc(`piecewise`) then # try to make it into a conjunction
        p := Partition:-PWToPartition(c);
-       p := apply(Partition:-Simpl:-remove_false_pieces,p) assuming op(as);
+       p := Partition:-Simpl:-remove_false_pieces(p, kb);
        c0, c1 := Partition:-Simpl:-single_nonzero_piece(p, _testzero=(x->x=[]));
        if not c0 :: identical(true) then
          if c1 :: relation then
@@ -460,7 +464,7 @@ KB := module ()
          else
              return FAIL;
          end if;
-         try return postproc_for_solve(reduce_op, [ c0, c1 ], kb, as);
+         try return postproc_for_solve([ c0, c1 ], kb);
          catch "when calling '%1'. Received: 'cannot assume on a constant object'": NULL; end try;
        end if;
        return FAIL;
