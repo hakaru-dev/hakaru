@@ -25,11 +25,19 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
   return result;
 end proc;
 
-Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
-  subsindets(SimplifyKB(e, t, build_kb(ctx, "Simplify")),
+Simplify := proc(e, t::t_type, {ctx :: list := [], _do_rename :: truefalse := false}, $)
+  local res, ns;
+  res := subsindets(SimplifyKB(e, t, build_kb(ctx, "Simplify")),
              And({t_sum, t_product}, anyfunc(anything, anything=range)),
              e -> subsop(0 = `if`(e::t_sum, SumIE, ProductIE),
-                         applyop(`+`, [2,2,2], e, 1)))
+                         applyop(`+`, [2,2,2], e, 1)));
+  if _do_rename then
+    ns := [op(bound_names_in(res))];
+    res := subs(zip(`=`,ns,
+                    [seq(cat(`x`,convert(i,string)),i=1..nops(ns))]),
+                res);
+  end if;
+  res;
 end proc;
 
 SimplifyKB_ := proc(leaf, e, t::t_type, kb::t_kb, $)
