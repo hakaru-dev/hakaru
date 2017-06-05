@@ -2,8 +2,8 @@
 # for parts of the code which still work with KB.
 export Bound := module ()
     uses Domain_Type;
-    export toKB := proc(dom :: DomBound, kb0 :: t_kb, $)::[t_kb_mb, list(name=name)];
-        local kb := kb0, vs := op(1, dom), rn := []
+    export toKB := proc(dom :: DomBound, $)::[t_kb_mb, list(name=name)];
+        local kb := contextOf(dom), vs := op(1, dom), rn := []
             , vn, vt, make, lo, hi, vn_rn, rn_t, v ;
         for v in vs do
             vn, vt, make := op(v);
@@ -11,7 +11,7 @@ export Bound := module ()
             vn_rn, kb := ExtBound[make]:-MakeKB( vn, lo, hi, kb );
             rn := [ vn=vn_rn, op(rn) ];
         end do;
-        [ kb, rn ]
+        [ kb, remove(type,rn,And({`=`(name,anything),`=`(anything,name)},satisfies(evalb))) ]
     end proc;
 
     export varsOf := proc(dom :: DomBound, output::identical("list","set","seq"):="list")
