@@ -607,8 +607,10 @@ export
                             , ctxC ));
           end if;
         else
-          ctxC := Domain:-simpl_relation(ctxC, norty='DNF');
+          ctxC1 := ctxC;
+          ctxC := [seq(Domain:-simpl_relation(ctxC1, norty=t), t=['DNF','CNF'])];
           ctxC := eval(ctxC,`And`=bool_And);
+          ctxC := op(1, sort(ctxC, key=condition_complexity));
           if ctxC :: specfunc(`Or`) then
             ctxC := [op(ctxC)]
           else
