@@ -1,15 +1,24 @@
 # This module forms part of NewSLO and is `$include`d there
 
-RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition', 'piecewise'] }})
-  local result, ret_type, cs, ifc_opts; ret_type := _ret_type;
+Commands := [ `Simplify`, `Disintegrate` ];
+
+RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition', 'piecewise'] }
+                                ,_command := Simplify})
+  local result, ret_type, cs, ifc_opts, command;
+  ret_type := _ret_type; command := _command;
   if not(ret_type::set) then ret_type := {ret_type}; end if;
+  if command::string then command := convert(command, name); end if;
+  if not (command in Commands) then
+    error "unrecognized command: %1", command;
+  end if;
+
   ifc_opts[0] := screenwidth=9999, prettyprint=0, warnlevel=0,
     showassumed=0,quiet=true;
 
   ifc_opts[1] := interface(ifc_opts[0]);
   try
     kernelopts(assertlevel=0);
-    result := Simplify(e,t,_rest);
+    result := _command(e,t,_rest);
     for cs in select(type, ret_type, [ identical(convert), type, anything ]) do
       result := subsindets(result, op(2,cs), x->convert(x,op(3,cs)));
     end do;
@@ -25,19 +34,31 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
   return result;
 end proc;
 
-Simplify := proc(e, t::t_type, {ctx :: list := [], _do_rename :: truefalse := false}, $)
-  local res, ns;
+Simplify := proc(e, t::t_type, {ctx :: list := []})
+  local res;
   res := subsindets(SimplifyKB(e, t, build_kb(ctx, "Simplify")),
              And({t_sum, t_product}, anyfunc(anything, anything=range)),
              e -> subsop(0 = `if`(e::t_sum, SumIE, ProductIE),
                          applyop(`+`, [2,2,2], e, 1)));
+  Rename(res,_rest);
+end proc;
+
+Rename := proc(e, {_do_rename :: truefalse := false})
+  local ns;
   if _do_rename then
     ns := [op(bound_names_in(res))];
-    res := subs(zip(`=`,ns,
-                    [seq(cat(`x`,convert(i,string)),i=1..nops(ns))]),
-                res);
+    subs(zip(`=`,ns,
+             [seq(cat(`x`,convert(i,string)),i=1..nops(ns))]),
+         e);
+  else e
   end if;
-  res;
+end proc;
+
+Disintegrate := proc(e::t_Hakaru,t::t_type, {ctx::list := []})
+  local res;
+  res := SimplifyKB_((e,t,kb)->disint(e,disint:-htype_to_disint_wrt(t),kb,'do_lam',_rest),
+                     e, t, build_kb(ctx,"Disintegrate",KB:-empty));
+  Rename(res,_rest);
 end proc;
 
 SimplifyKB_ := proc(leaf, e, t::t_type, kb::t_kb, $)
