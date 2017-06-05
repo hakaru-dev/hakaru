@@ -505,7 +505,7 @@ export
       p_n1 := Not(bool_Or(map(condOf,subsop(n=NULL,ps))[])); # new condition
 
       # a cheap metric for determining if the new condition is an improvement
-      if condition_complexity(p_n1) <= condition_complexity(p_n)-5 then
+      if condition_complexity(p_n1) < condition_complexity(p_n) then
         ps := subsop([n,1]=p_n1, ps);
         PARTITION(ps);
       else
