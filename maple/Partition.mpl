@@ -496,8 +496,8 @@ export
 
     # Replaces a piece (at given index) condition with the logically equivalent
     # one formed from the other pieces.
-    export replace_piece_cond := proc(e::Partition, n::integer := -1, failure:=(x->x), $)
-      local p_n, p_n1,ps; ps := piecesOf(e);
+    export replace_piece_cond := proc(e::Partition, n::integer := -1, failure:=(x->x), cmp_score := [ (x->x), (x->x+1) ], $)
+      local p_n, p_n1,ps,cmp; ps := piecesOf(e);
       if abs(n)>nops(ps) then
         error "index out of bound: %1", n;
       elif nops(ps)=1 then
@@ -505,9 +505,10 @@ export
       end if;
       p_n := condOf(op(n, ps));                              # old condition
       p_n1 := Not(bool_Or(map(condOf,subsop(n=NULL,ps))[])); # new condition
+      cmp := map(condition_complexity, [p_n1, p_n]);
 
       # a cheap metric for determining if the new condition is an improvement
-      if condition_complexity(p_n1) < condition_complexity(p_n) then
+      if `<=`(zip(apply, cmp_score, cmp)[]) then
         ps := subsop([n,1]=p_n1, ps);
         PARTITION(ps);
       else
