@@ -16,7 +16,8 @@ gensym := module ()
     end if
   end proc;
   blocks := map(((l,u)->block(StringTools:-Ord(l), StringTools:-Ord(u) - StringTools:-Ord(l)+1))@op,
-                [ ["0", "9"]
+                [ ["`", "_"]
+                , ["0", "9"]
                 , ["a", "z"]
                 , ["A", "Z"] ]);
   radix := `+`(op(map2(op, 2, blocks))) / 2;
