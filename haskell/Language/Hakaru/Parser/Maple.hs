@@ -566,16 +566,18 @@ maple2Type (InertArgs Func
              InertArgs ExpSeq []])
     = TypeVar "int"
 maple2Type (InertArgs Func
-            [InertName "HReal",
+            [InertName nm,
              InertArgs ExpSeq
              [InertArgs Func
               [InertName "Bound",
                InertArgs ExpSeq
                [InertName ">=",InertNum Pos 0]]]])
+    | nm `elem` [ "HReal", "AlmostEveryReal" ]
     = TypeVar "prob"
 maple2Type (InertArgs Func
-            [InertName "HReal",
+            [InertName nm,
              InertArgs ExpSeq []])
+    | nm `elem` [ "HReal", "AlmostEveryReal" ]
     = TypeVar "real"
 
 maple2Type (InertArgs Func
