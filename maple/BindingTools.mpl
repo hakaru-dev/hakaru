@@ -15,8 +15,10 @@ gensym := module ()
     elif n<2147483648 then 248+iquo(n,1073741824,'m'), 128+iquo(m,16777216,'m'), 128+iquo(m,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
     end if
   end proc;
-  blocks := map((b -> block(convert(op(0,b), decimal, hex), op(1,b))),
-                ["4e00"(20950)]);
+  blocks := map(((l,u)->block(StringTools:-Ord(l), StringTools:-Ord(u) - StringTools:-Ord(l)+1))@op,
+                [ ["0", "9"]
+                , ["a", "z"]
+                , ["A", "Z"] ]);
   radix := `+`(op(map2(op, 2, blocks))) / 2;
   unicode := proc(nn, $)
     local n, b;
