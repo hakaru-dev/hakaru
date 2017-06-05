@@ -20,6 +20,10 @@ import           System.IO (stderr)
 import           System.Environment (getArgs)
 import           Data.Monoid ((<>),mconcat)
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
+
 type Term a = TrivialABT T.Term '[] a
 
 parseAndInfer :: Text.Text
