@@ -262,7 +262,7 @@ KB := module ()
   # return a SplitKB instead.
   assert_deny := module ()
    export ModuleApply;
-   local t_if_and_or_of, t_not, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve,
+   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve,
          refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg, rel_coulditbe;
 
    # Either And or Or type, chosen by boolean pol
@@ -272,6 +272,8 @@ KB := module ()
 
    # The 'type' of `not(..)` statements
    t_not := '{specfunc(anything, Not), `not`}';
+
+   t_bad_assumption := '{t_not({specfunc(And),`and`}), specfunc(Or),satisfies(bad_assumption_pw)}';
 
    # The type representing equalities
    # between something which is neither a name nor 'size' applied to a name
@@ -481,8 +483,7 @@ KB := module ()
      warm(b);
    end proc;
 
-   rel_coulditbe := proc(a,as0,$)
-      local as := remove(x->x::`not`(`and`), as0);
+   rel_coulditbe := proc(a,as,$)
       try
           coulditbe(a) assuming op(as);
       catch "when calling '%1'. Received: 'contradictory assumptions'" :
@@ -493,7 +494,7 @@ KB := module ()
           # This is seemingly a Maple bug - the condition could still be, but we
           # don't know, so conservatively return true.
           WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling coulditbe(%%1) assuming (%%2)"
-                          , StringTools[FormatMessage](lastexception[2..-1])), a, as0 );
+                          , StringTools[FormatMessage](lastexception[2..-1])), a, as );
           return true;
       catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
           error expr_indp_errMsg(), a, as;
@@ -530,6 +531,7 @@ KB := module ()
     else
       bb := subsindets(bb, Partition, Partition:-PartitionToPW);
       as := chill(kb_to_assumptions(kb, bb));
+      as := remove(type, as, thismodule:-t_bad_assumption);
       bb := chill(bb);
 
       # try to evaluate under the assumptions, but some assumptions break
@@ -569,7 +571,7 @@ KB := module ()
 
       # Normalize `=` and `<>` constraints a bit.
       if not pol then
-        b := negate_rel(b);
+        b := bool_Not(b);
       end if;
 
       # If the name in the simple equality (if it is such) is not
