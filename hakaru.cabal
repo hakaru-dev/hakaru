@@ -126,7 +126,8 @@ Library
                        HUnit              >= 1.2  && < 2.0,
                        mtl                >= 2.1,
                        filepath           >= 1.1.0.2, 
-                       bytestring         >= 0.9
+                       bytestring         >= 0.9, 
+                       optparse-applicative >= 0.11 && < 0.14
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite
@@ -218,7 +219,8 @@ Test-Suite system-testsuite
                        mtl                >= 2.1,
                        vector             >= 0.10,
                        text               >= 0.11 && < 1.3, 
-                       bytestring         >= 0.9
+                       bytestring         >= 0.9, 
+                       optparse-applicative >= 0.11 && < 0.14
 
 ----------------------------------------------------------------
 Executable hakaru

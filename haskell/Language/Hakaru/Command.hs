@@ -14,10 +14,11 @@ import           Control.Monad (when)
 import qualified Data.Text      as Text
 import qualified Data.Text.IO   as IO
 import qualified Data.Text.Utf8 as U
+import qualified Options.Applicative as O
 import           Data.Vector
 import           System.IO (stderr)
 import           System.Environment (getArgs)
-import           Data.Monoid ((<>))
+import           Data.Monoid ((<>),mconcat)
 
 type Term a = TrivialABT T.Term '[] a
 
@@ -71,12 +72,18 @@ readFromFile "-" = U.getContents
 readFromFile x   = U.readFile x
 
 simpleCommand :: (Text.Text -> IO ()) -> Text.Text -> IO ()
-simpleCommand k fnName = do 
-  args <- getArgs
-  case args of
-      [prog] -> U.readFile prog >>= k
-      []     -> U.getContents   >>= k 
-      _      -> IO.hPutStrLn stderr $ "Usage: " <> fnName <> " <file>"
+simpleCommand k fnName = 
+  let parser = 
+        O.info (O.helper <*> opts)
+               (O.fullDesc <> O.progDesc 
+                 (mconcat["Hakaru:", Text.unpack fnName, " command"]))
+      opts = 
+        O.strArgument
+           ( O.metavar "PROGRAM" <> 
+             O.showDefault <> O.value "-" <> 
+             O.help "Filepath to Hakaru program OR \"-\"" )
+
+  in O.execParser parser >>= readFromFile >>= k 
 
 writeToFile :: String -> (Text.Text -> IO ())
 writeToFile "-" = U.putStrLn 
