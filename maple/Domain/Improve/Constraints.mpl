@@ -222,25 +222,16 @@ end module;
 # that variable in. In most cases, it would probably be enough to
 # leave that as it is; it would simplify later.
 singular_pts := module()
-  uses Domain;
+  uses Domain, Domain_Type, Hakaru;
 
   export SimplName  := "Single_pts";
   export SimplOrder := 14;
 
-  local can_remove := ((xs,vs_ty) ->
-     nops(xs)>0 and
-     andmap(x ->
-     x :: `=` and
-     ormap(s->s(x)::vs_ty,[lhs,rhs]) and
-     not(is(x)), xs));
-
-  export ModuleApply := proc(bnds_ :: DomBound, sh_ :: DomShape, $)
-    local bnds := bnds_, sh := sh_, vs, todo, sh1, vs_ty;
-    vs := applyop(bl -> select(b->op(3,b)=`Int`, bl), 1, bnds);
-    vs := Domain:-Bound:-varsOf(vs,"set");
-    vs_ty := 'satisfies(x->x in vs)';
-    todo := indets(sh, specfunc(`DConstrain`));
-    todo := select(x->can_remove(x,vs_ty), todo);
-    subs([seq(t=DSum(),t=todo)], sh);
+  export ModuleApply := proc(bnds :: DomBound, sh :: DomShape, $)
+    local kb, kb_rn, ns, sh1; sh1 := sh;
+    kb, kb_rn := Domain:-Bound:-toKB(bnds)[];
+    sh1 := subs(kb_rn, sh1);
+    sh1 := Partition:-Simpl:-singular_pts(sh1, kb);
+    eval(sh1, [DSum=DSum,DConstrain=DConstrain]);
   end proc;
 end module;
