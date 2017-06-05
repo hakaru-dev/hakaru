@@ -12,7 +12,6 @@
            , ViewPatterns
            , KindSignatures
            , RankNTypes
-           , TypeApplications
            , MultiParamTypeClasses
            , FunctionalDependencies
            , UndecidableInstances 
@@ -63,17 +62,17 @@ commandFromName
   -> Sing i 
   -> (forall o . Maybe (CommandType c i o, Sing o) -> k) 
   -> k
-commandFromName (jmEq1 (sing @_ @"Simplify") -> Just Refl) i k = k $ Just (Simplify, i)
+commandFromName (jmEq1 (sing :: Sing "Simplify") -> Just Refl) i k = k $ Just (Simplify, i)
 
-commandFromName (jmEq1 (sing @_ @"Disintegrate") -> Just Refl) i k = 
+commandFromName (jmEq1 (sing :: Sing "Disintegrate") -> Just Refl) i k = 
   case i of 
     SMeasure (SData (STyApp (STyApp (STyCon (jmEq1 sSymbol_Pair -> Just Refl)) a) b) _) -> 
       k $ Just (DisintMeas, SFun a (SMeasure b))
     SFun a x -> 
-      commandFromName (sing @_ @"Disintegrate") x $ \q -> 
+      commandFromName (sing :: Sing "Disintegrate") x $ \q -> 
         k $ fmap (\(c,x') -> (DisintFun c, SFun a x')) q
 
-commandFromName (jmEq1 (sing @_ @"Summarize") -> Just Refl) i k = k $ Just (Summarize, i)
+commandFromName (jmEq1 (sing :: Sing "Summarize") -> Just Refl) i k = k $ Just (Summarize, i)
 
 commandFromName _ _ k = k Nothing 
 

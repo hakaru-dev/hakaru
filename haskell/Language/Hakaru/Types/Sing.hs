@@ -6,7 +6,6 @@
            , FlexibleInstances
            , Rank2Types
            , UndecidableInstances
-           , TypeApplications
            , ScopedTypeVariables
            #-}
 
@@ -286,10 +285,10 @@ sSymbol_Maybe  :: Sing "Maybe"
 sSymbol_Maybe  = SingSymbol
 
 someSSymbol :: String -> (forall s . Sing (s :: Symbol) -> k) -> k
-someSSymbol s k = case TL.someSymbolVal s of { TL.SomeSymbol (_::Proxy s) -> k (SingSymbol @s) }
+someSSymbol s k = case TL.someSymbolVal s of { TL.SomeSymbol (_::Proxy s) -> k (SingSymbol :: Sing s) }
 
 ssymbolVal :: forall s. Sing (s :: Symbol) -> String 
-ssymbolVal SingSymbol = TL.symbolVal @s Proxy 
+ssymbolVal SingSymbol = TL.symbolVal (Proxy :: Proxy s)
 
 instance Eq (Sing (s :: Symbol)) where
     (==) = eq1

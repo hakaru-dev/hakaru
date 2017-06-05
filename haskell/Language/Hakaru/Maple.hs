@@ -12,7 +12,6 @@
            , ViewPatterns
            , KindSignatures
            , RankNTypes
-           , TypeApplications
            , MultiParamTypeClasses
            , FunctionalDependencies
            , UndecidableInstances 
