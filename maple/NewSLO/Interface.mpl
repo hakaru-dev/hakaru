@@ -1,6 +1,6 @@
 # This module forms part of NewSLO and is `$include`d there
 
-Commands := [ `Simplify`, `Disintegrate` ];
+Commands := [ `Simplify`, `Disintegrate`, `Summarize` ];
 
 RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition', 'piecewise'] }
                                 ,_command := Simplify})
@@ -33,6 +33,8 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
   end try;
   return result;
 end proc;
+
+Summarize := proc(e, _) Summary:-Summarize(e,_rest) end proc;
 
 Simplify := proc(e, t::t_type, {ctx :: list := []})
   local res;
