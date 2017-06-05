@@ -1,20 +1,10 @@
-{-# LANGUAGE TypeSynonymInstances
-           , FlexibleInstances
+{-# LANGUAGE FlexibleInstances
            , FlexibleContexts
            , DeriveDataTypeable
-           , CPP
-           , GADTs
            , DataKinds
-           , OverloadedStrings
            , ScopedTypeVariables
-           , TypeOperators
            , RecordWildCards
            , ViewPatterns
-           , KindSignatures
-           , RankNTypes
-           , MultiParamTypeClasses
-           , FunctionalDependencies
-           , UndecidableInstances 
            , LambdaCase
            , DeriveFunctor, DeriveFoldable, DeriveTraversable 
            #-}
