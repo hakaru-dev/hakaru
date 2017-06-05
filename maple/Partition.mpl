@@ -301,6 +301,8 @@ export
     # each clause evaluated under the context so far, which is the conjunction
     # of the negations of all clauses so far
     local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q, ctxC, cl;
+    if 'assume_partition' in {_rest} then return Partition(op(x)) end if;
+
     # handles all but the `otherwise` case if there is such a case
     for i in seq(q, q = 1 .. iquo(n, 2)) do
       cnd := op(2*i-1,x); # the clause as given
