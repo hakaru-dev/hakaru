@@ -504,6 +504,8 @@ Hakaru := module ()
   fst:= proc(p, $)
     if p :: 'Pair'('anything'$2) then
       op(1,p)
+    elif p :: 'Datum(identical(pair),anything)' then
+      op([2,1,1,1,1], p);
     elif p :: t_piecewiselike then
       map_piecewiselike(fst, p)
     else
@@ -515,6 +517,8 @@ Hakaru := module ()
   snd:= proc(p, $)
     if p :: 'Pair'('anything'$2) then
       op(2,p)
+    elif p :: 'Datum(identical(pair),anything)' then
+      op([2,1,2,1,1], p);
     elif p :: t_piecewiselike then
       map_piecewiselike(snd, p)
     else
