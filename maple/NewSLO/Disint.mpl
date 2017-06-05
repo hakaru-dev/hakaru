@@ -190,11 +190,10 @@
           Msum()
          ));
 
-    kb := empty;
+    kb := build_kb(ctx,"disint",KB:-empty);
     for v in ListTools[Reverse](V) do
         var_rn[v], kb := DV[v]:-disintegrator_mktype(kb);
     end do;
-    kb := build_kb(ctx,"disint",kb);
     mc := subs_disint_data(var_rn, mc);
 
     atodo(x->toLO(x));
