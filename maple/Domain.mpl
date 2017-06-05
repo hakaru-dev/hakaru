@@ -105,7 +105,7 @@ Domain_Type := module()
 
   DBound := proc(a)
     local b,cs;
-    b := `if`(nargs>=2,[args[2]],[{}])[];
+    b := `if`(nargs>=2,[args[2]],[KB:-empty])[];
     cs := `if`(nargs>=3,[args[3..-1]],[])[];
     'procname'(a,b,cs) ;
   end proc;
@@ -210,20 +210,19 @@ $include "Domain/Improve.mpl"
     end proc;
 
     # The main interface to Domain
-    export Reduce := proc(e0,kb::t_kb,f_into,f_body,f_nosimp:=(_->FAIL),opts:=[],$)
-      local e := e0, dom_specb, dom_specw, dom_ctx, dom_spec;
+    export Reduce := proc(e0,dom_ctx::t_kb,f_into,f_body,f_nosimp:=(_->FAIL),opts:=[],$)
+      local e := e0, dom_specb, dom_specw, dom_spec;
       # Build the domain
       dom_specb, e := op(Domain:-Extract:-Bound(e));
       if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
       dom_specw, e := op(Domain:-Extract:-Shape(e));
-      dom_ctx := {op(KB:-kb_to_assumptions(kb))};
       dom_specb := DBound(op(1,dom_specb), dom_ctx);
       dom_spec := DOMAIN(dom_specb, dom_specw);
 
       # Improve, if necessary, then apply back to the expression
       if dom_specw <> DConstrain() and not ("no_domain" in {opts[]})
       then dom_spec := Domain:-Improve(dom_spec) end if;
-      Domain:-Apply(dom_spec, kb, f_into, f_body)(e);
+      Domain:-Apply(dom_spec, f_into, f_body)(e);
     end proc;
 
     ModuleLoad();

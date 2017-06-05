@@ -102,6 +102,10 @@ export Bound := module ()
         end if;
         remove(toConstraints_to_remove,
           {op(map(b->constrain(opts, op(b))[], op(1,bnd)))
-          ,op( `if`(nops(bnd)>1,op(2,bnd),{}) ) } );
+          ,op(KB:-kb_to_assumptions(contextOf(bnd))) } );
+    end proc;
+
+    export contextOf := proc(x::DomBound,$)::t_kb;
+      `if`(nops(x>1),op(2,x),KB:-empty);
     end proc;
 end module;#Bound

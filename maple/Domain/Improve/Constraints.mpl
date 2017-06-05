@@ -113,7 +113,7 @@ end module;
 
 # Pushes constraints down, or pulls them up, when there are such constraints.
 local do_ctx_dir := dir -> proc(vs :: DomBound, sh :: DomShape, $)
-    local ctx := `if`(nops(vs)=2,op(2,vs),{});
+    local ctx := Domain:-Bound:-toConstraints(vs, 'no_infinity');
     ctx := remove(x->x::`::`,ctx);
     if ctx <> {} then
         dir(ctx)(sh);

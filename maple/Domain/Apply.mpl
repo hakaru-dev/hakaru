@@ -9,16 +9,16 @@
 export Apply := module ()
        uses Domain_Type;
        export ModuleApply :=
-         proc(dom :: HDomain_mb, kb0 :: t_kb
+         proc(dom :: HDomain_mb
              ,f_into := "default"
              ,f_body := "default", $)
-           local vs, sh, ctx;
+           local vs, sh, dbnd, ctx;
            if dom :: DomNoSol then
                error "cannot apply %1", dom;
            end if;
-           vs, sh := op(dom);
-           vs := Domain:-Bound:-withVarsIxs(vs);
-           ctx := [ kb0,
+           dbnd, sh := op(dom);
+           vs := Domain:-Bound:-withVarsIxs(dbnd);
+           ctx := [ Domain:-Bound:-contextOf(dbnd) ,
               `if`(f_into="default",`do_mk`,f_into),
               `if`(f_body="default",`do_body`,f_body) ];
            (e->do_apply({}, e, vs, sh, ctx));

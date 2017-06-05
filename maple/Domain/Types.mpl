@@ -19,7 +19,7 @@ local DomainTypes := table(
                             ,DInto(DomBoundVar, DomShape) )'' )
        ,(DomShape     = 'Or( DomConstrain, DomSum, DomSplit, DomInto )' )
        # Domain
-       ,(DomCtx = ''set({relation, `::`})'')
+       ,(DomCtx = ''t_kb'')
        ,(HDomain = ''DOMAIN(DomBound, DomShape)'' )
        # Maybe domain
        ,(DomNoSol  = ''Not(freeof(`DNoSol`))'' )
