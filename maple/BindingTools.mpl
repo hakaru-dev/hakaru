@@ -2,8 +2,8 @@
 
 # make gensym global, so that it can be shared with other 'global' routines
 gensym := module ()
-  export ModuleApply;
-  local gs_counter, utf8, blocks, radix, unicode;
+  export ModuleApply, SymbolsToGen;
+  local gs_counter, utf8, blocks, radix, unicode, ModuleLoad;
   gs_counter := -1;
   utf8 := proc(n :: integer, $)
     local m;
@@ -15,23 +15,33 @@ gensym := module ()
     elif n<2147483648 then 248+iquo(n,1073741824,'m'), 128+iquo(m,16777216,'m'), 128+iquo(m,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
     end if
   end proc;
-  blocks := map(((l,u)->block(StringTools:-Ord(l), StringTools:-Ord(u) - StringTools:-Ord(l)+1))@op,
-                [ ["`", "_"]
-                , ["0", "9"]
-                , ["a", "z"]
-                , ["A", "Z"] ]);
-  radix := `+`(op(map2(op, 2, blocks))) / 2;
+  SymbolsToGen :=
+             [ ["`", "_"]
+             , ["0", "9"]
+             , ["a", "z"]
+             , ["A", "Z"] ];
+             # e.g.
+             # [[ 19968, 20950 ]] for unicode
+
+  blocks := proc($)
+    map(((l,u)->`[]`(StringTools:-Ord(l), StringTools:-Ord(u) - StringTools:-Ord(l)+1))@op,SymbolsToGen)
+  end proc;
+  radix := proc($) `+`(op(map2(op, 2, blocks()))) / 2; end proc;
   unicode := proc(nn, $)
     local n, b;
     n := nn;
-    for b in blocks do
+    for b in blocks() do
       if n < op(2,b) then return n + op(1,b) else n := n - op(2,b) end if
     end do
   end proc;
   ModuleApply := proc(x::name, $)
     gs_counter := gs_counter + 1;
-    cat(x, op(map(StringTools:-Char, map(utf8 @ unicode, applyop(`+`, 1, map(`*`, convert(gs_counter, 'base', radix), 2), 1)))))
+    cat(x, op(map(StringTools:-Char, map(utf8 @ unicode, applyop(`+`, 1, map(`*`, convert(gs_counter, 'base', radix()), 2), 1)))))
   end proc;
+  ModuleLoad := proc()
+    unprotect(SymbolsToGen);
+  end proc;
+  ModuleLoad();
 end module: # gensym
 
 #############################################################################

@@ -3,13 +3,20 @@
 Commands := [ `Simplify`, `Disintegrate`, `Summarize` ];
 
 RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition', 'piecewise'] }
+                                ,_gensym_charset := FAIL
                                 ,_command := Simplify})
-  local result, ret_type, cs, ifc_opts, command;
+  local result, ret_type, cs, ifc_opts, syms0, command;
   ret_type := _ret_type; command := _command;
   if not(ret_type::set) then ret_type := {ret_type}; end if;
   if command::string then command := convert(command, name); end if;
   if not (command in Commands) then
     error "unrecognized command: %1", command;
+  end if;
+  if _gensym_charset <> FAIL then
+    syms0 := copy(gensym:-SymbolsToGen);
+    gensym:-SymbolsToGen := _gensym_charset;
+  else
+    syms0 := gensym:-SymbolsToGen;
   end if;
 
   ifc_opts[0] := screenwidth=9999, prettyprint=0, warnlevel=0,
@@ -30,6 +37,7 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
     end if;
   finally
     interface(zip(`=`, map(lhs,[ifc_opts[0]]), [ifc_opts[1]])[]);
+    gensym:-SymbolsToGen := syms0;
   end try;
   return result;
 end proc;
