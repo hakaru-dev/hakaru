@@ -143,6 +143,11 @@ Hakaru := module ()
                            Branch({identical(p_false),
                                    identical(PWild),
                                    PVar(anything)}, anything)) then
+        # Changing this to Partition causes the following tests to fail:
+        #   5:RoundTrip:6:2:testRoadmapProg4 - Haskell Maple-2-hs lex error
+        #   5:RoundTrip:2:15:t43             - Maple error
+        #   5:RoundTrip:0:14:t58             - Maple error
+        # TODO: find out why
         'piecewise'(make_piece(e), op([1,2], ret), op([2,2], ret))
       elif ret :: Branches(Branch(identical(p_false), anything),
                            Branch({identical(p_true),
