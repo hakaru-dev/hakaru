@@ -337,10 +337,11 @@ Profile := module()
     local i, k, pr_nm;
     k := _max_name_len; pr_nm := _prof_name;
 
-    printf(cat(pr_nm,(" "$k-3),`depth    calls     time    time%%     `));
+    printf(cat(pr_nm,(" "$k-StringTools[Length](convert(pr_nm,string))),
+               `depth    calls     time    time%%     `));
     printf(`    bytes   bytes%%\n`);
     printf(cat("--"$k+1,`\n`));
-    for i from 1 to nops(dat)-1 do
+    for i from 1 to nops(dat) do
       printf(cat(`%-`,convert(k,string),`a%7d%9d%9.3f%9.2f%14d%9.2f\n`),
              op(1..7,dat[i]));
     end do;
