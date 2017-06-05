@@ -40,7 +40,6 @@ SemiAlgebraic := module()
     local do_Constrain := proc( sh :: DomConstrain , ctx, vs_, $ )
         local ts, vs := vs_, cs;
         cs := { op( Domain:-Bound:-toConstraints(ctx,'no_infinity') ), op(sh) } ;
-        if nops(ctx) >= 2 then cs := cs union op(2,ctx) end if;
         ts, cs := selectremove(type, cs, `::`);
         ts := select(t->op(2,t)<>real, ts);
         if ts <> {} and has(cs,ts) then
