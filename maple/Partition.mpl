@@ -378,7 +378,7 @@ export
       option remember;
       local ps, qs, qs1, mk;
       if p :: Partition then
-        reduce_branches(remove_false_pieces(flatten(p),_rest));
+        reduce_branches(remove_false_pieces(flatten(singular_pts(p,_rest)),_rest));
       elif assigned(distrib_op_Partition[op(0,p)]) then
         mk := distrib_op_Partition[op(0,p)];
         ps := [op(p)];

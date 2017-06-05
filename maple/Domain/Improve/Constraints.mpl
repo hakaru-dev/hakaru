@@ -225,7 +225,7 @@ singular_pts := module()
   uses Domain, Domain_Type, Hakaru;
 
   export SimplName  := "Single_pts";
-  export SimplOrder := 14;
+  export SimplOrder := 7;
 
   export ModuleApply := proc(bnds :: DomBound, sh :: DomShape, $)
     local kb, kb_rn, ns, sh1; sh1 := sh;
