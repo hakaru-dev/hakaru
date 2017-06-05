@@ -179,7 +179,7 @@ export
     end if;
     ps := [args]; ops_r := iquo(nops(ps),2);
     if nops(ps)::odd then
-      ps := [op(1..-2,ps), Not(bool_And(seq(op(2*i-1,ps),i=1..ops_r))), op(-1,ps)];
+      ps := [op(1..-2,ps), Not(bool_Or(seq(op(2*i-1,ps),i=1..ops_r))), op(-1,ps)];
       ops_r := ops_r+1;
     end if;
     ps := [seq(Piece(op(2*i-1,ps),op(2*i,ps)),i=1..ops_r)];
