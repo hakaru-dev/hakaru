@@ -6,6 +6,8 @@
            , FlexibleInstances
            , Rank2Types
            , UndecidableInstances
+           , TypeApplications
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -41,6 +43,7 @@ module Language.Hakaru.Types.Sing
     , sUnList
     , sUnMaybe
     -- ** Singletons for `Symbol`
+    , someSSymbol, ssymbolVal
     , sSymbol_Bool
     , sSymbol_Unit
     , sSymbol_Pair
@@ -53,6 +56,7 @@ import qualified GHC.TypeLits as TL
 -- TODO: should we use @(Data.Type.Equality.:~:)@ everywhere instead of our own 'TypeEq'?
 import Unsafe.Coerce
 
+import Data.Proxy
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 ----------------------------------------------------------------
@@ -281,6 +285,11 @@ sSymbol_List   = SingSymbol
 sSymbol_Maybe  :: Sing "Maybe"
 sSymbol_Maybe  = SingSymbol
 
+someSSymbol :: String -> (forall s . Sing (s :: Symbol) -> k) -> k
+someSSymbol s k = case TL.someSymbolVal s of { TL.SomeSymbol (_::Proxy s) -> k (SingSymbol @s) }
+
+ssymbolVal :: forall s. Sing (s :: Symbol) -> String 
+ssymbolVal SingSymbol = TL.symbolVal @s Proxy 
 
 instance Eq (Sing (s :: Symbol)) where
     (==) = eq1
