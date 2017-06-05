@@ -525,7 +525,7 @@ KB := module ()
       foldr(((b,kb) -> assert_deny_mb(b, pol, kb)), kb, op(bb))
 
     elif bb :: t_not then
-      foldr(((b,kb) -> assert_deny_mb(b, not pol, kb)), kb, op(bb))
+      assert_deny_mb(op(1,bb), not pol, kb)
 
     else
       bb := subsindets(bb, Partition, Partition:-PartitionToPW);
