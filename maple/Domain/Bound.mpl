@@ -106,6 +106,6 @@ export Bound := module ()
     end proc;
 
     export contextOf := proc(x::DomBound,$)::t_kb;
-      `if`(nops(x>1),op(2,x),KB:-empty);
+      `if`(nops(x)>1,op(2,x),KB:-empty);
     end proc;
 end module;#Bound
