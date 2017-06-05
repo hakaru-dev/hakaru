@@ -12,3 +12,4 @@ default.nix
 foo.c
 Session.vim
 *#
+.DS_Store
