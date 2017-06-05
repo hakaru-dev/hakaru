@@ -9,8 +9,9 @@
   #     wrt-var type: Each wrt var may be continuous (Lebesgue), discrete (Counting),
   #          point evaluation (Dirac), and there may be other types added later.
   disint:= module()
-  export ModuleApply, `do`;
+  export ModuleApply, `do`, htype_to_disint_wrt;
   local
+    htypeatom_to_disint_wrt,
     #Dispatch table for wrt-var types. For each, there is a "cond constructor",
     #a "disintegrator", and a "disintegrator_arg_extractor". The cond constructor
     #builds the associated relation in the master piecewise; the disintegrator
@@ -245,6 +246,30 @@
 
     [mc, [todo]];
    end proc; #disint:-ModuleApply
-   ModuleLoad();
+
+    htypeatom_to_disint_wrt := table(
+      [ AlmostEveryReal=Lebesgue
+      , HReal=Lebesgue
+      , HInt=Counting ]);
+
+    htype_to_disint_wrt := proc(t::t_type,inside_wrt::truefalse := false,$)
+      if t::'HMeasure(anything)' then
+        htype_to_disint_wrt(op(1,t));
+      elif t::'HFunction(anything,anything)' then
+        htype_to_disint_wrt(op(2,t));
+      elif t::specfunc({AlmostEveryReal, HReal, HInt}) then
+        gensym(:-`t`) &M htypeatom_to_disint_wrt[op(0,t)](op(eval(KB:-range_of_htype(t), Open=(x->x))));
+      elif t::'HData(DatumStruct(identical(pair),[Konst(anything),Konst(anything)]))' then
+        if inside_wrt then
+          Pair(seq(op([1,2,i,1],t),i=[1,2]));
+        else
+          htype_to_disint_wrt(op([1,2,1,1],t),true);
+        end if;
+      else
+        error "don't know how to disintegrate %1", t;
+      end if;
+    end proc;
+
+    ModuleLoad();
   end module; #disint
   ###################### end of Carl's code ######################
