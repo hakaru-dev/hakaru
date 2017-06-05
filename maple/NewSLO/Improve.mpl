@@ -125,7 +125,7 @@ reduce_Integrals := module()
       ,curry(reduce_Integrals_into,h,opts)
       ,curry(reduce_Integrals_body,h,opts)
       ,(_->:-DOM_FAIL), opts);
-    rr := kb_assuming_mb(Partition:-Simpl)(rr, kb, x->x);
+    rr := Partition:-Simpl(rr, kb);
     if has(rr, :-DOM_FAIL) then
       return FAIL;
     elif has(rr, FAIL) then
