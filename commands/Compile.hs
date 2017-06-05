@@ -146,7 +146,7 @@ header logfloats mmodule =
                 , "where" ]
   , ""
   , if logfloats
-    then TxT.unlines [ "import           Data.Number.LogFloat hiding (product)"
+    then TxT.unlines [ "import           Data.Number.LogFloat (LogFloat)"
                      , "import           Prelude              hiding (product, exp, log, (**))"
                      ]
     else "import           Prelude hiding (product)"
