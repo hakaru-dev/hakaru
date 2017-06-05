@@ -10,6 +10,7 @@ import           Language.Hakaru.Command (parseAndInfer, readFromFile, Term)
 import           Language.Hakaru.Syntax.Rename
 import           Language.Hakaru.Simplify
 import           Language.Hakaru.Maple 
+import           Language.Hakaru.Parser.Maple 
 
 
 #if __GLASGOW_HASKELL__ < 710
@@ -18,12 +19,14 @@ import           Control.Applicative   (Applicative(..), (<$>))
 
 import           Data.Monoid ((<>), mconcat)
 import           Data.Text (Text, unpack, pack)
+import qualified Data.Text as Text 
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
 import           Data.List (intercalate) 
 import           Text.Read (readMaybe)
 import           Control.Exception(throw)
 import qualified Options.Applicative as O
+import qualified Data.Map as M 
 
 
 data Options a 
@@ -32,6 +35,14 @@ data Options a
     , no_unicode    :: Bool
     , program       :: a } 
   | ListCommands 
+
+
+parseKeyVal :: O.ReadM (String, String) 
+parseKeyVal = 
+  O.maybeReader $ (\str -> 
+    case map Text.strip $ Text.splitOn "," str of 
+      [k,v] -> return (unpack k, unpack v)
+      _     -> Nothing) . pack 
 
 options :: O.Parser (Options FilePath)
 options = (Options
@@ -49,7 +60,12 @@ options = (Options
           O.help "Set simplify to timeout in N seconds" <>
           O.showDefault <>
           O.value 90 <>
-          O.metavar "N"))
+          O.metavar "N")
+    <*> (M.fromList <$> 
+          O.many (O.option parseKeyVal
+        ( O.long "maple-opt" <> 
+          O.short 'm' <> 
+          O.help "Extra options to send to Maple" ))))
   <*> O.switch 
       ( O.long "no-unicode" <> 
         O.short 'u' <> 

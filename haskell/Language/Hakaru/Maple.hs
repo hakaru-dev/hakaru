@@ -55,10 +55,11 @@ import GHC.TypeLits (Symbol)
 import qualified GHC.TypeLits as TL
 import Data.Type.Equality 
 import Data.Text (pack)
+import qualified Data.Map as M 
+import Data.List (intercalate) 
 
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
-
 
 ----------------------------------------------------------------
 data MapleException       = MapleException String String
@@ -85,13 +86,15 @@ data MapleOptions nm = MapleOptions
   { command   :: nm 
   , debug     :: Bool 
   , timelimit :: Int 
+  , extraOpts :: M.Map String String 
   } deriving (Functor, Foldable, Traversable) 
 
 defaultMapleOptions :: MapleOptions () 
 defaultMapleOptions = MapleOptions
   { command = ()    
   , debug = False 
-  , timelimit = 90 }
+  , timelimit = 90
+  , extraOpts = M.empty }
 
 sendToMaple' 
     :: ABT Term (abt Term) 
@@ -112,11 +115,15 @@ sendToMaple
 sendToMaple MapleOptions{..} e = do 
   let typ_in = typeOf e
       typ_out = commandIsType command typ_in 
-      commandStr = "_command="++ssymbolVal(nameOfCommand command)
+      optStr (k,v) = concat["_",k,"=",v]
+      optsStr = 
+        intercalate "," $ 
+        map optStr $ M.assocs $ 
+        M.insert "command" (ssymbolVal(nameOfCommand command)) extraOpts 
       toMaple_ = "use Hakaru, NewSLO in timelimit("
                  ++ show timelimit ++ ", RoundTrip("
                  ++ Maple.pretty e ++ ", " ++ Maple.mapleType typ_in (", "
-                 ++ commandStr ++ ")) end use;")
+                 ++ optsStr ++ ")) end use;")
   when debug (hPutStrLn stderr ("Sent to Maple:\n" ++ toMaple_))
   fromMaple <- maple toMaple_
   case fromMaple of
