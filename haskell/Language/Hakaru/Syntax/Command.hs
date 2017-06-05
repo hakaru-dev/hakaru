@@ -44,14 +44,17 @@ data CommandType (c :: Symbol) (i :: Hakaru) (o :: Hakaru) where
   DisintMeas   :: CommandType "Disintegrate" (HMeasure (HPair a b)) (a :-> HMeasure b)
   DisintFun    :: !(CommandType "Disintegrate" x x') 
                -> CommandType "Disintegrate" (a :-> x) (a :-> x') 
+  Summarize    :: CommandType "Summarize"     a a 
 
 commandIsType :: CommandType c i o -> Sing i -> Sing o
 commandIsType DisintMeas (SMeasure (sUnPair->(a,b))) = SFun a (SMeasure b)
 commandIsType (DisintFun t) (SFun a x) = SFun a (commandIsType t x)
 commandIsType Simplify x = x
+commandIsType Summarize x = x
   
 nameOfCommand :: CommandType c i o -> Sing c
 nameOfCommand Simplify{} = sing 
+nameOfCommand Summarize{} = sing 
 nameOfCommand DisintMeas{} = sing
 nameOfCommand DisintFun{} = sing 
 
@@ -69,6 +72,8 @@ commandFromName (jmEq1 (sing @_ @"Disintegrate") -> Just Refl) i k =
     SFun a x -> 
       commandFromName (sing @_ @"Disintegrate") x $ \q -> 
         k $ fmap (\(c,x') -> (DisintFun c, SFun a x')) q
+
+commandFromName (jmEq1 (sing @_ @"Summarize") -> Just Refl) i k = k $ Just (Summarize, i)
 
 commandFromName _ _ k = k Nothing 
 
