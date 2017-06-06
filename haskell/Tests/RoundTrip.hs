@@ -149,6 +149,7 @@ testMeasureNat = test
 testMeasureInt :: Test
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
+	, "t75_hakaru" ~: testConcreteFiles "tests/t75_in.hk" "tests/t75_out.hk"
     , "t75'" ~: testStriv t75'
     , "t83"  ~: testSStriv [t83] t83'
     -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
