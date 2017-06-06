@@ -8,7 +8,7 @@ import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Command
 
 import           Data.Text
-import qualified Data.Text.IO as IO
+import qualified Data.Text.Utf8 as IO
 import           System.IO (stderr)
 
 main :: IO ()
@@ -18,5 +18,5 @@ runPretty :: Text -> IO ()
 runPretty prog =
     case parseAndInfer prog of
     Left  err              -> IO.hPutStrLn stderr err
-    Right (TypedAST _ ast) -> print . pretty . expandTransformations $ ast
+    Right (TypedAST _ ast) -> IO.print . pretty . expandTransformations $ ast
 
