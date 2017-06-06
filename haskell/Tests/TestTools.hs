@@ -129,8 +129,9 @@ testConcreteFiles f1 f2 = do
     (_, Left err) -> assertFailure (show err)
     (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) -> do
       ast1' <- simplify ast1
+      ast2' <- simplify ast2
       case jmEq1 typ1 typ2 of
-        Just Refl -> assertAlphaEq "" ast1' ast2
+        Just Refl -> assertAlphaEq "" ast1' ast2'
         Nothing   -> assertFailure "files don't have same type"
 
 ignore :: a -> Assertion
