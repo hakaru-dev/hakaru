@@ -34,7 +34,7 @@ hPut :: Handle -> Text.Text -> IO ()
 hPut h x = BIO.hPut h (encodeUtf8 x) 
 
 hPutStrLn :: Handle -> Text.Text -> IO ()
-hPutStrLn h x = hPut h (x <> "\n")
+hPutStrLn h x = BIO.hPutStrLn h (encodeUtf8 x)
 
 putStrS :: String -> IO ()
 putStrS = putStr . Text.pack
