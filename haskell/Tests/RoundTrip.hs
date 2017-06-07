@@ -4,24 +4,43 @@
            , TypeFamilies
            , ScopedTypeVariables
            , FlexibleContexts
+           , MultiParamTypeClasses
+           , FunctionalDependencies
+           , TypeSynonymInstances
+           , GADTs
+           , FlexibleInstances 
+           , FlexibleContexts 
+           , ConstraintKinds
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.RoundTrip where
 
-import           Prelude ((.), ($), asTypeOf)
+import           Prelude ((.), ($), asTypeOf, String, FilePath, Show(..), (++), Bool(..), concat)
+import qualified Prelude 
 import qualified Data.List.NonEmpty as L
 import           Data.Ratio
+import qualified Data.Text.Utf8 as IO 
 
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Pretty.Concrete (pretty)
 import Language.Hakaru.Syntax.AST (Term, PrimOp(..))
-import Language.Hakaru.Syntax.ABT (ABT)
+import Language.Hakaru.Syntax.AST.Transforms
+import Language.Hakaru.Syntax.ABT (ABT, TrivialABT(..))
 import Language.Hakaru.Expect     (total)
 import Language.Hakaru.Inference  (priorAsProposal, mcmc, mh)
 import Language.Hakaru.Types.Sing
+import System.IO 
+import System.Directory 
+import Control.Monad (mapM_, Monad(return))
+import Data.Foldable (null)
+import Data.List (intercalate) 
 
-import Test.HUnit
-import Tests.TestTools
+import qualified Data.Text as Text 
+import Test.HUnit hiding ((~:), test)
+import qualified Test.HUnit as HUnit
+import Tests.TestTools hiding (testStriv, testSStriv, testConcreteFiles)
+import qualified Tests.TestTools as Tools
 import Tests.Models
     (uniform_0_1, normal_0_1, gamma_1_1,
      uniformC, normalC, beta_1_1, t4, t4', norm, unif2)
@@ -32,7 +51,65 @@ unsafeSuperpose
     -> abt '[] ('HMeasure a)
 unsafeSuperpose = superpose . L.fromList
 
-testMeasureUnit :: Test
+
+class IsTestGroup t where 
+  test :: [t] -> t 
+
+class IsTest' ta t | ta -> t, t -> ta where
+  (~:) :: String -> ta -> t 
+
+class IsTestAssertion ta where 
+  testStriv 
+    :: TrivialABT Term '[] a
+    -> ta 
+
+  testSStriv 
+    :: [(TrivialABT Term '[] a)] 
+    -> TrivialABT Term '[] a 
+    -> ta 
+
+  testConcreteFiles
+      :: FilePath
+      -> FilePath
+      -> ta   
+
+  
+instance IsTestGroup Test where test = HUnit.test; 
+instance IsTest' Assertion Test where (~:) = (HUnit.~:)
+instance IsTestAssertion Assertion where 
+  testStriv = Tools.testStriv; testSStriv = Tools.testSStriv; testConcreteFiles = Tools.testConcreteFiles
+
+
+data SaveInput = forall a . TestInput [TrivialABT Term '[] a] (TrivialABT Term '[] a) | DoNothing
+newtype SaveTests = SaveTests { runSaveTests :: IO () }
+
+instance IsTestAssertion SaveInput where 
+  testStriv = TestInput [] 
+  testSStriv = TestInput 
+  testConcreteFiles _ _ = DoNothing
+
+instance IsTestGroup SaveTests where 
+  test = SaveTests . mapM_ runSaveTests
+
+instance IsTest' SaveInput SaveTests where 
+  (~:) _ DoNothing = SaveTests (return ()) 
+  (~:) tnm (TestInput xs r) = 
+    let go (s,x) = do 
+          createDirectoryIfMissing True $ intercalate "/" dn 
+          (IO.writeFile fn . Text.pack . show . pretty . expandTransformations) x
+            where 
+              dn = ["tests", "RoundTrip"]
+              fn = intercalate "/" $ dn ++ [concat [tnm, if null s then "" else ".", s, ".hk"]]
+            
+        xs' = case xs of
+                [] -> [("",r)]
+                _  -> ("expected",r) : Prelude.zip (Prelude.map Prelude.show [0..]) xs 
+    in SaveTests $ mapM_ go xs' 
+
+type IsTest ta t = (IsTest' ta t, IsTestGroup t, IsTestAssertion ta)
+  
+
+testMeasureUnit :: IsTest ta t => t
 testMeasureUnit = test [
     "t1,t5"   ~: testSStriv [t1,t5] (weight half),
     "t10"     ~: testSStriv [t10] (reject sing),
@@ -58,7 +135,7 @@ testMeasureUnit = test [
     "t77"     ~: testSStriv [] t77
     ]
 
-testMeasureProb :: Test
+testMeasureProb :: IsTest ta t => t
 testMeasureProb = test [
     "t2"  ~: testSStriv [t2] (unsafeProb <$> uniform zero one),
     "t26" ~: testSStriv [t26] (dirac half),
@@ -76,7 +153,7 @@ testMeasureProb = test [
     "t69y" ~: testSStriv [t69y] (dirac $ prob_ 3.5)
     ]
 
-testMeasureReal :: Test
+testMeasureReal :: IsTest ta t => t
 testMeasureReal = test
     [ "t3"  ~: testSStriv [] t3
     , "t6"  ~: testSStriv [t6'] t6
@@ -141,12 +218,12 @@ testMeasureReal = test
     -- TODO "two_coins" ~: testStriv two_coins -- needs support for lists
     ]
 
-testMeasureNat :: Test
+testMeasureNat :: IsTest ta t => t 
 testMeasureNat = test
     [ "size" ~: testConcreteFiles "tests/size_in.hk" "tests/size_out.hk"
     ]
 
-testMeasureInt :: Test
+testMeasureInt :: IsTest ta t => t
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
     , "t75'" ~: testStriv t75'
@@ -168,7 +245,7 @@ testMeasureInt = test
                                                  ])
     ]
 
-testMeasurePair :: Test
+testMeasurePair :: IsTest ta t => t 
 testMeasurePair = test [
     "t4"            ~: testSStriv [t4] t4',
     "t8"            ~: testSStriv [] t8,
@@ -195,7 +272,7 @@ testMeasurePair = test [
     "testMCMCPriorProp" ~: testStriv testMCMCPriorProp
     ]
 
-testOther :: Test
+testOther :: IsTest ta t => t
 testOther = test [
     "t82" ~: testSStriv [t82] t82',
     "testRoadmapProg1" ~: testStriv rmProg1,
@@ -207,7 +284,7 @@ testOther = test [
     --"testTrueDetectionR" ~: testStriv tdr
     ]
 
-allTests :: Test
+allTests :: IsTest ta t => t 
 allTests = test
     [ testMeasureUnit
     , testMeasureProb
@@ -217,6 +294,9 @@ allTests = test
     , testMeasureInt
     , testOther
     ]
+
+save_allTests :: IO () 
+save_allTests = runSaveTests allTests 
 
 ----------------------------------------------------------------
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
