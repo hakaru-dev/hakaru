@@ -21,7 +21,7 @@
 -- in a type-safe way. 
 ----------------------------------------------------------------
 module Language.Hakaru.Maple 
-  ( MapleException(..), MapleInputTypeMismatch(..)
+  ( MapleException(..)
   , MapleOptions(..)
   , defaultMapleOptions
   , sendToMaple, sendToMaple'
@@ -58,25 +58,25 @@ import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
 
 ----------------------------------------------------------------
-data MapleException       = MapleException String String
-    deriving Typeable
+data MapleException       
+  = MapleInterpreterException String String
+  | MapleInputTypeMismatch String String
+  | MapleUnknownCommand String
+      deriving Typeable
 
-data MapleInputTypeMismatch = MapleInputTypeMismatch String String
-    deriving Typeable
+instance Exception MapleException
 
 -- Maple prints errors with "cursors" (^) which point to the specific position
 -- of the error on the line above. The derived show instance doesn't preserve
 -- positioning of the cursor.
 instance Show MapleException where
-    show (MapleException toMaple_ fromMaple) =
+    show (MapleInterpreterException toMaple_ fromMaple) =
         "MapleException:\n" ++ fromMaple ++
         "\nafter sending to Maple:\n" ++ toMaple_
-instance Exception MapleException
-
-instance Show MapleInputTypeMismatch where
     show (MapleInputTypeMismatch command ty) =
       concat["Maple command ", command, " does not take input of type ", ty] 
-instance Exception MapleInputTypeMismatch
+    show (MapleUnknownCommand command) = 
+      concat["Maple command ", command, " does not exist"] 
 
 data MapleOptions nm = MapleOptions 
   { command   :: nm 
@@ -100,8 +100,9 @@ sendToMaple'
 sendToMaple' MapleOptions{..} (TypedAST ty expr) = 
   someSSymbol command $ \cmd -> 
   commandFromName cmd ty $ \case 
-    Nothing        -> throw $ MapleInputTypeMismatch command (show ty) 
-    Just (c, ty_o) -> fmap (TypedAST ty_o) (sendToMaple MapleOptions{command=c,..} expr)
+    Left True       -> throw $ MapleInputTypeMismatch command (show ty) 
+    Left False      -> throw $ MapleUnknownCommand command 
+    Right (c, ty_o) -> fmap (TypedAST ty_o) (sendToMaple MapleOptions{command=c,..} expr)
 
 sendToMaple  
     :: (ABT Term abt)
@@ -127,13 +128,13 @@ sendToMaple MapleOptions{..} e = do
       when debug $ do
         ret <- maple ("FromInert(" ++ fromMaple ++ ")")
         hPutStrLn stderr ("Returning from Maple:\n" ++ ret)
-      either (throw  . MapleException toMaple_)
+      either (throw  . MapleInterpreterException toMaple_)
              (return . constantPropagation) $ do
         past <- leftShow $ parseMaple (pack fromMaple)
         let m = checkType typ_out
                  (SR.resolveAST' (getNames e) (maple2AST past))
         leftShow $ unTCM m (freeVars e) Nothing UnsafeMode
-    _ -> throw (MapleException toMaple_ fromMaple)
+    _ -> throw (MapleInterpreterException toMaple_ fromMaple)
   
 leftShow :: forall b c. Show b => Either b c -> Either String c
 leftShow (Left err) = Left (show err)

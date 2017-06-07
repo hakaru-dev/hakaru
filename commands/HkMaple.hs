@@ -115,6 +115,6 @@ listCommands :: IO [String]
 listCommands = do 
     let toMaple_ = "use Hakaru, NewSLO in lprint(map(curry(sprintf,`%s`),NewSLO:-Commands)) end use;"
     fromMaple <- maple toMaple_
-    maybe (throw $ MapleException fromMaple toMaple_)
+    maybe (throw $ MapleInterpreterException fromMaple toMaple_)
           return 
           (readMaybe fromMaple) 

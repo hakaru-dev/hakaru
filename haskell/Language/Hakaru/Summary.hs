@@ -26,7 +26,7 @@
 module Language.Hakaru.Summary
     ( summary
     , summaryDebug
-    , MapleException(MapleException)
+    , MapleException(MapleInterpreterException)
     ) where
 
 import Language.Hakaru.Syntax.ABT
