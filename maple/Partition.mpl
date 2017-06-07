@@ -60,20 +60,6 @@ local
       pw  := PartitionToPW(pw);
       dpw := diff(pw, wrt);
       r   := PWToPartition(dpw, 'do_solve');
-      r0 := Simpl:-singular_pts(r);
-
-      # probably a better way to do this; we really only want to simplify
-      # sums and products of integrals and summations
-      r1 := subsindets(r0, algebraic, `simplify`);
-
-      userinfo(10, 'disint_trace',
-               printf("  input        : \n\t%a\n\n"
-                      "  diff         : \n\t%a\n\n"
-                      "  singular pts : \n\t%a\n\n"
-                      "  simplified   : \n\t%a\n\n\n"
-                      , parts, r, r0, r1 ));
-
-      r1;
     end proc;
 
     :-`simplify/PARTITION` := Simpl;
