@@ -207,6 +207,7 @@
       di   := Wrt_var_types[op(0, DV[v]:-wrt_var_type)]:-disintegrator;
       da   := DV[v]:-disintegrator_arg;
       atodo(unapply('applyop'(di, 2, x, da),x));
+      atodo(x->subsindets(x,Partition,x->Partition:-Simpl(x,kbs[v],_name_cands=[v])));
       atodo(x->improve(x, _ctx=kb,["no_domain",op(improve_opts)]));
     end do;
 
