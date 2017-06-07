@@ -30,15 +30,20 @@ redundant_Partition_Pieces := module()
   export SimplName  := "Redundant Partition pieces";
   export SimplOrder := (10+1/2);
 
-  local `try` := proc(kb, kb_rn, as, pr)
-    local r;
+  local TRY := proc(bnds, kb, kb_rn, as, pr)
+    local r, ns;
     r := subs(kb_rn, op(1,pr));
-    r := Partition:-Simpl(r, kb) assuming op(as);
+
+    ns := op(1,bnds);
+    ns := select(b->op(3,b) in {`Int`,`Ints`}, ns);
+    ns := map(curry(op,1), ns);
+
+    r := Partition:-Simpl(r, kb, _name_cands=ns) assuming op(as);
     if not r :: Partition then r else pr end if;
   end proc;
 
   export ModuleApply := proc(vs :: DomBound, sh :: DomShape, $)
     local as := Domain:-Bound:-toConstraints(vs, 'bound_types');
-    subsindets(sh, DomSplit, curry(`try`,op(Domain:-Bound:-toKB(vs)),as));
+    subsindets(sh, DomSplit, curry(TRY,vs, op(Domain:-Bound:-toKB(vs)),as));
   end proc;
 end module;

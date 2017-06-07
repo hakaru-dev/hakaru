@@ -231,7 +231,11 @@ singular_pts := module()
     local kb, kb_rn, ns, sh1; sh1 := sh;
     kb, kb_rn := Domain:-Bound:-toKB(bnds)[];
     sh1 := subs(kb_rn, sh1);
-    sh1 := Partition:-Simpl:-singular_pts(sh1, kb);
+    ns := op(1,bnds);
+    ns := select(b->op(3,b) in {`Int`,`Ints`}, ns);
+    ns := map(curry(op,1), ns);
+
+    sh1 := Partition:-Simpl:-singular_pts(sh1, kb, _name_cands=ns);
     eval(sh1, [DSum=DSum,DConstrain=DConstrain]);
   end proc;
 end module;
