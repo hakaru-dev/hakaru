@@ -142,7 +142,8 @@ testMeasureProb = test [
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
     "t34" ~: testSStriv [t34] (dirac (prob_ 3)),
-    "t35" ~: testSStriv [t35] (lam $ \x -> if_ (x < (fromRational 4)) (dirac (fromRational 3)) (dirac (fromRational 5))),
+    "t35" ~: testSStriv [] t35,
+    "t35'" ~: testSStriv [] t35',
     "t38" ~: testSStriv [] t38,
     "t42" ~: testSStriv [t42] (dirac one),
     "t49" ~: testSStriv [] t49,
@@ -443,8 +444,9 @@ t33 = exp <$> t31
 t34 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t34 = dirac (if_ ((real_ 2) < (real_ 4)) (prob_ 3) (prob_ 5))
 
-t35 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HProb)
-t35 = lam $ \x -> dirac (if_ ((x `asTypeOf` log one) < (real_ 4)) (prob_ 3) (prob_ 5))
+t35, t35' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HProb)
+t35  = lam $ \x -> dirac (if_ ((x `asTypeOf` log one) < (real_ 4)) (prob_ 3) (prob_ 5))
+t35' = lam $ \x -> if_ (x < (fromRational 4)) (dirac (fromRational 3)) (dirac (fromRational 5))
 
 t36 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HProb)
 t36 = lam (dirac . sqrt)
