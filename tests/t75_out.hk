@@ -1,0 +1,16 @@
+weight(1/7680,
+       kk3 <~ counting
+       weight(real2prob((int2real(((kk3 ^ 5)
+                                    + 
+                                   ((kk3 ^ 4) * 15)
+                                    + 
+                                   ((kk3 ^ 3) * 85)
+                                    + 
+                                   ((kk3 ^ 2) * 225)
+                                    + 
+                                   (kk3 * 274)
+                                    + 
+                                   120))
+                          * 
+                         prob2real((2 ** (int2real(kk3) * (-1)))))),
+              return int2nat(kk3)))

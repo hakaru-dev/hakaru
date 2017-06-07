@@ -38,7 +38,6 @@ import Language.Hakaru.Parser.AST (Name)
 import qualified Language.Hakaru.Parser.SymbolResolve as SR (resolveAST', fromVarSet)
 
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
@@ -51,9 +50,6 @@ import Data.Typeable (Typeable)
 
 import System.MapleSSH (maple)
 import System.IO
-import GHC.TypeLits (Symbol)
-import qualified GHC.TypeLits as TL
-import Data.Type.Equality 
 import Data.Text (pack)
 import qualified Data.Map as M 
 import Data.List (intercalate) 

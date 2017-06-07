@@ -1,0 +1,2 @@
+x <~ gamma(6.0, 1)
+poisson(x)
