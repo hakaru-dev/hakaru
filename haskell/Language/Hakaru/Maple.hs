@@ -98,8 +98,7 @@ sendToMaple'
     -> TypedAST (abt Term) 
     -> IO (TypedAST (abt Term))
 sendToMaple' MapleOptions{..} (TypedAST ty expr) = 
-  someSSymbol command $ \cmd -> 
-  commandFromName cmd ty $ \case 
+  commandFromName command ty $ \case 
     Left True       -> throw $ MapleInputTypeMismatch command (show ty) 
     Left False      -> throw $ MapleUnknownCommand command 
     Right (c, ty_o) -> fmap (TypedAST ty_o) (sendToMaple MapleOptions{command=c,..} expr)

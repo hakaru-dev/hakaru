@@ -26,6 +26,9 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.IClasses
 import GHC.TypeLits (Symbol)
+import Data.List (isInfixOf)
+import Data.Char (toLower)
+import Data.Function (on) 
 
 ----------------------------------------------------------------
 
@@ -48,23 +51,30 @@ nameOfCommand Summarize{} = sing
 nameOfCommand DisintMeas{} = sing
 nameOfCommand DisintFun{} = sing 
 
+parseCommand = flip (isInfixOf `on` map toLower)
+
 commandFromName 
-  :: Sing c 
+  :: String 
   -> Sing i 
-  -> (forall o . Maybe (CommandType c i o, Sing o) -> k) 
+  -> (forall o c . Either Bool (CommandType c i o, Sing o) -> k) 
   -> k
-commandFromName (jmEq1 (sing :: Sing "Simplify") -> Just Refl) i k = k $ Just (Simplify, i)
+commandFromName (parseCommand "Simplify"->True) i k = k $ Right (Simplify, i)
 
-commandFromName (jmEq1 (sing :: Sing "Disintegrate") -> Just Refl) i k = 
-  case i of 
-    SMeasure (SData (STyApp (STyApp (STyCon (jmEq1 sSymbol_Pair -> Just Refl)) a) b) _) -> 
-      k $ Just (DisintMeas, SFun a (SMeasure b))
-    SFun a x -> 
-      commandFromName (sing :: Sing "Disintegrate") x $ \q -> 
-        k $ fmap (\(c,x') -> (DisintFun c, SFun a x')) q
+commandFromName (parseCommand "Disintegrate"->True) i k = 
+  let disint_commandFromType 
+        :: Sing i 
+        -> (forall o . Either Bool (CommandType "Disintegrate" i o, Sing o) -> k) 
+        -> k
+      disint_commandFromType i k = 
+        case i of 
+          SMeasure (SData (STyApp (STyApp (STyCon (jmEq1 sSymbol_Pair -> Just Refl)) a) b) _) -> 
+            k $ Right (DisintMeas, SFun a (SMeasure b))
+          SFun a x -> 
+            disint_commandFromType x $ \q -> 
+              k $ fmap (\(c,x') -> (DisintFun c, SFun a x')) q
+          _ -> k $ Left True
+  in disint_commandFromType i k 
 
-commandFromName (jmEq1 (sing :: Sing "Summarize") -> Just Refl) i k = k $ Just (Summarize, i)
+commandFromName (parseCommand "Summarize"->True) i k = k $ Right (Summarize, i)
 
-commandFromName _ _ k = k Nothing 
-
-
+commandFromName _ _ k = k $ Left False 
