@@ -271,8 +271,8 @@ Executable summary
                        hakaru               >= 0.3
 
 ----------------------------------------------------------------
-Executable simplify
-    Main-is:           Simplify.hs
+Executable hk-maple
+    Main-is:           HkMaple.hs
     Hs-Source-Dirs:    commands
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs

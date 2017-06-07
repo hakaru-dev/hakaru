@@ -31,7 +31,7 @@ import qualified Data.Map as M
 
 data Options a 
   = Options
-    { moptions      :: MapleOptions (Maybe String) 
+    { moptions      :: MapleOptions String
     , no_unicode    :: Bool
     , program       :: a } 
   | ListCommands 
@@ -47,17 +47,17 @@ parseKeyVal =
 options :: O.Parser (Options FilePath)
 options = (Options
   <$> (MapleOptions <$> 
-        O.option (Just <$> O.str)
+        O.option O.str
         ( O.long "command" <>
-          O.help "Command to send to Maple" <>
+          O.help "Command to send to Maple. Default: Simplify" <>
           O.short 'c' <> 
-          O.value Nothing ) 
+          O.value "Simplify" ) 
     <*> O.switch
         ( O.long "debug" <>
-          O.help "Prints output that is sent to Maple" )
+          O.help "Prints output that is sent to Maple." )
     <*> O.option O.auto
         ( O.long "timelimit" <>
-          O.help "Set simplify to timeout in N seconds" <>
+          O.help "Set Maple to timeout in N seconds." <>
           O.showDefault <>
           O.value 90 <>
           O.metavar "N")
@@ -65,37 +65,48 @@ options = (Options
           O.many (O.option parseKeyVal
         ( O.long "maple-opt" <> 
           O.short 'm' <> 
-          O.help "Extra options to send to Maple" ))))
+          O.help ( "Extra options to send to Maple\neach options is of the form KEY=VAL\n"
+                 ++"where KEY is a Maple name, and VAL is a Maple expression.")
+        ))))
   <*> O.switch 
       ( O.long "no-unicode" <> 
         O.short 'u' <> 
-        O.help "Removes unicode characters from names in the Maple output")
+        O.help "Removes unicode characters from names in the Maple output.")
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
-        O.help "Program to be simplified" )) O.<|> 
+        O.help "Filename containing program to be simplified, or \"-\" to read from input." )) O.<|> 
   ( O.flag' ListCommands  
       ( O.long "list-commands" <>
-        O.help "Get list of available commands from Maple" <>
+        O.help "Get list of available commands from Maple." <>
         O.short 'l') )
 
 parseOpts :: IO (Options FilePath)
 parseOpts = O.execParser $ O.info (O.helper <*> options)
-      (O.fullDesc <> O.progDesc "Simplify a hakaru program")
+      (O.fullDesc <> O.progDesc progDesc)
+
+progDesc :: String 
+progDesc = unwords  
+  ["hk-maple: invokes a Maple command on a Hakaru program. "
+  ,"Given a Hakaru program in concrete syntax and a Maple-Hakaru command,"
+  ,"typecheck the program"
+  ,"invoke the Maple command on the program and its type"
+  ,"pretty print, parse and typecheck the program resulting from Maple"
+  ]
 
 et (TypedAST t (x :: Term a)) = TypedAST t (expandTransformations x)
 
 main :: IO ()
-main = parseOpts >>= runSimplify
+main = parseOpts >>= runMaple
 
-runSimplify :: Options FilePath -> IO ()
-runSimplify ListCommands = 
+runMaple :: Options FilePath -> IO ()
+runMaple ListCommands = 
   listCommands >>= \cs -> putStrLn $ "Available Hakaru Maple commands:\n\t"++ intercalate ", " cs
 
-runSimplify Options{..} = readFromFile program >>= \prog -> 
+runMaple Options{..} = readFromFile program >>= \prog -> 
   case parseAndInfer prog of
     Left  err  -> IO.hPutStrLn stderr err
     Right ast  -> do 
-      TypedAST _ ast' <- sendToMaple' (fmap (maybe "Simplify" id) moptions) (et ast)
+      TypedAST _ ast' <- sendToMaple' moptions (et ast)
       print $ pretty 
             $ (if no_unicode then renameAST removeUnicodeChars else id) 
             $ ast'
