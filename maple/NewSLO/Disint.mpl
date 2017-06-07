@@ -261,7 +261,7 @@
         gensym(:-`t`) &M htypeatom_to_disint_wrt[op(0,t)](op(eval(KB:-range_of_htype(t), Open=(x->x))));
       elif t::'HData(DatumStruct(identical(pair),[Konst(anything),Konst(anything)]))' then
         if inside_wrt then
-          Pair(seq(op([1,2,i,1],t),i=[1,2]));
+          Pair(seq(htypeatom_to_disint_wrt(op([1,2,i,1],t),true),i=[1,2]));
         else
           htype_to_disint_wrt(op([1,2,1,1],t),true);
         end if;
