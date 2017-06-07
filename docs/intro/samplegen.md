@@ -77,7 +77,7 @@ The `hakaru` command will print a continuous stream of samples drawn from this p
 ...
 ````
 
-In this example, all sample weights are `1`. To suppress the printing of weights during sample generation, you can use the `--no-weights` option:
+In this example, all sample weights are `1`. To suppress the printing of weights during sample generation, you can use the `--no-weights` or `-w` option:
 
 ````bash
 hakaru --no-weights norm.hk
