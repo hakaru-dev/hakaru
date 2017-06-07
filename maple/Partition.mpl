@@ -446,7 +446,7 @@ export
       true, e
     end proc;
 
-    export remove_false_pieces := proc(e::Partition, kb := KB:-empty, $)
+    export remove_false_pieces := proc(e::Partition, kb := KB:-empty)
       PARTITION(remove(p -> type(KB:-assert(condOf(p), kb), t_not_a_kb), piecesOf(e)));
     end proc;
 
@@ -508,7 +508,7 @@ export
       local t_constant := '{realcons, specfunc(RootOf)}';
       local can_remove := t->'Or'(`=`(t,t_constant),`=`(t_constant,t),`=`(t,t));
 
-      export ModuleApply := proc(sh, kb::t_kb:=KB:-empty,$)
+      export ModuleApply := proc(sh, kb::t_kb:=KB:-empty,{_name_cands::list := [] })
         local ns, sh1; sh1 := sh;
         # todo: work with array types as well?
         ns := select(type, [op(kb)], And(KB:-t_kb_Introduce,anyfunc(anything,specfunc({`AlmostEveryReal`,`HReal`}))));
