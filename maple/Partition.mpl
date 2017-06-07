@@ -364,7 +364,11 @@ export
       option remember;
       local ps, qs, qs1, mk;
       if p :: Partition then
-        reduce_branches(remove_false_pieces(flatten(singular_pts(p,_rest)),_rest));
+        foldr((f,x)->f(x,_rest), p,
+              reduce_branches,
+              remove_false_pieces,
+              flatten,
+              singular_pts);
       elif assigned(distrib_op_Partition[op(0,p)]) then
         mk := distrib_op_Partition[op(0,p)];
         ps := [op(p)];
