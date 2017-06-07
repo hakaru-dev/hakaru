@@ -75,7 +75,7 @@ fromLO := module()
     elif e = 0 then
       Msum()
     elif e :: `+` then
-      map2(unintegrate, h, Msum(op(e)), kb)
+      msum(map2(unintegrate, h, [op(e)], kb)[]);
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
@@ -480,4 +480,13 @@ fromLO := module()
     end if;
   end proc;
 
+  local
+  msum := proc()
+    local as := {args};
+    as := remove(`=`,as,Msum());
+    as := map(a-> if a::specfunc(Msum) then op(a) else a end if, as);
+    if    nops(as)=1 then op(1,as)
+    else  Msum(op(as));
+    end if;
+  end proc;
 end module; # fromLO
