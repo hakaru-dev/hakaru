@@ -25,6 +25,13 @@ d2r := {Weight(7, Ret(3))}:
 #https://en.wikipedia.org/wiki/Borel-Kolmogorov_paradox
 d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
 d3r := {
+  PARTITION([Piece(Or(t < -1,1 < t)
+                  ,Msum())
+            ,Piece(And(t < 0, -1 < t)
+                  ,Weight(t+1,Bind(Uniform(0,t+1),`x`,Ret(f(x,-t+x)))))
+            ,Piece(And(t < 1, 0 < t)
+                  ,Weight(1-t,Bind(Uniform(t,1),`x`,Ret(f(x,-t+x)))))
+            ]),
   PARTITION([Piece(Or(t <= -1,1 < t)
                   ,Msum())
             ,Piece(And(t <= 0, -1 < t)
