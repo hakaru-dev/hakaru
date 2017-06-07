@@ -505,17 +505,23 @@ export
     # Removal of singular points from partitions
     # works with other things too!
     export singular_pts := module()
-      local t_constant := '{realcons, specfunc(RootOf)}';
-      local can_remove := t->'Or'(`=`(t,t_constant),`=`(t_constant,t),`=`(t,t));
+      local t_constant := (ns-> (indets(ns,And(name,Not(constant))) minus ns)={});
+      local can_remove := proc(ns)
+        local t1, t2;
+        t1 := satisfies(t_constant(ns));
+        t2 := satisfies(n->n in ns);
+        'Or'(`=`(t2,{t1,t2}),`=`(t1,t2));
+      end proc;
 
       export ModuleApply := proc(sh, kb::t_kb:=KB:-empty,{_name_cands::list := [] })
         local ns, sh1; sh1 := sh;
         # todo: work with array types as well?
         ns := select(type, [op(kb)], And(KB:-t_kb_Introduce,anyfunc(anything,specfunc({`AlmostEveryReal`,`HReal`}))));
         ns := map(curry(op,1), ns);
-        if ns=[] then return sh end if;
+        ns := { op(ns), op(_name_cands) };
+        if ns={} then return sh end if;
 
-        sh1 := subsindets(sh1, can_remove(satisfies(n->n in ns)), _->false);
+        sh1 := subsindets(sh1, can_remove(ns), _->false);
         sh1 := eval(eval(sh1, [`And`=bool_And,`Or`=bool_Or]));
         subsindets[flat](sh1, Partition, pr->remove_false_pieces(pr,kb));
       end proc;
