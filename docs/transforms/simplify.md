@@ -1,17 +1,84 @@
-# Simplify #
+# Hakaru-Maple #
 
-The `simplify` transformation uses Maple to algebraically reduce your Hakaru programs. You can use this method as part of your optimization plan. Before being sent to Maple, 
-the `simplify` transformation converts your Hakaru program into its expectation representation.
+Hakaru uses the computer algebra system Maple to aid in performing program
+transformations. You can use this functionality of Hakaru if you have Maple
+installed locally or can access Maple remotely. 
 
-## Usage ##
+Maple can be accessed through the module `Language.Hakaru.Maple` or through the
+Hakaru program `hk-maple`.
 
-You can use the `simplify` transformation in the command line by calling:
+The `hk-maple` command invokes a Maple command on a Hakaru program. Given a
+Hakaru program in concrete syntax and a Maple-Hakaru command, typecheck the
+program invoke the Maple command on the program and its type pretty print, parse
+and typecheck the program resulting from Maple. See the `--help` flag of
+`hk-maple` for more information.
 
-````bash
-simplify hakaru_program.hk
-````
+The currently available Maple-Hakaru commands (also called subcommands):
 
-The output of this transformation is a new Hakaru program representing the algebraically-simplified model.
+- Simplify 
+- Disintegrate 
+- Summarize 
+
+Note: calls to Maple may take a very long time. To see if your program is taking
+an appreciable amount of time to parse and typecheck, use the `--debug` flag.
+
+## Subcommands 
+### Simplify
+Hakaru programs are interpreted by Maple as linear operators. In this
+interpretation, many commonly understood (by Maple) and powerful tools for
+simplification become available. The metric for simplification as understood by
+this command is sampling efficiency. `Simplify` attempts to be as conservative
+as possible in changing the given program. In particular, it should not change
+terms unless an improvement with respect to sampling is performed; in this case,
+arbitrary rearrangement may happen, even if an expression more similair to the
+original could be produced.
+
+`Simplify` is the default subcommand.
+
+`Simplify` preserves the semantics of the given program up to normalization of
+weights. If the stronger sense of equivalence is needed, the output of
+`Simplify` can be passed to `normalize`. 
+
+### Disintegrate
+The Maple disintegrator is an alternative implementation of the program
+transformation described in [Disintegrate]. Semantically, the Maple
+disintegrator and Haskell disintegrator implement the same transformation. In
+particular, their outputs are not (often) identical, but have equivalent
+sampling semantics. In practice, the ouputs may differ, since one may fail where
+the other succeeds. 
+
+If in doubt about which disintegrator to use, consider the following order:
+
+1. `disintegrate x`
+2. `disintegrate x | hk-maple -`
+3. `hk-maple --command disintegrate x`
+4. `hk-maple x | disintegrate -` 
+5. etc...
+
+All of the above programs should be equivalent as samplers. 
+
+The disintegrator internally relies heavily on the `Simplify` command, so if the
+given problem is an easy disintegration problem but a difficult simplification
+problem, it is preferred to use the Haskell disintegrator followed by a call
+to `Simplify`.
+
+The chance that the Maple disintegrator produces a good program (or any program
+at all) is proportional to the type of program it is given. In addition to
+programs whose disintegration by Haskell is not efficient as a sampler, the
+following programs are good candidates:
+
+- programs which contain superpositions with complicated conditions
+- programs which contain complicated rational polynomials 
+
+The Maple disintegrator follows the same conventions as the Haskell
+disintegrator.
+
+Like `Simplify`, `Disintegrate` preserves the semantics of the given program only up to
+normalization of weights.
+
+### Summarize
+
+?
 
 ## Example ##
 
