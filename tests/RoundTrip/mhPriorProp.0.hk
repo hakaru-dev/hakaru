@@ -1,0 +1,29 @@
+x6 = fn x2 pair(real, real): 
+      (match x2: 
+        (x11, x12): 
+         (exp((negate(((x11 - 0) ^ 2)) / prob2real((2 * (1 ^ 2)))))
+           / 
+          1
+           / 
+          sqrt((2 * pi))
+           * 
+          x13 = ()
+          (exp((negate(((x12 - x11) ^ 2)) / prob2real((2 * (1 ^ 2)))))
+            / 
+           1
+            / 
+           sqrt((2 * pi))
+            / 
+           1))
+        _: 0)
+fn x5 pair(real, real): 
+ x0 <~ x7 <~ x7 <~ categorical([1/2,
+                                real2prob((prob2real(1) - prob2real((1/2))))])
+             return [true, false][x7]
+       x23 <~ x15 <~ normal(0, 1)
+              x19 <~ normal(x15, 1)
+              return (x15, x19)
+       return (match x7: 
+                true: ((match x5: (x31, x35): x31), (match x23: (x31, x35): x35))
+                false: ((match x23: (x31, x35): x31), (match x5: (x31, x35): x35)))
+ return (x0, (x6(x0) / x6(x5)))

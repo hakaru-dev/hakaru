@@ -1,0 +1,2 @@
+fn x1 real: 
+ fn x0 real: weight(real2prob(((x1 * x1) + (x0 * x0))), return ())

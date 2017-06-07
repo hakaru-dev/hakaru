@@ -1,0 +1,58 @@
+x15 = fn x13 real: 
+       fn x12 unit: 
+        fn x11 real: 
+         fn x10 unit -> prob: 
+          (0
+            + 
+           (1
+             * 
+            (0
+              + 
+             (exp(((negate(x11) + 0)
+                    * 
+                   (x11 - 0)
+                    / 
+                   prob2real((2 * exp((log(5) * 2))))))
+               / 
+              5
+               / 
+              exp((log((2 * pi)) / 2))
+               * 
+              x10((match (x11, ()): (x2077, x2081): x2081))))))((),
+                                                                x13,
+                                                                fn x0 unit: 1)
+x4 = fn x14 real: 
+      fn x13 real: 
+       fn x12 real: 
+        fn x11 real: 
+         fn x10 unit -> prob: 
+          (0
+            + 
+           (1
+             * 
+            (0
+              + 
+             (exp(((negate(x11) - x12)
+                    * 
+                   (x11 - x12)
+                    / 
+                   prob2real((2 * exp((log(1) * 2))))))
+               / 
+              1
+               / 
+              exp((log((2 * pi)) / 2))
+               * 
+              x10((match (x11, ()): (x2078, x2082): x2082))))))(x14,
+                                                                x13,
+                                                                fn x0 unit: 1)
+fn x3 real: 
+ x2 <~ normal(x3, 1)
+ x1 = (match (1 < (x15(x2) / x4(x3, x2) * x4(x2, x3) / x15(x3))): 
+        true: 1
+        false: (x15(x2) / x4(x3, x2) * x4(x2, x3) / x15(x3)))
+ x0 <~ x0 <~ categorical([x1,
+                          real2prob((prob2real(1) - prob2real(x1)))])
+       return [true, false][x0]
+ return (match x0: 
+          true: x2
+          false: x3)

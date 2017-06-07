@@ -1,0 +1,8 @@
+fn x2 real: 
+ x1 <~ uniform(0, 1)
+ x0 <~ uniform(0, 1)
+ (match (match (0 < (x2 / (x0 + x1))): 
+          true: ((x2 / (x0 + x1)) < 1)
+          false: false): 
+   true: weight(recip(real2prob((x0 + x1))), return ())
+   false: reject. measure(unit))

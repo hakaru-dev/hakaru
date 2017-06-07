@@ -1,0 +1,6 @@
+x0 <~ weight(1/3, return 2) <|> 
+      weight(1/3, return 3) <|> 
+      weight(1/3, return 4)
+return (match (x0 == 3): 
+         true: 1
+         false: x0)

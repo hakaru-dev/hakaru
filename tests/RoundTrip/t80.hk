@@ -1,0 +1,2 @@
+x0 <~ gamma(1, 1)
+normal(0, x0)

@@ -1,0 +1,4 @@
+x2 <~ x1 <~ normal(0, 1)
+      x0 <~ normal(x1, 1)
+      return (x1, x0)
+return (match x2: (x0, x1): (x1, x0))

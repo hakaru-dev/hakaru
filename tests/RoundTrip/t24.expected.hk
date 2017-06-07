@@ -1,0 +1,4 @@
+fn x1 prob: 
+ weight((x1 / 2),
+        x0 <~ uniform(0, 1)
+        weight(exp(cos(x0)), return ()))

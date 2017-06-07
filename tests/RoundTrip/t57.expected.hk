@@ -1,0 +1,4 @@
+fn x0 real: 
+ (match ((x0 < 1) && (0 < x0)): 
+   true: weight(2, return ())
+   false: return ())

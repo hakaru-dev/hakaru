@@ -1,0 +1,5 @@
+x1 <~ beta(1, 1)
+x0 <~ x0 <~ categorical([x1,
+                         real2prob((prob2real(1) - prob2real(x1)))])
+      return [true, false][x0]
+return (x1, x0)

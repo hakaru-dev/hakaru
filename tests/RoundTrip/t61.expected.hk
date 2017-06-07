@@ -1,0 +1,4 @@
+fn x0 real: 
+ (match (x0 < 0): 
+   true: return 0
+   false: return real2prob(recip(x0)))

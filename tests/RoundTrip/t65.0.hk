@@ -1,0 +1,10 @@
+fn x2 real: 
+ x1 <~ uniform(0, 1)
+ (match (0 < (x2 - x1)): 
+   true: 
+    x0 = real2prob((x2 - x1))
+    weight(recip(x0),
+           (match ((0 < negate(log(x0))) && (negate(log(x0)) < 1)): 
+             true: return ()
+             false: reject. measure(unit)))
+   false: reject. measure(unit))

@@ -1,0 +1,14 @@
+fn x3 real: 
+ x0 <~ x2 <~ x1 <~ return 0
+             x0 <~ return x3
+             return (x1 < x0)
+       (match x2: 
+         true: 
+          x0 <~ x1 <~ return x3
+                x0 <~ return 1
+                return (x1 < x0)
+          (match x0: 
+            true: return 1
+            false: return 0)
+         false: return 0)
+ weight(real2prob(x0), return ())

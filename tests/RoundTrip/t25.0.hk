@@ -1,0 +1,4 @@
+fn x2 prob: 
+ fn x1 real: 
+  x0 <~ uniform(0, 1)
+  weight((x2 * exp(cos(x1)) * real2prob(x0)), return ())

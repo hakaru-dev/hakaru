@@ -1,0 +1,7 @@
+fn x0 real: 
+ (match (x0 < 1): 
+   true: return ()
+   false: reject. measure(unit)) <|> 
+ (match (0 < x0): 
+   true: return ()
+   false: reject. measure(unit))

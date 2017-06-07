@@ -1,0 +1,3 @@
+fn x1 prob: 
+ x0 <~ gamma(x1, 1)
+ poisson(x0)

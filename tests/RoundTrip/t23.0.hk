@@ -1,0 +1,22 @@
+x2 <~ x0 <~ categorical([1/2,
+                         real2prob((prob2real(1) - prob2real((1/2))))])
+      return [true, false][x0]
+x1 <~ x0 <~ categorical([(match x2: 
+                           true: (9 / 10)
+                           false: (1 / 10)),
+                         real2prob((prob2real(1)
+                                     - 
+                                    prob2real((match x2: 
+                                                true: (9 / 10)
+                                                false: (1 / 10)))))])
+      return [true, false][x0]
+x0 <~ x0 <~ categorical([(match x2: 
+                           true: (9 / 10)
+                           false: (1 / 10)),
+                         real2prob((prob2real(1)
+                                     - 
+                                    prob2real((match x2: 
+                                                true: (9 / 10)
+                                                false: (1 / 10)))))])
+      return [true, false][x0]
+return (x1, x0)

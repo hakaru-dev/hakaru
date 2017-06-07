@@ -1,0 +1,4 @@
+x0 <~ lebesgue
+(match (42 < x0): 
+  true: return x0
+  false: reject. measure(real))

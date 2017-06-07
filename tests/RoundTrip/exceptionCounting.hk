@@ -1,0 +1,4 @@
+x0 <~ counting
+(match (x0 == 3): 
+  true: return 1
+  false: return x0)

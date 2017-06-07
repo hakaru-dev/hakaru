@@ -1,0 +1,1 @@
+fn x0 real: return recip(x0)

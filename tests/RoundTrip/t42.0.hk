@@ -1,0 +1,7 @@
+return x1 = 0
+       x2 = 2
+       integrate x3 from x1 to x2: 
+        (recip(real2prob((x2 - x1)))
+          * 
+         x0 = real2prob(x3)
+         1)

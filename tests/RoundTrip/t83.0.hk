@@ -1,0 +1,3 @@
+fn x1 nat: 
+ x0 <~ plate x0 of x1: return 1
+ return size(x0)

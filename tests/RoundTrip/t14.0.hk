@@ -1,0 +1,18 @@
+x1 <~ x0 <~ categorical([(3 / 5),
+                         real2prob((prob2real(1) - prob2real((3 / 5))))])
+      return [true, false][x0]
+(match x1: 
+  true: 
+   x0 <~ x0 <~ categorical([(3 / 5),
+                            real2prob((prob2real(1) - prob2real((3 / 5))))])
+         return [true, false][x0]
+   return (match x0: 
+            true: 37
+            false: 42)
+  false: 
+   x0 <~ x0 <~ categorical([(2 / 7),
+                            real2prob((prob2real(1) - prob2real((2 / 7))))])
+         return [true, false][x0]
+   (match x0: 
+     true: uniform(10, 12)
+     false: uniform(14, 16)))

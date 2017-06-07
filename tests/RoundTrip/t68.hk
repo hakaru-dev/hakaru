@@ -1,0 +1,33 @@
+fn x4 prob: 
+ fn x3 prob: 
+  fn x2 real: 
+   x1 <~ lebesgue
+   x0 <~ lebesgue
+   weight((exp(((negate(x1) + x0)
+                 * 
+                (x1 - x0)
+                 / 
+                prob2real((2 * exp((log(x4) * 2))))))
+            / 
+           x4
+            / 
+           exp((log((2 * pi)) / 2))),
+          weight((exp(((negate(x2) + x0)
+                        * 
+                       (x2 - x0)
+                        / 
+                       prob2real((2 * exp((log(x3) * 2))))))
+                   / 
+                  x3
+                   / 
+                  exp((log((2 * pi)) / 2))),
+                 weight((exp((negate(x0)
+                               * 
+                              x0
+                               / 
+                              prob2real((2 * exp((log(x4) * 2))))))
+                          / 
+                         x4
+                          / 
+                         exp((log((2 * pi)) / 2))),
+                        return x1)))

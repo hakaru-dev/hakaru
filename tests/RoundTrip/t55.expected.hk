@@ -1,0 +1,7 @@
+fn x0 real: 
+ (match (x0 < 0): 
+   true: reject. measure(unit)
+   false: 
+    (match (x0 < 1): 
+      true: weight(real2prob(x0), return ())
+      false: return ()))

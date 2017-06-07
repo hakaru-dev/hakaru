@@ -1,0 +1,2 @@
+x0 <~ uniform(1, 3)
+normal(1, real2prob(x0))

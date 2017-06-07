@@ -1,0 +1,3 @@
+x1 <~ uniform(negate(1), 1)
+x0 <~ uniform((x1 - 1), (x1 + 1))
+return (x1, x0)

@@ -1,0 +1,2 @@
+x0 <~ weight(1/2, return ())
+return ()

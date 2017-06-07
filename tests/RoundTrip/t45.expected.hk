@@ -1,0 +1,4 @@
+x0 <~ normal(4, 5)
+(match (x0 < 3): 
+  true: return (x0 ^ 2)
+  false: return (x0 - 1))

@@ -1,0 +1,4 @@
+x0 <~ lebesgue
+return (match (x0 == 3): 
+         true: 1
+         false: x0)

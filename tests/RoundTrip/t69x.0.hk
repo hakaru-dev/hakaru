@@ -1,0 +1,2 @@
+return integrate x1 from 1 to 2: 
+        integrate x0 from 3 to 4: real2prob(x1)

@@ -1,0 +1,11 @@
+fn x3 real: 
+ x2 <~ normal(x3, 1)
+ x1 = (match (1 < exp((negate(1) / 50 * (x2 - x3) * (x2 + x3)))): 
+        true: 1
+        false: exp((negate(1) / 50 * (x2 - x3) * (x2 + x3))))
+ x0 <~ x0 <~ categorical([x1,
+                          real2prob((prob2real(1) - prob2real(x1)))])
+       return [true, false][x0]
+ return (match x0: 
+          true: x2
+          false: x3)

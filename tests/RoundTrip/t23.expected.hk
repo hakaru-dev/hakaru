@@ -1,0 +1,4 @@
+weight(41/100, return (true, true)) <|> 
+weight(9/100, return (true, false)) <|> 
+weight(9/100, return (false, true)) <|> 
+weight(41/100, return (false, false))

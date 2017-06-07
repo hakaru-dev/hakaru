@@ -1,0 +1,5 @@
+fn x1 real: 
+ x0 <~ uniform(0, 1)
+ (match (((x1 - 1) < x0) && (x0 < x1)): 
+   true: return ()
+   false: reject. measure(unit))

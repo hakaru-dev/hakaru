@@ -1,0 +1,7 @@
+x5 <~ gamma(3, 1)
+x4 <~ gamma(1, 1)
+x3 <~ normal(0, x5)
+x2 <~ normal(x3, x4)
+x1 <~ normal(x3, x5)
+x0 <~ normal(x1, x4)
+return ((x2, x0), (x5, x4))

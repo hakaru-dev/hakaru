@@ -1,0 +1,12 @@
+fn x1 real: 
+ x0 <~ uniform(0, 1)
+ (match not((0 < (x1 / x0))): 
+   true: reject. measure(unit)
+   false: 
+    (match not((1 < (x1 / x0))): 
+      true: weight((real2prob((x1 / x0)) / real2prob(x0)), return ())
+      false: 
+       (match not((2 < (x1 / x0))): 
+         true: 
+          weight((real2prob((2 - (x1 / x0))) / real2prob(x0)), return ())
+         false: reject. measure(unit))))

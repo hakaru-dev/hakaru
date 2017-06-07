@@ -1,0 +1,348 @@
+fn x42 pair(real, real): 
+ x4 = fn x41 pair(prob, prob): 
+       (match fn x40 pair(real, real): 
+               fn x39 pair(prob, prob): 
+                (match x39: 
+                  (x37, x38): 
+                   x36 = 1
+                   x3 = x35 = 1
+                        x3 = x34 = 1
+                             x5 = x33 = 1
+                                  x3 = x32 = 1
+                                       x5 = x31 = 1
+                                            x3 = (match x40: 
+                                                   (x29, x30): 
+                                                    (match x40: 
+                                                      (x27, x28): 
+                                                       (match x40: 
+                                                         (x25, x26): 
+                                                          (match x40: 
+                                                            (x23, x24): 
+                                                             (match x40: 
+                                                               (x21, x22): 
+                                                                (match x40: 
+                                                                  (x19, x20): 
+                                                                   (match x40: 
+                                                                     (x17, x18): 
+                                                                      (match x40: 
+                                                                        (x15, x16): 
+                                                                         (match x40: 
+                                                                           (x13, x14): 
+                                                                            (match x40: 
+                                                                              (x11, x12): 
+                                                                               x10 = (recip(pi)
+                                                                                       * 
+                                                                                      exp((((x29
+                                                                                              * 
+                                                                                             x27
+                                                                                              * 
+                                                                                             prob2real(x37)
+                                                                                              * 
+                                                                                             prob2real(x37)
+                                                                                              * 
+                                                                                             2)
+                                                                                             + 
+                                                                                            (prob2real(x37)
+                                                                                              * 
+                                                                                             prob2real(x37)
+                                                                                              * 
+                                                                                             x25
+                                                                                              * 
+                                                                                             x24
+                                                                                              * 
+                                                                                             negate(2))
+                                                                                             + 
+                                                                                            (x22
+                                                                                              * 
+                                                                                             x20
+                                                                                              * 
+                                                                                             prob2real(x37)
+                                                                                              * 
+                                                                                             prob2real(x37))
+                                                                                             + 
+                                                                                            (prob2real(x38)
+                                                                                              * 
+                                                                                             prob2real(x38)
+                                                                                              * 
+                                                                                             x17
+                                                                                              * 
+                                                                                             x15)
+                                                                                             + 
+                                                                                            (prob2real(x38)
+                                                                                              * 
+                                                                                             prob2real(x38)
+                                                                                              * 
+                                                                                             x14
+                                                                                              * 
+                                                                                             x12))
+                                                                                            / 
+                                                                                           ((prob2real(x37)
+                                                                                              * 
+                                                                                             prob2real(x37)
+                                                                                              * 
+                                                                                             prob2real(x37)
+                                                                                              * 
+                                                                                             prob2real(x37))
+                                                                                             + 
+                                                                                            (prob2real(x38)
+                                                                                              * 
+                                                                                             prob2real(x38)
+                                                                                              * 
+                                                                                             prob2real(x37)
+                                                                                              * 
+                                                                                             prob2real(x37)
+                                                                                              * 
+                                                                                             3)
+                                                                                             + 
+                                                                                            (prob2real(x38)
+                                                                                              * 
+                                                                                             prob2real(x38)
+                                                                                              * 
+                                                                                             prob2real(x38)
+                                                                                              * 
+                                                                                             prob2real(x38)))
+                                                                                            * 
+                                                                                           negate((1/2))))
+                                                                                       * 
+                                                                                      exp((log((exp((log(x37)
+                                                                                                      * 
+                                                                                                     4))
+                                                                                                 + 
+                                                                                                (exp((log(x38)
+                                                                                                       * 
+                                                                                                      2))
+                                                                                                  * 
+                                                                                                 exp((log(x37)
+                                                                                                       * 
+                                                                                                      2))
+                                                                                                  * 
+                                                                                                 3)
+                                                                                                 + 
+                                                                                                exp((log(x38)
+                                                                                                      * 
+                                                                                                     4))))
+                                                                                            * 
+                                                                                           negate((1/2))))
+                                                                                       / 
+                                                                                      1
+                                                                                       / 
+                                                                                      10)
+                                                                               x3 = x9 = recip(3)
+                                                                                    x3 = x8 = 1
+                                                                                         x5 = (match (prob2real(x38)
+                                                                                                       < 
+                                                                                                      4): 
+                                                                                                true: 
+                                                                                                 (match (1
+                                                                                                          < 
+                                                                                                         prob2real(x38)): 
+                                                                                                   true: 
+                                                                                                    x7 = recip(5)
+                                                                                                    x3 = x6 = 1
+                                                                                                         x5 = (match (prob2real(x37)
+                                                                                                                       < 
+                                                                                                                      8): 
+                                                                                                                true: 
+                                                                                                                 (match (3
+                                                                                                                          < 
+                                                                                                                         prob2real(x37)): 
+                                                                                                                   true: 
+                                                                                                                    x4 = 5
+                                                                                                                    x3 = x1 = (x37,
+                                                                                                                               x38)
+                                                                                                                         (return x1,
+                                                                                                                          fn x0 pair(prob,
+                                                                                                                                     prob) -> prob: 
+                                                                                                                           x0(x1))
+                                                                                                                    (weight(x4,
+                                                                                                                            (match x3: 
+                                                                                                                              (x0,
+                                                                                                                               x1): 
+                                                                                                                               x0)),
+                                                                                                                     fn x2 pair(prob,
+                                                                                                                                prob) -> prob: 
+                                                                                                                      (0
+                                                                                                                        + 
+                                                                                                                       (x4
+                                                                                                                         * 
+                                                                                                                        (match x3: 
+                                                                                                                          (x0,
+                                                                                                                           x1): 
+                                                                                                                           x1)(x2))))
+                                                                                                                   false: 
+                                                                                                                    (reject. measure(pair(prob,
+                                                                                                                                          prob)),
+                                                                                                                     fn x0 pair(prob,
+                                                                                                                                prob) -> prob: 
+                                                                                                                      0))
+                                                                                                                false: 
+                                                                                                                 (reject. measure(pair(prob,
+                                                                                                                                       prob)),
+                                                                                                                  fn x0 pair(prob,
+                                                                                                                             prob) -> prob: 
+                                                                                                                   0))
+                                                                                                         x4 = 1
+                                                                                                         x3 = (reject. measure(pair(prob,
+                                                                                                                                    prob)),
+                                                                                                               fn x0 pair(prob,
+                                                                                                                          prob) -> prob: 
+                                                                                                                0)
+                                                                                                         (weight(x6,
+                                                                                                                 (match x5: 
+                                                                                                                   (x0,
+                                                                                                                    x1): 
+                                                                                                                    x0)) <|> 
+                                                                                                          weight(x4,
+                                                                                                                 (match x3: 
+                                                                                                                   (x0,
+                                                                                                                    x1): 
+                                                                                                                    x0)),
+                                                                                                          fn x2 pair(prob,
+                                                                                                                     prob) -> prob: 
+                                                                                                           (0
+                                                                                                             + 
+                                                                                                            (x6
+                                                                                                              * 
+                                                                                                             (match x5: 
+                                                                                                               (x0,
+                                                                                                                x1): 
+                                                                                                                x1)(x2))
+                                                                                                             + 
+                                                                                                            (x4
+                                                                                                              * 
+                                                                                                             (match x3: 
+                                                                                                               (x0,
+                                                                                                                x1): 
+                                                                                                                x1)(x2))))
+                                                                                                    (weight(x7,
+                                                                                                            (match x3: 
+                                                                                                              (x0,
+                                                                                                               x1): 
+                                                                                                               x0)),
+                                                                                                     fn x2 pair(prob,
+                                                                                                                prob) -> prob: 
+                                                                                                      (0
+                                                                                                        + 
+                                                                                                       (x7
+                                                                                                         * 
+                                                                                                        (match x3: 
+                                                                                                          (x0,
+                                                                                                           x1): 
+                                                                                                           x1)(x2))))
+                                                                                                   false: 
+                                                                                                    (reject. measure(pair(prob,
+                                                                                                                          prob)),
+                                                                                                     fn x0 pair(prob,
+                                                                                                                prob) -> prob: 
+                                                                                                      0))
+                                                                                                false: 
+                                                                                                 (reject. measure(pair(prob,
+                                                                                                                       prob)),
+                                                                                                  fn x0 pair(prob,
+                                                                                                             prob) -> prob: 
+                                                                                                   0))
+                                                                                         x4 = 1
+                                                                                         x3 = (reject. measure(pair(prob,
+                                                                                                                    prob)),
+                                                                                               fn x0 pair(prob,
+                                                                                                          prob) -> prob: 
+                                                                                                0)
+                                                                                         (weight(x8,
+                                                                                                 (match x5: 
+                                                                                                   (x0,
+                                                                                                    x1): 
+                                                                                                    x0)) <|> 
+                                                                                          weight(x4,
+                                                                                                 (match x3: 
+                                                                                                   (x0,
+                                                                                                    x1): 
+                                                                                                    x0)),
+                                                                                          fn x2 pair(prob,
+                                                                                                     prob) -> prob: 
+                                                                                           (0
+                                                                                             + 
+                                                                                            (x8
+                                                                                              * 
+                                                                                             (match x5: 
+                                                                                               (x0,
+                                                                                                x1): 
+                                                                                                x1)(x2))
+                                                                                             + 
+                                                                                            (x4
+                                                                                              * 
+                                                                                             (match x3: 
+                                                                                               (x0,
+                                                                                                x1): 
+                                                                                                x1)(x2))))
+                                                                                    (weight(x9,
+                                                                                            (match x3: 
+                                                                                              (x0,
+                                                                                               x1): 
+                                                                                               x0)),
+                                                                                     fn x2 pair(prob,
+                                                                                                prob) -> prob: 
+                                                                                      (0
+                                                                                        + 
+                                                                                       (x9
+                                                                                         * 
+                                                                                        (match x3: 
+                                                                                          (x0, x1): 
+                                                                                           x1)(x2))))
+                                                                               (weight(x10,
+                                                                                       (match x3: 
+                                                                                         (x0, x1): 
+                                                                                          x0)),
+                                                                                fn x2 pair(prob,
+                                                                                           prob) -> prob: 
+                                                                                 (0
+                                                                                   + 
+                                                                                  (x10
+                                                                                    * 
+                                                                                   (match x3: 
+                                                                                     (x0, x1): 
+                                                                                      x1)(x2))))))))))))))
+                                            (weight(x31, (match x3: (x0, x1): x0)),
+                                             fn x2 pair(prob, prob) -> prob: 
+                                              (0 + (x31 * (match x3: (x0, x1): x1)(x2))))
+                                       x4 = 1
+                                       x3 = (reject. measure(pair(prob, prob)),
+                                             fn x0 pair(prob, prob) -> prob: 0)
+                                       (weight(x32, (match x5: (x0, x1): x0)) <|> 
+                                        weight(x4, (match x3: (x0, x1): x0)),
+                                        fn x2 pair(prob, prob) -> prob: 
+                                         (0
+                                           + 
+                                          (x32 * (match x5: (x0, x1): x1)(x2))
+                                           + 
+                                          (x4 * (match x3: (x0, x1): x1)(x2))))
+                                  (weight(x33, (match x3: (x0, x1): x0)),
+                                   fn x2 pair(prob, prob) -> prob: 
+                                    (0 + (x33 * (match x3: (x0, x1): x1)(x2))))
+                             x4 = 1
+                             x3 = (reject. measure(pair(prob, prob)),
+                                   fn x0 pair(prob, prob) -> prob: 0)
+                             (weight(x34, (match x5: (x0, x1): x0)) <|> 
+                              weight(x4, (match x3: (x0, x1): x0)),
+                              fn x2 pair(prob, prob) -> prob: 
+                               (0
+                                 + 
+                                (x34 * (match x5: (x0, x1): x1)(x2))
+                                 + 
+                                (x4 * (match x3: (x0, x1): x1)(x2))))
+                        (weight(x35, (match x3: (x0, x1): x0)),
+                         fn x2 pair(prob, prob) -> prob: 
+                          (0 + (x35 * (match x3: (x0, x1): x1)(x2))))
+                   (weight(x36, (match x3: (x0, x1): x0)),
+                    fn x2 pair(prob, prob) -> prob: 
+                     (0 + (x36 * (match x3: (x0, x1): x1)(x2)))))(x42, x41): 
+         (x1, x2): x2(fn x0 pair(prob, prob): 1))
+ fn x3 pair(prob, prob): 
+  x0 <~ (match x3: 
+          (x1, x2): 
+           weight(1/2,
+                  x0 <~ uniform(3, 8)
+                  return (real2prob(x0), x2)) <|> 
+           weight(1/2,
+                  x0 <~ uniform(1, 4)
+                  return (x1, real2prob(x0))))
+  return (x0, (x4(x0) / x4(x3)))

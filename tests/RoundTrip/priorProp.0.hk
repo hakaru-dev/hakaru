@@ -1,0 +1,10 @@
+fn x4 pair(real, real): 
+ x3 <~ x0 <~ categorical([1/2,
+                          real2prob((prob2real(1) - prob2real((1/2))))])
+       return [true, false][x0]
+ x2 <~ x1 <~ normal(0, 1)
+       x0 <~ normal(x1, 1)
+       return (x1, x0)
+ return (match x3: 
+          true: ((match x4: (x0, x1): x0), (match x2: (x0, x1): x1))
+          false: ((match x2: (x0, x1): x0), (match x4: (x0, x1): x1)))

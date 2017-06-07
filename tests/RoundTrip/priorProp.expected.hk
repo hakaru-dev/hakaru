@@ -1,0 +1,9 @@
+fn x3 pair(real, real): 
+ (match x3: 
+   (x1, x2): 
+    weight(1/2,
+           x0 <~ normal(0, sqrt(2))
+           return (x1, x0)) <|> 
+    weight(1/2,
+           x0 <~ normal(0, 1)
+           return (x0, x2)))

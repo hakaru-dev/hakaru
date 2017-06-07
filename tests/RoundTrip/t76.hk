@@ -1,0 +1,15 @@
+fn x1 real: 
+ x0 <~ lebesgue
+ weight(real2prob(prob2real(abs(x0))),
+        (match (x0 < 1): 
+          true: 
+           (match (0 < x0): 
+             true: 
+              (match ((x1 * x0) < 1): 
+                true: 
+                 (match (0 < (x1 * x0)): 
+                   true: return (x1 * x0)
+                   false: reject. measure(real))
+                false: reject. measure(real))
+             false: reject. measure(real))
+          false: reject. measure(real)))

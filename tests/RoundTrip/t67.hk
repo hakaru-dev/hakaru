@@ -1,0 +1,1 @@
+fn x1 prob: fn x0 real: return exp((x0 * prob2real(x1)))

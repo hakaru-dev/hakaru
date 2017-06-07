@@ -1,0 +1,4 @@
+fn x0 bool: 
+ (match x0: 
+   true: uniform(0, 1)
+   false: uniform(0, 1))

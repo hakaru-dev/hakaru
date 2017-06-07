@@ -1,0 +1,27 @@
+fn x3 pair(real, real): 
+ weight(1/2,
+        x2 <~ normal(0, 1)
+        return ((x2, (match x3: (x0, x1): x1)),
+                exp((((x2 * negate(1)) + (match x3: (x0, x1): x0))
+                      * 
+                     ((match x3: (x0, x1): x0)
+                       + 
+                      ((match x3: (x0, x1): x1) * negate(2))
+                       + 
+                      x2)
+                      / 
+                     2)))) <|> 
+ weight(1/2,
+        x2 <~ normal(0, sqrt(2))
+        return (((match x3: (x0, x1): x0), x2),
+                exp(((x2 + ((match x3: (x0, x1): x1) * negate(1)))
+                      * 
+                     ((match x3: (x0, x1): x1)
+                       + 
+                      ((match x3: (x0, x1): x0) * negate(4))
+                       + 
+                      x2)
+                      * 
+                     negate(1)
+                      / 
+                     4))))

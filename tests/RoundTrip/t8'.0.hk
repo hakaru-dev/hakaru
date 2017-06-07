@@ -1,0 +1,4 @@
+fn x2 prob: 
+ fn x1 prob: 
+  x0 <~ normal(0, x2)
+  normal(x0, x1)

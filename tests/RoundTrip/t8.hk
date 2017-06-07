@@ -1,0 +1,3 @@
+x1 <~ normal(0, 10)
+x0 <~ normal(x1, 20)
+return (x1, x0)

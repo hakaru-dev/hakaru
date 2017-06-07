@@ -1,0 +1,3 @@
+fn x3 pair(real, real): 
+ x2 <~ uniform((-5), 7)
+ return (((match x3: (x0, x1): x0) + (match x3: (x0, x1): x1)) * x2)
