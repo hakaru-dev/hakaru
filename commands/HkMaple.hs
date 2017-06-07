@@ -49,7 +49,9 @@ options = (Options
   <$> (MapleOptions <$> 
         O.option O.str
         ( O.long "command" <>
-          O.help "Command to send to Maple. Default: Simplify" <>
+          O.help ("Command to send to Maple. You may enter a prefix of the command string if "
+                 ++"it uniquely identifies a command. "
+                 ++"Default: Simplify") <>
           O.short 'c' <> 
           O.value "Simplify" ) 
     <*> O.switch
