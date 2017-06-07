@@ -147,7 +147,7 @@
    local
     mc,  #final integral to be passed to improve @ toLO; then result
          #of each disintegration step
-    kb, var_rn := table(), mc_prts,
+    kb, kbs := table(), var_rn := table(), mc_prts,
     V, #wrt vars
     v::name, #iterator over V
     improve_opts := [],
@@ -193,6 +193,7 @@
 
     kb := build_kb(ctx,"disint",KB:-empty);
     for v in ListTools[Reverse](V) do
+        kbs[v] := kb;
         var_rn[v], kb := DV[v]:-disintegrator_mktype(kb);
     end do;
     mc := subs_disint_data(var_rn, mc);
