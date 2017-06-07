@@ -174,7 +174,8 @@ testMeasureReal = test
     , "t39" ~: testSStriv [] t39
     , "t40" ~: testSStriv [] t40
     , "t43" ~: testSStriv [t43, t43'] t43''
-    , "t45" ~: testSStriv [t46,t47] t45
+    , "t46" ~: testSStriv [] t46
+    , "t45" ~: testSStriv [t47] t45
     , "t50" ~: testStriv t50
     , "t51" ~: testStriv t51
     , "t68" ~: testStriv t68
