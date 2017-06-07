@@ -229,6 +229,7 @@ mapleSCon Expect = \(e1 :* e2 :* End) ->
 
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> ShowS
 mapleNary And      = appN "And"
+mapleNary Or       = appN "Or"
 mapleNary (Sum  _) = parens . intercalate (showString " + ") . fmap arg
 mapleNary (Prod _) = parens . intercalate (showString " * ") . fmap arg
 mapleNary (Min _)  = appN "min"
