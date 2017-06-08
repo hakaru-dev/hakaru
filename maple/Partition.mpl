@@ -77,6 +77,8 @@ local
       end proc, :-`solve`]);
     protect(:-solve);
 
+    VerifyTools[AddVerification](same_partition = proc(a,b,$) evalb(a=b) or SamePartition((x,y)->evalb(x=y),(x,y)->evalb(x=y),a,b) end proc);
+
     NULL
   end proc,
 
