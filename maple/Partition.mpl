@@ -478,7 +478,7 @@ export
       userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
 
       # replace the condition of each piece built from many others
-      if nops(ps1) < nops(ps) then
+      if nops(ps1) < nops(ps) and nops(ps1)>1 then
         for i in select(x->op(1,x)>1,sort(zip(`[]`,ks,[seq(1..nops(ks))]), key=(x->-op(1,x)))) do
           ps1 := piecesOf( replace_piece_cond(PARTITION(ps1), op(2,i)) );
         end do;
