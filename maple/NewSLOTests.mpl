@@ -271,7 +271,7 @@ TestHakaru(t80, t80, label = "t80");
 
 ## "clamp" tests based on https://github.com/hakaru-dev/hakaru/issues/60
 module()
-  local kb, clamp_t, clamp_r;
+  local kb, clamp_t, clamp_r, q;
   kb := [y::real]:
   clamp_t :=
     Bind(Gaussian(0,1),x,
@@ -279,12 +279,12 @@ module()
                    Weight(density[Uniform](0,density[Gaussian](0,1)(x))(y),
                           Ret(x)),
                    Msum())):
-  clamp_r :=
+  clamp_r := {seq(
     Partition(And(0<y, y<density[Gaussian](0,1)(0)),
               Weight(2 * sqrt(-ln(2)-ln(Pi)-2*ln(y)),
                      Uniform(-sqrt(-ln(2)-ln(Pi)-2*ln(y)),
                              sqrt(-ln(2)-ln(Pi)-2*ln(y)))),
-              Msum()):
+              eval(q),Msum()), q=['NULL', Or(0>=y, y>=density[Gaussian](0,1)(0))])}:
   TestHakaru( clamp_t, clamp_r, ctx=kb, label="clamp condition to move it out of integral" ):
 end module:
 
