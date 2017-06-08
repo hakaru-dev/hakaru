@@ -608,6 +608,9 @@ export
             ctxC := [ctx];
           else
             ctxC := postproc_for_solve(ctx, [ctxC], _rest);
+            if 'do_check' in {_rest} and condition_complexity(ctxC)>condition_complexity(ctx) then
+              ctxC := [ctx];
+            end if;
           end if;
           if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
             userinfo(10, 'Simpl:-condition',
