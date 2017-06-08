@@ -538,7 +538,7 @@ export
         sh1 := subsindets(sh1, can_remove(ns), _->false);
         sh1 := eval(eval(sh1, [`And`=bool_And,`Or`=bool_Or]));
         sh1 := subsindets(sh1, 'specfunc'('specfunc'(map(op,weakening)),Not), bool_Not@op);
-        sh1 := subsindets(sh1, can_replace(t2), do_replace);
+        sh1 := subsindets(sh1, can_replace(ns), do_replace);
         subsindets[flat](sh1, Partition, pr->remove_false_pieces(pr,kb));
       end proc;
     end module; # singular_pts
