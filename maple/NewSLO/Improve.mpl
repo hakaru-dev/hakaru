@@ -83,9 +83,15 @@ reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,do_check::truefalse, $)
   # This is necessary because subsequent calls to kb_Partition do not work on
   # nested Partitions; but Simpl calls flatten, which should gives us a
   # Partition on the top level.
-  if not(e::Partition) then
-    error "simplifying %1 should have produced a Partition", ee;
+  e := (`if`(e::Partition,do_reduce_Partition,reduce))(e, h, kb, opts);
+  if ee::t_pw and e :: Partition then
+    e := Partition:-PartitionToPW(e);
   end if;
+  e;
+end proc;
+
+do_reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,$)
+  local e := ee;
   e := kb_Partition(e, kb, simplify_assuming,
                     ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
   e := eval(e, %reduce=reduce);
@@ -93,10 +99,6 @@ reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,do_check::truefalse, $)
   # other things
   Testzero := x -> evalb(simplify(x) = 0);
   e := Partition:-Simpl(e);
-  if ee::t_pw and e :: Partition then
-    e := Partition:-PartitionToPW(e);
-  end if;
-  e;
 end proc;
 
 # "Integrals" refers to any types of "integrals" understood by domain (Int,

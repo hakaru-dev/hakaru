@@ -24,7 +24,7 @@ NewSLO := module ()
         t_sum, t_product,
         mysolve, Shiftop, Diffop, Recognized,
         bind, weight,
-        reduce_IntsSums, reduce_Integrals, reduce_Partition, can_reduce_Partition,
+        reduce_IntsSums, reduce_Integrals, reduce_Partition, do_reduce_Partition, can_reduce_Partition,
         elim_intsum, int_assuming, sum_assuming,
         banish, isBound_IntsSums, isBound_IntSum,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt, SimplifyKB_,
