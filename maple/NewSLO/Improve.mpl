@@ -78,7 +78,7 @@ reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,do_check::truefalse, $)
   if do_check and not(can_reduce_Partition(e)) then return e end if;
 
   e := subsindets(e, t_pw, PWToPartition);
-  e := Partition:-Simpl(e);
+  e := Partition:-Simpl(e, kb);
 
   # This is necessary because subsequent calls to kb_Partition do not work on
   # nested Partitions; but Simpl calls flatten, which should gives us a
@@ -98,7 +98,7 @@ do_reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,$)
   # big hammer: simplify knows about bound variables, amongst many
   # other things
   Testzero := x -> evalb(simplify(x) = 0);
-  e := Partition:-Simpl(e);
+  e := Partition:-Simpl(e, kb);
 end proc;
 
 # "Integrals" refers to any types of "integrals" understood by domain (Int,
