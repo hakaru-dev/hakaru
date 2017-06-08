@@ -362,9 +362,9 @@ export
   Simpl := module()
     export ModuleApply := proc(p)
       option remember;
-      local ps, qs, qs1, mk;
+      local ps, qs, qs1, mk, as; as := _rest;
       if p :: Partition then
-        foldr((f,x)->f(x,_rest), p,
+        foldr((f,x)->f(x,as), p,
               reduce_branches,
               remove_false_pieces,
               flatten,
