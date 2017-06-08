@@ -517,6 +517,16 @@ export
         'Or'(`=`(t2,{t1,t2}),`=`(t1,t2));
       end proc;
 
+      local weakening := {`<=`=`<`, `>=`=`>`};
+      local can_replace := proc(ns)
+        local t := satisfies(n->n in ns);
+        'And'('specfunc'(map(lhs,weakening)),
+              {'anyfunc'('anything',t),'anyfunc'(t,'anything')});
+      end proc;
+      local do_replace := proc(c)
+        table([op(weakening)])[op(0,c)](op(c));
+      end proc;
+
       export ModuleApply := proc(sh, kb::t_kb:=KB:-empty,{_name_cands::list := [] })
         local ns, sh1; sh1 := sh;
         # todo: work with array types as well?
@@ -527,6 +537,8 @@ export
 
         sh1 := subsindets(sh1, can_remove(ns), _->false);
         sh1 := eval(eval(sh1, [`And`=bool_And,`Or`=bool_Or]));
+        sh1 := subsindets(sh1, 'specfunc'('specfunc'(map(op,weakening)),Not), bool_Not@op);
+        sh1 := subsindets(sh1, can_replace(t2), do_replace);
         subsindets[flat](sh1, Partition, pr->remove_false_pieces(pr,kb));
       end proc;
     end module; # singular_pts
