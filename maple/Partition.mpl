@@ -465,7 +465,6 @@ export
 
       # Categorize(group) by equality of piece values
       ps1 := [ListTools:-Categorize(_testequal &on valOf, ps)];
-      if nops(ps1) >= nops(ps) then return e; end if;
       # unless there are fewer groups than original pieces ...
 
       ks  := map(nops, ps1); # number of pieces per group
@@ -477,9 +476,11 @@ export
       userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
 
       # replace the condition of each piece built from many others
-      for i in select(x->op(1,x)>1,sort(zip(`[]`,ks,[seq(1..nops(ks))]), key=(x->-op(1,x)))) do
-        ps1 := piecesOf( replace_piece_cond(PARTITION(ps1), op(2,i)) );
-      end do;
+      if nops(ps1) < nops(ps) then
+        for i in select(x->op(1,x)>1,sort(zip(`[]`,ks,[seq(1..nops(ks))]), key=(x->-op(1,x)))) do
+          ps1 := piecesOf( replace_piece_cond(PARTITION(ps1), op(2,i)) );
+        end do;
+      end if;
 
       return PARTITION(ps1);
     end proc;
