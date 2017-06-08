@@ -471,7 +471,7 @@ export
       ks  := map(nops, ps1); # number of pieces per group
 
       # build the result
-      ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb')[])
+      ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb', 'do_check')[])
                           ,valOf(op(1,p)))
                  ,ps1);
       userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
