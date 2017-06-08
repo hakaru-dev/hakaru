@@ -64,6 +64,7 @@ import           Data.Traversable
 
 
 import Data.Maybe
+import Data.List (inits,tails)
 -- import Data.Number.Nat
 
 import Unsafe.Coerce
@@ -294,6 +295,17 @@ void_varEq x y = lift (varEq x y) >> return ()
 try_bool :: Bool -> ReaderT Varmap Maybe ()
 try_bool b = lift $ if b then Just () else Nothing
 
+split :: [a] -> [(a,[a])]
+split xs = zipWith (\as (b:bs)->(b,as++bs)) (inits xs) (init $ tails xs)
+
+zipWithSetM :: MonadPlus m => (a -> a -> m ()) -> [a] -> [a] -> m ()
+zipWithSetM _ [] ys = guard (null ys)
+zipWithSetM q (x:xs) ys = msum [ q x y >> zipWithSetM q xs ys' | (y,ys') <- split ys ]
+
+zipWithSetMF :: (MonadPlus m, F.Foldable f) => (a -> a -> m ()) -> f a -> f a -> m ()
+zipWithSetMF q a b = zipWithSetM q (F.toList a) (F.toList b)
+
+
 alphaEq
     :: forall abt a
     .  (ABT Term abt)
@@ -337,7 +349,7 @@ alphaEq e1 e2 =
         (o1 :$ es1, o2 :$ es2)             -> sConEq o1 es1 o2 es2
         (NaryOp_ op1 es1, NaryOp_ op2 es2) -> do
             try_bool (op1 == op2)
-            F.sequence_ $ S.zipWith go (viewABT <$> es1) (viewABT <$> es2)
+            zipWithSetMF go (viewABT <$> es1) (viewABT <$> es2)
         (Literal_ x, Literal_ y)           -> try_bool (x == y)
         (Empty_ x, Empty_ y)               -> void_jmEq1 x y
         (Datum_ d1, Datum_ d2)             -> datumEq d1 d2
@@ -355,7 +367,7 @@ alphaEq e1 e2 =
             go (viewABT e1) (viewABT e2)
             zipWithM_ sBranch bs1 bs2
         (Superpose_ pms1, Superpose_ pms2) ->
-            F.sequence_ $ L.zipWith pairEq pms1 pms2
+            zipWithSetMF pairEq pms1 pms2
         (Reject_ x, Reject_ y)             -> void_jmEq1 x y
         (_, _)                             -> lift Nothing
 
