@@ -509,7 +509,7 @@ export
     # Removal of singular points from partitions
     # works with other things too!
     export singular_pts := module()
-      local t_constant := (ns-> (indets(ns,And(name,Not(constant))) minus ns)={});
+      local t_constant := (ns->x->(indets(x,And(name,Not(constant))) minus ns)={});
       local can_remove := proc(ns)
         local t1, t2;
         t1 := satisfies(t_constant(ns));
