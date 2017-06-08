@@ -542,7 +542,42 @@ alphaEq e1 e2 =
         .  Branch a abt b
         -> Branch a abt b
         -> ReaderT Varmap Maybe ()
-    sBranch (Branch _ e1) (Branch _ e2) = go (viewABT e1) (viewABT e2)
+    sBranch (Branch p1 e1) (Branch p2 e2) = patternEq p1 p2 >> go (viewABT e1) (viewABT e2)
+
+    patternEq 
+        :: Pattern a0 b0
+        -> Pattern a1 b1
+        -> ReaderT Varmap Maybe ()
+    patternEq PWild         PWild       = return () 
+    patternEq PVar          PVar        = return () 
+    patternEq (PDatum _ a) (PDatum _ b) = pdatumCodeEq a b 
+    patternEq _             _           = mzero 
+      
+    pdatumCodeEq
+        :: PDatumCode xss0 vs0 a0
+        -> PDatumCode xss1 vs1 a1
+        -> ReaderT Varmap Maybe ()
+    pdatumCodeEq (PInr c) (PInr d) = pdatumCodeEq c d
+    pdatumCodeEq (PInl c) (PInl d) = pdatumStructEq c d
+    pdatumCodeEq _         _       = mzero
+
+    pdatumStructEq
+        :: PDatumStruct xs0 vs0 a0
+        -> PDatumStruct xs1 vs1 a1
+        -> ReaderT Varmap Maybe ()
+    pdatumStructEq (PEt c1 c2) (PEt d1 d2) = do
+        pdatumFunEq c1 d1
+        pdatumStructEq c2 d2
+    pdatumStructEq PDone        PDone      = return ()
+    pdatumStructEq _            _          = lift Nothing
+
+    pdatumFunEq
+        :: PDatumFun x0 vs0 a0
+        -> PDatumFun x1 vs1 a1
+        -> ReaderT Varmap Maybe ()
+    pdatumFunEq (PKonst e) (PKonst f) = patternEq e f
+    pdatumFunEq (PIdent e) (PIdent f) = patternEq e f
+    pdatumFunEq _          _          = lift Nothing
 
     reducerEq
         :: forall xs a
