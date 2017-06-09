@@ -1,4 +1,10 @@
-{-# LANGUAGE CPP, OverloadedStrings, DataKinds, GADTs, RecordWildCards, ScopedTypeVariables #-}
+{-# LANGUAGE CPP
+           , OverloadedStrings
+           , DataKinds
+           , GADTs
+           , RecordWildCards
+           , ScopedTypeVariables
+           #-}
 
 module Main where
 
