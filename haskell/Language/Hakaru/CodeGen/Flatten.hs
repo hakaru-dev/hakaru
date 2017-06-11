@@ -647,26 +647,10 @@ flattenBucket lo hi red = \loc -> do
     declare SNat itId
     let itE = CVar itId
     initRed red loc
-    isPar <- isParallel
-    if isPar
-    then do mkSequential
-            numThreadsE <- localVar SInt
-            chunkE <- localVar SNat
-            putExprStat $ numThreadsE .=. ompGetNumThreads
-            putExprStat $ chunkE .=. ((hiE .-. loE) ./. numThreadsE)
-            putStat . CPPStat . PPPragma $ ["omp","parallel"]
-            codeBlockCG $
-              do threadNumE  <- localVar SInt
-                 putExprStat $ threadNumE .=. ompGetThreadNum
-                 forCG (itE .=. (loE .+. (chunkE .*. threadNumE)))
-                       (itE .<. (hiE .-. (chunkE .*. threadNumE)))
-                       (CUnary CPostIncOp itE)
-                       (accumRed red itE loc)
-
-    else forCG (itE .=. loE)
-               (itE .<. hiE)
-               (CUnary CPostIncOp itE)
-               (accumRed red itE loc)
+    forCG (itE .=. loE)
+          (itE .<. hiE)
+          (CUnary CPostIncOp itE)
+          (accumRed red itE loc)
     putStat $ opComment "End Bucket"
   where initRed
           :: (ABT Term abt)
@@ -725,7 +709,9 @@ flattenBucket lo hi red = \loc -> do
             (Red_Split b mr1 mr2) ->
               caseBind b $ \v@(Variable _ _ typ) b' ->
                 let (vs,b'') = caseBinds b' in
-                  do declare typ =<< createIdent v
+                  do vId <- createIdent v
+                     declare typ vId
+                     putExprStat $ (CVar vId) .=. itE
                      sequence_ . foldMap11
                        (\v' -> case v' of
                          (Variable _ _ typ') ->
