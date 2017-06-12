@@ -18,7 +18,6 @@ gensym := module ()
   SymbolsToGen :=
              [ ["`", "_"]
              , ["0", "9"]
-             , ["a", "z"]
              , ["A", "Z"] ];
              # e.g.
              # [[ 19968, 20950 ]] for unicode
