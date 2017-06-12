@@ -2,6 +2,7 @@
            , DataKinds
            , RankNTypes
            , GADTs
+           , PolyKinds
            , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.TestTools where
@@ -18,6 +19,7 @@ import Language.Hakaru.Syntax.IClasses (TypeEq(..), jmEq1)
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Simplify
 import Language.Hakaru.Syntax.AST.Eq()
+import Text.PrettyPrint (Doc)
 
 import Data.Maybe (isJust)
 import Data.List
@@ -85,12 +87,15 @@ assertAlphaEq ::
     -> abt '[] a
     -> Assertion
 assertAlphaEq preface a b =
-   unless (alphaEq a b) (assertFailure msg)
+   unless (alphaEq a b) (assertFailure $ mismatchMessage pretty preface a b)
+
+mismatchMessage :: forall (k :: q -> *) . (forall a . k a -> Doc) -> String -> forall a b . k a -> k b -> String 
+mismatchMessage k preface a b = msg 
  where msg = concat [ p
                     , "expected:\n"
-                    , show (pretty b)
+                    , show (k b)
                     , "\nbut got:\n"
-                    , show (pretty a)
+                    , show (k a)
                     ]
        p = if null preface then "" else preface ++ "\n"
 
