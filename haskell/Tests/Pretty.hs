@@ -1,4 +1,8 @@
-{-# LANGUAGE OverloadedStrings, DataKinds, GADTs #-}
+{-# LANGUAGE OverloadedStrings
+           , DataKinds
+           , GADTs
+           , TypeOperators 
+           , FlexibleContexts #-}
 
 module Tests.Pretty where
 
