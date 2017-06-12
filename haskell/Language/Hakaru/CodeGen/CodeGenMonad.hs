@@ -357,9 +357,11 @@ forCG
 forCG iter cond inc body =
   do cg <- get
      let (_,cg') = runState body $ cg { statements = []
-                                      , declarations = [] }
-     put $ cg' { statements = statements cg
-               , declarations = declarations cg }
+                                      , declarations = []
+                                      , sharedMem = False }
+     put $ cg' { statements   = statements cg
+               , declarations = declarations cg
+               , sharedMem    = sharedMem cg } -- only use pragmas at the top level
      par <- isParallel
      when par . putStat . CPPStat . PPPragma
        $ ["omp","parallel","for"]
@@ -380,9 +382,11 @@ reductionCG
 reductionCG op acc iter cond inc body =
   do cg <- get
      let (_,cg') = runState body $ cg { statements = []
-                                      , declarations = [] }
-     put $ cg' { statements = statements cg
-               , declarations = declarations cg }
+                                      , declarations = []
+                                      , sharedMem = False } -- only use pragmas at the top level
+     put $ cg' { statements   = statements cg
+               , declarations = declarations cg
+               , sharedMem    = sharedMem cg }
      par <- isParallel
      when par . putStat . CPPStat . PPPragma
        $ ["omp","parallel","for"
