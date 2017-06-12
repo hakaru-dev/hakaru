@@ -35,6 +35,7 @@ allTests = test
     , "basic fn"   ~: testPretty defTest 
     , "nested fn"  ~: testPretty defTest2
     , "fn in case" ~: testPretty' caseFn  
+    , "fn literal in case" ~: testPretty' caseFn2 
     , "hof"        ~: testPretty' hof
     ]
 
@@ -63,6 +64,12 @@ caseFn =
   pair (lam $ \x -> x) (lam $ \x -> x)
      `unpair` \a b -> (a `app` prob_ 1) + (b `app` prob_ 2)
 
+caseFn2 :: (ABT T.Term abt, b ~ HProb) => abt '[] (b :-> (b :-> (b :-> b)))
+caseFn2 = 
+    lam $ \x0 ->
+    let_ (lam $ \x1 ->
+        (lam $ \x2 ->
+         (pair (lam $ \x -> x) (prob_ 12)) `unpair` \x4 x5 -> x4 `app` (x0 + x1 + x2 + x5))) $ \x -> x 
 
 hof :: (ABT T.Term abt, a ~ HProb) => abt '[] (a :-> a :-> a :-> (a :-> (a :-> HPair a ((a :-> a) :-> a))) :-> a)
 hof = 
