@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DataKinds #-}
+{-# LANGUAGE OverloadedStrings, DataKinds, GADTs #-}
 
 module Tests.Pretty where
 
@@ -34,7 +34,8 @@ allTests = test
     , "nested let" ~: testPretty letTest2
     , "basic fn"   ~: testPretty defTest 
     , "nested fn"  ~: testPretty defTest2
-    , "fn in case" ~: testPretty' caseFn 
+    , "fn in case" ~: testPretty' caseFn  
+    , "hof"        ~: testPretty' hof
     ]
 
 letTest = unlines ["x = 2"
@@ -61,6 +62,14 @@ caseFn :: (ABT T.Term abt) => abt '[] 'HProb
 caseFn = 
   pair (lam $ \x -> x) (lam $ \x -> x)
      `unpair` \a b -> (a `app` prob_ 1) + (b `app` prob_ 2)
+
+
+hof :: (ABT T.Term abt, a ~ HProb) => abt '[] (a :-> a :-> a :-> (a :-> (a :-> HPair a ((a :-> a) :-> a))) :-> a)
+hof = 
+  lam $ \x0 -> lam $ \x1 -> lam $ \x3 -> lam $ \x4 -> (
+     x4 `app` x0
+        `app` x1 `unpair` \x2 x3 ->
+        x3 `app` (lam $ \_ -> prob_ 1))
 
 -- Tests things are parsed and prettyprinted nearly the same
 testPretty :: Text -> Assertion 
