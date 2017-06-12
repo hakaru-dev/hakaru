@@ -2,22 +2,39 @@
 
 module Tests.Pretty where
 
+import           Language.Hakaru.Command (parseAndInfer)
 import           Language.Hakaru.Parser.Parser
-import qualified Language.Hakaru.Parser.AST as U
 import           Language.Hakaru.Parser.SymbolResolve
-import           Language.Hakaru.PrettyConcrete
-
+import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Syntax.ABT
-import qualified Language.Hakaru.Syntax.AST as T
+import           Language.Hakaru.Syntax.Prelude
 import           Language.Hakaru.Syntax.TypeCheck
+import           Language.Hakaru.Types.Sing
+import           Language.Hakaru.Types.DataKind
+import qualified Language.Hakaru.Parser.AST as U
+import qualified Language.Hakaru.Syntax.AST as T
+import           Language.Hakaru.Syntax.IClasses
+import           Language.Hakaru.Types.Sing
 
-import Prelude hiding (unlines)
 
-import Data.Text
-import Text.PrettyPrint
-import Test.HUnit
-import Text.Parsec.Error
-import Control.Monad.Trans.State.Strict (evalState)
+import           Tests.TestTools 
+import           Data.Text
+import           Text.PrettyPrint
+import           Test.HUnit
+import           Text.Parsec.Error
+import           Control.Monad.Trans.State.Strict (evalState)
+
+import           Prelude ((.), ($), asTypeOf, String, FilePath, Show(..), (++), Bool(..), concat 
+                         ,Either(..), Maybe(..))
+import qualified Prelude 
+
+allTests :: Test
+allTests = test
+    [ "basic let"  ~: testPretty letTest 
+    , "nested let" ~: testPretty letTest2
+    , "basic fn"   ~: testPretty defTest 
+    , "nested fn"  ~: testPretty defTest2
+    ]
 
 letTest = unlines ["x = 2"
                   ,"y = 3"
@@ -29,30 +46,29 @@ letTest2 = unlines ["x = y = 2"
                    ,"x"
                    ]
 
-defTest = unlines ["def foo(x nat) nat:"
+defTest = unlines ["foo = fn x nat:"
                   ,"  x + 2"
                   ,"foo(3)"
                   ]
 
-defTest2 = unlines ["def foo(x nat, y nat) nat:"
+defTest2 = unlines ["foo = fn x nat: fn y nat:"
                    ,"  x + y"
                    ,"foo(2,3)"
                    ]
 
-pToa :: U.AST' Text -> U.AST a
-pToa ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
-
-inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
-inferType' = inferType
-
 -- Tests things are parsed and prettyprinted nearly the same
-testPretty :: Text -> Doc
+testPretty :: Text -> Assertion 
 testPretty t =
-    case parseHakaru t of
-      Left  err  -> error (show err)
-      Right past ->
-          let m = inferType' (pToa past) in
-          case runTCM m LaxMode of
-            Left  err  -> error (show err)
-            Right (TypedAST _ ast) -> pretty ast
-          
+  case parseAndInfer t of 
+    Left err                -> assertFailure ("Program failed to parse\n" ++ show err)
+    Right (TypedAST ty ast) -> 
+      case parseAndInfer $ pack $ show $ pretty ast of 
+        Left err                  -> assertFailure ("Pretty printed program failed to parse\n" ++ show err)
+        Right (TypedAST ty' ast') -> 
+          Prelude.maybe 
+              (assertFailure $ mismatchMessage (prettyType 10) "Pretty printed programs has different type!" ty ty')
+              (\Refl -> assertAlphaEq "" ast ast') 
+              (jmEq1 ty ty')
+
+testPretty' :: TrivialABT T.Term '[] a -> Assertion 
+testPretty' = testPretty . pack . show . pretty 
