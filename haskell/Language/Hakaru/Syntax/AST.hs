@@ -164,22 +164,22 @@ instance PrimCoerce Literal where
         int2nat x =
             case toNatural x of
             Just y  -> y
-            Nothing -> error "primCoerceFrom@Literal: negative HInt"
+            Nothing -> error $ "primCoerceFrom@Literal: negative HInt " ++ show x
         prob2nat :: NonNegativeRational -> Natural
         prob2nat x =
             if denominator x == 1
             then numerator x
-            else error "primCoerceFrom@Literal: non-integral HProb"
+            else error $ "primCoerceFrom@Literal: non-integral HProb " ++ show x
         real2prob :: Rational -> NonNegativeRational
         real2prob x =
             case toNonNegativeRational x of
             Just y  -> y
-            Nothing -> error "primCoerceFrom@Literal: negative HReal"
+            Nothing -> error $ "primCoerceFrom@Literal: negative HReal " ++ show x
         real2int :: Rational -> Integer
         real2int x =
             if denominator x == 1
             then numerator x
-            else error "primCoerceFrom@Literal: non-integral HReal"
+            else error $ "primCoerceFrom@Literal: non-integral HReal " ++ show x
 
 
 ----------------------------------------------------------------
