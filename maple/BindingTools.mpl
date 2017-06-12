@@ -3,7 +3,7 @@
 # make gensym global, so that it can be shared with other 'global' routines
 gensym := module ()
   export ModuleApply, SymbolsToGen;
-  local gs_counter, utf8, blocks, radix, unicode, ModuleLoad;
+  local gs_counter, utf8, blocks, radix, unicode, bad_name, do_gensym, ModuleLoad;
   gs_counter := -1;
   utf8 := proc(n :: integer, $)
     local m;
@@ -18,10 +18,12 @@ gensym := module ()
   SymbolsToGen :=
              [ ["`", "_"]
              , ["0", "9"]
+             , ["a", "z"]
              , ["A", "Z"] ];
              # e.g.
              # [[ 19968, 20950 ]] for unicode
 
+  bad_name := n -> type(n, protected) or (x -> assigned(x))(n);
   blocks := proc($)
     map(((l,u)->`[]`(StringTools:-Ord(l), StringTools:-Ord(u) - StringTools:-Ord(l)+1))@op,SymbolsToGen)
   end proc;
@@ -34,6 +36,10 @@ gensym := module ()
     end do
   end proc;
   ModuleApply := proc(x::name, $)
+    local x1 := do_gensym(x);
+    if bad_name(x1) then ModuleApply(x) else x1 end if;
+  end proc;
+  do_gensym := proc(x::name, $)
     gs_counter := gs_counter + 1;
     cat(x, op(map(StringTools:-Char, map(utf8 @ unicode, applyop(`+`, 1, map(`*`, convert(gs_counter, 'base', radix()), 2), 1)))))
   end proc;
