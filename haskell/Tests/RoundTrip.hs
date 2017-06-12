@@ -222,7 +222,7 @@ testMeasureReal = test
 
 testMeasureNat :: IsTest ta t => t 
 testMeasureNat = test
-    [ "size" ~: testConcreteFiles "tests/size_in.hk" "tests/size_out.hk"
+    [ "size" ~: testConcreteFiles "tests/RoundTrip/size.0.hk" "tests/RoundTrip/size.expected.hk"
     ]
 
 testMeasureInt :: IsTest ta t => t
