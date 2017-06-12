@@ -1,6 +1,7 @@
 # Generating Samples from your Hakaru Program #
 
-The `hakaru` command is used to indefinitely generate samples from a Hakaru program.
+The `hakaru` command is used to indefinitely generate samples from a Hakaru program. The `hakaru` command is an importance sampler, so each sample is assigned a weight. 
+These weights are typically `1.0`, but this might not be the case for all Hakaru programs.
 
 ## Usage ##
 
@@ -11,8 +12,8 @@ the Hakaru program. In this case, the `hakaru` command can be invoked in the com
 hakaru hakaru_program.hk
 ````
 
-If a second program is given to the `hakaru` command, it will treat the two programs as the start of a Markov Chain. This is used when you have created a transition kernal 
-using the [Metropolis Hastings](../transforms/mh.md) transformation. To invoke the `hakaru` command with a transition kernal, you would call:
+If a second program is given to the `hakaru` command, it will treat the two programs as the start of a Markov Chain. This is used when you have created a transition kernel 
+using the [Metropolis Hastings](../transforms/mh.md) transformation. To invoke the `hakaru` command with a transition kernel, you would call:
 
 ````bash
 hakaru --transition-kernel transition.hk init.hk
@@ -24,8 +25,8 @@ from `transition.hk` are passed back into itself to generate further samples.
 
 ### The Dash (`-`) Operator ###
 
-You might encounter some scenarios where you wish to run a Hakaru command or transformation on a program and then send the resulting output to another command or transform. In 
-these cases, you can take advantage of the dash (`-`) command-line notation.
+You might encounter some scenarios where you wish to run a Hakaru command or transformation on a program and then send the resulting output to another command or transform. 
+In these cases, you can take advantage of the dash (`-`) command-line notation.
 
 The dash notation is a shortcut used to pass standard inputs and outputs to another command in the same line of script. For example, if you wanted to run the `disintegrate`
 Hakaru command followed by the `simplify` command, you would enter:
@@ -34,7 +35,7 @@ Hakaru command followed by the `simplify` command, you would enter:
 disintegrate program.hk | simplify -
 ````
 
-This command is equilvalent to entering:
+This command is equivalent to entering:
 
 ````bash
 disintegrate program.hk > temp.hk
@@ -45,39 +46,46 @@ simplify temp.hk
 
 ## Example ##
 
-The normal distribution is a commonly used distribution in probabilistic modeling. A simple Hakaru program to generate samples from this distribution is:
+The "trick coin" is a basic example that is used to introduce the probability or expectation of an outcome. Suppose we are given an unfair coin that follows the distribution:
 
 ````nohighlight
-return normal(0,1)
+weight(3, return true) <|> weight(1, return false)
 ````
 
-If you save this program as `norm.hk`, you can generate samples from it by calling:
+If you save this program as `biasedcoin.hk`, you can generate samples from it by calling:
 
 ````bash
-hakaru norm.hk
+hakaru biasedcoin.hk
 ````
 
 The `hakaru` command will print a continuous stream of samples drawn from this program:
 
 ````bash
-1.0     1.0     -0.3972582073860394
-1.0     1.0     5.6338252430958864e-2
-1.0     1.0     -0.20943562475454072
-1.0     1.0     -0.819120522312333
-1.0     1.0     8.751803599366902e-2
-1.0     1.0     -1.331099012725283
-1.0     1.0     -2.7818114615228814e-2
-1.0     1.0     0.826857488709436
-1.0     1.0     0.8653639888398083
-1.0     1.0     0.1538518225473193
-1.0     1.0     -0.7354102387601734
-1.0     1.0     1.1604484258837295
-1.0     1.0     0.26847855847761243
-1.0     1.0     -0.26134128530561285
+4.0     true
+4.0     true
+4.0     true
+4.0     true
+4.0     true
+4.0     true
+4.0     true
+4.0     false
+4.0     false
 ...
 ````
 
-In this example, all sample weights are `1`. To suppress the printing of weights during sample generation, you can use the `--no-weights` or `-w` option:
+In this example, all sample weights are `4.0`. Let's say that you wanted to know how many times the coin landed on each of HEADS and TAILS. You can collect an estimate of 
+this ratio by using a short command-line program that limits sample generation to 2000 samples:
+
+````bash
+$ hakaru biasedcoin.hk | head -n 2000 | awk '{a[$2]+=$1/$1}END{for(i in a) print i, a[i]}'
+false 509
+true 1491
+````
+
+**Note:** The `$1/$1` expression in the `awk` command normalizes the weight produced by the `hakaru` command so that individual samples are counted. If this expression is
+simplified to `$1`, the `awk` command returns the sum of the weights.
+
+To suppress the printing of weights during sample generation, you can use the `--no-weights` or `-w` option:
 
 ````bash
 hakaru --no-weights norm.hk
@@ -86,20 +94,14 @@ hakaru --no-weights norm.hk
 Which will result in the printing of samples without their weight information:
 
 ````bash
-0.7505833618849641
--3.0157439504826952e-2
-1.8516535505034426
--0.1290032373875403
--1.3007179610623967
--1.1003383475624913
--6.582105542515895e-2
-1.0295214963052317
-1.0299285419588868
--6.214526660454764e-2
-0.46461836869237355
--0.6303856890688903
-0.22057597993019365
--1.5735921283484084
+false
+true
+true
+true
+false
+true
+true
+true
 ...
 ````
 
