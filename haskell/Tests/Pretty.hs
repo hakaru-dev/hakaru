@@ -34,6 +34,7 @@ allTests = test
     , "nested let" ~: testPretty letTest2
     , "basic fn"   ~: testPretty defTest 
     , "nested fn"  ~: testPretty defTest2
+    , "fn in case" ~: testPretty' caseFn 
     ]
 
 letTest = unlines ["x = 2"
@@ -55,6 +56,11 @@ defTest2 = unlines ["foo = fn x nat: fn y nat:"
                    ,"  x + y"
                    ,"foo(2,3)"
                    ]
+
+caseFn :: (ABT T.Term abt) => abt '[] 'HProb
+caseFn = 
+  pair (lam $ \x -> x) (lam $ \x -> x)
+     `unpair` \a b -> (a `app` prob_ 1) + (b `app` prob_ 2)
 
 -- Tests things are parsed and prettyprinted nearly the same
 testPretty :: Text -> Assertion 
