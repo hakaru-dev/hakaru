@@ -259,8 +259,9 @@ ppNaryOpProd p e =
 
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
-ppSCon _ Lam_ = \(e1 :* End) ->
-    let (vars, types, body) = ppBinder2 e1 in
+ppSCon p Lam_ = \(e1 :* End) ->
+    let (vars, types, body) = ppBinder2prec 11 e1 in
+    parens (p < 11)
     [ PP.text "fn" <+> toDoc vars
                    <+> toDoc types
                     <> PP.colon <> PP.space
