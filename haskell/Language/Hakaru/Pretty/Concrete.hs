@@ -121,8 +121,8 @@ ppBinder e =
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
 
 
-ppBinder2 :: (ABT Term abt) => abt xs a -> ([Doc], [Doc], Docs)
-ppBinder2 e = unpackVarTypes $ go [] (viewABT e)
+ppBinder2prec :: (ABT Term abt) => Int -> abt xs a -> ([Doc], [Doc], Docs)
+ppBinder2prec p e = unpackVarTypes $ go [] (viewABT e)
     where
     unpackVarTypes (varTypes, body) =
         (map fst varTypes, map snd varTypes, body)
@@ -130,8 +130,10 @@ ppBinder2 e = unpackVarTypes $ go [] (viewABT e)
     go :: (ABT Term abt) => [(Doc, Doc)] -> View (Term abt) xs a -> ([(Doc, Doc)],Docs)
     go xs (Bind x v) = go (ppVariableWithType x : xs) v
     go xs (Var  x)   = (reverse xs, [ppVariable x])
-    go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
+    go xs (Syn  t)   = (reverse xs, prettyPrec_ p (LC_ (syn t)))
 
+ppBinder2 :: (ABT Term abt) => abt xs a -> ([Doc], [Doc], Docs)
+ppBinder2 = ppBinder2prec 0 
 
 -- TODO: since switching to ABT2, this instance requires -XFlexibleContexts; we should fix that if we can
 -- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
