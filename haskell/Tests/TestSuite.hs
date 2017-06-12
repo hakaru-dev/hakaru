@@ -5,6 +5,7 @@ import System.Environment (lookupEnv)
 
 import qualified Tests.ASTTransforms as TR
 import qualified Tests.Parser        as P
+import qualified Tests.Pretty        as Pr
 import qualified Tests.TypeCheck     as TC
 import qualified Tests.Simplify      as S
 import qualified Tests.Disintegrate  as D
@@ -27,6 +28,7 @@ simplifyTests t env =
 allTests :: Maybe String -> Test
 allTests env = test
   [ TestLabel "Parser"       P.allTests
+  , TestLabel "Pretty"       Pr.allTests
   , TestLabel "TypeCheck"    TC.allTests
   , TestLabel "Simplify"     (simplifyTests S.allTests env)
   , TestLabel "Disintegrate" D.allTests
