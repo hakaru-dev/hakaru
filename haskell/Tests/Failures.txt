@@ -1,19 +1,55 @@
-[Completely new set of tests/failures starting some time in mid-2016.
-This report is as of June 14th]
+Test cases are grouped by the general reason for failure; eventually (if the fix
+is too non-trivial) these groups should have their issues, if they do not
+already.
 
-t55: difference is between "weight 0" and "reject".  NewSLO as
-  currently designed treats MSum() as equivalent to the 0 measure.
-  Thus the difference between expected and actual. [Design?]
-t57:  issue is that
-   Indicator(t<1) * m + Indicator(0<t) * m
-    for any measure m, does not simplify, by combining these indicators.
+As of June 12th 2017. 
 
-t78: what is expected is that a (trivial!!!) change of variable be done
-  to rescale from 0..2 to 0..1.  This means that 
-    x <~ uniform 0 2
-    weight(x, return x)
-    [up to casts] returns as is instead of 'recognizing' a beta(2,1)
-    [Design]
+-- Pretty printer
+### Failure in: 1:Pretty:6:hof (missing parens in higher order type)
 
-exceptionLebesgue, exceptionUniform:  simplification of zero-measure
-  conditions is not implemented.  [?]
+-- Ask the mailing list 
+### Failure in: 6:RoundTrip:0:16:t60 (#43df6d3e)
+
+-- Bad condition simplification 
+--- `A and B and C' returned, where C => B => A
+### Failure in: 6:RoundTrip:0:17:t62
+
+-- Categorical/counting failure
+--- `case [a,b][ix] == val of ...' should become `weight(..,categorical)'
+### Failure in: 6:RoundTrip:2:6:t13
+### Failure in: 6:RoundTrip:2:7:t14
+### Failure in: 6:RoundTrip:3:2:t23
+### Failure in: 6:RoundTrip:3:10:priorProp
+### Failure in: 6:RoundTrip:6:3:testKernel
+
+-- normal recog. failed
+--- superposition of lebesgue+weights 
+### Failure in: 6:RoundTrip:2:17:t45
+
+-- beta recog. failed
+### Failure in: 6:RoundTrip:2:43:t78
+
+-- #74 
+### Failure in: 6:RoundTrip:2:47:lebesgue1
+### Failure in: 6:RoundTrip:2:48:lebesgue2
+
+-- #83 
+### Error in:   6:RoundTrip:0:20:t65
+
+-- no simplification applied 
+--- of the form (var == val), var : AlmostEveryReal
+### Failure in: 6:RoundTrip:2:52:exceptionLebesgue
+### Failure in: 6:RoundTrip:2:53:exceptionUniform
+
+-- Change to accept 
+### Failure in: 6:RoundTrip:0:13:t57
+### Failure in: 6:RoundTrip:0:14:t58
+### Failure in: 6:RoundTrip:0:18:t63
+### Failure in: 6:RoundTrip:3:11:mhPriorProp
+
+-- alpha eq. 
+--- Solve later 
+### Failure in: 6:RoundTrip:3:0:t4   (negate vs. -1* , bug in pretty printer?)
+### Failure in: 6:RoundTrip:2:16:t46 (x*x -> x^2)
+### Failure in: 6:RoundTrip:0:12:t56 (not (a<b) vs. a>=b)
+### Failure in: 6:RoundTrip:0:11:t55 (not (a<b) vs. a>=b)
