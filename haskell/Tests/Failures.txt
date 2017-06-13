@@ -2,7 +2,7 @@ Test cases are grouped by the general reason for failure; eventually (if the fix
 is too non-trivial) these groups should have their issues, if they do not
 already.
 
-As of June 12th 2017. 
+As of June 13th 2017.
 
 -- Pretty printer
 ### Failure in: 1:Pretty:6:hof (missing parens in higher order type)
@@ -33,9 +33,6 @@ As of June 12th 2017.
 ### Failure in: 6:RoundTrip:2:47:lebesgue1
 ### Failure in: 6:RoundTrip:2:48:lebesgue2
 
--- #83 
-### Error in:   6:RoundTrip:0:20:t65
-
 -- no simplification applied 
 --- of the form (var == val), var : AlmostEveryReal
 ### Failure in: 6:RoundTrip:2:52:exceptionLebesgue
@@ -46,6 +43,7 @@ As of June 12th 2017.
 ### Failure in: 6:RoundTrip:0:14:t58
 ### Failure in: 6:RoundTrip:0:18:t63
 ### Failure in: 6:RoundTrip:3:11:mhPriorProp
+### Failure in: 6:RoundTrip:0:20:t65
 
 -- alpha eq. 
 --- Solve later 
