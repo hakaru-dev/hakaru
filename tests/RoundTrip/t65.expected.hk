@@ -5,6 +5,6 @@ fn x1 real:
                  (log(real2prob((x1 + (x0 * (-1))))) * (-1))) && 
                 (x0 < (((x1 * prob2real(exp(1))) - 1) * prob2real(exp((-1))))) && 
                 (x0 < x1)): 
-          true: real2prob(recip(((x1 * (-1)) + x0)))
+          true: real2prob(recip(((x0 * (-1)) + x1)))
           false: 0),
         return ())

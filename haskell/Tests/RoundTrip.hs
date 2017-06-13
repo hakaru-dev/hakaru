@@ -805,7 +805,7 @@ t65' =
      withWeight (if_ (real_ 0 < (log (unsafeProb (t + x * real_ (-1))) * real_ (-1)) &&
                       x < (t * fromProb (exp (real_ 1)) + real_ (-1)) * fromProb (exp (real_ (-1))) &&
                       x < t)
-                 (unsafeProb (recip (t * real_ (-1) + x)))
+                 (unsafeProb (recip (x * real_ (-1) + t)))
                  (prob_ 0)) $ (dirac unit)
 
 half' :: (ABT Term abt) => abt '[] 'HReal
