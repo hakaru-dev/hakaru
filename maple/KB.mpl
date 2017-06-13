@@ -536,7 +536,7 @@ KB := module ()
 
       # try to evaluate under the assumptions, but some assumptions break
       # with eval, so remove any of those we tried to chill to prevent them breaking
-      bb := subsindets(bb, relation, x->map(eval,x) assuming(op(as)));
+      bb := subsindets(bb, relation, x-> kb_assuming_mb(x1->map(eval,x1))(x, kb, _->x));
 
       # Check that the new clause would not cause a contradictory
       # KB. If it does, then produce NotAKB.
