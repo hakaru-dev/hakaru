@@ -600,6 +600,7 @@ export
       end proc;
 
       export ModuleApply := proc(ctx)::list(PartitionCond);
+        option remember;
         local ctxC, ctxC1, ctxC_c, ctxC1_c;
         ctxC := ctx;
         if ctx :: identical(true) then
