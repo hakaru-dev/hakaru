@@ -1,7 +1,7 @@
 # Generating Samples from your Hakaru Program #
 
 The `hakaru` command is used to indefinitely generate samples from a Hakaru program. The `hakaru` command is an importance sampler, so each sample is assigned a weight. 
-These weights are typically `1.0`, but this might not be the case for all Hakaru programs.
+These weights are typically `1.0`, but this will not be the case for all Hakaru programs.
 
 ## Usage ##
 
