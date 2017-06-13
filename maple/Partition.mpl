@@ -590,6 +590,15 @@ export
         end if;
       end proc;
 
+      # For some reason, solve just disregards these sorts of conditions
+      # altogether, but not when they appear on their own! e.g.
+      #  solve( {a<>b} )       = {a=a,a<>b}
+      #  solve( {Not(a<>b)} )  = {a=a,b=b}  -- but should be {..,a=b}
+      local can_solve := proc(c,$)
+        local neq_nn := `<>`(name,name);
+        evalb(not(indets(c, neq_nn) <> {} and not (c::neq_nn)));
+      end proc;
+
       export ModuleApply := proc(ctx)::list(PartitionCond);
         local ctxC, ctxC1, ctxC_c, ctxC1_c;
         ctxC := ctx;
@@ -612,7 +621,7 @@ export
         end if;
         ctxC := KB:-chill(ctxC);
 
-        if 'do_solve' in {_rest} and _Env_HakaruSolve<>false then
+        if 'do_solve' in {_rest} and _Env_HakaruSolve<>false and can_solve(ctxC) then
           ctxC := solve({ctxC}, 'useassumptions'=true);
           if ctxC = NULL and indets(ctx, specfunc(`exp`)) <> {} then
             ctxC := [ctx];
