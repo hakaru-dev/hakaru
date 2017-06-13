@@ -562,7 +562,14 @@ export
               ctxC := NULL;
             else
               ctxC := remove(is_extra_sol, ctxC);
-              ctxC := bool_And(op(ctxC));
+               # if all the solutions are 'extra', the solution is actually just
+               # garbage. Maple can't really tell and doesn't just return the
+               # empty set (no solutions) for these cases.
+              if ctxC = {} then
+                ctxC := [ctx];
+              else
+                ctxC := bool_And(op(ctxC));
+              end if;
             end if ;
             ctxC := [ctxC];
           elif ctxC :: specfunc('piecewise') then
