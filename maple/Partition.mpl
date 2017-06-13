@@ -566,7 +566,7 @@ export
                # garbage. Maple can't really tell and doesn't just return the
                # empty set (no solutions) for these cases.
               if ctxC = {} then
-                ctxC := [ctx];
+                ctxC := ctx;
               else
                 ctxC := bool_And(op(ctxC));
               end if;
