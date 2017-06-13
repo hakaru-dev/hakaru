@@ -9,7 +9,7 @@ export Bound := module ()
             vn, vt, make := op(v);
             lo, hi := ExtBound[make]:-SplitRange(vt);
             vn_rn, kb := ExtBound[make]:-MakeKB( vn, lo, hi, kb );
-            rn := [ vn=vn_rn, op(rn) ];
+            rn := [ `if`(vn::name,vn,op(1,vn))=vn_rn, op(rn) ];
         end do;
         [ kb, remove(type,rn,And({`=`(name,anything),`=`(anything,name)},satisfies(evalb))) ]
     end proc;
