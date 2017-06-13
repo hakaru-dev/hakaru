@@ -610,7 +610,7 @@ export
         end if;
         if 'do_kb' in {_rest} then
           ctxC1 := KB:-assert( ctxC, KB:-empty );
-          ctxC1 := KB:-kb_to_constraints(ctxC1);
+          ctxC1 := KB:-kb_to_constraints(ctxC1,{},_->false);
           ctxC1 := bool_And(op(ctxC1));
           ctxC1_c, ctxC_c := map(condition_complexity, [ctxC1,ctxC])[];
           if ctxC1_c < ctxC_c then
