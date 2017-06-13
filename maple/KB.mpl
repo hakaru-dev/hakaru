@@ -544,7 +544,7 @@ KB := module ()
 
       # Check that the new clause would not cause a contradictory
       # KB. If it does, then produce NotAKB.
-      if not bad_assumption(bb) and not rel_coulditbe(`if`(pol,bb,not(bb)), as) then
+      if not bad_assumption(bb) and not rel_coulditbe(`if`(pol,bb,Not(bb)), as) then
           return NotAKB();
       end if;
 
