@@ -423,7 +423,7 @@ KB := module ()
 
      # otherwise go ahead
      try
-       c := solve({chill(b)},[x], 'useassumptions'=true) assuming op(as);
+       c := kb_assuming_mb(b->solve({chill(b)},[x], 'useassumptions'=true))(b,kb,_->FAIL);
        c := postproc_for_solve(warm(c), kb);
        if c = FAIL or c = b then
          FAIL
@@ -439,7 +439,10 @@ KB := module ()
 
    postproc_for_solve := proc(c, kb, $)
      local p, c0, c1;
-     if c :: list and nops(c) = 0 then # false
+     if c=FAIL then
+       return FAIL;
+
+     elif c :: list and nops(c) = 0 then # false
        return FAIL;
 
      elif c :: relation then
