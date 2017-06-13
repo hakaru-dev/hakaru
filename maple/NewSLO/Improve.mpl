@@ -30,8 +30,11 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     if subintegral :: `*` then error "Nonlinear integral %1", e end if;
     subintegral := convert(reduce(subintegral, h, kb, opts), 'list', `*`);
     (subintegral, ww) := selectremove(depends, subintegral, h);
-    simplify_factor_assuming(`*`(w, op(ww)), kb)
-      * reduce_Partition(`*`(op(subintegral)), h, kb, opts, true);
+    w := `*`(w,op(ww));
+    w := subsindets[flat](w, t_pw_or_part,
+                          x->reduce_Partition(subsindets(x,t_pw,PWToPartition),h,kb,opts,false));
+    w := simplify_factor_assuming(w, kb);
+    w * reduce_Partition(`*`(op(subintegral)), h, kb, opts, true);
   elif e :: t_case then
     subsop(2=map(proc(b :: Branch(anything, anything))
                    eval(subsop(2='reduce'(op(2,b),x,c,opts),b),
