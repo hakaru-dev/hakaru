@@ -31,9 +31,10 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
     subintegral := convert(reduce(subintegral, h, kb, opts), 'list', `*`);
     (subintegral, ww) := selectremove(depends, subintegral, h);
     w := `*`(w,op(ww));
-    w := subsindets[flat](w, t_pw_or_part,
-                          x->reduce_Partition(subsindets(x,t_pw,PWToPartition),h,kb,opts,false));
-    w := simplify_factor_assuming(w, kb);
+    w1 := simplify_factor_assuming(w, kb);
+    if w1 = w then
+      w := subsindets[flat](w, t_pw_or_part, x->reduce_Partition(x,h,kb,opts,false));
+    else w := w1; end if;
     w * reduce_Partition(`*`(op(subintegral)), h, kb, opts, true);
   elif e :: t_case then
     subsop(2=map(proc(b :: Branch(anything, anything))
