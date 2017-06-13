@@ -766,8 +766,8 @@ KB := module ()
   end proc;
 
   # The constraints do not include type assumptions
-  kb_to_constraints := proc(kb::t_kb, $)::list(t_kb_atom);
-    remove(type, kb_to_assumptions(kb), `::`);
+  kb_to_constraints := proc(kb::t_kb)::list(t_kb_atom);
+    remove(type, kb_to_assumptions(kb,_rest), `::`);
   end proc;
 
   eval_kb := proc(e,kb::t_kb, $)
