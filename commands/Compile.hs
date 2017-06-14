@@ -28,7 +28,7 @@ import           Data.Maybe (fromJust)
 import           Data.Monoid ((<>))
 import           System.IO (stderr)
 import           Text.PrettyPrint    hiding ((<>))
-import           Options.Applicative (Parser, execParser, info, helper, fullDesc, progDesc, strArgument, switch, optional, strOption, metavar, help, short, long)
+import qualified Options.Applicative as O
 import           System.FilePath
 
 
@@ -49,8 +49,8 @@ main = do
     Nothing -> compileHakaru opts
 
 parseOpts :: IO Options
-parseOpts = execParser $ info (helper <*> options)
-                       $ fullDesc <> progDesc "Compile Hakaru to Haskell"
+parseOpts = O.execParser $ O.info (O.helper <*> options)
+                         $ O.fullDesc <> O.progDesc "Compile Hakaru to Haskell"
 
 {-
 
@@ -59,22 +59,25 @@ what to run given which arguments. There may be a way to unify these.
 
 -}
 
-options :: Parser Options
+options :: O.Parser Options
 options = Options
-  <$> strArgument (  metavar "INPUT"
-                  <> help "Program to be compiled" )
-  <*> (optional $ strOption (  metavar "FILE"
-                            <> short 'o'
-                            <> help "Optional output file name"))
-  <*> (optional $ strOption (  long "as-module"
-                            <> short 'M'
-                            <> help "creates a haskell module with this name"))
-  <*> (optional $ strOption (  long "transition-kernel"
-                            <> help "Use this program as transition kernel for running a markov chain"))
-  <*> switch (  long "logfloat-prelude"
-             <> help "use logfloat prelude for numeric stability")
-  <*> switch (  short 'O'
-             <> help "perform Hakaru AST optimizations" )
+  <$> O.strArgument (O.metavar "INPUT" <>
+                     O.help "Program to be compiled" )
+  <*> (O.optional $
+        O.strOption (O.metavar "FILE" <>
+                     O.short 'o' <>
+                     O.help "Optional output file name"))
+  <*> (O.optional $
+        O.strOption (O.long "as-module" <>
+                     O.short 'M' <>
+                     O.help "creates a haskell module with this name"))
+  <*> (O.optional $
+        O.strOption (O.long "transition-kernel" <>
+                     O.help "Use this program as transition kernel for running a markov chain"))
+  <*> O.switch (O.long "logfloat-prelude" <>
+                O.help "use logfloat prelude for numeric stability")
+  <*> O.switch (O.short 'O' <>
+                O.help "perform Hakaru AST optimizations")
 
 prettyProg :: (ABT T.Term abt)
            => String

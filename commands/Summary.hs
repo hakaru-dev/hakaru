@@ -26,7 +26,7 @@ import qualified Data.Text.IO               as IO
 import           Data.Monoid ((<>))
 import           System.IO (stderr)
 import           Text.PrettyPrint    hiding ((<>))
-import           Options.Applicative (Parser, execParser, info, helper, fullDesc, progDesc, strArgument, switch, optional, strOption, metavar, help, short, long)
+import qualified Options.Applicative as O
 import           System.FilePath
 
 
@@ -44,8 +44,8 @@ main = do
   compileHakaru opts
 
 parseOpts :: IO Options
-parseOpts = execParser $ info (helper <*> options)
-                       $ fullDesc <> progDesc "Compile Hakaru to Haskell"
+parseOpts = O.execParser $ O.info (O.helper <*> options)
+                         $ O.fullDesc <> O.progDesc "Compile Hakaru to Haskell"
 
 {-
 
@@ -54,19 +54,21 @@ what to run given which arguments. There may be a way to unify these.
 
 -}
 
-options :: Parser Options
+options :: O.Parser Options
 options = Options
-  <$> strArgument (  metavar "INPUT"
-                  <> help "Program to be compiled" )
-  <*> (optional $ strOption (  short 'o'
-                            <> help "Optional output file name"))
-  <*> (optional $ strOption (  long "as-module"
-                            <> short 'M'
-                            <> help "creates a haskell module with this name"))
-  <*> switch (  long "logfloat-prelude"
-             <> help "use logfloat prelude for numeric stability")
-  <*> switch (  short 'O'
-             <> help "perform Hakaru AST optimizations" )
+  <$> O.strArgument (O.metavar "INPUT" <>
+                     O.help "Program to be compiled" )
+  <*> (O.optional $
+        O.strOption (O.short 'o' <>
+                     O.help "Optional output file name"))
+  <*> (O.optional $
+        O.strOption (O.long "as-module" <>
+                     O.short 'M' <>
+                     O.help "creates a haskell module with this name"))
+  <*> O.switch (O.long "logfloat-prelude" <>
+                O.help "use logfloat prelude for numeric stability")
+  <*> O.switch (O.short 'O' <>
+                O.help "perform Hakaru AST optimizations")
 
 
 
