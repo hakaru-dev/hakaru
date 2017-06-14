@@ -28,7 +28,7 @@ import           Data.Maybe (fromJust)
 import           Data.Monoid ((<>))
 import           System.IO (stderr)
 import           Text.PrettyPrint    hiding ((<>))
-import           Options.Applicative hiding (header,footer)
+import           Options.Applicative (Parser, execParser, info, helper, fullDesc, progDesc, strArgument, switch, optional, strOption, metavar, help, short, long)
 import           System.FilePath
 
 
