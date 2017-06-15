@@ -252,7 +252,7 @@ KB := module ()
   # (using Maple's eval, anything can happen!) the
   # new conjunct under the derived knowledge of the KB
   assert := proc(b::t_kb_atom, kb::t_kb, $)
-    option remember;
+    option remember, system;
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 

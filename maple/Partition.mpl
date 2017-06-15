@@ -363,7 +363,7 @@ export
 
   Simpl := module()
     export ModuleApply := proc(p)
-      option remember;
+      option remember, system;
       local ps, qs, qs1, mk, as; as := _rest;
       if p :: Partition then
         foldr((f,x)->f(x,as), p,
@@ -600,7 +600,7 @@ export
       end proc;
 
       export ModuleApply := proc(ctx)::list(PartitionCond);
-        option remember;
+        option remember, system;
         local ctxC, ctxC1, ctxC_c, ctxC1_c;
         ctxC := ctx;
         if ctx :: identical(true) then
