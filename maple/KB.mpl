@@ -66,7 +66,7 @@ KB := module ()
      # for debugging
      build_unsafely,
 
-     chill, warm,
+     chill, warm, chillFns, warmFns,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -1038,9 +1038,13 @@ KB := module ()
   # subscript operator, which doesn't evaluate) and back. Some functions
   # evaluating causes simplification to fail because information is lost
   chilled := '{size, idx}';
+  chill := curry(chillFns,chilled);
+  warm  := curry(warmFns,chilled);
 
-  chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
-  warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
+  # For some reason making these curried also requires `chill' and `warm'
+  # to be eta-expanded (i.e. `chill := x->chillFns(chilled)(x)')
+  chillFns := (fns, e) -> subsindets(e, 'specfunc'(fns), c->op(0,c)[op(c)]);
+  warmFns  := (fns, e) -> subsindets(e, 'specindex'(fns), c->map(curry(warmFns,fns), op(0,c)(op(c))));
 
   # The KB constructors are local, but sometimes for debugging purposes one
   # would like to construct the KB directly. This converts the global names
