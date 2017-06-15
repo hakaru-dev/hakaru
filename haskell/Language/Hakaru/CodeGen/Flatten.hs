@@ -305,7 +305,7 @@ flattenSCon (Summate _ sr) =
                  let accVar  = CVar accI
                      iterVar = CVar iterI
 
-                 reductionCG CAddOp
+                 reductionCG (Left CAddOp)
                              accI
                              (iterVar .=. loE)
                              (iterVar .<. hiE)
@@ -344,7 +344,7 @@ flattenSCon (Product _ sr) =
                  let accVar  = CVar accI
                      iterVar = CVar iterI
 
-                 reductionCG CMulOp
+                 reductionCG (Left CMulOp)
                              accI
                              (iterVar .=. loE)
                              (iterVar .<. hiE)
@@ -425,7 +425,7 @@ flattenSCon Plate           =
            declare (typeOf $ body) sampId
            let sampE = CVar sampId
 
-           reductionCG CAddOp
+           reductionCG (Left CAddOp)
                        weightId
                        (itE .=. (intE 0))
                        (itE .<. sizeE)

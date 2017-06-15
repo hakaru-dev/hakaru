@@ -347,7 +347,6 @@ doWhileCG = whileCG' True
 
 -- forCG and reductionCG both create C for loops, their difference lies in the
 -- parallel code they generate
-
 forCG
   :: CExpr
   -> CExpr
@@ -371,8 +370,12 @@ forCG iter cond inc body =
                     (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
                                ++ (fmap CBlockStat (reverse $ statements cg'))))
 
+{-
+The operation for a reduction is either a builtin binary op, or must be
+specified
+-}
 reductionCG
-  :: CBinaryOp
+  :: Either CBinaryOp (CExpr -> CExpr -> CExpr)
   -> Ident
   -> CExpr
   -> CExpr
@@ -388,13 +391,29 @@ reductionCG op acc iter cond inc body =
                , declarations = declarations cg
                , sharedMem    = sharedMem cg }
      par <- isParallel
-     when par . putStat . CPPStat . PPPragma
-       $ ["omp","parallel","for"
-         , concat ["reduction("
-                  ,render . pretty $ op
-                  ,":"
-                  ,render . pretty $ acc
-                  ,")"]]
+     when par $
+       case op of
+         Left binop -> putStat . CPPStat . PPPragma $
+                         [ "omp","parallel","for","reduction("
+                         , render . pretty $ binop
+                         , ":"
+                         , render . pretty $ acc
+                         ,")"]
+         -- INCOMPLETE
+         Right red  -> do (Ident redName) <- genIdent' "red"
+                          let declRedPragma = [ "omp","declare","reduction("
+                                              , redName,":",undefined,":"
+                                              , render . pretty $
+                                                  red (CVar . Ident $ "omp_in")
+                                                      (CVar . Ident $ "omp_out")
+                                              , ")"]
+                              redPragma = [ "omp","parallel","for","reduction("
+                                          , redName
+                                          , ":"
+                                          , render . pretty $ acc
+                                          ,")"]
+                          putStat . CPPStat . PPPragma $ declRedPragma
+                          putStat . CPPStat . PPPragma $ redPragma
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
