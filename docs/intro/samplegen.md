@@ -1,7 +1,7 @@
 # Generating Samples from your Hakaru Program #
 
-The `hakaru` command is used to indefinitely generate samples from a Hakaru program. The `hakaru` command is an importance sampler, so each sample is assigned a weight. 
-These weights are typically `1.0`, but this will not be the case for all Hakaru programs.
+The `hakaru` command is used to indefinitely generate samples from a Hakaru program using importance sampling. Each sample is assigned a weight, and a sample's weight is 
+initialized to `1.0`. Weights are changed by Hakaru primitives and processes such as [`weight`](../lang/rand.md).
 
 ## Usage ##
 
@@ -55,12 +55,7 @@ weight(3, return true) <|> weight(1, return false)
 If you save this program as `biasedcoin.hk`, you can generate samples from it by calling:
 
 ````bash
-hakaru biasedcoin.hk
-````
-
-The `hakaru` command will print a continuous stream of samples drawn from this program:
-
-````bash
+$ hakaru biasedcoin.hk
 4.0     true
 4.0     true
 4.0     true
@@ -73,27 +68,28 @@ The `hakaru` command will print a continuous stream of samples drawn from this p
 ...
 ````
 
-In this example, all sample weights are `4.0`. Let's say that you wanted to know how many times the coin landed on each of HEADS and TAILS. You can collect an estimate of 
-this ratio by using a short command-line program that limits sample generation to 2000 samples:
+The `hakaru` command will print a continuous stream of samples drawn from this program. In this example, all sample weights are `4.0`. If you wanted to see the ratio of 
+weights for a series of coin tosses, you can use an `awk` script that tallies the weights for a limited set of samples:
 
 ````bash
-$ hakaru biasedcoin.hk | head -n 2000 | awk '{a[$2]+=$1/$1}END{for(i in a) print i, a[i]}'
-false 509
-true 1491
+$ hakaru biasedcoin.hk | head -n 2000 | awk '{a[$2]+=$1}END{for(i in a) print i, a[i]}'
+false 1944
+true 6056
 ````
 
-**Note:** The `$1/$1` expression in the `awk` command normalizes the weight produced by the `hakaru` command so that individual samples are counted. If this expression is
-simplified to `$1`, the `awk` command returns the sum of the weights.
-
-To suppress the printing of weights during sample generation, you can use the `--no-weights` or `-w` option:
+If you were only interested in counting how many times the coin tosses landed on each of HEAD and TAILS, modify the `awk` script to be a counter instead:
 
 ````bash
-hakaru --no-weights norm.hk
+$ hakaru biasedcoin.hk | head -n 2000 | awk '{a[$2]+=1}END{for(i in a) print i, a[i]}'
+false 524
+true 1476
 ````
 
-Which will result in the printing of samples without their weight information:
+In this case, the printing of sample weights might not be important. To suppress the printing of weights during sample generation, you can use the `--no-weights` or `-w` 
+option:
 
 ````bash
+$ hakaru --no-weights biasedcoin.hk
 false
 true
 true
