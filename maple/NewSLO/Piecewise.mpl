@@ -88,6 +88,9 @@
                                    kb,
                                    mode,
                                    eval(subsop(i=NULL, loops), x=b));
+              else
+                userinfo(3, 'procname', "Trivial %1 almost reduced to %2!",
+                         op(i,loops), b);
               end if;
             end if;
           end do;
