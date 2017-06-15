@@ -510,7 +510,7 @@ Hakaru := module ()
     if p :: 'Pair'('anything'$2) then
       op(1,p)
     elif p :: 'Datum(identical(pair),anything)' then
-      op([2,1,1,1,1], p);
+      op([2,1,1,1], p);
     elif p :: t_piecewiselike then
       map_piecewiselike(fst, p)
     else
