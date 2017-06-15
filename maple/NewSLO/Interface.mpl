@@ -149,8 +149,8 @@ end proc;
 
 eval_for_Simplify_tbl := table(
   [ `Int`=`int`
-  , `Sum`=`sum`
-  , `Product`=`product`
+  , `Sum`=[`sum`,Not(anything)]
+  , `Product`=[`product`,Not(anything)]
   ]);
 
 eval_for_Simplify := proc(e,kb,$)
