@@ -184,7 +184,7 @@ fromLO := module()
 
   export
   recognize_discrete := proc(w, k, lo, hi, kb, $)
-    local se, Sk, f, a0, a1, lambda, r, s, res;
+    local se, Sk, f, a0, a1, lambda, r, rr, s, res;
     res := FAIL;
     if lo = 0 and hi = infinity then
       se := get_se(w, k, Sk, f);
@@ -201,8 +201,12 @@ fromLO := module()
       end if;
     elif lo = 0 and not(hi :: 'SymbolicInfinity') then
       s, r := factorize(simplify_factor_assuming(w, kb), k, kb);
+      s := simplify_factor_assuming(s, kb);
+      # simplify_factor_assuming may render some factors in s independent of k
+      s, rr := selectremove(depends, convert(s, 'list', `*`), k);
+      r := `*`(r, op(rr));
+      s := `*`(op(s));
       if s <> 1 then
-        s := simplify_factor_assuming(s, kb);
         res := ary(hi+1, k, s);
         if res :: 'list' and nops(convert(res,'set')) = 1 then
           res := Recognized(Counting(lo, hi+1), res[1]);
