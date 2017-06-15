@@ -86,10 +86,10 @@ hof =
 testPretty :: Text -> Assertion 
 testPretty t =
   case parseAndInfer t of 
-    Left err                -> assertFailure ("Program failed to parse\n" ++ show err)
+    Left err                -> assertFailure ("Program failed to parse\n" ++ unpack err)
     Right (TypedAST ty ast) -> 
       case parseAndInfer $ pack $ show $ pretty ast of 
-        Left err                  -> assertFailure ("Pretty printed program failed to parse\n" ++ show err)
+        Left err                  -> assertFailure ("Pretty printed program failed to parse\n" ++ unpack err)
         Right (TypedAST ty' ast') -> 
           Prelude.maybe 
               (assertFailure $ mismatchMessage (prettyType 10) "Pretty printed programs has different type!" ty ty')
