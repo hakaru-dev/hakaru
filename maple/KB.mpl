@@ -893,7 +893,7 @@ KB := module ()
   end proc;
 
   array_size_assumptions := proc(kb,e,$)
-    seq(Constrain(n::nonnegint), n in indets(e, 'specfunc(size)'));
+    seq(Constrain(n::nonnegint), n in indets({kb,e}, 'specfunc(size)'));
   end proc;
 
   array_elem_assumptions := proc(kb,e,$)
@@ -908,7 +908,7 @@ KB := module ()
                 kb_intro_to_assumptions(a, op(1, ty))
               end if;
             end proc,
-            indets(e, And(specfunc(idx),anyfunc(name,anything)))) );
+            indets({kb,e}, And(specfunc(idx),anyfunc(name,anything)))) );
   end proc;
 
   # extract Lets and equality constraints (only!) from a KB

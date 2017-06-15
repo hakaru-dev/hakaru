@@ -52,8 +52,8 @@ On Linux systems, Hakaru can be setup to use Maple by running:
 ```bash
 export LOCAL_MAPLE="`which maple`"
 cd hakaru/maple
-maple update-archive.mpl
 echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >> ~/.mapleinit
+maple update-archive.mpl
 ```
 
 On Windows systems, Hakaru can be setup to use Maple by performing the following steps in Administrator mode:
@@ -70,14 +70,14 @@ On Windows systems, Hakaru can be setup to use Maple by performing the following
 
 	**Note:** You might need to restart your computer for the variable to be recognized.	
 
-3. In the Windows command prompt (cmd), Navigate to the `hakaru\maple` directory and run:
-	
-	`cmaple update-archive.mpl`
-
-4. In the Windows command prompt (cmd), create a file `maple.ini` by running:
+3. In the Windows command prompt (cmd), create a file `maple.ini` by running:
 
 	`echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: >> "C:\<path to maple>\lib\maple.ini"`
 	
+4. In the Windows command prompt (cmd), Navigate to the `hakaru\maple` directory and run:
+	
+	`cmaple update-archive.mpl`
+
 ### Testing Your Maple Installation with Hakaru ###
 
 If you have correctly installaed Hakaru's Maple extension, running `echo "normal(0,1)" | simplify -` in a `bash` command line will return `normal(0, 1)`.

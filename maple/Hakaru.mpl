@@ -585,7 +585,7 @@ Hakaru := module ()
   bool_Or  := Mk_Plus(Or ,false,true);
 
   bool_Not := proc(a,$)
-    if a :: t_kb_atom then
+    if a :: t_kb_atom and not (a :: `::`) then
       subsindets(KB:-negate_rel(a), `not`, Not@op);
     else
       Not(a)

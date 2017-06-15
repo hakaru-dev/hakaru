@@ -400,7 +400,8 @@ prettyType _ SProb        = PP.text "prob"
 prettyType _ SReal        = PP.text "real"
 prettyType p (SMeasure a) = PP.text "measure" <> PP.parens (prettyType p a)
 prettyType p (SArray   a) = PP.text "array" <> PP.parens (prettyType p a)
-prettyType p (SFun   a b) = prettyType p a <+> PP.text "->" <+> prettyType p b  
+-- HACK: precedence of function types
+prettyType p (SFun   a b) = PP.parens (prettyType p a <+> PP.text "->" <+> prettyType p b)
 prettyType p typ          =
     case typ of
     SData (STyCon sym `STyApp` a `STyApp` b) _
