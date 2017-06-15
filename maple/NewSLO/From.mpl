@@ -2,10 +2,12 @@
 fromLO := module()
   export ModuleApply :=
   proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
-    local h;
+    local h, e;
     h := gensym(op(1,lo));
     _Env_HakaruSolve := false;
-    unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
+    e := eval(op(2,lo), op(1,lo) = h);
+    e := subs([sum=Sum,product=Product,int=Int], e);
+    unintegrate(h, e, _ctx)
   end proc;
 
   export
