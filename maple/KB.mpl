@@ -793,6 +793,19 @@ KB := module ()
     eval(e, exp = expand @ exp);
   end proc;
 
+  # Given a function `f', 'evaluates' the given expression `e' as follows:
+  #  - removes op(0) (`op(e)')
+  #  - applies `f' to op(1..nops)
+  #  - if the result satisifies the check, return the original expression, else
+  #    the result
+  # The function `f' can additionally be a pair whose first component is the
+  # actual function, and whose second component is the "check" used in the final
+  # step. By default, the check is to determine if the result `has' the given
+  # function `f'
+  # The intended use of this function is to evaluate an expression of a known
+  # 'type', and sometimes reject the evaluated result (by default, reject if it
+  # contains the evaluation function itself, i.e. if that function 'failed' by
+  # returning itself unevaluated.)
   kb_eval_mb := proc(f,e,kb,$)
     local fn, ty, e1;
     fn,ty := `if`(f::[anything$2],f,[f,satisfies(q->has(q,f))])[];
