@@ -1,5 +1,12 @@
 # Generating Samples from your Hakaru Program #
 
+The Hakaru language is built on Monte Carlo methods, which aim to generate individual samples and estimate expectation functions from a given distribution. The first task,
+drawing samples from a distribution, is often difficult and this can be exhasperated as the dimensionality of the sample space increases. Importance sampling is a Monte
+Carlo method that is used to generate samples by estimating an expectation function for the target distribution instead. The estimated expectation function is then used to 
+generate samples. To account for the knowledge that the samples were not generated from the target distribution, a weight is assigned so that each sample's contribution to
+the estimator is adjusted according to its relevence. However, this method only works well if the distribution proposed by the expectation function is similar to the target
+distribution. For more complex distributions, a different approach, such as the Metropolis Hastings method should be used[^1].
+
 The `hakaru` command is used to indefinitely generate samples from a Hakaru program using importance sampling. Each sample is assigned a weight, and a sample's weight is 
 initialized to `1.0`. Weights are changed by Hakaru primitives and processes such as [`weight`](../lang/rand.md).
 
@@ -102,3 +109,5 @@ true
 ````
 
 An example for using the `hakaru` command using a transition kernel is available on the [Metropolis Hastings](../transforms/mh.md) transform page.
+
+[^1]: D.J.C. MacKay, "Introduction to Monte Carlo Methods", Learning in Graphical Models, vol. 89, pp. 175-204, 1998.
