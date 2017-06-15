@@ -112,6 +112,7 @@ end proc;
 
 SimplifyKB := proc(e,t,kb,$)
   local res;
+  res[-1] := value_for_Sum(e);
   res[0] := SimplifyKB_(
   proc(e0,t,kb)
     local e := eval_for_Simplify(e0,kb);
@@ -120,7 +121,7 @@ SimplifyKB := proc(e,t,kb,$)
     else
       simplify_assuming(e,kb);
     end if;
-  end proc, e, t, kb);
+  end proc, res[-1], t, kb);
 
   res[1] := eval(res[0]);
   if res[1] <> res[0] then
@@ -130,10 +131,26 @@ SimplifyKB := proc(e,t,kb,$)
   end if;
 end proc;
 
+# For some reason, the solution below for evaluting in a context does not work
+# for Sum (specifically for tcp/src/LDA/lda.hk).  The chill/warm is to not
+# interfere with the evaluation in context for other constructors.
+
+# This should really be considered a temporary hack until it is determined why
+# it's needed (I haven't spotted the difference yet), but on the other hand,
+# there are no examples where we *need* to evaluate `Sum' in an inner context of
+# an expression.
+value_for_Sum := proc(e0,$)
+  local fns, e; e := e0;
+  fns := {indices(eval_for_Simplify_tbl, nolist)} minus {`Sum`};
+  e := KB:-chillFns(fns,e);
+  e := value(e);
+  KB:-warmFns(fns,e);
+end proc;
+
 eval_for_Simplify_tbl := table(
   [ `Int`=`int`
-  , `Sum`=`sum`
-  , `Product`=`product`
+  , `Sum`=[`sum`,Not(anything)]
+  , `Product`=[`product`,Not(anything)]
   ]);
 
 eval_for_Simplify := proc(e,kb,$)

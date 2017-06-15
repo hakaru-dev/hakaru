@@ -66,7 +66,7 @@ KB := module ()
      # for debugging
      build_unsafely,
 
-     chill, warm,
+     chill, warm, chillFns, warmFns,
 
      # Negation of 'Constrain' atoms, that is, equality and
      # inequality constraints
@@ -793,6 +793,19 @@ KB := module ()
     eval(e, exp = expand @ exp);
   end proc;
 
+  # Given a function `f', 'evaluates' the given expression `e' as follows:
+  #  - removes op(0) (`op(e)')
+  #  - applies `f' to op(1..nops)
+  #  - if the result satisifies the check, return the original expression, else
+  #    the result
+  # The function `f' can additionally be a pair whose first component is the
+  # actual function, and whose second component is the "check" used in the final
+  # step. By default, the check is to determine if the result `has' the given
+  # function `f'
+  # The intended use of this function is to evaluate an expression of a known
+  # 'type', and sometimes reject the evaluated result (by default, reject if it
+  # contains the evaluation function itself, i.e. if that function 'failed' by
+  # returning itself unevaluated.)
   kb_eval_mb := proc(f,e,kb,$)
     local fn, ty, e1;
     fn,ty := `if`(f::[anything$2],f,[f,satisfies(q->has(q,f))])[];
@@ -1025,9 +1038,13 @@ KB := module ()
   # subscript operator, which doesn't evaluate) and back. Some functions
   # evaluating causes simplification to fail because information is lost
   chilled := '{size, idx}';
+  chill := curry(chillFns,chilled);
+  warm  := curry(warmFns,chilled);
 
-  chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
-  warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
+  # For some reason making these curried also requires `chill' and `warm'
+  # to be eta-expanded (i.e. `chill := x->chillFns(chilled)(x)')
+  chillFns := (fns, e) -> subsindets(e, 'specfunc'(fns), c->op(0,c)[op(c)]);
+  warmFns  := (fns, e) -> subsindets(e, 'specindex'(fns), c->map(curry(warmFns,fns), op(0,c)(op(c))));
 
   # The KB constructors are local, but sometimes for debugging purposes one
   # would like to construct the KB directly. This converts the global names
