@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings,
+{-# LANGUAGE CPP,
+             OverloadedStrings,
              PatternGuards,
              DataKinds,
              KindSignatures,
@@ -20,6 +21,10 @@ import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Pretty.Haskell
 import           Language.Hakaru.Command
 import           Language.Hakaru.Summary
+
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
 
 import           Data.Text                  as TxT
 import qualified Data.Text.IO               as IO
