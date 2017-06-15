@@ -279,7 +279,6 @@ testOther :: IsTest ta t => t
 testOther = test [
     "t82" ~: testSStriv [t82] t82',
     "testRoadmapProg1" ~: testStriv rmProg1,
-    "testRoadmapProg4" ~: testStriv rmProg4,
     "testKernel" ~: testSStriv [testKernel] testKernel2
     --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
     --"testTrueDetection" ~: testStriv (lam2 seismicTrueDetection)
@@ -1179,6 +1178,7 @@ rmProg1 =
         , (one, reject sing)]
 
 -- this comes from Examples.EasierRoadmap.easierRoadmapProg4'.
+-- TODO: this needs to be regenerated from original program
 rmProg4
     :: (ABT Term abt)
     => abt '[]
