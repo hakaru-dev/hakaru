@@ -897,16 +897,16 @@ KB := module ()
     local n, as;
     as := remove(to_remove,
           [ map( kb_atom_to_assumptions ,
-                 [op(coalesce_bounds(kb))
+                 [op(coalesce_bounds(kb))] )[]
 
-                  # additional assumptions which are derived from the expression
-                  # to be simplified; these are to do with arrays
-                  ,array_size_assumptions(kb,e)] )[]
+            # additional assumptions which are derived from the expression
+            # to be simplified; these are to do with arrays
+            ,array_size_assumptions(kb,e)
             ,array_elem_assumptions(kb,e) ] );
   end proc;
 
   array_size_assumptions := proc(kb,e,$)
-    seq(Constrain(n::nonnegint), n in indets({kb,e}, 'specfunc(size)'));
+    seq(n::nonnegint, n in indets({kb,e}, 'specfunc(size)'));
   end proc;
 
   array_elem_assumptions := proc(kb,e,$)
