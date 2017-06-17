@@ -647,10 +647,11 @@ flattenBucket lo hi red = \loc -> do
     declare SNat itId
     let itE = CVar itId
     initRed red loc
+    isPar <- isParallel
     forCG (itE .=. loE)
           (itE .<. hiE)
           (CUnary CPostIncOp itE)
-          (accumRed red itE loc)
+          (accumRed isPar red itE loc)
     putStat $ opComment "End Bucket"
   where initRed
           :: (ABT Term abt)
@@ -686,10 +687,11 @@ flattenBucket lo hi red = \loc -> do
 
         accumRed
           :: (ABT Term abt)
-          => Reducer abt xs a
+          => Bool
+          -> Reducer abt xs a
           -> CExpr
           -> (CExpr -> CodeGen ())
-        accumRed mr itE = \loc ->
+        accumRed isPar mr itE = \loc ->
           case mr of
             (Red_Index _ a body) ->
               caseBind a $ \v@(Variable _ _ typ) a' ->
@@ -703,9 +705,9 @@ flattenBucket lo hi red = \loc -> do
                            [declare typ' =<< createIdent v'])
                        $ vs
                      aE <- flattenWithName' a'' "index"
-                     accumRed body itE (index (arrayData loc) aE)
-            (Red_Fanout mr1 mr2) -> accumRed mr1 itE (datumFst loc)
-                                 >> accumRed mr2 itE (datumSnd loc)
+                     accumRed isPar body itE (index (arrayData loc) aE)
+            (Red_Fanout mr1 mr2) -> accumRed isPar mr1 itE (datumFst loc)
+                                 >> accumRed isPar mr2 itE (datumSnd loc)
             (Red_Split b mr1 mr2) ->
               caseBind b $ \v@(Variable _ _ typ) b' ->
                 let (vs,b'') = caseBinds b' in
@@ -719,8 +721,8 @@ flattenBucket lo hi red = \loc -> do
                        $ vs
                      bE <- flattenWithName' b'' "cond"
                      ifCG (bE ... "index" .==. (intE 0))
-                          (accumRed mr1 itE (datumFst loc))
-                          (accumRed mr2 itE (datumSnd loc))
+                          (accumRed isPar mr1 itE (datumFst loc))
+                          (accumRed isPar mr2 itE (datumSnd loc))
             Red_Nop -> return ()
             (Red_Add sr e) ->
               caseBind e $ \v@(Variable _ _ typ) e' ->
@@ -734,6 +736,7 @@ flattenBucket lo hi red = \loc -> do
                            [declare typ' =<< createIdent v'])
                        $ vs
                      eE <- flattenWithName e''
+                     when isPar $  putStat . CPPStat . PPPragma $ ["omp","critical"]
                      case sing_HSemiring sr of
                        SProb -> logSumExpCG (S.fromList [loc,eE]) loc
                        _ -> putExprStat $ loc .+=. eE

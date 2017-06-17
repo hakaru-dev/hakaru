@@ -52,6 +52,7 @@ module Language.Hakaru.CodeGen.Types
   , datumProd
   , datumFst
   , datumSnd
+  , datumIndex
 
   -- functions and closures
   , functionDef
@@ -325,6 +326,9 @@ datumFst x = x ... "sum" ... "a" ... "a"
 
 datumSnd :: CExpr -> CExpr
 datumSnd x = x ... "sum" ... "a" ... "b"
+
+datumIndex :: CExpr -> CExpr
+datumIndex x = x ... "index"
 
 --------------------------------------------------------------------------------
 --                                Functions                                   --

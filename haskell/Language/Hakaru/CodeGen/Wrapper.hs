@@ -368,6 +368,15 @@ printCG pconfig (SArray typ) arg Nothing =
      putString "]\n"
   where putString s = putExprStat $ printfE [stringE s]
 
+-- bool and unit
+printCG pconfig (SData (STyCon sym)  _) arg Nothing =
+  case ssymbolVal sym of
+    "Unit" -> putExprStat $ printfE [stringE "()\n"]
+    "Bool" -> ifCG (datumIndex arg .==. (intE 0))
+                   (putExprStat $ printfE [stringE "true\n"])
+                   (putExprStat $ printfE [stringE "false\n"])
+    _ -> error $ show sym
+
 printCG pconfig SProb arg Nothing =
   putExprStat $ printfE
                       [ stringE $ printFormat pconfig SProb "\n"
