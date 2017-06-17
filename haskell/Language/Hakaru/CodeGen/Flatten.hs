@@ -1488,27 +1488,6 @@ kahanSummationCG body loE hiE =
 --                            Coercion Helpers                                --
 --------------------------------------------------------------------------------
 
--- instance PrimCoerce Value where
---     primCoerceTo c l =
---         case (c,l) of
---         (Signed HRing_Int,            VNat  a) -> VInt  $ fromNat a
---         (Signed HRing_Real,           VProb a) -> VReal $ LF.fromLogFloat a
---         (Continuous HContinuous_Prob, VNat  a) ->
---             VProb $ LF.logFloat (fromIntegral (fromNat a) :: Double)
---         (Continuous HContinuous_Real, VInt  a) -> VReal $ fromIntegral a
---         _ -> error "no a defined primitive coercion"
-
---     primCoerceFrom c l =
---         case (c,l) of
---         (Signed HRing_Int,            VInt  a) -> VNat  $ unsafeNat a
---         (Signed HRing_Real,           VReal a) -> VProb $ LF.logFloat a
---         (Continuous HContinuous_Prob, VProb a) ->
---             VNat $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
---         (Continuous HContinuous_Real, VReal a) -> VInt  $ floor a
---         _ -> error "no a defined primitive coercion"
-
-
-
 coerceToCG
   :: forall (a :: Hakaru) (b :: Hakaru)
   .  Coercion a b
