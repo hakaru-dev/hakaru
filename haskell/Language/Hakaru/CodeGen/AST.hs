@@ -8,9 +8,10 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
---   An AST for the C Family and preprocessor
--- Much of this is based on Manuel M T Chakravarty and Benedikt
--- Hubar's "language-c" package
+--   An AST for the C Family and preprocessor. Much of this was originally based
+-- on Manuel M T Chakravarty and Benedikt Hubar's "language-c" package.
+--
+-- It is an AST for the C99 standard and should compile with the -pedantic flag
 --
 --------------------------------------------------------------------------------
 

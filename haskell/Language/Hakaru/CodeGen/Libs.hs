@@ -27,10 +27,13 @@ module Language.Hakaru.CodeGen.Libs
     gcHeader, gcInit, gcMalloc,
 
     -- OpenMP
-    openMpHeader, ompGetNumThreads, ompGetThreadNum,
+    openMpHeader, ompGetNumThreads, ompGetThreadNum, OMP(..), Directive(..),
+    ompToPP
   ) where
 
 import Language.Hakaru.CodeGen.AST
+import Language.Hakaru.CodeGen.Pretty
+import Text.PrettyPrint (render)
 
 {-
 
@@ -129,6 +132,8 @@ gcMalloc e = mkCallE "GC_MALLOC" [e]
    For generating pragmas for shared memory parallelism, that is parallelism on
    on a single process that makes use of multithreaded processors. This
    interface is implemented in most C compilers and is accessed through pragmas
+
+   This is a subset of the the OpenMP 4.5 standard.
 -}
 
 openMpHeader :: Preprocessor
@@ -139,3 +144,23 @@ ompGetNumThreads = mkCallE "omp_get_num_threads" []
 
 ompGetThreadNum :: CExpr
 ompGetThreadNum = mkCallE "omp_get_thread_num" []
+
+data OMP = OMP Directive
+
+data Directive
+  = Parallel [Directive]
+  | For
+  | Critical
+  | Reduction (Either CBinaryOp Ident) [CExpr]
+
+ompToPP :: OMP -> Preprocessor
+ompToPP (OMP d) = PPPragma $ "omp":(showDirective d)
+  where showDirective :: Directive -> [String]
+        showDirective (Parallel ds)      = "parallel":(concatMap showDirective ds)
+        showDirective For                = ["for"]
+        showDirective Critical           = ["critical"]
+        showDirective (Reduction eop vs) =
+          let op = case eop of
+                     Left binop -> render . pretty $ binop
+                     Right (Ident s) -> s
+          in  ["reduction(",op,":",unwords . fmap (render. pretty) $ vs,")"]

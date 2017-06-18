@@ -736,7 +736,7 @@ flattenBucket lo hi red = \loc -> do
                            [declare typ' =<< createIdent v'])
                        $ vs
                      eE <- flattenWithName e''
-                     when isPar $  putStat . CPPStat . PPPragma $ ["omp","critical"]
+                     when isPar $  putStat . CPPStat . ompToPP $ OMP Critical
                      case sing_HSemiring sr of
                        SProb -> logSumExpCG (S.fromList [loc,eE]) loc
                        _ -> putExprStat $ loc .+=. eE

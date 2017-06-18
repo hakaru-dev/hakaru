@@ -362,8 +362,7 @@ forCG iter cond inc body =
                , declarations = declarations cg
                , sharedMem    = sharedMem cg } -- only use pragmas at the top level
      par <- isParallel
-     when par . putStat . CPPStat . PPPragma
-       $ ["omp","parallel","for"]
+     when par . putStat . CPPStat . ompToPP $ OMP (Parallel [For])
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
@@ -393,27 +392,19 @@ reductionCG op acc iter cond inc body =
      par <- isParallel
      when par $
        case op of
-         Left binop -> putStat . CPPStat . PPPragma $
-                         [ "omp","parallel","for","reduction("
-                         , render . pretty $ binop
-                         , ":"
-                         , render . pretty $ acc
-                         ,")"]
+         Left binop -> putStat . CPPStat . ompToPP $
+                         OMP (Parallel [For,Reduction (Left binop) [CVar acc]])
          -- INCOMPLETE
-         Right red  -> do (Ident redName) <- genIdent' "red"
+         Right red  -> do redId@(Ident redName) <- genIdent' "red"
                           let declRedPragma = [ "omp","declare","reduction("
                                               , redName,":",undefined,":"
                                               , render . pretty $
                                                   red (CVar . Ident $ "omp_in")
                                                       (CVar . Ident $ "omp_out")
                                               , ")"]
-                              redPragma = [ "omp","parallel","for","reduction("
-                                          , redName
-                                          , ":"
-                                          , render . pretty $ acc
-                                          ,")"]
                           putStat . CPPStat . PPPragma $ declRedPragma
-                          putStat . CPPStat . PPPragma $ redPragma
+                          putStat . CPPStat . ompToPP $
+                            OMP (Parallel [For,Reduction (Right redId) [CVar acc]])
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
