@@ -107,7 +107,6 @@ mainFunction
 -- when measure, compile to a sampler
 mainFunction pconfig typ@(SMeasure _) abt =
   do mfId    <- reserveIdent "measure"
-     mdataId <- reserveIdent "mdata"
      mainId  <- reserveIdent "main"
      argVId <- reserveIdent "argv"
      argCId <- reserveIdent "argc"
@@ -131,8 +130,8 @@ mainFunction pconfig typ@(SMeasure _) abt =
           printCG pconfig typ (CCall (CVar mfId) []) (Just nSamples)
           putStat . CReturn . Just $ intE 0
 
-mainFunction pconfig typ@(SFun _ _) abt =
-  coalesceLambda abt $ \vars abt' ->
+mainFunction pconfig (SFun _ _) abt =
+  coalesceLambda abt $ \_ abt' ->
     do resId  <- reserveIdent "result"
        mainId <- reserveIdent "main"
        argVId <- reserveIdent "argv"
@@ -166,7 +165,7 @@ mainFunction pconfig typ@(SFun _ _) abt =
             putStat $ opComment "Parse Args"
             argEs <- foldLambdaWithIndex 1 abt $ \i (Variable _ _ t) ->
                        do argE <- localVar' t "arg"
-                          parseCG t (index argVE (intE i)) argE
+                          _ <- parseCG t (index argVE (intE i)) argE
                           return argE
 
             case typ' of
@@ -185,9 +184,7 @@ mainFunction pconfig typ@(SFun _ _) abt =
           :: ABT Term abt
           => Integer
           -> abt '[] a
-          -> ( forall (x :: Hakaru)
-             .  Integer
-             -> CodeGen ())
+          -> (Integer -> CodeGen ())
           -> CodeGen ()
         withLambdaDepth' n abt_ k =
           caseVarSyn abt_
@@ -369,7 +366,7 @@ printCG pconfig (SArray typ) arg Nothing =
   where putString s = putExprStat $ printfE [stringE s]
 
 -- bool and unit
-printCG pconfig (SData (STyCon sym)  _) arg Nothing =
+printCG _ (SData (STyCon sym)  _) arg Nothing =
   case ssymbolVal sym of
     "Unit" -> putExprStat $ printfE [stringE "()\n"]
     "Bool" -> ifCG (datumIndex arg .==. (intE 0))
@@ -388,6 +385,10 @@ printCG pconfig typ arg Nothing =
   putExprStat $ printfE
               [ stringE $ printFormat pconfig typ "\n"
               , arg ]
+
+-- we should only have a number of samples if it a measure
+printCG _ _ _ (Just _) = error "this should not happen"
+
 
 printFormat :: PrintConfig -> Sing (a :: Hakaru) -> (String -> String)
 printFormat _ SInt         = \s -> "%d" ++ s

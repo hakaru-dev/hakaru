@@ -53,10 +53,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.Sing
 
 import           Control.Monad.State.Strict
-import           Control.Monad (replicateM)
-import           Control.Applicative (pure)
 import           Data.Number.Natural
-import           Data.Monoid        hiding (Product,Sum)
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence      as S
@@ -65,7 +62,10 @@ import qualified Data.Traversable   as T
 
 
 #if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative (pure)
+import           Control.Monad (replicateM)
 import           Data.Functor
+import           Data.Monoid        hiding (Product,Sum)
 #endif
 
 
@@ -223,7 +223,7 @@ flattenSCon Lam_ =
           idAndSpecs <- sequence $ foldMap11 (\v -> [mkVarIdandSpec v]) vars
           let fVars   = freeVars body'
               typ     = typeOf body'
-          sId@(Ident sname) <- extDeclClosureStruct typ (fmap snd idAndSpecs) fVars
+          (Ident sname) <- extDeclClosureStruct typ (fmap snd idAndSpecs) fVars
           funCG (head . buildType $ typ)
                 funcId
                 ([buildDeclaration (callStruct sname) (Ident "env")]
@@ -232,18 +232,18 @@ flattenSCon Lam_ =
           return (callStruct sname)
 
         extDeclClosureStruct
-          :: forall (a :: Hakaru) (ys :: [Hakaru])
+          :: forall (a :: Hakaru)
           .  Sing a
           -> [[CTypeSpec]]
           -> VarSet (KindOf a)
           -> CodeGen Ident
-        extDeclClosureStruct retTyp paramTypeSpecs freeVars = do
+        extDeclClosureStruct retTyp paramTypeSpecs freeVarSet = do
           sId@(Ident sname) <- genIdent' "clos"
           freeVarDecls <- mapM (\(SomeVariable v@(Variable _ _ typ)) -> do
                                   extDeclareTypes typ
                                   vId <- createIdent v
                                   return (typeDeclaration typ vId)
-                               ) (fromVarSet freeVars)
+                               ) (fromVarSet freeVarSet)
           let funPtrDecl =
                 CDecl (fmap CTypeSpec $ buildType retTyp)
                       [( CDeclr Nothing
@@ -261,7 +261,7 @@ flattenSCon App_  =
  \(fun :* arg :* End) ->
    \loc -> do
      closE <- flattenWithName' fun "clos"
-     paramE <- flattenWithName' fun "param"
+     paramE <- flattenWithName' arg "param"
      putExprStat $ loc .=. (CCall (CMember closE (Ident "fn") True) [paramE])
 
 flattenSCon (PrimOp_ op) = flattenPrimOp op
@@ -404,7 +404,7 @@ flattenSCon MBind           =
 flattenSCon Plate           =
   \(size :* b :* End) ->
     \loc ->
-      caseBind b $ \v@(Variable _ _ typ) body ->
+      caseBind b $ \v body ->
         do sizeE <- flattenWithName' size "s"
            isMM <- managedMem <$> get
            when (not isMM) (error "plate will leak memory without the '-g' flag and boehm-gc")
@@ -557,9 +557,9 @@ flattenArrayLiteral es =
           => abt '[] a
           -> Integer
           -> (CExpr -> CodeGen ())
-        assignIndex e index loc = do
+        assignIndex e i loc = do
           eE <- flattenWithName e
-          putExprStat $ indirect ((arrayData loc) .+. (intE index)) .=. eE
+          putExprStat $ indirect ((arrayData loc) .+. (intE i)) .=. eE
 
 --------------
 -- ArrayOps --
@@ -778,9 +778,9 @@ assignDatum
   -> CExpr
   -> CodeGen ()
 assignDatum code ident =
-  let index     = getIndex code
-      indexExpr = CMember ident (Ident "index") True
-  in  do putExprStat (indexExpr .=. (intE index))
+  let ind       = getIndex code
+      indExpr = CMember ident (Ident "index") True
+  in  do putExprStat (indExpr .=. (intE ind))
          sequence_ $ assignSum code ident
   where getIndex :: DatumCode xss b c -> Integer
         getIndex (Inl _)    = 0
@@ -900,8 +900,7 @@ flattenPrimOp Not =
       do aE <- flattenWithName a
          bId <- genIdent
          declare (typeOf a) bId
-         let datumIndex e = CMember e (Ident "index") True
-             bE = CVar bId
+         let bE = CVar bId
          putExprStat $ datumIndex bE .=. (CCond (datumIndex aE .==. (intE 1))
                                                (intE 0)
                                                (intE 1))

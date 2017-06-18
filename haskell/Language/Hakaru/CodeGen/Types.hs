@@ -263,10 +263,10 @@ datumSum
 datumSum dat funs ident =
   let declrs = fst $ runState (datumSum' dat funs) cNameStream
       union  = buildDeclaration (buildUnion declrs) (Ident "sum")
-      index  = buildDeclaration CInt (Ident "index")
+      ind    = buildDeclaration CInt (Ident "index")
       struct = buildStruct (Just ident) $ case declrs of
-                                            [] -> [index]
-                                            _  -> [index,union]
+                                            [] -> [ind]
+                                            _  -> [ind,union]
   in CDecl [ CTypeSpec struct ] []
 
 datumSum'
