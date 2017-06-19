@@ -55,9 +55,14 @@ simplify temp.hk
 
 ## Example ##
 
-To demonstrate weights in Hakaru, a sample problem of a burglary alarm is adapted from Pearl's textbook on probabilistic reasoning[^2]. In this problem, the burglary alarm
-in your home has been triggered. There is a 95% chance that a burglary is taking place, and a 1% chance that it is a false alarm. From known data, there is a 0.1% chance 
-that a burglary is taking place and a 99.9% chance that the alarm was triggered by another event. This can be modelled in Hakaru by the program:
+To demonstrate weights in Hakaru, a sample problem of a burglary alarm is adapted from Pearl's textbook on probabilistic reasoning (page 35)[^2]:
+
+> Imagine being awakened one night by the shrill sound of your burglar alarm. What is your degree of belief that a burglary attempt has taken place? For illustrative 
+> purposes we make the following judgements: (a) There is a 95% chance that an attempted burglary will trigger the alarm system -- P(Alarm|Burglary) = 0.95; (b) based on 
+> previous false alarms, there is a slight (1 percent) chance that the alarm will be triggered by a mechanism other than an attempted burglary -- P(Alarm|No Burglary) = 0.01;
+> (c) previous crime patterns indicate that there is a one in ten thousand chance that a given house will be burglarized on a given night -- P(Burglary) = 10^-4.
+
+This can be modelled in Hakaru by the program:
 
 ````nohighlight
 burglary <~ categorical([0.0001, 0.9999])
