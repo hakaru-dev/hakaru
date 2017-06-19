@@ -73,7 +73,7 @@ local
     unprotect(:-solve);
     :-`solve` := overload([
       proc(x:: Not(freeof(`PARTITION`))  )
-        option overload(callseq_only), remember; FAIL;
+        option overload(callseq_only); FAIL;
       end proc, :-`solve`]);
     protect(:-solve);
 
