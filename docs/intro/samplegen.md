@@ -122,7 +122,8 @@ false
 ...
 ````
 
-An example for using the `hakaru` command using a transition kernel is available on the [Metropolis Hastings](../transforms/mh.md) transform page.
+Hakaru can sample from more complex distributions using the [Metropolis Hastings](../transforms/mh.md) transform. The `hakaru` command can then be invoked using a transition
+kernel. For an example of the `hakaru` command usage in this context, refer to the [Metropolis Hastings](../transforms/mh.md) transform page.
 
 [^1]: D.J.C. MacKay, "Introduction to Monte Carlo Methods", Learning in Graphical Models, vol. 89, pp. 175-204, 1998.
 [^2]: J. Pearl, Probabilistic reasoning in intelligent systems: Networks of plausible inference. San Francisco: M. Kaufmann, 1988.
