@@ -55,61 +55,69 @@ simplify temp.hk
 
 ## Example ##
 
-The "trick coin" is a basic example that is used to introduce the probability or expectation of an outcome. Suppose we are given an unfair coin that follows the distribution:
+To demonstrate weights in Hakaru, a sample problem of a burglary alarm is adapted from Pearl's textbook on probabilistic reasoning[^2]. In this problem, the burglary alarm
+in your home has been triggered. There is a 95% chance that a burglary is taking place, and a 1% chance that it is a false alarm. From known data, there is a 0.1% chance 
+that a burglary is taking place and a 99.9% chance that the alarm was triggered by another event. This can be modelled in Hakaru by the program:
 
 ````nohighlight
-weight(3, return true) <|> weight(1, return false)
+burglary <~ categorical([0.0001, 0.9999])
+weight([0.95, 0.01][burglary],
+return [true,false][burglary])
 ````
 
-If you save this program as `biasedcoin.hk`, you can generate samples from it by calling:
+If you save this program as `weight_burglary.hk`, you can generate samples from it by calling:
 
 ````bash
-$ hakaru biasedcoin.hk
-4.0     true
-4.0     true
-4.0     true
-4.0     true
-4.0     true
-4.0     true
-4.0     true
-4.0     false
-4.0     false
+$ hakaru weight_burglary.hk
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
 ...
 ````
 
-The `hakaru` command will print a continuous stream of samples drawn from this program. In this example, all sample weights are `4.0`. If you wanted to see the ratio of 
-weights for a series of coin tosses, you can use an `awk` script that tallies the weights for a limited set of samples:
+The `hakaru` command will print a continuous stream of samples drawn from this program. In this example, `true` and `false` samples have different weights. This will not be
+immediately apparent if you manually sift through the samples. If you wanted to see the ratio of weights for a series of samples, you can use an `awk` script that tallies 
+the weights for a limited set of samples:
 
 ````bash
-$ hakaru biasedcoin.hk | head -n 2000 | awk '{a[$2]+=$1}END{for(i in a) print i, a[i]}'
-false 1944
-true 6056
+$ hakaru weight_burglary.hk | head -n 2000 | awk '{a[$2]+=$1}END{for (i in a) print i, a[i]}'
+false 19.99
+true 0.95
 ````
 
 If you were only interested in counting how many times the coin tosses landed on each of HEAD and TAILS, modify the `awk` script to be a counter instead:
 
 ````bash
-$ hakaru biasedcoin.hk | head -n 2000 | awk '{a[$2]+=1}END{for(i in a) print i, a[i]}'
-false 524
-true 1476
+$ hakaru weight_burglary.hk | head -n 2000 | awk '{a[$2]+=1}END{for (i in a) print i, a[i]}'
+false 1999
+true 1
 ````
 
 In this case, the printing of sample weights might not be important. To suppress the printing of weights during sample generation, you can use the `--no-weights` or `-w` 
 option:
 
 ````bash
-$ hakaru --no-weights biasedcoin.hk
+$ hakaru --no-weights weight_burglary.hk
 false
-true
-true
-true
 false
-true
-true
-true
+false
+false
+false
+false
+false
+false
 ...
 ````
 
 An example for using the `hakaru` command using a transition kernel is available on the [Metropolis Hastings](../transforms/mh.md) transform page.
 
 [^1]: D.J.C. MacKay, "Introduction to Monte Carlo Methods", Learning in Graphical Models, vol. 89, pp. 175-204, 1998.
+[^2]: J. Pearl, Probabilistic reasoning in intelligent systems: Networks of plausible inference. San Francisco: M. Kaufmann, 1988.
