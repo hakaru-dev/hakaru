@@ -93,17 +93,17 @@ immediately apparent if you manually sift through the samples. If you wanted to 
 the weights for a limited set of samples:
 
 ````bash
-$ hakaru weight_burglary.hk | head -n 2000 | awk '{a[$2]+=$1}END{for (i in a) print i, a[i]}'
-false 19.99
-true 0.95
+$ hakaru weight_burglary.hk | head -n 100000 | awk '{a[$2]+=$1}END{for (i in a) print i, a[i]}'
+false 999.87
+true 12.35
 ````
 
-If you were only interested in counting how many times the coin tosses landed on each of HEAD and TAILS, modify the `awk` script to be a counter instead:
+If you were only interested in counting how many times the alarm was triggered correctly and erroneously, modify the `awk` script to be a counter instead:
 
 ````bash
-$ hakaru weight_burglary.hk | head -n 2000 | awk '{a[$2]+=1}END{for (i in a) print i, a[i]}'
-false 1999
-true 1
+$ hakaru weight_burglary.hk | head -n 100000 | awk '{a[$2]+=1}END{for (i in a) print i, a[i]}'
+false 99987
+true 13
 ````
 
 In this case, the printing of sample weights might not be important. To suppress the printing of weights during sample generation, you can use the `--no-weights` or `-w` 
