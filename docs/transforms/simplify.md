@@ -39,6 +39,11 @@ original could be produced.
 weights. If the stronger sense of equivalence is needed, the output of
 `Simplify` can be passed to `normalize`. 
 
+Historical note: the `Simplify` subcommand of `hk-maple` used to be known as a
+seperate command named `simplify`. If you encounter `simplify someprog.hk
+<options>` in this documentation, you may replace it by `hk-maple someprog.hk
+<options>`.
+
 ### Disintegrate
 The Maple disintegrator is an alternative implementation of the program
 transformation described in [Disintegrate]. Semantically, the Maple
