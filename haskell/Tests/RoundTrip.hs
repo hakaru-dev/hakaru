@@ -213,7 +213,7 @@ testMeasureReal = test
                                 (withWeight (prob_ $ 2) $ uniform (real_ 40) (real_ 42))
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
-    , "exceptionLebesgue" ~: testSStriv [lebesgue >>= \x -> dirac (if_ (x == (real_ 3)) one x)] lebesgue
+    , "exceptionLebesgue" ~: testConcreteFiles "tests/RoundTrip/exceptionLebesgue.0.hk" "tests/RoundTrip/exceptionLebesgue.expected.hk"
     , "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x ->
                                          dirac (if_ (x == (real_ 3)) one x)
                                         ] (uniform (real_ 2) (real_ 4))
@@ -228,7 +228,6 @@ testMeasureNat = test
 testMeasureInt :: IsTest ta t => t
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
-	, "t75_hakaru" ~: testConcreteFiles "tests/t75_in.hk" "tests/t75_out.hk"
     , "t75'" ~: testStriv t75'
     , "t83"  ~: testSStriv [t83] t83'
     -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
@@ -236,17 +235,8 @@ testMeasureInt = test
                                             if_ (x == (int_ 3))
                                                 (dirac one)
                                                 (dirac x))
-    , "exceptionSuperpose" ~: testSStriv 
-                                [(unsafeSuperpose [ (third, dirac (int_ 2))
-                                                  , (third, dirac (int_ 3))
-                                                  , (third, dirac (int_ 4))
-                                                  ] `asTypeOf` counting) >>= \x -> 
-                                 dirac (if_ (x == (int_ 3)) one x)]
-                                (unsafeSuperpose [ (third, dirac (int_ 2))
-                                                 , (third, dirac one)
-                                                 , (third, dirac (int_ 4))
-                                                 ])
-    ]
+    , "exceptionSuperpose" ~: testConcreteFiles "tests/RoundTrip/exceptionSuperpose.0.hk" "tests/RoundTrip/exceptionSuperpose.expected.hk"
+	]
 
 testMeasurePair :: IsTest ta t => t 
 testMeasurePair = test [
@@ -255,9 +245,7 @@ testMeasurePair = test [
     "t23"           ~: testSStriv [t23] t23',
     "t48"           ~: testStriv t48,
     "t52"           ~: testSStriv [] t52,
-    "dup"           ~: testSStriv [dup normal_0_1] (liftM2 pair
-                                                           (normal zero one)
-                                                           (normal zero one)),
+    "dup"           ~: testConcreteFiles "tests/RoundTrip/dup.0.hk" "tests/RoundTrip/dup.expected.hk",
     "norm"          ~: testSStriv [] norm,
     "norm_nox"      ~: testSStriv [norm_nox] (normal zero (sqrt (prob_ 2))),
     "norm_noy"      ~: testSStriv [norm_noy] (normal zero one),
@@ -976,11 +964,6 @@ testPriorProp' =
                         + x1)
                     * (negate (real_ 1))/(real_ 4)))))
         ]
-
-dup :: (ABT Term abt, SingI a)
-    => abt '[] ('HMeasure a)
-    -> abt '[] ('HMeasure (HPair a a))
-dup m = let_ m (\m' -> liftM2 pair m' m')
 
 norm_nox :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 norm_nox =

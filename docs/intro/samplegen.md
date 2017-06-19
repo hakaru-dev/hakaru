@@ -55,61 +55,75 @@ simplify temp.hk
 
 ## Example ##
 
-The "trick coin" is a basic example that is used to introduce the probability or expectation of an outcome. Suppose we are given an unfair coin that follows the distribution:
+To demonstrate weights in Hakaru, a sample problem of a burglary alarm is adapted from Pearl's textbook on probabilistic reasoning (page 35)[^2]:
+
+> Imagine being awakened one night by the shrill sound of your burglar alarm. What is your degree of belief that a burglary attempt has taken place? For illustrative 
+> purposes we make the following judgements: (a) There is a 95% chance that an attempted burglary will trigger the alarm system -- P(Alarm|Burglary) = 0.95; (b) based on 
+> previous false alarms, there is a slight (1 percent) chance that the alarm will be triggered by a mechanism other than an attempted burglary -- P(Alarm|No Burglary) = 0.01;
+> (c) previous crime patterns indicate that there is a one in ten thousand chance that a given house will be burglarized on a given night -- P(Burglary) = 10^-4.
+
+This can be modelled in Hakaru by the program:
 
 ````nohighlight
-weight(3, return true) <|> weight(1, return false)
+burglary <~ categorical([0.0001, 0.9999])
+weight([0.95, 0.01][burglary],
+return [true,false][burglary])
 ````
 
-If you save this program as `biasedcoin.hk`, you can generate samples from it by calling:
+If you save this program as `weight_burglary.hk`, you can generate samples from it by calling:
 
 ````bash
-$ hakaru biasedcoin.hk
-4.0     true
-4.0     true
-4.0     true
-4.0     true
-4.0     true
-4.0     true
-4.0     true
-4.0     false
-4.0     false
+$ hakaru weight_burglary.hk
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
+1.0000000000000004e-2   false
 ...
 ````
 
-The `hakaru` command will print a continuous stream of samples drawn from this program. In this example, all sample weights are `4.0`. If you wanted to see the ratio of 
-weights for a series of coin tosses, you can use an `awk` script that tallies the weights for a limited set of samples:
+The `hakaru` command will print a continuous stream of samples drawn from this program. In this example, `true` and `false` samples have different weights. This will not be
+immediately apparent if you manually sift through the samples. If you wanted to see the ratio of weights for a series of samples, you can use an `awk` script that tallies 
+the weights for a limited set of samples:
 
 ````bash
-$ hakaru biasedcoin.hk | head -n 2000 | awk '{a[$2]+=$1}END{for(i in a) print i, a[i]}'
-false 1944
-true 6056
+$ hakaru weight_burglary.hk | head -n 100000 | awk '{a[$2]+=$1}END{for (i in a) print i, a[i]}'
+false 999.87
+true 12.35
 ````
 
-If you were only interested in counting how many times the coin tosses landed on each of HEAD and TAILS, modify the `awk` script to be a counter instead:
+If you were only interested in counting how many times the alarm was triggered correctly and erroneously, modify the `awk` script to be a counter instead:
 
 ````bash
-$ hakaru biasedcoin.hk | head -n 2000 | awk '{a[$2]+=1}END{for(i in a) print i, a[i]}'
-false 524
-true 1476
+$ hakaru weight_burglary.hk | head -n 100000 | awk '{a[$2]+=1}END{for (i in a) print i, a[i]}'
+false 99987
+true 13
 ````
 
 In this case, the printing of sample weights might not be important. To suppress the printing of weights during sample generation, you can use the `--no-weights` or `-w` 
 option:
 
 ````bash
-$ hakaru --no-weights biasedcoin.hk
+$ hakaru --no-weights weight_burglary.hk
 false
-true
-true
-true
 false
-true
-true
-true
+false
+false
+false
+false
+false
+false
 ...
 ````
 
-An example for using the `hakaru` command using a transition kernel is available on the [Metropolis Hastings](../transforms/mh.md) transform page.
+Hakaru can sample from more complex distributions using the [Metropolis Hastings](../transforms/mh.md) transform. The `hakaru` command can then be invoked using a transition
+kernel. For an example of the `hakaru` command usage in this context, refer to the [Metropolis Hastings](../transforms/mh.md) transform page.
 
 [^1]: D.J.C. MacKay, "Introduction to Monte Carlo Methods", Learning in Graphical Models, vol. 89, pp. 175-204, 1998.
+[^2]: J. Pearl, Probabilistic reasoning in intelligent systems: Networks of plausible inference. San Francisco: M. Kaufmann, 1988.
