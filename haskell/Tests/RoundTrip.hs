@@ -209,15 +209,17 @@ testMeasureReal = test
     --, "seismic" ~: testSStriv [] seismic
     , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((real_ 42) < x) (dirac x) (reject sing))
     , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (real_ 42)) (dirac x) (reject sing))
+	-- Problems reading one (not sure which) of the files; causes failure
+    --, "lebesgue3" ~: testConcreteFiles "tests/RoundTrip/lebesgue3.0.hk" "tests/RoundTrip/lebesgue3.expected.hk"
     , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (reject sing)]
                                 (withWeight (prob_ $ 2) $ uniform (real_ 40) (real_ 42))
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
     , "exceptionLebesgue" ~: testConcreteFiles "tests/RoundTrip/exceptionLebesgue.0.hk" "tests/RoundTrip/exceptionLebesgue.expected.hk"
-    , "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x ->
-                                         dirac (if_ (x == (real_ 3)) one x)
-                                        ] (uniform (real_ 2) (real_ 4))
-    --, "exceptionUniform" ~: testConcreteFiles "tests/RoundTrip/exceptionUniform.0.hk" "tests/RoundTrip/exceptionUniform.expected.hk"
+    --, "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x ->
+    --                                     dirac (if_ (x == (real_ 3)) one x)
+    --                                    ] (uniform (real_ 2) (real_ 4))
+    , "exceptionUniform" ~: testConcreteFiles "tests/RoundTrip/exceptionUniform.0.hk" "tests/RoundTrip/exceptionUniform.expected.hk"
 	-- TODO "two_coins" ~: testStriv two_coins -- needs support for lists
     ]
 
@@ -250,7 +252,7 @@ testMeasurePair = test [
     "norm"          ~: testSStriv [] norm,
     "norm_nox"      ~: testSStriv [norm_nox] (normal zero (sqrt (prob_ 2))),
     "norm_noy"      ~: testSStriv [norm_noy] (normal zero one),
-    "flipped_norm"  ~: testSStriv [swap <$> norm] flipped_norm,
+    "flipped_norm"  ~: testConcreteFiles "tests/RoundTrip/flipped_norm.0.hk" "tests/RoundTrip/flipped_norm.expected.hk",
     "priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
                                   (lam $ \x -> unpair x $ \x0 x1 ->
                                                unsafeSuperpose [(half, normal zero
@@ -258,7 +260,7 @@ testMeasurePair = test [
                                                                        dirac (pair x0 y)),
                                                                 (half, normal_0_1 >>= \y ->
                                                                        dirac (pair y x1))]),
-    "mhPriorProp"   ~: testSStriv [testMHPriorProp] testPriorProp',
+	"mhPriorProp"   ~: testConcreteFiles "tests/RoundTrip/mhPriorProp.0.hk" "tests/RoundTrip/mhPriorProp.expected.hk",
     "unif2"         ~: testStriv unif2,
     "easyHMM"       ~: testStriv easyHMM,
     "testMCMCPriorProp" ~: testStriv testMCMCPriorProp
@@ -931,41 +933,6 @@ testMCMCPriorProp
     => abt '[] (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HReal 'HReal))
 testMCMCPriorProp = mcmc (lam $ priorAsProposal norm) norm
 
-testMHPriorProp
-    :: (ABT Term abt)
-    => abt '[]
-        (HPair 'HReal 'HReal
-        ':-> 'HMeasure (HPair (HPair 'HReal 'HReal) 'HProb))
-testMHPriorProp = mh (lam $ priorAsProposal norm) norm
-
-testPriorProp'
-    :: (ABT Term abt)
-    => abt '[]
-        (HPair 'HReal 'HReal
-        ':-> 'HMeasure (HPair (HPair 'HReal 'HReal) 'HProb))
-testPriorProp' =
-    lam $ \old ->
-    unsafeSuperpose
-        [(half,
-            normal_0_1 >>= \x1 ->
-            dirac (pair (pair x1 (snd old))
-                (exp
-                    ( (x1 * negate one + (old `unpair` \x2 x3 -> x2))
-                    *   ( (old `unpair` \x2 x3 -> x2)
-                        + (old `unpair` \x2 x3 -> x3) * (negate (real_ 2))
-                        + x1)
-                    * half))))
-        , (half,
-            normal zero (sqrt (prob_ 2)) >>= \x1 ->
-            dirac (pair (pair (fst old) x1)
-                (exp
-                    ( (x1 + (old `unpair` \x2 x3 -> x3) * negate one)
-                    *   ( (old `unpair` \x2 x3 -> x3)
-                        + (old `unpair` \x2 x3 -> x2) * (negate (real_ 4))
-                        + x1)
-                    * (negate (real_ 1))/(real_ 4)))))
-        ]
-
 norm_nox :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 norm_nox =
     normal_0_1 >>= \x ->
@@ -977,12 +944,6 @@ norm_noy =
     normal_0_1 >>= \x ->
     normal x one >>
     dirac x
-
-flipped_norm :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
-flipped_norm =
-    normal zero one >>= \x ->
-    normal x one >>= \y ->
-    dirac (pair y x)
 
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
