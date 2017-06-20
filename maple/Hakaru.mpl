@@ -734,7 +734,50 @@ Hakaru := module ()
            WARNING("Previous value of Hakaru keyword '%1' erased.", g);
          end if;
          protect(g)
-    end do
+    end do;
+
+    kernelopts(opaquemodules=false):
+    unprotect(SolveTools:-Transformers:-NonEquality:-Apply);
+    SolveTools:-Transformers:-NonEquality:-Apply := proc(syst::SubSystem)
+    local eqs, noneqs, linnoneqs, news, vars, i, badnoneqs, neq, sol, sols;
+      noneqs, eqs := selectremove(type,[op(SolveTools:-Utilities:-GetEquations(syst)), op(SolveTools:-Utilities:-GetInequations(syst))],`<>`);
+      noneqs := map(SolveTools:-Utilities:-SimpleCond,noneqs);
+      noneqs := remove(z -> ormap(y -> evalb(type(y,`<`) and (lhs(y) = lhs(z) and rhs(y) = rhs(z) or lhs(y) = rhs(z) and rhs(y) = lhs(z))) = true,eqs),noneqs);
+      for i to nops(eqs) do
+        if type(eqs[i],`<=`) then
+          badnoneqs, noneqs := selectremove(z -> evalb(lhs(z) = lhs(eqs[i]) and rhs(z) = rhs(eqs[i]) or lhs(z) = rhs(eqs[i]) and rhs(z) = lhs(eqs[i])) = true,noneqs);
+          if nops(badnoneqs) <> 0 then
+            eqs := [op(1 .. i-1,eqs), `<`(op(eqs[i])), op(i+1 .. -1,eqs)]
+          end if
+           end if
+      end do;
+      noneqs := remove(proc (z) local y, subst; try for y in eqs while true do if has(y,lhs(z)) then subst := eval(`if`(type(y,relation),y,y = 0),lhs(z) = rhs(z)); if SolveTools:-Complexity(subst) < 400 and evalb(coulditbe(subst) = false) then return true end if end if end do; return false catch: return false end try end proc,noneqs);
+      if hastype(eqs,{`<`, `<=`}) and 0 < nops(noneqs) then
+        vars := SolveTools:-Utilities:-GetVariables(syst);
+        linnoneqs, noneqs := selectremove(z -> (not has(lhs(z),vars) or type(lhs(z),('linear')(vars))) and (not has(rhs(z),vars) or type(rhs(z),('linear')(vars))),noneqs);
+        linnoneqs := SolveTools:-SortByComplexity(linnoneqs);
+        noneqs := map(z -> lhs(z)-rhs(z) <> 0,noneqs);
+        news := [SolveTools:-Utilities:-SetInequations(SolveTools:-Utilities:-SetEquations(syst,{op(eqs)}),{op(noneqs)})];
+        for i in linnoneqs do
+          news := map(z -> op([SolveTools:-Utilities:-SetEquations(z,{op(SolveTools:-Utilities:-GetEquations(z)), lhs(i) < rhs(i)}), SolveTools:-Utilities:-SetEquations(z,{op(SolveTools:-Utilities:-GetEquations(z)), rhs(i) < lhs(i)})]),news)
+        end do;
+        return op(news)
+      elif nops(eqs) = 0 and 0 < nops(noneqs) then
+        vars := SolveTools:-Utilities:-GetVariables(syst);
+        sols := {};
+        for neq in noneqs do
+          sol := {op(SolveTools:-Engine:-Recurse({lhs(neq) = rhs(neq)},{},vars))};
+          sol := map(x -> op(map(y -> lhs(y) <> rhs(y),x)),sol);
+          sols := `union`(sols,sol)
+        end do;
+        return SolveTools:-Utilities:-SetFinished(SolveTools:-Utilities:-SetSolutions(syst,map(SolveTools:-Utilities:-Union,SolveTools:-Utilities:-GetOriginalSolutions(syst),sols)),true)
+      else
+        noneqs := map(z -> lhs(z)-rhs(z) <> 0,noneqs);
+        return SolveTools:-Utilities:-SetInequations(SolveTools:-Utilities:-SetEquations(syst,{op(eqs)}),{op(noneqs)})
+      end if
+    end proc;
+    protect(SolveTools:-Transformers:-NonEquality:-Apply);
+
   end proc;
 
   ModuleUnload := proc($)
