@@ -111,11 +111,9 @@ type IsTest ta t = (IsTest' ta t, IsTestGroup t, IsTestAssertion ta)
 
 testMeasureUnit :: IsTest ta t => t
 testMeasureUnit = test [
-    -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
-    "t1"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.0.hk" "tests/RoundTrip/t1,t5.expected.hk",
-    -- t5 is "the same" as t1.
-    "t5"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.1.hk" "tests/RoundTrip/t1,t5.expected.hk",
-    "t10"     ~: testSStriv [t10] (reject sing),
+    "t1"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.0.hk" "tests/RoundTrip/t1,t5.expected.hk", -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
+    "t5"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.1.hk" "tests/RoundTrip/t1,t5.expected.hk", -- t5 is "the same" as t1.
+    "t10"     ~: testConcreteFiles "tests/RoundTrip/t10.0.hk" "tests/RoundTrip/t10.expected.hk",
     "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
     "t12"     ~: testSStriv [] t12,
     "t20"     ~: testSStriv [t20] (lam $ \y -> weight (y * half)),
@@ -163,9 +161,7 @@ testMeasureReal = test
     , "t6"  ~: testConcreteFiles "tests/RoundTrip/t6.0.hk" "tests/RoundTrip/t6.expected.hk"
     , "t7"  ~: testConcreteFiles "tests/RoundTrip/t7.0.hk" "tests/RoundTrip/t7.expected.hk"
     , "t7n" ~: testConcreteFiles "tests/RoundTrip/t7n.0.hk" "tests/RoundTrip/t7n.expected.hk"
-    , "t8'" ~: testSStriv [t8'] (lam $ \s1 ->
-                                 lam $ \s2 ->
-                                 normal zero (sqrt $ (s2 ^ (nat_ 2) + s1 ^ (nat_ 2))))
+    , "t8'" ~: testConcreteFiles "tests/RoundTrip/t8'.0.hk" "tests/RoundTrip/t8'.expected.hk" -- Normal is conjugate to normal
     , "t9"  ~: testSStriv [t9] (unsafeSuperpose [(prob_ 2, uniform (real_ 3) (real_ 7))])
     , "t13" ~: testSStriv [t13] t13'
     , "t14" ~: testSStriv [t14] t14'
@@ -219,9 +215,6 @@ testMeasureReal = test
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
     , "exceptionLebesgue" ~: testConcreteFiles "tests/RoundTrip/exceptionLebesgue.0.hk" "tests/RoundTrip/exceptionLebesgue.expected.hk"
-    --, "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x ->
-    --                                     dirac (if_ (x == (real_ 3)) one x)
-    --                                    ] (uniform (real_ 2) (real_ 4))
     , "exceptionUniform" ~: testConcreteFiles "tests/RoundTrip/exceptionUniform.0.hk" "tests/RoundTrip/exceptionUniform.expected.hk"
 	-- TODO "two_coins" ~: testStriv two_coins -- needs support for lists
     ]
@@ -235,7 +228,7 @@ testMeasureInt :: IsTest ta t => t
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
     , "t75'" ~: testStriv t75'
-    , "t83"  ~: testSStriv [t83] t83'
+    , "t83"  ~: testConcreteFiles "tests/RoundTrip/t83.0.hk" "tests/RoundTrip/t83.expected.hk"
     -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
     , "exceptionCounting" ~: testSStriv [] (counting >>= \x ->
                                             if_ (x == (int_ 3))
@@ -248,8 +241,7 @@ testMeasurePair :: IsTest ta t => t
 testMeasurePair = test [
     "t4"            ~: testConcreteFiles "tests/RoundTrip/t4.0.hk" "tests/RoundTrip/t4.expected.hk",
     "t8"            ~: testSStriv [] t8,
-    -- was called bayesNet in Nov.06 msg by Ken for exact inference
-    "t23"           ~: testConcreteFiles "tests/RoundTrip/t23.0.hk" "tests/RoundTrip/t23.expected.hk",
+    "t23"           ~: testConcreteFiles "tests/RoundTrip/t23.0.hk" "tests/RoundTrip/t23.expected.hk", -- was called bayesNet in Nov.06 msg by Ken for exact inference
     "t48"           ~: testStriv t48,
     "t52"           ~: testSStriv [] t52,
     "dup"           ~: testConcreteFiles "tests/RoundTrip/dup.0.hk" "tests/RoundTrip/dup.expected.hk",
@@ -267,6 +259,8 @@ testMeasurePair = test [
 testOther :: IsTest ta t => t
 testOther = test [
     "t82" ~: testSStriv [t82] t82',
+	-- Error: Files not of the same type
+    --"t82" ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
     "testRoadmapProg1" ~: testStriv rmProg1,
     "testKernel" ~: testSStriv [testKernel] testKernel2
     --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
@@ -300,23 +294,11 @@ t3 = normal zero (prob_ 10)
 t8 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
 t8 = normal zero (prob_ 10) >>= \x -> normal x (prob_ 20) >>= \y -> dirac (pair x y)
 
--- Normal is conjugate to normal
-t8' :: (ABT Term abt)
-    => abt '[] ('HProb ':-> 'HProb ':-> 'HMeasure 'HReal)
-t8' =
-    lam $ \s1 ->
-    lam $ \s2 ->
-    normal zero s1 >>= \x ->
-    normal x s2
-
 t9 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t9 =
     lebesgue >>= \x -> 
     weight (if_ ((real_ 3) < x && x < (real_ 7)) half zero) >> 
     dirac x
-
-t10 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t10 = weight zero
 
 t11 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t11 = weight one
@@ -874,14 +856,6 @@ t82 = lam (densityUniform zero one)
 
 t82' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
 t82' = lam $ \x -> one 
-
-t83 :: (ABT Term abt) => abt '[] ('HNat ':-> 'HMeasure 'HNat)
-t83 = lam $ \k ->
-      plate k (\_ -> dirac (nat_ 1)) >>= \x ->
-      dirac (size x)
-
-t83' :: (ABT Term abt) => abt '[] ('HNat ':-> 'HMeasure 'HNat)
-t83' = lam dirac
 
 -- Testing round-tripping of some other distributions
 testexponential :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
