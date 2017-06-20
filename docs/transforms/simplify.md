@@ -46,7 +46,7 @@ seperate command named `simplify`. If you encounter `simplify someprog.hk
 
 ### Disintegrate
 The Maple disintegrator is an alternative implementation of the program
-transformation described in [Disintegrate]. Semantically, the Maple
+transformation described in [Disintegrate](/transforms/disintegrate). Semantically, the Maple
 disintegrator and Haskell disintegrator implement the same transformation. In
 particular, their outputs are not (often) identical, but have equivalent
 sampling semantics. In practice, the ouputs may differ, since one may fail where
