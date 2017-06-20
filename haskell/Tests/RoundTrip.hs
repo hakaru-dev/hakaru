@@ -43,8 +43,8 @@ import Tests.TestTools hiding (testStriv, testSStriv, testConcreteFiles)
 import qualified Tests.TestTools as Tools
 import Tests.Models
     (uniform_0_1, normal_0_1, gamma_1_1,
-     uniformC, normalC, beta_1_1, t4, t4', norm, unif2)
-
+     uniformC, normalC, beta_1_1, norm, unif2)
+-- import Tests.Models (t4, t4')
 unsafeSuperpose
     :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
@@ -111,11 +111,13 @@ type IsTest ta t = (IsTest' ta t, IsTestGroup t, IsTestAssertion ta)
 
 testMeasureUnit :: IsTest ta t => t
 testMeasureUnit = test [
-    "t1,t5"   ~: testSStriv [t1,t5] (weight half),
-    "t10"     ~: testSStriv [t10] (reject sing),
-    "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
+    "t1"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.0.hk" "tests/RoundTrip/t1,t5.expected.hk", -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
+    "t5"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.1.hk" "tests/RoundTrip/t1,t5.expected.hk", -- t5 is "the same" as t1.
+    "t10"     ~: testConcreteFiles "tests/RoundTrip/t10.0.hk" "tests/RoundTrip/t10.expected.hk",
+    "t11"     ~: testConcreteFiles "tests/RoundTrip/t11,t22.0.hk" "tests/RoundTrip/t11,t22.expected.hk",
     "t12"     ~: testSStriv [] t12,
-    "t20"     ~: testSStriv [t20] (lam $ \y -> weight (y * half)),
+    "t20"     ~: testConcreteFiles "tests/RoundTrip/t20.0.hk" "tests/RoundTrip/t20.expected.hk",
+    "t22"     ~: testConcreteFiles "tests/RoundTrip/t11,t22.1.hk" "tests/RoundTrip/t11,t22.expected.hk",
     "t24"     ~: testSStriv [t24] t24',
     "t25"     ~: testSStriv [t25] t25',
     "t44Add"  ~: testSStriv [t44Add] t44Add',
@@ -137,7 +139,7 @@ testMeasureUnit = test [
 
 testMeasureProb :: IsTest ta t => t
 testMeasureProb = test [
-    "t2"  ~: testSStriv [t2] (unsafeProb <$> uniform zero one),
+    "t2"  ~: testConcreteFiles "tests/RoundTrip/t2.0.hk" "tests/RoundTrip/t2.expected.hk",
     "t26" ~: testSStriv [t26] (dirac half),
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
@@ -157,15 +159,13 @@ testMeasureProb = test [
 testMeasureReal :: IsTest ta t => t
 testMeasureReal = test
     [ "t3"  ~: testSStriv [] t3
-    , "t6"  ~: testSStriv [t6'] t6
-    , "t7"  ~: testSStriv [t7] t7'
-    , "t7n" ~: testSStriv [t7n] t7n'
-    , "t8'" ~: testSStriv [t8'] (lam $ \s1 ->
-                                 lam $ \s2 ->
-                                 normal zero (sqrt $ (s2 ^ (nat_ 2) + s1 ^ (nat_ 2))))
-    , "t9"  ~: testSStriv [t9] (unsafeSuperpose [(prob_ 2, uniform (real_ 3) (real_ 7))])
-    , "t13" ~: testSStriv [t13] t13'
-    , "t14" ~: testSStriv [t14] t14'
+    , "t6"  ~: testConcreteFiles "tests/RoundTrip/t6.0.hk" "tests/RoundTrip/t6.expected.hk"
+    , "t7"  ~: testConcreteFiles "tests/RoundTrip/t7.0.hk" "tests/RoundTrip/t7.expected.hk"
+    , "t7n" ~: testConcreteFiles "tests/RoundTrip/t7n.0.hk" "tests/RoundTrip/t7n.expected.hk"
+    , "t8'" ~: testConcreteFiles "tests/RoundTrip/t8'.0.hk" "tests/RoundTrip/t8'.expected.hk" -- Normal is conjugate to normal
+    , "t9" ~: testConcreteFiles "tests/RoundTrip/t9.0.hk" "tests/RoundTrip/t9.expected.hk"
+    , "t13" ~: testConcreteFiles "tests/RoundTrip/t13.0.hk" "tests/RoundTrip/t13.expected.hk"
+    , "t14" ~: testConcreteFiles "tests/RoundTrip/t14.0.hk" "tests/RoundTrip/t14.expected.hk"
     , "t21" ~: testStriv t21
     , "t28" ~: testSStriv [] t28
     , "t31" ~: testSStriv [] t31
@@ -173,33 +173,34 @@ testMeasureReal = test
     , "t37" ~: testSStriv [] t37
     , "t39" ~: testSStriv [] t39
     , "t40" ~: testSStriv [] t40
-    , "t43" ~: testSStriv [t43, t43'] t43''
+    , "t43" ~: testConcreteFiles "tests/RoundTrip/t43.0.hk" "tests/RoundTrip/t43.expected.hk"
+    , "t43'" ~: testConcreteFiles "tests/RoundTrip/t43.1.hk" "tests/RoundTrip/t43.expected.hk"
     , "t46" ~: testSStriv [] t46
     , "t45" ~: testSStriv [t47] t45
     , "t50" ~: testStriv t50
     , "t51" ~: testStriv t51
     , "t68" ~: testStriv t68
     , "t68'" ~: testStriv t68'
-    , "t70a" ~: testSStriv [t70a] (uniform one (real_ 3))
-    , "t71a" ~: testSStriv [t71a] (uniform one (real_ 3))
-    , "t72a" ~: testSStriv [t72a] (withWeight half $ uniform one (real_ 2))
-    , "t73a" ~: testSStriv [t73a] (reject sing)
-    , "t74a" ~: testSStriv [t74a] (reject sing)
-    , "t70b" ~: testSStriv [t70b] (reject sing)
-    , "t71b" ~: testSStriv [t71b] (reject sing)
-    , "t72b" ~: testSStriv [t72b] (withWeight half $ uniform (real_ 2) (real_ 3))
-    , "t73b" ~: testSStriv [t73b] (uniform one (real_ 3))
-    , "t74b" ~: testSStriv [t74b] (uniform one (real_ 3))
-    , "t70c" ~: testSStriv [t70c] (uniform one (real_ 3))
-    , "t71c" ~: testSStriv [t71c] (uniform one (real_ 3))
-    , "t72c" ~: testSStriv [t72c] (withWeight half $ uniform one (real_ 2))
-    , "t73c" ~: testSStriv [t73c] (reject sing)
-    , "t74c" ~: testSStriv [t74c] (reject sing)
-    , "t70d" ~: testSStriv [t70d] (reject sing)
-    , "t71d" ~: testSStriv [t71d] (reject sing)
-    , "t72d" ~: testSStriv [t72d] (withWeight half $ uniform (real_ 2) (real_ 3))
-    , "t73d" ~: testSStriv [t73d] (uniform one (real_ 3))
-    , "t74d" ~: testSStriv [t74d] (uniform one (real_ 3))
+    , "t70a" ~: testConcreteFiles "tests/RoundTrip/t70a.0.hk" "tests/RoundTrip/t70a.expected.hk"
+    , "t71a" ~: testConcreteFiles "tests/RoundTrip/t71a.0.hk" "tests/RoundTrip/t71a.expected.hk"
+    , "t72a" ~: testConcreteFiles "tests/RoundTrip/t72a.0.hk" "tests/RoundTrip/t72a.expected.hk"
+    , "t73a" ~: testConcreteFiles "tests/RoundTrip/t73a.0.hk" "tests/RoundTrip/t73a.expected.hk"
+    , "t74a" ~: testConcreteFiles "tests/RoundTrip/t74a.0.hk" "tests/RoundTrip/t74a.expected.hk"
+    , "t70b" ~: testConcreteFiles "tests/RoundTrip/t70b.0.hk" "tests/RoundTrip/t70b.expected.hk"
+    , "t71b" ~: testConcreteFiles "tests/RoundTrip/t71b.0.hk" "tests/RoundTrip/t71b.expected.hk"
+    , "t72b" ~: testConcreteFiles "tests/RoundTrip/t72b.0.hk" "tests/RoundTrip/t72b.expected.hk"
+    , "t73b" ~: testConcreteFiles "tests/RoundTrip/t73b.0.hk" "tests/RoundTrip/t73b.expected.hk"
+    , "t74b" ~: testConcreteFiles "tests/RoundTrip/t74b.0.hk" "tests/RoundTrip/t74b.expected.hk"
+    , "t70c" ~: testConcreteFiles "tests/RoundTrip/t70c.0.hk" "tests/RoundTrip/t70c.expected.hk"
+    , "t71c" ~: testConcreteFiles "tests/RoundTrip/t71c.0.hk" "tests/RoundTrip/t71c.expected.hk"
+    , "t72c" ~: testConcreteFiles "tests/RoundTrip/t72c.0.hk" "tests/RoundTrip/t72c.expected.hk"
+    , "t73c" ~: testConcreteFiles "tests/RoundTrip/t73c.0.hk" "tests/RoundTrip/t73c.expected.hk"
+    , "t74c" ~: testConcreteFiles "tests/RoundTrip/t74c.0.hk" "tests/RoundTrip/t74c.expected.hk"
+    , "t70d" ~: testConcreteFiles "tests/RoundTrip/t70d.0.hk" "tests/RoundTrip/t70d.expected.hk"
+    , "t71d" ~: testConcreteFiles "tests/RoundTrip/t71d.0.hk" "tests/RoundTrip/t71d.expected.hk"
+    , "t72d" ~: testConcreteFiles "tests/RoundTrip/t72d.0.hk" "tests/RoundTrip/t72d.expected.hk"
+    , "t73d" ~: testConcreteFiles "tests/RoundTrip/t73d.0.hk" "tests/RoundTrip/t73d.expected.hk"
+    , "t74d" ~: testConcreteFiles "tests/RoundTrip/t74d.0.hk" "tests/RoundTrip/t74d.expected.hk"
     , "t76" ~: testStriv t76
     , "t78" ~: testSStriv [t78] t78'
     , "t79" ~: testSStriv [t79] (dirac one)
@@ -209,15 +210,14 @@ testMeasureReal = test
     --, "seismic" ~: testSStriv [] seismic
     , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((real_ 42) < x) (dirac x) (reject sing))
     , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (real_ 42)) (dirac x) (reject sing))
+	-- Problems reading one (not sure which) of the files; causes failure
+    --, "lebesgue3" ~: testConcreteFiles "tests/RoundTrip/lebesgue3.0.hk" "tests/RoundTrip/lebesgue3.expected.hk"
     , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (reject sing)]
                                 (withWeight (prob_ $ 2) $ uniform (real_ 40) (real_ 42))
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
     , "exceptionLebesgue" ~: testConcreteFiles "tests/RoundTrip/exceptionLebesgue.0.hk" "tests/RoundTrip/exceptionLebesgue.expected.hk"
-    , "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x ->
-                                         dirac (if_ (x == (real_ 3)) one x)
-                                        ] (uniform (real_ 2) (real_ 4))
-    --, "exceptionUniform" ~: testConcreteFiles "tests/RoundTrip/exceptionUniform.0.hk" "tests/RoundTrip/exceptionUniform.expected.hk"
+    , "exceptionUniform" ~: testConcreteFiles "tests/RoundTrip/exceptionUniform.0.hk" "tests/RoundTrip/exceptionUniform.expected.hk"
 	-- TODO "two_coins" ~: testStriv two_coins -- needs support for lists
     ]
 
@@ -230,7 +230,7 @@ testMeasureInt :: IsTest ta t => t
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
     , "t75'" ~: testStriv t75'
-    , "t83"  ~: testSStriv [t83] t83'
+    , "t83"  ~: testConcreteFiles "tests/RoundTrip/t83.0.hk" "tests/RoundTrip/t83.expected.hk"
     -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
     , "exceptionCounting" ~: testSStriv [] (counting >>= \x ->
                                             if_ (x == (int_ 3))
@@ -241,24 +241,18 @@ testMeasureInt = test
 
 testMeasurePair :: IsTest ta t => t 
 testMeasurePair = test [
-    "t4"            ~: testSStriv [t4] t4',
+    "t4"            ~: testConcreteFiles "tests/RoundTrip/t4.0.hk" "tests/RoundTrip/t4.expected.hk",
     "t8"            ~: testSStriv [] t8,
-    "t23"           ~: testSStriv [t23] t23',
+    "t23"           ~: testConcreteFiles "tests/RoundTrip/t23.0.hk" "tests/RoundTrip/t23.expected.hk", -- was called bayesNet in Nov.06 msg by Ken for exact inference
     "t48"           ~: testStriv t48,
     "t52"           ~: testSStriv [] t52,
     "dup"           ~: testConcreteFiles "tests/RoundTrip/dup.0.hk" "tests/RoundTrip/dup.expected.hk",
     "norm"          ~: testSStriv [] norm,
-    "norm_nox"      ~: testSStriv [norm_nox] (normal zero (sqrt (prob_ 2))),
-    "norm_noy"      ~: testSStriv [norm_noy] (normal zero one),
-    "flipped_norm"  ~: testSStriv [swap <$> norm] flipped_norm,
-    "priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
-                                  (lam $ \x -> unpair x $ \x0 x1 ->
-                                               unsafeSuperpose [(half, normal zero
-                                                                         (sqrt (prob_ 2)) >>= \y ->
-                                                                       dirac (pair x0 y)),
-                                                                (half, normal_0_1 >>= \y ->
-                                                                       dirac (pair y x1))]),
-    "mhPriorProp"   ~: testSStriv [testMHPriorProp] testPriorProp',
+    "norm_nox"      ~: testConcreteFiles "tests/RoundTrip/norm_nox.0.hk" "tests/RoundTrip/norm_nox.expected.hk",
+    "norm_noy"      ~: testConcreteFiles "tests/RoundTrip/norm_noy.0.hk" "tests/RoundTrip/norm_noy.expected.hk",
+    "flipped_norm"  ~: testConcreteFiles "tests/RoundTrip/flipped_norm.0.hk" "tests/RoundTrip/flipped_norm.expected.hk",
+    "priorProp"     ~: testConcreteFiles "tests/RoundTrip/priorProp.0.hk" "tests/RoundTrip/priorProp.expected.hk",
+	"mhPriorProp"   ~: testConcreteFiles "tests/RoundTrip/mhPriorProp.0.hk" "tests/RoundTrip/mhPriorProp.expected.hk",
     "unif2"         ~: testStriv unif2,
     "easyHMM"       ~: testStriv easyHMM,
     "testMCMCPriorProp" ~: testStriv testMCMCPriorProp
@@ -267,6 +261,8 @@ testMeasurePair = test [
 testOther :: IsTest ta t => t
 testOther = test [
     "t82" ~: testSStriv [t82] t82',
+	-- Error: Files not of the same type
+    --"t82" ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
     "testRoadmapProg1" ~: testStriv rmProg1,
     "testKernel" ~: testSStriv [testKernel] testKernel2
     --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
@@ -290,34 +286,9 @@ save_allTests :: IO ()
 save_allTests = runSaveTests allTests 
 
 ----------------------------------------------------------------
--- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
-t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t1 = uniform_0_1 >>= \x -> weight (unsafeProb x)
-
-t2 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t2 = beta_1_1
 
 t3 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t3 = normal zero (prob_ 10)
-
--- t5 is "the same" as t1.
-t5 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t5 = weight half >> dirac unit
-
-t6, t6' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t6 = dirac (real_ 5)
-t6' = unsafeSuperpose [(one, dirac (real_ 5))]
-
-t7,t7', t7n,t7n' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t7   = uniform_0_1 >>= \x -> weight (unsafeProb (x+one)) >> dirac (x*x)
-t7'  = uniform_0_1 >>= \x -> unsafeSuperpose [(unsafeProb (x+one), dirac (x^(nat_ 2)))]
-t7n  =
-    uniform (negate one) zero >>= \x ->
-    weight (unsafeProb (x+one)) >>
-    dirac (x*x)
-t7n' =
-    uniform (real_ (-1)) zero >>= \x ->
-    unsafeSuperpose [(unsafeProb (x + one), dirac (x^(nat_ 2)))]
 
 -- For sampling efficiency (to keep importance weights at or close to 1),
 -- t8 below should read back to uses of "normal", not uses of "lebesgue"
@@ -325,71 +296,11 @@ t7n' =
 t8 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
 t8 = normal zero (prob_ 10) >>= \x -> normal x (prob_ 20) >>= \y -> dirac (pair x y)
 
--- Normal is conjugate to normal
-t8' :: (ABT Term abt)
-    => abt '[] ('HProb ':-> 'HProb ':-> 'HMeasure 'HReal)
-t8' =
-    lam $ \s1 ->
-    lam $ \s2 ->
-    normal zero s1 >>= \x ->
-    normal x s2
-
-t9 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t9 =
-    lebesgue >>= \x -> 
-    weight (if_ ((real_ 3) < x && x < (real_ 7)) half zero) >> 
-    dirac x
-
-t10 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t10 = weight zero
-
-t11 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t11 = weight one
-
 t12 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t12 = weight (prob_ 2)
 
-t13,t13' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t13 = bern ((prob_ 3)/(prob_ 5)) >>= \b -> dirac (if_ b (real_ 37) (real_ 42))
-t13' = unsafeSuperpose
-    [ (prob_ $ 3 % 5, dirac (real_ 37))
-    , (prob_ $ 2 % 5, dirac (real_ 42))
-    ]
-
-t14,t14' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t14 =
-    bern ((prob_ 3)/(prob_ 5)) >>= \b ->
-    if_ b t13 (bern ((prob_ 2)/(prob_ 7)) >>= \b' ->
-        if_ b' (uniform (real_ 10) (real_ 12)) (uniform (real_ 14) (real_ 16)))
-t14' = unsafeSuperpose 
-    [ (prob_ $ 9 % 25, dirac (real_ 37))
-    , (prob_ $ 6 % 25, dirac (real_ 42))
-    , (prob_ $ 4 % 35, uniform (real_ 10) (real_ 12))
-    , (prob_ $ 2 % 7 , uniform (real_ 14) (real_ 16))
-    ]
-
-t20 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
-t20 = lam $ \y -> uniform_0_1 >>= \x -> weight (unsafeProb x * y)
-
 t21 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HReal)
 t21 = mcmc (lam $ \x -> normal x one) (normal zero (prob_ 5))
-
-t22 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t22 = bern half >> dirac unit
-
--- was called bayesNet in Nov.06 msg by Ken for exact inference
-t23, t23' :: (ABT Term abt) => abt '[] ('HMeasure (HPair HBool HBool))
-t23 =
-    bern half >>= \a ->
-    bern (if_ a ((prob_ 9)/(prob_ 10)) ((prob_ 1)/(prob_ 10))) >>= \b ->
-    bern (if_ a ((prob_ 9)/(prob_ 10)) ((prob_ 1)/(prob_ 10))) >>= \c ->
-    dirac (pair b c)
-t23' = unsafeSuperpose
-    [ ((prob_ $ 41 % 100), dirac (pair true true))
-    , ((prob_ $ 9  % 100), dirac (pair true false))
-    , ((prob_ $ 9  % 100), dirac (pair false true))
-    , ((prob_ $ 41 % 100), dirac (pair false false))
-    ]
 
 t24,t24' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
 t24 =
@@ -414,6 +325,9 @@ t25' =
    lam $ \x ->
    lam $ \y ->
    weight (x * exp (cos y) * half)
+
+t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
+t1 = uniform_0_1 >>= \x -> weight (unsafeProb x)   
 
 t26 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t26 = dirac (total t1)
@@ -454,11 +368,6 @@ t40 = lam (dirac . log)
 
 t42 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t42 = dirac . total $ (unsafeProb <$> uniform zero (real_ 2))
-
-t43, t43', t43'' :: (ABT Term abt) => abt '[] (HBool ':-> 'HMeasure 'HReal)
-t43   = lam $ \b -> if_ b uniform_0_1 (fromProb <$> beta_1_1)
-t43'  = lam $ \b -> if_ b uniform_0_1 uniform_0_1
-t43'' = lam $ \_ -> uniform_0_1
 
 t44Add, t44Add', t44Mul, t44Mul'
     :: (ABT Term abt) => abt '[] ('HReal ':-> 'HReal ':-> 'HMeasure HUnit)
@@ -834,34 +743,6 @@ t69x, t69y :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t69x = dirac (integrate one (real_ 2) $ \x -> integrate (real_ 3) (real_ 4) $ \_ -> unsafeProb x)
 t69y = dirac (integrate one (real_ 2) $ \_ -> integrate (real_ 3) (real_ 4) $ \y -> unsafeProb y)
 
-t70a, t71a, t72a, t73a, t74a :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t70a = uniform one (real_ 3) >>= \x -> if_ ((real_ 4) < x) (reject sing) (dirac x)
-t71a = uniform one (real_ 3) >>= \x -> if_ ((real_ 3) < x) (reject sing) (dirac x)
-t72a = uniform one (real_ 3) >>= \x -> if_ ((real_ 2) < x) (reject sing) (dirac x)
-t73a = uniform one (real_ 3) >>= \x -> if_ (one < x) (reject sing) (dirac x)
-t74a = uniform one (real_ 3) >>= \x -> if_ (zero < x) (reject sing) (dirac x)
-
-t70b, t71b, t72b, t73b, t74b :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t70b = uniform one (real_ 3) >>= \x -> if_ ((real_ 4) < x) (dirac x) (reject sing)
-t71b = uniform one (real_ 3) >>= \x -> if_ ((real_ 3) < x) (dirac x) (reject sing)
-t72b = uniform one (real_ 3) >>= \x -> if_ ((real_ 2) < x) (dirac x) (reject sing)
-t73b = uniform one (real_ 3) >>= \x -> if_ (one < x) (dirac x) (reject sing)
-t74b = uniform one (real_ 3) >>= \x -> if_ (zero < x) (dirac x) (reject sing)
-
-t70c, t71c, t72c, t73c, t74c :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t70c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 4)) (dirac x) (reject sing)
-t71c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 3)) (dirac x) (reject sing)
-t72c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 2)) (dirac x) (reject sing)
-t73c = uniform one (real_ 3) >>= \x -> if_ (x < one) (dirac x) (reject sing)
-t74c = uniform one (real_ 3) >>= \x -> if_ (x < zero) (dirac x) (reject sing)
-
-t70d, t71d, t72d, t73d, t74d :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t70d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 4)) (reject sing) (dirac x)
-t71d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 3)) (reject sing) (dirac x)
-t72d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 2)) (reject sing) (dirac x)
-t73d = uniform one (real_ 3) >>= \x -> if_ (x < one) (reject sing) (dirac x)
-t74d = uniform one (real_ 3) >>= \x -> if_ (x < zero) (reject sing) (dirac x)
-
 t75 :: (ABT Term abt) => abt '[] ('HMeasure 'HNat)
 t75 = gamma (prob_ 6) one >>= poisson
 
@@ -911,14 +792,6 @@ t82 = lam (densityUniform zero one)
 t82' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
 t82' = lam $ \x -> one 
 
-t83 :: (ABT Term abt) => abt '[] ('HNat ':-> 'HMeasure 'HNat)
-t83 = lam $ \k ->
-      plate k (\_ -> dirac (nat_ 1)) >>= \x ->
-      dirac (size x)
-
-t83' :: (ABT Term abt) => abt '[] ('HNat ':-> 'HMeasure 'HNat)
-t83' = lam dirac
-
 -- Testing round-tripping of some other distributions
 testexponential :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 testexponential = exponential third
@@ -930,59 +803,6 @@ testMCMCPriorProp
     :: (ABT Term abt)
     => abt '[] (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HReal 'HReal))
 testMCMCPriorProp = mcmc (lam $ priorAsProposal norm) norm
-
-testMHPriorProp
-    :: (ABT Term abt)
-    => abt '[]
-        (HPair 'HReal 'HReal
-        ':-> 'HMeasure (HPair (HPair 'HReal 'HReal) 'HProb))
-testMHPriorProp = mh (lam $ priorAsProposal norm) norm
-
-testPriorProp'
-    :: (ABT Term abt)
-    => abt '[]
-        (HPair 'HReal 'HReal
-        ':-> 'HMeasure (HPair (HPair 'HReal 'HReal) 'HProb))
-testPriorProp' =
-    lam $ \old ->
-    unsafeSuperpose
-        [(half,
-            normal_0_1 >>= \x1 ->
-            dirac (pair (pair x1 (snd old))
-                (exp
-                    ( (x1 * negate one + (old `unpair` \x2 x3 -> x2))
-                    *   ( (old `unpair` \x2 x3 -> x2)
-                        + (old `unpair` \x2 x3 -> x3) * (negate (real_ 2))
-                        + x1)
-                    * half))))
-        , (half,
-            normal zero (sqrt (prob_ 2)) >>= \x1 ->
-            dirac (pair (pair (fst old) x1)
-                (exp
-                    ( (x1 + (old `unpair` \x2 x3 -> x3) * negate one)
-                    *   ( (old `unpair` \x2 x3 -> x3)
-                        + (old `unpair` \x2 x3 -> x2) * (negate (real_ 4))
-                        + x1)
-                    * (negate (real_ 1))/(real_ 4)))))
-        ]
-
-norm_nox :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-norm_nox =
-    normal_0_1 >>= \x ->
-    normal x one >>= \y ->
-    dirac y
-
-norm_noy :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-norm_noy =
-    normal_0_1 >>= \x ->
-    normal x one >>
-    dirac x
-
-flipped_norm :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
-flipped_norm =
-    normal zero one >>= \x ->
-    normal x one >>= \y ->
-    dirac (pair y x)
 
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
