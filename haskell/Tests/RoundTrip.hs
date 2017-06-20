@@ -114,9 +114,10 @@ testMeasureUnit = test [
     "t1"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.0.hk" "tests/RoundTrip/t1,t5.expected.hk", -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
     "t5"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.1.hk" "tests/RoundTrip/t1,t5.expected.hk", -- t5 is "the same" as t1.
     "t10"     ~: testConcreteFiles "tests/RoundTrip/t10.0.hk" "tests/RoundTrip/t10.expected.hk",
-    "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
+    "t11"     ~: testConcreteFiles "tests/RoundTrip/t11,t22.0.hk" "tests/RoundTrip/t11,t22.expected.hk",
     "t12"     ~: testSStriv [] t12,
-    "t20"     ~: testSStriv [t20] (lam $ \y -> weight (y * half)),
+    "t20"     ~: testConcreteFiles "tests/RoundTrip/t20.0.hk" "tests/RoundTrip/t20.expected.hk",
+    "t22"     ~: testConcreteFiles "tests/RoundTrip/t11,t22.1.hk" "tests/RoundTrip/t11,t22.expected.hk",
     "t24"     ~: testSStriv [t24] t24',
     "t25"     ~: testSStriv [t25] t25',
     "t44Add"  ~: testSStriv [t44Add] t44Add',
@@ -300,9 +301,6 @@ t9 =
     weight (if_ ((real_ 3) < x && x < (real_ 7)) half zero) >> 
     dirac x
 
-t11 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t11 = weight one
-
 t12 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t12 = weight (prob_ 2)
 
@@ -325,14 +323,8 @@ t14' = unsafeSuperpose
     , (prob_ $ 2 % 7 , uniform (real_ 14) (real_ 16))
     ]
 
-t20 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
-t20 = lam $ \y -> uniform_0_1 >>= \x -> weight (unsafeProb x * y)
-
 t21 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HReal)
 t21 = mcmc (lam $ \x -> normal x one) (normal zero (prob_ 5))
-
-t22 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t22 = bern half >> dirac unit
 
 t24,t24' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
 t24 =
