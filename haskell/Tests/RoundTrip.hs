@@ -217,7 +217,8 @@ testMeasureReal = test
     , "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x ->
                                          dirac (if_ (x == (real_ 3)) one x)
                                         ] (uniform (real_ 2) (real_ 4))
-    -- TODO "two_coins" ~: testStriv two_coins -- needs support for lists
+    --, "exceptionUniform" ~: testConcreteFiles "tests/RoundTrip/exceptionUniform.0.hk" "tests/RoundTrip/exceptionUniform.expected.hk"
+	-- TODO "two_coins" ~: testStriv two_coins -- needs support for lists
     ]
 
 testMeasureNat :: IsTest ta t => t 
