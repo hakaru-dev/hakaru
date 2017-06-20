@@ -250,16 +250,10 @@ testMeasurePair = test [
     "t52"           ~: testSStriv [] t52,
     "dup"           ~: testConcreteFiles "tests/RoundTrip/dup.0.hk" "tests/RoundTrip/dup.expected.hk",
     "norm"          ~: testSStriv [] norm,
-    "norm_nox"      ~: testSStriv [norm_nox] (normal zero (sqrt (prob_ 2))),
-    "norm_noy"      ~: testSStriv [norm_noy] (normal zero one),
+    "norm_nox"      ~: testConcreteFiles "tests/RoundTrip/norm_nox.0.hk" "tests/RoundTrip/norm_nox.expected.hk",
+    "norm_noy"      ~: testConcreteFiles "tests/RoundTrip/norm_noy.0.hk" "tests/RoundTrip/norm_noy.expected.hk",
     "flipped_norm"  ~: testConcreteFiles "tests/RoundTrip/flipped_norm.0.hk" "tests/RoundTrip/flipped_norm.expected.hk",
-    "priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
-                                  (lam $ \x -> unpair x $ \x0 x1 ->
-                                               unsafeSuperpose [(half, normal zero
-                                                                         (sqrt (prob_ 2)) >>= \y ->
-                                                                       dirac (pair x0 y)),
-                                                                (half, normal_0_1 >>= \y ->
-                                                                       dirac (pair y x1))]),
+    "priorProp"     ~: testConcreteFiles "tests/RoundTrip/priorProp.0.hk" "tests/RoundTrip/priorProp.expected.hk",
 	"mhPriorProp"   ~: testConcreteFiles "tests/RoundTrip/mhPriorProp.0.hk" "tests/RoundTrip/mhPriorProp.expected.hk",
     "unif2"         ~: testStriv unif2,
     "easyHMM"       ~: testStriv easyHMM,
@@ -932,18 +926,6 @@ testMCMCPriorProp
     :: (ABT Term abt)
     => abt '[] (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HReal 'HReal))
 testMCMCPriorProp = mcmc (lam $ priorAsProposal norm) norm
-
-norm_nox :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-norm_nox =
-    normal_0_1 >>= \x ->
-    normal x one >>= \y ->
-    dirac y
-
-norm_noy :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-norm_noy =
-    normal_0_1 >>= \x ->
-    normal x one >>
-    dirac x
 
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
