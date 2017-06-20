@@ -154,6 +154,7 @@ Test-Suite system-testsuite
                        Language.Hakaru.Evaluation.Types
                        Language.Hakaru.Expect
                        Language.Hakaru.Inference
+                       Language.Hakaru.Maple
                        Language.Hakaru.Parser.AST
                        Language.Hakaru.Parser.Import
                        Language.Hakaru.Parser.Maple
@@ -168,7 +169,9 @@ Test-Suite system-testsuite
                        Language.Hakaru.Syntax.ANF
                        Language.Hakaru.Syntax.AST
                        Language.Hakaru.Syntax.AST.Eq
+                       Language.Hakaru.Syntax.AST.Transforms
                        Language.Hakaru.Syntax.AST.Sing
+                       Language.Hakaru.Syntax.Command
                        Language.Hakaru.Syntax.CSE
                        Language.Hakaru.Syntax.Datum
                        Language.Hakaru.Syntax.DatumABT
@@ -194,6 +197,7 @@ Test-Suite system-testsuite
                        Tests.Disintegrate
                        Tests.Models
                        Tests.Parser
+                       Tests.Pretty
                        Tests.RoundTrip
                        Tests.Sample
                        Tests.Simplify
