@@ -736,6 +736,11 @@ Hakaru := module ()
          protect(g)
     end do;
 
+    # This patch for part of Maples solve comes from issue#87
+    # It affects expression of the form
+    #   solve( And(idx[w, n2] = idx[w, n1], a <> b) )
+    # With the patch, this results in a correct solution. Without it, the
+    # a <> b constraint is dropped entirely.
     kernelopts(opaquemodules=false):
     unprotect(SolveTools:-Transformers:-NonEquality:-Apply);
     SolveTools:-Transformers:-NonEquality:-Apply := proc(syst::SubSystem)
