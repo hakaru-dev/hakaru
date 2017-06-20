@@ -170,8 +170,8 @@ testMeasureReal = test
     , "t9" ~: testConcreteFiles "tests/RoundTrip/t9.0.hk" "tests/RoundTrip/t9.expected.hk"
     , "t13" ~: testConcreteFiles "tests/RoundTrip/t13.0.hk" "tests/RoundTrip/t13.expected.hk"
 	-- Missing common type
-    --, "t14" ~: testConcreteFiles "tests/RoundTrip/t14.0.hk" "tests/RoundTrip/t14.expected.hk"
-    , "t14" ~: testSStriv [t14] t14'
+    , "t14" ~: testConcreteFiles "tests/RoundTrip/t14.0.hk" "tests/RoundTrip/t14.expected.hk"
+    --, "t14" ~: testSStriv [t14] t14'
     , "t21" ~: testStriv t21
     , "t28" ~: testSStriv [] t28
     , "t31" ~: testSStriv [] t31
