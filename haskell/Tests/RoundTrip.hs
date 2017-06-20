@@ -161,8 +161,8 @@ testMeasureReal :: IsTest ta t => t
 testMeasureReal = test
     [ "t3"  ~: testSStriv [] t3
     , "t6"  ~: testConcreteFiles "tests/RoundTrip/t6.0.hk" "tests/RoundTrip/t6.expected.hk"
-    , "t7"  ~: testSStriv [t7] t7'
-    , "t7n" ~: testSStriv [t7n] t7n'
+    , "t7"  ~: testConcreteFiles "tests/RoundTrip/t7.0.hk" "tests/RoundTrip/t7.expected.hk"
+    , "t7n" ~: testConcreteFiles "tests/RoundTrip/t7n.0.hk" "tests/RoundTrip/t7n.expected.hk"
     , "t8'" ~: testSStriv [t8'] (lam $ \s1 ->
                                  lam $ \s2 ->
                                  normal zero (sqrt $ (s2 ^ (nat_ 2) + s1 ^ (nat_ 2))))
@@ -248,7 +248,8 @@ testMeasurePair :: IsTest ta t => t
 testMeasurePair = test [
     "t4"            ~: testConcreteFiles "tests/RoundTrip/t4.0.hk" "tests/RoundTrip/t4.expected.hk",
     "t8"            ~: testSStriv [] t8,
-    "t23"           ~: testSStriv [t23] t23',
+    -- was called bayesNet in Nov.06 msg by Ken for exact inference
+    "t23"           ~: testConcreteFiles "tests/RoundTrip/t23.0.hk" "tests/RoundTrip/t23.expected.hk",
     "t48"           ~: testStriv t48,
     "t52"           ~: testSStriv [] t52,
     "dup"           ~: testConcreteFiles "tests/RoundTrip/dup.0.hk" "tests/RoundTrip/dup.expected.hk",
@@ -292,17 +293,6 @@ save_allTests = runSaveTests allTests
 
 t3 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t3 = normal zero (prob_ 10)
-
-t7,t7', t7n,t7n' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t7   = uniform_0_1 >>= \x -> weight (unsafeProb (x+one)) >> dirac (x*x)
-t7'  = uniform_0_1 >>= \x -> unsafeSuperpose [(unsafeProb (x+one), dirac (x^(nat_ 2)))]
-t7n  =
-    uniform (negate one) zero >>= \x ->
-    weight (unsafeProb (x+one)) >>
-    dirac (x*x)
-t7n' =
-    uniform (real_ (-1)) zero >>= \x ->
-    unsafeSuperpose [(unsafeProb (x + one), dirac (x^(nat_ 2)))]
 
 -- For sampling efficiency (to keep importance weights at or close to 1),
 -- t8 below should read back to uses of "normal", not uses of "lebesgue"
@@ -361,20 +351,6 @@ t21 = mcmc (lam $ \x -> normal x one) (normal zero (prob_ 5))
 
 t22 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t22 = bern half >> dirac unit
-
--- was called bayesNet in Nov.06 msg by Ken for exact inference
-t23, t23' :: (ABT Term abt) => abt '[] ('HMeasure (HPair HBool HBool))
-t23 =
-    bern half >>= \a ->
-    bern (if_ a ((prob_ 9)/(prob_ 10)) ((prob_ 1)/(prob_ 10))) >>= \b ->
-    bern (if_ a ((prob_ 9)/(prob_ 10)) ((prob_ 1)/(prob_ 10))) >>= \c ->
-    dirac (pair b c)
-t23' = unsafeSuperpose
-    [ ((prob_ $ 41 % 100), dirac (pair true true))
-    , ((prob_ $ 9  % 100), dirac (pair true false))
-    , ((prob_ $ 9  % 100), dirac (pair false true))
-    , ((prob_ $ 41 % 100), dirac (pair false false))
-    ]
 
 t24,t24' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
 t24 =
