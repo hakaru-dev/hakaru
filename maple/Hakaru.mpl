@@ -61,7 +61,7 @@ Hakaru := module ()
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
-         verify_measure, verify_hboolean, pattern_equiv,
+         verify_measure, verify_hboolean, pattern_equiv, unDatum,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
          flatten_piecewise,
          pattern_match, pattern_binds, bound_names_in,
@@ -505,6 +505,32 @@ Hakaru := module ()
     end if
   end proc;
 
+  # Unpacks a Datum into its three componenets:
+  #  - The type
+  #  - The constructor index
+  #  - The constructor arguments (as a list)
+  unDatum := proc(x, $)
+    local ty, v, con, as;
+    while x::'Datum'(anything, anything) do
+      ty, v := op(x);
+      con := 0;
+      as := NULL;
+      while v :: 'Inr(anything)' do
+        v := op(1,v);
+        con := con + 1;
+      end do;
+      if v :: 'Inl(anything)' then
+        v := op(1,v);
+        while v :: 'Et(anything, anything)' do
+          as := as, op([1,1],v);
+          v  := op(2,v);
+        end do;
+        if not v :: identical(Done) then break; end if;
+      else break; end if;
+      return [ty, con, [as]];
+    end do;
+    error "%1 is not a Datum", x;
+  end proc;
   #Extract the first member of a Pair.
   fst:= proc(p, $)
     if p :: 'Pair'('anything'$2) then
