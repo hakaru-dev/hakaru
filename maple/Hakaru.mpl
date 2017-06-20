@@ -61,7 +61,8 @@ Hakaru := module ()
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
-         verify_measure, verify_hboolean, pattern_equiv,
+         Pair, _Unit,
+         verify_measure, verify_hboolean, pattern_equiv, unDatum,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
          flatten_piecewise,
          pattern_match, pattern_binds, bound_names_in,
@@ -73,7 +74,7 @@ Hakaru := module ()
   # used as global names, so document that here.
   global
      # Basic syntax for composing measures
-         Bind, Weight, Ret, Msum, Plate, Context, Pair, _Unit, PARTITION,
+         Bind, Weight, Ret, Msum, Plate, Context, PARTITION,
      # Primitive (known) measures
          Lebesgue, Uniform, Gaussian, Cauchy, StudentT, BetaD,
          GammaD, ChiSquared,
@@ -505,12 +506,41 @@ Hakaru := module ()
     end if
   end proc;
 
+  # Unpacks a Datum into its three componenets:
+  #  - The type
+  #  - The constructor index
+  #  - The constructor arguments (as a list)
+  unDatum := proc(x, $)
+    local ty, v, con, as;
+    while x::'Datum'(anything, anything) do
+      ty, v := op(x);
+      con := 0;
+      as := NULL;
+      while v :: 'Inr(anything)' do
+        v := op(1,v);
+        con := con + 1;
+      end do;
+      if v :: 'Inl(anything)' then
+        v := op(1,v);
+        while v :: 'Et(anything, anything)' do
+          as := as, op([1,1],v);
+          v  := op(2,v);
+        end do;
+        if not v :: identical(Done) then break; end if;
+      else break; end if;
+      return [ty, con, [as]];
+    end do;
+    error "%1 is not a Datum", x;
+  end proc;
+
+  # Commonly used types
+  Pair  := (x,y) -> Datum(:-`pair`, Inl(Et(Konst(x), Et(Konst(y), Done))));
+  _Unit := Datum(:-`unit`,Inl(Done));
+
   #Extract the first member of a Pair.
   fst:= proc(p, $)
-    if p :: 'Pair'('anything'$2) then
-      op(1,p)
-    elif p :: 'Datum(identical(pair),anything)' then
-      op([2,1,1,1], p);
+    if p :: t_Pair('anything'$2) then
+      op([3,1], unDatum(p))
     elif p :: t_piecewiselike then
       map_piecewiselike(fst, p)
     else
@@ -520,10 +550,8 @@ Hakaru := module ()
 
   #Extract the second member of a Pair.
   snd:= proc(p, $)
-    if p :: 'Pair'('anything'$2) then
-      op(2,p)
-    elif p :: 'Datum(identical(pair),anything)' then
-      op([2,1,2,1,1], p);
+    if p :: t_Pair('anything'$2) then
+      op([3,2], unDatum(p))
     elif p :: t_piecewiselike then
       map_piecewiselike(snd, p)
     else
@@ -682,6 +710,10 @@ Hakaru := module ()
     ,(t_piecewiselike =
       ''{specfunc(piecewise), t_case, idx(list, anything)}'')
     ,(t_lam = ''lam(name, t_type, t_Hakaru)'')
+
+    # Commonly used types
+    ,(t_Pair = ((e,x,y) -> type(e,Datum(identical(pair), Inl(Et(Konst(x), Et(Konst(y), identical(Done))))))))
+    ,(t_Unit = ''Datum(identical(unit),Inl(identical(Done)))'')
 
     # A temporary type which should be removed when piecewise is gone
     ,(t_pw_or_part = 'Or(t_pw,t_partition)')

@@ -60,6 +60,7 @@ local
       pw  := PartitionToPW(pw);
       dpw := diff(pw, wrt);
       r   := PWToPartition(dpw, 'do_solve');
+      r   := Pmap(simplify, r);
     end proc;
 
     :-`simplify/PARTITION` := Simpl;

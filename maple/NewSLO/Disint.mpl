@@ -65,7 +65,7 @@
          ,(t_disint_var = '{name, name &M t_wrt_var_type}')
          ,(     #Caution: recursive type: Make sure base cases
            t_disint_var_pair = #are on left (a la McCarthy rule).
-              ''Pair'(Or(t_disint_var, t_disint_var_pair) $ 2)')
+              't_Pair(Or(t_disint_var, t_disint_var_pair) $ 2)')
          ]),
 
     ModuleLoad::static:= proc($) #Needed to declare types.
