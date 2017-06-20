@@ -43,8 +43,8 @@ import Tests.TestTools hiding (testStriv, testSStriv, testConcreteFiles)
 import qualified Tests.TestTools as Tools
 import Tests.Models
     (uniform_0_1, normal_0_1, gamma_1_1,
-     uniformC, normalC, beta_1_1, t4, t4', norm, unif2)
-
+     uniformC, normalC, beta_1_1, norm, unif2)
+-- import Tests.Models (t4, t4')
 unsafeSuperpose
     :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
@@ -111,7 +111,10 @@ type IsTest ta t = (IsTest' ta t, IsTestGroup t, IsTestAssertion ta)
 
 testMeasureUnit :: IsTest ta t => t
 testMeasureUnit = test [
-    "t1,t5"   ~: testSStriv [t1,t5] (weight half),
+    -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
+    "t1"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.0.hk" "tests/RoundTrip/t1,t5.expected.hk",
+    -- t5 is "the same" as t1.
+    "t5"      ~: testConcreteFiles "tests/RoundTrip/t1,t5.1.hk" "tests/RoundTrip/t1,t5.expected.hk",
     "t10"     ~: testSStriv [t10] (reject sing),
     "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
     "t12"     ~: testSStriv [] t12,
@@ -137,7 +140,7 @@ testMeasureUnit = test [
 
 testMeasureProb :: IsTest ta t => t
 testMeasureProb = test [
-    "t2"  ~: testSStriv [t2] (unsafeProb <$> uniform zero one),
+    "t2"  ~: testConcreteFiles "tests/RoundTrip/t2.0.hk" "tests/RoundTrip/t2.expected.hk",
     "t26" ~: testSStriv [t26] (dirac half),
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
@@ -157,7 +160,7 @@ testMeasureProb = test [
 testMeasureReal :: IsTest ta t => t
 testMeasureReal = test
     [ "t3"  ~: testSStriv [] t3
-    , "t6"  ~: testSStriv [t6'] t6
+    , "t6"  ~: testConcreteFiles "tests/RoundTrip/t6.0.hk" "tests/RoundTrip/t6.expected.hk"
     , "t7"  ~: testSStriv [t7] t7'
     , "t7n" ~: testSStriv [t7n] t7n'
     , "t8'" ~: testSStriv [t8'] (lam $ \s1 ->
@@ -243,7 +246,7 @@ testMeasureInt = test
 
 testMeasurePair :: IsTest ta t => t 
 testMeasurePair = test [
-    "t4"            ~: testSStriv [t4] t4',
+    "t4"            ~: testConcreteFiles "tests/RoundTrip/t4.0.hk" "tests/RoundTrip/t4.expected.hk",
     "t8"            ~: testSStriv [] t8,
     "t23"           ~: testSStriv [t23] t23',
     "t48"           ~: testStriv t48,
@@ -286,23 +289,9 @@ save_allTests :: IO ()
 save_allTests = runSaveTests allTests 
 
 ----------------------------------------------------------------
--- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
-t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t1 = uniform_0_1 >>= \x -> weight (unsafeProb x)
-
-t2 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t2 = beta_1_1
 
 t3 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t3 = normal zero (prob_ 10)
-
--- t5 is "the same" as t1.
-t5 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t5 = weight half >> dirac unit
-
-t6, t6' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t6 = dirac (real_ 5)
-t6' = unsafeSuperpose [(one, dirac (real_ 5))]
 
 t7,t7', t7n,t7n' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t7   = uniform_0_1 >>= \x -> weight (unsafeProb (x+one)) >> dirac (x*x)
@@ -410,6 +399,9 @@ t25' =
    lam $ \x ->
    lam $ \y ->
    weight (x * exp (cos y) * half)
+
+t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
+t1 = uniform_0_1 >>= \x -> weight (unsafeProb x)   
 
 t26 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t26 = dirac (total t1)
