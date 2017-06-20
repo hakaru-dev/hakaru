@@ -423,7 +423,7 @@ KB := module ()
 
      # otherwise go ahead
      try
-       c := kb_assuming_mb(b->solve({chill(b)},[x], 'useassumptions'=true))(b,kb,_->FAIL);
+       c := kb_assuming_mb(b->solve({chill(b)},[x], 'useassumptions'=true),b,kb,_->FAIL);
        c := postproc_for_solve(warm(c), kb);
        if c = FAIL or c = b then
          FAIL
@@ -540,7 +540,7 @@ KB := module ()
 
       # try to evaluate under the assumptions, but some assumptions break
       # with eval, so remove any of those we tried to chill to prevent them breaking
-      bb := subsindets(bb, relation, x-> kb_assuming_mb(x1->map(eval,x1))(x, kb, _->x));
+      bb := subsindets(bb, relation, x-> kb_assuming_mb(x1->map(eval,x1), x, kb, _->x));
 
       # Check that the new clause would not cause a contradictory
       # KB. If it does, then produce NotAKB.
@@ -774,7 +774,7 @@ KB := module ()
     foldl(eval, e, op(kb_to_equations(kb)));
   end proc;
 
-  kb_assuming_mb := simpl -> proc(ee, kb::t_kb, failure, $)
+  kb_assuming_mb := proc(simpl, ee, kb::t_kb, failure, $)
     local e, as, e0;                                                         # for debugging
 
     e := eval_kb(ee,kb);                                                  `eval`;
@@ -808,7 +808,7 @@ KB := module ()
   kb_eval_mb := proc(f,e,kb,$)
     local fn, ty, e1;
     fn,ty := `if`(f::[anything$2],f,[f,satisfies(q->has(q,f))])[];
-    e1 := kb_assuming_mb(fn@op)(e, kb, _->e);
+    e1 := kb_assuming_mb(fn@op, e, kb, _->e);
     if e1::ty then e else e1 end if;
   end proc;
 
@@ -817,7 +817,7 @@ KB := module ()
   # simplification might fail, in which case `failure(e)` where `e`
   # is the un-simplified (and chilled) expression is taken to be the result of
   # simplification. 'mb' for 'maybe'
-  simplify_assuming_mb := kb_assuming_mb(simplify@(e->subsindets(e,Partition,Partition:-PartitionToPW)));
+  simplify_assuming_mb := curry(kb_assuming_mb, simplify@(e->subsindets(e,Partition,Partition:-PartitionToPW)));
 
   simplify_assuming := proc(ee, kb::t_kb, $)
     simplify_assuming_mb(ee,kb,e->e);
