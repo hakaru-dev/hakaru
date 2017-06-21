@@ -51,9 +51,9 @@ As of June 21th 2017 (913b4f63ef63bd4ff3bae2442ca57f27cedbd44a)
 ### Failure in: 6:RoundTrip:0:11:t55 (not (a<b) vs. a>=b)
 
 -- Literals
-### Failure in: 6:RoundTrip:0:5:t20 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 2)
-### Failure in: 6:RoundTrip:0:7:t24 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 2)
-### Failure in: 6:RoundTrip:0:8:t25 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 2)
+### Failure in: 6:RoundTrip:0:5:t20 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 1/2)
+### Failure in: 6:RoundTrip:0:7:t24 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 1/2)
+### Failure in: 6:RoundTrip:0:8:t25 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 1/2)
 ### Failure in: 6:RoundTrip:2:3:t7n -- negate(nat2int(1)) vs LInt -1
 
 -- Typecheck failure (Missing common type)
