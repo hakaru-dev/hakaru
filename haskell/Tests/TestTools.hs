@@ -13,6 +13,7 @@ import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import Language.Hakaru.Command (parseAndInfer, splitLines)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.AST.Transforms(normalizeLiterals)
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Eq (alphaEq)
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), jmEq1)
@@ -86,7 +87,8 @@ assertAlphaEq ::
     -> abt '[] a
     -> abt '[] a
     -> Assertion
-assertAlphaEq preface a b =
+assertAlphaEq preface a' b' =
+  let [a,b] = map normalizeLiterals [a',b'] in 
    unless (alphaEq a b) (assertFailure $ mismatchMessage pretty preface a b)
 
 mismatchMessage :: forall (k :: q -> *) . (forall a . k a -> Doc) -> String -> forall a b . k a -> k b -> String 
