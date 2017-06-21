@@ -29,18 +29,18 @@ options = Options
   <$> O.switch
       ( O.short 't' <>
         O.long "print-type" <>
-        O.help "Print the type of the expression in internal Haskell syntax as well as the expression itself." )
+        O.help "Annotate the program with its type." )
   <*> O.switch
       ( O.short 'i' <>
         O.long "internal-syntax" <>
-        O.help "Print the expression in internal Haskell syntax instead of in concrete syntax." )
+        O.help "Print the program in internal Haskell syntax instead of in concrete syntax." )
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
-        O.help "Filename containing program to be simplified, or \"-\" to read from input." ) 
+        O.help "Filename containing program to be pretty printed, or \"-\" to read from input." ) 
 
 parseOpts :: IO Options
 parseOpts = O.execParser $ O.info (O.helper <*> options)
-      (O.fullDesc <> O.progDesc "Pretty print a Hakaru program")
+      (O.fullDesc <> O.progDesc "Parse, typecheck, and pretty print a Hakaru program")
 
 main :: IO ()
 main = parseOpts >>= runPretty 
