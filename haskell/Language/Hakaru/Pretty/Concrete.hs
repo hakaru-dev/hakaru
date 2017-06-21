@@ -136,14 +136,6 @@ ppBinder2prec p e = unpackVarTypes $ go [] (viewABT e)
 ppBinder2 :: (ABT Term abt) => abt xs a -> ([Doc], [Doc], Docs)
 ppBinder2 = ppBinder2prec 0 
 
--- True if the literal might be ambiguous, i.e. 
--- "1" might denote 1.nat or 1.int or 1.prob or 1.real
-disambiguateLit :: Literal v -> Bool  
-disambiguateLit LNat{}    = False 
-disambiguateLit (LInt i)  = i > 0
-disambiguateLit (LProb p) = denominator p == 1 
-disambiguateLit (LReal p) = denominator p == 1 || numerator p > 0
-
 -- TODO: since switching to ABT2, this instance requires -XFlexibleContexts; we should fix that if we can
 -- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
 instance (ABT Term abt) => Pretty (LC_ abt) where
@@ -197,7 +189,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 identityElement (Sum  _) = [PP.text "0"]
                 identityElement (Prod _) = [PP.text "1"]
 
-        Literal_ v    -> prettyPrec_ p v ++ if disambiguateLit v then [PP.text ".", prettyType p $ sing_Literal v] else []
+        Literal_ v    -> prettyPrec_ p v
         Empty_   _    -> [PP.text "empty"]
         Array_ e1 e2  ->
             let (vars, _, body) = ppBinder2 e2 in
