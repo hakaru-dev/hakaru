@@ -35,6 +35,7 @@ module Language.Hakaru.Syntax.TypeCheck
     , inferable
     , mustCheck
     , TypedAST(..)
+    , onTypedAST, elimTypedAST
     , inferType
     , checkType
     ) where
@@ -396,6 +397,12 @@ argumentNumberError = failwith =<<
 -- | The @e' ∈ τ@ portion of the inference judgement.
 data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
     = forall b. TypedAST !(Sing b) !(abt '[] b)
+
+onTypedAST :: (forall b . abt '[] b -> abt '[] b) -> TypedAST abt -> TypedAST abt
+onTypedAST f (TypedAST t p) = TypedAST t (f p)
+
+elimTypedAST :: (forall b . Sing b -> abt '[] b -> x) -> TypedAST abt -> x 
+elimTypedAST f (TypedAST t p) = f t p 
 
 instance Show2 abt => Show (TypedAST abt) where
     showsPrec p (TypedAST typ e) =
