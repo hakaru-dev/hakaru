@@ -779,17 +779,17 @@ KB := module ()
 
     e := eval_kb(ee,kb);                                                  `eval`;
     as := kb_to_assumptions(kb, e);
+    e  := chill(e);
     as := chill(as);
 
-    # The assumptions may be contradictory - I'm not sure why the right thing to
-    # do is to return the original expression. Assuming false one can derive
-    # anything - hence exception - so who calls this function under which
-    # contexts that they expect `false` to mean something other than `false`?
     e0 := e;
-    try e := simpl(chill(e)) assuming op(as); catch: e := failure(chill(e0)); end try;
+    e  := subs([sum=Sum], e);
+
+    try e := simpl(e) assuming op(as); catch: e := failure(e0); end try;
 
     e := warm(e);                                            `warm (then expand@exp)`;
-    eval(e, exp = expand @ exp);
+    e := eval(e, exp = expand @ exp);
+    e := subs([Sum=sum], e);
   end proc;
 
   # Given a function `f', 'evaluates' the given expression `e' as follows:
