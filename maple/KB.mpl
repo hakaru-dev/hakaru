@@ -785,6 +785,7 @@ KB := module ()
     e0 := e;
     e  := subs([sum=Sum], e);
 
+    userinfo(3, procname, printf("Trying\n%a(%a) assuming op(%a)\n", simpl, e, as));
     try e := simpl(e) assuming op(as); catch: e := failure(e0); end try;
 
     e := warm(e);                                            `warm (then expand@exp)`;
