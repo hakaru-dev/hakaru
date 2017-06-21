@@ -4,6 +4,7 @@
            , ScopedTypeVariables
            , DataKinds
            , TypeOperators
+           , ViewPatterns
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -25,6 +26,13 @@ import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Expect       (expect)
 import Language.Hakaru.Disintegrate (determine, observe)
+
+import Data.Ratio (numerator, denominator)
+import Language.Hakaru.Types.Sing (sing, Sing(..))
+import Language.Hakaru.Types.HClasses (HFractional(..))
+import Language.Hakaru.Types.Coercion (findCoercion, Coerce(..))
+import qualified Data.Sequence as Seq 
+
 
 optimizations
   :: (ABT Term abt)
@@ -104,3 +112,58 @@ coalesceNaryOp typ args =
          then coalesceNaryOp typ args'
          else return (coalesce abt)
        _ -> return abt
+
+-- if the literal might be ambiguous, i.e.
+-- "1" might denote 1.nat or 1.int or 1.prob or 1.real
+-- insert a coercion and convert the literal to the smallest type which represents it
+-- and convert division of literals to literal rationals 
+normalizeLiterals :: forall abt a. (ABT Term abt) => abt '[] a -> abt '[] a
+normalizeLiterals = cataABT var bind div where 
+  isLit :: abt '[] v -> Maybe (Literal v) 
+  isLit (viewABT -> Syn x) = 
+    case x of 
+      Literal_ v -> Just v
+      CoerceTo_ c :$ ((viewABT -> Syn (Literal_ v)) :* End) -> Just $ coerceTo c v
+      _ -> Nothing 
+  isLit _ = Nothing 
+
+  litToRational :: Literal v -> Rational 
+  litToRational (LInt i)  = toRational i 
+  litToRational (LNat i)  = toRational i
+  litToRational (LProb i) = toRational i 
+  litToRational (LReal i) = i 
+
+  rationalToLit :: HFractional v -> Rational -> Literal v 
+  rationalToLit HFractional_Real n = LReal n
+  rationalToLit HFractional_Prob n = LProb (realToFrac n) -- safe unless the AST is ill-typed
+
+  div :: Term abt v -> abt '[] v 
+  div (NaryOp_ Prod{} (Seq.viewl -> ((isLit -> Just a) 
+               Seq.:< (Seq.viewl -> (viewABT -> Syn (PrimOp_ (Recip t) :$ ((isLit -> Just b) :* End)))
+               Seq.:< (Seq.viewl -> Seq.EmptyL)))))
+        = norm $ Literal_ $ rationalToLit t (litToRational a / litToRational b)
+  div t@Literal_{} = norm t
+  div t = syn t 
+
+  norm :: Term abt v -> abt '[] v
+  norm (Literal_ l) = 
+    let mkc x = syn $ CoerceTo_ (maybe (error "normalizeLiterals") id $ findCoercion sing sing) 
+                :$ ((syn $ Literal_ x) :* End) in 
+    case l of 
+      LInt i  | i >= 0 
+             -> mkc (LNat $ fromIntegral i) 
+  
+      LProb p | denominator p == 1 
+             -> mkc (LNat $ numerator p)
+  
+      LReal p | denominator p == 1 && numerator p >= 0
+             -> mkc (LNat $ fromIntegral $ numerator p)
+              | denominator p == 1 
+             -> mkc (LInt $ numerator p)
+              | numerator p >= 0 
+             -> mkc (LProb $ realToFrac p)
+  
+      _      -> syn $ Literal_ l 
+  norm x = syn x 
+  
+
