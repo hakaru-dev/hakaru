@@ -51,5 +51,5 @@ runPretty Options{..} = readFromFile program >>= \prog ->
     Left  err               -> IO.hPutStrLn stderr err
     Right (TypedAST ty ast) -> IO.putStrLn $
       (if printType then \x -> T.concat [ "(", x, ")", "\n.\n" <> T.pack ((if internal then show else show . prettyType 12) ty) ] else id)
-      (T.pack . (if internal then show else show.pretty) . expandTransformations $ ast)
+      (T.pack . (if internal then show else show.pretty) . expandTransformations . normalizeLiterals $ ast)
 
