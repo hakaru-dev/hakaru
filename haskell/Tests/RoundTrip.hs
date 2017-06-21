@@ -147,9 +147,7 @@ testMeasureProb = test [
     "t35" ~: testSStriv [] t35,
     "t35'" ~: testSStriv [] t35',
     "t38" ~: testSStriv [] t38,
-    "t42" ~: testSStriv [t42] (dirac one),
-	-- Files don't have the same type
-    --"t42"  ~: testConcreteFiles "tests/RoundTrip/t42.0.hk" "tests/RoundTrip/t42.expected.hk",
+    "t42"  ~: testConcreteFiles "tests/RoundTrip/t42.0.hk" "tests/RoundTrip/t42.expected.hk",
     "t49" ~: testSStriv [] t49,
     "t61" ~: testSStriv [t61] t61',
     -- Missing common type
@@ -266,9 +264,7 @@ testMeasurePair = test [
 
 testOther :: IsTest ta t => t
 testOther = test [
-    "t82" ~: testSStriv [t82] t82',
-	-- Error: Files not of the same type
-    --"t82" ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
+    "t82" ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
     "testRoadmapProg1" ~: testStriv rmProg1,
     "testKernel" ~: testSStriv [testKernel] testKernel2
     --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
