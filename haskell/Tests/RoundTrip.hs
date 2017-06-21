@@ -122,18 +122,26 @@ testMeasureUnit = test [
     "t25"     ~: testConcreteFiles "tests/RoundTrip/t25.0.hk" "tests/RoundTrip/t25.expected.hk",
     "t44Add"  ~: testConcreteFiles "tests/RoundTrip/t44Add.0.hk" "tests/RoundTrip/t44Add.expected.hk",
     "t44Mul"  ~: testConcreteFiles "tests/RoundTrip/t44Mul.0.hk" "tests/RoundTrip/t44Mul.expected.hk",
-    "t53"     ~: testSStriv [t53,t53'] t53'',
+    "t53"     ~: testConcreteFiles "tests/RoundTrip/t53.0.hk" "tests/RoundTrip/t53.expected.hk",
+    "t53'"     ~: testConcreteFiles "tests/RoundTrip/t53.1.hk" "tests/RoundTrip/t53.expected.hk",
     "t54"     ~: testStriv t54,
-    "t55"     ~: testSStriv [t55] t55',
-    "t56"     ~: testSStriv [t56,t56'] t56'',
-    "t57"     ~: testSStriv [t57] t57',
-    "t58"     ~: testSStriv [t58] t58',
+    "t55"     ~: testConcreteFiles "tests/RoundTrip/t55.0.hk" "tests/RoundTrip/t55.expected.hk",
+    "t56"     ~: testConcreteFiles "tests/RoundTrip/t56.0.hk" "tests/RoundTrip/t56.expected.hk",
+    "t56'"     ~: testConcreteFiles "tests/RoundTrip/t56.1.hk" "tests/RoundTrip/t56.expected.hk",
+    "t57"     ~: testConcreteFiles "tests/RoundTrip/t57.0.hk" "tests/RoundTrip/t57.expected.hk",
+    "t58"     ~: testConcreteFiles "tests/RoundTrip/t58.0.hk" "tests/RoundTrip/t58.expected.hk",
     "t59"     ~: testStriv t59,
-    "t60"     ~: testSStriv [t60,t60'] t60'',
-    "t62"     ~: testSStriv [t62] t62',
+    "t60"     ~: testConcreteFiles "tests/RoundTrip/t60.0.hk" "tests/RoundTrip/t60.expected.hk",
+    "t60'"    ~: testConcreteFiles "tests/RoundTrip/t60.1.hk" "tests/RoundTrip/t60.expected.hk",
+    "t62"     ~: testConcreteFiles "tests/RoundTrip/t62.0.hk" "tests/RoundTrip/t62.expected.hk", ---- "Special case" of t56
     "t63"     ~: testSStriv [t63] t63',
-    "t64"     ~: testSStriv [t64,t64'] t64'',
-    "t65"     ~: testSStriv [t65] t65',
+    -- Maple error: unexpected "U" expecting "_Inert_FLOAT"
+	--"t63"     ~: testConcreteFiles "tests/RoundTrip/t63.0.hk" "tests/RoundTrip/t63.expected.hk",
+    "t64"     ~: testSStriv [t64] t64'',
+   -- Missing common type error
+   -- "t64"     ~: testConcreteFiles "tests/RoundTrip/t64.0.hk" "tests/RoundTrip/t64.expected.hk", -- Density calculation for (Exp (Log StdRandom)) and StdRandom
+    "t64'"    ~: testConcreteFiles "tests/RoundTrip/t64.1.hk" "tests/RoundTrip/t64.expected.hk", -- Density calculation for (Exp (Log StdRandom)) and StdRandom
+    "t65"     ~: testConcreteFiles "tests/RoundTrip/t65.0.hk" "tests/RoundTrip/t65.expected.hk", -- Density calculation for (Add StdRandom (Exp (Neg StdRandom))); Maple can integrate this but we don't simplify it for some reason.
     "t77"     ~: testSStriv [] t77
     ]
 
@@ -165,7 +173,7 @@ testMeasureReal = test
     , "t7"  ~: testConcreteFiles "tests/RoundTrip/t7.0.hk" "tests/RoundTrip/t7.expected.hk"
     , "t7n" ~: testConcreteFiles "tests/RoundTrip/t7n.0.hk" "tests/RoundTrip/t7n.expected.hk"
     , "t8'" ~: testConcreteFiles "tests/RoundTrip/t8'.0.hk" "tests/RoundTrip/t8'.expected.hk" -- Normal is conjugate to normal
-    , "t9" ~: testConcreteFiles "tests/RoundTrip/t9.0.hk" "tests/RoundTrip/t9.expected.hk"
+    , "t9"  ~: testConcreteFiles "tests/RoundTrip/t9.0.hk" "tests/RoundTrip/t9.expected.hk"
     , "t13" ~: testConcreteFiles "tests/RoundTrip/t13.0.hk" "tests/RoundTrip/t13.expected.hk"
 	-- Missing common type
     , "t14" ~: testConcreteFiles "tests/RoundTrip/t14.0.hk" "tests/RoundTrip/t14.expected.hk"
@@ -267,6 +275,8 @@ testOther = test [
     "t82" ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
     "testRoadmapProg1" ~: testStriv rmProg1,
     "testKernel" ~: testSStriv [testKernel] testKernel2
+	-- Error: unexpected 'x'\nexpecting operator or end of input"
+    --"testKernel" ~: testConcreteFiles "tests/RoundTrip/testKernel.0.hk" "tests/RoundTrip/testKernel.expected.hk"
     --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
     --"testTrueDetection" ~: testStriv (lam2 seismicTrueDetection)
     --"testTrueDetectionL" ~: testStriv tdl,
@@ -391,31 +401,6 @@ t52 =
     uniform_0_1 >>= \y ->
     dirac (pair (max y x) (pair x y))
 
-t53, t53', t53'' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t53 =
-    lam $ \x ->
-    unsafeSuperpose
-        [ (one, unsafeSuperpose
-            [ (one,
-                if_ (zero < x)
-                    (if_ (x < one) (dirac unit) (reject sing))
-                    (reject sing))
-            ])
-        , (one, if_ false (dirac unit) (reject sing))
-        ]
-t53' =
-    lam $ \x ->
-    unsafeSuperpose
-        [ (one,
-            if_ (zero < x)
-                (if_ (x < one) (dirac unit) (reject sing))
-                (reject sing))
-        , (one, if_ false (dirac unit) (reject sing))
-        ]
-t53'' =
-    lam $ \x ->
-    if_ (zero < x && x < one) (dirac unit) (reject sing)
-
 t54 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t54 =
     lam $ \x0 ->
@@ -451,70 +436,6 @@ t54 =
     ) >>= \x5 ->
     weight (unsafeProb x5)
 
-t55, t55' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t55 =
-    lam $ \t ->
-    uniform_0_1 >>= \x ->
-    if_ (x < t) (dirac unit) (reject sing)
-t55' =
-    lam $ \t ->
-    if_ (t < zero) (reject sing) $
-    if_ (t < one) (weight (unsafeProb t)) $
-    dirac unit
-
-t56, t56', t56'' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t56 =
-    lam $ \x0 ->
-    (   dirac x0 >>= \x1 ->
-        (negate <$> uniform_0_1) >>= \x2 ->
-        dirac (x1 + x2)
-    ) >>= \x1 ->
-    (   (dirac zero >>= \x2 ->
-        dirac x1 >>= \x3 ->
-        dirac (x2 < x3)
-        ) >>= \x2 ->
-    if_ x2
-        (   (dirac x1 >>= \x3 ->
-            dirac one >>= \x4 ->
-            dirac (x3 < x4)
-            ) >>= \x3 ->
-        if_ x3 (dirac one) (dirac zero))
-        (dirac zero)
-    ) >>= \x2 ->
-    withWeight (unsafeProb x2) (dirac unit)
-t56' =
-    lam $ \x0 ->
-    uniform_0_1 >>= \x1 ->
-    if_ (x0 - one < x1 && x1 < x0)
-        (dirac unit)
-        (reject sing)
-t56'' =
-    lam $ \t ->
-    if_ (t <= zero) (reject sing) $
-    if_ (t <= one) (weight (unsafeProb t)) $
-    if_ (t <= (real_ 2)) (weight (unsafeProb ((real_ 2) + t * negate one))) $
-    reject sing
-
-t57, t57' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t57 = lam $ \t -> unsafeSuperpose
-    [ (one, if_ (t < one)  (dirac unit) (reject sing))
-    , (one, if_ (zero < t) (dirac unit) (reject sing)) ]
-t57' = lam $ \t -> 
-    if_ (t < one && zero < t) (weight (prob_ 2)) (dirac unit)
-
-t58, t58' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t58 = lam $ \t -> unsafeSuperpose
-    [ (one, if_ (zero < t && t < (real_ 2)) (dirac unit) (reject sing))
-    , (one, if_ (one  < t && t < (real_ 3)) (dirac unit) (reject sing)) ]
-t58' = lam $ \t ->
-    if_ (if_ (zero < t) (t < (real_ 2)) false)
-        (if_ (if_ (one < t) (t < (real_ 3)) false)
-            (weight (prob_ 2))
-            (dirac unit))
-        (if_ (if_ (one < t) (t < (real_ 3)) false)
-            (dirac unit)
-            (reject sing))
-
 t59 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t59 =
     lam $ \x0 ->
@@ -543,70 +464,9 @@ t59 =
          (dirac zero)) >>= \x3 ->
     weight (unsafeProb x3) 
 
-t60,t60',t60'' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t60 =
-    lam $ \x0 ->
-    (((uniform_0_1 >>= \x1 ->
-       uniform_0_1 >>= \x2 ->
-       dirac (x1 + x2)) >>= \x1 ->
-      dirac (recip x1)) >>= \x1 ->
-     (((dirac zero >>= \x2 ->
-        dirac x1 >>= \x3 ->
-        dirac (x2 < x3)) >>= \x2 ->
-       if_ x2
-           (dirac x1)
-           (negate <$> dirac x1)) >>= \x2 ->
-      weight (unsafeProb x2) ) >>
-     dirac x0 >>= \x3 ->
-     dirac x1 >>= \x4 ->
-     dirac (x3 * x4)) >>= \x1 ->
-    ((dirac zero >>= \x2 ->
-      dirac x1 >>= \x3 ->
-      dirac (x2 < x3)) >>= \x2 ->
-     if_ x2
-         ((dirac x1 >>= \x3 ->
-           dirac one >>= \x4 ->
-           dirac (x3 < x4)) >>= \x3 ->
-          if_ x3 (dirac one) (dirac zero))
-         (dirac zero)) >>= \x2 ->
-    weight (unsafeProb x2)
-t60' =
-    lam $ \x0 ->
-    uniform_0_1 >>= \x1 ->
-    uniform_0_1 >>= \x2 ->
-    if_ (if_ (zero < x0 / (x2 + x1))
-             (x0 / (x2 + x1) < one)
-             false)
-        (weight ((unsafeProb (x2 + x1)) ^^ negate one) )
-        (reject sing)
-t60'' =
-    lam $ \x0 ->
-    uniform_0_1 >>= \x1 ->
-    uniform_0_1 >>= \x2 ->
-    if_ (if_ (zero < x0 / (x2 + x1))
-             (x0 / (x2 + x1) < one)
-             false)
-        (weight (recip (unsafeProb (x2 + x1))) )
-        (reject sing)
-
 t61, t61' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HProb)
 t61 = lam $ \x -> if_ (x < zero) (dirac zero) $ dirac $ unsafeProb $ recip x
 t61'= lam $ \x -> if_ (x < zero) (dirac zero) $ dirac $ unsafeProb $ recip x
-
----- "Special case" of t56
-t62, t62' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HReal ':-> 'HMeasure HUnit)
-t62 = lam $ \t ->
-      lam $ \x ->
-      uniform_0_1 >>= \y ->
-      if_ (zero < t/x - y && t/x - y < one)
-          (dirac unit)
-          (reject sing)
-t62'= lam $ \t ->
-      lam $ \x ->
-      if_ (t/x <= zero) (reject sing) $
-      if_ (t/x <= one) (weight (unsafeProb (t/x))) $
-      if_ (t/x <= (real_ 2)) (weight (unsafeProb ((real_ 2)-t/x))) $
-      reject sing
 
 ---- "Scalar multiple" of t62
 t63, t63' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
@@ -623,8 +483,8 @@ t63'= lam $ \t ->
       if_ (t/x <= (real_ 2)) (weight (unsafeProb ((real_ 2)-t/x) / unsafeProb x)) $
       reject sing
 
--- Density calculation for (Exp (Log StdRandom)) and StdRandom
-t64, t64', t64'' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
+
+t64, t64'' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t64 = lam $ \x0 ->
       (((dirac zero >>= \x1 ->
          dirac x0 >>= \x2 ->
@@ -647,43 +507,11 @@ t64 = lam $ \x0 ->
             if_ x6 (dirac one) (dirac zero))
            (dirac zero)) >>= \x5 ->
       weight (unsafeProb x5) 
-t64' =lam $ \x0 ->
-      ((dirac zero >>= \x1 ->
-        dirac x0 >>= \x2 ->
-        dirac (x1 < x2)) >>= \x1 ->
-       if_ x1
-           ((dirac x0 >>= \x2 ->
-             dirac one >>= \x3 ->
-             dirac (x2 < x3)) >>= \x2 ->
-            if_ x2 (dirac one) (dirac zero))
-           (dirac zero)) >>= \x1 ->
-      weight (unsafeProb x1) 
 t64''=lam $ \x0 ->
       if_ (zero < x0 && x0 < one) 
           (dirac unit)
           (reject sing)
 
--- Density calculation for (Add StdRandom (Exp (Neg StdRandom))).
--- Maple can integrate this but we don't simplify it for some reason.
-t65, t65' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t65 =
-    lam $ \t ->
-    uniform_0_1 >>= \x ->
-    if_ (zero < t-x)
-        (let_ (unsafeProb (t-x)) $ \t_x ->
-        withWeight (recip t_x) $
-        (if_ (zero < negate (log t_x) && negate (log t_x) < one)
-            (dirac unit)
-            (reject sing)))
-        (reject sing)
-t65' =
-     lam $ \t ->
-     uniform_0_1  >>= \x->
-     withWeight (if_ (real_ 0 < (log (unsafeProb (t + x * real_ (-1))) * real_ (-1)) &&
-                      x < (t * fromProb (exp (real_ 1)) + real_ (-1)) * fromProb (exp (real_ (-1))) &&
-                      x < t)
-                 (unsafeProb (recip (x * real_ (-1) + t)))
-                 (prob_ 0)) $ (dirac unit)
 
 half' :: (ABT Term abt) => abt '[] 'HReal
 half' = half
