@@ -1,1 +1,1 @@
-return 1
+return nat2prob(1)
