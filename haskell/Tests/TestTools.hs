@@ -130,8 +130,8 @@ testConcreteFiles f1 f2 = do
   t1 <- IO.readFile f1
   t2 <- IO.readFile f2
   case (parseAndInfer t1, parseAndInfer t2) of
-    (Left err, _) -> assertFailure (show err)
-    (_, Left err) -> assertFailure (show err)
+    (Left err, _) -> assertFailure $ T.unpack err
+    (_, Left err) -> assertFailure $ T.unpack err
     (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) -> do
       ast1' <- simplify ast1
       ast2' <- simplify ast2
