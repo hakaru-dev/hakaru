@@ -16,9 +16,11 @@ pages:
   - 'Installing Hakaru':                           'intro/installation.md'
   - 'Generating Samples from your Hakaru Program': 'intro/samplegen.md'
   - 'Quick Start: A Mixture Model Example':        'intro/quickstart.md'
-  - 'Examples':                                    'examples.md'
   - 'Compiling to Haskell':                        'transforms/compile.md' 
   - 'Compiling to C':                              'transforms/hkc.md' 
+- Hakaru Workflow and Examples:
+  - 'What is the Hakaru Workflow?': 'workflow/intro.md'
+  - 'Examples':                     'examples.md'
 - Language Guide:
   - 'Primitive Probability Distributions': 'lang/rand.md'
   - 'Let and Bind':                        'lang/letbind.md'

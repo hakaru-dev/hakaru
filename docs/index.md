@@ -37,10 +37,6 @@ You can use the `hakaru` command to generate samples from your probabilistic mod
 
 This page will introduce you to Hakaru's basic functionality by creating a program to sample and condition a mixture model of a coin toss.
 
-### [Examples](examples) ###
-
-Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
-
 ### [Compiling to Haskell](/transforms/compile) ###
 
 A Hakaru program can be ported into Haskell which can then be converted into machine code for other applications.
@@ -49,6 +45,16 @@ A Hakaru program can be ported into Haskell which can then be converted into mac
 
 Depending on the scale, a Hakaru program might be resource-intensive to run. In these situations, you could port your Hakaru program to C using the `hkc` command to take
 advantage of other tools such as OpenMP for parallel processing. 
+
+## Hakaru Workflow and Examples ##
+
+### [What is the Hakaru Workflow?](/workflow/intro.md) ###
+
+Hakaru provides a language and tools to aid in each step of the Bayesian inference workflow.
+
+### [Examples](examples) ###
+
+Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
 
 ## Language Guide ##
 
