@@ -118,10 +118,10 @@ testMeasureUnit = test [
     "t12"     ~: testSStriv [] t12,
     "t20"     ~: testConcreteFiles "tests/RoundTrip/t20.0.hk" "tests/RoundTrip/t20.expected.hk",
     "t22"     ~: testConcreteFiles "tests/RoundTrip/t11,t22.1.hk" "tests/RoundTrip/t11,t22.expected.hk",
-    "t24"     ~: testSStriv [t24] t24',
-    "t25"     ~: testSStriv [t25] t25',
-    "t44Add"  ~: testSStriv [t44Add] t44Add',
-    "t44Mul"  ~: testSStriv [t44Mul] t44Mul',
+    "t24"     ~: testConcreteFiles "tests/RoundTrip/t24.0.hk" "tests/RoundTrip/t24.expected.hk",
+    "t25"     ~: testConcreteFiles "tests/RoundTrip/t25.0.hk" "tests/RoundTrip/t25.expected.hk",
+    "t44Add"  ~: testConcreteFiles "tests/RoundTrip/t44Add.0.hk" "tests/RoundTrip/t44Add.expected.hk",
+    "t44Mul"  ~: testConcreteFiles "tests/RoundTrip/t44Mul.0.hk" "tests/RoundTrip/t44Mul.expected.hk",
     "t53"     ~: testSStriv [t53,t53'] t53'',
     "t54"     ~: testStriv t54,
     "t55"     ~: testSStriv [t55] t55',
@@ -140,20 +140,24 @@ testMeasureUnit = test [
 testMeasureProb :: IsTest ta t => t
 testMeasureProb = test [
     "t2"  ~: testConcreteFiles "tests/RoundTrip/t2.0.hk" "tests/RoundTrip/t2.expected.hk",
-    "t26" ~: testSStriv [t26] (dirac half),
+    "t26"  ~: testConcreteFiles "tests/RoundTrip/t26.0.hk" "tests/RoundTrip/t26.expected.hk",
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
-    "t34" ~: testSStriv [t34] (dirac (prob_ 3)),
+    "t34"  ~: testConcreteFiles "tests/RoundTrip/t34.0.hk" "tests/RoundTrip/t34.expected.hk",
     "t35" ~: testSStriv [] t35,
     "t35'" ~: testSStriv [] t35',
     "t38" ~: testSStriv [] t38,
     "t42" ~: testSStriv [t42] (dirac one),
+	-- Files don't have the same type
+    --"t42"  ~: testConcreteFiles "tests/RoundTrip/t42.0.hk" "tests/RoundTrip/t42.expected.hk",
     "t49" ~: testSStriv [] t49,
     "t61" ~: testSStriv [t61] t61',
+    -- Missing common type
+	--"t61"  ~: testConcreteFiles "tests/RoundTrip/t61.0.hk" "tests/RoundTrip/t61.expected.hk",
     "t66" ~: testSStriv [] t66,
     "t67" ~: testSStriv [] t67,
-    "t69x" ~: testSStriv [t69x] (dirac $ prob_ 1.5),
-    "t69y" ~: testSStriv [t69y] (dirac $ prob_ 3.5)
+    "t69x"  ~: testConcreteFiles "tests/RoundTrip/t69x.0.hk" "tests/RoundTrip/t69x.expected.hk",
+    "t69y"  ~: testConcreteFiles "tests/RoundTrip/t69y.0.hk" "tests/RoundTrip/t69y.expected.hk"
     ]
 
 testMeasureReal :: IsTest ta t => t
@@ -165,7 +169,9 @@ testMeasureReal = test
     , "t8'" ~: testConcreteFiles "tests/RoundTrip/t8'.0.hk" "tests/RoundTrip/t8'.expected.hk" -- Normal is conjugate to normal
     , "t9" ~: testConcreteFiles "tests/RoundTrip/t9.0.hk" "tests/RoundTrip/t9.expected.hk"
     , "t13" ~: testConcreteFiles "tests/RoundTrip/t13.0.hk" "tests/RoundTrip/t13.expected.hk"
+	-- Missing common type
     , "t14" ~: testConcreteFiles "tests/RoundTrip/t14.0.hk" "tests/RoundTrip/t14.expected.hk"
+    --, "t14" ~: testSStriv [t14] t14'
     , "t21" ~: testStriv t21
     , "t28" ~: testSStriv [] t28
     , "t31" ~: testSStriv [] t31
@@ -202,8 +208,8 @@ testMeasureReal = test
     , "t73d" ~: testConcreteFiles "tests/RoundTrip/t73d.0.hk" "tests/RoundTrip/t73d.expected.hk"
     , "t74d" ~: testConcreteFiles "tests/RoundTrip/t74d.0.hk" "tests/RoundTrip/t74d.expected.hk"
     , "t76" ~: testStriv t76
-    , "t78" ~: testSStriv [t78] t78'
-    , "t79" ~: testSStriv [t79] (dirac one)
+    , "t78" ~: testConcreteFiles "tests/RoundTrip/t78.0.hk" "tests/RoundTrip/t78.expected.hk"
+    , "t79" ~: testConcreteFiles "tests/RoundTrip/t79.0.hk" "tests/RoundTrip/t79.expected.hk" -- what does this simplify to?
     , "t80" ~: testStriv t80
     , "t81" ~: testSStriv [] t81
     -- TODO, "kalman" ~: testStriv kalman
@@ -299,38 +305,26 @@ t8 = normal zero (prob_ 10) >>= \x -> normal x (prob_ 20) >>= \y -> dirac (pair 
 t12 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t12 = weight (prob_ 2)
 
+t13 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
+t13 = bern ((prob_ 3)/(prob_ 5)) >>= \b -> dirac (if_ b (real_ 37) (real_ 42))
+
+t14,t14' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
+t14 =
+    bern ((prob_ 3)/(prob_ 5)) >>= \b ->
+    if_ b t13 (bern ((prob_ 2)/(prob_ 7)) >>= \b' ->
+        if_ b' (uniform (real_ 10) (real_ 12)) (uniform (real_ 14) (real_ 16)))
+t14' = unsafeSuperpose 
+    [ (prob_ $ 9 % 25, dirac (real_ 37))
+    , (prob_ $ 6 % 25, dirac (real_ 42))
+    , (prob_ $ 4 % 35, uniform (real_ 10) (real_ 12))
+    , (prob_ $ 2 % 7 , uniform (real_ 14) (real_ 16))
+    ]
+
 t21 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HReal)
 t21 = mcmc (lam $ \x -> normal x one) (normal zero (prob_ 5))
 
-t24,t24' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
-t24 =
-   lam $ \x ->
-   uniform_0_1 >>= \y ->
-   uniform_0_1 >>= \z ->
-   weight (x * exp (cos y) * unsafeProb z)
-t24' =
-   lam $ \x ->
-   withWeight (x * half) $
-   uniform_0_1 >>= \y ->
-   weight (exp (cos y))
-
-t25,t25' :: (ABT Term abt)
-   => abt '[] ('HProb ':-> 'HReal ':-> 'HMeasure HUnit)
-t25 =
-   lam $ \x ->
-   lam $ \y ->
-   uniform_0_1 >>= \z ->
-   weight (x * exp (cos y) * unsafeProb z)
-t25' =
-   lam $ \x ->
-   lam $ \y ->
-   weight (x * exp (cos y) * half)
-
 t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t1 = uniform_0_1 >>= \x -> weight (unsafeProb x)   
-
-t26 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t26 = dirac (total t1)
 
 t28 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t28 = uniform zero one
@@ -343,9 +337,6 @@ t31 = uniform (real_ (-1)) one
 
 t33 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t33 = exp <$> t31
-
-t34 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t34 = dirac (if_ ((real_ 2) < (real_ 4)) (prob_ 3) (prob_ 5))
 
 t35, t35' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HProb)
 t35  = lam $ \x -> dirac (if_ ((x `asTypeOf` log one) < (real_ 4)) (prob_ 3) (prob_ 5))
@@ -368,13 +359,6 @@ t40 = lam (dirac . log)
 
 t42 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t42 = dirac . total $ (unsafeProb <$> uniform zero (real_ 2))
-
-t44Add, t44Add', t44Mul, t44Mul'
-    :: (ABT Term abt) => abt '[] ('HReal ':-> 'HReal ':-> 'HMeasure HUnit)
-t44Add  = lam $ \x -> lam $ \y -> weight (unsafeProb $ (x * x) + (y * y))
-t44Add' = lam $ \x -> lam $ \y -> weight (unsafeProb $ (x ^ (nat_ 2) + y ^ (nat_ 2)))
-t44Mul  = lam $ \x -> lam $ \y -> weight (unsafeProb $ (x * x * y * y))
-t44Mul' = lam $ \x -> lam $ \y -> weight (unsafeProb $ (x ^ (nat_ 2)) * (y ^ (nat_ 2)))
 
 -- t45, t46, t47 are all equivalent.
 -- But t47 is worse than t45 and t46 because the importance weight generated by
@@ -739,10 +723,6 @@ t68 =
 t68' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HReal ':-> 'HMeasure 'HReal)
 t68' = lam $ \noise -> app (app t68 noise) noise
 
-t69x, t69y :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t69x = dirac (integrate one (real_ 2) $ \x -> integrate (real_ 3) (real_ 4) $ \_ -> unsafeProb x)
-t69y = dirac (integrate one (real_ 2) $ \_ -> integrate (real_ 3) (real_ 4) $ \y -> unsafeProb y)
-
 t75 :: (ABT Term abt) => abt '[] ('HMeasure 'HNat)
 t75 = gamma (prob_ 6) one >>= poisson
 
@@ -771,14 +751,6 @@ t77 =
     if_ (x < zero)
         (weight (recip (exp x)))
         (weight (exp x))
-
-t78, t78' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t78 = uniform zero (real_ 2) >>= \x2 -> withWeight (unsafeProb x2) (dirac x2)
-t78' = beta (prob_ 2) one >>= \x -> dirac ((fromProb x) * (real_ 2))
-
--- what does this simplify to?
-t79 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t79 = dirac (real_ 3) >>= \x -> dirac (if_ (x == (real_ 3)) one x)
 
 t80 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t80 = gamma_1_1 >>= \t -> normal zero t
