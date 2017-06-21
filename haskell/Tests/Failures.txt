@@ -2,10 +2,7 @@ Test cases are grouped by the general reason for failure; eventually (if the fix
 is too non-trivial) these groups should have their issues, if they do not
 already.
 
-As of June 13th 2017.
-
--- Pretty printer
-### Failure in: 1:Pretty:6:hof (missing parens in higher order type)
+As of June 21th 2017 (913b4f63ef63bd4ff3bae2442ca57f27cedbd44a)
 
 -- Ask the mailing list 
 ### Failure in: 6:RoundTrip:0:16:t60 (#43df6d3e)
@@ -17,10 +14,11 @@ As of June 13th 2017.
 -- Categorical/counting failure
 --- `case [a,b][ix] == val of ...' should become `weight(..,categorical)'
 ### Failure in: 6:RoundTrip:2:6:t13
-### Failure in: 6:RoundTrip:2:7:t14
+### Failure in: 6:RoundTrip:2:7:t14 (also fails due to "Typecheck failure")
 ### Failure in: 6:RoundTrip:3:2:t23
 ### Failure in: 6:RoundTrip:3:10:priorProp
 ### Failure in: 6:RoundTrip:6:3:testKernel
+### Failure in: 6:RoundTrip:3:0:t4  (also fails due to "alpha eq.")
 
 -- normal recog. failed
 --- superposition of lebesgue+weights 
@@ -51,3 +49,12 @@ As of June 13th 2017.
 ### Failure in: 6:RoundTrip:2:16:t46 (x*x -> x^2)
 ### Failure in: 6:RoundTrip:0:12:t56 (not (a<b) vs. a>=b)
 ### Failure in: 6:RoundTrip:0:11:t55 (not (a<b) vs. a>=b)
+
+-- Literals
+### Failure in: 6:RoundTrip:0:5:t20 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 2)
+### Failure in: 6:RoundTrip:0:7:t24 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 2)
+### Failure in: 6:RoundTrip:0:8:t25 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 2)
+### Failure in: 6:RoundTrip:2:3:t7n -- negate(nat2int(1)) vs LInt -1
+
+-- Typecheck failure (Missing common type)
+### Failure in: 6:RoundTrip:2:7:t14 
