@@ -45,6 +45,7 @@ module Language.Hakaru.CodeGen.CodeGenMonad
 
   , funCG
   , isParallel
+  , whenPar
   , mkParallel
   , mkSequential
 
@@ -81,15 +82,12 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.Types
 import Language.Hakaru.CodeGen.AST
-import Language.Hakaru.CodeGen.Pretty
 import Language.Hakaru.CodeGen.Libs
 
 import Data.Number.Nat (fromNat)
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Text          as T
 import qualified Data.Set           as S
-
-import Text.PrettyPrint (render)
 
 -- CG after "codegen", holds the state of a codegen computation
 data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generations
@@ -134,6 +132,9 @@ runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls 
 
 isParallel :: CodeGen Bool
 isParallel = sharedMem <$> get
+
+whenPar :: CodeGen () -> CodeGen ()
+whenPar m = isParallel >>= (\b -> when b m)
 
 mkParallel :: CodeGen ()
 mkParallel =
@@ -306,8 +307,16 @@ lookupVar :: Variable (a :: Hakaru) -> Env -> Maybe Ident
 lookupVar (Variable _ nat _) (Env env) =
   IM.lookup (fromNat nat) env
 
-----------------------------------------------------------------
--- Control Flow
+--------------------------------------------------------------------------------
+--                      Control Flow and Code Blocks                          --
+--------------------------------------------------------------------------------
+{-
+Monadic operations ifCG, whileCG, forCG, reductionCG, and codeBlockCG all
+generate compound C statements (several declarations and statements surrounded
+by '{' '}'). It is important that these code blocks float external functions and
+imports to the top of the generated C file AND keep a set of the variable
+declarations local to the block of code.
+-}
 
 ifCG :: CExpr -> CodeGen () -> CodeGen () -> CodeGen ()
 ifCG bE m1 m2 =
@@ -370,11 +379,17 @@ forCG iter cond inc body =
                                ++ (fmap CBlockStat (reverse $ statements cg'))))
 
 {-
-The operation for a reduction is either a builtin binary op, or must be
-specified
+The operation for a reduction is either a builtin binary op (which is a built
+in OpenMP reducer),
+
+OR, it must be specified for a given Hakaru type. This will generate fuctions
+for the monoidal operations mempty and mappend, use these to generate OpenMP
+reduction declarations, and then outfit a for loop with the pragma calling the
+reduction.
 -}
 reductionCG
-  :: Either CBinaryOp (CExpr -> CExpr -> CExpr)
+  :: Either CBinaryOp
+            (Sing (a :: Hakaru), (CExpr -> CExpr -> CodeGen ()))
   -> Ident
   -> CExpr
   -> CExpr
@@ -395,16 +410,16 @@ reductionCG op acc iter cond inc body =
          Left binop -> putStat . CPPStat . ompToPP $
                          OMP (Parallel [For,Reduction (Left binop) [CVar acc]])
          -- INCOMPLETE
-         Right red  -> do redId@(Ident redName) <- genIdent' "red"
-                          let declRedPragma = [ "omp","declare","reduction("
-                                              , redName,":",undefined,":"
-                                              , render . pretty $
-                                                  red (CVar . Ident $ "omp_in")
-                                                      (CVar . Ident $ "omp_out")
-                                              , ")"]
-                          putStat . CPPStat . PPPragma $ declRedPragma
-                          putStat . CPPStat . ompToPP $
-                            OMP (Parallel [For,Reduction (Right redId) [CVar acc]])
+         Right (_,_)    -> do redId@(Ident redName) <- genIdent' "red"
+                              let declRedPragma = [ "omp","declare","reduction("
+                                                  , redName,":",undefined,":"
+                                                  -- , render . pretty $
+                                                  --   red (CVar . Ident $ "omp_in")
+                                                  --       (CVar . Ident $ "omp_out")
+                                                  , ")"]
+                              putStat . CPPStat . PPPragma $ declRedPragma
+                              putStat . CPPStat . ompToPP $
+                                OMP (Parallel [For,Reduction (Right redId) [CVar acc]])
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
