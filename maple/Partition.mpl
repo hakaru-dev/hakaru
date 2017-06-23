@@ -338,11 +338,17 @@ export
     else                 PartitionToPW(f(PWToPartition(x))) end if;
   end proc,
 
+  #Check whether the conditions of a Partition satisfy a type (or a proc return
+  #truefalse)
+  ConditionsSatisfy := proc(P::Partition, test, $)
+    local p, ty; ty := `if`(test::type,test,satisfies(test));
+    for p in piecesOf(P) do if condOf(p)::ty then return true end if end do;
+    false
+  end proc,
+
   #Check whether the conditions of a Partition depend on any of a set of names.
   ConditionsDepend:= proc(P::Partition, V::{name, list(name), set(name)}, $)
-    local p;
-    for p in piecesOf(P) do if depends(condOf(p), V) then return true end if end do;
-    false
+    ConditionsSatisfy(P, x->depends(x,V));
   end proc,
 
   # The cartesian product of two Partitions
