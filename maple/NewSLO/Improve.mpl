@@ -186,6 +186,9 @@ reduce_Integrals := module()
     end proc;
 
     local known_tys := table([Int=int_assuming,Sum=sum_assuming,Ints=ints,Sums=sums]);
+    # Returns FAIL if we probably can't eliminate this intsum, or
+    # the work to be done as a list:
+    #  [ intsum body, intsum function, primary var, other var args ]
     local extract_elim := proc(e, h::name, kb::t_kb,$)
       local t, intapps, var, f, e_k, e_args, vs, blo, bhi;
       vs := {op(KB:-kb_to_variables(kb))};
@@ -202,7 +205,7 @@ reduce_Integrals := module()
                     (Domain:-ExtBound[e_k]:-ExtractRange(e_args));
         if ormap(b->op(1,b) in map((q-> (q,-q)), vs) and op(2,b)::SymbolicInfinity
                 ,[[blo,bhi],[bhi,blo]]) then
-          return FAIL end if;
+          return FAIL end if; # This is something that `disint` wants to see unevaluated
         if var :: list then var := op(1,var) end if;
         if not depends(intapps, var) then
           f := known_tys[e_k];
