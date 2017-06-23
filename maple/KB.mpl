@@ -53,7 +53,8 @@ KB := module ()
      boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw,
      array_size_assumptions, array_elem_assumptions, kb_intro_to_assumptions,
 
-     simpl_range_of_htype, zip_k
+     simpl_range_of_htype, zip_k,
+     known_assuming_expections
 
      ;
   export
@@ -774,6 +775,13 @@ KB := module ()
     foldl(eval, e, op(kb_to_equations(kb)));
   end proc;
 
+  # The known exceptions which kb_assuming_mb will catch and
+  # return as a failure; all others are rethrown
+  known_assuming_expections :=
+  { "when calling '%2'. Received: '%1 is an invalid property'" , #assume/ProcessTerm
+    "when calling '%1'. Received: 'Can not process Or() or Not(And()) assumption if the object is not a name'" #assume/ProcessTerm
+  };
+
   kb_assuming_mb := proc(simpl, ee, kb::t_kb, failure, $)
     local e, as, e0;                                                         # for debugging
 
@@ -786,7 +794,11 @@ KB := module ()
     e  := subs([sum=Sum], e);
 
     userinfo(3, procname, printf("Trying\n%a(%a) assuming op(%a)\n", simpl, e, as));
-    try e := simpl(e) assuming op(as); catch: e := failure(e0); end try;
+    try e := simpl(e) assuming op(as);
+    catch :
+      if lastexception[2] in known_assuming_expections then
+        failure(e0); else error; end if;
+    end try;
 
     e := warm(e);                                            `warm (then expand@exp)`;
     e := eval(e, exp = expand @ exp);
