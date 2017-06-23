@@ -779,7 +779,8 @@ KB := module ()
   # return as a failure; all others are rethrown
   known_assuming_expections :=
   { "when calling '%2'. Received: '%1 is an invalid property'" , #assume/ProcessTerm
-    "when calling '%1'. Received: 'Can not process Or() or Not(And()) assumption if the object is not a name'" #assume/ProcessTerm
+    "when calling '%1'. Received: 'Can not process Or() or Not(And()) assumption if the object is not a name'", #assume/ProcessTerm
+    "when calling '%1'. Received: 'contradictory assumptions'" #assume
   };
 
   kb_assuming_mb := proc(simpl, ee, kb::t_kb, failure, $)
