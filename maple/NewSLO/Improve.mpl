@@ -20,7 +20,7 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
   rr := reduce_Integrals(e, h, kb, opts);
   if rr <> FAIL then return rr end if;
   if e :: 'applyintegrand(anything, anything)' then
-    applyop(simplify_assuming, 2, e, kb)
+    applyop(reduce_scalar, 2, e, kb)
   elif e :: `+` then
     map(reduce, e, h, kb, opts)
   elif e :: `*` then
@@ -60,6 +60,14 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
   else
     simplify_assuming(e, kb)
   end if;
+end proc;
+
+reduce_scalar := proc(e, kb :: t_kb, $)
+  foldr(((f,x)->f(x,kb)), e
+        ,simplify_assuming
+        ,Partition:-Simpl
+        ,(x->subsindets(x, t_pw, PWToPartition))
+       );
 end proc;
 
 # Returns true for expressions for which we could conceivably
