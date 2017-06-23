@@ -190,7 +190,8 @@ reduce_Integrals := module()
     # the work to be done as a list:
     #  [ intsum body, intsum function, primary var, other var args ]
     local extract_elim := proc(e, h::name, kb::t_kb,$)
-      local t, intapps, var, f, e_k, e_args, vs, blo, bhi;
+      local t, intapps, var, f, e_k, e_args, vs, blo, bhi,
+            case_var, cond_case_var;
       vs := {op(KB:-kb_to_variables(kb))};
       t := 'applyintegrand'('identical'(h), 'anything');
       intapps := indets(op(1,e), t);
@@ -207,10 +208,21 @@ reduce_Integrals := module()
                 ,[[blo,bhi],[bhi,blo]]) then
           return FAIL end if; # This is something that `disint` wants to see unevaluated
         if var :: list then var := op(1,var) end if;
-        if not depends(intapps, var) then
-          f := known_tys[e_k];
-        else
-          return FAIL;
+        case_var := c->hastype(c, 'idx'(list,name));
+        cond_case_var := p->Partition:-ConditionsSatisfy(p,case_var);
+
+        # independant of `h' - this is a weight
+        if not depends(intapps, var)
+        # A sum whose bounds are literals and which contains a
+        # `case(idx(<literal array>, ...)) ...', or
+        # `idx(<literal array>, ...' inside a `Ret'
+        or (e_k in {Sum,Sums} and andmap(b->b::And(realcons,integer),[blo,bhi])
+            and (hastype(op(1,e),
+                           {And(Partition, satisfies(cond_case_var)),
+                            And(t_pw, satisfies(cond_case_var@PWToPartition))})
+                 or hastype(intapps, satisfies(case_var))))
+        then f := known_tys[e_k];
+        else return FAIL;
         end if;
       else
         error "extract_elim was passed something which is not an intsum: %1", e;
