@@ -209,6 +209,8 @@ reduce_Integrals := module()
         else
           return FAIL;
         end if;
+      else
+        error "extract_elim was passed something which is not an intsum: %1", e;
       end if;
       [ op(1,e), f, var, [e_args] ];
     end proc;
