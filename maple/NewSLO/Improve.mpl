@@ -263,7 +263,9 @@ int_assuming := proc(e, v::name=anything, kb::t_kb, $)
 end proc;
 
 sum_assuming := proc(e, v::name=anything, kb::t_kb)
-  simplify_factor_assuming('sum'(e, v), kb);
+  local r;
+  r := simplify_factor_assuming('sum'(e, v), kb);
+  if r::specfunc(`sum`) then sum(op(r)) else r; end if;
 end proc;
 
 # Int( .., var=var_ty ) == var &X var_ty
