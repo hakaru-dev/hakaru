@@ -603,7 +603,7 @@ export
       #  solve( {Not(a<>b)} )  = {a=a,b=b}  -- but should be {..,a=b}
       local can_solve := proc(c,$)
         local neq_nn := `<>`(name,name);
-        evalb(not(indets(c, neq_nn) <> {} and not (c::neq_nn)));
+        evalb(indets(c, neq_nn) = {} or not has(c,`idx`))
       end proc;
 
       export ModuleApply := proc(ctx)::list(PartitionCond);
