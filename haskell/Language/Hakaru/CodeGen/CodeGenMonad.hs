@@ -268,27 +268,6 @@ extDeclare d = do cg <- get
                                else d:extds
                   put $ cg { extDecls = extds' }
 
-funCG :: CTypeSpec -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
-funCG ts ident args m =
-  do cg <- get
-     let (_,cg') = runState m $ cg { statements   = []
-                                   , declarations = []
-                                   , freshNames   = cNameStream }
-     let decls = reverse . declarations $ cg'
-         stmts = reverse . statements   $ cg'
-     -- reset local statements and declarations
-     put $ cg' { statements   = statements cg
-               , declarations = declarations cg
-               , freshNames   = freshNames cg }
-     extDeclare . CFunDefExt $
-       CFunDef [CTypeSpec ts]
-               (CDeclr Nothing (CDDeclrIdent ident))
-               args
-               (CCompound ((fmap CBlockDecl decls) ++ (fmap CBlockStat stmts)))
-
-
-
-
 ---------
 -- ENV --
 ---------
@@ -311,12 +290,30 @@ lookupVar (Variable _ nat _) (Env env) =
 --                      Control Flow and Code Blocks                          --
 --------------------------------------------------------------------------------
 {-
-Monadic operations ifCG, whileCG, forCG, reductionCG, and codeBlockCG all
+Monadic operations funCG, ifCG, whileCG, forCG, reductionCG, and codeBlockCG all
 generate compound C statements (several declarations and statements surrounded
 by '{' '}'). It is important that these code blocks float external functions and
 imports to the top of the generated C file AND keep a set of the variable
 declarations local to the block of code.
 -}
+
+funCG :: CTypeSpec -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
+funCG ts ident args m =
+  do cg <- get
+     let (_,cg') = runState m $ cg { statements   = []
+                                   , declarations = []
+                                   , freshNames   = cNameStream }
+     let decls = reverse . declarations $ cg'
+         stmts = reverse . statements   $ cg'
+     -- reset local statements and declarations
+     put $ cg' { statements   = statements cg
+               , declarations = declarations cg
+               , freshNames   = freshNames cg }
+     extDeclare . CFunDefExt $
+       CFunDef [CTypeSpec ts]
+               (CDeclr Nothing (CDDeclrIdent ident))
+               args
+               (CCompound ((fmap CBlockDecl decls) ++ (fmap CBlockStat stmts)))
 
 ifCG :: CExpr -> CodeGen () -> CodeGen () -> CodeGen ()
 ifCG bE m1 m2 =
@@ -389,42 +386,64 @@ reduction.
 -}
 reductionCG
   :: Either CBinaryOp
-            (Sing (a :: Hakaru), (CExpr -> CExpr -> CodeGen ()))
-  -> Ident
-  -> CExpr
-  -> CExpr
-  -> CExpr
-  -> CodeGen ()
+            ( Sing (a :: Hakaru)             -- type of reduction sections
+            , CExpr -> CodeGen ()            -- monoidal unit
+            , CExpr -> CExpr -> CodeGen () ) -- monoidal multiplication
+  -> CExpr       -- accumulator var
+  -> CExpr       -- iteration var
+  -> CExpr       -- iteration condition
+  -> CExpr       -- iteration increment
+  -> CodeGen ()  -- body of the loop
   -> CodeGen ()
 reductionCG op acc iter cond inc body =
   do cg <- get
-     let (_,cg') = runState body $ cg { statements = []
+     let (_,cg') = runState body $ cg { statements   = []
                                       , declarations = []
-                                      , sharedMem = False } -- only use pragmas at the top level
+                                      , sharedMem    = False } -- only use pragmas at the top level
      put $ cg' { statements   = statements cg
                , declarations = declarations cg
                , sharedMem    = sharedMem cg }
      par <- isParallel
      when par $
        case op of
-         Left binop -> putStat . CPPStat . ompToPP $
-                         OMP (Parallel [For,Reduction (Left binop) [CVar acc]])
-         -- INCOMPLETE
-         Right (_,_)    -> do redId@(Ident redName) <- genIdent' "red"
-                              let declRedPragma = [ "omp","declare","reduction("
-                                                  , redName,":",undefined,":"
-                                                  -- , render . pretty $
-                                                  --   red (CVar . Ident $ "omp_in")
-                                                  --       (CVar . Ident $ "omp_out")
-                                                  , ")"]
-                              putStat . CPPStat . PPPragma $ declRedPragma
-                              putStat . CPPStat . ompToPP $
-                                OMP (Parallel [For,Reduction (Right redId) [CVar acc]])
+         Left binop ->
+           putStat . CPPStat . ompToPP $
+             OMP (Parallel [For,Reduction (Left binop) [acc]])
+         Right (typ,unit,mul) ->
+           do { redId <- declareReductionCG typ unit mul
+              ; putStat . CPPStat . ompToPP $
+                  OMP (Parallel [For,Reduction (Right redId) [acc]]) }
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
                     (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
                                ++ (fmap CBlockStat (reverse $ statements cg'))))
+
+-- given a monoid for a Hakaru type, generate the appropriate openMP reduction
+-- declaration and return its unique identifier
+declareReductionCG
+  :: Sing (a :: Hakaru)
+  -> (CExpr -> CodeGen ())
+  -> (CExpr -> CExpr -> CodeGen ())
+  -> CodeGen Ident
+declareReductionCG typ unit mul =
+  do (redId:unitId:mulId:[]) <- mapM genIdent' ["red","unit","mul"]
+     funCG CVoid unitId [] $
+       unit . CVar . Ident $ "in"
+     funCG CVoid mulId [] $
+       mul (CVar . Ident $ "l") (CVar . Ident $ "r")
+     let typ' = case buildType typ of
+                  (x:_) -> x
+                  _ -> error $ "buildType{" ++ (show typ) ++ "}"
+     putStat . CPPStat . ompToPP $
+       OMP (DeclareRed redId
+                       typ'
+                       (CCall (CVar mulId)
+                              (fmap (address . CVar . Ident)
+                                    ["omp_in","omp_out"]))
+                       (CCall (CVar unitId)
+                              [address . CVar . Ident $ "omp_priv"]))
+     return redId
 
 
 -- not control flow, but like these it creates a block with local variables

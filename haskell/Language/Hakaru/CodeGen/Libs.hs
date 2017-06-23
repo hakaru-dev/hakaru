@@ -152,6 +152,7 @@ data Directive
   | For
   | Critical
   | Reduction (Either CBinaryOp Ident) [CExpr]
+  | DeclareRed Ident CTypeSpec CExpr CExpr
 
 ompToPP :: OMP -> Preprocessor
 ompToPP (OMP d) = PPPragma $ "omp":(showDirective d)
@@ -164,3 +165,9 @@ ompToPP (OMP d) = PPPragma $ "omp":(showDirective d)
                      Left binop -> render . pretty $ binop
                      Right (Ident s) -> s
           in  ["reduction(",op,":",unwords . fmap (render. pretty) $ vs,")"]
+        showDirective (DeclareRed (Ident name) typ mul unit) =
+          let typ'  = render . pretty $ typ
+              mul'  = render . pretty $ mul
+              unit' = render . pretty $ unit
+          in ["declare","reduction(",name,":",typ',":",mul',") initializer ("
+             ,unit',")"]

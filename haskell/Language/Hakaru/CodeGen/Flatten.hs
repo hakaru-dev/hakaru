@@ -306,7 +306,7 @@ flattenSCon (Summate _ sr) =
                      iterVar = CVar iterI
 
                  reductionCG (Left CAddOp)
-                             accI
+                             accVar
                              (iterVar .=. loE)
                              (iterVar .<. hiE)
                              (CUnary CPostIncOp iterVar) $
@@ -345,7 +345,7 @@ flattenSCon (Product _ sr) =
                      iterVar = CVar iterI
 
                  reductionCG (Left CMulOp)
-                             accI
+                             accVar
                              (iterVar .=. loE)
                              (iterVar .<. hiE)
                              (CUnary CPostIncOp iterVar) $
@@ -426,7 +426,7 @@ flattenSCon Plate           =
            let sampE = CVar sampId
 
            reductionCG (Left CAddOp)
-                       weightId
+                       weightE
                        (itE .=. (intE 0))
                        (itE .<. sizeE)
                        (CUnary CPostIncOp itE)
@@ -648,10 +648,14 @@ flattenBucket lo hi red = \loc -> do
     let itE = CVar itId
     initRed red loc
     isPar <- isParallel
-    forCG (itE .=. loE)
-          (itE .<. hiE)
-          (CUnary CPostIncOp itE)
-          (accumRed isPar red itE loc)
+    reductionCG (Right ( typeOfReducer red
+                       , initRed red
+                       , mulRed red))
+                loc
+                (itE .=. loE)
+                (itE .<. hiE)
+                (CUnary CPostIncOp itE)
+                (accumRed isPar red itE loc)
     putStat $ opComment "End Bucket"
   where initRed
           :: (ABT Term abt)
@@ -736,10 +740,28 @@ flattenBucket lo hi red = \loc -> do
                            [declare typ' =<< createIdent v'])
                        $ vs
                      eE <- flattenWithName e''
-                     when isPar $  putStat . CPPStat . ompToPP $ OMP Critical
+                     -- when isPar $  putStat . CPPStat . ompToPP $ OMP Critical
                      case sing_HSemiring sr of
                        SProb -> logSumExpCG (S.fromList [loc,eE]) loc
                        _ -> putExprStat $ loc .+=. eE
+
+        mulRed
+          :: (ABT Term abt)
+          => Reducer abt xs a
+          -> (CExpr -> CExpr -> CodeGen ())
+        mulRed mr outp inp =
+          case mr of
+            (Red_Index _ _ _) -> do itE <- localVar SNat
+                                    forCG (itE .=. (intE 0))
+                                          (itE .<. (intE 0))
+                                          (CUnary CPostIncOp itE)
+                                          (return ())
+            (Red_Fanout mr1 mr2) -> mulRed mr1 (datumFst outp) (datumFst inp)
+                                 >> mulRed mr2 (datumFst outp) (datumFst inp)
+            (Red_Split _ mr1 mr2) -> mulRed mr1 (datumFst outp) (datumFst inp)
+                                  >> mulRed mr2 (datumFst outp) (datumFst inp)
+            Red_Nop           -> return ()
+            (Red_Add _ _)     -> putExprStat $ outp .+=. inp
 
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
 addMonoidIdentity s =
