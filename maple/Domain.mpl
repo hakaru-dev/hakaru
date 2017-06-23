@@ -222,7 +222,7 @@ $include "Domain/Improve.mpl"
       # Improve, if necessary, then apply back to the expression
       if dom_specw <> DConstrain() and not ("no_domain" in {opts[]})
       then dom_spec := Domain:-Improve(dom_spec) end if;
-      Domain:-Apply(dom_spec, f_into, f_body)(e);
+      `+`(op(map(Domain:-Apply(dom_spec, f_into, f_body),convert(e, 'list',`+`))));
     end proc;
 
     ModuleLoad();
