@@ -531,7 +531,7 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
     -- valid primitive measures. However, there are many other
     -- restrictions on measures we may want to consider, so handling
     -- these two here would only complicate matters.
-    Lebesgue    :: MeasureOp '[]                 'HReal
+    Lebesgue    :: MeasureOp '[ 'HReal, 'HReal ] 'HReal
     Counting    :: MeasureOp '[]                 'HInt
     Categorical :: MeasureOp '[ 'HArray 'HProb ] 'HNat
     -- TODO: make Uniform polymorphic, so that if the two inputs

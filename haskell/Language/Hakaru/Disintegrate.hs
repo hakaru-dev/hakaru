@@ -797,7 +797,8 @@ constrainValueMeasureOp v0 = go
     -- what the old finally-tagless code seems to have been doing.
     -- But is that right, or should they really be @return ()@?
     go :: MeasureOp typs a -> SArgs abt args -> Dis abt ()
-    go Lebesgue    = \End               -> bot -- TODO: see note above
+    go Lebesgue    = \(e1 :* e2 :* End) ->
+        constrainValue v0 (P.lebesgue' e1 e2)
     go Counting    = \End               -> bot -- TODO: see note above
     go Categorical = \(e1 :* End)       ->
         constrainValue v0 (P.categorical e1)
@@ -1209,7 +1210,7 @@ constrainOutcomeMeasureOp
 constrainOutcomeMeasureOp v0 = go
     where
     -- Per the paper
-    go Lebesgue = \End -> return ()
+    go Lebesgue = \(_ :* _ :* End) -> return ()
 
     -- TODO: I think, based on Hakaru v0.2.0
     go Counting = \End -> return ()

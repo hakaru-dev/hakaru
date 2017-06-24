@@ -515,7 +515,7 @@ ppArrayOp p (Reduce  _) = \(e1 :* e2 :* e3 :* End) ->
 ppMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> MeasureOp typs a -> SArgs abt args -> Docs
-ppMeasureOp _ Lebesgue    = \End           -> [PP.text "lebesgue"]
+ppMeasureOp p Lebesgue    = \(e1 :* e2 :* End) -> ppApply2 p "lebesgue" e1 e2
 ppMeasureOp _ Counting    = \End           -> [PP.text "counting"]
 ppMeasureOp p Categorical = \(e1 :* End)   -> ppApply1 p "categorical" e1
 ppMeasureOp p Uniform = \(e1 :* e2 :* End) -> ppApply2 p "uniform"     e1 e2

@@ -303,8 +303,10 @@ expectMeasureOp
     => MeasureOp typs a
     -> SArgs abt args
     -> Expect abt (abt '[] a)
-expectMeasureOp Lebesgue = \End ->
-    var <$> pushIntegrate P.negativeInfinity P.infinity
+expectMeasureOp Lebesgue = \(lo :* hi :* End) -> do 
+    lo' <- var <$> pushLet lo
+    hi' <- var <$> pushLet hi
+    var <$> pushIntegrate lo' hi' 
 expectMeasureOp Counting = \End ->
     var <$> pushSummate P.negativeInfinity P.infinity
 expectMeasureOp Categorical = \(ps :* End) -> do

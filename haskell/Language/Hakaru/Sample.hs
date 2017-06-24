@@ -411,9 +411,11 @@ evaluateMeasureOp
     -> Env
     -> Value ('HMeasure a)
 
-evaluateMeasureOp Lebesgue = \End _ ->
-    VMeasure $ \(VProb p) g -> do
-        (u,b) <- MWC.uniform g
+evaluateMeasureOp Lebesgue = \(e1 :* e2 :* End) env ->
+  case (evaluate e1 env, evaluate e2 env) of
+    (VReal v1, VReal v2) -> 
+      VMeasure $ \(VProb p) g -> do
+        (u,b) <- MWC.uniformR ((v1,False), (v2,True)) g
         let l = log u
         let n = -l
         return $ Just

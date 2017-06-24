@@ -107,7 +107,9 @@ primTable =
     ,("nat2prob",    primCoerce cNat2Prob)
     ,("nat2int",     primCoerce cNat2Int)
      -- Measures
-    ,("lebesgue",    TNeu $ syn $ U.MeasureOp_ (U.SomeOp T.Lebesgue) [])
+    ,("lebesgue",    TNeu $ syn $ U.MeasureOp_ (U.SomeOp T.Lebesgue) 
+                       [syn $ U.PrimOp_ U.Negate [syn $ U.PrimOp_ U.Infinity []], 
+                        syn $ U.PrimOp_ U.Infinity []])
     ,("counting",    TNeu $ syn $ U.MeasureOp_ (U.SomeOp T.Counting) [])
     ,("uniform",     primMeasure2 (U.SomeOp T.Uniform))
     ,("normal",      primMeasure2 (U.SomeOp T.Normal))
@@ -280,6 +282,13 @@ symbolResolution symbols ast =
         name' <- gensym name
         U.Lam (mkSym name') typ
             <$> symbolResolution (insertSymbol name' symbols) x
+
+    U.App (U.App (U.Var "lebesgue") x) y -> 
+      U.App <$> 
+         (U.App
+                 (U.Var $ primMeasure2 (U.SomeOp T.Lebesgue))
+             <$> symbolResolution symbols x)
+            <*> symbolResolution symbols y
 
     U.App f x -> U.App
         <$> symbolResolution symbols f

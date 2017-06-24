@@ -338,7 +338,7 @@ mapleArrayOp _         _                 = error "TODO: mapleArrayOp{Reduce}"
 mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> ShowS
-mapleMeasureOp Lebesgue    = \End               -> showString "Lebesgue(-infinity,infinity)"
+mapleMeasureOp Lebesgue    = \(e1 :* e2 :* End) -> app2 "Lebesgue" e1 e2
 mapleMeasureOp Counting    = \End               -> showString "Counting(-infinity,infinity)"
 mapleMeasureOp Categorical = \(e1 :* End)       -> app1 "Categorical" e1
 mapleMeasureOp Uniform     = \(e1 :* e2 :* End) -> app2 "Uniform"  e1 e2
