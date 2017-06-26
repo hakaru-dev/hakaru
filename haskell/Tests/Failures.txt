@@ -32,7 +32,6 @@ As of June 21th 2017 (913b4f63ef63bd4ff3bae2442ca57f27cedbd44a)
 ### Failure in: 6:RoundTrip:2:48:lebesgue2
 
 -- Change to accept 
-### Failure in: 6:RoundTrip:0:18:t63
 ### Failure in: 6:RoundTrip:0:20:t65
 
 - All the below failures are *not* due to the simplifier 
@@ -56,3 +55,7 @@ As of June 21th 2017 (913b4f63ef63bd4ff3bae2442ca57f27cedbd44a)
 
 -- Typecheck failure (Missing common type)
 ### Failure in: 6:RoundTrip:2:7:t14 
+
+-- Needs to move to testConcreteFiles but purportedly does not work
+-- (See commends in RoundTrip.hs)
+### Failure in: 6:RoundTrip:0:18:t63

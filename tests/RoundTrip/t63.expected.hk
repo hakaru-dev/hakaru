@@ -1,12 +1,23 @@
 fn x1 real: 
- x0 <~ uniform(0, 1)
- (match not((0 < (x1 / x0))): 
-   true: reject. measure(unit)
-   false: 
-    (match not((1 < (x1 / x0))): 
-      true: weight((real2prob((x1 / x0)) / real2prob(x0)), return ())
-      false: 
-       (match not((2 < (x1 / x0))): 
-         true: 
-          weight((real2prob((2 - (x1 / x0))) / real2prob(x0)), return ())
-         false: reject. measure(unit))))
+  (match not((nat2real(0) < x1)): 
+    true: reject. measure(unit)
+    false: 
+     weight((match (x1 < nat2real(1)): 
+              true: real2prob(((log(nat2prob(2)) * nat2real(2)) + int2real(-1)))
+              false: 
+               (match (x1 < nat2real(2)): 
+                 true: 
+                  real2prob(((log(nat2prob(2)) * nat2real(2))
+                              + 
+                             int2real(-2)
+                              + 
+                             x1
+                              + 
+                             (log(real2prob(x1)) * int2real(-2))))
+                 false: nat2prob(0))),
+            return ()) <|> 
+     weight(nat2prob(1),
+            (match (x1 < nat2real(1)): 
+              true: 
+               weight(real2prob(((x1 * int2real(-1)) + nat2real(1))), return ())
+              false: reject. measure(unit))))
