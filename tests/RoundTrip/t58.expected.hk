@@ -1,16 +1,9 @@
 fn x0 real: 
- (match (match (0 < x0): 
-          true: (x0 < 2)
-          false: false): 
-   true: 
-    (match (match (1 < x0): 
-             true: (x0 < 3)
-             false: false): 
-      true: weight(2, return ())
-      false: return ())
-   false: 
-    (match (match (1 < x0): 
-             true: (x0 < 3)
-             false: false): 
-      true: return ()
-      false: reject. measure(unit)))
+  weight(nat2prob(1),
+         (match ((nat2real(0) < x0) && (x0 < nat2real(2))): 
+           true: return ()
+           false: reject. measure(unit))) <|> 
+  weight(nat2prob(1),
+         (match ((nat2real(1) < x0) && (x0 < nat2real(3))): 
+           true: return ()
+           false: reject. measure(unit)))
