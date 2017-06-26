@@ -5,7 +5,7 @@ module Tests.Parser where
 
 import Prelude hiding (unlines)
 
-import Language.Hakaru.Parser.Parser
+import Language.Hakaru.Parser.Parser (parseHakaru)
 import Language.Hakaru.Parser.AST
 
 import Data.Text

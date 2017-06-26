@@ -1,9 +1,9 @@
 {-# LANGUAGE CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Language.Hakaru.Parser.Import where
+module Language.Hakaru.Parser.Import (expandImports) where
 
 import           Language.Hakaru.Parser.AST
-import           Language.Hakaru.Parser.Parser
+import           Language.Hakaru.Parser.Parser (parseHakaruWithImports)
 
 import           Control.Monad.Trans.Except
 import           Control.Monad.IO.Class

@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Language.Hakaru.Parser.Parser where
+module Language.Hakaru.Parser.Parser (parseHakaru, parseHakaruWithImports) where
 
 import Prelude hiding (Real)
 
