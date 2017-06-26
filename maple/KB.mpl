@@ -798,7 +798,10 @@ KB := module ()
     try e := simpl(e) assuming op(as);
     catch :
       if lastexception[2] in known_assuming_expections then
-        failure(e0); else error; end if;
+        userinfo(3, procname, printf("...threw a known exception:\n%s",
+                                     StringTools[FormatMessage](lastexception[2..-1])));
+        failure(e0);
+      else error; end if;
     end try;
 
     e := warm(e);                                            `warm (then expand@exp)`;
