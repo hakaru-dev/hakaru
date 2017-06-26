@@ -7,8 +7,6 @@
 module Tests.Pretty where
 
 import           Language.Hakaru.Command (parseAndInfer)
-import           Language.Hakaru.Parser.Parser
-import           Language.Hakaru.Parser.SymbolResolve
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.Prelude

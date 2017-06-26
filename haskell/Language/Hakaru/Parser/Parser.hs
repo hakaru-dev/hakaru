@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Language.Hakaru.Parser.Parser where
+module Language.Hakaru.Parser.Parser (parseHakaru, parseHakaruWithImports) where
 
 import Prelude hiding (Real)
 
@@ -52,14 +52,6 @@ style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     , Tok.reservedOpNames = ops ++ types
     , Tok.reservedNames   = names
     }
-
-comments :: Parser ()
-comments = string "#"
-           *> manyTill anyChar newline
-           *> return ()
-
-emptyLine :: Parser ()
-emptyLine = newline *> return ()
 
 lexer :: Tok.GenTokenParser ParserStream () Identity
 lexer = ITok.makeTokenParser style
@@ -508,7 +500,7 @@ parseHakaruWithImports = parseAtTopLevel exprWithImport
 
 parseAtTopLevel :: Parser a -> Text -> Either ParseError a 
 parseAtTopLevel p = 
-    runParser (skipMany (comments <|> emptyLine) *>
+    runParser (whiteSpace *>
                p <* eof) () "<input>" . indentConfig . Text.strip 
 
 withPos :: Parser (AST' a) -> Parser (AST' a)

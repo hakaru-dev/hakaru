@@ -6,7 +6,7 @@ module Language.Hakaru.Command where
 import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Parser.Import (expandImports)
-import           Language.Hakaru.Parser.Parser hiding (style)
+import           Language.Hakaru.Parser.Parser (parseHakaru, parseHakaruWithImports)
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Syntax.TypeCheck
 

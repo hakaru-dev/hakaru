@@ -8,7 +8,7 @@
 module Tests.TestTools where
 
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Parser.Parser
+import Language.Hakaru.Parser.Parser (parseHakaru)
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import Language.Hakaru.Command (parseAndInfer, splitLines)
 import Language.Hakaru.Syntax.ABT

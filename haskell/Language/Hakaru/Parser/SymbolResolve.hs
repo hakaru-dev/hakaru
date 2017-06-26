@@ -5,7 +5,10 @@
            , GADTs
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Language.Hakaru.Parser.SymbolResolve where
+module Language.Hakaru.Parser.SymbolResolve
+    (
+      resolveAST, resolveAST', makeName, fromVarSet
+    ) where
 
 import Data.Text hiding (concat, map, maximum, foldr1, singleton)
 #if __GLASGOW_HASKELL__ < 710
@@ -25,7 +28,7 @@ import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind  hiding (Symbol)
 import           Language.Hakaru.Types.HClasses
 import qualified Language.Hakaru.Syntax.AST      as T
-import           Language.Hakaru.Syntax.ABT
+import           Language.Hakaru.Syntax.ABT      hiding (fromVarSet)
 import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Variable ()
 import qualified Language.Hakaru.Parser.AST   as U

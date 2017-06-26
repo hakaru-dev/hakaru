@@ -6,7 +6,7 @@
 module Tests.Hakaru where
 
 import qualified Language.Hakaru.Parser.AST as U
-import Language.Hakaru.Parser.Parser hiding (var)
+import Language.Hakaru.Parser.Parser (parseHakaru)
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 
