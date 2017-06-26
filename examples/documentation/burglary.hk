@@ -1,0 +1,7 @@
+def bern(p prob):
+    x <~ categorical([p, real2prob(1 - p)])
+    return [true, false][x]
+
+burglary <~ bern(0.0001)
+alarm    <~ bern(if burglary: 0.95 else: 0.01)
+return (alarm, burglary)

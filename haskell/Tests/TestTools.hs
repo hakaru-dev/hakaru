@@ -124,6 +124,10 @@ testWithConcrete'
     -> Assertion
 testWithConcrete' = testWithConcrete
 
+-- Function: testConcreteFiles
+-- This function accepts two files; it simplifies the first and then 
+-- compares the result to the second file. If the files are
+-- alpha equivalent, the test is successful.
 testConcreteFiles
     :: FilePath
     -> FilePath
@@ -139,7 +143,7 @@ testConcreteFiles f1 f2 = do
         Just Refl -> do
           ast1' <- simplify ast1
           assertAlphaEq "" ast1' ast2
-        Nothing   -> assertFailure "files don't have same type"
+        Nothing   -> assertFailure ("files don't have same type (File1 = " ++ (show typ1) ++ ", File2 = " ++ (show typ2))
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure
