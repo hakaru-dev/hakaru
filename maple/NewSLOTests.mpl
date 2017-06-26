@@ -185,9 +185,11 @@ t4 := Bind(BetaD(1, 1), a0,
       Bind(Msum(Weight(a0, Ret(true)),
                 Weight((1-a0), Ret(false))), a1,
       Ret(Pair(a0, a1)))):
-t4s := Bind(Uniform(0, 1), a0,
+t4s := {Bind(Uniform(0, 1), a0,
        Msum(Weight(a0, Ret(Pair(a0, true))),
-            Weight((1+(a0*(-1))), Ret(Pair(a0, false))))):
+            Weight((1+(a0*(-1))), Ret(Pair(a0, false))))),
+        Msum(Weight(1/2,Bind(BetaD(1,2),a0,Ret(Pair(a0,false)))),
+             Weight(1/2,Bind(BetaD(2,1),a0,Ret(Pair(a0,true)))))}:
 t5 := Bind(Msum(Weight((1/2), Ret(Unit))), a0, Ret(Unit)):
 t5s := Weight((1/2), Ret(Unit)):
 t6 := Ret(5):
