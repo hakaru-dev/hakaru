@@ -38,6 +38,8 @@ As of June 21th 2017 (913b4f63ef63bd4ff3bae2442ca57f27cedbd44a)
 ### Failure in: 6:RoundTrip:3:11:mhPriorProp
 ### Failure in: 6:RoundTrip:0:20:t65
 
+- All the below failures are *not* due to the simplifier 
+- failing to simplify a program. 
 -- alpha eq. 
 --- Solve later 
 ### Failure in: 6:RoundTrip:3:0:t4   (negate vs. -1* , bug in pretty printer?)
