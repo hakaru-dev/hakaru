@@ -34,7 +34,6 @@ As of June 21th 2017 (913b4f63ef63bd4ff3bae2442ca57f27cedbd44a)
 -- Change to accept 
 ### Failure in: 6:RoundTrip:0:14:t58
 ### Failure in: 6:RoundTrip:0:18:t63
-### Failure in: 6:RoundTrip:3:11:mhPriorProp
 ### Failure in: 6:RoundTrip:0:20:t65
 
 - All the below failures are *not* due to the simplifier 
@@ -54,6 +53,7 @@ As of June 21th 2017 (913b4f63ef63bd4ff3bae2442ca57f27cedbd44a)
 ### Failure in: 6:RoundTrip:2:3:t7n -- negate(nat2int(1)) vs LInt -1
 ### Failure in: 6:RoundTrip:2:52:exceptionLebesgue -- negate(..) vs .. * -1
 ### Failure in: 6:RoundTrip:2:53:exceptionUniform  -- ^  
+### Failure in: 6:RoundTrip:3:11:mhPriorProp -- int2real(-1)*prob2real(recip(nat2prob(2)) vs LReal -1/2
 
 -- Typecheck failure (Missing common type)
 ### Failure in: 6:RoundTrip:2:7:t14 
