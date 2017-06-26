@@ -2,7 +2,7 @@ Test cases are grouped by the general reason for failure; eventually (if the fix
 is too non-trivial) these groups should have their issues, if they do not
 already.
 
-As of June 21th 2017 (913b4f63ef63bd4ff3bae2442ca57f27cedbd44a)
+As of June 26th 2017 (86fef044502aa7205e02e03b68cbf1665ba288f7)
 
 -- Might be output to accept / ask the mailing list 
 ### Failure in: 6:RoundTrip:0:16:t60 (#43df6d3e)
