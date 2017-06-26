@@ -21,6 +21,8 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
   if rr <> FAIL then return rr end if;
   if e :: 'applyintegrand(anything, anything)' then
     applyop(reduce_scalar, 2, e, kb)
+  elif can_reduce_Partition(e) then
+    reduce_Partition(e,h,kb,opts,false)
   elif e :: `+` then
     map(reduce, e, h, kb, opts)
   elif e :: `*` then
@@ -34,8 +36,6 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
       w := subsindets[flat](w, t_pw_or_part, x->reduce_Partition(x,h,kb,opts,false));
     else w := w1; end if;
     w * `*`(op(subintegral));
-  elif e :: Or(Partition,t_pw) then
-    reduce_Partition(e,h,kb,opts,false)
   elif e :: t_case then
     subsop(2=map(proc(b :: Branch(anything, anything))
                    eval(subsop(2='reduce'(op(2,b),x,c,opts),b),
