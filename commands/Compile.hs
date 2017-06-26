@@ -155,14 +155,13 @@ header logfloats mmodule =
   , ""
   , if logfloats
     then TxT.unlines [ "import           Data.Number.LogFloat (LogFloat)"
-                     , "import           Prelude              hiding (product, exp, log, (**))"
+                     , "import           Prelude hiding (product, exp, log, (**))"
+                     , "import           Language.Hakaru.Runtime.LogFloatPrelude"
                      ]
-    else "import           Prelude hiding (product)"
-  , if logfloats
-    then TxT.unlines [ "import           Language.Hakaru.Runtime.LogFloatPrelude"
-                     , "import           Language.Hakaru.Runtime.LogFloatCmdLine" ]
-    else TxT.unlines [ "import           Language.Hakaru.Runtime.Prelude"
-                     , "import           Language.Hakaru.Runtime.CmdLine" ]
+    else TxT.unlines [ "import           Prelude hiding (product)"
+                     , "import           Language.Hakaru.Runtime.Prelude"
+                     ]
+  , "import           Language.Hakaru.Runtime.CmdLine"
   , "import           Language.Hakaru.Types.Sing"
   , "import qualified System.Random.MWC                as MWC"
   , "import           Control.Monad"
@@ -187,7 +186,6 @@ footer logfloats typ =
                    ((SKonst t1 `SEt` SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
           TxT.concat ["(",toHsType t1,",",toHsType t2,")"]
         toHsType _ = "type"
-
 
 footerWalk :: [Text]
 footerWalk =

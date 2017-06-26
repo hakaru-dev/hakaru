@@ -10,7 +10,7 @@
            , OverloadedStrings
            #-}
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 -Wno-orphans #-}
 module Language.Hakaru.Runtime.LogFloatPrelude where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -32,6 +32,14 @@ import           Control.Monad
 import           Control.Monad.ST
 import           Prelude                         hiding (init, sum, product, exp, log, (**), pi)
 import qualified Prelude                         as P
+import           Language.Hakaru.Runtime.CmdLine (Parseable(..), Measure(..), makeMeasure)
+
+-- This Read instance really should be the logfloat package
+instance Read LogFloat where
+    readsPrec p s = [(logFloat x, r) | (x, r) <- readsPrec p s]
+
+instance Parseable LogFloat where
+  parse = return . read
 
 type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
 type instance MinBoxVec V.Vector v        = V.Vector
@@ -125,30 +133,6 @@ exp = logToLogFloat
 log :: LogFloat -> Double
 log = logFromLogFloat
 {-# INLINE log #-}
-
-newtype Measure a = Measure { unMeasure :: MWC.GenIO -> IO (Maybe a) }
-
-instance Functor Measure where
-    fmap  = liftM
-    {-# INLINE fmap #-}
-
-instance Applicative Measure where
-    pure x = Measure $ \_ -> return (Just x)
-    {-# INLINE pure #-}
-    (<*>)  = ap
-    {-# INLINE (<*>) #-}
-
-instance Monad Measure where
-    return  = pure
-    {-# INLINE return #-}
-    m >>= f = Measure $ \g -> do
-                          Just x <- unMeasure m g
-                          unMeasure (f x) g
-    {-# INLINE (>>=) #-}
-
-makeMeasure :: (MWC.GenIO -> IO a) -> Measure a
-makeMeasure f = Measure $ \g -> Just <$> f g
-{-# INLINE makeMeasure #-}
 
 uniform :: Double -> Double -> Measure Double
 uniform lo hi = makeMeasure $ MWC.uniformR (lo, hi)

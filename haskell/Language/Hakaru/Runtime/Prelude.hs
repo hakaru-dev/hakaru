@@ -27,6 +27,7 @@ import qualified Data.Vector.Generic             as G
 import           Control.Monad
 import           Control.Monad.ST
 import           Prelude                         hiding (product, init)
+import           Language.Hakaru.Runtime.CmdLine (Measure(..), makeMeasure)
 
 type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
 type instance MinBoxVec V.Vector v        = V.Vector
@@ -57,30 +58,6 @@ let_ x f = let x1 = x in f x1
 ann_ :: a -> b -> b
 ann_ _ a = a
 {-# INLINE ann_ #-}
-
-newtype Measure a = Measure { unMeasure :: MWC.GenIO -> IO (Maybe a) }
-
-instance Functor Measure where
-    fmap  = liftM
-    {-# INLINE fmap #-}
-
-instance Applicative Measure where
-    pure x = Measure $ \_ -> return (Just x)
-    {-# INLINE pure #-}
-    (<*>)  = ap
-    {-# INLINE (<*>) #-}
-
-instance Monad Measure where
-    return  = pure
-    {-# INLINE return #-}
-    m >>= f = Measure $ \g -> do
-                          Just x <- unMeasure m g
-                          unMeasure (f x) g
-    {-# INLINE (>>=) #-}
-
-makeMeasure :: (MWC.GenIO -> IO a) -> Measure a
-makeMeasure f = Measure $ \g -> Just <$> f g
-{-# INLINE makeMeasure #-}
 
 uniform :: Double -> Double -> Measure Double
 uniform lo hi = makeMeasure $ MWC.uniformR (lo, hi)
