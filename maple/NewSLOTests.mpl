@@ -531,3 +531,30 @@ module()
              Weight(1/(alpha+beta), Bind(Categorical([alpha,beta]), i, Ret(i=0))),
              label="integrate BetaD out of BetaD-Bernoulli"):
 end module:
+
+module()
+  # From `disintegrate examples/burglary.hk'
+  local burg2, burg2_r;
+  burg2 :=
+  lam(x5, HData(DatumStruct(true,[]),DatumStruct(false,[])),
+      eval(Bind(app(bern, (1 * 1/(10000))), burglary,
+                eval(Bind(Msum(Weight((idx([p, (1 + (-(p)))],
+                       case(x5, Branches(Branch(PDatum(true, PInl(PDone)), 0),
+                                         Branch(PDatum(false, PInr(PInl(PDone))), 1))))
+                                       * 1/(Sum(idx([p, (1 + (-(p)))], x0), x0=0..(size([p, (1 + (-(p)))]))-1))),
+                                      Ret(Datum(unit, Inl(Done))))), x16, Ret(burglary)),
+                     p=(case(burglary, Branches(Branch(PDatum(true, PInl(PDone)), (19 * 1/(20))),
+                                                Branch(PDatum(false, PInr(PInl(PDone))), (1 * 1/(100)))))))),
+           bern=(lam(p, HReal(Bound(`>=`,0)), Bind(Categorical([p, (1 + (-(p)))]), x,
+                                                   Ret(idx([true, false], x))))))),
+     HFunction(HData(DatumStruct(true,[]),DatumStruct(false,[])),
+               HMeasure(HData(DatumStruct(true,[]),DatumStruct(false,[])))):
+  burg2_r :=
+  lam(x5, HData(DatumStruct(true, []), DatumStruct(false, [])),
+      piecewise(x5 = true,
+                Msum(Weight(19/200000, Ret(true)),
+                     Weight(9999/1000000, Ret(false))),
+                Msum(Weight(1/200000, Ret(true)),
+                     Weight(989901/1000000, Ret(false))))):
+  TestSimplify(burg2, burg2_r, label="burglary 2"):
+end module:
