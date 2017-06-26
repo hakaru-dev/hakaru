@@ -7,6 +7,7 @@ As of June 26th 2017 (86fef044502aa7205e02e03b68cbf1665ba288f7)
 -- Might be output to accept / ask the mailing list 
 ### Failure in: 6:RoundTrip:0:16:t60 (#43df6d3e)
 ### Failure in: 6:RoundTrip:6:3:testKernel (#13a00ae & #bc5244e)
+### Failure in: 6:RoundTrip:0:21:t60'      ^ 
 
 -- Bad condition simplification 
 --- `A and B and C' returned, where C => B => A
@@ -28,6 +29,7 @@ As of June 26th 2017 (86fef044502aa7205e02e03b68cbf1665ba288f7)
 ### Failure in: 6:RoundTrip:0:12:t56 (not (a<b) vs. a>=b)
 ### Failure in: 6:RoundTrip:0:11:t55 (not (a<b) vs. a>=b)
 ### Failure in: 6:RoundTrip:0:13:t57 ^ 
+### Failure in: 6:RoundTrip:0:16:t56' equality of `match's
 
 -- Literals
 ### Failure in: 6:RoundTrip:0:5:t20 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 1/2)
