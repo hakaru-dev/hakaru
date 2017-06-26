@@ -119,11 +119,15 @@ TestHakaru(introLO, introLOs, simp = ((x,y) -> value(x)), label = "2 uniform + v
 TestHakaru(introLO, introLOs, label = "2 uniform + simplifier  elimination");
 
 # a variety of other tests
-TestHakaru(LO(h,(x*applyintegrand(h,5)+applyintegrand(h,3))/x), Weight(1/x, Msum(Weight(x, Ret(5)), Ret(3))));
-TestHakaru(Bind(Gaussian(0,1),x,Weight(x,Msum())), Msum());
-TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha,Ret(x))), Weight(1/(1+alpha),BetaD(1+alpha,1)));
-TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha*(1-x)^beta,Ret(x))), Weight(Beta(1+alpha,1+beta),BetaD(1+alpha,1+beta)));
-TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))), Weight(1/(1+beta),BetaD(1,1+beta)));
+TestHakaru(LO(h,(x*applyintegrand(h,5)+applyintegrand(h,3))/x), Weight(1/x, Msum(Weight(x, Ret(5)), Ret(3))),            label="Weight of recip of sum");
+TestHakaru(Bind(Gaussian(0,1),x,Weight(x,Msum())), Msum(),
+           label="Bind into Reject is Reject");
+TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha,Ret(x))), Weight(1/(1+alpha),BetaD(1+alpha,1)),
+           label="BetaD recog. [2] (with scalar weight)");
+TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha*(1-x)^beta,Ret(x))), Weight(Beta(1+alpha,1+beta),BetaD(1+alpha,1+beta)),
+           label="BetaD recog. [3] (with Beta weight)");
+TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))), Weight(1/(1+beta),BetaD(1,1+beta)),
+           label="BetaD recog. [4] (with scalar weight)");
 
 # tests that basic densities are properly recognized
 # continuous
@@ -134,7 +138,7 @@ TestHakaru(GammaD(a,b), label="GammaD recog.", ctx = [a>0,b>0]);
 TestHakaru(GammaD(1/2,2), label="GammaD(1/2,2) recog.");
 TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,GammaD(1,2)), label="GammaD(1,2) recog.");
 TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)), label="GammaD(2,2) recog.");
-TestHakaru(Bind(Lebesgue(-infinity,infinity), x, Weight(1/x^2, Ret(x))));
+TestHakaru(Bind(Lebesgue(-infinity,infinity), x, Weight(1/x^2, Ret(x))), label="Lebesgue roundtrip");
 TestHakaru(Cauchy(loc,scale), ctx = [scale>0], label="Cauchy recog.");
 TestHakaru(StudentT(nu,loc,scale), ctx=[nu>0,scale>0], label = "StudentT recog.");
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = [scale>0],
@@ -346,7 +350,8 @@ TestHakaru(bp(y>x, m1, y>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weig
 TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 7");
 
 # Simplify is not yet idempotent
-TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)));
+TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)),
+          label="Uniform[x] into Weight x is BetaD");
 
 # Test for change of variables; see Tests/Relationships.hs
 # t1
