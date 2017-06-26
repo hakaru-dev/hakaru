@@ -1209,8 +1209,10 @@ constrainOutcomeMeasureOp
     -> Dis abt ()
 constrainOutcomeMeasureOp v0 = go
     where
-    -- Per the paper
-    go Lebesgue = \(_ :* _ :* End) -> return ()
+    go Lebesgue = \(lo :* hi :* End) -> do
+        -- TODO: optimize the cases where lo is -∞ or hi is ∞
+        v0' <- emitLet' v0
+        pushGuard (lo P.<= v0' P.&& v0' P.<= hi)
 
     -- TODO: I think, based on Hakaru v0.2.0
     go Counting = \End -> return ()

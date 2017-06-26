@@ -413,15 +413,31 @@ evaluateMeasureOp
 
 evaluateMeasureOp Lebesgue = \(e1 :* e2 :* End) env ->
   case (evaluate e1 env, evaluate e2 env) of
-    (VReal v1, VReal v2) -> 
-      VMeasure $ \(VProb p) g -> do
-        (u,b) <- MWC.uniformR ((v1,False), (v2,True)) g
-        let l = log u
-        let n = -l
-        return $ Just
-            ( VReal $ if b then n else l
-            , VProb $ p * 2 * LF.logToLogFloat n
-            )
+    (VReal v1, VReal v2) | v1 < v2 ->
+      VMeasure $ \(VProb p) g ->
+        case (isInfinite v1, isInfinite v2) of
+          (False, False) -> do
+            x <- MWC.uniformR (v1, v2) g
+            return $ Just (VReal $ x,
+                           VProb $ p * LF.logFloat (v2 - v1))
+          (False, True) -> do
+            u <- MWC.uniform g
+            let l = log u
+            let n = -l
+            return $ Just (VReal $ v1 + n,
+                           VProb $ p * LF.logToLogFloat n)
+          (True, False) -> do
+            u <- MWC.uniform g
+            let l = log u
+            let n = -l
+            return $ Just (VReal $ v2 - n,
+                           VProb $ p * LF.logToLogFloat n)
+          (True, True) -> do
+            (u,b) <- MWC.uniform g
+            let l = log u
+            let n = -l
+            return $ Just (VReal $ if b then n else l,
+                           VProb $ p * 2 * LF.logToLogFloat n)
 
 evaluateMeasureOp Counting = \End _ ->
     VMeasure $ \(VProb p) g -> do
