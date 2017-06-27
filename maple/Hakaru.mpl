@@ -68,7 +68,7 @@ Hakaru := module ()
          pattern_match, pattern_binds, bound_names_in,
          closed_bounds, open_bounds,
          htype_patterns,
-         bool_And, bool_Or, bool_Not,
+         bool_And, bool_Or, bool_Not, the,
          UpdateArchive;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
@@ -618,6 +618,14 @@ Hakaru := module ()
     else
       Not(a)
     end if;
+  end proc;
+
+  # Returns true for a sequence for which all the elements are equal up to the
+  # specified equality, or false otherwise. A 0-length sequence produces an
+  # error.
+  the := proc(as, eq:=`=`, $)
+    if nops(as)=0 then error "sequence %1 must have at least one operand", as; end if;
+    andmap(x -> eq(x,op(1,as)), [op(2..-1,as)]);
   end proc;
 
   # Enumerate patterns for a given Hakaru type
