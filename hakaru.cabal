@@ -198,6 +198,7 @@ Test-Suite system-testsuite
                        Tests.Models
                        Tests.Parser
                        Tests.Pretty
+                       Tests.Relationships
                        Tests.RoundTrip
                        Tests.Sample
                        Tests.Simplify
