@@ -543,13 +543,14 @@ KB := module ()
       # with eval, so remove any of those we tried to chill to prevent them breaking
       bb := subsindets(bb, relation, x-> kb_assuming_mb(x1->map(eval,x1), x, kb, _->x));
 
+      bb := simplify_in_context(bb, as);
+
       # Check that the new clause would not cause a contradictory
       # KB. If it does, then produce NotAKB.
       if not bad_assumption(bb) and not rel_coulditbe(`if`(pol,bb,Not(bb)), as) then
           return NotAKB();
       end if;
-
-      b := simplify_in_context(bb, as);
+      b := bb;
 
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
