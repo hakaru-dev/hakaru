@@ -29,7 +29,7 @@ export Extract := module ()
     end proc;
 
     local do_extract := proc(arg, $)
-      local sub, prod, svars;
+      local sub, prod, svars, vs;
       if arg :: `*` then
         sub := map(do_extract, [op(arg)]);
         prod, svars := selectremove(x->op(2,x)=[],sub);
@@ -38,6 +38,23 @@ export Extract := module ()
             , op([1,2], svars) ];
         else
           [ arg, [] ];
+        end if;
+      elif arg :: `+` then
+        sub := map(do_extract, [op(arg)]);
+        svars := map2(op,2,sub);
+        if the(map(nops,svars)) then
+          vs[0] := map(sv->map2(op,1,sv), svars);      # a list of lists of variables
+          vs[1] := map2(op,1, op(1,svars));            # a list of 'fresh' variables
+          vs[2] := map(v->zip(`=`,v,vs[1]), vs[0]);    # variable renamings
+          svars := zip(subs,vs[2], svars);             # dombounds renamed
+          if the(svars) then
+            [ `+`( op(zip(subs,vs[2], map2(op,1, sub))) ),
+              op(1, svars) ];
+          else
+            [ arg, [] ]
+          end if;
+        else
+          [ arg, [] ]
         end if;
       elif Domain:-Has:-Bound(arg) then
         do_extract_arg(op(0,arg), op(arg));
