@@ -145,26 +145,36 @@ testWithConcrete'
     -> Assertion
 testWithConcrete' = testWithConcrete
 
--- Function: testConcreteFiles
--- This function accepts two files; it simplifies the first and then 
--- compares the result to the second file. If the files are
--- alpha equivalent, the test is successful.
+testWithConcreteMany'
+  :: T.Text 
+  -> [T.Text] 
+  -> TypeCheckMode 
+  -> (forall a . Sing a 
+        -> [TrivialABT Term '[] a] 
+        -> TrivialABT Term '[] a 
+        -> Assertion) 
+  -> Assertion 
+testWithConcreteMany' = testWithConcreteMany
+
+-- Like testSStriv but for many concrete files
+testConcreteFilesMany
+    :: [FilePath] 
+    -> FilePath
+    -> Assertion
+testConcreteFilesMany fs f = 
+  mapM IO.readFile (f:fs) >>= \(t:ts) -> 
+  testWithConcreteMany' t ts LaxMode $ \_ -> testSStriv
+
+-- Like testSStriv but for two concrete files
 testConcreteFiles
     :: FilePath
     -> FilePath
     -> Assertion
-testConcreteFiles f1 f2 = do
-  t1 <- IO.readFile f1
-  t2 <- IO.readFile f2
-  case (parseAndInfer t1, parseAndInfer t2) of
-    (Left err, _) -> assertFailure $ T.unpack err
-    (_, Left err) -> assertFailure $ T.unpack err
-    (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) -> do
-      case jmEq1 typ1 typ2 of
-        Just Refl -> do
-          ast1' <- simplify ast1
-          assertAlphaEq "" ast1' ast2
-        Nothing   -> assertFailure ("files don't have same type (File1 = " ++ (show typ1) ++ ", File2 = " ++ (show typ2))
+testConcreteFiles f1 f2 = testConcreteFilesMany [f1] f2 
+
+-- Like testStriv but for a concrete file. 
+testConcreteFile :: FilePath -> Assertion
+testConcreteFile f = IO.readFile f >>= \t -> testWithConcrete' t LaxMode $ \_ -> testStriv
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure
