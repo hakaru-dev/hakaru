@@ -125,7 +125,7 @@ reduce_Integrals := module()
   export ModuleApply;
   local
   # The callbacks passed by reduce_Integrals to Domain:-Reduce
-    reduce_Integrals_body, reduce_Integrals_into
+    reduce_Integrals_body, reduce_Integrals_into, reduce_Integrals_apply
   # tries to evaluate a RootOf
   , try_eval_Root
   # tries to evaluate Int/Sum/Ints/Sums
@@ -138,12 +138,14 @@ reduce_Integrals := module()
     rr := subsindets(rr, specfunc(RootOf), x->try_eval_Root(x,a->a));
     return rr;
   end proc;
+  reduce_Integrals_apply := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
     local rr;
     rr := Domain:-Reduce(expr, kb
       ,curry(reduce_Integrals_into,h,opts)
       ,curry(reduce_Integrals_body,h,opts)
+      ,reduce_Integrals_apply
       ,(_->:-DOM_FAIL), opts);
     rr := Partition:-Simpl(rr, kb);
     if has(rr, :-DOM_FAIL) then
