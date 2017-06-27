@@ -2,11 +2,11 @@ Test cases are grouped by the general reason for failure; eventually (if the fix
 is too non-trivial) these groups should have their issues, if they do not
 already.
 
-As of June 26th 2017 (86fef044502aa7205e02e03b68cbf1665ba288f7)
+As of June 27th 2017 (94a47190d91e45d03f30e63637c0f96b42a7580d)
 
 -- Might be output to accept / ask the mailing list 
 ### Failure in: 6:RoundTrip:0:16:t60 (#43df6d3e)
-### Failure in: 6:RoundTrip:6:3:testKernel (#13a00ae & #bc5244e)
+### Failure in: 6:RoundTrip:6:3:testKernel (#13a00ae & #bc5244e) (#94)
 ### Failure in: 6:RoundTrip:0:21:t60'      ^ 
 
 -- Bad condition simplification 
