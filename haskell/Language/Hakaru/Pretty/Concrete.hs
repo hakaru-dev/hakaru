@@ -634,6 +634,7 @@ prettyApps = \ e1 e2 ->
                 Just (subst x e2 e1')
             _                 -> Nothing
 
+    -- collectApps makes sure f(x,y) is not printed f(x)(y)
     collectApps
         :: (ABT Term abt)
         => abt '[] (a ':-> b) -> DList Doc -> (Doc, DList Doc)
