@@ -3,6 +3,7 @@
            , RankNTypes
            , GADTs
            , PolyKinds
+           , ScopedTypeVariables
            , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.TestTools where
@@ -116,6 +117,26 @@ testWithConcrete s mode k =
             Left err                 -> assertFailure $ T.unpack err
             Right (TypedAST typ ast) -> k typ ast
 
+-- Like testWithConcrete, but for many programs 
+testWithConcreteMany 
+  :: forall abt. (ABT Term abt) 
+  => T.Text 
+  -> [T.Text]
+  -> TypeCheckMode 
+  -> (forall a . Sing a -> [abt '[] a] ->  abt '[] a -> Assertion) 
+  -> Assertion 
+testWithConcreteMany t ts mode k = 
+  case ts of 
+    []       -> testWithConcrete t mode $ \ty ast -> k ty [] ast 
+    (t0:ts') -> 
+      testWithConcrete t0 mode $ \ty0 (ast0 :: abt '[] x0) -> 
+      testWithConcreteMany t ts' mode $ \ty1 asts (ast1 :: abt '[] x1) -> 
+        case jmEq1 ty0 ty1 of 
+          Just Refl -> k ty0 (ast0:asts) ast1 
+          Nothing   -> assertFailure $ concat
+                         [ "Files don't have same type (" 
+                         , T.unpack t0, " :: ", show ty0, ", "
+                         , T.unpack t , " :: ", show ty1 ]
 
 testWithConcrete'
     :: T.Text
