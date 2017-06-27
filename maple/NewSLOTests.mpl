@@ -52,9 +52,11 @@ TestHakaru(model3, Gaussian(0,sqrt(2)),
 
 TestHakaru(Bind(GammaD(1,1),lambda,PoissonD(lambda)), NegativeBinomial(1,1/2),
            label = "integrate out GammaD with PoissonD likelihood to Geometric");
-TestHakaru(Bind(GammaD(r,1/(1/p-1)),lambda,PoissonD(lambda)), NegativeBinomial(r,p),
+TestHakaru(Bind(GammaD(r,1/(1/p-1)),lambda,PoissonD(lambda)),
+           NegativeBinomial(r,p),
            ctx = [0<p,p<1],
-           label = "integrate out GammaD with PoissonD likelihood to NegativeBinomial");
+           label = "integrate out GammaD with PoissonD likelihood to"
+                   " NegativeBinomial");
 
 # Kalman filter; note the parameter + assumption
 module()
@@ -73,7 +75,8 @@ model4 :=
   Ret(y^2))):
 model4s := { Bind(Gaussian(0,1),x,piecewise(x<0,Ret(0),4<x,Ret(16),
   0<x and x<4, Ret(x^2))) ,
-  Bind(Gaussian(0,1),`x`,piecewise(`x` < 0,Ret(0),4 < `x`,Ret(16),0 <= `x` and `x` <= 4,Ret(`x`^2)))
+  Bind(Gaussian(0,1),`x`,piecewise(`x` < 0,Ret(0),4 < `x`,Ret(16),
+                                   0 <= `x` and `x` <= 4,Ret(`x`^2)))
  }:
 
 TestHakaru(model4, model4s, label = "piecewise test");
@@ -96,9 +99,10 @@ module()
     uMax := maximize(density[op(0,d)](op(d))(x), x):
     kb := KB:-assert(And(0<u, u<uMax), KB:-empty):
     result := fromLO(improve(toLO(m), _ctx=kb), _ctx=kb):
-    CodeTools[Test](type(result, 'Weight(anything, Uniform(anything, anything))'),
-                    true,
-                    label = sprintf("slice sampling %a", d)):
+    CodeTools[Test](
+      type(result, 'Weight(anything, Uniform(anything, anything))'),
+      true,
+      label = sprintf("slice sampling %a", d)):
   end do;
 end module:
 
@@ -114,19 +118,26 @@ introLO_opt := {
 introLO := op(1,introLO_opt):
 introLOs := Msum(Weight(1/2, Ret(false)), Weight(1/2, Ret(true))):
 
-TestHakaru(introLO, introLO_opt, simp = (x -> x), label = "2 uniform - no change");
-TestHakaru(introLO, introLOs, simp = ((x,y) -> value(x)), label = "2 uniform + value = elimination");
+TestHakaru(introLO, introLO_opt, simp = (x -> x),
+           label = "2 uniform - no change");
+TestHakaru(introLO, introLOs, simp = ((x,y) -> value(x)),
+           label = "2 uniform + value = elimination");
 TestHakaru(introLO, introLOs, label = "2 uniform + simplifier  elimination");
 
 # a variety of other tests
-TestHakaru(LO(h,(x*applyintegrand(h,5)+applyintegrand(h,3))/x), Weight(1/x, Msum(Weight(x, Ret(5)), Ret(3))),            label="Weight of recip of sum");
+TestHakaru(LO(h,(x*applyintegrand(h,5)+applyintegrand(h,3))/x),
+           Weight(1/x, Msum(Weight(x, Ret(5)), Ret(3))),
+           label="Weight of recip of sum");
 TestHakaru(Bind(Gaussian(0,1),x,Weight(x,Msum())), Msum(),
            label="Bind into Reject is Reject");
-TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha,Ret(x))), Weight(1/(1+alpha),BetaD(1+alpha,1)),
+TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha,Ret(x))),
+           Weight(1/(1+alpha),BetaD(1+alpha,1)),
            label="BetaD recog. [2] (with scalar weight)");
-TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha*(1-x)^beta,Ret(x))), Weight(Beta(1+alpha,1+beta),BetaD(1+alpha,1+beta)),
+TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha*(1-x)^beta,Ret(x))),
+           Weight(Beta(1+alpha,1+beta),BetaD(1+alpha,1+beta)),
            label="BetaD recog. [3] (with Beta weight)");
-TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))), Weight(1/(1+beta),BetaD(1,1+beta)),
+TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))),
+           Weight(1/(1+beta),BetaD(1,1+beta)),
            label="BetaD recog. [4] (with scalar weight)");
 
 # tests that basic densities are properly recognized
@@ -136,11 +147,15 @@ TestHakaru(Bind(Uniform(0,1),x,Weight(x*2,Ret(x))), BetaD(2,1),
 TestHakaru(BetaD(alpha,beta), label="BetaD recog.");
 TestHakaru(GammaD(a,b), label="GammaD recog.", ctx = [a>0,b>0]);
 TestHakaru(GammaD(1/2,2), label="GammaD(1/2,2) recog.");
-TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,GammaD(1,2)), label="GammaD(1,2) recog.");
-TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)), label="GammaD(2,2) recog.");
-TestHakaru(Bind(Lebesgue(-infinity,infinity), x, Weight(1/x^2, Ret(x))), label="Lebesgue roundtrip");
+TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)),
+           Weight(2,GammaD(1,2)), label="GammaD(1,2) recog.");
+TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)),
+           Weight(4,GammaD(2,2)), label="GammaD(2,2) recog.");
+TestHakaru(Bind(Lebesgue(-infinity,infinity), x, Weight(1/x^2, Ret(x))),
+           label="Lebesgue roundtrip");
 TestHakaru(Cauchy(loc,scale), ctx = [scale>0], label="Cauchy recog.");
-TestHakaru(StudentT(nu,loc,scale), ctx=[nu>0,scale>0], label = "StudentT recog.");
+TestHakaru(StudentT(nu,loc,scale), ctx=[nu>0,scale>0],
+           label = "StudentT recog.");
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = [scale>0],
   label = "StudentT(1,loc,scale) recog.");
 # discrete
@@ -163,10 +178,18 @@ TestHakaru(
 # and more various
 model_exp := Bind(Uniform(-1,1),x,Ret(exp(x))):
 TestHakaru(model_exp, model_exp, label = "uniform -1..1 into exp");
-TestHakaru(LO(h, IntegrationTools[Expand](Int((1+y)*applyintegrand(h,y),y=0..1))), Msum(Uniform(0,1), Weight(1/2,BetaD(2,1))), label="Uniform + BetaD");
-TestHakaru(Bind(Uniform(0,1),x,Bind(LO(h, IntegrationTools[Expand](Int((1+y)*applyintegrand(h,y),y=0..1))),y,Ret([x,y]))),
-           { Weight(3/2,Bind(Uniform(0,1),x,Msum(Weight(2/3,Bind(Uniform(0,1),y,Ret([x,y]))),Weight(1/3,Bind(BetaD(2,1),y,Ret([x,y])))))) ,
-             Msum(Bind(Uniform(0,1),x98,Bind(Uniform(0,1),y,Ret([x98, y]))),Weight(1/2,Bind(Uniform(0,1),x98,Bind(BetaD(2,1),y,Ret([x98, y]))))) }
+TestHakaru(
+  LO(h, IntegrationTools[Expand](Int((1+y)*applyintegrand(h,y),y=0..1))),
+  Msum(Uniform(0,1), Weight(1/2,BetaD(2,1))), label="Uniform + BetaD");
+TestHakaru(
+  Bind(Uniform(0,1),x,Bind(
+    LO(h, IntegrationTools[Expand](Int((1+y)*applyintegrand(h,y),y=0..1))),
+    y,Ret([x,y]))),
+  { Weight(3/2,Bind(Uniform(0,1),x,
+                    Msum(Weight(2/3,Bind(Uniform(0,1),y,Ret([x,y]))),
+                         Weight(1/3,Bind(BetaD(2,1),y,Ret([x,y])))))) ,
+    Msum(           Bind(Uniform(0,1),x98,Bind(Uniform(0,1),y,Ret([x98, y]))),
+         Weight(1/2,Bind(Uniform(0,1),x98,Bind(BetaD(2,1),y,Ret([x98, y]))))) }
            , label="Uniform + BetaD [2]");
 
 # easy-easy-HMM
@@ -207,7 +230,8 @@ t7n := Bind(Uniform((-1), 0), a0,
 t7ns := Bind(Uniform(-1,0),a3,Weight(a3+1,Ret(a3^2))):
 t8 := Bind(Gaussian(0, 10), a0, Bind(Gaussian(a0, 20), a1, Ret(Pair(a0, a1)))):
 t9 := Bind(Lebesgue(-infinity,infinity), a0,
-  Bind(Msum(Weight(piecewise(And((3<a0), (a0<7)), (1/2), 0), Ret(Unit))), a1, Ret(a0))):
+  Bind(Msum(Weight(piecewise(And((3<a0), (a0<7)), (1/2), 0), Ret(Unit))),
+       a1, Ret(a0))):
 t9a := Bind(Lebesgue(-infinity,infinity), a0,
   piecewise(3>=a0, Msum(), a0>=7, Msum(), Weight(1/2, Ret(a0)))):
 t9s := Weight(2, Uniform(3,7)):
@@ -232,17 +256,25 @@ model_pw := Bind(Uniform(0,4), x,
 model_pw1 := { Bind(Uniform(0,4), x,
   piecewise(x<1, Ret(x), x<2, Ret(2*x), x<3, Ret(3*x), 3<x, Ret(5*x))),
                Bind(Uniform(0,4),`x`,
-  piecewise(x<1, Ret(x), 1<=x and x<2, Ret(2*x), 2<=x and x<3, Ret(3*x),3 <= x,Ret(5*x)))
+  piecewise(x<1, Ret(x),
+            1<=x and x<2, Ret(2*x),
+            2<=x and x<3, Ret(3*x),
+            3 <= x,Ret(5*x)))
 }:
-model_pw2 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, 5),Ret(x))):
+model_pw2 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, 5),
+                                          Ret(x))):
 model_pw3 := Bind(Uniform(0,4), x,
-  piecewise(x<1, Ret(x), x<2, Weight(2,Ret(x)), x<3, Weight(3,Ret(x)), x>=3, Weight(5,Ret(x)))):
+  piecewise(x<1, Ret(x), x<2, Weight(2,Ret(x)), x<3, Weight(3,Ret(x)), x>=3,
+            Weight(5,Ret(x)))):
 model_pw3_r := { Bind(Uniform(0,4), x,
-  piecewise(x<1, Ret(x), x<2, Weight(2,Ret(x)), x<3, Weight(3,Ret(x)), x>=3, Weight(5,Ret(x)))) ,
+  piecewise(x<1, Ret(x), x<2, Weight(2,Ret(x)), x<3, Weight(3,Ret(x)), x>=3,
+            Weight(5,Ret(x)))) ,
                Bind(Uniform(0,4),x,
-  piecewise(x < 1,Ret(x),1 <= x and x < 2,Weight(2,Ret(x)),2 <= x and x < 3,Weight(3,Ret(x)),3 <= x,Weight(5,Ret(x))))
+  piecewise(x < 1,Ret(x),1 <= x and x < 2,Weight(2,Ret(x)),2 <= x and x < 3,
+            Weight(3,Ret(x)),3 <= x,Weight(5,Ret(x))))
 }:
-model_pw5 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, x>=3, 5),Ret(x))):
+model_pw5 := Bind(Uniform(0,4), x,
+                  Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, x>=3, 5),Ret(x))):
 TestHakaru(model_pw , model_pw1, label = "multi-branch choice");
 TestHakaru(model_pw3, model_pw3_r, label = "fake multi-branch weight");
 TestHakaru(model_pw2, model_pw5, label = "proper multi-branch weight");
@@ -260,7 +292,8 @@ t80 := Bind(GammaD(1, 1), a0, Gaussian(0, a0)):
 
 t57 := Msum(Weight(1, Partition(t < 1, Ret(Datum(unit, Inl(Done))), Msum() )),
             Weight(1, Partition(0 < t, Ret(Datum(unit, Inl(Done))), Msum() ))):
-t57s := Partition( And(0 < t, t < 1), Weight(2, Ret(Datum(unit, Inl(Done)))), Ret(Datum(unit, Inl(Done))) ):
+t57s := Partition( And(0 < t, t < 1), Weight(2, Ret(Datum(unit, Inl(Done)))),
+                   Ret(Datum(unit, Inl(Done))) ):
 
 TestHakaru(t1, t5s, label = "t1");
 TestHakaru(t2, t2s, label = "t2");
@@ -293,8 +326,10 @@ module()
               Weight(2 * sqrt(-ln(2)-ln(Pi)-2*ln(y)),
                      Uniform(-sqrt(-ln(2)-ln(Pi)-2*ln(y)),
                              sqrt(-ln(2)-ln(Pi)-2*ln(y)))),
-              eval(q),Msum()), q=['NULL', Or(0>=y, y>=density[Gaussian](0,1)(0))])}:
-  TestHakaru( clamp_t, clamp_r, ctx=kb, label="clamp condition to move it out of integral" ):
+              eval(q),Msum()),
+    q=['NULL', Or(0>=y, y>=density[Gaussian](0,1)(0))])}:
+  TestHakaru( clamp_t, clamp_r, ctx=kb,
+              label="clamp condition to move it out of integral" ):
 end module:
 
 module()
@@ -309,22 +344,30 @@ module()
 
   clamp_r :=
     Partition(ly < -(1/2)*ln(2)-(1/2)*ln(Pi),
-              Weight(2*(-ln(2)-ln(Pi)-2*ly)^(1/2), Uniform(-(-ln(2)-ln(Pi)-2*ly)^(1/2), (-ln(2)-ln(Pi)-2*ly)^(1/2))),
+              Weight(2*(-ln(2)-ln(Pi)-2*ly)^(1/2),
+                     Uniform(-(-ln(2)-ln(Pi)-2*ly)^(1/2),
+                             (-ln(2)-ln(Pi)-2*ly)^(1/2))),
               Msum()):
   TestHakaru( clamp_t, clamp_r, ctx=kb,
-              label="clamp condition to move it out of integral (ln coordinate)" ):
+              label="clamp condition to move it out of integral"
+                    " (ln coordinate)" ):
 end module:
 
 ###
 # From disintegration paper
 disint1 :=
-Bind(Lebesgue(-infinity,infinity),y, Weight(piecewise(0<y and y<1, 1, 0), Weight(y/2, Ret(y)))):
+Bind(Lebesgue(-infinity,infinity),y, Weight(piecewise(0<y and y<1, 1, 0),
+                                            Weight(y/2, Ret(y)))):
 
 TestHakaru(disint1, Weight(1/4,BetaD(2,1)), label="minor miracle");
 
-ind1  := Bind(Uniform(0,1),x, Weight(piecewise(x>0,1,0), Weight(piecewise(x>1/2,0,1), Weight(piecewise(0<x,1,0), Ret(x))))):
+ind1  := Bind(Uniform(0,1),x,
+              Weight(piecewise(x>0,1,0),
+                     Weight(piecewise(x>1/2,0,1),
+                            Weight(piecewise(0<x,1,0), Ret(x))))):
 ind1s := Weight(1/2, Uniform(0,1/2)):
-ind2  := Bind(Lebesgue(-infinity,infinity),x, Weight(piecewise(x<0,0,x<1,x,0), Ret(x))):
+ind2  := Bind(Lebesgue(-infinity,infinity),x,
+              Weight(piecewise(x<0,0,x<1,x,0), Ret(x))):
 ind2s := Weight(1/2, BetaD(2,1)):
 ind3  := Bind(Uniform(0,1),x, Weight(piecewise(1<x and x<0,1,0), Ret(x))):
 ind3s := Msum():
@@ -332,7 +375,8 @@ TestHakaru(ind1, ind1s, label="exponentiated indicator");
 TestHakaru(ind2, ind2s, label="negated and conjoined indicator");
 TestHakaru(ind3, ind3s, label="bounds ordering");
 TestHakaru(Msum(ind1,ind2), Msum(ind1s,ind2s), label="simplify under sum");
-TestHakaru(piecewise(c>0,ind1,ind2), piecewise(c>0,ind1s,ind2s), label="simplify under piecewise");
+TestHakaru(piecewise(c>0,ind1,ind2), piecewise(c>0,ind1s,ind2s),
+           label="simplify under piecewise");
 
 # test how banish handles piecewise
 m1 := Uniform(0,1):
@@ -341,16 +385,31 @@ m3 := BetaD(1,2):
 bp := proc() Bind(Gaussian(0,1), x,
              Bind(Gaussian(0,1), y,
              piecewise(_passed))) end proc:
-TestHakaru(bp(x>y, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="banish piecewise 1");
-TestHakaru(bp(x>0, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="banish piecewise 2");
-TestHakaru(bp(y>0, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="banish piecewise 3");
-TestHakaru(bp(x>y, m1, x>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 4");
-TestHakaru(bp(x>0, m1, x>y, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 5");
-TestHakaru(bp(y>x, m1, y>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 6");
-TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 7");
+TestHakaru(bp(x>y, m1, m2         ),
+           Msum(Weight(1/2, m1), Weight(1/2, m2)                 ),
+           label="banish piecewise 1");
+TestHakaru(bp(x>0, m1, m2         ),
+           Msum(Weight(1/2, m1), Weight(1/2, m2)                 ),
+           label="banish piecewise 2");
+TestHakaru(bp(y>0, m1, m2         ),
+           Msum(Weight(1/2, m1), Weight(1/2, m2)                 ),
+           label="banish piecewise 3");
+TestHakaru(bp(x>y, m1, x>0, m2, m3),
+           Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)),
+           label="banish piecewise 4");
+TestHakaru(bp(x>0, m1, x>y, m2, m3),
+           Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)),
+           label="banish piecewise 5");
+TestHakaru(bp(y>x, m1, y>0, m2, m3),
+           Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)),
+           label="banish piecewise 6");
+TestHakaru(bp(y>0, m1, y>x, m2, m3),
+           Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)),
+           label="banish piecewise 7");
 
 # Simplify is not yet idempotent
-TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)),
+TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))),
+           Weight(1/2, BetaD(1, 2)),
           label="Uniform[x] into Weight x is BetaD");
 
 # Test for change of variables; see Tests/Relationships.hs
@@ -369,8 +428,14 @@ unk1   := Bind(Gaussian(0,1), x, Bind(m, y, Bind(Gaussian(x,1), z, Ret([y,z]))))
 unk1s  := Bind(m, y, Bind(Gaussian(0,sqrt(2)), z, Ret([y,z]))):
 unk2   := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), z, Bind(m, y, Ret([y,z])))):
 unk2s  := Bind(Gaussian(0,sqrt(2)), z, Bind(m, y, Ret([y,z]))):
-unk3   := Bind(Gaussian(0,1), x, Bind(m(x), y, Bind(Gaussian(x,1), z, Ret([y,z])))):
-unk4   := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), z, Bind(m(x), y, Ret([y,z])))):
+unk3   := Bind(Gaussian(0,1), x,
+               Bind(m(x), y,
+                    Bind(Gaussian(x,1), z,
+                         Ret([y,z])))):
+unk4   := Bind(Gaussian(0,1), x,
+               Bind(Gaussian(x,1), z,
+                    Bind(m(x), y,
+                         Ret([y,z])))):
 TestHakaru(unk_pw, unk_pw, label="Don't simplify Integrand willy-nilly");
 TestHakaru(unk1, unk1s, label="Banish into Integrand 1");
 TestHakaru(unk2, unk2s, label="Banish into Integrand 2");
@@ -401,27 +466,59 @@ end module:
 # conjugacy tests
 #
 #####################################################################
-gaussian_gaussian   := Bind(Gaussian(mu0,sigma0),mu, Weight(NewSLO:-density[Gaussian](mu,sigma1)(x), Ret(mu))):
-gaussian_gaussian_s := Weight((1/2)*sqrt(2)*exp(-(1/2)*(mu0-x)^2/(sigma0^2+sigma1^2))/(sqrt(Pi)*sqrt(sigma0^2+sigma1^2)), Gaussian((mu0*sigma1^2+sigma0^2*x)/(sigma0^2+sigma1^2), sigma0*sigma1/sqrt(sigma0^2+sigma1^2))):
+gaussian_gaussian   :=
+  Bind(Gaussian(mu0,sigma0),mu,
+       Weight(NewSLO:-density[Gaussian](mu,sigma1)(x), Ret(mu))):
+gaussian_gaussian_s :=
+  Weight((1/2)*sqrt(2)*exp(-(1/2)*(mu0-x)^2/(sigma0^2+sigma1^2))/
+         (sqrt(Pi)*sqrt(sigma0^2+sigma1^2)),
+         Gaussian((mu0*sigma1^2+sigma0^2*x)/(sigma0^2+sigma1^2),
+                  sigma0*sigma1/sqrt(sigma0^2+sigma1^2))):
 TestHakaru(gaussian_gaussian, gaussian_gaussian_s,
   label="gaussian_gaussian conjugacy",
   ctx = [mu0::real, sigma0>0, sigma1>0, x::real]);
-invgamma_gaussian   := Bind(GammaD(shape,scale),lambda, Weight(NewSLO:-density[Gaussian](mu,lambda^(-1/2))(x), Ret(lambda))):
-invgamma_gaussian_s := Weight(GAMMA(1/2+shape)*sqrt(scale)*((1/2)*scale*mu^2-scale*mu*x+(1/2)*scale*x^2+1)^(-shape)/(GAMMA(shape)*sqrt(scale*mu^2-2*scale*mu*x+scale*x^2+2)*sqrt(Pi)), GammaD(1/2+shape, 2*scale/(scale*mu^2-2*scale*mu*x+scale*x^2+2))):
+invgamma_gaussian   :=
+  Bind(GammaD(shape,scale),lambda,
+       Weight(NewSLO:-density[Gaussian](mu,lambda^(-1/2))(x), Ret(lambda))):
+invgamma_gaussian_s :=
+  Weight(GAMMA(1/2+shape)*sqrt(scale)*
+         ((1/2)*scale*mu^2-scale*mu*x+(1/2)*scale*x^2+1)^
+         (-shape)/(GAMMA(shape)*
+                   sqrt(scale*mu^2-2*scale*mu*x+scale*x^2+2)*sqrt(Pi)),
+         GammaD(1/2+shape, 2*scale/(scale*mu^2-2*scale*mu*x+scale*x^2+2))):
 TestHakaru(invgamma_gaussian, invgamma_gaussian_s,
   label="invgamma_gaussian conjugacy",
   ctx = [mu::real, shape>0, scale>0, x::real]);
-gaussian_invgamma_gaussian   := Bind(GammaD(shape,scale),tau, Bind(Gaussian(mu0*sqrt(tau),1/sqrt(nu)),mu, Weight(NewSLO:-density[Gaussian](mu*tau^(-1/2),tau^(-1/2))(x), Ret([mu,tau])))):
-gaussian_invgamma_gaussian_s := Weight(GAMMA(1/2+shape)*sqrt(nu)*sqrt(scale)*(scale*mu0^2*nu-2*scale*mu0*nu*x+scale*nu*x^2+2*nu+2)^(-1/2-shape)*(2*nu+2)^shape/(GAMMA(shape)*sqrt(Pi)), Bind(GammaD(1/2+shape, 2*scale*(nu+1)/(scale*mu0^2*nu-2*scale*mu0*nu*x+scale*nu*x^2+2*nu+2)),tau, Bind(Gaussian(sqrt(tau)*(mu0*nu+x)/(nu+1), 1/sqrt(nu+1)),mu, Ret([mu,tau])))):
+gaussian_invgamma_gaussian   :=
+  Bind(GammaD(shape,scale),tau,
+       Bind(Gaussian(mu0*sqrt(tau),1/sqrt(nu)),mu,
+            Weight(NewSLO:-density[Gaussian](mu*tau^(-1/2),tau^(-1/2))(x),
+                   Ret([mu,tau])))):
+gaussian_invgamma_gaussian_s :=
+  Weight(GAMMA(1/2+shape)*sqrt(nu)*sqrt(scale)*
+         (scale*mu0^2*nu-2*scale*mu0*nu*x+scale*nu*x^2+2*nu+2)^(-1/2-shape)*
+         (2*nu+2)^shape/(GAMMA(shape)*sqrt(Pi)),
+         Bind(GammaD(1/2+shape, 2*scale*(nu+1)/
+                     (scale*mu0^2*nu-2*scale*mu0*nu*x+scale*nu*x^2+2*nu+2)),
+              tau, Bind(Gaussian(sqrt(tau)*(mu0*nu+x)/(nu+1), 1/sqrt(nu+1)),
+                        mu, Ret([mu,tau])))):
 TestHakaru(gaussian_invgamma_gaussian, gaussian_invgamma_gaussian_s,
   label="gaussian_invgamma_gaussian conjugacy",
   ctx = [mu0::real, nu>0, shape>0, scale>0, x::real]);
-gamma_gamma   := Bind(GammaD(alpha0,1/beta0),beta, Weight(NewSLO:-density[GammaD](alpha,1/beta)(x), Ret(beta))):
-gamma_gamma_s := Weight(beta0^alpha0*x^(alpha-1)*GAMMA(alpha+alpha0)*(beta0+x)^(-alpha-alpha0)/(GAMMA(alpha0)*GAMMA(alpha)), GammaD(alpha+alpha0, 1/(beta0+x))):
+gamma_gamma   :=
+  Bind(GammaD(alpha0,1/beta0),beta,
+       Weight(NewSLO:-density[GammaD](alpha,1/beta)(x), Ret(beta))):
+gamma_gamma_s :=
+  Weight(beta0^alpha0*x^(alpha-1)*GAMMA(alpha+alpha0)*(beta0+x)^(-alpha-alpha0)/
+         (GAMMA(alpha0)*GAMMA(alpha)), GammaD(alpha+alpha0, 1/(beta0+x))):
 TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy",
   ctx = [alpha0>0, beta0>0, alpha>0, x>0]);
-gamma_poisson   := Bind(GammaD(shape,scale),lambda, Weight(NewSLO:-density[PoissonD](lambda)(k), Ret(lambda))):
-gamma_poisson_s := Weight(scale^k*(scale+1)^(-k-shape)*GAMMA(k+shape)/(GAMMA(shape)*GAMMA(k+1)), GammaD(k+shape, scale/(scale+1))):
+gamma_poisson   :=
+  Bind(GammaD(shape,scale),lambda,
+       Weight(NewSLO:-density[PoissonD](lambda)(k), Ret(lambda))):
+gamma_poisson_s :=
+  Weight(scale^k*(scale+1)^(-k-shape)*GAMMA(k+shape)/
+         (GAMMA(shape)*GAMMA(k+1)), GammaD(k+shape, scale/(scale+1))):
 TestHakaru(gamma_poisson, gamma_poisson_s, label="gamma_poisson conjugacy",
            ctx=[shape>0, scale>0, k::nonnegint]);
 
@@ -434,7 +531,8 @@ TestHakaru(Bind(Uniform(0,1), x, Uniform(x,1)),
            Bind(Uniform(0,1), x, Weight(ln(1/(1-x)), Ret(x)))},
   label="roundtrip despite banishing failure");
 
-TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
+TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84),
+           label="basic array indexing");
 
 #####################################################################
 #
@@ -450,7 +548,8 @@ module()
   uses CodeTools;
   hpair   := (t1,t2) -> HData(DatumStruct(pair,[Konst(t1),Konst(t2)])):
   hbool   := HData(DatumStruct(true,[]),DatumStruct(false,[])):
-  heither := (t1,t2) -> HData(DatumStruct(left,[Konst(t1)]),DatumStruct(right,[Konst(t2)])):
+  heither := (t1,t2) -> HData(DatumStruct(left,[Konst(t1)]),
+                              DatumStruct(right,[Konst(t2)])):
   hreal   := HReal():
   hprob   := HReal(Bound(`>=`,0)):
   ppair   := (p1,p2) -> PDatum(pair,PInl(PEt(p1,PEt(p2,PDone)))):
@@ -501,11 +600,13 @@ module()
   kb := x::real:
   rt1 := Context(kb, Bind(Gaussian(0,1), x, Ret(0))):
   ty  := HMeasure(HReal()):
-  rt1r := sprintf("%a", eval(ToInert(Context(kb, Ret(0))), _Inert_ATTRIBUTE=NULL)):
+  rt1r := sprintf("%a", eval(ToInert(Context(kb, Ret(0))),
+                             _Inert_ATTRIBUTE=NULL)):
   (proc(rt1r)
      # due to bug in CodeTest, the expected arguement to `CodeTools' cannot be a
      # local var, except a parameter
-     CodeTools[Test]( RoundTrip(rt1, ty, _ret_type='string'), rt1r, label="simple case of RoundTrip" );
+     CodeTools[Test]( RoundTrip(rt1, ty, _ret_type='string'), rt1r,
+                      label="simple case of RoundTrip" );
    end proc)(rt1r);
 end module:
 
@@ -528,7 +629,8 @@ module()
               Ret(a))):
   TestHakaru(burglary, bern(5047/500000), label="burglary");
   TestHakaru(Bind(BetaD(alpha,beta), p, bern(p)),
-             Weight(1/(alpha+beta), Bind(Categorical([alpha,beta]), i, Ret(i=0))),
+             Weight(1/(alpha+beta),
+                    Bind(Categorical([alpha,beta]), i, Ret(i=0))),
              label="integrate BetaD out of BetaD-Bernoulli"):
 end module:
 
@@ -537,16 +639,20 @@ module()
   local burg2, burg2_r;
   burg2 :=
   lam(x5, HData(DatumStruct(true,[]),DatumStruct(false,[])),
-      eval(Bind(app(bern, (1 * 1/(10000))), burglary,
-                eval(Bind(Msum(Weight((idx([p, (1 + (-(p)))],
-                       case(x5, Branches(Branch(PDatum(true, PInl(PDone)), 0),
-                                         Branch(PDatum(false, PInr(PInl(PDone))), 1))))
-                                       * 1/(Sum(idx([p, (1 + (-(p)))], x0), x0=0..(size([p, (1 + (-(p)))]))-1))),
-                                      Ret(Datum(unit, Inl(Done))))), x16, Ret(burglary)),
-                     p=(case(burglary, Branches(Branch(PDatum(true, PInl(PDone)), (19 * 1/(20))),
-                                                Branch(PDatum(false, PInr(PInl(PDone))), (1 * 1/(100)))))))),
-           bern=(lam(p, HReal(Bound(`>=`,0)), Bind(Categorical([p, (1 + (-(p)))]), x,
-                                                   Ret(idx([true, false], x))))))),
+   eval(Bind(app(bern, (1 * 1/(10000))), burglary,
+    eval(Bind(Msum(Weight((idx([p, (1 + (-(p)))],
+     case(x5, Branches(Branch(PDatum(true, PInl(PDone)), 0),
+         Branch(PDatum(false, PInr(PInl(PDone))), 1))))
+       * 1/(Sum(idx([p, (1 + (-(p)))], x0),
+                x0=0..(size([p, (1 + (-(p)))]))-1))),
+      Ret(Datum(unit, Inl(Done))))), x16, Ret(burglary)),
+         p=(case(burglary,
+                 Branches(Branch(PDatum(true, PInl(PDone)), (19 * 1/(20))),
+                          Branch(PDatum(false, PInr(PInl(PDone))),
+                                 (1 * 1/(100)))))))),
+           bern=(lam(p, HReal(Bound(`>=`,0)),
+                     Bind(Categorical([p, (1 + (-(p)))]), x,
+                          Ret(idx([true, false], x))))))),
      HFunction(HData(DatumStruct(true,[]),DatumStruct(false,[])),
                HMeasure(HData(DatumStruct(true,[]),DatumStruct(false,[])))):
   burg2_r :=
