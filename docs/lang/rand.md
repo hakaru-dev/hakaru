@@ -42,10 +42,9 @@ dirac(3)
 ````nohighlight
 return 3
 ````
-|<h4>lebesgue: *measure(real)* </h4>                                         | |
+|<h4>lebesgue(low. *real*, high.*real*): *measure(real)* </h4>               | |
 |--------------------------------------------------------------------------- |-|
-| the distribution constant over the real line                               |-|
-
+| the distribution constant between `low` and `high` and zero elsewhere. `high` must be at least `low`. |-|
 
 
 |<h4>weight(x. *prob*, m. *measure(a)*): *measure(a)* </h4>                  | |
