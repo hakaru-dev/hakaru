@@ -36,7 +36,7 @@ pages:
   - 'Normalize':           'transforms/normalize.md'
   - 'Disintegrate':        'transforms/disintegrate.md'
   - 'Density':             'transforms/density.md'
-  - 'Simplify':            'transforms/simplify.md'
+  - 'Hakaru Maple':        'transforms/hk-maple.md'
   - 'Metropolis Hastings': 'transforms/mh.md'
 - Internals:
   - 'AST and Hakaru Datakind':   'internals/ast.md'
