@@ -79,7 +79,7 @@ can_reduce_Partition := proc(e,$)
     # in this case, we hope to apply PProd and then maybe do some cleanup; this
     # is only possible if the expression has at least two sub-Partitions.
     ps := select(can_reduce_Partition, convert(e,list));
-    ps := map(Partition:-PWToPartition_mb, indets(ps, t_pw_or_part));
+    ps := map(Partition:-PWToPartition_mb, indets[flat](ps, t_pw_or_part));
     if nops(ps) < 2 then return false; end if;
 
     # We also only do this simplification if the Partitions have the same pieces.
