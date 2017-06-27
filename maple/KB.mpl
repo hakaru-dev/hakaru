@@ -518,38 +518,42 @@ KB := module ()
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
    # Great deal of magic happens behind the scenes
-   ModuleApply := proc(bb0::t_kb_atom, pol::identical(true,false), kb::t_kb)
+   ModuleApply := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, bb, bbv, b, k, x, log_b, todo, kb0, ch;
-    bb := bb0;
+    local as, bbv, b, k, x, log_b, todo, kb0, ch;
+    b := bb;
 
-    if bb = pol then
+    if b = pol then
       # Ignore literal true and Not(false).
       kb
 
-    elif bb :: t_if_and_or_of(pol) then
-      foldr(((b,kb) -> assert_deny_mb(b, pol, kb)), kb, op(bb))
+    elif b :: t_if_and_or_of(pol) then
+      foldr(((b1,kb) -> assert_deny_mb(b1, pol, kb)), kb, op(b))
 
-    elif bb :: t_not then
-      assert_deny_mb(op(1,bb), not pol, kb)
+    elif b :: t_not then
+      assert_deny_mb(op(1,b), not pol, kb)
 
-    else
-      bb := subsindets(bb, Partition, Partition:-PartitionToPW);
-      as := chill(kb_to_assumptions(kb, bb));
+    else # b::relation
+      b  := subsindets(b, Partition, Partition:-PartitionToPW);
+      as := chill(kb_to_constraints(kb, b));
       as := remove(type, as, thismodule:-t_bad_assumption);
-      bb := chill(bb);
+      b  := chill(b);
 
       # try to evaluate under the assumptions, but some assumptions break
       # with eval, so remove any of those we tried to chill to prevent them breaking
-      bb := subsindets(bb, relation, x-> kb_assuming_mb(x1->map(eval,x1), x, kb, _->x));
+      b  := subsindets(b, relation, x-> kb_assuming_mb(x1->map(eval,x1), x, kb, _->x));
+
+      # Simplify the condition, esp. needed before `coulditbe' as it may not get
+      # the right answer before simplification (see RoundTrip/testKernel). At
+      # worst, this may cause a 'contradictory assumptions' error in a later
+      # call.
+      b  := simplify_in_context(b, as);
 
       # Check that the new clause would not cause a contradictory
       # KB. If it does, then produce NotAKB.
-      if not bad_assumption(bb) and not rel_coulditbe(`if`(pol,bb,Not(bb)), as) then
+      if not bad_assumption(bb) and not rel_coulditbe(`if`(pol,b,Not(b)), as) then
           return NotAKB();
       end if;
-
-      b := simplify_in_context(bb, as);
 
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
@@ -778,9 +782,8 @@ KB := module ()
   # The known exceptions which kb_assuming_mb will catch and
   # return as a failure; all others are rethrown
   known_assuming_expections :=
-  { "when calling '%2'. Received: '%1 is an invalid property'" , #assume/ProcessTerm
-    "when calling '%1'. Received: 'Can not process Or() or Not(And()) assumption if the object is not a name'", #assume/ProcessTerm
-    "when calling '%1'. Received: 'contradictory assumptions'" #assume
+  { "when calling '%2'. Received: '%1 is an invalid property'"  #assume/ProcessTerm
+  , "when calling '%1'. Received: 'Can not process Or() or Not(And()) assumption if the object is not a name'" #assume/ProcessTerm
   };
 
   kb_assuming_mb := proc(simpl, ee, kb::t_kb, failure, $)
