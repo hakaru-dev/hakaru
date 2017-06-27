@@ -18,7 +18,7 @@ pages:
   - 'Quick Start: A Mixture Model Example':        'intro/quickstart.md'
   - 'Compiling to Haskell':                        'transforms/compile.md' 
   - 'Compiling to C':                              'transforms/hkc.md' 
-- Hakaru Workflow and Examples:
+- Workflow and Examples:
   - 'What is the Hakaru Workflow?':                  'workflow/intro.md'
   - 'Tutorial: Hakaru Workflow for Discrete Models': 'workflow/discrete.md'
   - 'Examples':                                      'examples.md'
