@@ -535,7 +535,7 @@ KB := module ()
 
     else
       bb := subsindets(bb, Partition, Partition:-PartitionToPW);
-      as := chill(kb_to_assumptions(kb, bb));
+      as := chill(kb_to_constraints(kb, bb));
       as := remove(type, as, thismodule:-t_bad_assumption);
       bb := chill(bb);
 
