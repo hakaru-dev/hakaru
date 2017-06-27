@@ -20,6 +20,34 @@ As of June 26th 2017 (86fef044502aa7205e02e03b68cbf1665ba288f7)
 -- beta recog. failed
 ### Failure in: 6:RoundTrip:2:43:t78
 
+-- Relationship.hs Failures
+### Failure in: 7:Relationships:0:0:t1 --Normal to standard normal
+### Failure in: 7:Relationships:0:2:t3 -- Gamma to Chi square
+### Failure in: 7:Relationships:0:3:t4 -- Gamma to Beta
+### Failure in: 7:Relationships:0:5:t8 -- Standard Cauchy to standard Normal
+### Failure in: 7:Relationships:0:6:t9 -- Binomial to Bernoulli
+### Failure in: 7:Relationships:0:8:t11 -- Laplace to Gamma (?)
+### Failure in: 7:Relationships:0:9:t12 -- Exponential to Gamma
+### Failure in: 7:Relationships:0:10:t13 -- Weibull to Exponential
+### Failure in: 7:Relationships:0:11:t14 -- Chi square to student's t test
+### Failure in: 7:Relationships:0:13:t16 -- Normal to Normal (?)
+### Failure in: 7:Relationships:0:14:t17 -- Standard normal to normal
+### Failure in: 7:Relationships:0:15:t18 -- Normal to binomial (?)
+### Error in:   7:Relationships:0:16:t19
+    TODO: mapleArrayOp{Reduce}
+    CallStack (from HasCallStack):
+      error, called at haskell\Language\Hakaru\Pretty\Maple.hs:336:44 in main:Language.Hakaru.Pretty.Maple
+### Error in:   7:Relationships:0:17:t20
+    TODO: mapleArrayOp{Reduce}
+    CallStack (from HasCallStack):
+      error, called at haskell\Language\Hakaru\Pretty\Maple.hs:336:44 in main:Language.Hakaru.Pretty.Maple
+### Failure in: 7:Relationships:0:18:t21 -- Poisson property (?)
+### Failure in: 7:Relationships:0:19:t22 -- Gamma property (?)
+### Failure in: 7:Relationships:0:20:t23 -- Exponential to Gamma
+### Failure in: 7:Relationships:0:21:t25 -- Normal (product property)
+### Failure in: 7:Relationships:0:22:t26 -- Cauchy to standard Cauchy (n = 1)
+### Failure in: 7:Relationships:0:23:t27 -- Inverted Gamma (?)
+
 - All the below failures are *not* due to the simplifier 
 - failing to simplify a program. 
 -- alpha eq. 
@@ -56,31 +84,3 @@ t64
 t63 -- Maple error: unexpected "U" expecting "_Inert_FLOAT"
 lebesgue3 -- Problems reading one (not sure which) of the files; causes failure
 testKernel -- Error: unexpected 'x'\nexpecting operator or end of input"
-
--- Relationship.hs Failures
-### Failure in: 7:Relationships:0:0:t1 --Normal to standard normal
-### Failure in: 7:Relationships:0:2:t3 -- Gamma to Chi square
-### Failure in: 7:Relationships:0:3:t4 -- Gamma to Beta
-### Failure in: 7:Relationships:0:5:t8 -- Standard Cauchy to standard Normal
-### Failure in: 7:Relationships:0:6:t9 -- Binomial to Bernoulli
-### Failure in: 7:Relationships:0:8:t11 -- Laplace to Gamma (?)
-### Failure in: 7:Relationships:0:9:t12 -- Exponential to Gamma
-### Failure in: 7:Relationships:0:10:t13 -- Weibull to Exponential
-### Failure in: 7:Relationships:0:11:t14 -- Chi square to student's t test
-### Failure in: 7:Relationships:0:13:t16 -- Normal to Normal (?)
-### Failure in: 7:Relationships:0:14:t17 -- Standard normal to normal
-### Failure in: 7:Relationships:0:15:t18 -- Normal to binomial (?)
-### Error in:   7:Relationships:0:16:t19
-    TODO: mapleArrayOp{Reduce}
-    CallStack (from HasCallStack):
-      error, called at haskell\Language\Hakaru\Pretty\Maple.hs:336:44 in main:Language.Hakaru.Pretty.Maple
-### Error in:   7:Relationships:0:17:t20
-    TODO: mapleArrayOp{Reduce}
-    CallStack (from HasCallStack):
-      error, called at haskell\Language\Hakaru\Pretty\Maple.hs:336:44 in main:Language.Hakaru.Pretty.Maple
-### Failure in: 7:Relationships:0:18:t21 -- Poisson property (?)
-### Failure in: 7:Relationships:0:19:t22 -- Gamma property (?)
-### Failure in: 7:Relationships:0:20:t23 -- Exponential to Gamma
-### Failure in: 7:Relationships:0:21:t25 -- Normal (product property)
-### Failure in: 7:Relationships:0:22:t26 -- Cauchy to standard Cauchy (n = 1)
-### Failure in: 7:Relationships:0:23:t27 -- Inverted Gamma (?)
