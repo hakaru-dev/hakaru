@@ -11,6 +11,7 @@ import qualified Tests.Simplify      as S
 import qualified Tests.Disintegrate  as D
 import qualified Tests.Sample        as E
 import qualified Tests.RoundTrip     as RT
+import qualified Tests.Relationships as REL
 
 import Test.HUnit
 
@@ -35,6 +36,7 @@ allTests env = test
   , TestLabel "Evaluate"     E.allTests
   , TestLabel "RoundTrip"    (simplifyTests RT.allTests env)
   , TestLabel "ASTTransforms" TR.allTests
+  , TestLabel "Relationships" (simplifyTests REL.allTests env)
   ]
 
 main :: IO ()
