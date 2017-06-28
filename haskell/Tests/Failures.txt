@@ -48,6 +48,20 @@ As of June 27th 2017 (94a47190d91e45d03f30e63637c0f96b42a7580d)
 ### Failure in: 7:Relationships:0:22:t26 -- Cauchy to standard Cauchy (n = 1)
 ### Failure in: 7:Relationships:0:23:t27 -- Inverted Gamma (?)
 
+-- Concrete file errors
+lebesgue3 -- Problems reading one (not sure which) of the files; causes failure
+testKernel -- Error: unexpected 'x'\nexpecting operator or end of input"
+### Error in:   6:RoundTrip:2:17:t46 (tests/RoundTrip/t46.hk: openFile: does not exist (No such file or directory))
+### Error in:   6:RoundTrip:2:18:t45 (tests/RoundTrip/t47.hk: openFile: does not exist (No such file or directory))
+### Failure in: 6:RoundTrip:2:48:lebesgue1 (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:49:lebesgue2 (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:49:lebesgue3 (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:53:exceptionLebesgue  (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:43:t76  (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:5:3:exceptionCounting (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:6:1:testRoadmapProg1 (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:44:t78 (not the same program)
+
 - All the below failures are *not* due to the simplifier 
 - failing to simplify a program. 
 -- alpha eq. 
@@ -65,22 +79,20 @@ As of June 27th 2017 (94a47190d91e45d03f30e63637c0f96b42a7580d)
 ### Failure in: 6:RoundTrip:0:8:t25 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 1/2)
 ### Failure in: 6:RoundTrip:2:3:t7n -- negate(nat2int(1)) vs LInt -1
 ### Failure in: 6:RoundTrip:2:52:exceptionLebesgue -- negate(..) vs .. * -1
+### Failure in: 6:RoundTrip:2:10:t31 -- negate(..) vs .. * -1
+### Failure in: 6:RoundTrip:1:3:t33 (int2real(negate(nat2int(1)) vs. int2real(-1))
 ### Failure in: 6:RoundTrip:2:53:exceptionUniform  -- ^  
 ### Failure in: 6:RoundTrip:3:11:mhPriorProp -- int2real(-1)*prob2real(recip(nat2prob(2)) vs LReal -1/2
 ### Failure in: 6:RoundTrip:0:20:t65 -- negate(nat2int(1) vs LInt -1
 
 -- Typecheck failure (Missing common type)
 ### Failure in: 6:RoundTrip:2:7:t14 
-t61
-t64
+### Failure in: 6:RoundTrip:0:13:t54
+### Failure in: 6:RoundTrip:1:10:t61
+### Failure in: 6:RoundTrip:0:24:t64
 
 -- Needs to move to testConcreteFiles but purportedly does not work
 -- (See commends in RoundTrip.hs)
 ### Failure in: 6:RoundTrip:0:18:t63
 ### Failure in: 6:RoundTrip:2:47:lebesgue1
 ### Failure in: 6:RoundTrip:2:48:lebesgue2 
-
--- Concrete file errors
-t63 -- Maple error: unexpected "U" expecting "_Inert_FLOAT"
-lebesgue3 -- Problems reading one (not sure which) of the files; causes failure
-testKernel -- Error: unexpected 'x'\nexpecting operator or end of input"
