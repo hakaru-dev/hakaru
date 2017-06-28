@@ -657,11 +657,15 @@ export
         ctxC := KB:-chill(ctxC);
 
         if 'do_solve' in {_rest} and _Env_HakaruSolve<>false and can_solve(ctxC) then
-          ctxC := solve({ctxC}, 'useassumptions'=true);
-          if ctxC = NULL and indets(ctx, specfunc(`exp`)) <> {} then
+          ctxC1 := solve({ctxC}, 'useassumptions'=true);
+          if ctxC1 = ctxC then
+            # sometimes solve returns unevaluated which confuses postproc because
+            # it expects the typical output of solve
+            ctxC := [ctxC];
+          elif ctxC1 = NULL and indets(ctx, specfunc(`exp`)) <> {} then
             ctxC := [ctx];
           else
-            ctxC := postproc_for_solve(ctx, [ctxC], _rest);
+            ctxC := postproc_for_solve(ctx, [ctxC1], _rest);
             if 'do_check' in {_rest} and condition_complexity(ctxC)>condition_complexity(ctx) then
               ctxC := [ctx];
             end if;
