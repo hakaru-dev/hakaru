@@ -276,6 +276,20 @@ export
     export MapleType := `if`(kind=`PARTITION`,'Partition','specfunc(piecewise)');
   end module,
 
+  # Checks if the given Partition is semantically valid, i.e. the conditions are
+  # all disjoint. This exploits the property that if each adjacent pair of
+  # conditions is pairwise disjoint, then they are all disjoint
+  # (i.e. disjointness is transitive).
+  IsValid := proc(p::Partition,$)
+    local i, cs; cs := map(condOf, piecesOf(p));
+    for i from 2 to nops(cs) do
+      if (coulditbe(op(i  ,cs)) assuming op(i-1,cs)) or
+         (coulditbe(op(i-1,cs)) assuming op(i  ,cs)) then
+        return false; end if;
+    end do;
+    return true;
+  end proc,
+
   # convert a piecewise to a partition, which is straightforward except:
   # - if any of the branches are unreachable, they are removed
   # - if the last clause is (implicitly) `otherwise`, that clause is filled in
