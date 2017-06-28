@@ -303,8 +303,21 @@ export
   PWToPartition := proc(x::specfunc(piecewise))::Partition;
     # each clause evaluated under the context so far, which is the conjunction
     # of the negations of all clauses so far
-    local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q, ctxC, cl;
-    if 'assume_partition' in {_rest} then return Partition(op(x)) end if;
+    local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q, ctxC, cl, p;
+
+    # Checks if the piecewise is valid when translated literally to a Partition
+    # if so, that Partition can be returned directly. This is not done by
+    # default because the check calls `coulditbe' many times which is
+    # potentially much more expensive than just building the Partition from
+    # scratch. This should only be used when the piecewise comes from a solver
+    # which may or may not already return a 'partition', and when it does return
+    # a 'partition', the set of conditions is typically so complicated that
+    # rebuilding it produces an unwieldy monster (e.g. SemiAlgebraic in the case
+    # of e.g. RoundTrip/t62).
+    if 'check_valid' in {_rest} then
+      p := Partition(op(x));
+      if IsValid(p) then return p end if;
+    end if;
 
     # handles all but the `otherwise` case if there is such a case
     for i in seq(q, q = 1 .. iquo(n, 2)) do
