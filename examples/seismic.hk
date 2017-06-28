@@ -106,9 +106,9 @@ def normal3(mean     pair(real,pair(real,real)),
             cov pair(pair(real,pair(real,real)),
                 pair(pair(real,pair(real,real)),
                      pair(real,pair(real,real))))):
-    x1 <~ lebesgue
-    x2 <~ lebesgue
-    x3 <~ lebesgue
+    x1 <~ lebesgue(-∞,∞)
+    x2 <~ lebesgue(-∞,∞)
+    x3 <~ lebesgue(-∞,∞)
     x = (x1,(x2,x3))
     y = vvSub(x,mean)
     weight(exp(-vvMult(y,mvMult(inverse(cov),y))/2)

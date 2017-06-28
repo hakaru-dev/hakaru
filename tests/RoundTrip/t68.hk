@@ -1,8 +1,8 @@
 fn x4 prob: 
  fn x3 prob: 
   fn x2 real: 
-   x1 <~ lebesgue
-   x0 <~ lebesgue
+   x1 <~ lebesgue(-∞,∞)
+   x0 <~ lebesgue(-∞,∞)
    weight((exp(((negate(x1) + x0)
                  * 
                 (x1 - x0)

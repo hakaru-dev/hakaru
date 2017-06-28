@@ -1,4 +1,4 @@
-x1 <~ lebesgue
+x1 <~ lebesgue(-∞,∞)
 x0 <~ weight((match ((3 < x1) && (x1 < 7)): 
                true: 1/2
                false: 0),

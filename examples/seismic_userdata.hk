@@ -99,9 +99,9 @@ def mvMult(a mat33(real), b vec3(real)):
 	     vvMult(mkVec3(a13,a23,a33),b))
 
 def normal3(mean vec3(real), cov mat33(real)):
-    x1 <~ lebesgue
-    x2 <~ lebesgue
-    x3 <~ lebesgue
+    x1 <~ lebesgue(-∞,∞)
+    x2 <~ lebesgue(-∞,∞)
+    x3 <~ lebesgue(-∞,∞)
     x = vec3(x1,x2,x3)
     y = vvSub(x,mean)
     weight(exp(-vvMult(y,mvMult(inverse(cov),y))/2)

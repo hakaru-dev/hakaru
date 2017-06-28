@@ -2,9 +2,9 @@ fn x7 unit:
  fn x6 pair(real, real): 
   (match x6: 
     (x4, x5): 
-     x3 <~ lebesgue
-     x2 <~ lebesgue
-     x1 <~ lebesgue
+     x3 <~ lebesgue(-∞,∞)
+     x2 <~ lebesgue(-∞,∞)
+     x1 <~ lebesgue(-∞,∞)
      weight((exp(((negate(x5) + x1)
                    * 
                   (x5 - x1)
@@ -14,7 +14,7 @@ fn x7 unit:
              real2prob(x2)
               / 
              exp((log((2 * pi)) / 2))),
-            x0 <~ lebesgue
+            x0 <~ lebesgue(-∞,∞)
             weight((exp(((negate(x1) + x0)
                           * 
                          (x1 - x0)
