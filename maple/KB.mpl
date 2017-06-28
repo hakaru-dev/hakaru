@@ -425,6 +425,12 @@ KB := module ()
      # otherwise go ahead
      try
        c := kb_assuming_mb(b->solve({chill(b)},[x], 'useassumptions'=true),b,kb,_->FAIL);
+       if c = b then
+         # sometimes solve returns unevaluated which confuses postproc because
+         # it expects the typical output of solve
+         return FAIL
+       end if;
+
        c := postproc_for_solve(warm(c), kb);
        if c = FAIL or c = b then
          FAIL
