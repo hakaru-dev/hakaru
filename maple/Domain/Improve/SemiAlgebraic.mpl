@@ -14,7 +14,7 @@ SemiAlgebraic := module()
     local postproc := proc(sol, $)
       foldl((x,k)->subsindets(x,op(k)), sol
            ,[specfunc('piecewise')
-            ,x->DSplit(Partition:-PWToPartition(x))]
+            ,x->DSplit(Partition:-PWToPartition(x,'check_valid'))]
            ,[list(list),DSum@op]
            ,[list(relation),x->DConstrain(remove(extra_sol,x)[])]);
     end proc;
