@@ -82,8 +82,10 @@ can_reduce_Partition := proc(e,$)
     ps := map(Partition:-PWToPartition_mb, indets[flat](ps, t_pw_or_part));
     if nops(ps) < 2 then return false; end if;
 
-    # We also only do this simplification if the Partitions have the same pieces.
-    andmap(p->SamePartition(((a,b)->true),`=`,p,op(1,ps)), [op(2..-1,ps)]);
+    # We also only do this simplification if the Partitions have the same piece values
+    the(ps, curry(SamePartition,((a,b)->true),`=`)) or
+    # or the same conditions
+    the(ps, curry(SamePartition,(`=`,(a,b)->true)))
   else false
   end if;
 end proc;
