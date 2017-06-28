@@ -477,7 +477,7 @@ KB := module ()
        return FAIL;
      end if;
 
-     error "don't know what to do with %1 (in ctx %2, %3)", c, as, kb;
+     error "don't know what to do with %1 (in ctx %2)", c, kb;
    end proc;
 
    # Simplify `bb' in context `as'
