@@ -125,7 +125,7 @@ is equivalent to model conditioning in probability theory.
 
 The density transformation (`density`) is used to create a conditional distribution model that is used to estimate the density of the distribution at a particular point.
 
-### [Hakaru-Maple](/transforms/simplify) ###
+### [Hakaru-Maple](/transforms/hk-maple) ###
 
 The simplify transformation (`hk-maple -c Simplify`) is used to improve Hakaru programs by simplifying probabilistic models using computer algebra. This transformation requires the
 use of Maple. Hakaru provides two other transformations also written in Maple.
