@@ -1,7 +1,7 @@
 # What is the Hakaru Workflow? #
 
-When you write a Hakaru program, you must follow the workflow of Bayesian inference. Bayesian inference is a method of statistical inference where Bayes' theorm is used
-to update the probability of a statistical hypothisis as more information becomes available[^1]. Baye's theorm describes the probability of an event based on knowledge of
+When you write a Hakaru program, you must follow the workflow of Bayesian inference. Bayesian inference is a method of statistical inference where Bayes' theorem is used
+to update the probability of a statistical hypothesis as more information becomes available[^1]. Bayes theorem describes the probability of an event based on knowledge of
 event-related conditions[^2].
 
 In Hakaru, the workflow of Bayesian inference appears as *modelling*, *transformation*, and *application* stages[^3]:
@@ -15,7 +15,7 @@ model conditioning.
 on what is to be inferred. At the end of this stage, you can use Hakaru to show the resulting distribution as both a stream of samples and as a term in the Hakaru language.
 
 
-[^1]: [Baysian inference (Wikipedia)](https://en.wikipedia.org/wiki/Bayesian_inference)
-[^2]: [Bayes' theorm (Wikipedia)](https://en.wikipedia.org/wiki/Bayes%27_theorem)
+[^1]: [Bayesian inference (Wikipedia)](https://en.wikipedia.org/wiki/Bayesian_inference)
+[^2]: [Bayes' theorem (Wikipedia)](https://en.wikipedia.org/wiki/Bayes%27_theorem)
 [^3]: P. Narayanan, J. Carette, W. Romano, C. Shan and R. Zinkov, "Probabilistic Inference by Program Transformation in Hakaru (System Description)", Functional and Logic 
 Programming, pp. 62-79, 2016.
