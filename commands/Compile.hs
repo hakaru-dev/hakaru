@@ -17,7 +17,7 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Types.Sing
+import           Language.Hakaru.Types.Sing (Sing(SFun, SMeasure))
 import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Pretty.Haskell
@@ -86,13 +86,13 @@ options = Options
 
 prettyProg :: (ABT T.Term abt)
            => String
+	   -> Sing a
            -> abt '[] a
            -> String
-prettyProg name ast =
+prettyProg name typ ast =
     renderStyle style
-    (cat [ text (name ++ " = ")
-         , nest 2 (pretty ast)
-         ])
+    (    sep [text (name ++ " ::"), nest 2 (prettyType typ)]
+     $+$ sep [text (name ++ " =") , nest 2 (pretty     ast)] )
 
 compileHakaru
     :: Options
@@ -106,9 +106,9 @@ compileHakaru opts = do
         let ast' = (if optimize opts then optimizations else id) (et ast)
         writeHkHsToFile file (fileOut opts) . TxT.unlines $
           header (logFloatPrelude opts) (asModule opts) ++
-          [ pack $ prettyProg "prog" ast' ] ++
+          [ pack $ prettyProg "prog" typ ast' ] ++
           (case asModule opts of
-             Nothing -> footer (logFloatPrelude opts) typ
+             Nothing -> footer
              Just _  -> [])
   where et = expandTransformations
 
@@ -128,8 +128,8 @@ compileRandomWalk opts = do
               | (Just Refl, Just Refl) <- (jmEq1 a b, jmEq1 b c)
               -> writeHkHsToFile f1 (fileOut opts) . TxT.unlines $
                    header (logFloatPrelude opts) (asModule opts) ++
-                   [ pack $ prettyProg "prog1" (expandTransformations ast1) ] ++
-                   [ pack $ prettyProg "prog2" (expandTransformations ast2) ] ++
+                   [ pack $ prettyProg "prog1" typ1 (expandTransformations ast1) ] ++
+                   [ pack $ prettyProg "prog2" typ2 (expandTransformations ast2) ] ++
                    (case asModule opts of
                       Nothing -> footerWalk
                       Just _  -> [])
@@ -169,23 +169,10 @@ header logfloats mmodule =
   , ""
   ]
 
-footer :: forall (a :: Hakaru) . Bool -> Sing a -> [Text]
-footer logfloats typ =
+footer :: [Text]
+footer =
     ["","main :: IO ()"
-    , TxT.concat ["main = makeMain (prog :: ",toHsType typ,")  =<< getArgs"]]
-  where toHsType :: forall (a :: Hakaru) . Sing a -> Text
-        toHsType SInt = "Int"
-        toHsType SNat = "Int"
-        toHsType SReal = "Double"
-        toHsType SProb = if logfloats then "LogFloat" else "Double"
-        toHsType (SArray t) = let t' = toHsType t in
-                                TxT.concat ["(",TxT.unwords ["MayBoxVec",t',t'],")"]
-        toHsType (SMeasure t) = TxT.concat ["(",TxT.unwords ["Measure",toHsType t],")"]
-        toHsType (SFun t1 t2) = TxT.unwords [toHsType t1,"->",toHsType t2]
-        toHsType (SData _
-                   ((SKonst t1 `SEt` SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
-          TxT.concat ["(",toHsType t1,",",toHsType t2,")"]
-        toHsType _ = "type"
+    , TxT.concat ["main = makeMain prog =<< getArgs"]]
 
 footerWalk :: [Text]
 footerWalk =
