@@ -16,7 +16,6 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 
 import           Language.Hakaru.Types.Sing (Sing(SFun, SMeasure))
-import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Pretty.Haskell
 import           Language.Hakaru.Command
@@ -79,7 +78,7 @@ options = Options
 
 prettyProg :: (ABT T.Term abt)
            => String
-	   -> Sing a
+           -> Sing a
            -> abt '[] a
            -> String
 prettyProg name typ ast =

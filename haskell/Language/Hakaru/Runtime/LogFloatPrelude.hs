@@ -10,7 +10,7 @@
            , OverloadedStrings
            #-}
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 -Wno-orphans #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 -fno-warn-orphans #-}
 module Language.Hakaru.Runtime.LogFloatPrelude where
 
 #if __GLASGOW_HASKELL__ < 710

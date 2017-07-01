@@ -10,7 +10,8 @@ import qualified System.Random.MWC               as MWC
 import           Control.Monad                   (liftM, ap, forever)
 
 #if __GLASGOW_HASKELL__ < 710
-import Data.Functor
+import           Data.Functor
+import           Control.Applicative             (Applicative(..))
 #endif
 
 newtype Measure a = Measure { unMeasure :: MWC.GenIO -> IO (Maybe a) }
