@@ -495,7 +495,7 @@ export
       nops(indets(x,PartitionCond)) + nops(indets(x,specfunc({exp, ln})))
     end proc;
 
-    export reduce_branches := proc(e::Partition, { _testequal := ((a,b) -> Testzero(a-b)) })
+    export reduce_branches := proc(e::Partition, kb := KB:-empty, { _testequal := ((a,b) -> Testzero(a-b)) })
       local k, ks, i, vs, ps1, ps; ps := piecesOf(e); vs := map(valOf,ps);
       userinfo(3, :-reduce_branches, printf("Input: %a\n", ps));
 
@@ -508,7 +508,8 @@ export
       ks  := map(nops, ps1); # number of pieces per group
 
       # build the result
-      ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb', 'do_check')[])
+      ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), kb,
+                                            'do_solve', 'do_kb', 'do_check')[])
                           ,valOf(op(1,p)))
                  ,ps1);
       userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
