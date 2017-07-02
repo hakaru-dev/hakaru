@@ -496,7 +496,7 @@ KB := module ()
 
    rel_coulditbe := proc(a,as,$)
       try
-          coulditbe(a) assuming op(as);
+          not(is(bool_Not(a)) assuming op(as));
       catch "when calling '%1'. Received: 'contradictory assumptions'" :
           # technically this means the KB was already contradictory, we
           # just didn't know?
