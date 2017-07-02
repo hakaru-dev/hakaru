@@ -646,14 +646,12 @@ export
           return [ctx];
         end if;
         if 'do_kb' in {_rest} then
-          ctxC1 := KB:-assert( ctxC, KB:-empty );
-          ctxC1 := KB:-kb_to_constraints(ctxC1,{},_->false);
-          ctxC1 := bool_And(op(ctxC1));
-          ctxC1_c, ctxC_c := map(condition_complexity, [ctxC1,ctxC])[];
-          if ctxC1_c < ctxC_c then
-            ctxC := ctxC1;
-            if ctxC1_c = 1 then
-              return [ctxC];
+          ctxC1 := KB:-kb_subtract( KB:-assert( ctxC, kb ), kb );
+          if nops(ctxC1)=1 and op([1,1], ctxC1)=KB:-assert then
+            ctxC1 := op([1,2], ctxC1);
+            ctxC1_c, ctxC_c := map(condition_complexity, [ctxC1,ctxC])[];
+            if ctxC1_c < ctxC_c then
+              ctxC := ctxC1;
             end if;
           end if;
         end if;
