@@ -491,7 +491,9 @@ export
     end proc;
 
     local `&on` := proc(f,k,$) proc(a,b,$) f(k(a),k(b)) end proc end proc;
-    local condition_complexity := proc(x) nops(indets(x,PartitionCond)) end proc;
+    local condition_complexity := proc(x)
+      nops(indets(x,PartitionCond)) + nops(indets(x,specfunc({exp, ln})))
+    end proc;
 
     export reduce_branches := proc(e::Partition, { _testequal := ((a,b) -> Testzero(a-b)) })
       local k, ks, i, vs, ps1, ps; ps := piecesOf(e); vs := map(valOf,ps);
