@@ -594,10 +594,11 @@ KB := module ()
       if b :: t_constraint_flipped then b := (rhs(b)=lhs(b)) end if;
 
       # If `b' reduces to `true' in the KB environment then there is no need to
-      # add it
+      # add it; or if it reduces to `false', then the result is NotAKB
       ch := chill(b);
       try
-        if is(ch) assuming op(as) then return kb end if;
+        if is(ch) assuming op(as)     then return kb       end if;
+        if not(rel_coulditbe(ch, as)) then return NotAKB() end if;
       catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
         WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling is(%%1) assuming (%%2)"
                         , StringTools[FormatMessage](lastexception[2..-1])), b, as );
