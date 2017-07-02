@@ -408,7 +408,7 @@ export
       elif assigned(distrib_op_Partition[op(0,p)]) then
         mk := distrib_op_Partition[op(0,p)];
         ps := [op(p)];
-        ps := map(x->Simpl(x,_rest), ps);
+        ps := map(x->Simpl(x,as), ps);
         ps, qs := selectremove(type, ps, Partition);
         if nops(ps)=0 then return p end if;
         mk(op(qs),foldr(((a,b)->
