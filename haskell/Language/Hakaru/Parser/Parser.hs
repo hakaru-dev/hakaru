@@ -31,7 +31,8 @@ ops   = ["+","*","-","^", "**", ":",".", "<~",
 types = ["->"]
 names = ["def", "fn", "if", "else", "∞", "expect", "observe",
          "return", "match", "integrate", "summate", "product",
-         "data", "import"]
+         "data", "import",
+         "from", "to", "of"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -45,8 +46,8 @@ style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     , Tok.nestedComments  = True
     , Tok.identStart      = letter <|> char '_'
     , Tok.identLetter     = alphaNum <|> oneOf "_'"
-    , Tok.opStart         = oneOf "!$%&*+./<=>?@\\^|-~"
-    , Tok.opLetter        = oneOf "!$%&*+./<=>?@\\^|-~"
+    , Tok.opStart         = parserZero
+    , Tok.opLetter        = parserZero
     , Tok.caseSensitive   = True
     , Tok.commentLine     = "#"
     , Tok.reservedOpNames = ops ++ types
@@ -107,20 +108,11 @@ exponent'       =  do{ _ <- oneOf "eE"
 parens :: Parser a -> Parser a
 parens = Tok.parens lexer . localIndentation Any
 
-braces :: Parser a -> Parser a
-braces = Tok.parens lexer . localIndentation Any
-
 brackets :: Parser a -> Parser a
 brackets = Tok.brackets lexer . localIndentation Any
 
 commaSep :: Parser a -> Parser [a]
 commaSep = Tok.commaSep lexer
-
-semiSep :: Parser a -> Parser [a]
-semiSep = Tok.semiSep lexer
-
-semiSep1 :: Parser a -> Parser [a]
-semiSep1 = Tok.semiSep1 lexer
 
 identifier :: Parser Text
 identifier = M.liftM Text.pack $ Tok.identifier lexer
@@ -130,9 +122,6 @@ reserved = Tok.reserved lexer
 
 reservedOp :: String -> Parser ()
 reservedOp = Tok.reservedOp lexer
-
-symbol :: Text -> Parser Text
-symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
 app1 :: Text -> AST' Text -> AST' Text
 app1 s x@(WithMeta _ m) = WithMeta (Var s `App` x) m
@@ -206,10 +195,7 @@ table =
     , [ binary "||"  Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
-unit_ = Unit <$ symbol "()"
-
-empty_ :: Parser (AST' a)
-empty_ = Empty <$ symbol "[]"
+unit_ = parens $ return Unit
 
 int :: Parser (AST' a)
 int = do
@@ -309,9 +295,9 @@ integrate_expr =
     reserved "integrate"
     *> (Integrate
         <$> identifier
-        <*  symbol "from"
+        <*  reserved "from"
         <*> expr
-        <*  symbol "to"
+        <*  reserved "to"
         <*> expr
         <*> semiblockExpr
         )
@@ -321,9 +307,9 @@ summate_expr =
     reserved "summate"
     *> (Summate
         <$> identifier
-        <*  symbol "from"
+        <*  reserved "from"
         <*> expr
-        <*  symbol "to"
+        <*  reserved "to"
         <*> expr
         <*> semiblockExpr
         )
@@ -333,9 +319,9 @@ product_expr =
     reserved "product"
     *> (Product
         <$> identifier
-        <*  symbol "from"
+        <*  reserved "from"
         <*> expr
-        <*  symbol "to"
+        <*  reserved "to"
         <*> expr
         <*> semiblockExpr
         )
@@ -362,7 +348,7 @@ array_expr =
     reserved "array"
     *> (Array
         <$> identifier
-        <*  symbol "of"
+        <*  reserved "of"
         <*> expr
         <*> semiblockExpr
         )
@@ -380,7 +366,7 @@ plate_expr =
     reserved "plate"
     *> (Plate
         <$> identifier
-        <*  symbol "of"
+        <*  reserved "of"
         <*> expr
         <*> semiblockExpr
         )
@@ -477,7 +463,6 @@ term =  try if_expr
     <|> try floating
     <|> try inf_
     <|> try unit_
-    <|> try empty_
     <|> try int
     <|> try var
     <|> try pairs
@@ -501,7 +486,7 @@ parseHakaruWithImports = parseAtTopLevel exprWithImport
 parseAtTopLevel :: Parser a -> Text -> Either ParseError a 
 parseAtTopLevel p = 
     runParser (whiteSpace *>
-               p <* eof) () "<input>" . indentConfig . Text.strip 
+               p <* eof) () "<input>" . indentConfig
 
 withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
