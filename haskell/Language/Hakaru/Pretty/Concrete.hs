@@ -190,7 +190,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 identityElement (Prod _) = [PP.text "1"]
 
         Literal_ v    -> prettyPrec_ p v
-        Empty_   _    -> [PP.text "empty"]
+        Empty_   _    -> [PP.text "[]"]
         Array_ e1 e2  ->
             let (vars, _, body) = ppBinder2 e2 in
             [ PP.text "array"
