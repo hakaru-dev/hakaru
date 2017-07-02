@@ -642,8 +642,6 @@ export
         ctxC := ctx;
         if ctx :: identical(true) then
           error "Simpl:-condition: don't know what to do with %1", ctxC;
-        elif condition_complexity(ctx)=1 then
-          return [ctx];
         end if;
         if 'do_kb' in {_rest} then
           ctxC1 := KB:-kb_subtract( KB:-assert( ctxC, kb ), kb );
@@ -655,6 +653,10 @@ export
             end if;
           end if;
         end if;
+        if condition_complexity(ctxC)=1 then
+          return [ctxC];
+        end if;
+
         ctxC := KB:-chill(ctxC);
 
         if 'do_solve' in {_rest} and _Env_HakaruSolve<>false and can_solve(ctxC) then
