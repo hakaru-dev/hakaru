@@ -693,7 +693,8 @@ export
         if 'no_split_disj' in {_rest} then
           ctxC := [ bool_Or(op(ctxC)) ];
         end if;
-        KB:-warm(ctxC);
+        ctxC := KB:-warm(ctxC);
+        `if`(ctxC::list, ctxC, [ctxC]);
       end proc;
     end module; #Simpl:-condition
   end module, #Simpl
