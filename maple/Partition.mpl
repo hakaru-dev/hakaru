@@ -300,7 +300,7 @@ export
   #   probably be to add a new clause whose value is 'undefined'
   # the logic of this function is already essentially implemented, by KB
   # in fact, kb_piecewise does something extremely similar to this
-  PWToPartition := proc(x::specfunc(piecewise))::Partition;
+  PWToPartition := proc(x::specfunc(piecewise), {_kb::t_kb:=KB:-empty})::Partition;
     # each clause evaluated under the context so far, which is the conjunction
     # of the negations of all clauses so far
     local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q, ctxC, cl, p;
@@ -326,7 +326,7 @@ export
       if ctx :: identical(false) then return PARTITION( cls );
       else
         ctxC := `And`(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
-        ctxC := Simpl:-condition(ctxC, _rest);
+        ctxC := Simpl:-condition(ctxC, _kb, _rest);
 
         if cnd :: `=` then ncnd := lhs(cnd) <> rhs(cnd);
         else               ncnd := Not(cnd) end if;
@@ -343,7 +343,7 @@ export
 
     # if there is an otherwise case, handle that.
     if n::odd then
-      ctx := Simpl:-condition(ctx, _rest);
+      ctx := Simpl:-condition(ctx, _kb, _rest);
       if not ctx :: identical(false,[]) then
         cls := [ op(cls), op(Pieces(ctx,[op(n,x)])) ];
       end if;
@@ -636,7 +636,7 @@ export
         evalb(indets(c, neq_nn) = {} or not has(c,`idx`))
       end proc;
 
-      export ModuleApply := proc(ctx, kb := KB:-empty)::list(PartitionCond);
+      export ModuleApply := proc(ctx, kb::t_kb := KB:-empty)::list(PartitionCond);
         option remember, system;
         local ctxC, ctxC1, ctxC_c, ctxC1_c;
         ctxC := ctx;
