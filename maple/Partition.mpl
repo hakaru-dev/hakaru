@@ -664,11 +664,11 @@ export
             # it expects the typical output of solve
             ctxC := [ctxC];
           elif ctxC1 = NULL and indets(ctx, specfunc(`exp`)) <> {} then
-            ctxC := [ctx];
+            ctxC := [ctxC];
           else
-            ctxC := postproc_for_solve(ctx, [ctxC1], _rest);
+            ctxC1 := postproc_for_solve(ctxC, [ctxC1], _rest);
             if 'do_check' in {_rest} and condition_complexity(ctxC)>condition_complexity(ctx) then
-              ctxC := [ctx];
+              ctxC := [ctxC];
             end if;
           end if;
           if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
