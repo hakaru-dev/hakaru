@@ -76,13 +76,14 @@ fractExponent n =  do{ fract <- fraction
                     }
 
 fraction        :: Parser Rational
-fraction        =  do{ _ <- char '.'
-                     ; digits <- many1 digit <?> "fraction"
-                     ; return (foldr op 0 digits)
+fraction        =  do{ d      <- try (char '.' *> digit)
+                     ; digits <- many digit <?> "fraction"
+                     ; return (foldr1 op (map (fromIntegral.digitToInt) (d:digits))
+                               / 10)
                      }
                   <?> "fraction"
                     where
-                      op d f    = (f + fromIntegral (digitToInt d))/10
+                      op d f    = d + f / 10
 
 exponent'       :: Parser Rational
 exponent'       =  do{ _ <- oneOf "eE"
@@ -402,28 +403,28 @@ return_expr = do
     app1 "dirac" <$> expr
 
 term :: Parser (AST' Text)
-term =  try if_expr
-    <|> try return_expr
-    <|> try lam_expr
-    <|> try def_expr
-    <|> try match_expr
-    <|> try data_expr
-    <|> try integrate_expr
-    <|> try summate_expr
-    <|> try product_expr
-    <|> try expect_expr
-    <|> try observe_expr
-    <|> try array_expr
-    <|> try plate_expr
-    <|> try chain_expr
-    <|> try let_expr
-    <|> try bind_expr
-    <|> try array_literal
-    <|> try inf_
+term =  if_expr
+    <|> return_expr
+    <|> lam_expr
+    <|> def_expr
+    <|> match_expr
+    <|> data_expr
+    <|> integrate_expr
+    <|> summate_expr
+    <|> product_expr
+    <|> expect_expr
+    <|> observe_expr
+    <|> array_expr
+    <|> plate_expr
+    <|> chain_expr
+    <|> let_expr
+    <|> bind_expr
+    <|> array_literal
+    <|> inf_
     <|> natOrProb
-    <|> try var
+    <|> var
     <|> parenthesized
-    <?> "an expression"
+    <?> "simple expression"
 
 expr :: Parser (AST' Text)
 expr = withPos (buildExpressionParser table (withPos term) <?> "expression")
