@@ -18,7 +18,7 @@ import           Text.Parsec.Text              () -- instances only
 import           Text.Parsec.Indentation
 import           Text.Parsec.Indentation.Char
 import qualified Text.Parsec.Indentation.Token as ITok
-import qualified Text.Parsec.Expr              as Ex
+import           Text.Parsec.Expr              (Assoc(..), Operator(..))
 import qualified Text.Parsec.Token             as Tok
 
 import Language.Hakaru.Parser.AST
@@ -35,8 +35,7 @@ names = concatMap words [ "def fn"
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
-type Operator a      = Ex.Operator ParserStream () Identity a
-type OperatorTable a = [[Operator a]]
+type OperatorTable a = [[Operator ParserStream () Identity a]]
 
 style :: Tok.GenLanguageDef ParserStream st Identity
 style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
@@ -62,14 +61,9 @@ whiteSpace = Tok.whiteSpace lexer
 decimal :: Parser Integer
 decimal = Tok.decimal lexer
 
-integer :: Parser Integer
-integer = Tok.integer lexer
-
-float :: Parser Rational
-float =  (decimal >>= fractExponent) <* whiteSpace
-
-fractFloat :: Integer -> Parser (Either Integer Rational)
-fractFloat n  =  fractExponent n >>= return . Right
+decimalFloat :: Parser Literal'
+decimalFloat = do n <- decimal
+                  option (Nat n) (Prob <$> fractExponent n)
 
 fractExponent   :: Integer -> Parser Rational
 fractExponent n =  do{ fract <- fraction
@@ -92,17 +86,11 @@ fraction        =  do{ _ <- char '.'
 
 exponent'       :: Parser Rational
 exponent'       =  do{ _ <- oneOf "eE"
-                     ; f <- sign
+                     ; f <- (negate <$ char '-') <|> (id <$ optional (char '+'))
                      ; e <- decimal <?> "exponent"
-                     ; return (power (f e))
+                     ; return (10 ^^ f e)
                      }
                   <?> "exponent"
-                      where
-                       power e  | e < 0      = 1.0/power(-e)
-                                | otherwise  = fromInteger (10^e)
-                       sign            =   (char '-' >> return negate)
-                                       <|> (char '+' >> return id)
-                                       <|> return id
 
 parens :: Parser a -> Parser a
 parens = Tok.parens lexer . localIndentation Any
@@ -130,97 +118,80 @@ reservedOp s
   | otherwise
   = error ("Parser failed to reserve the operator " ++ show s)
 
-app1 :: Text -> AST' Text -> AST' Text
-app1 s x@(WithMeta _ m) = WithMeta (Var s `App` x) m
-app1 s x                = Var s `App` x
+app1 :: a -> AST' a -> AST' a
+app1 s x = Var s `App` x
 
-app2 :: Text -> AST' Text -> AST' Text -> AST' Text
+app2 :: a -> AST' a -> AST' a -> AST' a
 app2 s x y = Var s `App` x `App` y
 
--- | Smart constructor for divide
-divide :: AST' Text -> AST' Text -> AST' Text
-divide (ULiteral x') (ULiteral y') = ULiteral (go x' y')
-  where go :: Literal' -> Literal' -> Literal'
-        go (Nat  x) (Nat  y) = Prob (x % y)
-        go x        y        = Real (litToRat x / litToRat y)
-
-        litToRat :: Literal' -> Rational
-        litToRat (Nat  x) = toRational x
-        litToRat (Int  x) = toRational x
-        litToRat (Prob x) = toRational x
-        litToRat (Real x) = toRational x
+divide, sub :: AST' Text -> AST' Text -> AST' Text
+divide       (WithMeta (ULiteral (Nat   x     )) (SourceSpan s _))
+             (WithMeta (ULiteral (Nat       y )) (SourceSpan _ e))
+           = (WithMeta (ULiteral (Prob (x % y))) (SourceSpan s e))
 divide x y = NaryOp Prod [x, app1 "recip" y]
+sub    x y = NaryOp Sum  [x, app1 "negate" y]
 
-binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
-binop s x y
-    | s == "+"   = NaryOp Sum  [x, y]
-    | s == "-"   = NaryOp Sum  [x, app1 "negate" y]
-    | s == "*"   = NaryOp Prod [x, y]
-    | s == "/"   = x `divide` y
-    | s == "<"   = app2 "less"  x y
-    | s == ">"   = app2 "less"  y x
-    | s == "=="  = app2 "equal" x y
-    | s == "<="  = NaryOp Or [ app2 "less"  x y
-                             , app2 "equal" x y]
-    | s == ">="  = NaryOp Or [ app2 "less"  y x
-                             , app2 "equal" x y]
-    | s == "&&"  = NaryOp And  [x, y]
-    | s == "||"  = NaryOp Or   [x, y]
-    | s == "<|>" = Msum [x, y]
-    | otherwise  = app2 s x y
+bi :: ([a] -> b) -> a -> a -> b
+bi f x y = f [x, y]
 
-binary :: String -> Ex.Assoc -> Operator (AST' Text)
-binary s = Ex.Infix (binop (Text.pack s) <$ reservedOp s)
+negate_rel :: (AST' Text -> AST' Text -> AST' Text)
+           -> (AST' Text -> AST' Text -> AST' Text)
+negate_rel f x y = app1 "not" (f x y)
 
-prefix :: String -> (a -> a) -> Operator a
-prefix s f = Ex.Prefix (f <$ reservedOp s)
+binary :: String
+       -> Assoc
+       -> (a -> a -> a)
+       -> Operator ParserStream () Identity a
+binary s a f = Infix (f <$ reservedOp s) a
 
-postfix :: Parser (a -> a) -> Operator a
-postfix p = Ex.Postfix . chainl1 p . return $ flip (.)
+postfix :: Stream s m t
+        => ParsecT s u m (AST' a -> AST' a)
+        -> Operator s u m (AST' a)
+postfix p = Postfix (chainl1 p' (return (flip (.))))
+  where p' = do f <- p
+                e <- getPosition
+                return (\x -> case x of
+                  WithMeta _ (SourceSpan s _) -> WithMeta (f x) (SourceSpan s e)
+                  _                           ->           f x)
+
+sign :: Parser (AST' Text -> AST' Text)
+sign = do
+  s <- getPosition
+  (fNat, fProb, fRest)
+    <- ((id    , id    , id           ) <$ reservedOp "+") <|>
+       ((negate, negate, app1 "negate") <$ reservedOp "-")
+  let f     (WithMeta (ULiteral (Nat         x )) (SourceSpan _ e))
+          = (WithMeta (ULiteral (Int  (fNat  x))) (SourceSpan s e))
+      f     (WithMeta (ULiteral (Prob        x )) (SourceSpan _ e))
+          = (WithMeta (ULiteral (Real (fProb x))) (SourceSpan s e))
+      f x = fRest x
+  return f
 
 table :: OperatorTable (AST' Text)
-table =
-    [ [ postfix array_index ]
-    , [ prefix "+"  id ]
-    , [ binary "^"  Ex.AssocRight
-      , binary "**" Ex.AssocRight]
-    , [ binary "*"  Ex.AssocLeft
-      , binary "/"  Ex.AssocLeft]
-    , [ binary "+"  Ex.AssocLeft
-      , binary "-"  Ex.AssocLeft
-      , prefix "-"  (app1 "negate")]
-    -- TODO: add "/="
-    -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
-    , [ postfix ann_expr ]
-    , [ binary "<|>" Ex.AssocRight]
-    , [ binary "<"   Ex.AssocLeft
-      , binary ">"   Ex.AssocLeft
-      , binary "<="  Ex.AssocLeft
-      , binary ">="  Ex.AssocLeft
-      , binary "=="  Ex.AssocLeft]
-    , [ binary "&&"  Ex.AssocLeft]
-    , [ binary "||"  Ex.AssocLeft]]
+table = [ [ postfix (array_index <|> fun_call) ]
+        , [ binary "^"   AssocRight $ app2 "^"
+          , binary "**"  AssocRight $ app2 "**" ]
+        , [ binary "*"   AssocLeft  $ bi (NaryOp Prod)
+          , binary "/"   AssocLeft  $ divide ]
+        , [ Prefix sign
+          , binary "+"   AssocLeft  $ bi (NaryOp Sum)
+          , binary "-"   AssocLeft  $ sub ]
+        , [ postfix ann_expr ]
+        , [ binary "<"   AssocNone  $                     app2 "less"
+          , binary ">"   AssocNone  $              flip $ app2 "less"
+          , binary "<="  AssocNone  $ negate_rel $ flip $ app2 "less"
+          , binary ">="  AssocNone  $ negate_rel $        app2 "less"
+          , binary "=="  AssocNone  $                     app2 "equal"
+          , binary "/="  AssocNone  $ negate_rel $        app2 "equal" ]
+        , [ binary "&&"  AssocRight $ bi (NaryOp And) ]
+        , [ binary "||"  AssocRight $ bi (NaryOp Or) ]
+        , [ binary "<|>" AssocRight $ bi Msum ] ]
 
 unit_ :: Parser (AST' a)
 unit_ = parens $ return Unit
 
-int :: Parser (AST' a)
-int = do
-    n <- integer
-    return $
-        if n < 0
-        then ULiteral $ Int n
-        else ULiteral $ Nat n
-
-floating :: Parser (AST' a)
-floating = do
-    sign <- option '+' (oneOf "+-")
-    n <- float
-    return $
-        case sign of
-        '-' -> ULiteral $ Real (negate n)
-        '+' -> ULiteral $ Prob n
-        _   -> error "floating: the impossible happened"
+natOrProb :: Parser (AST' a)
+natOrProb = (ULiteral <$> decimalFloat) <* whiteSpace
 
 inf_ :: Parser (AST' Text)
 inf_ = reserved "∞" *> return Infinity'
@@ -435,11 +406,8 @@ def_expr = do
 defarg :: Parser (Text, TypeAST')
 defarg = (,) <$> identifier <*> type_expr
 
-call_expr :: Parser (AST' Text)
-call_expr =
-    foldl App
-        <$> (Var <$> identifier)
-        <*> parens (commaSep expr)
+fun_call :: Parser (AST' Text -> AST' Text)
+fun_call = flip (foldl App) <$> parens (commaSep expr)
 
 return_expr :: Parser (AST' Text)
 return_expr = do
@@ -463,19 +431,17 @@ term =  try if_expr
     <|> try chain_expr
     <|> try let_expr
     <|> try bind_expr
-    <|> try call_expr
     <|> try array_literal
-    <|> try floating
     <|> try inf_
     <|> try unit_
-    <|> try int
+    <|> natOrProb
     <|> try var
     <|> try pairs
     <|> parens expr
     <?> "an expression"
 
 expr :: Parser (AST' Text)
-expr = withPos (Ex.buildExpressionParser table (withPos term) <?> "an expression")
+expr = withPos (buildExpressionParser table (withPos term) <?> "expression")
 
 
 indentConfig :: Text -> ParserStream
@@ -527,3 +493,98 @@ import_expr =
 
 exprWithImport :: Parser (ASTWithImport' Text)
 exprWithImport = ASTWithImport' <$> (many import_expr) <*> expr
+
+-- | A variant of @Text.Parsec.Expr.buildExpressionParser@ (parsec-3.1.11)
+-- that behaves more restrictively when a precedence level contains both
+-- unary and binary operators.  Unary operators are only allowed on the
+-- first operand when parsing left-associatively and on the last operand
+-- when parsing right-associatively.  This restriction lets us recover the
+-- behavior of unary negation in Haskell.
+
+buildExpressionParser :: (Stream s m t)
+                      => [[Operator s u m a]]
+                      -> ParsecT s u m a
+                      -> ParsecT s u m a
+buildExpressionParser operators simpleExpr
+    = foldl (makeParser) simpleExpr operators
+    where
+      makeParser term ops
+        = let (rassoc,lassoc,nassoc
+               ,prefix,postfix)      = foldr splitOp ([],[],[],[],[]) ops
+
+              rassocOp   = choice rassoc
+              lassocOp   = choice lassoc
+              nassocOp   = choice nassoc
+              prefixOp   = choice prefix  <?> ""
+              postfixOp  = choice postfix <?> ""
+
+              ambigious assoc op= try $
+                                  do{ _ <- op
+                                    ; fail ("ambiguous use of a " ++ assoc
+                                            ++ " associative operator")
+                                    }
+
+              ambigiousRight    = ambigious "right" rassocOp
+              ambigiousLeft     = ambigious "left" lassocOp
+              ambigiousNon      = ambigious "non" nassocOp
+
+              termP      = do{ (preU, pre)   <- prefixP
+                             ; x             <- term
+                             ; (postU, post) <- postfixP
+                             ; return (preU || postU, post (pre x))
+                             }
+
+              postfixP   = ((,) True) <$> postfixOp <|> return (False, id)
+
+              prefixP    = ((,) True) <$> prefixOp <|> return (False, id)
+
+              rassocP x  = do{ f      <- rassocOp
+                             ; (u, z) <- termP
+                             ; y      <- if u then return z else rassocP1 z
+                             ; return (f x y)
+                             }
+                           <|> ambigiousLeft
+                           <|> ambigiousNon
+                           -- <|> return x
+
+              rassocP1 x = rassocP x  <|> return x
+
+              lassocP x  = do{ f <- lassocOp
+                             ; y <- term
+                             ; lassocP1 (f x y)
+                             }
+                           <|> ambigiousRight
+                           <|> ambigiousNon
+                           -- <|> return x
+
+              lassocP1 x = lassocP x <|> return x
+
+              nassocP x  = do{ f <- nassocOp
+                             ; y <- term
+                             ;    ambigiousRight
+                              <|> ambigiousLeft
+                              <|> ambigiousNon
+                              <|> return (f x y)
+                             }
+                           -- <|> return x
+
+           in  do{ (u, x) <- termP
+                 ;     (if u then parserZero else rassocP x)
+                   <|>                            lassocP x
+                   <|> (if u then parserZero else nassocP x)
+                   <|>                            return  x
+                   <?> "operator"
+                 }
+
+
+      splitOp (Infix op assoc) (rassoc,lassoc,nassoc,prefix,postfix)
+        = case assoc of
+            AssocNone  -> (rassoc,lassoc,op:nassoc,prefix,postfix)
+            AssocLeft  -> (rassoc,op:lassoc,nassoc,prefix,postfix)
+            AssocRight -> (op:rassoc,lassoc,nassoc,prefix,postfix)
+
+      splitOp (Prefix op) (rassoc,lassoc,nassoc,prefix,postfix)
+        = (rassoc,lassoc,nassoc,op:prefix,postfix)
+
+      splitOp (Postfix op) (rassoc,lassoc,nassoc,prefix,postfix)
+        = (rassoc,lassoc,nassoc,prefix,op:postfix)
