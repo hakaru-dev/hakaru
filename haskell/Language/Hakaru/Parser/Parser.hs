@@ -187,9 +187,6 @@ table = [ [ postfix (array_index <|> fun_call) ]
         , [ binary "||"  AssocRight $ bi (NaryOp Or) ]
         , [ binary "<|>" AssocRight $ bi Msum ] ]
 
-unit_ :: Parser (AST' a)
-unit_ = parens $ return Unit
-
 natOrProb :: Parser (AST' a)
 natOrProb = (ULiteral <$> decimalFloat) <* whiteSpace
 
@@ -199,8 +196,10 @@ inf_ = reserved "∞" *> return Infinity'
 var :: Parser (AST' Text)
 var = Var <$> identifier
 
-pairs :: Parser (AST' Text)
-pairs = foldr1 Pair <$> parens (commaSep expr)
+parenthesized :: Parser (AST' Text)
+parenthesized = f <$> parens (commaSep expr)
+  where f [] = Unit
+        f xs = foldr1 Pair xs
 
 type_var :: Parser TypeAST'
 type_var = TypeVar <$> identifier
@@ -433,11 +432,9 @@ term =  try if_expr
     <|> try bind_expr
     <|> try array_literal
     <|> try inf_
-    <|> try unit_
     <|> natOrProb
     <|> try var
-    <|> try pairs
-    <|> parens expr
+    <|> parenthesized
     <?> "an expression"
 
 expr :: Parser (AST' Text)
