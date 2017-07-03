@@ -433,10 +433,11 @@ normAST ast =
     U.Var a           -> U.Var a
     U.Lam name typ f  -> U.Lam name typ (normAST f)
     U.App f x ->
-        let x' = normAST x in
-        case normAST f of
+        let x' = normAST x
+            f' = normAST f in
+        case U.withoutMeta f' of
         U.Var (TLam f)      -> U.Var $ f (makeAST x')
-        f'                  -> U.App f' x'
+        _                   -> U.App f' x'
 
     U.Let name e1 e2          -> U.Let name (normAST e1) (normAST e2)
     U.If e1 e2 e3             -> U.If (normAST e1) (normAST e2) (normAST e3)

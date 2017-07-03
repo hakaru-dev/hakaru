@@ -149,6 +149,10 @@ data AST' a
     | WithMeta (AST' a) SourceSpan
     deriving (Show)
 
+withoutMeta :: AST' a -> AST' a
+withoutMeta (WithMeta e _) = withoutMeta e
+withoutMeta           e    =             e
+
 instance Eq a => Eq (AST' a) where
     (Var t)             == (Var t')                 = t    == t'
     (Lam n  e1 e2)      == (Lam n' e1' e2')         = n    == n'  &&
