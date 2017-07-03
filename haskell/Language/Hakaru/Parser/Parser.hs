@@ -190,7 +190,7 @@ table = [ [ postfix (array_index <|> fun_call) ]
 natOrProb :: Parser (AST' a)
 natOrProb = (ULiteral <$> decimalFloat) <* whiteSpace
 
-inf_ :: Parser (AST' Text)
+inf_ :: Parser (AST' a)
 inf_ = reserved "∞" *> return Infinity'
 
 var :: Parser (AST' Text)
