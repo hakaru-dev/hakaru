@@ -201,25 +201,13 @@ parenthesized = f <$> parens (commaSep expr)
   where f [] = Unit
         f xs = foldr1 Pair xs
 
-type_var :: Parser TypeAST'
-type_var = TypeVar <$> identifier
-
-type_app :: Parser TypeAST'
-type_app = TypeApp <$> identifier <*> parens (commaSep type_expr)
-
-type_fun :: Parser TypeAST'
-type_fun =
-    chainr1
-        (    try type_app
-         <|> try type_var
-         <|> parens type_fun)
-        (TypeFun <$ reservedOp "->")
+type_var_or_app :: Parser TypeAST'
+type_var_or_app = do x <- ("array" <$ reserved "array") <|> identifier
+                     option (TypeVar x) (TypeApp x <$> parens (commaSep type_expr))
 
 type_expr :: Parser TypeAST'
-type_expr = try type_fun
-        <|> try type_app
-        <|> try type_var
-        <|> parens type_expr
+type_expr = foldr1 TypeFun <$> sepBy1 (parens type_expr <|> type_var_or_app)
+                                      (reservedOp "->")
 
 ann_expr :: Parser (AST' Text -> AST' Text)
 ann_expr = reservedOp "." *> (flip Ann <$> type_expr)
@@ -480,7 +468,7 @@ data_expr = do
     reserved "data"
     ident <- identifier
     typvars <- parens (commaSep identifier)
-    ts <- blockOfMany (try type_app <|> type_var)
+    ts <- blockOfMany type_var_or_app
     e <- expr
     return (Data ident typvars ts e)
 
