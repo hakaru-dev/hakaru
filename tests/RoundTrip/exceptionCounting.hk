@@ -1,4 +1,4 @@
-x0 <~ counting
+x0 <~ counting()
 (match (x0 == 3): 
-  true: return 1
+  true: return (1.int)
   false: return x0)

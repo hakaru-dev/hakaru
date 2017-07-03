@@ -8,7 +8,7 @@ x1 <~ x0 <~ categorical([(3 / 5),
          return [true, false][x0]
    return (match x0: 
             true: 37
-            false: 42)
+            false: 42).real
   false: 
    x0 <~ x0 <~ categorical([(2 / 7),
                             real2prob((prob2real(1) - prob2real((2 / 7))))])

@@ -283,8 +283,8 @@ export
   IsValid := proc(p::Partition,$)
     local i, cs; cs := map(condOf, piecesOf(p));
     for i from 2 to nops(cs) do
-      if (coulditbe(op(i  ,cs)) assuming op(i-1,cs)) or
-         (coulditbe(op(i-1,cs)) assuming op(i  ,cs)) then
+      if not(is(bool_Not(op(i  ,cs))) assuming op(i-1,cs)) or
+         not(is(bool_Not(op(i-1,cs))) assuming op(i  ,cs)) then
         return false; end if;
     end do;
     return true;
@@ -300,7 +300,7 @@ export
   #   probably be to add a new clause whose value is 'undefined'
   # the logic of this function is already essentially implemented, by KB
   # in fact, kb_piecewise does something extremely similar to this
-  PWToPartition := proc(x::specfunc(piecewise))::Partition;
+  PWToPartition := proc(x::specfunc(piecewise), {_kb::t_kb:=KB:-empty})::Partition;
     # each clause evaluated under the context so far, which is the conjunction
     # of the negations of all clauses so far
     local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q, ctxC, cl, p;
@@ -326,7 +326,7 @@ export
       if ctx :: identical(false) then return PARTITION( cls );
       else
         ctxC := `And`(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
-        ctxC := Simpl:-condition(ctxC, _rest);
+        ctxC := Simpl:-condition(ctxC, _kb, _rest);
 
         if cnd :: `=` then ncnd := lhs(cnd) <> rhs(cnd);
         else               ncnd := Not(cnd) end if;
@@ -343,7 +343,7 @@ export
 
     # if there is an otherwise case, handle that.
     if n::odd then
-      ctx := Simpl:-condition(ctx, _rest);
+      ctx := Simpl:-condition(ctx, _kb, _rest);
       if not ctx :: identical(false,[]) then
         cls := [ op(cls), op(Pieces(ctx,[op(n,x)])) ];
       end if;
@@ -405,10 +405,12 @@ export
               remove_false_pieces,
               flatten,
               singular_pts);
+      elif not hastype(p, Partition) then
+        p;
       elif assigned(distrib_op_Partition[op(0,p)]) then
         mk := distrib_op_Partition[op(0,p)];
         ps := [op(p)];
-        ps := map(x->Simpl(x,_rest), ps);
+        ps := map(x->Simpl(x,as), ps);
         ps, qs := selectremove(type, ps, Partition);
         if nops(ps)=0 then return p end if;
         mk(op(qs),foldr(((a,b)->
@@ -491,9 +493,11 @@ export
     end proc;
 
     local `&on` := proc(f,k,$) proc(a,b,$) f(k(a),k(b)) end proc end proc;
-    local condition_complexity := proc(x) nops(indets(x,PartitionCond)) end proc;
+    local condition_complexity := proc(x)
+      nops(indets(x,PartitionCond)) + nops(indets(x,specfunc({exp, ln})))
+    end proc;
 
-    export reduce_branches := proc(e::Partition, { _testequal := ((a,b) -> Testzero(a-b)) })
+    export reduce_branches := proc(e::Partition, kb := KB:-empty, { _testequal := ((a,b) -> Testzero(a-b)) })
       local k, ks, i, vs, ps1, ps; ps := piecesOf(e); vs := map(valOf,ps);
       userinfo(3, :-reduce_branches, printf("Input: %a\n", ps));
 
@@ -506,7 +510,8 @@ export
       ks  := map(nops, ps1); # number of pieces per group
 
       # build the result
-      ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), 'do_solve', 'do_kb', 'do_check')[])
+      ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), kb,
+                                            'do_solve', 'do_kb', 'do_check')[])
                           ,valOf(op(1,p)))
                  ,ps1);
       userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
@@ -567,7 +572,7 @@ export
       export ModuleApply := proc(sh, kb::t_kb:=KB:-empty,{_name_cands::list := [] })
         local ns, sh1; sh1 := sh;
         # todo: work with array types as well?
-        ns := select(type, [op(kb)], And(KB:-t_kb_Introduce,anyfunc(anything,specfunc({`AlmostEveryReal`,`HReal`}))));
+        ns := select(type, [op(kb)], And(KB:-t_kb_Introduce,anyfunc(anything,specfunc(`AlmostEveryReal`))));
         ns := map(curry(op,1), ns);
         ns := { op(ns), op(_name_cands) };
         if ns={} then return sh end if;
@@ -633,27 +638,27 @@ export
         evalb(indets(c, neq_nn) = {} or not has(c,`idx`))
       end proc;
 
-      export ModuleApply := proc(ctx)::list(PartitionCond);
+      export ModuleApply := proc(ctx, kb::t_kb := KB:-empty)::list(PartitionCond);
         option remember, system;
         local ctxC, ctxC1, ctxC_c, ctxC1_c;
         ctxC := ctx;
         if ctx :: identical(true) then
           error "Simpl:-condition: don't know what to do with %1", ctxC;
-        elif condition_complexity(ctx)=1 then
-          return [ctx];
         end if;
         if 'do_kb' in {_rest} then
-          ctxC1 := KB:-assert( ctxC, KB:-empty );
-          ctxC1 := KB:-kb_to_constraints(ctxC1,{},_->false);
-          ctxC1 := bool_And(op(ctxC1));
-          ctxC1_c, ctxC_c := map(condition_complexity, [ctxC1,ctxC])[];
-          if ctxC1_c < ctxC_c then
-            ctxC := ctxC1;
-            if ctxC1_c = 1 then
-              return [ctxC];
+          ctxC1 := KB:-kb_subtract( KB:-assert( ctxC, kb ), kb );
+          if nops(ctxC1)=1 and op([1,1], ctxC1)=KB:-assert then
+            ctxC1 := op([1,2], ctxC1);
+            ctxC1_c, ctxC_c := map(condition_complexity, [ctxC1,ctxC])[];
+            if ctxC1_c < ctxC_c then
+              ctxC := ctxC1;
             end if;
           end if;
         end if;
+        if condition_complexity(ctxC)=1 then
+          return [ctxC];
+        end if;
+
         ctxC := KB:-chill(ctxC);
 
         if 'do_solve' in {_rest} and _Env_HakaruSolve<>false and can_solve(ctxC) then
@@ -663,11 +668,11 @@ export
             # it expects the typical output of solve
             ctxC := [ctxC];
           elif ctxC1 = NULL and indets(ctx, specfunc(`exp`)) <> {} then
-            ctxC := [ctx];
+            ctxC := [ctxC];
           else
-            ctxC := postproc_for_solve(ctx, [ctxC1], _rest);
-            if 'do_check' in {_rest} and condition_complexity(ctxC)>condition_complexity(ctx) then
-              ctxC := [ctx];
+            ctxC1 := postproc_for_solve(ctxC, [ctxC1], _rest);
+            if 'do_check' in {_rest} and condition_complexity(ctxC)>condition_complexity(ctxC1) then
+              ctxC := ctxC1;
             end if;
           end if;
           if indets(ctxC, specfunc({`Or`, `or`})) <> {} then
@@ -690,7 +695,8 @@ export
         if 'no_split_disj' in {_rest} then
           ctxC := [ bool_Or(op(ctxC)) ];
         end if;
-        KB:-warm(ctxC);
+        ctxC := KB:-warm(ctxC);
+        `if`(ctxC::list, ctxC, [ctxC]);
       end proc;
     end module; #Simpl:-condition
   end module, #Simpl

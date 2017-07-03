@@ -1,6 +1,8 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP
+           , DataKinds
+           , OverloadedStrings
+           , FlexibleContexts
+           #-}
 module Language.Hakaru.Command where
 
 import           Language.Hakaru.Syntax.ABT
@@ -29,12 +31,19 @@ type Term a = TrivialABT T.Term '[] a
 
 parseAndInfer :: Text.Text
               -> Either Text.Text (TypedAST (TrivialABT T.Term))
-parseAndInfer x =
+parseAndInfer x = parseAndInferWithMode x LaxMode
+
+parseAndInferWithMode
+  :: ABT T.Term abt 
+  => Text.Text
+  -> TypeCheckMode
+  -> Either Text.Text (TypedAST abt)
+parseAndInferWithMode x mode =
     case parseHakaru x of
     Left  err  -> Left (Text.pack . show $ err)
     Right past ->
         let m = inferType (resolveAST past) in
-        runTCM m (splitLines x) LaxMode
+        runTCM m (splitLines x) mode
 
 parseAndInfer' :: Text.Text
                -> IO (Either Text.Text (TypedAST (TrivialABT T.Term)))

@@ -26,7 +26,7 @@ import           Control.Applicative   (Applicative(..), (<$>))
 import           Data.Monoid ((<>), mconcat)
 import           Data.Text (Text, unpack, pack)
 import qualified Data.Text as Text 
-import qualified Data.Text.IO as IO
+import qualified Data.Text.Utf8 as IO
 import           System.IO (stderr)
 import           Data.List (intercalate) 
 import           Text.Read (readMaybe)
@@ -115,7 +115,8 @@ runMaple Options{..} = readFromFile program >>= \prog ->
     Left  err  -> IO.hPutStrLn stderr err
     Right ast  -> do 
       TypedAST _ ast' <- sendToMaple' moptions (et ast)
-      print $ pretty 
+      IO.print
+            $ pretty 
             $ (if no_unicode then renameAST removeUnicodeChars else id) 
             $ ast'
 

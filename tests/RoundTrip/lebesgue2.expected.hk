@@ -1,0 +1,1 @@
+lebesgue(prob2real(∞) * int2real(-1), nat2real(42))

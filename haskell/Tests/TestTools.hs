@@ -11,7 +11,7 @@ module Tests.TestTools where
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Parser.Parser (parseHakaru)
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
-import Language.Hakaru.Command (parseAndInfer, splitLines)
+import Language.Hakaru.Command (parseAndInferWithMode)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Transforms(normalizeLiterals)
@@ -26,7 +26,7 @@ import Text.PrettyPrint (Doc)
 import Data.Maybe (isJust)
 import Data.List
 import qualified Data.Text    as T
-import qualified Data.Text.IO as IO
+import qualified Data.Text.Utf8 as IO
 import Data.Typeable (Typeable)
 import Control.Exception
 import Control.Monad
@@ -109,13 +109,8 @@ testWithConcrete ::
     -> (forall a. Sing a -> abt '[] a -> Assertion)
     -> Assertion
 testWithConcrete s mode k =
-    case parseHakaru s of
-      Left  err  -> assertFailure (show err)
-      Right past ->
-          let m = inferType (resolveAST past) in
-          case runTCM m (splitLines s) mode of
-            Left err                 -> assertFailure $ T.unpack err
-            Right (TypedAST typ ast) -> k typ ast
+  either (assertFailure . T.unpack) (\(TypedAST typ ast) -> k typ ast) $
+  parseAndInferWithMode s mode
 
 -- Like testWithConcrete, but for many programs 
 testWithConcreteMany 
