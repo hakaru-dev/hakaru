@@ -23,15 +23,15 @@ import qualified Text.Parsec.Token             as Tok
 
 import Language.Hakaru.Parser.AST
 
-
-ops, types, names :: [String]
-ops   = ["+","*","-","^", "**", ":",".", "<~",
-         "==", "=", "_", "<|>", "&&", "||"]
-types = ["->"]
-names = ["def", "fn", "if", "else", "∞", "expect", "observe",
-         "return", "match", "integrate", "summate", "product",
-         "data", "import",
-         "from", "to", "of"]
+ops, names :: [String]
+ops = words "^ ** * / + - .  < > <= >= == /= && || <|> -> : <~ = _"
+names = concatMap words [ "def fn"
+                        , "if else match"
+                        , "expect observe"
+                        , "return dirac"
+                        , "integrate summate product from to"
+                        , "array plate chain of"
+                        , "import data ∞" ]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -45,11 +45,11 @@ style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     , Tok.nestedComments  = True
     , Tok.identStart      = letter <|> char '_'
     , Tok.identLetter     = alphaNum <|> oneOf "_'"
-    , Tok.opStart         = parserZero
-    , Tok.opLetter        = parserZero
+    , Tok.opStart         = oneOf [ c | c:_ <- ops ]
+    , Tok.opLetter        = oneOf [ c | _:cs <- ops, c <- cs ]
     , Tok.caseSensitive   = True
     , Tok.commentLine     = "#"
-    , Tok.reservedOpNames = ops ++ types
+    , Tok.reservedOpNames = ops
     , Tok.reservedNames   = names
     }
 
@@ -117,10 +117,18 @@ identifier :: Parser Text
 identifier = Text.pack <$> Tok.identifier lexer
 
 reserved :: String -> Parser ()
-reserved = Tok.reserved lexer
+reserved s
+  | s `elem` names -- assertion
+  = Tok.reserved lexer s
+  | otherwise
+  = error ("Parser failed to reserve the name " ++ show s)
 
 reservedOp :: String -> Parser ()
-reservedOp = Tok.reservedOp lexer
+reservedOp s
+  | s `elem` ops -- assertion
+  = Tok.reservedOp lexer s
+  | otherwise
+  = error ("Parser failed to reserve the operator " ++ show s)
 
 app1 :: Text -> AST' Text -> AST' Text
 app1 s x@(WithMeta _ m) = WithMeta (Var s `App` x) m
