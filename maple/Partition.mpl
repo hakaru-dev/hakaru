@@ -283,8 +283,8 @@ export
   IsValid := proc(p::Partition,$)
     local i, cs; cs := map(condOf, piecesOf(p));
     for i from 2 to nops(cs) do
-      if (coulditbe(op(i  ,cs)) assuming op(i-1,cs)) or
-         (coulditbe(op(i-1,cs)) assuming op(i  ,cs)) then
+      if not(is(bool_Not(op(i  ,cs))) assuming op(i-1,cs)) or
+         not(is(bool_Not(op(i-1,cs))) assuming op(i  ,cs)) then
         return false; end if;
     end do;
     return true;
