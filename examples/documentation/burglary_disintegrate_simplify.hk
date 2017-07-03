@@ -1,0 +1,2 @@
+weight(19/200000, return true) <|> 
+weight(9999/1000000, return false)

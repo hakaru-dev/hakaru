@@ -25,6 +25,7 @@ module Language.Hakaru.Pretty.Haskell
     , prettyPrec
     , prettyAssoc
     , prettyPrecAssoc
+    , prettyType
 
     -- * Helper functions (semi-public internal API)
     , ppVariable
@@ -51,6 +52,7 @@ import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, List1(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Reducer
@@ -79,6 +81,25 @@ prettyPrecAssoc p (Assoc x e) =
         [ ppVariable x
         , prettyPrec 11 e
         ]
+
+
+-- | Pretty-print a Hakaru type as a Haskell type.
+prettyType :: Sing (a :: Hakaru) -> Doc
+prettyType SInt = PP.text "Int"
+prettyType SNat = PP.text "Int"
+prettyType SReal = PP.text "Double"
+prettyType SProb = PP.text "Prob"
+prettyType (SArray t) =
+  let t' = PP.nest 2 (prettyType t) in
+  PP.parens (PP.sep [PP.text "MayBoxVec", t', t'])
+prettyType (SMeasure t) =
+  PP.parens (PP.sep [PP.text "Measure", PP.nest 2 (prettyType t)])
+prettyType (SFun t1 t2) =
+  PP.parens (PP.sep [prettyType t1 <+> PP.text "->", prettyType t2])
+prettyType (SData _ ((SKonst t1 `SEt` SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
+  PP.parens (PP.sep [prettyType t1 <> PP.comma, prettyType t2])
+prettyType _ = error "TODO: prettyType"
+
 
 ----------------------------------------------------------------
 class Pretty (f :: Hakaru -> *) where

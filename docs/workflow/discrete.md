@@ -106,11 +106,22 @@ x5 = true
  return burglary
 ````
 
-We can now use the [`hakaru` command](../intro/samplegen.md) to answer our original question: if the alarm is sounding, what are the chances that I am being burglarized? If
-you simply call the command `hakaru burglary_disintegrate.hk` in the command line, you will create an infinte stream of samples:
+One program transformation that can be called at this stage is the [Hakaru-Maple `simplify` subcommand](../transforms/hk-maple.md). This will call Maple to algebraically
+simplify Hakaru models. Calling `hk-maple burglary_disintegrate.hk` produces a new, simpler, model of our burglary alarm scenario:
+
+````nohighlight
+weight(19/200000, return true) <|> 
+weight(9999/1000000, return false)
+````
+
+Without any further work, we can already see that the alarm sounding is most likely a false alarm. However, the `simplify` transformation will not always produce a clear
+result such as this one. For these situations, you must use the [`hakaru` command](../intro/samplegen.md).
+
+How does the `hakaru` command answer our original question? If you simply call the command `hakaru burglary_disintegrate.hk` in the command line, you will create an 
+infinite stream of samples:
 
 ````bash
-$ hakaru burglary_disintegrate.hk
+$ hakaru burglary_disintegrate_simplify.hk
 9.999999999999995e-3    false
 9.999999999999995e-3    false
 9.999999999999995e-3    false

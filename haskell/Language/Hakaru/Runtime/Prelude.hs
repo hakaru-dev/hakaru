@@ -27,6 +27,7 @@ import qualified Data.Vector.Generic             as G
 import           Control.Monad
 import           Control.Monad.ST
 import           Prelude                         hiding (product, init)
+import           Language.Hakaru.Runtime.CmdLine (Measure(..), makeMeasure)
 
 type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
 type instance MinBoxVec V.Vector v        = V.Vector
@@ -41,6 +42,8 @@ type instance MayBoxVec Bool         = U.Vector
 type instance MayBoxVec (U.Vector a) = V.Vector
 type instance MayBoxVec (V.Vector a) = V.Vector
 type instance MayBoxVec (a,b)        = MinBoxVec (MayBoxVec a) (MayBoxVec b)
+
+type Prob = Double
 
 lam :: (a -> b) -> a -> b
 lam = id
@@ -58,48 +61,26 @@ ann_ :: a -> b -> b
 ann_ _ a = a
 {-# INLINE ann_ #-}
 
-newtype Measure a = Measure { unMeasure :: MWC.GenIO -> IO (Maybe a) }
-
-instance Functor Measure where
-    fmap  = liftM
-    {-# INLINE fmap #-}
-
-instance Applicative Measure where
-    pure x = Measure $ \_ -> return (Just x)
-    {-# INLINE pure #-}
-    (<*>)  = ap
-    {-# INLINE (<*>) #-}
-
-instance Monad Measure where
-    return  = pure
-    {-# INLINE return #-}
-    m >>= f = Measure $ \g -> do
-                          Just x <- unMeasure m g
-                          unMeasure (f x) g
-    {-# INLINE (>>=) #-}
-
-makeMeasure :: (MWC.GenIO -> IO a) -> Measure a
-makeMeasure f = Measure $ \g -> Just <$> f g
-{-# INLINE makeMeasure #-}
-
 uniform :: Double -> Double -> Measure Double
 uniform lo hi = makeMeasure $ MWC.uniformR (lo, hi)
 {-# INLINE uniform #-}
 
-normal :: Double -> Double -> Measure Double
-normal mu sd = makeMeasure $ MWCD.normal mu sd
+normal :: Double -> Prob -> Measure Double
+normal mu sd = makeMeasure $ MWCD.normal mu (fromProb sd)
 {-# INLINE normal #-}
 
-beta :: Double -> Double -> Measure Double
-beta a b = makeMeasure $ MWCD.beta a b
+beta :: Prob -> Prob -> Measure Prob
+beta a b = makeMeasure $ \g ->
+  unsafeProb <$> MWCD.beta (fromProb a) (fromProb b) g
 {-# INLINE beta #-}
 
-gamma :: Double -> Double -> Measure Double
-gamma a b = makeMeasure $ MWCD.gamma a b
+gamma :: Prob -> Prob -> Measure Prob
+gamma a b = makeMeasure $ \g ->
+  unsafeProb <$> MWCD.gamma (fromProb a) (fromProb b) g
 {-# INLINE gamma #-}
 
-categorical :: MayBoxVec Double Double -> Measure Int
-categorical a = makeMeasure (\g -> fromIntegral <$> MWCD.categorical a g)
+categorical :: MayBoxVec Prob Prob -> Measure Int
+categorical a = makeMeasure $ MWCD.categorical a
 {-# INLINE categorical #-}
 
 plate :: (G.Vector (MayBoxVec a) a) =>
@@ -217,7 +198,6 @@ extractBool b a p | p == b     = Just a
                   | otherwise  = Nothing
 {-# INLINE extractBool #-}
 
-
 pnothing :: b -> Branch (Maybe a) b
 pnothing b = Branch { extract = \ma -> case ma of
                                          Nothing -> Just b
@@ -269,14 +249,14 @@ dirac :: a -> Measure a
 dirac = return
 {-# INLINE dirac #-}
 
-pose :: Double -> Measure a -> Measure a
+pose :: Prob -> Measure a -> Measure a
 pose _ a = a
 {-# INLINE pose #-}
 
-superpose :: [(Double, Measure a)]
+superpose :: [(Prob, Measure a)]
           -> Measure a
 superpose pms = do
-  i <- makeMeasure $ MWCD.categorical (U.fromList $ map fst pms)
+  i <- categorical (G.fromList $ map fst pms)
   snd (pms !! i)
 {-# INLINE superpose #-}
 
@@ -292,7 +272,7 @@ int_ = id
 unsafeNat :: Int -> Int
 unsafeNat = id
 
-nat2prob :: Int -> Double
+nat2prob :: Int -> Prob
 nat2prob = fromIntegral
 
 fromInt  :: Int -> Double
@@ -304,16 +284,16 @@ nat2int  = id
 nat2real :: Int -> Double
 nat2real = fromIntegral
 
-fromProb :: Double -> Double
+fromProb :: Prob -> Double
 fromProb = id
 
-unsafeProb :: Double -> Double
+unsafeProb :: Double -> Prob
 unsafeProb = id
 
 real_ :: Rational -> Double
 real_ = fromRational
 
-prob_ :: NonNegativeRational -> Double
+prob_ :: NonNegativeRational -> Prob
 prob_ = fromRational . fromNonNegativeRational
 
 infinity :: Double
@@ -322,7 +302,7 @@ infinity = 1/0
 abs_ :: Num a => a -> a
 abs_ = abs
 
-thRootOf :: Int -> Double -> Double
+thRootOf :: Int -> Prob -> Prob
 thRootOf a b = b ** (recip $ fromIntegral a)
 {-# INLINE thRootOf #-}
 
