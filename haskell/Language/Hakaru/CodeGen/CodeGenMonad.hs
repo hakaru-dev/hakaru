@@ -44,10 +44,9 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , extDeclareTypes
 
   , funCG
-  , isParallel
   , whenPar
-  , mkParallel
-  , mkSequential
+  , parDo
+  , seqDo
 
   , reserveIdent
   , genIdent
@@ -130,21 +129,26 @@ runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls 
 
 --------------------------------------------------------------------------------
 
-isParallel :: CodeGen Bool
-isParallel = sharedMem <$> get
-
 whenPar :: CodeGen () -> CodeGen ()
-whenPar m = isParallel >>= (\b -> when b m)
+whenPar m = (sharedMem <$> get) >>= (\b -> when b m)
 
-mkParallel :: CodeGen ()
-mkParallel =
-  do cg <- get
-     put (cg { sharedMem = True } )
+parDo :: CodeGen a -> CodeGen a
+parDo m = do
+  cg <- get
+  put (cg { sharedMem = True } )
+  a <- m
+  cg' <- get
+  put (cg' { sharedMem = sharedMem cg } )
+  return a
 
-mkSequential :: CodeGen ()
-mkSequential =
-  do cg <- get
-     put (cg { sharedMem = False } )
+seqDo :: CodeGen a -> CodeGen a
+seqDo m = do
+  cg <- get
+  put (cg { sharedMem = False } )
+  a <- m
+  cg' <- get
+  put (cg' { sharedMem = sharedMem cg } )
+  return a
 
 --------------------------------------------------------------------------------
 
@@ -367,8 +371,7 @@ forCG iter cond inc body =
      put $ cg' { statements   = statements cg
                , declarations = declarations cg
                , sharedMem    = sharedMem cg } -- only use pragmas at the top level
-     par <- isParallel
-     when par . putStat . CPPStat . ompToPP $ OMP (Parallel [For])
+     whenPar . putStat . CPPStat . ompToPP $ OMP (Parallel [For])
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
@@ -403,8 +406,7 @@ reductionCG op acc iter cond inc body =
      put $ cg' { statements   = statements cg
                , declarations = declarations cg
                , sharedMem    = sharedMem cg }
-     par <- isParallel
-     when par $
+     whenPar $
        case op of
          Left binop ->
            putStat . CPPStat . ompToPP $
@@ -428,10 +430,16 @@ declareReductionCG
   -> CodeGen Ident
 declareReductionCG typ unit mul =
   do (redId:unitId:mulId:[]) <- mapM genIdent' ["red","unit","mul"]
-     funCG CVoid unitId [] $
-       unit . CVar . Ident $ "in"
-     funCG CVoid mulId [] $
-       mul (CVar . Ident $ "l") (CVar . Ident $ "r")
+     let declType = typePtrDeclaration typ
+
+     inId <- genIdent' "in"
+     funCG CVoid unitId [declType inId] $
+       unit . CVar $ inId
+
+     (outId:in2Id:[]) <- mapM genIdent' ["out","in"]
+     funCG CVoid mulId [declType outId,declType in2Id] $
+       mul (CVar outId) (CVar in2Id)
+
      let typ' = case buildType typ of
                   (x:_) -> x
                   _ -> error $ "buildType{" ++ (show typ) ++ "}"

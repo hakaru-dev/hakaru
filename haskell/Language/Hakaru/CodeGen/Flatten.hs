@@ -647,16 +647,21 @@ flattenBucket lo hi red = \loc -> do
     declare SNat itId
     let itE = CVar itId
     initRed red loc
-    isPar <- isParallel
+    isPar <- sharedMem <$> get
+    -- declare special functions for combining threads. This doesn't completely
+    -- work now, because these need to capture free variables.
     reductionCG (Right ( typeOfReducer red
-                       , initRed red
-                       , mulRed red))
+                       , \e -> seqDo (  initRed red (indirect e)
+                                     >> putStat (CReturn Nothing))
+                       , \a b -> seqDo (  mulRed red (indirect a) (indirect b)
+                                       >> putStat (CReturn Nothing))))
                 loc
                 (itE .=. loE)
                 (itE .<. hiE)
                 (CUnary CPostIncOp itE)
                 (accumRed isPar red itE loc)
     putStat $ opComment "End Bucket"
+
   where initRed
           :: (ABT Term abt)
           => Reducer abt xs a
@@ -675,7 +680,7 @@ flattenBucket lo hi red = \loc -> do
                        (Variable _ _ typ') ->
                          [declare typ' =<< createIdent v'])
                      $ vs
-                   sE <- flattenWithName s'
+                   sE <- flattenWithName' s' "red_size"
                    putExprStat $ arraySize loc .=. sE
                    putMallocStat (arrayData loc) sE btyp
                    itId  <- genIdent
@@ -751,17 +756,20 @@ flattenBucket lo hi red = \loc -> do
           -> (CExpr -> CExpr -> CodeGen ())
         mulRed mr outp inp =
           case mr of
-            (Red_Index _ _ _) -> do itE <- localVar SNat
-                                    forCG (itE .=. (intE 0))
-                                          (itE .<. (intE 0))
-                                          (CUnary CPostIncOp itE)
-                                          (return ())
-            (Red_Fanout mr1 mr2) -> mulRed mr1 (datumFst outp) (datumFst inp)
-                                 >> mulRed mr2 (datumFst outp) (datumFst inp)
-            (Red_Split _ mr1 mr2) -> mulRed mr1 (datumFst outp) (datumFst inp)
+             (Red_Index _ _ mr') ->
+               do itE <- localVar SNat
+                  forCG (itE .=. (intE 0))
+                        (itE .<. (intE 0))
+                        (CUnary CPostIncOp itE)
+                        (mulRed mr'
+                                (index (arrayData outp) itE)
+                                (index (arrayData inp) itE))
+             (Red_Fanout mr1 mr2) -> mulRed mr1 (datumFst outp) (datumFst inp)
                                   >> mulRed mr2 (datumFst outp) (datumFst inp)
-            Red_Nop           -> return ()
-            (Red_Add _ _)     -> putExprStat $ outp .+=. inp
+             (Red_Split _ mr1 mr2) -> mulRed mr1 (datumFst outp) (datumFst inp)
+                                   >> mulRed mr2 (datumFst outp) (datumFst inp)
+             Red_Nop -> return ()
+             (Red_Add _ _) -> putExprStat $ outp .+=. inp
 
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
 addMonoidIdentity s =
@@ -856,6 +864,7 @@ assignProd' (Et (Konst d) rest) topIdent (CVar sumIdent) =
                             True
      rest' <- assignProd' rest topIdent (CVar sumIdent)
      return $ [flattenABT d varName] ++ rest'
+
 assignProd' _ _ _  = error $ "TODO: assignProd Ident"
 
 
@@ -1259,40 +1268,36 @@ flattenMeasureOp Categorical = \(arr :* End) ->
 
        let currE = index (arrayData arrE) itE
 
-       isPar <- isParallel
-       mkSequential
+       seqDo $ do
+         -- Calculate the maximum value of the input array
+         -- And calculate the total weight
+         forCG (itE .=. (intE 0))
+               (itE .<. (arraySize arrE))
+               (CUnary CPostIncOp itE) $ do
+           ifCG (wMaxE .<. currE)
+                (putExprStat $ wMaxE .=. currE)
+                (return ())
+           logSumExpCG (S.fromList [wSumE, currE]) wSumE
+         putExprStat $ wSumE .=. (wSumE .-. wMaxE)
 
-       -- Calculate the maximum value of the input array
-       -- And calculate the total weight
-       forCG (itE .=. (intE 0))
-             (itE .<. (arraySize arrE))
-             (CUnary CPostIncOp itE) $ do
-         ifCG (wMaxE .<. currE)
-              (putExprStat $ wMaxE .=. currE)
-              (return ())
-         logSumExpCG (S.fromList [wSumE, currE]) wSumE
-       putExprStat $ wSumE .=. (wSumE .-. wMaxE)
+         -- draw number from uniform(0, weightSum)
+         rId <- genIdent' "r"
+         declare SReal rId
+         let r    = castTo [CDouble] randE
+             rMax = castTo [CDouble] (CVar . Ident $ "RAND_MAX")
+             rE = CVar rId
+         assign rId (logE (r ./. rMax) .+. wSumE)
 
-       -- draw number from uniform(0, weightSum)
-       rId <- genIdent' "r"
-       declare SReal rId
-       let r    = castTo [CDouble] randE
-           rMax = castTo [CDouble] (CVar . Ident $ "RAND_MAX")
-           rE = CVar rId
-       assign rId (logE (r ./. rMax) .+. wSumE)
-
-       assign wSumId (logE (intE 0))
-       assign itId (intE 0)
-       whileCG (intE 1) $
-         do ifCG (rE .<. wSumE)
-                 (do putExprStat $ mdataWeight loc .=. (intE 0)
-                     putExprStat $ mdataSample loc .=. (itE .-. (intE 1))
-                     putStat CBreak)
-                 (return ())
-            logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
-            putExprStat $ CUnary CPostIncOp itE
-
-       when isPar mkParallel
+         assign wSumId (logE (intE 0))
+         assign itId (intE 0)
+         whileCG (intE 1) $
+           do ifCG (rE .<. wSumE)
+                   (do putExprStat $ mdataWeight loc .=. (intE 0)
+                       putExprStat $ mdataSample loc .=. (itE .-. (intE 1))
+                       putStat CBreak)
+                   (return ())
+              logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
+              putExprStat $ CUnary CPostIncOp itE
 
 
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
@@ -1427,10 +1432,8 @@ logSumExpCG seqE =
 -- LogSumExp for Summation of Prob --
 -------------------------------------
 {-
-
 For summation of SProb we need a new logSumExp function that will find the max
 of an array and then sum it in a loop
-
 -}
 
 lseSummateArrayCG
@@ -1461,7 +1464,6 @@ lseSummateArrayCG body arrayE =
                                 , maxIE .=. itE ])
                               Nothing)
       putExprStat $ sumE  .=. (floatE 0) -- the sum is actually in real space
-      whenPar $ mkSequential
       forCG (itE .=. intE 0)
             (itE .<. arraySize arrayE)
             (CUnary CPostIncOp itE)

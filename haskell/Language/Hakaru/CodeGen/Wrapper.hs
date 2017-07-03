@@ -355,13 +355,13 @@ printCG pconfig mtyp@(SMeasure typ) sampleFunc (Just numSamples) =
 printCG pconfig (SArray typ) arg Nothing =
   do itE <- localVar' SNat "it"
      putString "[ "
-     mkSequential
-     forCG (itE .=. (intE 0))
-           (itE .<. (arraySize arg))
-           (CUnary CPostIncOp itE)
-           (putExprStat
-           $ printfE [ stringE $ printFormat pconfig typ " "
-                     , index (arrayData arg) itE ])
+     seqDo $
+       forCG (itE .=. (intE 0))
+             (itE .<. (arraySize arg))
+             (CUnary CPostIncOp itE)
+             (putExprStat
+             $ printfE [ stringE $ printFormat pconfig typ " "
+                       , index (arrayData arg) itE ])
      putString "]\n"
   where putString s = putExprStat $ printfE [stringE s]
 
