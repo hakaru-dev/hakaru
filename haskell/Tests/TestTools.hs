@@ -26,7 +26,7 @@ import Text.PrettyPrint (Doc)
 import Data.Maybe (isJust)
 import Data.List
 import qualified Data.Text    as T
-import qualified Data.Text.IO as IO
+import qualified Data.Text.Utf8 as IO
 import Data.Typeable (Typeable)
 import Control.Exception
 import Control.Monad
