@@ -433,7 +433,7 @@ defarg = (,) <$> identifier <*> type_expr
 call_expr :: Parser (AST' Text)
 call_expr =
     foldl App
-        <$> (Var <$> identifier)
+        <$> (try (parens lam_expr) <|> (Var <$> identifier))
         <*> parens (commaSep expr)
 
 return_expr :: Parser (AST' Text)
