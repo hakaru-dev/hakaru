@@ -231,8 +231,8 @@ pdat_expr = DV <$> identifier <*> parens (commaSep pat_expr)
 pat_expr :: Parser (Pattern' Text)
 pat_expr =  try (PData' <$> pdat_expr)
         <|> (PData' <$> (DV "pair" <$> parens (commaSep pat_expr)))
-        <|> (PWild' <$ reservedOp "_")
-        <|> (PVar' <$> identifier)
+        <|> (PWild' <$  reservedOp "_")
+        <|> (PVar'  <$> identifier)
 
 
 -- | Blocks are indicated by colons, and must be indented.
@@ -454,8 +454,8 @@ parseHakaru = parseAtTopLevel expr
 parseHakaruWithImports :: Text -> Either ParseError (ASTWithImport' Text)
 parseHakaruWithImports = parseAtTopLevel exprWithImport
 
-parseAtTopLevel :: Parser a -> Text -> Either ParseError a 
-parseAtTopLevel p = 
+parseAtTopLevel :: Parser a -> Text -> Either ParseError a
+parseAtTopLevel p =
     runParser (whiteSpace *>
                p <* eof) () "<input>" . indentConfig
 
