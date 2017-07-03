@@ -572,7 +572,7 @@ export
       export ModuleApply := proc(sh, kb::t_kb:=KB:-empty,{_name_cands::list := [] })
         local ns, sh1; sh1 := sh;
         # todo: work with array types as well?
-        ns := select(type, [op(kb)], And(KB:-t_kb_Introduce,anyfunc(anything,specfunc({`AlmostEveryReal`,`HReal`}))));
+        ns := select(type, [op(kb)], And(KB:-t_kb_Introduce,anyfunc(anything,specfunc(`AlmostEveryReal`))));
         ns := map(curry(op,1), ns);
         ns := { op(ns), op(_name_cands) };
         if ns={} then return sh end if;
