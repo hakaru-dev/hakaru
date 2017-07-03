@@ -386,7 +386,6 @@ return_expr = do
 
 term :: Parser (AST' Text)
 term =  if_expr
-    <|> return_expr
     <|> lam_expr
     <|> def_expr
     <|> match_expr
@@ -399,8 +398,6 @@ term =  if_expr
     <|> array_expr
     <|> plate_expr
     <|> chain_expr
-    <|> let_expr
-    <|> bind_expr
     <|> array_literal
     <|> inf_
     <|> natOrProb
@@ -409,7 +406,11 @@ term =  if_expr
     <?> "simple expression"
 
 expr :: Parser (AST' Text)
-expr = withPos (buildExpressionParser table (withPos term) <?> "expression")
+expr = withPos (let_expr <|>
+                bind_expr <|>
+                return_expr <|>
+                buildExpressionParser table (withPos term))
+       <?> "expression"
 
 
 indentConfig :: Text -> ParserStream
