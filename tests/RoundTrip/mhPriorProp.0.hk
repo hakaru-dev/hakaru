@@ -7,14 +7,14 @@ x6 = fn x2 pair(real, real):
            / 
           sqrt((2 * pi))
            * 
-          x13 = ()
-          (exp((negate(((x12 - x11) ^ 2)) / prob2real((2 * (1 ^ 2)))))
-            / 
-           1
-            / 
-           sqrt((2 * pi))
-            / 
-           1))
+          (x13 = ()
+           (exp((negate(((x12 - x11) ^ 2)) / prob2real((2 * (1 ^ 2)))))
+             / 
+            1
+             / 
+            sqrt((2 * pi))
+             / 
+            1)))
         _: 0)
 fn x5 pair(real, real): 
  x0 <~ x7 <~ x7 <~ categorical([1/2,

@@ -1,29 +1,29 @@
 coinToss = fn x5 real: 
- bern = fn p prob: 
-         b <~ categorical([p, real2prob((1 - prob2real(p)))])
-         return [true, false][b]
- coin <~ bern(1/2)
- (match coin: 
-   true: 
-    x12 <~ weight((exp((negate(((x5 + 0) ^ 2)) / 2))
-                    / 
-                   1
-                    / 
-                   sqrt((2 * pi))),
-                  return ())
-    return coin
-   _: reject. measure(bool)) <|> 
- bern = fn p prob: 
-         b <~ categorical([p, real2prob((1 - prob2real(p)))])
-         return [true, false][b]
- coin <~ bern(1/2)
- (match coin: 
-   false: 
-    (match (not((x5 < 0)) && not((1 < x5))): 
-      true: 
-       x12 <~ return ()
-       return coin
-      _: reject. measure(bool))
-   _: reject. measure(bool))
+ (bern = fn p prob: 
+          b <~ categorical([p, real2prob((1 - prob2real(p)))])
+          return [true, false][b]
+  coin <~ bern(1/2)
+  (match coin: 
+    true: 
+     x12 <~ weight((exp((negate(((x5 + 0) ^ 2)) / 2))
+                     / 
+                    1
+                     / 
+                    sqrt((2 * pi))),
+                   return ())
+     return coin
+    _: reject. measure(bool))) <|> 
+ (bern = fn p prob: 
+          b <~ categorical([p, real2prob((1 - prob2real(p)))])
+          return [true, false][b]
+  coin <~ bern(1/2)
+  (match coin: 
+    false: 
+     (match (not((x5 < 0)) && not((1 < x5))): 
+       true: 
+        x12 <~ return ()
+        return coin
+       _: reject. measure(bool))
+    _: reject. measure(bool)))
 
- coinToss(0.3)
+coinToss(0.3)
