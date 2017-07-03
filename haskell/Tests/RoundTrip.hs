@@ -227,8 +227,12 @@ testMeasureReal = test [
     "t81"               ~: testConcreteFilesMany [] "tests/RoundTrip/t81.hk",
     -- TODO "kalman"    ~: testConcreteFile "tests/RoundTrip/kalman.hk",
     -- TODO "seismic"         ~: testConcreteFilesMany [] "tests/RoundTrip/seismic.hk",
-    "lebesgue1"         ~: testConcreteFilesMany [] "tests/RoundTrip/lebesgue1.hk",
-    "lebesgue2"         ~: testConcreteFilesMany [] "tests/RoundTrip/lebesgue2.hk",
+    "lebesgue1"         ~: testConcreteFiles
+                              "tests/RoundTrip/lebesgue1.hk"
+                              "tests/RoundTrip/lebesgue1.expected.hk",
+    "lebesgue2"         ~: testConcreteFiles
+                              "tests/RoundTrip/lebesgue2.hk"
+                              "tests/RoundTrip/lebesgue2.expected.hk",
     "lebesgue3"         ~: testConcreteFiles "tests/RoundTrip/lebesgue3.0.hk" "tests/RoundTrip/lebesgue3.expected.hk",
     "testexponential"   ~: testConcreteFile "tests/RoundTrip/testexponential.hk", -- Testing round-tripping of some other distributions
     "testcauchy"        ~: testConcreteFile "tests/RoundTrip/testcauchy.hk",
