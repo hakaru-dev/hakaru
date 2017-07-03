@@ -67,7 +67,7 @@ class IsTestAssertion ta where
     :: [(TrivialABT Term '[] a)] 
     -> TrivialABT Term '[] a 
     -> ta 
-	
+
   testConcreteFilesMany
     :: [FilePath] 
     -> FilePath
@@ -77,10 +77,10 @@ class IsTestAssertion ta where
       :: FilePath
       -> FilePath
       -> ta   
-	  
+
   testConcreteFile
       :: FilePath
-	  -> ta
+          -> ta
 
   
 instance IsTestGroup Test where test = HUnit.test; 
@@ -145,7 +145,7 @@ testMeasureUnit = test [
     "t60"     ~: testConcreteFiles "tests/RoundTrip/t60.0.hk" "tests/RoundTrip/t60.expected.hk",
     "t60'"    ~: testConcreteFiles "tests/RoundTrip/t60.1.hk" "tests/RoundTrip/t60.expected.hk",
     "t62"     ~: testConcreteFiles "tests/RoundTrip/t62.0.hk" "tests/RoundTrip/t62.expected.hk", ---- "Special case" of t56
-	"t63"     ~: testConcreteFiles "tests/RoundTrip/t63.0.hk" "tests/RoundTrip/t63.expected.hk", ---- "Scalar multiple" of t62
+        "t63"     ~: testConcreteFiles "tests/RoundTrip/t63.0.hk" "tests/RoundTrip/t63.expected.hk", ---- "Scalar multiple" of t62
     "t64"     ~: testConcreteFiles "tests/RoundTrip/t64.0.hk" "tests/RoundTrip/t64.expected.hk", -- Density calculation for (Exp (Log StdRandom)) and StdRandom
     "t64'"    ~: testConcreteFiles "tests/RoundTrip/t64.1.hk" "tests/RoundTrip/t64.expected.hk", -- Density calculation for (Exp (Log StdRandom)) and StdRandom
     "t65"     ~: testConcreteFiles "tests/RoundTrip/t65.0.hk" "tests/RoundTrip/t65.expected.hk", -- Density calculation for (Add StdRandom (Exp (Neg StdRandom))); Maple can integrate this but we don't simplify it for some reason.
@@ -164,7 +164,7 @@ testMeasureProb = test [
     "t38"   ~: testConcreteFilesMany [] "tests/RoundTrip/t38.hk",
     "t42"   ~: testConcreteFiles "tests/RoundTrip/t42.0.hk" "tests/RoundTrip/t42.expected.hk",
     "t49"   ~: testConcreteFilesMany [] "tests/RoundTrip/t49.hk",
-	"t61"   ~: testConcreteFiles "tests/RoundTrip/t61.0.hk" "tests/RoundTrip/t61.expected.hk",
+        "t61"   ~: testConcreteFiles "tests/RoundTrip/t61.0.hk" "tests/RoundTrip/t61.expected.hk",
     "t66"   ~: testConcreteFilesMany [] "tests/RoundTrip/t66.hk",
     "t67"   ~: testConcreteFilesMany [] "tests/RoundTrip/t67.hk",
     "t69x"  ~: testConcreteFiles "tests/RoundTrip/t69x.0.hk" "tests/RoundTrip/t69x.expected.hk",
@@ -177,7 +177,7 @@ testMeasureProb = test [
 -- by t45 and t46 is always 1.  In general it's good to reduce weight variance.
 testMeasureReal :: IsTest ta t => t
 testMeasureReal = test [ 
-	"t3"                ~: testConcreteFilesMany [] "tests/RoundTrip/t3.hk",
+        "t3"                ~: testConcreteFilesMany [] "tests/RoundTrip/t3.hk",
     "t6"                ~: testConcreteFiles "tests/RoundTrip/t6.0.hk" "tests/RoundTrip/t6.expected.hk",
     "t7"                ~: testConcreteFiles "tests/RoundTrip/t7.0.hk" "tests/RoundTrip/t7.expected.hk",
     "t7n"               ~: testConcreteFiles "tests/RoundTrip/t7n.0.hk" "tests/RoundTrip/t7n.expected.hk",
@@ -234,7 +234,7 @@ testMeasureReal = test [
     "testcauchy"        ~: testConcreteFile "tests/RoundTrip/testcauchy.hk",
     "exceptionLebesgue" ~: testConcreteFiles "tests/RoundTrip/exceptionLebesgue.0.hk" "tests/RoundTrip/exceptionLebesgue.expected.hk",
     "exceptionUniform"  ~: testConcreteFiles "tests/RoundTrip/exceptionUniform.0.hk" "tests/RoundTrip/exceptionUniform.expected.hk"
-	-- TODO "two_coins" ~: testConcreteFile "tests/RoundTrip/two_coins.hk" -- needs support for lists
+        -- TODO "two_coins" ~: testConcreteFile "tests/RoundTrip/two_coins.hk" -- needs support for lists
     ]
 
 testMeasureNat :: IsTest ta t => t 
@@ -249,7 +249,7 @@ testMeasureInt = test [
     "t83"                ~: testConcreteFiles "tests/RoundTrip/t83.0.hk" "tests/RoundTrip/t83.expected.hk",
     "exceptionCounting"  ~: testConcreteFilesMany [] "tests/RoundTrip/exceptionCounting.hk", -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
     "exceptionSuperpose" ~: testConcreteFiles "tests/RoundTrip/exceptionSuperpose.0.hk" "tests/RoundTrip/exceptionSuperpose.expected.hk"
-	]
+        ]
 
 testMeasurePair :: IsTest ta t => t 
 testMeasurePair = test [
@@ -264,7 +264,7 @@ testMeasurePair = test [
     "norm_noy"          ~: testConcreteFiles "tests/RoundTrip/norm_noy.0.hk" "tests/RoundTrip/norm_noy.expected.hk",
     "flipped_norm"      ~: testConcreteFiles "tests/RoundTrip/flipped_norm.0.hk" "tests/RoundTrip/flipped_norm.expected.hk",
     "priorProp"         ~: testConcreteFiles "tests/RoundTrip/priorProp.0.hk" "tests/RoundTrip/priorProp.expected.hk",
-	"mhPriorProp"       ~: testConcreteFiles "tests/RoundTrip/mhPriorProp.0.hk" "tests/RoundTrip/mhPriorProp.expected.hk",
+        "mhPriorProp"       ~: testConcreteFiles "tests/RoundTrip/mhPriorProp.0.hk" "tests/RoundTrip/mhPriorProp.expected.hk",
     "unif2"             ~: testConcreteFile "tests/RoundTrip/unif2.hk",
     "easyHMM"           ~: testConcreteFile "tests/RoundTrip/easyHMM.hk",
     "testMCMCPriorProp" ~: testConcreteFile "tests/RoundTrip/testMCMCPriorProp.hk"
