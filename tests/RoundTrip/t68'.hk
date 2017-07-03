@@ -1,5 +1,5 @@
 fn x5 prob: 
- fn x4 prob: 
+(fn x4 prob: 
   fn x3 prob: 
    fn x2 real: 
     x1 <~ lebesgue(-∞,∞)
@@ -31,4 +31,4 @@ fn x5 prob:
                           x4
                            / 
                           exp((log((2 * pi)) / 2))),
-                         return x1)))(x5, x5)
+                         return x1))))(x5, x5)
