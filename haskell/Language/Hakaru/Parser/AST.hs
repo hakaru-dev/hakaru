@@ -130,13 +130,11 @@ data AST' a
     | ULiteral Literal'
     | NaryOp NaryOp [AST' a]
     | Unit
-    | Empty
     | Pair (AST' a) (AST' a)
     | Array a (AST' a) (AST' a)
     | ArrayLiteral [AST' a]
     | Index (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
-    | Dirac (AST' a)
     | Bind  a  (AST' a) (AST' a)
     | Plate a  (AST' a) (AST' a)
     | Chain a  (AST' a) (AST' a) (AST' a)
@@ -171,7 +169,6 @@ instance Eq a => Eq (AST' a) where
     (NaryOp op args)    == (NaryOp op' args')       = op   == op' &&
                                                       args == args'
     Unit                == Unit                     = True
-    Empty               == Empty                    = True
     (Pair  e1 e2)       == (Pair   e1' e2')         = e1   == e1' &&
                                                       e2   == e2'
     (Array e1 e2 e3)    == (Array  e1' e2' e3')     = e1   == e1' &&
@@ -182,7 +179,6 @@ instance Eq a => Eq (AST' a) where
                                                       e2   == e2'
     (Case  e1 bs)       == (Case   e1' bs')         = e1   == e1' &&
                                                       bs   == bs'
-    (Dirac e1)          == (Dirac  e1')             = e1   == e1'
     (Bind  e1 e2 e3)    == (Bind   e1' e2' e3')     = e1   == e1' &&
                                                       e2   == e2' &&
                                                       e3   == e3'
@@ -412,7 +408,6 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     MeasureOp_    :: SomeOp MeasureOp -> [abt '[] 'U]    -> Term abt 'U
     NaryOp_       :: NaryOp           -> [abt '[] 'U]    -> Term abt 'U
     Literal_      :: Some1 Literal                       -> Term abt 'U
-    Empty_        ::                                        Term abt 'U
     Pair_         :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
     Array_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
     ArrayLiteral_ :: [abt '[] 'U]                        -> Term abt 'U
@@ -445,7 +440,6 @@ instance Functor21 Term where
     fmap21 f (MeasureOp_ op  es)    = MeasureOp_ op     (fmap f es)
     fmap21 f (NaryOp_    op  es)    = NaryOp_    op     (fmap f es)
     fmap21 _ (Literal_   v)         = Literal_   v
-    fmap21 _ Empty_                 = Empty_
     fmap21 f (Pair_      e1  e2)    = Pair_      (f e1) (f e2)
     fmap21 f (Array_     e1  e2)    = Array_     (f e1) (f e2)
     fmap21 f (ArrayLiteral_  es)    = ArrayLiteral_     (fmap f es)
@@ -476,7 +470,6 @@ instance Foldable21 Term where
     foldMap21 f (MeasureOp_ _  es)    = F.foldMap f es
     foldMap21 f (NaryOp_    _  es)    = F.foldMap f es
     foldMap21 _ (Literal_   _)        = mempty
-    foldMap21 _ Empty_                = mempty
     foldMap21 f (Pair_      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Array_     e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (ArrayLiteral_ es)    = F.foldMap f es

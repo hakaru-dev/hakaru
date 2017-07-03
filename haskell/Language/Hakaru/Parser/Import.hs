@@ -9,7 +9,7 @@ import           Control.Monad.Trans.Except
 import           Control.Monad.IO.Class
 import qualified Data.Text                     as T
 import qualified Data.Text.IO                  as IO
-import           Text.Parsec                   hiding (Empty)
+import           Text.Parsec
 
 replaceBody :: AST' T.Text -> AST' T.Text -> AST' T.Text
 replaceBody e1 e2 =

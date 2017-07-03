@@ -123,7 +123,7 @@ mapleAST (LC_ e) =
         o :$ es          -> mapleSCon o  es
         NaryOp_ op es    -> mapleNary op es
         Literal_ v       -> mapleLiteral v
-        Empty_ _         -> error "TODO: mapleAST{Empty}"
+        Empty_ _         -> brackets id
         Array_ e1 e2     ->
             caseBind e2 $ \x e2' ->
                 app3 "ary" e1 (var x) e2'

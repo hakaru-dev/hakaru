@@ -14,7 +14,7 @@ import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
 import           Data.Ratio                    ((%))
 import           Data.Char                     (digitToInt)
-import           Text.Parsec                   hiding (Empty)
+import           Text.Parsec
 import           Text.Parsec.Text              () -- instances only
 import           Text.Parsec.Indentation
 import           Text.Parsec.Indentation.Char
@@ -357,9 +357,7 @@ array_index :: Parser (AST' Text -> AST' Text)
 array_index = flip Index <$> brackets expr
 
 array_literal :: Parser (AST' Text)
-array_literal = checkEmpty <$> brackets (commaSep expr)
-  where checkEmpty [] = Empty
-        checkEmpty xs = ArrayLiteral xs
+array_literal = ArrayLiteral <$> brackets (commaSep expr)
 
 plate_expr :: Parser (AST' Text)
 plate_expr =
@@ -439,7 +437,7 @@ call_expr =
 return_expr :: Parser (AST' Text)
 return_expr = do
     reserved "return" <|> reserved "dirac"
-    Dirac <$> expr
+    app1 "dirac" <$> expr
 
 term :: Parser (AST' Text)
 term =  try if_expr

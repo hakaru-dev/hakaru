@@ -330,7 +330,6 @@ symbolResolution symbols ast =
         <$> mapM (symbolResolution symbols) es
 
     U.Unit              -> return $ U.Unit
-    U.Empty             -> return $ U.Empty
     U.Pair e1 e2        -> U.Pair
         <$> symbolResolution symbols e1
         <*> symbolResolution symbols e2
@@ -347,7 +346,6 @@ symbolResolution symbols ast =
         <$> symbolResolution symbols e1
         <*> mapM (symbolResolveBranch symbols) bs
 
-    U.Dirac  e1            -> U.Dirac <$> symbolResolution symbols e1
     U.Bind   name e1 e2    -> resolveBinder symbols name e1 e2 U.Bind
     U.Plate  name e1 e2    -> resolveBinder symbols name e1 e2 U.Plate
     U.Expect name e1 e2    -> resolveBinder symbols name e1 e2 U.Expect
@@ -451,13 +449,11 @@ normAST ast =
     U.ULiteral v              -> U.ULiteral v
     U.NaryOp op es            -> U.NaryOp op (map normAST es)
     U.Unit                    -> U.Unit
-    U.Empty                   -> U.Empty
     U.Pair e1 e2              -> U.Pair (normAST e1) (normAST e2)
     U.Array  name e1 e2       -> U.Array name (normAST e1) (normAST e2)
     U.ArrayLiteral   es       -> U.ArrayLiteral (map normAST es)
     U.Index       e1 e2       -> U.Index (normAST e1) (normAST e2)
     U.Case        e1 e2       -> U.Case  (normAST e1) (map branchNorm e2)
-    U.Dirac       e1          -> U.Dirac (normAST e1)
     U.Bind   name e1 e2       -> U.Bind   name (normAST e1) (normAST e2)
     U.Plate  name e1 e2       -> U.Plate  name (normAST e1) (normAST e2)
     U.Chain  name e1 e2 e3    -> U.Chain  name (normAST e1) (normAST e2) (normAST e3)
@@ -579,7 +575,6 @@ makeAST ast =
     U.ULiteral v      -> syn $ U.Literal_  (U.val v)
     U.NaryOp op es    -> syn $ U.NaryOp_ op (map makeAST es)
     U.Unit            -> unit_
-    U.Empty           -> syn $ U.Empty_
     U.Pair e1 e2      -> syn $ U.Pair_ (makeAST e1) (makeAST e2)
     U.Array s e1 e2 ->
         withName "U.Array" s $ \name ->
@@ -587,7 +582,6 @@ makeAST ast =
     U.ArrayLiteral es -> syn $ U.ArrayLiteral_ (map makeAST es)
     U.Index e1 e2     -> syn $ U.ArrayOp_ U.Index_ [(makeAST e1), (makeAST e2)]
     U.Case e bs       -> syn $ U.Case_ (makeAST e) (map makeBranch bs)
-    U.Dirac e1        -> syn $ U.Dirac_ (makeAST e1)
     U.Bind s e1 e2 ->
         withName "U.Bind" s $ \name ->
             syn $ U.MBind_ (makeAST e1) (bind name $ makeAST e2)

@@ -166,7 +166,6 @@ mustCheck e = caseVarSyn e (const False) go
     -- typing issue. Thus, for non-empty arrays and non-phantom
     -- record types, we should be able to infer the whole type
     -- provided we can infer the various subterms.
-    go U.Empty_             = True
     go (U.Pair_ e1 e2)      = mustCheck  e1 && mustCheck e2
     go (U.Array_ _ e1)      = mustCheck' e1
     go (U.ArrayLiteral_ es) = F.all mustCheck es
@@ -1413,11 +1412,6 @@ checkType = checkType_
                 es'  <- T.forM es $ checkType_ typ
                 return $ syn (NaryOp_ op' (S.fromList es'))
 
-        U.Empty_ ->
-            case typ0 of
-            SArray _ -> return $ syn (Empty_ typ0)
-            _        -> typeMismatch sourceSpan (Right typ0) (Left "HArray")
-
         U.Pair_ e1 e2 ->
             case typ0 of
             SData (STyCon sym `STyApp` a `STyApp` b) _ ->
@@ -1439,7 +1433,7 @@ checkType = checkType_
 
         U.ArrayLiteral_ es ->
             case typ0 of
-            SArray typ1 -> do
+            SArray typ1 -> if null es then return $ syn (Empty_ typ0) else do
                es' <- T.forM es $ checkType_ typ1
                return $ syn (ArrayLiteral_ es')
             _ -> typeMismatch sourceSpan (Right typ0) (Left "HArray")
