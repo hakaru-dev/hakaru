@@ -8,7 +8,6 @@ import Prelude hiding (Real)
 import           Data.Functor                  ((<$>), (<$))
 import           Control.Applicative           (Applicative(..))
 #endif
-import qualified Control.Monad                 as M
 import           Data.Functor.Identity
 import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
@@ -115,7 +114,7 @@ commaSep :: Parser a -> Parser [a]
 commaSep = Tok.commaSep lexer
 
 identifier :: Parser Text
-identifier = M.liftM Text.pack $ Tok.identifier lexer
+identifier = Text.pack <$> Tok.identifier lexer
 
 reserved :: String -> Parser ()
 reserved = Tok.reserved lexer
