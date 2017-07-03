@@ -233,28 +233,17 @@ blockOfMany p = do
 -- | Semiblocks are like blocks, but indentation is optional. Also,
 -- there are only 'expr' semiblocks.
 semiblockExpr :: Parser (AST' Text)
-semiblockExpr = reservedOp ":" *> localIndentation Ge expr
-
-
--- | Pseudoblocks seem like semiblocks, but actually they aren't
--- indented.
---
--- TODO: do we actually want this in our grammar, or did we really
--- mean to use 'semiblockExpr' instead?
-pseudoblockExpr :: Parser (AST' Text)
-pseudoblockExpr = reservedOp ":" *> expr
+semiblockExpr = reservedOp ":"
+                *> localIndentation Ge (absoluteIndentation expr)
 
 
 branch_expr :: Parser (Branch' Text)
-branch_expr = Branch' <$> pat_expr <*> semiblockExpr
+branch_expr = Branch' <$> pat_expr <* reservedOp ":"
+              <*> localIndentation Gt expr
 
 match_expr :: Parser (AST' Text)
-match_expr =
-    reserved "match"
-    *>  (Case
-        <$> expr
-        <*> blockOfMany branch_expr
-        )
+match_expr = Case <$ reserved "match" <*> expr <* reservedOp ":"
+             <*> localIndentation Ge (many (absoluteIndentation branch_expr))
 
 integrate_expr :: Parser (AST' Text)
 integrate_expr =
@@ -347,14 +336,8 @@ chain_expr =
 
 
 if_expr :: Parser (AST' Text)
-if_expr =
-    reserved "if"
-    *>  (If
-        <$> localIndentation Ge expr
-        <*> semiblockExpr
-        <*  reserved "else"
-        <*> semiblockExpr
-        )
+if_expr = If <$ reserved "if" <*> expr <*> semiblockExpr <*
+          reserved "else" <*> semiblockExpr
 
 lam_expr :: Parser (AST' Text)
 lam_expr =
@@ -366,30 +349,29 @@ lam_expr =
         )
 
 bind_expr :: Parser (AST' Text)
-bind_expr = Bind
-    <$> identifier
-    <*  reservedOp "<~"
-    <*> expr
-    <*> expr
+bind_expr = localIndentation Ge
+  (absoluteIndentation (try (Bind <$> identifier <* reservedOp "<~")
+   <*> localIndentation Gt expr)
+   <*> absoluteIndentation expr)
 
 let_expr :: Parser (AST' Text)
-let_expr = Let
-    <$> identifier
-    <*  reservedOp "="
-    <*> expr
-    <*> expr
+let_expr = localIndentation Ge
+  (absoluteIndentation (try (Let <$> identifier <* reservedOp "=")
+   <*> localIndentation Gt expr)
+   <*> absoluteIndentation expr)
 
 def_expr :: Parser (AST' Text)
-def_expr = do
-    reserved "def"
+def_expr = localIndentation Ge $ do
+    absoluteIndentation (reserved "def")
     name <- identifier
     vars <- parens (commaSep defarg)
     bodyTyp <- optionMaybe type_expr
-    body    <- semiblockExpr
+    reservedOp ":"
+    body    <- localIndentation Gt expr
     let body' = foldr (\(var', varTyp) e -> Lam var' varTyp e) body vars
         typ   = foldr TypeFun <$> bodyTyp <*> return (map snd vars)
     Let name (maybe id (flip Ann) typ body')
-        <$> expr -- the \"rest\"; i.e., where the 'def' is in scope
+        <$> absoluteIndentation expr -- the \"rest\"; i.e., where the 'def' is in scope
 
 defarg :: Parser (Text, TypeAST')
 defarg = (,) <$> identifier <*> type_expr
