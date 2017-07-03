@@ -405,6 +405,8 @@ export
               remove_false_pieces,
               flatten,
               singular_pts);
+      elif not hastype(p, Partition) then
+        p;
       elif assigned(distrib_op_Partition[op(0,p)]) then
         mk := distrib_op_Partition[op(0,p)];
         ps := [op(p)];
