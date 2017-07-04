@@ -13,6 +13,7 @@ import Data.Text
 import Test.HUnit
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
+import Data.Function (on)
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative   (Applicative(..), (<$>))
@@ -78,7 +79,7 @@ testParse :: Text -> AST' Text -> Assertion
 testParse s p =
     case parseHakaru s of
     Left  m  -> assertFailure (unpack s ++ "\n" ++ show m)
-    Right p' -> assertEqual "" p p'
+    Right p' -> (assertEqual "" `on` withoutMetaE) p p' 
 
 if1, if2, if3, if4, if5 :: Text
 

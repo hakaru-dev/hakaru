@@ -7,6 +7,8 @@
            , TypeFamilies
            , TypeOperators
            , OverloadedStrings
+           , DeriveDataTypeable
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -38,10 +40,11 @@ import Data.Text
 import Text.Printf
 import Text.Parsec (SourcePos)
 import Text.Parsec.Pos
+import Data.Generics hiding ((:~:)(..))
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
 data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
-    deriving (Read, Show, Eq, Ord)
+    deriving (Read, Show, Eq, Ord, Data, Typeable)
 
 nameID :: Name -> N.Nat
 nameID (Name i _) = i
@@ -57,20 +60,20 @@ type Name' = Text
 data Branch' a
     = Branch'  (Pattern' Name') (AST' a)
     | Branch'' (Pattern' Name)  (AST' a)
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data Pattern' a
     = PVar'  a
     | PWild'
     | PData' (PDatum a)
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data PDatum a = DV Name' [Pattern' a]
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 -- Meta stores start and end position for AST in source code
 data SourceSpan = SourceSpan !SourcePos !SourcePos
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 numberLine :: Text -> Int -> Text
 numberLine s n = append (pack (printf "%5d| " n)) s
@@ -95,21 +98,21 @@ data Literal'
     | Int  Integer
     | Prob Rational
     | Real Rational
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data NaryOp
     = And | Or   | Xor
     | Iff | Min  | Max
     | Sum | Prod
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
-data ArrayOp = Index_ | Size | Reduce
+data ArrayOp = Index_ | Size | Reduce deriving (Data, Typeable)
 
 data TypeAST'
     = TypeVar Name'
     | TypeApp Name'    [TypeAST']
     | TypeFun TypeAST' TypeAST'
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data Reducer' a
     = R_Fanout (Reducer' a) (Reducer' a)
@@ -117,7 +120,7 @@ data Reducer' a
     | R_Split (AST' a) (Reducer' a) (Reducer' a)
     | R_Nop
     | R_Add (AST' a)
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data AST' a
     = Var a
@@ -147,11 +150,14 @@ data AST' a
     | Msum  [AST' a]
     | Data  a [a] [TypeAST'] (AST' a)
     | WithMeta (AST' a) SourceSpan
-    deriving (Show)
+    deriving (Show, Data, Typeable)
 
 withoutMeta :: AST' a -> AST' a
 withoutMeta (WithMeta e _) = withoutMeta e
 withoutMeta           e    =             e
+
+withoutMetaE :: forall a . Data a => AST' a -> AST' a
+withoutMetaE = everywhere (mkT (withoutMeta :: AST' a -> AST' a))
 
 instance Eq a => Eq (AST' a) where
     (Var t)             == (Var t')                 = t    == t'
