@@ -107,6 +107,7 @@ export Apply := module ()
        # 'factoring'.
        local select_cond_outer := proc(sh::DomShape, vars0::set({name,list(name)}), $)
          local csd, cs0, cs, ots, sh1, ins, vars := vars0;
+         if sh=DConstrain() then return sh, {}; end if;
          vars := map(v->`if`(v::list,v,[v])[],vars);
          csd := [op(indets(sh, And(DomConstrain,Not(satisfies(x->has(x,vars))))))];
          cs0 := map(x->{op(x)},csd);
