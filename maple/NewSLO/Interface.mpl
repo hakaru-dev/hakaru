@@ -285,13 +285,14 @@ Profile := module()
   end proc;
 
   names_to_profile := proc()
+    option remember, system;
     local ns;
     kernelopts(opaquemodules=false):
     ns := cl(curry(map,x->CodeTools:-Profiling:-getMemberFuncs(x,true)), modules_to_profile);
     map(proc(n)
           if n::`module`('ModuleApply') then 'n[ModuleApply]' elif n::procedure then n else NULL end if
         end proc, ns);
-  end proc();
+  end proc;
 
   name_to_string := (x->convert(x,'string'));
 
@@ -384,7 +385,7 @@ Profile := module()
   end proc;
 
   ModuleApply := proc(f,{_args:=[]})
-    local res, nppr, rm_ppr, prf, tot, as; as := _args;
+    local names_prof, res, nppr, rm_ppr, prf, tot, as; as := _args;
     if assigned(_Env_Profile_count_ppr) then
       nppr := _Env_Profile_count_ppr;
     else nppr := 25; end if;
@@ -392,10 +393,12 @@ Profile := module()
       rm_ppr := _Env_Profile_remove_ppr;
     else rm_ppr := (x->andmap(q->op(q,x)<0.001,[3,4,6])); end if;
 
-    unprofile(); profile(op(names_to_profile));
+    unprofile();
+    names_prof := names_to_profile();
+    profile(op(names_prof));
     if   f::string then res := NULL; read(f);
     else                res := f(op(as)); end if;
-    prf, tot := GetProf(names_to_profile,_rest);
+    prf, tot := GetProf(names_prof,_rest);
     unprofile();
     prf := remove(rm_ppr, prf);
     PPrProf(take(prf,nppr),tot,_rest);
@@ -407,7 +410,7 @@ Profile := module()
     :-convert := overload([proc(x::name,_::identical(string),$) option overload(callseq_only); sprintf("%a",x) end proc
                           ,:-convert]);
     protect(:-convert);
-    map(unprotect,[modules_to_profile, names_to_profile]);
+    map(unprotect,[modules_to_profile]);
     NULL;
   end proc;
   ModuleLoad();
