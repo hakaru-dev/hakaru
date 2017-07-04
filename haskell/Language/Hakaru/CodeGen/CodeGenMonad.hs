@@ -89,20 +89,22 @@ import qualified Data.Text          as T
 import qualified Data.Set           as S
 
 -- CG after "codegen", holds the state of a codegen computation
-data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generations
-             , reservedNames :: S.Set String -- ^ reserve names during code generations
-             , extDecls      :: [CExtDecl]   -- ^ total external declarations
-             , declarations  :: [CDecl]      -- ^ declarations in local block
-             , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
-             , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
-             , managedMem    :: Bool         -- ^ garbage collected block
-             , sharedMem     :: Bool         -- ^ shared memory supported block
-             , distributed   :: Bool         -- ^ distributed supported block
-             , logProbs      :: Bool         -- ^ true by default, but might not matter in some situations
-             }
+data CG = CG
+  { freshNames    :: [String]     -- ^ fresh names for code generations
+  , reservedNames :: S.Set String -- ^ reserve names during code generations
+  , extDecls      :: [CExtDecl]   -- ^ total external declarations
+  , declarations  :: [CDecl]      -- ^ declarations in local block
+  , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
+  , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
+  , managedMem    :: Bool         -- ^ garbage collected block
+  , sharedMem     :: Bool         -- ^ shared memory supported block (OpenMP)
+  , simd          :: Bool         -- ^ support single instruction multiple data instructions  (OpenMP)
+  , distributed   :: Bool         -- ^ distributed supported block
+  , logProbs      :: Bool         -- ^ true by default, but might not matter in some situations
+  }
 
 emptyCG :: CG
-emptyCG = CG cNameStream mempty mempty [] [] emptyEnv False False False True
+emptyCG = CG cNameStream mempty mempty [] [] emptyEnv False False False False True
 
 type CodeGen = State CG
 
