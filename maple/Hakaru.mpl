@@ -269,7 +269,7 @@ Hakaru := module ()
     evalb(x=y);
   end proc;
 
-  verify_measure := proc(m, n, v:='hboolean', $)
+  verify_measure := proc(m, n, v:='simplify', $)
     local mv, x, i, j, k;
     mv := measure(v);
     if m :: specfunc({Bind, Plate}) and n :: specfunc({Bind, Plate}) and
