@@ -174,7 +174,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                           . fmap (flip prettyPrec)
 
         Literal_ v    -> prettyPrec_ p v
-        Empty_   _    -> text "[]"
+        Empty_   typ  -> parensIf (p > 5) (text "[]." <+> prettyType 0 typ)
         Array_ e1 e2  -> parensIf (p > 0) $
             let (var, _, body) = ppBinder1 e2 in
             sep [ sep [ text "array" <+> var
