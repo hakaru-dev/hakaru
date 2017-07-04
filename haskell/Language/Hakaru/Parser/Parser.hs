@@ -129,6 +129,9 @@ divide, sub :: AST' Text -> AST' Text -> AST' Text
 divide       (WithMeta (ULiteral (Nat   x     )) (SourceSpan s _))
              (WithMeta (ULiteral (Nat       y )) (SourceSpan _ e))
            = (WithMeta (ULiteral (Prob (x % y))) (SourceSpan s e))
+divide       (WithMeta (ULiteral (Nat   1     )) (SourceSpan s _))
+             y
+           = app1 "recip" y
 divide x y = NaryOp Prod [x, app1 "recip" y]
 sub    x y = NaryOp Sum  [x, app1 "negate" y]
 
@@ -295,6 +298,7 @@ observe_expr =
     reserved "observe"
     *> (Observe
         <$> expr
+        -- TODO: ambiguous syntax. need semiblock or keyword here.
         <*> expr
         )
 
@@ -327,9 +331,11 @@ plate_expr =
 chain_expr :: Parser (AST' Text)
 chain_expr =
     reserved "chain"
-    *> (Chain
+    *> (flip . Chain
         <$> identifier
+        <*  reserved "from"
         <*> expr
+        <*  reserved "of"
         <*> expr
         <*> semiblockExpr
         )

@@ -124,6 +124,10 @@ primTable =
     ,("reject",      TNeu $ syn U.Reject_)
     -- PrimOps
     ,("not",         primPrimOp1 U.Not)
+    ,("impl",        primPrimOp2 U.Impl)
+    ,("diff",        primPrimOp2 U.Diff)
+    ,("nand",        primPrimOp2 U.Nand)
+    ,("nor",         primPrimOp2 U.Nor)
     ,("pi",          primPrimOp0 U.Pi)
     ,("**",          primPrimOp2 U.RealPow)
     ,("cos",         primPrimOp1 U.Cos)
@@ -158,6 +162,8 @@ primTable =
     ,("size",        TLam $ \x -> TNeu . syn $ U.ArrayOp_ U.Size [x])
     ,("reduce",      t3 $ \x y z -> syn $ U.ArrayOp_ U.Reduce [x, y, z])
     -- NaryOps
+    ,("xor",         t2 $ \x y -> syn $ U.NaryOp_ U.Xor [x, y])
+    ,("iff",         t2 $ \x y -> syn $ U.NaryOp_ U.Iff [x, y])
     ,("min",         t2 $ \x y -> syn $ U.NaryOp_ U.Min [x, y])
     ,("max",         t2 $ \x y -> syn $ U.NaryOp_ U.Max [x, y])
     ]
