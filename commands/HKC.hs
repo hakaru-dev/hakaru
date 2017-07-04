@@ -40,7 +40,7 @@ data Options =
          , asFunc           :: Maybe String
          , fileIn           :: String
          , fileOut          :: Maybe String
-         , par              :: Bool
+         , par              :: Bool -- turns on simd and sharedMem
          , noWeightsOpt     :: Bool
          , showProbInLogOpt :: Bool
          , garbageCollector :: Bool
@@ -77,7 +77,7 @@ options = Options
                             <> metavar "OUTPUT"
                             <> help "output FILE"))
   <*> switch (  short 'j'
-             <> help "Generates parallel programs using OpenMP directives")
+             <> help "Generates multithreaded and simd parallel programs using OpenMP directives")
   <*> switch (  long "no-weights"
              <> short 'w'
              <> help "Don't print the weights")
@@ -110,7 +110,9 @@ compileHakaru prog = ask >>= \config -> lift $ do
                                 (asFunc config)
                                 (PrintConfig { noWeights     = noWeightsOpt config
                                              , showProbInLog = showProbInLogOpt config })
-          codeGenConfig = emptyCG {sharedMem = par config, managedMem = garbageCollector config}
+          codeGenConfig = emptyCG { sharedMem = par config
+                                  , simd      = par config
+                                  , managedMem = garbageCollector config}
           cast    = CAST $ runCodeGenWith codeGen codeGenConfig
           output  = pack . render . pretty $ cast
       when (debug config) $ do

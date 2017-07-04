@@ -1571,3 +1571,27 @@ real2prob x =
           (putExprStat $ x' .=. (logE x))
      return x'
 real2int x =  return (castTo [CInt] x)
+
+--------------------------------------------------------------------------------
+--                            Parallel Helpers                                --
+--------------------------------------------------------------------------------
+{- SIMD (single instruction multiple data) OpenMP pragmas, should be applied to
+-- the inner most loop. `hasParallelTerm` checks whether a term or any of its
+-- subterms contain a parallel construct { plate, summate, product, array,
+-- bucket }.
+-}
+
+hasParallelTerm :: ( ABT Term abt ) => abt '[] a -> Bool
+hasParallelTerm abt = caseVarSyn abt (const False) hPT'
+  where hPT' :: ABT Term abt => Term abt a -> Bool
+        hPT' (_ :$ _)          = undefined
+        hPT' (NaryOp_ _ _)     = undefined
+        hPT' (Literal_ _)      = False
+        hPT' (Empty_ _)        = False
+        hPT' (Array_ _ _)      = True
+        hPT' (ArrayLiteral_ _) = False
+        hPT' (Bucket _ _ _)    = True
+        hPT' (Datum_ _)        = False
+        hPT' (Case_ _ _)       = undefined
+        hPT' (Superpose_ _)    = undefined
+        hPT' (Reject_ _)       = False
