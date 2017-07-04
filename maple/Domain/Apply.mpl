@@ -72,7 +72,8 @@ export Apply := module ()
                deps := `union`(deps, {vn});
                done_ := `union`(done_, deps) ;
 
-               shv, cond_outer := select_cond_outer(shv, done_);
+               shv, cond_outer :=
+                 select_cond_outer(shv, done_ union (indets(shv,DomBoundVar) intersect vars));
 
                # build this integral, and the other this one depended on, then
                # recursively apply
