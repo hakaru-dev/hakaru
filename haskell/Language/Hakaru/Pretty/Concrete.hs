@@ -128,22 +128,27 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                   Iff    -> asFun "iff" es
                   Min  _ -> asFun "min" es
                   Max  _ -> asFun "max" es
+
                   Sum  _ -> case F.toList es of
-                              [e1] -> prettyPrec p e1
-                              e1:es' -> parensIf (p > 6) $ sep $
-                                        prettyPrec 6 e1 :
-                                        map ppNaryOpSum es'
+                    [e1] -> prettyPrec p e1
+                    e1:es' -> parensIf (p > 6) $ sep $
+                              prettyPrec 6 e1 :
+                              map ppNaryOpSum es'
+
                   Prod _ -> case F.toList es of
-                              [e1] -> prettyPrec p e1
-                              e1:e2:es' -> parensIf (p > 7) $ sep $
-                                           d1' :
-                                           ppNaryOpProd second e2 :
-                                           map (ppNaryOpProd False) es'
-                                where d1 = prettyPrec 7 e1
-                                      (d1', second) = caseVarSyn e1 (const (d1,False)) (\t -> case t of
-                                                      Literal_ (LNat 1) -> (parens d1, False)
-                                                      Literal_ (LNat _) -> (d1, True)
-                                                      _                 -> (d1, False))
+                    [e1] -> prettyPrec p e1
+                    e1:e2:es' -> parensIf (p > 7) $ sep $
+                                 d1' :
+                                 ppNaryOpProd second e2 :
+                                 map (ppNaryOpProd False) es'
+                      where d1 = prettyPrec 7 e1
+                            (d1', second) =
+                              caseVarSyn e1 (const (d1,False)) (\t -> case t of
+                                -- Use parens to distinguish division into 1
+                                -- from recip
+                                Literal_ (LNat 1) -> (parens d1, False)
+                                Literal_ (LNat _) -> (d1, True)
+                                _                 -> (d1, False))
 
           where identityElement :: NaryOp a -> Doc
                 identityElement And      = text "true"
@@ -155,13 +160,15 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 identityElement (Sum  _) = text "0"
                 identityElement (Prod _) = text "1"
 
-                asOp :: (ABT Term abt) => Int -> String -> Seq.Seq (abt '[] a) -> Doc
+                asOp :: (ABT Term abt)
+                     => Int -> String -> Seq.Seq (abt '[] a) -> Doc
                 asOp p0 s = parensIf (p > p0)
                           . sepByR s
                           . map (prettyPrec (p0 + 1))
                           . F.toList
 
-                asFun :: (ABT Term abt) => String -> Seq.Seq (abt '[] a) -> Doc
+                asFun :: (ABT Term abt)
+                      => String -> Seq.Seq (abt '[] a) -> Doc
                 asFun   s = ($ p)
                           . F.foldr1 (\a b p' -> ppFun p' s [a, b])
                           . fmap (flip prettyPrec)
