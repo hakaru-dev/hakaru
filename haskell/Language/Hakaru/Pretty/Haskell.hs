@@ -96,9 +96,19 @@ prettyType (SMeasure t) =
   PP.parens (PP.sep [PP.text "Measure", PP.nest 2 (prettyType t)])
 prettyType (SFun t1 t2) =
   PP.parens (PP.sep [prettyType t1 <+> PP.text "->", prettyType t2])
+prettyType (SData _ (SDone `SPlus` SVoid)) =
+  PP.text "()"
+prettyType (SData _ (SDone `SPlus` SDone `SPlus` SVoid)) =
+  PP.text "Bool"
+prettyType (SData _ (SDone `SPlus` (SKonst t `SEt` SDone) `SPlus` SVoid)) =
+  PP.parens (PP.sep [PP.text "Maybe", PP.nest 2 (prettyType t)])
+prettyType (SData _ ((SKonst t1 `SEt` SDone) `SPlus`
+                     (SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
+  PP.parens (PP.sep [PP.text "Either", PP.nest 2 (prettyType t1),
+                                       PP.nest 2 (prettyType t2)])
 prettyType (SData _ ((SKonst t1 `SEt` SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
   PP.parens (PP.sep [prettyType t1 <> PP.comma, prettyType t2])
-prettyType _ = error "TODO: prettyType"
+prettyType s = error ("TODO: prettyType: " ++ show s)
 
 
 ----------------------------------------------------------------
