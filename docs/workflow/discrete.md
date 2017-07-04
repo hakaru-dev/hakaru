@@ -88,7 +88,7 @@ made is to the line `fn x5 bool:`, which tells the Hakaru program what state the
 line to `x5 = true`:
 
 ````nohighlight
-x5 = true
+ x5 = true
  bern = fn p prob: 
          x <~ categorical([p, real2prob((1 - prob2real(p)))])
          return [true, false][x]
