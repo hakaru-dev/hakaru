@@ -269,7 +269,7 @@ Profile := module()
 
   modules_to_profile := proc()
     kernelopts(opaquemodules=false):
-    { 'BindingTools', 'Hakaru', 'KB', 'Partition', 'Loop'
+    { 'BindingTools', 'Hakaru', 'KB', 'Partition', 'Partition:-Simpl', 'Loop'
     , 'Domain', 'NewSLO', 'Summary'
     , entries(Domain:-Improve:-Simplifiers, nolist)
     };
