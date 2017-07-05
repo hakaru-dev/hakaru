@@ -104,31 +104,31 @@ Library
 
     other-modules:     System.MapleSSH
 
-    build-depends:     base               >= 4.7  && < 5.0,
-                       Cabal              >= 1.16,
-                       ghc-prim           >= 0.3  && < 0.6,
-                       transformers       >= 0.3  && < 0.6,
-                       transformers-compat >= 0.3  && < 0.6,
-                       containers         >= 0.5  && < 0.6,
-                       semigroups         >= 0.16,
-                       pretty             >= 1.1  && < 1.2,
-                       logfloat           >= 0.13 && < 0.14,
-                       math-functions     >= 0.1  && < 0.3,
-                       vector             >= 0.10,
-                       indentation-parsec >= 0.0,
-                       text               >= 0.11 && < 1.3,
-                       parsec             >= 3.1  && < 3.2,
-                       mwc-random         >= 0.13 && < 0.14,
-                       directory          >= 1.2  && < 1.4,
-                       integration        >= 0.2.0 && < 0.3.0,
-                       primitive          >= 0.5  && < 0.7,
-                       process            >= 1.1  && < 2.0,
-                       HUnit              >= 1.2  && < 2.0,
-                       mtl                >= 2.1,
-                       filepath           >= 1.1.0.2, 
-                       bytestring         >= 0.9, 
-                       optparse-applicative >= 0.11 && < 0.15, 
-                       syb                >= 0.6
+    build-depends:     base                 >= 4.7  && < 5.0,
+                       Cabal                >= 1.16,
+                       ghc-prim             >= 0.3  && < 0.6,
+                       transformers         >= 0.3  && < 0.6,
+                       transformers-compat  >= 0.3  && < 0.6,
+                       containers           >= 0.5  && < 0.6,
+                       semigroups           >= 0.16,
+                       pretty               >= 1.1  && < 1.2,
+                       logfloat             >= 0.13 && < 0.14,
+                       math-functions       >= 0.1  && < 0.3,
+                       vector               >= 0.10,
+                       indentation-parsec   >= 0.0,
+                       text                 >= 0.11 && < 1.3,
+                       parsec               >= 3.1  && < 3.2,
+                       mwc-random           >= 0.13 && < 0.14,
+                       directory            >= 1.2  && < 1.4,
+                       integration          >= 0.2.0 && < 0.3.0,
+                       primitive            >= 0.5  && < 0.7,
+                       process              >= 1.1  && < 2.0,
+                       HUnit                >= 1.2  && < 2.0,
+                       mtl                  >= 2.1,
+                       filepath             >= 1.1.0.2,
+                       bytestring           >= 0.9,
+                       optparse-applicative >= 0.11 && < 0.15,
+                       syb                  >= 0.6
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite
@@ -137,7 +137,7 @@ Test-Suite system-testsuite
     Hs-Source-Dirs:    haskell
     Default-Language:  Haskell2010
     GHC-Options:       -Wall -fwarn-tabs
-	
+
     other-modules:     Data.Number.Nat
                        Data.Number.Natural
                        Data.Text.Utf8
@@ -204,30 +204,30 @@ Test-Suite system-testsuite
                        Tests.TestTools
                        Tests.TypeCheck
 
-    Build-Depends:     base               >= 4.6  && < 5.0,
-                       Cabal              >= 1.16,
-                       ghc-prim           >= 0.3  && < 0.6,
-                       indentation-parsec >= 0.0,
-                       transformers       >= 0.3  && < 0.6,
-                       containers         >= 0.5  && < 0.6,
-                       semigroups         >= 0.16,
-                       logfloat           >= 0.13 && < 0.14,
-                       parsec             >= 3.1  && < 3.2,
-                       primitive          >= 0.5  && < 0.7,
-                       pretty             >= 1.1  && < 1.2,
-                       mwc-random         >= 0.13 && < 0.14,
-                       math-functions     >= 0.1  && < 0.3,
-                       integration        >= 0.2  && < 0.3,
-                       HUnit              >= 1.2  && < 2.0,
-                       QuickCheck         >= 2.6,
-                       process            >= 1.1  && < 2.0,
-                       mtl                >= 2.1,
-                       vector             >= 0.10,
-                       text               >= 0.11 && < 1.3, 
-                       bytestring         >= 0.9, 
-                       directory          >= 1.2  && < 1.4,
-                       optparse-applicative >= 0.11 && < 0.15, 
-                       syb                >= 0.6
+    Build-Depends:     base                 >= 4.6  && < 5.0,
+                       Cabal                >= 1.16,
+                       ghc-prim             >= 0.3  && < 0.6,
+                       indentation-parsec   >= 0.0,
+                       transformers         >= 0.3  && < 0.6,
+                       containers           >= 0.5  && < 0.6,
+                       semigroups           >= 0.16,
+                       logfloat             >= 0.13 && < 0.14,
+                       parsec               >= 3.1  && < 3.2,
+                       primitive            >= 0.5  && < 0.7,
+                       pretty               >= 1.1  && < 1.2,
+                       mwc-random           >= 0.13 && < 0.14,
+                       math-functions       >= 0.1  && < 0.3,
+                       integration          >= 0.2  && < 0.3,
+                       HUnit                >= 1.2  && < 2.0,
+                       QuickCheck           >= 2.6,
+                       process              >= 1.1  && < 2.0,
+                       mtl                  >= 2.1,
+                       vector               >= 0.10,
+                       text                 >= 0.11 && < 1.3,
+                       bytestring           >= 0.9,
+                       directory            >= 1.2  && < 1.4,
+                       optparse-applicative >= 0.11 && < 0.15,
+                       syb                  >= 0.6
 
 ----------------------------------------------------------------
 Executable hakaru
