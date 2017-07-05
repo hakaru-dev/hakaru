@@ -482,6 +482,13 @@ maple2AST (InertArgs Not_ [e])  =
 maple2AST (InertArgs Less es)  =
     foldl App (Var "less")  (map maple2AST es)
 
+-- Special case to undo the "piecewise(x=true,...)" created by our Maple code
+-- (in the Hakaru:-make_piece function), to avoid the error produced by Maple
+-- "piecewise(x,...)".  (This "=true" is also removed by NewSLO:-applyintegrand
+-- if Maple ever substitutes something for x, but that may never happen.)
+maple2AST (InertArgs Equal [e, InertName "true"]) = maple2AST e
+maple2AST (InertArgs Equal [InertName "true", e]) = maple2AST e
+
 maple2AST (InertArgs Equal es) =
     foldl App (Var "equal") (map maple2AST es)
 
