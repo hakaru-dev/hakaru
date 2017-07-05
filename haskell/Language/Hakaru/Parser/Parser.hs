@@ -285,16 +285,18 @@ expect_expr =
     reserved "expect"
     *> (Expect
         <$> identifier
+        <*  reservedOp "<~"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 observe_expr :: Parser (AST' Text)
 observe_expr =
     reserved "observe"
-    *> (Observe
-        <$> expr
-        -- TODO: ambiguous syntax. need semiblock or keyword here.
+    *> (flip Observe
+        <$> scalar
+        <*  reservedOp "<~"
         <*> expr
         )
 
@@ -411,12 +413,16 @@ term =  if_expr
     <|> parenthesized
     <?> "simple expression"
 
+scalar :: Parser (AST' Text)
+scalar = withPos (buildExpressionParser table (withPos term)
+                  <?> "scalar expression")
+
 expr :: Parser (AST' Text)
-expr = withPos (let_expr <|>
-                bind_expr <|>
-                return_expr <|>
-                buildExpressionParser table (withPos term))
-       <?> "expression"
+expr =  withPos let_expr
+    <|> withPos bind_expr
+    <|> withPos return_expr
+    <|> scalar
+    <?> "expression"
 
 
 indentConfig :: Text -> ParserStream

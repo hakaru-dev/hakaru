@@ -9,7 +9,7 @@ the expectation over that measure with respect to the given function.
 Expect can be used inside programs with the `expect` keyword.
 
 ````nohighlight
-expect x uniform(1,3):
+expect x <~ uniform(1,3):
     real2prob(2*x + 1)
 ````
 
