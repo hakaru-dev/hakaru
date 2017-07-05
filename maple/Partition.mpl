@@ -499,7 +499,7 @@ export
     end proc;
 
     export reduce_branches := proc(e::Partition, kb := KB:-empty, { _testequal := ((a,b) -> Testzero(a-b)) })
-      local k, ks, i, vs, ps1, ps; ps := piecesOf(e); vs := map(valOf,ps);
+      local k, ks, i, ps1, ps; ps := piecesOf(e);
       userinfo(3, :-reduce_branches, printf("Input: %a\n", ps));
 
       if nops(ps)=1 then return op([1,2],ps); end if;
