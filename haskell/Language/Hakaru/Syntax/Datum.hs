@@ -40,7 +40,7 @@ module Language.Hakaru.Syntax.Datum
     , DatumStruct(..)
     , DatumFun(..)
     -- ** Some smart constructors for the \"built-in\" datatypes
-    , dTrue, dFalse
+    , dTrue, dFalse, dBool
     , dUnit
     , dPair
     , dLeft, dRight
@@ -345,6 +345,9 @@ instance Traversable11 (DatumFun x) where
 dTrue, dFalse :: Datum ast HBool
 dTrue  = Datum tdTrue  sBool . Inl $ Done
 dFalse = Datum tdFalse sBool . Inr . Inl $ Done
+
+dBool :: Bool -> Datum ast HBool
+dBool b = if b then dTrue else dFalse
 
 dUnit  :: Datum ast HUnit
 dUnit  = Datum tdUnit sUnit . Inl $ Done
