@@ -13,7 +13,7 @@ module Language.Hakaru.Pretty.SExpression where
 
 #if __GLASGOW_HASKELL__ < 710
 import Data.Foldable (foldMap)
-import Data.Applicative ((<$>))
+import Control.Applicative ((<$>))
 #endif
 
 import System.IO (stderr)
