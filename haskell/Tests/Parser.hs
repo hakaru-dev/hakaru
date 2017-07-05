@@ -13,6 +13,7 @@ import Data.Text
 import Test.HUnit
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
+import Data.Function (on)
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative   (Applicative(..), (<$>))
@@ -78,7 +79,7 @@ testParse :: Text -> AST' Text -> Assertion
 testParse s p =
     case parseHakaru s of
     Left  m  -> assertFailure (unpack s ++ "\n" ++ show m)
-    Right p' -> assertEqual "" p p'
+    Right p' -> assertEqual "" (withoutMetaE p) (withoutMetaE p')
 
 if1, if2, if3, if4, if5 :: Text
 
@@ -161,7 +162,7 @@ def3 = unlines
     ["def foo(x real):"
     ,"    y <~ normal(x,1.0)"
     ,"    return (y + y. real)"
-    ,"foo(-2.0)"
+    ,"foo(-(2.0))"
     ]
 
 def4 :: Text
@@ -346,7 +347,7 @@ match7 = unlines
 match7AST :: AST' Text
 match7AST = Case (Ann
                   (Pair
-                   (App (Var "negate") (ULiteral (Prob 2.0)))
+                   (ULiteral (Real (-2.0)))
                    (ULiteral (Prob 1.0)))
              (TypeApp "pair" [TypeVar "real",TypeVar "prob"]))
             [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
@@ -394,7 +395,7 @@ testAnn = test
 
 expect1 :: Text
 expect1 = unlines
-    ["expect x normal(0,1):"
+    ["expect x <~ normal(0,1):"
     ,"   1"
     ]
 
@@ -406,7 +407,7 @@ expect1AST = Expect "x" (App (App (Var "normal")
 
 expect2 :: Text
 expect2 = unlines
-    ["expect x normal(0,1):"
+    ["expect x <~ normal(0,1):"
     ,"   unsafeProb(x*x)"
     ]
 

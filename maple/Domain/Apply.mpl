@@ -72,7 +72,8 @@ export Apply := module ()
                deps := `union`(deps, {vn});
                done_ := `union`(done_, deps) ;
 
-               shv, cond_outer := select_cond_outer(shv, done_);
+               shv, cond_outer :=
+                 select_cond_outer(shv, done_ union (indets(shv,DomBoundVar) intersect vars));
 
                # build this integral, and the other this one depended on, then
                # recursively apply
@@ -104,15 +105,32 @@ export Apply := module ()
        # A very cute way of pulling constraints out over other constructors
        # which relies on the fact that constraints are required to be innermost;
        # i.e. DomShape is a sum of products; i.e. this could also be called
-       # 'factoring'.
+       # 'factoring'. e.g.:
+       # DSum( DConstrain(A, C), DConstrain(A, B) )
+       # -> DSum( DConstrain(C), DConstrain(B) ), {A}
+       # DSum( DConstrain(A), DConstrain(B) )
+       # -> DSum( DConstrain(A), DConstrain(B) ), { }
+       # DSum( DInto(x, .., DConstrain(A, B)), DInto(x, .., DConstrain(A, C))),
+       # and `x' is not in `vars'
+       # -> DSum( DInto(x, .., DConstrain(B)), DInto(x, .., DConstrain(C) ) ), {A}
        local select_cond_outer := proc(sh::DomShape, vars0::set({name,list(name)}), $)
          local csd, cs0, cs, ots, sh1, ins, vars := vars0;
-         vars := map(v->`if`(v::list,v,[v])[],vars);
+         if sh=DConstrain() then return sh, {}; end if;
+         vars := map(v->`if`(v::list,v,[v])[],vars); # handles(?) array variables
+
+         # the constraints which appear in the shape and don't mention dependant variables
          csd := [op(indets(sh, And(DomConstrain,Not(satisfies(x->has(x,vars))))))];
          cs0 := map(x->{op(x)},csd);
-         if cs0=[] then return sh, {}; end if;
+         if cs0=[] then return sh, {}; end if; # if there are no such constraints
+
+         # Split each constraint into a pair whose first component are
+         # constraints common to all constraints in the shape
          cs := map(x->[selectremove(z->andmap(c->z in c,cs0),x)], cs0);
+
+         # outers (common constraints) and inners (rest)
          ots := op([1,1],cs); ins := map(curry(op,2), cs);
+
+         # substitute back into the shape the reduced constraints
          sh1 := subs(zip(`=`, csd, map(DConstrain@op,ins)), sh);
          userinfo(3, Domain, printf("select_cond_outer(%a, %a) = %a, %a\n", sh, vars, sh1, ots));
          sh1, ots;

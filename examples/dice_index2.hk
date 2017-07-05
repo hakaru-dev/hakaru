@@ -10,5 +10,5 @@ fn t array(array(nat)):
     plate k of size(t):
       ps <~ dirichlet(array i of size(t[k]): 1.0)
       _ <~ plate i of size(t[k]):
-             observe categorical(ps) t[k][i]
+             observe t[k][i] <~ categorical(ps)
       return ps

@@ -233,13 +233,6 @@ blockOfMany p = do
     localIndentation Gt (many $ absoluteIndentation p)
 
 
--- | Semiblocks are like blocks, but indentation is optional. Also,
--- there are only 'expr' semiblocks.
-semiblockExpr :: Parser (AST' Text)
-semiblockExpr = reservedOp ":"
-                *> localIndentation Ge (absoluteIndentation expr)
-
-
 branch_expr :: Parser (Branch' Text)
 branch_expr = Branch' <$> pat_expr <* reservedOp ":"
               <*> localIndentation Gt expr
@@ -257,7 +250,8 @@ integrate_expr =
         <*> expr
         <*  reserved "to"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 summate_expr :: Parser (AST' Text)
@@ -269,7 +263,8 @@ summate_expr =
         <*> expr
         <*  reserved "to"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 product_expr :: Parser (AST' Text)
@@ -281,7 +276,8 @@ product_expr =
         <*> expr
         <*  reserved "to"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 expect_expr :: Parser (AST' Text)
@@ -289,16 +285,18 @@ expect_expr =
     reserved "expect"
     *> (Expect
         <$> identifier
+        <*  reservedOp "<~"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 observe_expr :: Parser (AST' Text)
 observe_expr =
     reserved "observe"
-    *> (Observe
-        <$> expr
-        -- TODO: ambiguous syntax. need semiblock or keyword here.
+    *> (flip Observe
+        <$> scalar
+        <*  reservedOp "<~"
         <*> expr
         )
 
@@ -309,7 +307,8 @@ array_expr =
         <$> identifier
         <*  reserved "of"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 array_index :: Parser (AST' Text -> AST' Text)
@@ -325,7 +324,8 @@ plate_expr =
         <$> identifier
         <*  reserved "of"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 chain_expr :: Parser (AST' Text)
@@ -337,13 +337,14 @@ chain_expr =
         <*> expr
         <*  reserved "of"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 
 if_expr :: Parser (AST' Text)
-if_expr = If <$ reserved "if" <*> expr <*> semiblockExpr <*
-          reserved "else" <*> semiblockExpr
+if_expr = If <$ reserved "if" <*> expr <* reservedOp ":" <*> expr
+             <* reserved "else"        <* reservedOp ":" <*> expr
 
 lam_expr :: Parser (AST' Text)
 lam_expr =
@@ -351,7 +352,8 @@ lam_expr =
     *>  (Lam
         <$> identifier
         <*> type_expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 bind_expr :: Parser (AST' Text)
@@ -411,12 +413,16 @@ term =  if_expr
     <|> parenthesized
     <?> "simple expression"
 
+scalar :: Parser (AST' Text)
+scalar = withPos (buildExpressionParser table (withPos term)
+                  <?> "scalar expression")
+
 expr :: Parser (AST' Text)
-expr = withPos (let_expr <|>
-                bind_expr <|>
-                return_expr <|>
-                buildExpressionParser table (withPos term))
-       <?> "expression"
+expr =  withPos let_expr
+    <|> withPos bind_expr
+    <|> withPos return_expr
+    <|> scalar
+    <?> "expression"
 
 
 indentConfig :: Text -> ParserStream

@@ -25,10 +25,10 @@ def naive_bayes( topic_prior array(prob)
     zNew <~ categorical(array i of size(topic_prior): 1)
     z <~ plate i of size(z):
             zz = if i == docUpdate: zNew else: z[i]
-            observe categorical(theta) zz
+            observe zz <~ categorical(theta)
 
     w <~ plate n of size(w):   # word n
-            observe categorical(phi[z[doc[n]]]) w[n]
+            observe w[n] <~ categorical(phi[z[doc[n]]])
 
     return zNew
 

@@ -8,5 +8,5 @@ fn α prob:
  fn t array(nat):
   ps <~ dp(α)
   _ <~ plate i of size(t):
-         observe categorical(ps) t[i]
+         observe t[i] <~ categorical(ps)
   return ps

@@ -143,11 +143,11 @@
                                                                                                                            < 
                                                                                                                           8): 
                                                                                                                     true: 
-                                                                                                                     (match (3
+                                                                                                                     (match (3.prob
                                                                                                                               < 
                                                                                                                              prob2real(x37)): 
                                                                                                                        true: 
-                                                                                                                        x4 = 5
+                                                                                                                        x4 = 5.prob
                                                                                                                         x3 = x1 = (x37,
                                                                                                                                    x38)
                                                                                                                              (return x1,
@@ -174,19 +174,19 @@
                                                                                                                                               prob)),
                                                                                                                          (fn x0 pair(prob,
                                                                                                                                      prob) -> prob: 
-                                                                                                                           0)))
+                                                                                                                           0.prob)))
                                                                                                                     false: 
                                                                                                                      (reject. measure(pair(prob,
                                                                                                                                            prob)),
                                                                                                                       (fn x0 pair(prob,
                                                                                                                                   prob) -> prob: 
-                                                                                                                        0)))
-                                                                                                             x4 = 1
+                                                                                                                        0.prob)))
+                                                                                                             x4 = 1.prob
                                                                                                              x3 = (reject. measure(pair(prob,
                                                                                                                                         prob)),
                                                                                                                    (fn x0 pair(prob,
                                                                                                                                prob) -> prob: 
-                                                                                                                     0))
+                                                                                                                     0.prob))
                                                                                                              (weight(x6,
                                                                                                                      (match x5: 
                                                                                                                        (x0,
@@ -234,19 +234,19 @@
                                                                                                                               prob)),
                                                                                                          (fn x0 pair(prob,
                                                                                                                      prob) -> prob: 
-                                                                                                           0)))
+                                                                                                           0.prob)))
                                                                                                     false: 
                                                                                                      (reject. measure(pair(prob,
                                                                                                                            prob)),
                                                                                                       (fn x0 pair(prob,
                                                                                                                   prob) -> prob: 
-                                                                                                        0)))
+                                                                                                        0.prob)))
                                                                                              x4 = 1
                                                                                              x3 = (reject. measure(pair(prob,
                                                                                                                         prob)),
                                                                                                    (fn x0 pair(prob,
                                                                                                                prob) -> prob: 
-                                                                                                     0))
+                                                                                                     0.prob))
                                                                                              (weight(x8,
                                                                                                      (match x5: 
                                                                                                        (x0,
