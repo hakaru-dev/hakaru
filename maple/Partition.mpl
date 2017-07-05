@@ -224,11 +224,11 @@ export
     export ModuleApply; local pw_cond_ctx;
     ModuleApply := proc(x::Partition, $)
       local parts := piecesOf(x);
-        if nops(parts) = 1 and is(op([1,1],parts)) then return op([1,2], parts) end if;
-        parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
-        parts := [seq([condOf(p), valOf(p)][], p=op(1,parts))];
-        if op(-2, parts) :: identical(true) then
-          parts := subsop(-2=NULL, parts);
+      if nops(parts) = 1 and is(op([1,1],parts)) then return op([1,2], parts) end if;
+      parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
+      parts := [seq([condOf(p), valOf(p)][], p=op(1,parts))];
+      if op(-2, parts) :: identical(true) then
+        parts := subsop(-2=NULL, parts);
       end if;
       piecewise(op(parts));
     end proc;
