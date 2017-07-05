@@ -11,7 +11,8 @@ export Apply := module ()
        export ModuleApply :=
          proc(dom :: HDomain_mb
              ,f_into := "default"
-             ,f_body := "default", $)
+             ,f_body := "default"
+             ,f_sum  := "default", $)
            local vs, sh, dbnd, ctx;
            if dom :: DomNoSol then
                error "cannot apply %1", dom;
@@ -20,7 +21,8 @@ export Apply := module ()
            vs := Domain:-Bound:-withVarsIxs(dbnd);
            ctx := [ Domain:-Bound:-contextOf(dbnd) ,
               `if`(f_into="default",`do_mk`,f_into),
-              `if`(f_body="default",`do_body`,f_body) ];
+              `if`(f_body="default",`do_body`,f_body),
+              `if`(f_sum="default",`+`,f_sum)];
            (e->do_apply({}, e, vs, sh, ctx));
        end proc;
 
@@ -51,7 +53,7 @@ export Apply := module ()
            # if the solution is a sum of solutions, produce the algebraic sum
            # of each summand of the solution applied to the expression.
            elif sh :: DomSum then
-               `+`(seq(do_apply(done_, e, vs, s, ctx), s=sh))
+               op(4,ctx)(seq(do_apply(done_, e, vs, s, ctx), s=sh))
            # if the solution is a split solution, just make `do_apply' over
            # the values of the Partition (the subsolutions)
            elif sh :: DomSplit then

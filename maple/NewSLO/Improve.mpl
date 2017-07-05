@@ -127,7 +127,8 @@ reduce_Integrals := module()
   export ModuleApply;
   local
   # The callbacks passed by reduce_Integrals to Domain:-Reduce
-    reduce_Integrals_body, reduce_Integrals_into, reduce_Integrals_apply
+    reduce_Integrals_body, reduce_Integrals_into, reduce_Integrals_apply,
+    reduce_Integrals_sum
   # tries to evaluate a RootOf
   , try_eval_Root
   # tries to evaluate Int/Sum/Ints/Sums
@@ -140,6 +141,11 @@ reduce_Integrals := module()
     rr := subsindets(rr, specfunc(RootOf), x->try_eval_Root(x,a->a));
     return rr;
   end proc;
+  reduce_Integrals_sum := proc()
+    subsindets(`+`(args),
+               And(`+`,satisfies(x->has(x,applyintegrand))),
+               e->collect(e, `applyintegrand`, 'distributed'));
+  end proc;
   reduce_Integrals_apply := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
@@ -147,6 +153,7 @@ reduce_Integrals := module()
     rr := Domain:-Reduce(expr, kb
       ,curry(reduce_Integrals_into,h,opts)
       ,curry(reduce_Integrals_body,h,opts)
+      ,reduce_Integrals_sum
       ,reduce_Integrals_apply
       ,(_->:-DOM_FAIL), opts);
     rr := Partition:-Simpl(rr, kb);
@@ -156,7 +163,7 @@ reduce_Integrals := module()
       error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
            , expr, kb, kb, opts, rr;
     end if;
-    rr;
+    rr
   end proc;
 
   try_eval_Root := proc(e0::specfunc(`RootOf`),on_fail := (_->FAIL), $)
