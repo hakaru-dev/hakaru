@@ -281,6 +281,7 @@ export
   # conditions is pairwise disjoint, then they are all disjoint
   # (i.e. disjointness is transitive).
   IsValid := proc(p::Partition,$)
+    option remember, system;
     local i, cs; cs := map(condOf, piecesOf(p));
     for i from 2 to nops(cs) do
       if not(is(bool_Not(op(i  ,cs))) assuming op(i-1,cs)) or
