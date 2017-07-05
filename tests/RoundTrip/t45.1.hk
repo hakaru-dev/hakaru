@@ -1,8 +1,8 @@
-(x0 <~ normal(4, 5)
- (match (x0 < 3): 
+(x0 <~ normal(+4/1, 5/1)
+ (match (x0 < +3/1): 
    true: return (x0 * x0)
    false: reject. measure(real))) <|> 
-(x0 <~ normal(4, 5)
- (match (x0 < 3): 
+(x0 <~ normal(+4/1, 5/1)
+ (match (x0 < +3/1): 
    true: reject. measure(real)
-   false: return (x0 - 1)))
+   false: return (x0 + (-1/1))))

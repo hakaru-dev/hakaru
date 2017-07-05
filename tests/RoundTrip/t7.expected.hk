@@ -1,2 +1,2 @@
-x0 <~ uniform(0, 1)
-weight(real2prob((x0 + 1)), return (x0 ^ 2))
+x0 <~ uniform(+0/1, +1/1)
+weight(real2prob((x0 + (+1/1))), return (x0 ^ 2))

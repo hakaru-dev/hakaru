@@ -1,1 +1,1 @@
-lebesgue(nat2real(42), prob2real(∞))
+lebesgue(+42/1, prob2real(∞))

@@ -1,4 +1,4 @@
-weight(9/25, return 37.real) <|> 
-weight(6/25, return 42.real) <|> 
-weight(4/35, uniform(10, 12)) <|> 
-weight(2/7, uniform(14, 16))
+weight(2/7, uniform(+14/1, +16/1)) <|>
+weight(4/35, uniform(+10/1, +12/1)) <|>
+weight(6/25, return +42/1) <|>
+weight(9/25, return +37/1)

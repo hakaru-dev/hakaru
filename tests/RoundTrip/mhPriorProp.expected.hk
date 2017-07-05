@@ -2,7 +2,7 @@
   (match x5: 
     (r3, r1): 
      weight(1/2,
-            x159 <~ normal(nat2real(0), nat2prob(1))
+            x159 <~ normal(+0/1, 1/1)
             return ((x159, r1),
                     (recip(exp((r1 * r3)))
                       * 
@@ -12,9 +12,9 @@
                       / 
                      exp((x159 ^ 2))))) <|> 
      weight(1/2,
-            x197 <~ normal(nat2real(0), sqrt(nat2prob(2)))
+            x197 <~ normal(+0/1, sqrt(2/1))
             return ((r3, x197),
-                    (exp(((r1 ^ 2) * prob2real((1/2))))
+                    (exp(((r1 ^ 2) * (+1/2)))
                       / 
                      exp((r1 * r3))
                       * 

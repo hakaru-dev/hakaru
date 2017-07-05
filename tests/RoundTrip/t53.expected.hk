@@ -1,4 +1,4 @@
 fn x0 real: 
- (match ((0 < x0) && (x0 < 1)): 
+ (match ((+0/1 < x0) && (x0 < +1/1)): 
    true: return ()
    false: reject. measure(unit))

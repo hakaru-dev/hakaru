@@ -1,4 +1,4 @@
 fn x0 real: 
- (match (x0 < 4): 
+ (match (x0 < +4/1): 
    true: return 3
    false: return 5)
