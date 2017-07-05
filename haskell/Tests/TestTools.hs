@@ -14,7 +14,6 @@ import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import Language.Hakaru.Command (parseAndInferWithMode)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.AST.Transforms(normalizeLiterals)
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Eq (alphaEq)
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), jmEq1)
