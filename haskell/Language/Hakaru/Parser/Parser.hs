@@ -233,13 +233,6 @@ blockOfMany p = do
     localIndentation Gt (many $ absoluteIndentation p)
 
 
--- | Semiblocks are like blocks, but indentation is optional. Also,
--- there are only 'expr' semiblocks.
-semiblockExpr :: Parser (AST' Text)
-semiblockExpr = reservedOp ":"
-                *> localIndentation Ge (absoluteIndentation expr)
-
-
 branch_expr :: Parser (Branch' Text)
 branch_expr = Branch' <$> pat_expr <* reservedOp ":"
               <*> localIndentation Gt expr
@@ -257,7 +250,8 @@ integrate_expr =
         <*> expr
         <*  reserved "to"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 summate_expr :: Parser (AST' Text)
@@ -269,7 +263,8 @@ summate_expr =
         <*> expr
         <*  reserved "to"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 product_expr :: Parser (AST' Text)
@@ -281,7 +276,8 @@ product_expr =
         <*> expr
         <*  reserved "to"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 expect_expr :: Parser (AST' Text)
@@ -309,7 +305,8 @@ array_expr =
         <$> identifier
         <*  reserved "of"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 array_index :: Parser (AST' Text -> AST' Text)
@@ -325,7 +322,8 @@ plate_expr =
         <$> identifier
         <*  reserved "of"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 chain_expr :: Parser (AST' Text)
@@ -337,13 +335,14 @@ chain_expr =
         <*> expr
         <*  reserved "of"
         <*> expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 
 if_expr :: Parser (AST' Text)
-if_expr = If <$ reserved "if" <*> expr <*> semiblockExpr <*
-          reserved "else" <*> semiblockExpr
+if_expr = If <$ reserved "if" <*> expr <* reservedOp ":" <*> expr
+             <* reserved "else"        <* reservedOp ":" <*> expr
 
 lam_expr :: Parser (AST' Text)
 lam_expr =
@@ -351,7 +350,8 @@ lam_expr =
     *>  (Lam
         <$> identifier
         <*> type_expr
-        <*> semiblockExpr
+        <*  reservedOp ":"
+        <*> expr
         )
 
 bind_expr :: Parser (AST' Text)
