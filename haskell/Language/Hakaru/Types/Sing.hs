@@ -37,8 +37,8 @@ module Language.Hakaru.Types.Sing
     -- ** Destructing singletons
     , sUnMeasure
     , sUnArray
-    , sUnPair
-    , sUnEither
+    , sUnPair, sUnPair'
+    , sUnEither, sUnEither'
     , sUnList
     , sUnMaybe
     -- ** Singletons for `Symbol`
@@ -197,6 +197,14 @@ sUnPair :: Sing (HPair a b) -> (Sing a, Sing b)
 sUnPair (SData (STyApp (STyApp (STyCon _) a) b) _) = (a,b)
 sUnPair _ = error "sUnPair: the impossible happened"
 
+sUnPair' :: Sing (x :: Hakaru)
+         -> (forall (a :: Hakaru) (b :: Hakaru) .
+             (TypeEq x (HPair a b), Sing a, Sing b) -> r)
+         -> Maybe r
+sUnPair' (SData (STyApp (STyApp (STyCon t) a) b) _) k
+  | Just Refl <- jmEq1 t sSymbol_Pair = Just $ k (Refl, a, b)
+  | otherwise                         = Nothing
+
 sEither :: Sing a -> Sing b -> Sing (HEither a b)
 sEither a b =
     SData (STyCon sSymbol_Either `STyApp` a `STyApp` b)
@@ -206,6 +214,14 @@ sEither a b =
 sUnEither :: Sing (HEither a b) -> (Sing a, Sing b)
 sUnEither (SData (STyApp (STyApp (STyCon _) a) b) _) = (a,b)
 sUnEither _ = error "sUnEither: the impossible happened"
+
+sUnEither' :: Sing (x :: Hakaru)
+         -> (forall (a :: Hakaru) (b :: Hakaru) .
+             (TypeEq x (HEither a b), Sing a, Sing b) -> r)
+         -> Maybe r
+sUnEither' (SData (STyApp (STyApp (STyCon t) a) b) _) k
+  | Just Refl <- jmEq1 t sSymbol_Either = Just $ k (Refl, a, b)
+  | otherwise                           = Nothing
 
 sList :: Sing a -> Sing (HList a)
 sList a =
