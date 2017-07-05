@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE CPP
+           , GADTs
            , KindSignatures
            , DataKinds
            , ScopedTypeVariables
@@ -9,6 +10,11 @@
            , UndecidableInstances
            #-}
 module Language.Hakaru.Pretty.SExpression where
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Foldable (foldMap)
+import Data.Applicative ((<$>))
+#endif
 
 import System.IO (stderr)
 import Data.Ratio
