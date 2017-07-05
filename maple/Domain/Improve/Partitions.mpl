@@ -39,7 +39,7 @@ Partition_simpl := module()
     ns := map(curry(op,1), ns);
 
     r := Partition:-Simpl(r, kb, _name_cands=ns, _testequal=`=`) assuming op(as);
-    if not r :: Partition then r else pr end if;
+    if not r :: Partition then r else DSplit(r) end if;
   end proc;
 
   export ModuleApply := proc(vs :: DomBound, sh :: DomShape, $)
