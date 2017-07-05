@@ -24,10 +24,10 @@ single_case_Partition := module()
     end proc;
 end module;
 
-redundant_Partition_Pieces := module()
+Partition_simpl := module()
   uses Domain, Domain_Type;
 
-  export SimplName  := "Redundant Partition pieces";
+  export SimplName  := "Partition simpl";
   export SimplOrder := (10+1/2);
 
   local TRY := proc(bnds, kb, kb_rn, as, pr)
@@ -38,7 +38,7 @@ redundant_Partition_Pieces := module()
     ns := select(b->op(3,b) in {`Int`,`Ints`}, ns);
     ns := map(curry(op,1), ns);
 
-    r := Partition:-Simpl(r, kb, _name_cands=ns) assuming op(as);
+    r := Partition:-Simpl(r, kb, _name_cands=ns, _testequal=`=`) assuming op(as);
     if not r :: Partition then r else pr end if;
   end proc;
 
