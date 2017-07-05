@@ -19,8 +19,12 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
     syms0 := gensym:-SymbolsToGen;
   end if;
 
-  ifc_opts[0] := screenwidth=9999, prettyprint=0, warnlevel=0,
-    showassumed=0,quiet=true;
+  ifc_opts[0] :=
+     screenwidth=9999,
+     `if`('print' in ret_type, prettyprint=0, NULL),
+     warnlevel=0,
+     showassumed=0,
+     quiet=true;
 
   ifc_opts[1] := interface(ifc_opts[0]);
   try
