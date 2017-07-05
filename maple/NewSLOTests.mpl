@@ -114,7 +114,9 @@ introLO_opt := {
   piecewise(x<y,Ret(true),x>=y,Ret(false)))),
   Bind(Uniform(0,1),x,
   Bind(Uniform(0,1),y,
-  piecewise(x<y,Ret(true),Ret(false)))) }:
+  piecewise(x<y,Ret(true),Ret(false)))),
+  Bind(Uniform(0,1),xH2,Bind(Uniform(0,1),yF2,
+    piecewise(xH2 < yF2,Ret(true),Not(xH2 < yF2),Ret(false))))}:
 introLO := op(1,introLO_opt):
 introLOs := Msum(Weight(1/2, Ret(false)), Weight(1/2, Ret(true))):
 
