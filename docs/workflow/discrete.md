@@ -105,7 +105,6 @@ made is to the line `fn x5 bool:`, which tells the Hakaru program what state the
 line to `x5 = true`:
 
 ````nohighlight
-<<<<<<< HEAD
 burglary = fn x5 bool: 
  (match (x5 == true): 
    true: 
@@ -116,32 +115,6 @@ burglary = fn x5 bool:
     weight(989901/1000000, return false))
 	
 burglary(true)
-=======
- x5 = true
- bern = fn p prob: 
-         x <~ categorical([p, real2prob((1 - prob2real(p)))])
-         return [true, false][x]
- burglary <~ bern(1/10000)
- p = (match burglary: 
-       true: 19/20
-       false: 1/100)
- x16 <~ weight(([p, real2prob((1 - prob2real(p)))][(match x5: 
-                                                     true: 0
-                                                     false: 1)]
-                 / 
-                (summate x0 from 0 to size([p, real2prob((1 - prob2real(p)))]): 
-                  [p, real2prob((1 - prob2real(p)))][x0])),
-               return ())
- return burglary
-````
-
-One program transformation that can be called at this stage is the [Hakaru-Maple `simplify` subcommand](../transforms/hk-maple.md). This will call Maple to algebraically
-simplify Hakaru models. Calling `hk-maple burglary_disintegrate.hk` produces a new, simpler, model of our burglary alarm scenario:
-
-````nohighlight
-weight(19/200000, return true) <|> 
-weight(9999/1000000, return false)
->>>>>>> 4a40fcbca5fc1e11344bb9da577f6cb665839f37
 ````
 
 How does the `hakaru` command answer our original question? If you simply call the command `hakaru burglary_disintegrate_simplify.hk` in the command line, you will create an 
