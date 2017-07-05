@@ -69,7 +69,7 @@ Library
                        Language.Hakaru.Parser.Parser,
                        Language.Hakaru.Parser.SymbolResolve,
                        Language.Hakaru.Pretty.Haskell,
-                       Language.Hakaru.Pretty.Full,
+                       Language.Hakaru.Pretty.SExpression,
                        Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Runtime.Prelude,
@@ -331,8 +331,8 @@ Executable pretty
                        hakaru               >= 0.3
 
 ----------------------------------------------------------------
-Executable prettyfull
-    Main-is:           PrettyFull.hs
+Executable prettysexpr
+    Main-is:           PrettySExpression.hs
     Hs-Source-Dirs:    commands
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
@@ -340,6 +340,7 @@ Executable prettyfull
     build-depends:     base             >= 4.7  && < 5.0,
                        text             >= 0.11 && < 1.3,
                        pretty           >= 1.1  && < 1.2,
+                       optparse-applicative >= 0.11 && < 0.14,
                        hakaru           >= 0.3
 
 ----------------------------------------------------------------

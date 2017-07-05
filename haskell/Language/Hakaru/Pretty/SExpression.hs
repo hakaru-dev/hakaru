@@ -8,7 +8,7 @@
            , FlexibleContexts
            , UndecidableInstances
            #-}
-module Language.Hakaru.Pretty.Full where
+module Language.Hakaru.Pretty.SExpression where
 
 import System.IO (stderr)
 import Data.Ratio
@@ -63,6 +63,12 @@ prettyTerm (Case_ e1 bs) =
   Prelude.foldl (<+>) PP.empty (prettyBranch <$> bs)
 prettyTerm (Bucket b e r) =
   PP.parens $ ( PP.text "bucket" <+> pretty b <+> pretty e <+> prettyReducer r)
+prettyTerm (Reject_ _) = PP.parens $ PP.text "reject"
+prettyTerm (Empty_ _) = PP.parens $ PP.text "empty"
+prettyTerm (ArrayLiteral_ es) = PP.text "TODO:arrayliteral"
+prettyTerm (Superpose_ pes) = PP.text "TODO:superpose"
+
+prettyTerm (Datum_ d) = PP.text "TODO:datum"
 
 prettyReducer :: (ABT Term abt) => Reducer abt xs a -> Doc
 prettyReducer (Red_Fanout red_a red_b) =
@@ -165,7 +171,7 @@ prettySCons Observe es   = PP.text "ObserveSConsTODO"
 prettyMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> Doc
-prettyMeasureOp Lebesgue    = \End           -> PP.text "lebesgue"
+prettyMeasureOp Lebesgue    = \(e1 :* e2 :* End)          -> PP.text "lebesgue" <+> pretty e1 <+> pretty e2
 prettyMeasureOp Counting    = \End           -> PP.text "counting"
 prettyMeasureOp Categorical = \(e1 :* End)   -> PP.text "categorical" <+> pretty e1
 prettyMeasureOp Uniform = \(e1 :* e2 :* End) -> PP.text "uniform"     <+> pretty e1 <+> pretty e2
