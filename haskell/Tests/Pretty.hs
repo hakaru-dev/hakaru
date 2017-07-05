@@ -52,12 +52,12 @@ letTest2 = unlines ["x = y = 2"
                    ]
 
 defTest = unlines ["foo = fn x nat:"
-                  ,"      x + 2"
+                  ,"  x + 2"
                   ,"foo(3)"
                   ]
 
 defTest2 = unlines ["foo = fn x nat: fn y nat:"
-                   ,"                x + y"
+                   ,"  x + y"
                    ,"foo(2,3)"
                    ]
 
