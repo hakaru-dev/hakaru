@@ -314,7 +314,7 @@ ppSCon p Expect = \(e1 :* e2 :* End) ->
         , body ]
 
 ppSCon p Observe = \(e1 :* e2 :* End) ->
-    text "observe" <+> sep [ prettyPrec 11 e1, prettyPrec 11 e2 ]
+    ppApply2 p "observe" e1 e2
 
 
 ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Doc

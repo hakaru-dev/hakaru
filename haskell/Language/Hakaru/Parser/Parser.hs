@@ -27,7 +27,7 @@ ops, names :: [String]
 ops = words "^ ** * / + - .  < > <= >= == /= && || <|> -> : <~ = _"
 names = concatMap words [ "def fn"
                         , "if else match"
-                        , "expect observe"
+                        , "expect"
                         , "return dirac"
                         , "integrate summate product from to"
                         , "array plate chain of"
@@ -291,15 +291,6 @@ expect_expr =
         <*> expr
         )
 
-observe_expr :: Parser (AST' Text)
-observe_expr =
-    reserved "observe"
-    *> (flip Observe
-        <$> scalar
-        <*  reservedOp "<~"
-        <*> expr
-        )
-
 array_expr :: Parser (AST' Text)
 array_expr =
     reserved "array"
@@ -402,7 +393,6 @@ term =  if_expr
     <|> summate_expr
     <|> product_expr
     <|> expect_expr
-    <|> observe_expr
     <|> array_expr
     <|> plate_expr
     <|> chain_expr
@@ -413,16 +403,12 @@ term =  if_expr
     <|> parenthesized
     <?> "simple expression"
 
-scalar :: Parser (AST' Text)
-scalar = withPos (buildExpressionParser table (withPos term)
-                  <?> "scalar expression")
-
 expr :: Parser (AST' Text)
-expr =  withPos let_expr
-    <|> withPos bind_expr
-    <|> withPos return_expr
-    <|> scalar
-    <?> "expression"
+expr = withPos (let_expr <|>
+                bind_expr <|>
+                return_expr <|>
+                buildExpressionParser table (withPos term))
+       <?> "expression"
 
 
 indentConfig :: Text -> ParserStream

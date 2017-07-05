@@ -146,7 +146,6 @@ data AST' a
     | Product   a (AST' a) (AST' a) (AST' a)
     | Bucket    a (AST' a) (AST' a) (Reducer' a)
     | Expect a (AST' a) (AST' a)
-    | Observe  (AST' a) (AST' a)
     | Msum  [AST' a]
     | Data  a [a] [TypeAST'] (AST' a)
     | WithMeta (AST' a) SourceSpan
@@ -218,8 +217,6 @@ instance Eq a => Eq (AST' a) where
     (Expect e1 e2 e3)   == (Expect e1' e2' e3')     = e1   == e1' &&
                                                       e2   == e2' &&
                                                       e3   == e3'
-    (Observe  e1 e2)    == (Observe    e1' e2')     = e1   == e1' &&
-                                                      e2   == e2'
     (Msum  es)          == (Msum   es')             = es   == es'
     (Data  n ft ts e)   == (Data   n' ft' ts' e')   = n    == n'  &&
                                                       ft   == ft' &&
