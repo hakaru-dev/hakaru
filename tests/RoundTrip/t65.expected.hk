@@ -1,15 +1,15 @@
 fn x2 real: 
-  weight((match (x2 < prob2real(exp(int2real(-1)))): 
-           true: nat2prob(0)
+  weight((match (x2 < prob2real(exp(-1/1))): 
+           true: 0/1
            false: 
-            (match (x2 < nat2real(1)): 
-              true: real2prob((log(real2prob(x2)) + nat2real(1)))
+            (match (x2 < +1/1): 
+              true: real2prob((log(real2prob(x2)) + (+1/1)))
               false: 
-               (match (x2 < prob2real((nat2prob(1) + exp(int2real(-1))))): 
-                 true: nat2prob(1)
+               (match (x2 < prob2real((1/1 + exp(-1/1)))): 
+                 true: 1/1
                  false: 
-                  (match (x2 < nat2real(2)): 
+                  (match (x2 < +2/1): 
                     true: 
-                     real2prob((log(real2prob((x2 + int2real(-1)))) * int2real(-1)))
-                    false: nat2prob(0))))),
+                     real2prob((log(real2prob((x2 + (-1/1)))) * (-1/1)))
+                    false: 0/1)))),
          return ())
