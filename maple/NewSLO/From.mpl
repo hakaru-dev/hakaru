@@ -92,7 +92,8 @@ fromLO := module()
         Msum()
       end if;
     elif e :: t_pw and not Partition:-ConditionsDepend(Partition:-PWToPartition(e), h) then
-        m := kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)), 'no_split_disj');
+        m := kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)),
+                          'check_valid', 'no_split_disj');
         if m :: t_pw and nops(m) = 2 then
           piecewise(op(m), Msum());
         else
