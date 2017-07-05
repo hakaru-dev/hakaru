@@ -79,7 +79,7 @@ testParse :: Text -> AST' Text -> Assertion
 testParse s p =
     case parseHakaru s of
     Left  m  -> assertFailure (unpack s ++ "\n" ++ show m)
-    Right p' -> (assertEqual "" `on` withoutMetaE) p p' 
+    Right p' -> assertEqual "" (withoutMetaE p) (withoutMetaE p')
 
 if1, if2, if3, if4, if5 :: Text
 
