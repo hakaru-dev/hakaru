@@ -91,7 +91,7 @@ module Language.Hakaru.Types.HClasses
 #if __GLASGOW_HASKELL__ < 710
 import Data.Functor ((<$>))
 #endif
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), (<*>))
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), Eq1(..), JmEq1(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
