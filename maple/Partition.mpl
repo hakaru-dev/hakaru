@@ -414,7 +414,9 @@ export
 
   Simpl := module()
     export ModuleApply := proc()
-      do_Simpl(args);
+      local p;
+      p := do_Simpl(args);
+      p := subsindets[flat](p,Partition,Factor);
     end proc;
 
     local do_Simpl := proc(p)
