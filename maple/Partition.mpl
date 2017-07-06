@@ -381,8 +381,13 @@ export
 
   # The cartesian product of two Partitions
   PProd := proc(p0::Partition,p1::Partition,{_add := `+`})::Partition;
-  local ps0, ps1, cs, rs, rs0, rs1;
-    ps0,ps1 := map(ps -> sort(piecesOf(ps), key=(z->condOf(z))), [p0,p1])[];
+  local ps0, ps1, cs, cs0, rs, rs0, rs1, condOrder;
+    ps0 := piecesOf(p0); cs0 := map(condOf, ps0);
+    condOrder := proc(c)
+      local i := ListTools:-Search(c, cs0);
+      `if`(i=0, c, i);
+    end proc;
+    ps1 := sort(piecesOf(p1), key=condOrder@condOf);
     cs := zip(proc(p0,p1)
                 if condOf(p0)=condOf(p1) then
                   Piece(condOf(p0),_add(valOf(p0),valOf(p1))) ;
