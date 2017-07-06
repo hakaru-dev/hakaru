@@ -498,6 +498,42 @@ export
       nops(indets(x,PartitionCond)) + nops(indets(x,specfunc({exp, ln})))
     end proc;
 
+    local try_eval := proc(x,s,$)
+      try eval(x,s)
+      catch "numeric exception: division by zero": FAIL; end try;
+    end proc;
+
+    # Combines pieces whose conditions are of the form `x=A' and (`x<A' or
+    # `A<x') and whose values are equal under the evaluation `x=A'
+    export coalesce_equalities :=
+    proc(e::Partition,{ _testequal := ((a,b) -> Testzero(a-b)) })
+      local ps, eqs, rest, p, pcond, pval, pbnds, cand, cands, sb;
+      ps := piecesOf(e);
+      eqs, rest[0] := selectremove(x->condOf(x)::`=`, ps);
+      for p in eqs do
+        pcond := condOf(p); pval := valOf(p);
+        pbnds := {`<`(op(pcond)), `>`(op(pcond))};
+        cands, rest[1] := selectremove(x-> has(condOf(x),pbnds), rest[0]);
+        cands, rest[2] := selectremove((x->try_eval(x,pcond)=pval)@valOf, cands);
+        if nops(cands) = 0 then
+          rest[0] := [ p, op(rest[0]) ];
+        elif nops(cands) <= 2 then
+          cand := op(1,cands);
+          sb := select(b->has(condOf(cand),b), pbnds);
+          ASSERT(nops(sb)=1); # assumes that both `x<A' and `x>A' won't appear
+                              # in a single condition
+          sb := op(1,sb);
+          rest[0] :=
+          [ applyop(x->subs(sb=`<=`(op(sb)),x), 1, cand),
+            `if`(nops(cands)=2, op(2,cands), NULL),
+            op(rest[2]), op(rest[1]) ];
+        else
+          error "should be impossible (invalid Partition?): %1", cands;
+        end if;
+      end do;
+      PARTITION(rest[0]);
+    end proc;
+
     export reduce_branches := proc(e::Partition, kb := KB:-empty, { _testequal := ((a,b) -> Testzero(a-b)) })
       local k, ks, i, ps1, ps; ps := piecesOf(e);
       userinfo(3, :-reduce_branches, printf("Input: %a\n", ps));
