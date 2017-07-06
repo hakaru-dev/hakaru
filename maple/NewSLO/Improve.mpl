@@ -72,20 +72,24 @@ end proc;
 
 # Returns true for expressions for which we could conceivably
 # do a Partition simplification.
-can_reduce_Partition := proc(e,$)
+can_reduce_Partition := proc(e,inside := false)
   local ps;
   if   type(e,Or(Partition,t_pw)) then true
   elif type(e,{indices(Partition:-Simpl:-distrib_op_Partition,nolist)}) then
-    # in this case, we hope to apply PProd and then maybe do some cleanup; this
-    # is only possible if the expression has at least two sub-Partitions.
-    ps := select(can_reduce_Partition, convert(e,list));
-    ps := map(Partition:-PWToPartition_mb, indets[flat](ps, t_pw_or_part));
-    if nops(ps) < 2 then return false; end if;
+    if not(inside) then
+      # in this case, we hope to apply PProd and then maybe do some cleanup; this
+      # is only possible if the expression has at least two sub-Partitions.
+      ps := select(x->can_reduce_Partition(x,true), convert(e,list));
+      ps := map(Partition:-PWToPartition_mb, indets[flat](ps, t_pw_or_part));
+      if nops(ps) < 2 then return false; end if;
 
-    # We also only do this simplification if the Partitions have the same piece values
-    the(ps, curry(SamePartition,((a,b)->true),`=`)) or
-    # or the same conditions
-    the(ps, curry(SamePartition,(`=`,(a,b)->true)))
+      # We also only do this simplification if the Partitions have the same piece values
+      the(ps, curry(SamePartition,((a,b)->true),`=`)) or
+      # or the same conditions
+      the(ps, curry(SamePartition,(`=`,(a,b)->true)))
+    else
+      ormap(x->can_reduce_Partition(x,true),convert(e,list))
+    end if;
   else false
   end if;
 end proc;
