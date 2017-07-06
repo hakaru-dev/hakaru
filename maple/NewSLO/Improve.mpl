@@ -132,12 +132,15 @@ reduce_Integrals := module()
   # tries to evaluate a RootOf
   , try_eval_Root
   # tries to evaluate Int/Sum/Ints/Sums
-  , elim_intsum;
+  , elim_intsum
+  , distrib_over_sum;
 
   reduce_Integrals_body := proc(h,opts,x,kb1) reduce(x,h,kb1,opts) end proc;
   reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,$)
     local rr;
-    rr := elim_intsum(Domain:-Apply:-do_mk(args[3..-1]), h, kb,opts);
+    rr := distrib_over_sum(
+            x->elim_intsum(Domain:-Apply:-do_mk(kind,x,vn,vt,kb),
+                           h,kb,opts),e);
     rr := subsindets(rr, specfunc(RootOf), x->try_eval_Root(x,a->a));
     return rr;
   end proc;
@@ -146,7 +149,8 @@ reduce_Integrals := module()
                And(`+`,satisfies(x->has(x,applyintegrand))),
                e->collect(e, `applyintegrand`, 'distributed'));
   end proc;
-  reduce_Integrals_apply := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
+  reduce_Integrals_apply := distrib_over_sum;
+  distrib_over_sum := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
     local rr;
