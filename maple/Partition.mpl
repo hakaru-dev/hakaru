@@ -68,7 +68,7 @@ local
     :-`convert/piecewise` := overload(
       [proc(p::Partition)
          option overload(callseq_only);
-         PartitionToPW(p);
+         PartitionToPW(Simpl:-stable_order(p));
        end proc, :-`convert/piecewise`]);
 
     unprotect(:-solve);
@@ -403,6 +403,7 @@ export
       if p :: Partition then
         foldr((f,x)->f(x,as), p,
               reduce_branches,
+              coalesce_equalities,
               remove_false_pieces,
               flatten,
               singular_pts);
@@ -468,6 +469,17 @@ export
         rec(x->`*`(op(ws),x), ps);
       end proc;
     end module;
+
+    # Technically a no-op since Partitions have set semantics, but provides a
+    # stable (hopefully) order of pieces, which will matter once the Partition
+    # is returned to Haskell; the final condition will be erased (replaced by an
+    # 'otherwise') and we would like 1) for that to always be the same one (in
+    # case changes to Partition simplification order the pieces slightly
+    # differently) and 2) for that to be the most 'complex' one.
+    export stable_order := proc(e::Partition)
+      # hopefully `sort' is actually a stable sort...
+      PARTITION( sort(piecesOf(e),key=condition_complexity@condOf) );
+    end proc;
 
     export single_nonzero_piece_cps := proc(k)
       local r,p; r, p := single_nonzero_piece(_rest);
