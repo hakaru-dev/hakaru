@@ -426,18 +426,24 @@ export
       elif not hastype(p, Partition) then
         p;
       elif assigned(distrib_op_Partition[op(0,p)]) then
-        mk := distrib_op_Partition[op(0,p)];
-        ps := [op(p)];
-        ps := map(x->Simpl(x,as), ps);
-        ps, qs := selectremove(type, ps, Partition);
-        if nops(ps)=0 then return p end if;
-        mk(op(qs),foldr(((a,b)->
-                         remove_false_pieces(Partition:-PProd(a,b,_add=mk))),
-                        op(ps)));
+        ps := simpl_op_Partition[op(0,p)](p);
+        if op(0,p)=op(0,ps) then
+          mk := distrib_op_Partition[op(0,ps)];
+          ps := [op(ps)];
+          ps := map(x->Simpl(x,as), ps);
+          ps, qs := selectremove(type, ps, Partition);
+          if nops(ps)=0 then return p end if;
+          mk(op(qs),foldr(((a,b)->
+                           remove_false_pieces(Partition:-PProd(a,b,_add=mk))),
+                          op(ps)));
+        else
+          Simpl(ps,as);
+        end if;
       else
         subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->Simpl(x,as));
       end if;
     end proc;
+    local  simpl_op_Partition := table([`+`=factor,`*`=(x->x)]);
     export distrib_op_Partition := table([`+`=`+`,`*`=`*`]);
 
     export flatten := module()
