@@ -450,6 +450,46 @@ export
     local  simpl_op_Partition := table([`+`=factor,`*`=(x->x)]);
     export distrib_op_Partition := table([`+`=`+`,`*`=`*`]);
 
+    local Factor := proc(p::Partition)
+      local ps, qs, zs, tycands, v, p1;
+      ps := piecesOf(p);
+      qs, zs := selectremove(x->valOf(x)<>0,ps);
+      # Deal with only the simple case of one non-zero piece
+      if not (nops(qs)=1 and nops(zs)=1) then return p end if;
+      ps := valOf(op(1,ps));
+      if not(ps :: factor_op_Partition) then return p end if;
+      # Deal only with simple weights
+      tycands := [ specfunc(NewSLO:-applyintegrand) ];
+      tycands := select(`<>`,map(t -> indets[flat](ps, t), tycands), {});
+      # Expect to find exactly one 'atom' type
+      if nops(tycands)<>1 then return p end if;
+      tycands := op([1,1,0],tycands);
+
+      if ps::`+` then
+        v[0] := ps;
+        if has(ps, exp) then
+          v[0] := convert(v[0], exp);
+          v[0], v[1] := selectremove(type, convert(v[0], list, `*`), `+`);
+          v[0], v[1] := map(`*`@op, [v[0], v[1]])[];
+          v[0] := collect(v[0], tycands);
+
+          v[2] := convert(v[0], exp);
+        else
+          v[0] := factor(v[0]);
+          v[0], v[1] := selectremove(type, convert(v[0], list, `*`), `+`);
+          v[0], v[1] := map(`*`@op, [v[0], v[1]])[];
+        end if;
+      elif ps::`*` then
+        v[0] := [op(ps)];
+        v[0], v[1] := selectremove(has, v[0], tycands);
+        v[0], v[1] := map(`*`@op, [v[0],v[1]])[];
+      else error "impossible"; end if;
+
+      p1 := v[1]*subs(ps=v[0], p);
+    end proc;
+    # TODO: factor for `*` is completely untested
+    local factor_op_Partition := {`+`};
+
     export flatten := module()
       export ModuleApply;
       local unpiece, unpart, flatten_with;
