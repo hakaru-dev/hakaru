@@ -419,7 +419,7 @@ export
                          remove_false_pieces(Partition:-PProd(a,b,_add=mk))),
                         op(ps)));
       else
-        subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->Simpl(x,_rest));
+        subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->Simpl(x,as));
       end if;
     end proc;
     export distrib_op_Partition := table([`+`=`+`,`*`=`*`]);
