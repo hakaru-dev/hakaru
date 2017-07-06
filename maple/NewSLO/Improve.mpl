@@ -153,7 +153,13 @@ reduce_Integrals := module()
                And(`+`,satisfies(x->has(x,applyintegrand))),
                e->collect(e, `applyintegrand`, 'distributed'));
   end proc;
-  reduce_Integrals_apply := distrib_over_sum;
+  reduce_Integrals_apply := proc(f,e,$)
+    local r; r := e;
+    r := `if`(can_reduce_Partition(r),
+              Partition:-Simpl(subsindets(r,t_pw,x->PWToPartition(x,'check_valid'))),
+              r);
+    r := distrib_over_sum(f,r);
+  end proc;
   distrib_over_sum := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
