@@ -382,20 +382,31 @@ export
   # The cartesian product of two Partitions
   PProd := proc(p0::Partition,p1::Partition,{_add := `+`})::Partition;
   local ps0, ps1, cs, cs0, rs, rs0, rs1, condOrder;
+    # This first part is a special case to handle the subsets of Partitions
+    # whose conditions are the same - we can add those directly.
     ps0 := piecesOf(p0); cs0 := map(condOf, ps0);
     condOrder := proc(c)
+      # This relies on the fact that integers (numeric types in general) are
+      # 'less than' everything else. This sorts the 2nd partition with pieces in
+      # common with the 1st coming before other pieces (in the order they appear
+      # in the first).
       local i := ListTools:-Search(c, cs0);
       `if`(i=0, c, i);
     end proc;
     ps1 := sort(piecesOf(p1), key=condOrder@condOf);
+    # Add those pieces with identical conditions directly; return the rest as a
+    # pair of pieces.
     cs := zip(proc(p0,p1)
                 if condOf(p0)=condOf(p1) then
                   Piece(condOf(p0),_add(valOf(p0),valOf(p1))) ;
                 else [p0,p1];
                 end if;
               end proc, ps0,ps1);
+    # Extract the pieces already processed above; those not processed are lists
     rs, cs := selectremove(c->type(c,list),cs);
+    # Unzip the list of remaining pieces
     rs0, rs1 := map(k->map(r->op(k,r),rs),[1,2])[];
+    # The actual cartesian product (of whats left)
     rs := map(r0->map(r1-> Piece( bool_And(condOf(r0),condOf(r1)), _add(valOf(r0),valOf(r1)) )
                       ,rs1)[],rs0);
     PARTITION([op(cs),op(rs)]);
