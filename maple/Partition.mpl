@@ -413,7 +413,11 @@ export
   end proc,
 
   Simpl := module()
-    export ModuleApply := proc(p)
+    export ModuleApply := proc()
+      do_Simpl(args);
+    end proc;
+
+    local do_Simpl := proc(p)
       option remember, system;
       local ps, qs, qs1, mk, as; as := _rest;
       if p :: Partition then
