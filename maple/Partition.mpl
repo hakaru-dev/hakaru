@@ -436,17 +436,17 @@ export
         if op(0,p)=op(0,ps) then
           mk := distrib_op_Partition[op(0,ps)];
           ps := [op(ps)];
-          ps := map(x->Simpl(x,as), ps);
+          ps := map(x->do_Simpl(x,as), ps);
           ps, qs := selectremove(type, ps, Partition);
           if nops(ps)=0 then return p end if;
           mk(op(qs),foldr(((a,b)->
                            remove_false_pieces(Partition:-PProd(a,b,_add=mk))),
                           op(ps)));
         else
-          Simpl(ps,as);
+          do_Simpl(ps,as);
         end if;
       else
-        subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->Simpl(x,as));
+        subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->do_Simpl(x,as));
       end if;
     end proc;
     local  simpl_op_Partition := table([`+`=factor,`*`=(x->x)]);
