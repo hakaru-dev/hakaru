@@ -166,6 +166,8 @@ primTable =
     ,("iff",         t2 $ \x y -> syn $ U.NaryOp_ U.Iff [x, y])
     ,("min",         t2 $ \x y -> syn $ U.NaryOp_ U.Min [x, y])
     ,("max",         t2 $ \x y -> syn $ U.NaryOp_ U.Max [x, y])
+    -- Observe
+    ,("observe",     t2 $ \x y -> syn $ U.Observe_ x y)
     ]
 
 primPrimOp0, primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
@@ -361,9 +363,6 @@ symbolResolution symbols ast =
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
             <*> symbolResolution (insertSymbol name' symbols) e3
-    U.Observe e1 e2        -> U.Observe
-        <$> symbolResolution symbols e1
-        <*> symbolResolution symbols e2
 
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
@@ -465,7 +464,6 @@ normAST ast =
     U.Plate  name e1 e2       -> U.Plate  name (normAST e1) (normAST e2)
     U.Chain  name e1 e2 e3    -> U.Chain  name (normAST e1) (normAST e2) (normAST e3)
     U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
-    U.Observe     e1 e2       -> U.Observe (normAST e1) (normAST e2)
     U.Msum es                 -> U.Msum (map normAST es)
     U.Data name tvars typs e  -> U.Data name tvars typs e
      -- do we need to norm here? what if we try to define `true` which is already a constructor
@@ -613,7 +611,6 @@ makeAST ast =
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)
-    U.Observe e1 e2  -> syn $ U.Observe_ (makeAST e1) (makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
 
     U.Data name tvars typs e -> error "TODO: makeAST{U.Data}" 

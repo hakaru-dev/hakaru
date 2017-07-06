@@ -28,8 +28,8 @@ def lda( topic_prior array(prob)
 
     foo <~ plate n of numWords:
       zz = if n == wordUpdate: zNew else: z[n]
-      bar <~ observe zz <~ categorical(theta[doc[n]])
-      observe w[n] <~ categorical(phi[zz])
+      bar <~ observe(categorical(theta[doc[n]]), zz)
+      observe(categorical(phi[zz]), w[n])
 
     return zNew
 

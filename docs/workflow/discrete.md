@@ -80,44 +80,44 @@ fn x5 bool:
 This Hakaru program represents the mapping from our known knowledge (the alarm is sounding) and the knowledge that we want to infer from it (are we being burglarized?). As
 a result of the disintegration, our original variable `alarm` has been renamed to `x5`.
 
+An additional Hakaru transformation that can be performed at this stage is the [Hakaru-Maple `simplify` subcommand](../transforms/hk-maple.md). This will call Maple to 
+algebraically simplify Hakaru models. Calling `hk-maple burglary_disintegrate.hk` produces a new, simpler, model of our burglary alarm scenario:
+
+````nohighlight
+fn x5 bool: 
+ (match (x5 == true): 
+   true: 
+    weight(19/200000, return true) <|> 
+    weight(9999/1000000, return false)
+   false: 
+    weight(1/200000, return true) <|> 
+    weight(989901/1000000, return false))
+````
+
+Without any further work, we can already see that, when the alarm is triggered, it is most likely a false alarm. However, the `simplify` transformation will not always produce a clear
+result such as this one. Therefore, we must still perform the application step of the Hakaru workflow.
+
 ## Application ##
 
-Once we have transformed our original model (`burglary.hk`) into a function that is better suited to making the inference that we are interested in (`burglary_disintegrate.hk`),
+Once we have transformed our original model (`burglary.hk`) into a function that is better suited to making the inference that we are interested in (`burglary_disintegrate_simplify.hk`),
 we can use the generated function to create a new Hakaru program that knows that the alarm has been triggered (`alarm == true`). In this case, the only change that needs to be
 made is to the line `fn x5 bool:`, which tells the Hakaru program what state the alarm is in. Since we are only interested in cases where `alarm == true`, we must change this
 line to `x5 = true`:
 
 ````nohighlight
- x5 = true
- bern = fn p prob: 
-         x <~ categorical([p, real2prob((1 - prob2real(p)))])
-         return [true, false][x]
- burglary <~ bern(1/10000)
- p = (match burglary: 
-       true: 19/20
-       false: 1/100)
- x16 <~ weight(([p, real2prob((1 - prob2real(p)))][(match x5: 
-                                                     true: 0
-                                                     false: 1)]
-                 / 
-                (summate x0 from 0 to size([p, real2prob((1 - prob2real(p)))]): 
-                  [p, real2prob((1 - prob2real(p)))][x0])),
-               return ())
- return burglary
+burglary = fn x5 bool: 
+ (match (x5 == true): 
+   true: 
+    weight(19/200000, return true) <|> 
+    weight(9999/1000000, return false)
+   false: 
+    weight(1/200000, return true) <|> 
+    weight(989901/1000000, return false))
+	
+burglary(true)
 ````
 
-One program transformation that can be called at this stage is the [Hakaru-Maple `simplify` subcommand](../transforms/hk-maple.md). This will call Maple to algebraically
-simplify Hakaru models. Calling `hk-maple burglary_disintegrate.hk` produces a new, simpler, model of our burglary alarm scenario:
-
-````nohighlight
-weight(19/200000, return true) <|> 
-weight(9999/1000000, return false)
-````
-
-Without any further work, we can already see that the alarm sounding is most likely a false alarm. However, the `simplify` transformation will not always produce a clear
-result such as this one. For these situations, you must use the [`hakaru` command](../intro/samplegen.md).
-
-How does the `hakaru` command answer our original question? If you simply call the command `hakaru burglary_disintegrate.hk` in the command line, you will create an 
+How does the `hakaru` command answer our original question? If you simply call the command `hakaru burglary_disintegrate_simplify.hk` in the command line, you will create an 
 infinite stream of samples:
 
 ````bash

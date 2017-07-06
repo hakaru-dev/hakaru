@@ -1443,7 +1443,7 @@ lseSummateArrayCG
   -> (CExpr -> CodeGen ())
 lseSummateArrayCG body arrayE =
   caseBind body $ \v body' ->
-    \loc -> do
+    \loc -> seqDo $ do
       (maxVId:maxIId:sumId:[]) <- mapM genIdent' ["maxV","maxI","sum"]
       itId <- createIdent v
       mapM_ (declare SProb) [maxVId,sumId]
@@ -1457,7 +1457,6 @@ lseSummateArrayCG body arrayE =
                 let tmpE = CVar tmpId
                 flattenABT body' tmpE
                 putExprStat $ derefIndex itE .=. tmpE
-                whenPar $ putStat . CPPStat . ompToPP $ OMP Critical
                 putStat $ CIf ((maxVE .<. tmpE) .||. (itE .==. (intE 0)))
                               (seqCStat . fmap (CExpr . Just) $
                                 [ maxVE .=. tmpE
