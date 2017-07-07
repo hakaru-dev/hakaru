@@ -2,9 +2,11 @@
 export Extract := module ()
   uses Domain_Type;
   export ModuleApply := proc(e, kb, $) :: [ HDomain, anything ];
-    local b, eb, s, es;
+    local b, eb, s, es, kb1, rn;
     b, eb := op(Bound(e));
-    s, es := op(Shape(eb, kb ));
+    kb1, rn := Domain:-Bound:-toKB(b)[];
+    b, eb := subs(rn,[b,eb])[];
+    s, es := op(Shape(eb, kb1));
     [ DOMAIN(b, s), es ];
   end proc;
 
