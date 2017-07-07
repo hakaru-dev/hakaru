@@ -74,7 +74,9 @@ end proc;
 # do a Partition simplification.
 can_reduce_Partition := proc(e,inside := false)
   local ps;
-  if   type(e,Or(Partition,t_pw)) then true
+  if   type(e,Or(Partition,t_pw)) and
+       not(has(e, {erf,csgn}))    # probably output of elim_intsum
+  then true
   elif type(e,{indices(Partition:-Simpl:-distrib_op_Partition,nolist)}) then
     if not(inside) then
       # in this case, we hope to apply PProd and then maybe do some cleanup; this
