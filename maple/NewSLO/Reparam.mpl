@@ -1,25 +1,3 @@
-  ReparamDetermined := proc(lo :: LO(name, anything))
-    local h;
-    h := op(1,lo);
-    LO(h,
-       evalindets(op(2,lo),
-                  'And'('specfunc({Int,int})',
-                        'anyfunc'(anything, 'name=anything')),
-                  g -> `if`(determined(op(1,g),h), Reparam(g,h), g)))
-  end proc;
-
-  determined := proc(e, h :: name)
-    local i;
-    for i in indets(e, 'specfunc({Int,int})') do
-      if hastype(IntegrationTools:-GetIntegrand(i),
-           'applyintegrand'('identical'(h),
-             'dependent'(IntegrationTools:-GetVariable(i)))) then
-        return false
-      end if
-    end do;
-    return true
-  end proc;
-
   #Beginning of Carl's code devoted to disintegration and the reparametrization (aka change
   #of variables) of integrals and sums.
 
