@@ -75,6 +75,7 @@ import Language.Hakaru.Syntax.AST.Sing
     (sing_Literal, sing_MeasureOp)
 import Language.Hakaru.Pretty.Concrete (prettyType)
 import Language.Hakaru.Syntax.TypeOf (typeOf)
+import Language.Hakaru.Syntax.Prelude (triv)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -1530,9 +1531,7 @@ checkType = checkType_
             _          -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
         U.InjTyped t ->
-            let triv :: TrivialABT Term '[] x -> TrivialABT Term '[] x
-                triv = id
-                typ1 = typeOf $ triv t
+            let typ1 = typeOf $ triv t
             in case jmEq1 typ0 typ1 of
                  Just Refl -> return t
                  Nothing   -> typeMismatch sourceSpan (Right typ0) (Right typ1)
