@@ -11,7 +11,8 @@ module Tests.TestTools where
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Parser.Parser (parseHakaru)
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
-import Language.Hakaru.Command (parseAndInferWithMode)
+import Language.Hakaru.Command (parseAndInferWithMode', Source(..),
+                                fileSource, noFileSource)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
@@ -100,36 +101,44 @@ mismatchMessage k preface a b = msg
                     ]
        p = if null preface then "" else preface ++ "\n"
 
+testWithConcreteImport ::
+    (ABT Term abt)
+    => Source
+    -> TypeCheckMode
+    -> (forall a. Sing a -> abt '[] a -> Assertion)
+    -> Assertion
+testWithConcreteImport s mode k =
+  either (assertFailure . T.unpack) (\(TypedAST typ ast) -> k typ ast) =<<
+  parseAndInferWithMode' s mode
+
 testWithConcrete ::
     (ABT Term abt)
     => T.Text
     -> TypeCheckMode
     -> (forall a. Sing a -> abt '[] a -> Assertion)
     -> Assertion
-testWithConcrete s mode k =
-  either (assertFailure . T.unpack) (\(TypedAST typ ast) -> k typ ast) $
-  parseAndInferWithMode s mode
+testWithConcrete t m k = testWithConcreteImport (noFileSource t) m k
 
 -- Like testWithConcrete, but for many programs 
 testWithConcreteMany 
   :: forall abt. (ABT Term abt) 
-  => T.Text 
-  -> [T.Text]
+  => Source
+  -> [Source]
   -> TypeCheckMode 
   -> (forall a . Sing a -> [abt '[] a] ->  abt '[] a -> Assertion) 
   -> Assertion 
 testWithConcreteMany t ts mode k = 
   case ts of 
-    []       -> testWithConcrete t mode $ \ty ast -> k ty [] ast 
+    []       -> testWithConcreteImport t mode $ \ty ast -> k ty [] ast 
     (t0:ts') -> 
-      testWithConcrete t0 mode $ \ty0 (ast0 :: abt '[] x0) -> 
+      testWithConcreteImport t0 mode $ \ty0 (ast0 :: abt '[] x0) -> 
       testWithConcreteMany t ts' mode $ \ty1 asts (ast1 :: abt '[] x1) -> 
         case jmEq1 ty0 ty1 of 
           Just Refl -> k ty0 (ast0:asts) ast1 
           Nothing   -> assertFailure $ concat
                          [ "Files don't have same type (" 
-                         , T.unpack t0, " :: ", show ty0, ", "
-                         , T.unpack t , " :: ", show ty1 ]
+                         , T.unpack (source t0), " :: ", show ty0, ", "
+                         , T.unpack (source t ), " :: ", show ty1 ]
 
 testWithConcrete'
     :: T.Text
@@ -139,8 +148,8 @@ testWithConcrete'
 testWithConcrete' = testWithConcrete
 
 testWithConcreteMany'
-  :: T.Text 
-  -> [T.Text] 
+  :: Source
+  -> [Source] 
   -> TypeCheckMode 
   -> (forall a . Sing a 
         -> [TrivialABT Term '[] a] 
@@ -154,9 +163,10 @@ testConcreteFilesMany
     :: [FilePath] 
     -> FilePath
     -> Assertion
-testConcreteFilesMany fs f = 
-  mapM IO.readFile (f:fs) >>= \(t:ts) -> 
-  testWithConcreteMany' t ts LaxMode $ \_ -> testSStriv
+testConcreteFilesMany fs f =
+  mapM IO.readFile (f:fs) >>= \(t:ts) ->
+  testWithConcreteMany' (fileSource f t) (zipWith fileSource fs ts) LaxMode $
+  \_ -> testSStriv
 
 -- Like testSStriv but for two concrete files
 testConcreteFiles
@@ -167,7 +177,9 @@ testConcreteFiles f1 f2 = testConcreteFilesMany [f1] f2
 
 -- Like testStriv but for a concrete file. 
 testConcreteFile :: FilePath -> Assertion
-testConcreteFile f = IO.readFile f >>= \t -> testWithConcrete' t LaxMode $ \_ -> testStriv
+testConcreteFile f =
+  IO.readFile f >>= \t -> testWithConcreteImport (fileSource f t) LaxMode $
+  \_ -> testStriv
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure

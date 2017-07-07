@@ -46,8 +46,8 @@ main :: IO ()
 main = parseOpts >>= runPretty 
 
 runPretty :: Options -> IO ()
-runPretty Options{..} = readFromFile program >>= \prog -> 
-    case parseAndInfer prog of
+runPretty Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
+    case prog of
     Left  err               -> IO.hPutStrLn stderr err
     Right (TypedAST ty ast) -> IO.putStrLn $
       (if printType then \x -> T.concat [ "(", x, ")", "\n.\n" <> T.pack ((if internal then show else show . prettyType 12) ty) ] else id)

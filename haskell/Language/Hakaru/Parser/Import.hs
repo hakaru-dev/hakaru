@@ -20,11 +20,13 @@ replaceBody e1 e2 =
       _                 -> e2
 
 expandImports
-    :: ASTWithImport' T.Text
+    :: Maybe FilePath
+    -> ASTWithImport' T.Text
     -> ExceptT ParseError IO (AST' T.Text)
-expandImports (ASTWithImport' (Import i:is) ast) = do
-    file  <- liftIO . IO.readFile . T.unpack $ T.append i ".hk"
+expandImports dir (ASTWithImport' (Import i:is) ast) = do
+    file  <- liftIO . IO.readFile . T.unpack $
+             T.concat $ maybe [] ((:["/"]) . T.pack) dir ++ [ i, ".hk" ]
     astIm <- ExceptT . return $ parseHakaruWithImports file
-    ast'  <- expandImports astIm
-    expandImports (ASTWithImport' is (replaceBody ast' ast))
-expandImports (ASTWithImport' [] ast) = return ast
+    ast'  <- expandImports dir astIm
+    expandImports dir (ASTWithImport' is (replaceBody ast' ast))
+expandImports _ (ASTWithImport' [] ast) = return ast

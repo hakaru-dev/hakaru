@@ -228,7 +228,8 @@ Test-Suite system-testsuite
                        bytestring           >= 0.9,
                        directory            >= 1.2  && < 1.4,
                        optparse-applicative >= 0.11 && < 0.15,
-                       syb                  >= 0.6
+                       syb                  >= 0.6,
+                       filepath             >= 1.1.0.2
 
 ----------------------------------------------------------------
 Executable hakaru

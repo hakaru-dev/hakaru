@@ -11,7 +11,7 @@ module Main where
 import           Language.Hakaru.Pretty.Concrete  
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.TypeCheck
-import           Language.Hakaru.Command (parseAndInfer, readFromFile, Term)
+import           Language.Hakaru.Command (parseAndInfer', readFromFile', Term)
 
 import           Language.Hakaru.Syntax.Rename
 import           Language.Hakaru.Simplify
@@ -110,8 +110,8 @@ runMaple :: Options FilePath -> IO ()
 runMaple ListCommands = 
   listCommands >>= \cs -> putStrLn $ "Available Hakaru Maple commands:\n\t"++ intercalate ", " cs
 
-runMaple Options{..} = readFromFile program >>= \prog -> 
-  case parseAndInfer prog of
+runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog -> 
+  case prog of
     Left  err  -> IO.hPutStrLn stderr err
     Right ast  -> do 
       TypedAST _ ast' <- sendToMaple' moptions (et ast)

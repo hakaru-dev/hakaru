@@ -19,7 +19,7 @@ import           Language.Hakaru.Types.DataKind
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Command ( parseAndInfer, parseAndInfer'
-                                         , readFromFile, Term
+                                         , readFromFile', Term, Source
                                          )
 
 #if __GLASGOW_HASKELL__ < 710
@@ -73,9 +73,9 @@ main = do
               Nothing -> MWC.createSystemRandom
               Just s  -> MWC.initialize (V.singleton s)
   case transition args of
-      Nothing    -> runHakaru' g (noWeights args) =<< readFromFile (prog args)
-      Just prog2 -> do prog' <- readFromFile (prog args)
-                       trans <- readFromFile prog2
+      Nothing    -> runHakaru' g (noWeights args) =<< readFromFile' (prog args)
+      Just prog2 -> do prog' <- readFromFile' (prog args)
+                       trans <- readFromFile' prog2
                        randomWalk' g trans prog'
 
 -- TODO: A better needs to be found for passing weights around
@@ -98,9 +98,9 @@ renderLn :: Value a -> IO ()
 renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
 -- TODO: A better needs to be found for passing weights around
-runHakaru :: MWC.GenIO -> Bool -> Text -> IO ()
-runHakaru g weights prog' =
-    case parseAndInfer prog' of
+runHakaru :: MWC.GenIO -> Bool -> Source -> IO ()
+runHakaru g weights prog' = parseAndInfer' prog' >>= \prog'' ->
+    case prog'' of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
         case typ of
@@ -111,7 +111,7 @@ runHakaru g weights prog' =
     run = runEvaluate . expandTransformations
 
 -- TODO: A better needs to be found for passing weights around
-runHakaru' :: MWC.GenIO -> Bool -> Text -> IO ()
+runHakaru' :: MWC.GenIO -> Bool -> Source -> IO ()
 runHakaru' g weights prog = do
     prog' <- parseAndInfer' prog
     case prog' of
@@ -124,9 +124,10 @@ runHakaru' g weights prog = do
     run :: Term a -> Value a
     run = runEvaluate . expandTransformations
 
-randomWalk :: MWC.GenIO -> Text -> Text -> IO ()
+randomWalk :: MWC.GenIO -> Source -> Source -> IO ()
 randomWalk g p1 p2 =
-    case (parseAndInfer p1, parseAndInfer p2) of
+  (,) <$> parseAndInfer' p1 <*> parseAndInfer' p2 >>= \ps ->
+    case ps of
       (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) ->
           -- TODO: Use better error messages for type mismatch
           case (typ1, typ2) of
@@ -146,7 +147,7 @@ randomWalk g p1 p2 =
       renderLn samp
       return (f samp)
 
-randomWalk' :: MWC.GenIO -> Text -> Text -> IO ()
+randomWalk' :: MWC.GenIO -> Source -> Source -> IO ()
 randomWalk' g p1 p2 = do
     p1' <- parseAndInfer' p1
     p2' <- parseAndInfer' p2

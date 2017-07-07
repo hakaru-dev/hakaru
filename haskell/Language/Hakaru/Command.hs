@@ -22,6 +22,7 @@ import           Data.Vector
 import           System.IO (stderr)
 import           System.Environment (getArgs)
 import           Data.Monoid ((<>),mconcat)
+import           System.FilePath (takeDirectory)
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -34,7 +35,7 @@ parseAndInfer :: Text.Text
 parseAndInfer x = parseAndInferWithMode x LaxMode
 
 parseAndInferWithMode
-  :: ABT T.Term abt 
+  :: ABT T.Term abt
   => Text.Text
   -> TypeCheckMode
   -> Either Text.Text (TypedAST abt)
@@ -45,18 +46,35 @@ parseAndInferWithMode x mode =
         let m = inferType (resolveAST past) in
         runTCM m (splitLines x) mode
 
-parseAndInfer' :: Text.Text
+-- The filepath from which the text came and the text itself. If the filepath is
+-- Nothing, imports are searched for in the current directory.
+data Source = Source { file :: Maybe FilePath, source :: Text.Text }
+
+noFileSource :: Text.Text -> Source
+noFileSource = Source Nothing
+
+fileSource :: FilePath -> Text.Text -> Source
+fileSource = Source . Just
+
+parseAndInfer' :: Source
                -> IO (Either Text.Text (TypedAST (TrivialABT T.Term)))
-parseAndInfer' x =
+parseAndInfer' s = parseAndInferWithMode' s LaxMode
+
+parseAndInferWithMode'
+  :: ABT T.Term abt
+  => Source
+  -> TypeCheckMode
+  -> IO (Either Text.Text (TypedAST abt))
+parseAndInferWithMode' (Source dir x) mode =
     case parseHakaruWithImports x of
     Left  err  -> return . Left $ Text.pack . show $ err
     Right past -> do
-      past' <- runExceptT (expandImports past)
+      past' <- runExceptT (expandImports (fmap takeDirectory dir) past)
       case past' of
         Left err     -> return . Left $ Text.pack . show $ err
         Right past'' -> do
           let m = inferType (resolveAST past'')
-          return (runTCM m (splitLines x) LaxMode)
+          return (runTCM m (splitLines x) mode)
 
 parseAndInferWithDebug
     :: Bool
@@ -84,6 +102,9 @@ splitLines = Just . fromList . Text.lines
 readFromFile :: String -> IO Text.Text
 readFromFile "-" = U.getContents
 readFromFile x   = U.readFile x
+
+readFromFile' :: String -> IO Source
+readFromFile' x = Source (if x=="-" then Nothing else Just x) <$> readFromFile x
 
 simpleCommand :: (Text.Text -> IO ()) -> Text.Text -> IO ()
 simpleCommand k fnName = 
