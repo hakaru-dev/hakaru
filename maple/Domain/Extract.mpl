@@ -70,26 +70,26 @@ export Extract := module ()
   # essentially this assumes a distributive law (of domain shapes over
   # products)
   export Shape := module ()
-    export ModuleApply := proc(e) :: [ anything, anything ];
+    export ModuleApply := proc(e, kb:=KB:-empty) :: [ anything, anything ];
       local ixs, w, e1;
       ixs := [indices(ExtShape, 'nolist')];
-      w, e1 := do_gets(ixs, true, e) [];
+      w, e1 := do_gets(ixs, true, e, kb) [];
       if not ('no_simpl' in {_rest}) then
         w := simpl_shape(w);
       end if;
       [ w, e1 ];
     end proc;
 
-    local do_get := proc(f, f_ty, e, $)
+    local do_get := proc(f, f_ty, e, kb, $)
       local sub, inds, rest;
       if e::`*` then
-        sub := map(x->do_get(f, f_ty,x), [op(e)]);
+        sub := map(x->do_get(f, f_ty,x,kb), [op(e)]);
         [ `And`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub))) ]
       elif e::`^` then
-        inds, rest := do_get(f, f_ty, op(1,e)) [] ;
+        inds, rest := do_get(f, f_ty, op(1,e), kb) [] ;
         [ inds, subsop(1=rest, e) ]
       elif e:: f_ty then
-        f(e,z->ModuleApply(z,'no_simpl'))
+        f(e,((z,kb1)->ModuleApply(z,kb1,'no_simpl')),kb)
       else
         [ true, e ]
       end if
@@ -97,7 +97,7 @@ export Extract := module ()
 
     # apply a list of extractors, in order, until all fail to produce
     # any output .
-    local do_gets := proc(todo::list, w, e, $)
+    local do_gets := proc(todo::list, w, e, kb, $)
       local t0, ts, w1, e1;
       if nops(todo) = 0 then
         [ w, e ]
@@ -106,9 +106,9 @@ export Extract := module ()
         ts := op(subsop(1=NULL, todo));
         w1, e1 := do_get(ExtShape[t0]:-MakeCtx
                          ,ExtShape[t0]:-MapleType
-                         ,e) [] ;
+                         ,e,kb) [] ;
         ts := `if`(is(w1), [ts], [ts, t0]);
-        do_gets( ts, bool_And(w1, w), e1 );
+        do_gets( ts, bool_And(w1, w), e1, kb );
       end if;
     end proc;
 

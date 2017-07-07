@@ -251,17 +251,18 @@ export
   module()
     option record;
 
-    export MakeCtx := proc(p0,_rec)
+    export MakeCtx := proc(p0,_rec,kb)
       local p := p0, pw, p1, wps, ws, vs, cs, w, ps;
       if kind='piecewise' then
         p := Partition:-PWToPartition(p);
       end if;
-      w, p1 := Partition:-Simpl:-single_nonzero_piece(p);
+      p1 := Partition:-Simpl:-remove_false_pieces(p,kb);
+      w, p1 := Partition:-Simpl:-single_nonzero_piece(p1);
       if not w :: identical(true) or p1 <> p then
         [ w, p1 ]
       else
         ps := piecesOf(p);
-        wps := map(_rec@valOf, ps);
+        wps := map((x->_rec(valOf(x),kb)), ps);
         ws, vs, cs := map2(op, 1, wps), map2(op, 2, wps), map(condOf, ps);
         if nops(vs) > 0 and
           andmap(v->op(1,vs)=v, vs) and
