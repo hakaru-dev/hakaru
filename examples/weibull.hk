@@ -1,0 +1,11 @@
+weibull = 
+  fn x2 prob:
+    fn x1 prob:
+      x0 <~ gamma(1/1, 1/1)
+      return x2 * x0 ** prob2real(1/ x1)
+
+func = fn x prob: fn y prob: x+y
+
+# A `let' without a body is not a valid expression
+# When this file is imported, the body is ignored
+()
