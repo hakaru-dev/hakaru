@@ -218,11 +218,13 @@ $include "Domain/Improve.mpl"
            f_apply:=((f,x)->f(x)),
            f_nosimp:=(_->FAIL),
            opts:=[],$)
-      local e := e0, dom_specb, dom_specw, dom_spec;
+      local e := e0, dom_specb, dom_specw, dom_spec, dom_ctx1, rn;
       # Build the domain
       dom_specb, e := op(Domain:-Extract:-Bound(e));
       if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
-      dom_specw, e := op(Domain:-Extract:-Shape(e));
+      dom_ctx1, rn := Domain:-Bound:-toKB(dom_specb)[];
+      e, dom_specb := subs(rn,[e,dom_specb])[];
+      dom_specw, e := op(Domain:-Extract:-Shape(e, dom_ctx1));
       dom_specb := DBound(op(1,dom_specb), dom_ctx);
       dom_spec := DOMAIN(dom_specb, dom_specw);
 
