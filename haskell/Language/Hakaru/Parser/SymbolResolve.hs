@@ -33,6 +33,7 @@ import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.Variable ()
 import qualified Language.Hakaru.Parser.AST   as U
 import           Language.Hakaru.Evaluation.Coalesce (coalesce)
+import qualified Language.Hakaru.Syntax.Prelude  as P
 
 data Symbol a
     = TLam (a -> Symbol a)
@@ -168,6 +169,9 @@ primTable =
     ,("max",         t2 $ \x y -> syn $ U.NaryOp_ U.Max [x, y])
     -- Observe
     ,("observe",     t2 $ \x y -> syn $ U.Observe_ x y)
+    -- Macros
+    ,("weibull",     TNeu $ syn $ U.InjTyped $
+                     P.lam $ \x -> P.lam $ \y -> P.weibull x y)
     ]
 
 primPrimOp0, primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
