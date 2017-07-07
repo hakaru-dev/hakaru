@@ -101,8 +101,9 @@ result such as this one. Therefore, we must still perform the application step o
 
 Once we have transformed our original model (`burglary.hk`) into a function that is better suited to making the inference that we are interested in (`burglary_disintegrate_simplify.hk`),
 we can use the generated function to create a new Hakaru program that knows that the alarm has been triggered (`alarm == true`). In this case, the only change that needs to be
-made is to the line `fn x5 bool:`, which tells the Hakaru program what state the alarm is in. Since we are only interested in cases where `alarm == true`, we must change this
-line to `x5 = true`:
+made is to the line `fn x5 bool:`, which tells the Hakaru program what state the alarm is in. Since we are only interested in cases where `alarm == true`, we must change this program so
+that it uses the known information. The program produced by `disintegrate` is an [anonymous function](../lang/functions.md), which means that we can assign it to a name and use it later
+in the program:
 
 ````nohighlight
 burglary = fn x5 bool: 
@@ -117,28 +118,17 @@ burglary = fn x5 bool:
 burglary(true)
 ````
 
-How does the `hakaru` command answer our original question? If you simply call the command `hakaru burglary_disintegrate_simplify.hk` in the command line, you will create an 
-infinite stream of samples:
+We have finished conditioning our Hakaru program to answer our original question using the [`hakaru` command](../intro/samplegen.md): if the alarm is sounding, what is the likelihood that 
+the house is being burglarized? How does the `hakaru` command answer our original question? If you simply call the command `hakaru burglary_disintegrate_simplify.hk` in the command line, 
+you will create an infinite stream of samples:
 
 ````bash
 $ hakaru burglary_disintegrate_simplify.hk
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
-9.999999999999995e-3    false
+1.0093999999999992e-2   false
+1.0093999999999992e-2   false
+1.0093999999999992e-2   false
+1.0093999999999992e-2   false
+1.0093999999999992e-2   false
 ...
 ````
 
@@ -146,13 +136,13 @@ This does not quite answer our original question because there is no summary of 
 
 ````bash
 $ hakaru burglary_disintegrate.hk | head -n 100000 | awk '{a[$2]+=$1}END{for (i in a) print i, a[i]}'
-false 999.92
-true 7.6
+false 999.811
+true 9.5893
 ````
 
 **Note:** This summary is limited to 100,000 samples.
 
-This summary of information makes it much easier to determine that, even though the alarm is going off, the chances of the house being burglarized is very low.
+This summary of information makes it much easier to determine that, even though you hear the burglary alarm, the chances of the house being burglarized is very low.
 
 [^1]: P. Narayanan, J. Carette, W. Romano, C. Shan and R. Zinkov, "Probabilistic Inference by Program Transformation in Hakaru (System Description)", Functional and Logic 
 Programming, pp. 62-79, 2016.
