@@ -9,6 +9,8 @@
            , OverloadedStrings
            , DeriveDataTypeable
            , ScopedTypeVariables
+           , RankNTypes
+           , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -30,6 +32,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT    hiding (Var, Bind)
 import Language.Hakaru.Syntax.AST
     (Literal(..), MeasureOp(..), LCs(), UnLCs ())
+import qualified Language.Hakaru.Syntax.AST as T
 import Language.Hakaru.Syntax.IClasses
 
 #if __GLASGOW_HASKELL__ < 710
@@ -432,6 +435,8 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Observe_      :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
     Superpose_    :: L.NonEmpty (abt '[] 'U, abt '[] 'U) -> Term abt 'U
     Reject_       ::                                        Term abt 'U
+    InjTyped      :: (forall abt . ABT T.Term abt
+                                 => abt '[] x)           -> Term abt 'U
 
 
 -- TODO: instance of Traversable21 for Term
@@ -464,6 +469,7 @@ instance Functor21 Term where
     fmap21 f (Observe_   e1  e2)    = Observe_   (f e1) (f e2)
     fmap21 f (Superpose_ es)        = Superpose_ (L.map (f *** f) es)
     fmap21 _ Reject_                = Reject_
+    fmap21 _ (InjTyped x)           = InjTyped x
 
 instance Foldable21 Term where
     foldMap21 f (Lam_       _  e1)    = f e1
@@ -494,6 +500,7 @@ instance Foldable21 Term where
     foldMap21 f (Observe_   e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Superpose_ es)       = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) es
     foldMap21 _ Reject_               = mempty
+    foldMap21 _ InjTyped{}            = mempty
 
 type U_ABT    = MetaABT SourceSpan Term
 type AST      = U_ABT '[] 'U

@@ -74,6 +74,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Sing
     (sing_Literal, sing_MeasureOp)
 import Language.Hakaru.Pretty.Concrete (prettyType)
+import Language.Hakaru.Syntax.TypeOf (typeOf)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -191,6 +192,7 @@ mustCheck e = caseVarSyn e (const False) go
     go U.Reject_             = True
     go (U.Expect_ _ e2)      = mustCheck' e2
     go (U.Observe_  e1  _)   = mustCheck  e1
+    go U.InjTyped{}          = False
 
 mustCheck'
     :: MetaABT U.SourceSpan U.Term '[ 'U.U ] 'U.U
@@ -750,6 +752,8 @@ inferType = inferType_
                    ps' <- T.traverse (checkType SProb) (fmap fst pes)
                    return $ TypedAST typ (syn (Superpose_ (L.zip ps' (L.fromList es'))))
                _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ)
+
+       U.InjTyped t     -> let t' = t in return $ TypedAST (typeOf t') t'
 
        _   | mustCheck e0 -> ambiguousMustCheck sourceSpan
            | otherwise    -> error "inferType: missing an inferable branch!"
@@ -1524,6 +1528,14 @@ checkType = checkType_
             case typ0 of
             SMeasure _ -> return $ syn (Reject_ typ0)
             _          -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+
+        U.InjTyped t ->
+            let triv :: TrivialABT Term '[] x -> TrivialABT Term '[] x
+                triv = id
+                typ1 = typeOf $ triv t
+            in case jmEq1 typ0 typ1 of
+                 Just Refl -> return t
+                 Nothing   -> typeMismatch sourceSpan (Right typ0) (Right typ1)
 
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0
