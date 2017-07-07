@@ -375,8 +375,13 @@ prettyType _ typ
 ppPrimOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> PrimOp typs a -> SArgs abt args -> Doc
--- TODO: special cases for <=, /=
-ppPrimOp p Not          (e1 :* End)       = ppApply1 p "not" e1
+ppPrimOp p Not          (e1 :* End)
+  | Syn (PrimOp_ Less{}  :$ e2 :* e3 :* End) <- viewABT e1
+  = ppBinop "<=" 4 NonAssoc p e3 e2
+  | Syn (PrimOp_ Equal{} :$ e2 :* e3 :* End) <- viewABT e1
+  = ppBinop "/=" 4 NonAssoc p e2 e3
+  | otherwise
+  = ppApply1 p "not" e1
 ppPrimOp p Impl         (e1 :* e2 :* End) = ppApply2 p "impl" e1 e2
 ppPrimOp p Diff         (e1 :* e2 :* End) = ppApply2 p "diff" e1 e2
 ppPrimOp p Nand         (e1 :* e2 :* End) = ppApply2 p "nand" e1 e2
