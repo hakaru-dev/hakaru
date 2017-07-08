@@ -39,26 +39,25 @@ import Language.Hakaru.Syntax.IClasses
 import Data.Monoid   (Monoid(..))
 #endif
 
-import Data.Text
-import Text.Printf
+import qualified Data.Text as T
 import Text.Parsec (SourcePos)
 import Text.Parsec.Pos
 import Data.Generics hiding ((:~:)(..))
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
-data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
+data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!T.Text
     deriving (Read, Show, Eq, Ord, Data, Typeable)
 
 nameID :: Name -> N.Nat
 nameID (Name i _) = i
 
-hintID :: Name -> Text
+hintID :: Name -> T.Text
 hintID (Name _ t) = t
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-type Name' = Text
+type Name' = T.Text
 
 data Branch' a
     = Branch'  (Pattern' Name') (AST' a)
@@ -78,23 +77,44 @@ data PDatum a = DV Name' [Pattern' a]
 data SourceSpan = SourceSpan !SourcePos !SourcePos
     deriving (Eq, Show, Data, Typeable)
 
-numberLine :: Text -> Int -> Text
-numberLine s n = append (pack (printf "%5d| " n)) s
-
-printSourceSpan :: SourceSpan -> V.Vector Text -> Text
+printSourceSpan :: SourceSpan -> V.Vector T.Text -> T.Text
 printSourceSpan (SourceSpan start stop) input
-    | sourceLine start == sourceLine stop =
-        unlines [ numberLine endLine (sourceLine stop)
-                , append "       " textSpan
-                ]
-    | otherwise                           =
-        unlines $ flip fmap [sourceLine start .. sourceLine stop] $ \i ->
-            numberLine (input V.! (i - 1)) i
-   where endLine  = input V.! (sourceLine stop - 1)
-         spanLen  = sourceColumn stop - sourceColumn start
-         textSpan =
-             append (replicate (sourceColumn start - 1) " ")
-                    (replicate spanLen "^")
+  = T.unlines (concatMap line [startLine..stopLine])
+  where
+  line :: Int -> [T.Text]
+  line i | (sourceLine start, sourceColumn start) <= (i, 1) &&
+           (i, T.length lining) < (sourceLine stop, sourceColumn stop)
+         = [T.empty | i == startLine] ++
+           [quote '>'] ++
+           [T.empty | i == stopLine]
+         | i == sourceLine stop
+         = [quote ' ',
+            marking (if i == sourceLine start then sourceColumn start else 1)
+                    (sourceColumn stop)
+                    '^']
+         | i == sourceLine start
+         = [marking (sourceColumn start) (T.length lining + 1) '.',
+            quote ' ']
+         | otherwise
+         = [quote ' ']
+    where numbering = T.pack (show i)
+          lining    = input V.! (i-1)
+          quote c   = spacing (digits - T.length numbering)
+                      `T.append` numbering
+                      `T.append` T.singleton '|'
+                      `T.append` T.singleton c
+                      `T.append` lining
+  spacing k     = T.replicate k (T.singleton ' ')
+  marking l r c = spacing (digits + 1 + l)
+                  `T.append` T.replicate (max 1 (r - l)) (T.singleton c)
+  startLine     = max 1                (sourceLine start)
+  stopLine      = max startLine
+                $ min (V.length input)
+                $ (if sourceColumn stop == 1 then pred else id)
+                $ sourceLine stop
+  digits        = loop stopLine 1
+    where loop i res | i < 10    = res
+                     | otherwise = (loop $! div i 10) $! (res + 1)
 
 data Literal'
     = Nat  Integer
@@ -284,7 +304,7 @@ foldBranch f (Branch_ _ e) = f e
 data Pattern
     = PWild
     | PVar Name
-    | PDatum Text PCode
+    | PDatum T.Text PCode
 
 data PFun
     = PKonst Pattern
@@ -312,7 +332,7 @@ data DCode abt
     = Inr (DCode   abt)
     | Inl (DStruct abt)
 
-data Datum abt = Datum Text (DCode abt)
+data Datum abt = Datum T.Text (DCode abt)
 
 fmapDatum
     :: (f '[] 'U -> g '[] 'U)
