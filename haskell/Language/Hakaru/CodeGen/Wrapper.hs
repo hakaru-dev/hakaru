@@ -72,7 +72,7 @@ wrapProgram tast@(TypedAST typ _) mn pconfig =
        ( TypedAST typ' abt,       Just name ) ->
          -- still buggy for measures
          do mfId <- reserveIdent name
-            funCG (head . buildType $ typ') mfId [] $
+            funCG (buildType typ') mfId [] $
               do outE <- flattenWithName' abt "out"
                  putStat . CReturn . Just $ outE
 
@@ -114,10 +114,10 @@ mainFunction pconfig typ@(SMeasure _) abt =
      extDeclareTypes typ
 
      -- defined a measure function that returns mdata
-     funCG (head . buildType $ typ) mfId  [] $
+     funCG (buildType typ) mfId  [] $
        (putStat . CReturn . Just) =<< flattenWithName' abt "samp"
 
-     funCG CInt mainId mainArgs $
+     funCG [CInt] mainId mainArgs $
        do isManagedMem <- managedMem <$> get
           when isManagedMem (putExprStat gcInit)
 
@@ -141,7 +141,7 @@ mainFunction pconfig (SFun _ _) abt =
        let (resE:funE:argCE:argVE:[]) = fmap CVar [resId,funId,argCId,argVId]
            typ' = typeOf abt'
 
-       funCG CInt mainId mainArgs $
+       funCG [CInt] mainId mainArgs $
          do isManagedMem <- managedMem <$> get
             when isManagedMem (putExprStat gcInit)
             declare typ' resId
@@ -207,7 +207,7 @@ mainFunction pconfig typ abt =
      mainId <- reserveIdent "main"
      let resE  = CVar resId
 
-     funCG CInt mainId [] $
+     funCG [CInt] mainId [] $
        do declare typ resId
 
           isManagedMem <- managedMem <$> get
@@ -430,7 +430,7 @@ flattenTopLambda abt name =
     let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent' "param" v]) vars
         typ   = typeOf abt'
     in  do argDecls <- sequence varMs
-           funCG (head . buildType $ typ) name argDecls $
+           funCG (buildType typ) name argDecls $
              (putStat . CReturn . Just) =<< flattenWithName' abt' "out"
 
   -- do at top level
