@@ -83,22 +83,24 @@ printSourceSpan (SourceSpan start stop) input
   where
   line :: Int -> [T.Text]
   line i | (sourceLine start, sourceColumn start) <= (i, 1) &&
-           (i, T.length lining) < (sourceLine stop, sourceColumn stop)
+           (i, eol) <= (sourceLine stop, sourceColumn stop)
          = [T.empty | i == startLine] ++
            [quote '>'] ++
            [T.empty | i == stopLine]
-         | i == sourceLine stop
-         = [quote ' ',
+         | i == stopLine
+         = [T.empty | i == startLine] ++
+           [quote ' ',
             marking (if i == sourceLine start then sourceColumn start else 1)
-                    (sourceColumn stop)
+                    (if i == sourceLine stop  then sourceColumn stop  else eol)
                     '^']
          | i == sourceLine start
-         = [marking (sourceColumn start) (T.length lining + 1) '.',
+         = [marking (sourceColumn start) eol '.',
             quote ' ']
          | otherwise
          = [quote ' ']
     where numbering = T.pack (show i)
           lining    = input V.! (i-1)
+          eol       = T.length lining + 1
           quote c   = spacing (digits - T.length numbering)
                       `T.append` numbering
                       `T.append` T.singleton '|'
@@ -107,7 +109,8 @@ printSourceSpan (SourceSpan start stop) input
   spacing k     = T.replicate k (T.singleton ' ')
   marking l r c = spacing (digits + 1 + l)
                   `T.append` T.replicate (max 1 (r - l)) (T.singleton c)
-  startLine     = max 1                (sourceLine start)
+  startLine     = max 1
+                $ sourceLine start
   stopLine      = max startLine
                 $ min (V.length input)
                 $ (if sourceColumn stop == 1 then pred else id)
