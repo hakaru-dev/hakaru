@@ -763,7 +763,9 @@ export
         evalb(indets(c, neq_nn) = {} or not has(c,`idx`))
       end proc;
 
-      export ModuleApply := proc(ctx, kb::t_kb := KB:-empty)::list(PartitionCond);
+      export ModuleApply := curry(ProfileFn,1.0,do_condition);
+
+      export do_condition := proc(ctx, kb::t_kb := KB:-empty)::list(PartitionCond);
         option remember, system;
         local ctxC, ctxC1, ctxC_c, ctxC1_c;
         ctxC := ctx;
