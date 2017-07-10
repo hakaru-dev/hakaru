@@ -306,8 +306,65 @@ export
   PWToPartition := module()
     export ModuleApply := proc(x::specfunc(piecewise),{_kb::t_kb:=KB:-empty})
       option remember, system;
-      general(x,kb,_rest);
+      local p;
+      p := semantically_Partition(x);
+      if p=FAIL then general(x,_kb,_rest);
+      else           p
+      end if;
     end proc;
+
+    # A special case in which the piecewise is of the form
+    # piecewise(A {<=,<} C_0, V_0, ..,
+    #           A {<=,<,=} C_i, V_i, ..,
+    #           A {<=,<} C_n, V_n, V_{n+1})
+    # Such a piecewise is semantically a Partition, but not syntactically so.
+    # Returns FAIL if the piecewise is not of this form
+    local semantically_Partition := proc(x::specfunc(piecewise), $)
+                                 ::{Partition,identical(FAIL)};
+      local ns, cs, i, vs;
+      ns := nops(x);
+      if ns <= 3 then return FAIL; end if;
+      cs[0] := [seq(op(2*i-1, x),i=1..iquo(ns,2))];
+      if ormap(c->not(c::relation), cs[0]) then return FAIL; end if;
+      if ns::odd then
+        # Assuming it is semantically a Partition, construct the otherwise case
+        cs[0] := [ cs[0][], KB:-negate_rel(cs[0][-1]) ];
+      end if;
+      # Check if the conditions are of the desired form...
+      cs[1] := map(c->Domain:-Improve:-classify_relation(c,x->type(x,realcons)),
+                   cs[0]);
+      if has(cs[1], FAIL)
+         # Relations must be in {<,<=,=}
+      or ormap(c->not(op(1,c) in { B_LO, B_HI, B_EQ }), cs[1])
+         # First and last conditions may not be equalities
+      or (op([1,1],c)=B_EQ or op([-1,1],c)=B_EQ)
+         # Value branched on must be identical in each condition
+      or not(the(map2(op,4,cs[1])))
+         # Must be ordered accordingly
+      or (cs[1] <> sort(cs[1],key=bnd_key))
+      then return FAIL end if;
+      # ...they are; build the resulting conditions
+      cs[2] := map(KB:-negate_rel, cs[0]);
+      cs[3] := [ true  , op(1..-2, cs[2]) ];
+      cs[4] := [ true$2, op(1..-3, cs[2]) ];
+      cs[3] := KB:-zip_k(
+        proc(x,y,z)
+          # No need to take the previous negated condition; it's implied by the
+          # equality
+          if    x::`=`   then  x
+          # Skip over the previous negated condition if it's an inequality; take
+          # the one before that instead (and strenghten it, since this condition
+          # also includes the negation of the equality)
+          elif  y::`<>`  then  bool_And(x, table([`<=`=`<`, `<`=`<`])[op(0,z)](op(z)))
+          # General case
+          else                 bool_And(x,y)
+          end if;
+        end proc, cs[0], cs[3], cs[4] );
+      # Finally build the Partition
+      vs    := [seq(op(2*i, x),i=1..iquo(ns,2)), `if`(ns::odd,op(-1,x),NULL)];
+      PARTITION(zip(Piece, cs[3], vs));
+    end proc;
+    local bnd_key := (x->[op(3,x), table([B_LO, B_EQ, B_HI] =~ [0,1,2])[op(1,x)]]);
 
     local general := proc(x, kb::t_kb)::Partition;
       # each clause evaluated under the context so far, which is the conjunction
