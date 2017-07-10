@@ -69,7 +69,7 @@ Hakaru := module ()
          closed_bounds, open_bounds,
          htype_patterns,
          bool_And, bool_Or, bool_Not, the,
-         UpdateArchive;
+         UpdateArchive, ProfileFn;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global
@@ -722,6 +722,28 @@ Hakaru := module ()
     # A temporary type which should be removed when piecewise is gone
     ,(t_pw_or_part = 'Or(t_pw,t_partition)')
     ]);
+
+  ProfileFn := proc(min_t,fn)
+    local t, res;
+    if kernelopts(assertlevel) > 0 then
+      t[0] := time[real]();
+      res  := fn(_rest);
+      t[1] := time[real]();
+      t[2] := t[1]-t[0];
+      if t[2] > min_t then
+        userinfo(3, fn,
+                 printf("Evaluating %a%a took %f seconds\n",
+                        fn,[_rest],t[2]));
+      else
+        userinfo(5, fn,
+                 printf("Evaluating %a%a took less than %f seconds\n",
+                        fn,[_rest],min_t));
+      end if;
+      res;
+    else
+      fn(_rest)
+    end if;
+  end proc;
 
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
