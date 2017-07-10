@@ -4,7 +4,7 @@ Commands := [ `Simplify`, `Disintegrate`, `Summarize` ];
 
 RoundTrip := proc(e, t::t_type, {_ret_type := {'print'}
                                 ,_postproc := [['convert','Partition','piecewise'],
-                                               'stable_piecewise_order']
+                                               'stable_Partition_order']
                                 ,_gensym_charset := FAIL
                                 ,_command := Simplify})
   local result, ret_type, cs, ifc_opts, syms0, command, pp;
@@ -59,20 +59,8 @@ end proc;
 RoundTrip_postproc[convert] := proc(r, f::type, t, $)
   subsindets(r, f, x->convert(x,t));
 end proc;
-RoundTrip_postproc[stable_piecewise_order] := proc(r, $)
-  subsindets(r, t_pw_or_part,
-    proc(x,$)
-      local p;
-      if   x::Partition then Simpl:-stable_order(x)
-      else
-        p := Partition(op(x));
-        if IsValid(p) then
-          PartitionToPW(Simpl:-stable_order(p));
-        else
-          x
-        end if;
-      end if;
-    end proc);
+RoundTrip_postproc[stable_Partition_order] := proc(r, $)
+  subsindets(r, Partition, Simpl:-stable_order)
 end proc;
 
 Summarize := proc(e, _) Summary:-Summarize(e,_rest) end proc;
