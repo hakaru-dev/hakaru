@@ -1,6 +1,6 @@
 # This module forms part of NewSLO and is `$include`d there
 
-Commands := [ `Simplify`, `Disintegrate`, `Summarize` ];
+Commands := [ `Simplify`, `Disintegrate`, `Summarize`, `Reparam` ];
 
 RoundTrip := proc(e, t::t_type, {_ret_type := {'print'}
                                 ,_postproc := [['convert','Partition','piecewise'],
@@ -61,6 +61,13 @@ RoundTrip_postproc[convert] := proc(r, f::type, t, $)
 end proc;
 RoundTrip_postproc[stable_Partition_order] := proc(r, $)
   subsindets(r, Partition, Simpl:-stable_order)
+end proc;
+
+Reparam := proc(e, t::t_type, {ctx :: list := []})
+  SimplifyKB_(
+    ((e1,_,kb1)->
+     fromLO(ReparamDetermined(toLO(e1),kb1),_ctx=kb1)),
+    e,t,build_kb(ctx,"Reparam",KB:-empty))
 end proc;
 
 Summarize := proc(e, _) Summary:-Summarize(e,_rest) end proc;

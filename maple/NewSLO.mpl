@@ -36,7 +36,7 @@ NewSLO := module ()
          integrate, applyintegrand,
      # while these are "proper functions"
          RoundTrip, RoundTrip_postproc, Simplify, SimplifyKB,  apply_LO,
-         Commands, Rename, Disintegrate, Summarize,
+         Commands, Rename, Disintegrate, Summarize, Reparam,
          TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
          Concrete, Profile,
          toLO, fromLO, improve, reduce,
