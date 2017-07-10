@@ -427,9 +427,12 @@ export
   # and if arg::piecewise, then converts the piecewise to a partition,
   # applies the function, then converts back to piecewise
   # this mainly acts as a sanity check
-  AppPartOrPw := proc(f,x::Or(Partition,specfunc(piecewise)))
+  AppPartOrPw := proc(f,x::Or(Partition,specfunc(piecewise)),
+                      to_opts:=[], from_opts:=[])
     if x::Partition then f(x);
-    else                 PartitionToPW(f(PWToPartition(x))) end if;
+    else
+      PartitionToPW(f(PWToPartition(x,op(to_opts))),op(from_opts))
+    end if;
   end proc,
 
   #Check whether the conditions of a Partition satisfy a type (or a proc return
