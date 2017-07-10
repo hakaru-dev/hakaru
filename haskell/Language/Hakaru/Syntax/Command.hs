@@ -38,18 +38,21 @@ data CommandType (c :: Symbol) (i :: Hakaru) (o :: Hakaru) where
   DisintFun    :: !(CommandType "Disintegrate" x x') 
                -> CommandType "Disintegrate" (a :-> x) (a :-> x') 
   Summarize    :: CommandType "Summarize"     a a 
+  Reparam      :: CommandType "Reparam"       a a
 
 commandIsType :: CommandType c i o -> Sing i -> Sing o
 commandIsType DisintMeas (SMeasure (sUnPair->(a,b))) = SFun a (SMeasure b)
 commandIsType (DisintFun t) (SFun a x) = SFun a (commandIsType t x)
 commandIsType Simplify x = x
 commandIsType Summarize x = x
+commandIsType Reparam x = x
   
 nameOfCommand :: CommandType c i o -> Sing c
 nameOfCommand Simplify{} = sing 
 nameOfCommand Summarize{} = sing 
 nameOfCommand DisintMeas{} = sing
 nameOfCommand DisintFun{} = sing 
+nameOfCommand Reparam{} = sing
 
 parseCommand = flip (isInfixOf `on` map toLower)
 
@@ -76,5 +79,7 @@ commandFromName (parseCommand "Disintegrate"->True) i k =
   in disint_commandFromType i k 
 
 commandFromName (parseCommand "Summarize"->True) i k = k $ Right (Summarize, i)
+
+commandFromName (parseCommand "Reparam"->True) i k = k $ Right (Reparam, i)
 
 commandFromName _ _ k = k $ Left False 
