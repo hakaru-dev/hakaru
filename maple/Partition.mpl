@@ -223,6 +223,7 @@ export
   PartitionToPW := module()
     export ModuleApply; local pw_cond_ctx;
     ModuleApply := proc(x::Partition, $)
+      option remember,system;
       local parts := piecesOf(x);
       if nops(parts) = 1 and is(op([1,1],parts)) then return op([1,2], parts) end if;
       parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
