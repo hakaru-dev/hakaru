@@ -327,13 +327,13 @@ export
       # if this clause is unreachable, then every subsequent clause will be as well
       if ctx :: identical(false) then return PARTITION( cls );
       else
-        ctxC := `And`(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
+        ctxC := bool_And(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
         ctxC := Simpl:-condition(ctxC, _kb, _rest);
 
         if cnd :: `=` then ncnd := lhs(cnd) <> rhs(cnd);
-        else               ncnd := Not(cnd) end if;
+        else               ncnd := bool_Not(cnd) end if;
 
-        ctx  := `And`(ncnd, ctx);             # the context for the next clause
+        ctx  := bool_And(ncnd, ctx);             # the context for the next clause
 
         if ctx :: identical(false,[]) then    # this clause is actually unreachable
           return(PARTITION(cls));
