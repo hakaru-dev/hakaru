@@ -175,7 +175,7 @@ end proc;
 
 eval_in_ctx_tbl := table(
   [ `PARTITION` = ((e,kb,ev)->KB:-kb_Partition(e,kb,a->a,ev))
-  , `piecewise` = ((e,kb,ev)->KB:-kb_piecewise(e,kb,a->a,ev))
+  , `piecewise` = ((e,kb,ev)->KB:-kb_piecewise(e,kb,a->a,ev,'no_split_disj'))
   ]);
 
 eval_in_ctx := proc(ev, e, kb, $)
