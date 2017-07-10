@@ -65,7 +65,7 @@ export Improve := module ()
     end proc;
 
     export classify_relation := proc(r0::relation, vars0, $)
-      ::{identical(FAIL), [identical(B_LO,B_HI,B_EQ,B_NEQ), satisfies(q->q in {indices(flip_relation,nolist)}), name, algebraic]};
+      ::{identical(FAIL), [identical(B_LO,B_HI,B_EQ,B_NEQ), satisfies(q->q in {indices(flip_relation,nolist)}), anything, anything]};
       local r_k, r_s, in_vars, vars := vars0, r := r0;
       if vars :: ({set,list})({name,list(name)}) then
         vars := map(x->`if`(x::list,op(1,x),x),vars);
