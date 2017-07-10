@@ -290,7 +290,7 @@ makeErrMsg header sourceSpan footer = do
   case (sourceSpan, input_) of
     (Just s, Just input) ->
           return $ mconcat [ header
-                           , "\n\n"
+                           , "\n"
                            , U.printSourceSpan s input
                            , footer
                            ]
@@ -347,7 +347,7 @@ ambiguousFreeVariable x s = failwith =<<
     makeErrMsg
      (mconcat $ ["Name not in scope: ", x])
      s
-     " perhaps it is a typo?"
+     "Perhaps it is a typo?"
 
 ambiguousNullCoercion
     :: Maybe U.SourceSpan

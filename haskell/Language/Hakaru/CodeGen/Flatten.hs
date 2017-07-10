@@ -45,15 +45,17 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.Datum hiding (Ident)
 import Language.Hakaru.Syntax.Reducer
+import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.Variable
 import qualified Language.Hakaru.Syntax.Prelude as HKP
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
-import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.Sing
 
 import           Control.Monad.State.Strict
 import           Data.Number.Natural
+import           Data.Proxy (KProxy(..))
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence      as S
@@ -180,18 +182,25 @@ flattenSCon Let_ =
 -- Lambdas produce functions and then return a function label exprssion
 flattenSCon Lam_ =
   \(body :* End) ->
-    \loc -> do
-      -- externally declare closure and function
-      closureTypeSpec <- coalesceLambda body extDeclClosure
+    \loc ->
+      coalesceLambda body $ \args body' ->
+        let freevars = fromVarSet . freeVars $ body'
+            retTyp   = typeOf body'
+        in do { -- create code block and closure structure
+                args' <- sequence . foldMap11 (\arg -> [genIdent]) $ args
+              ; fnId <- genIdent' "fn"
+              ; funCG (buildType retTyp) fnId [] $
+                  do { x <- flattenWithName body'
+                     ; putStat . CReturn . Just $ x }
 
-      -- declare local closure var
-      closureId <- genIdent' "closure"
-      declare' (buildDeclaration closureTypeSpec closureId)
+                -- create the closure object
+              ; closureId <- genIdent' "closure"
+              ; packClosure (CVar closureId) cNameStream freevars
+              ; putExprStat $ loc .=. (CVar closureId) }
 
-      -- capture environment in closure
-      putExprStat $ loc .=. (CVar closureId)
-
-  where coalesceLambda
+  where -- collapses nested lambdas of one argument to lambdas that take a list
+        -- arguments
+        coalesceLambda
           :: ( ABT Term abt )
           => abt '[x] a
           -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
@@ -204,58 +213,24 @@ flattenSCon Lam_ =
                   coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
                 _ -> k (Cons1 v Nil1) abt'
 
-        -- given a parameter, create identifiers corresponding to Hakaru vars,
-        -- and return a CTypeSpec for the param
-        -- Will this fail if the parameter is a SFun?
-        mkVarIdandSpec :: Variable (a :: Hakaru) -> CodeGen (Ident,[CTypeSpec])
-        mkVarIdandSpec v@(Variable _ _ typ) = do
-          extDeclareTypes typ
-          vId <- createIdent v
-          return (vId,buildType typ)
+        -- externally declare closure structure
+        closureStructure
+          :: [SomeVariable (KindOf (a :: Hakaru))]  -- ^ free variables
+          -> List1 Variable xs                      -- ^ function arguments
+          -> Ident                                  -- ^ identifier of function
+          -> CTypeSpec
+        closureStructure = undefined
 
-        extDeclClosure
-          :: ( ABT Term abt )
-          => List1 Variable (ys :: [Hakaru])
-          -> abt '[] b
-          -> CodeGen CTypeSpec
-        extDeclClosure vars body'= do
-          funcId <- genIdent' "fn"
-          idAndSpecs <- sequence $ foldMap11 (\v -> [mkVarIdandSpec v]) vars
-          let fVars   = freeVars body'
-              typ     = typeOf body'
-          (Ident sname) <- extDeclClosureStruct typ (fmap snd idAndSpecs) fVars
-          funCG (head . buildType $ typ)
-                funcId
-                ([buildDeclaration (callStruct sname) (Ident "env")]
-                 ++ (fmap (\(vId,specs) -> buildDeclaration' specs vId) idAndSpecs))
-                ((putStat . CReturn . Just) =<< flattenWithName body')
-          return (callStruct sname)
-
-        extDeclClosureStruct
-          :: forall (a :: Hakaru)
-          .  Sing a
-          -> [[CTypeSpec]]
-          -> VarSet (KindOf a)
-          -> CodeGen Ident
-        extDeclClosureStruct retTyp paramTypeSpecs freeVarSet = do
-          sId@(Ident sname) <- genIdent' "clos"
-          freeVarDecls <- mapM (\(SomeVariable v@(Variable _ _ typ)) -> do
-                                  extDeclareTypes typ
-                                  vId <- createIdent v
-                                  return (typeDeclaration typ vId)
-                               ) (fromVarSet freeVarSet)
-          let funPtrDecl =
-                CDecl (fmap CTypeSpec $ buildType retTyp)
-                      [( CDeclr Nothing
-                         (CDDeclrFun
-                           (CDDeclrRec (CDeclr (Just $ CPtrDeclr []) (CDDeclrIdent . Ident $ "fn")))
-                           ([callStruct sname]++(concat paramTypeSpecs)))
-                       , Nothing)]
-          extDeclare $ CDeclExt
-                     $ CDecl [ CTypeSpec $ buildStruct (Just sId)
-                                             ([funPtrDecl]++freeVarDecls) ]
-                             []
-          return sId
+        -- captures the environment variables in closure object
+        packClosure :: CExpr
+                    -> [String]
+                    -> [SomeVariable (KindOf (a :: Hakaru))]
+                    -> CodeGen ()
+        packClosure _ _      [] = return ()
+        packClosure c (n:ns) ((SomeVariable a):as) =
+          do { a' <- CVar <$> lookupIdent a
+             ; putExprStat $ c ... n .=. a'
+             ; packClosure c ns as }
 
 flattenSCon App_  =
  \(fun :* arg :* End) ->
@@ -1424,7 +1399,7 @@ logSumExpCG seqE =
        let argIds = fmap Ident (take size cNameStream)
            decls  = fmap (typeDeclaration SProb) argIds
            vars   = fmap CVar argIds
-       funCG CDouble funcId decls
+       funCG [CDouble] funcId decls
          (putStat . CReturn . Just . logSumExp . S.fromList $ vars)
        putExprStat $ loc .=. (CCall (CVar funcId) (F.toList seqE))
 

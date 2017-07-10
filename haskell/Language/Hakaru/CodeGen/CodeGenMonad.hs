@@ -303,7 +303,7 @@ imports to the top of the generated C file AND keep a set of the variable
 declarations local to the block of code.
 -}
 
-funCG :: CTypeSpec -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
+funCG :: [CTypeSpec] -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
 funCG ts ident args m =
   do cg <- get
      let (_,cg') = runState m $ cg { statements   = []
@@ -316,7 +316,7 @@ funCG ts ident args m =
                , declarations = declarations cg
                , freshNames   = freshNames cg }
      extDeclare . CFunDefExt $
-       CFunDef [CTypeSpec ts]
+       CFunDef (fmap CTypeSpec ts)
                (CDeclr Nothing (CDDeclrIdent ident))
                args
                (CCompound ((fmap CBlockDecl decls) ++ (fmap CBlockStat stmts)))
@@ -435,11 +435,11 @@ declareReductionCG typ unit mul =
      let declType = typePtrDeclaration typ
 
      inId <- genIdent' "in"
-     funCG CVoid unitId [declType inId] $
+     funCG [CVoid] unitId [declType inId] $
        unit . CVar $ inId
 
      (outId:in2Id:[]) <- mapM genIdent' ["out","in"]
-     funCG CVoid mulId [declType outId,declType in2Id] $
+     funCG [CVoid] mulId [declType outId,declType in2Id] $
        mul (CVar outId) (CVar in2Id)
 
      let typ' = case buildType typ of
