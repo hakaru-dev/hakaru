@@ -6,7 +6,7 @@ local r, `&context`;
   _Env_HakaruSolve := true;
   r:= LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx, opts));
   userinfo(5, improve, "output: ", print(r));
-  r:= reparam(r, _ctx);
+  r
 end proc;
 
 # Walk through integrals and simplify, recursing through grammar
