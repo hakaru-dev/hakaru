@@ -302,61 +302,67 @@ export
   #   probably be to add a new clause whose value is 'undefined'
   # the logic of this function is already essentially implemented, by KB
   # in fact, kb_piecewise does something extremely similar to this
-  PWToPartition := proc(x::specfunc(piecewise), {_kb::t_kb:=KB:-empty})::Partition;
-    # each clause evaluated under the context so far, which is the conjunction
-    # of the negations of all clauses so far
-    local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q, ctxC, cl, p;
+  PWToPartition := module()
+    export ModuleApply := proc(x::specfunc(piecewise))
+      general(args);
+    end proc;
 
-    # Checks if the piecewise is valid when translated literally to a Partition
-    # if so, that Partition can be returned directly. This is not done by
-    # default because the check calls `coulditbe' many times which is
-    # potentially much more expensive than just building the Partition from
-    # scratch. This should only be used when the piecewise comes from a solver
-    # which may or may not already return a 'partition', and when it does return
-    # a 'partition', the set of conditions is typically so complicated that
-    # rebuilding it produces an unwieldy monster (e.g. SemiAlgebraic in the case
-    # of e.g. RoundTrip/t62).
-    if 'check_valid' in {_rest} then
-      p := Partition(op(x));
-      if IsValid(p) then return p end if;
-    end if;
+    local general := proc(x, {_kb::t_kb:=KB:-empty})::Partition;
+      # each clause evaluated under the context so far, which is the conjunction
+      # of the negations of all clauses so far
+      local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q, ctxC, cl, p;
 
-    # handles all but the `otherwise` case if there is such a case
-    for i in seq(q, q = 1 .. iquo(n, 2)) do
-      cnd := op(2*i-1,x); # the clause as given
-      # if this clause is unreachable, then every subsequent clause will be as well
-      if ctx :: identical(false) then return PARTITION( cls );
-      else
-        ctxC := bool_And(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
-        ctxC := Simpl:-condition(ctxC, _kb, _rest);
+      # Checks if the piecewise is valid when translated literally to a Partition
+      # if so, that Partition can be returned directly. This is not done by
+      # default because the check calls `coulditbe' many times which is
+      # potentially much more expensive than just building the Partition from
+      # scratch. This should only be used when the piecewise comes from a solver
+      # which may or may not already return a 'partition', and when it does return
+      # a 'partition', the set of conditions is typically so complicated that
+      # rebuilding it produces an unwieldy monster (e.g. SemiAlgebraic in the case
+      # of e.g. RoundTrip/t62).
+      if 'check_valid' in {_rest} then
+        p := Partition(op(x));
+        if IsValid(p) then return p end if;
+      end if;
+
+      # handles all but the `otherwise` case if there is such a case
+      for i in seq(q, q = 1 .. iquo(n, 2)) do
+        cnd := op(2*i-1,x); # the clause as given
+        # if this clause is unreachable, then every subsequent clause will be as well
+        if ctx :: identical(false) then return PARTITION( cls );
+        else
+          ctxC := bool_And(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
+          ctxC := Simpl:-condition(ctxC, _kb, _rest);
 
         if cnd :: `=` then ncnd := lhs(cnd) <> rhs(cnd);
         else               ncnd := bool_Not(cnd) end if;
 
-        ctx  := bool_And(ncnd, ctx);             # the context for the next clause
+          ctx  := bool_And(ncnd, ctx);             # the context for the next clause
 
-        if ctx :: identical(false,[]) then    # this clause is actually unreachable
-          return(PARTITION(cls));
-        else
+          if ctx :: identical(false,[]) then    # this clause is actually unreachable
+            return(PARTITION(cls));
+          else
           cls := [ op(cls), op(Pieces(ctxC,[op(2*i,x)])) ];
+          end if;
+        end if;
+      end do;
+
+      # if there is an otherwise case, handle that.
+      if n::odd then
+        ctx := Simpl:-condition(ctx, _kb, _rest);
+        if not ctx :: identical(false,[]) then
+          cls := [ op(cls), op(Pieces(ctx,[op(n,x)])) ];
         end if;
       end if;
-    end do;
 
-    # if there is an otherwise case, handle that.
-    if n::odd then
-      ctx := Simpl:-condition(ctx, _kb, _rest);
-      if not ctx :: identical(false,[]) then
-        cls := [ op(cls), op(Pieces(ctx,[op(n,x)])) ];
+      if nops(cls) = 0 then
+        WARNING("PWToPartition: the piecewise %1 produced an empty partition", x);
+        return 0;
       end if;
-    end if;
-
-    if nops(cls) = 0 then
-      WARNING("PWToPartition: the piecewise %1 produced an empty partition", x);
-      return 0;
-    end if;
-    PARTITION( cls );
-  end proc,
+      PARTITION( cls );
+    end proc;
+  end module;
 
   # applies a function to the arg if arg::Partition,
   # and if arg::piecewise, then converts the piecewise to a partition,
