@@ -304,11 +304,11 @@ export
   # the logic of this function is already essentially implemented, by KB
   # in fact, kb_piecewise does something extremely similar to this
   PWToPartition := module()
-    export ModuleApply := proc(x::specfunc(piecewise))
-      general(args);
+    export ModuleApply := proc(x::specfunc(piecewise),{_kb::t_kb:=KB:-empty})
+      general(x,kb,_rest);
     end proc;
 
-    local general := proc(x, {_kb::t_kb:=KB:-empty})::Partition;
+    local general := proc(x, kb::t_kb)::Partition;
       # each clause evaluated under the context so far, which is the conjunction
       # of the negations of all clauses so far
       local ctx := true, n := nops(x), cls := [], cnd, ncnd, i, q, ctxC, cl, p;
@@ -334,7 +334,7 @@ export
         if ctx :: identical(false) then return PARTITION( cls );
         else
           ctxC := bool_And(cnd, ctx);              # the condition, along with the context (which is implicit in pw)
-          ctxC := Simpl:-condition(ctxC, _kb, _rest);
+          ctxC := Simpl:-condition(ctxC, kb, _rest);
 
         if cnd :: `=` then ncnd := lhs(cnd) <> rhs(cnd);
         else               ncnd := bool_Not(cnd) end if;
@@ -351,7 +351,7 @@ export
 
       # if there is an otherwise case, handle that.
       if n::odd then
-        ctx := Simpl:-condition(ctx, _kb, _rest);
+        ctx := Simpl:-condition(ctx, kb, _rest);
         if not ctx :: identical(false,[]) then
           cls := [ op(cls), op(Pieces(ctx,[op(n,x)])) ];
         end if;
