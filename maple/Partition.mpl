@@ -362,7 +362,7 @@ export
       end if;
       PARTITION( cls );
     end proc;
-  end module;
+  end module,
 
   # applies a function to the arg if arg::Partition,
   # and if arg::piecewise, then converts the piecewise to a partition,
