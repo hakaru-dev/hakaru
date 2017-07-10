@@ -74,7 +74,10 @@ testMeasureUnit = test [
     "t60"     ~: testConcreteFilesMany [ "tests/RoundTrip/t60.0.hk"
                                        , "tests/RoundTrip/t60.1.hk" ]
                                        "tests/RoundTrip/t60.expected.hk",
-    "t62"     ~: testConcreteFiles "tests/RoundTrip/t62.0.hk" "tests/RoundTrip/t62.expected.hk", ---- "Special case" of t56
+    "t62"     ~: testConcreteFilesManyWithOpts
+                    defaultMapleOptions { timelimit=110 }
+                    [ "tests/RoundTrip/t62.0.hk" ]
+                    "tests/RoundTrip/t62.expected.hk", ---- "Special case" of t56
         "t63"     ~: testConcreteFiles "tests/RoundTrip/t63.0.hk" "tests/RoundTrip/t63.expected.hk", ---- "Scalar multiple" of t62
     "t64"     ~: testConcreteFiles "tests/RoundTrip/t64.0.hk" "tests/RoundTrip/t64.expected.hk", -- Density calculation for (Exp (Log StdRandom)) and StdRandom
     "t64'"    ~: testConcreteFiles "tests/RoundTrip/t64.1.hk" "tests/RoundTrip/t64.expected.hk", -- Density calculation for (Exp (Log StdRandom)) and StdRandom
