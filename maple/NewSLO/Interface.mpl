@@ -59,6 +59,22 @@ end proc;
 RoundTrip_postproc[convert] := proc(r, f::type, t, $)
   subsindets(r, f, x->convert(x,t));
 end proc;
+RoundTrip_postproc[stable_piecewise_order] := proc(r, $)
+  subsindets(r, t_pw_or_part,
+    proc(x,$)
+      local p;
+      if   x::Partition then Simpl:-stable_order(x)
+      else
+        p := Partition(op(x));
+        if IsValid(p) then
+          PartitionToPW(Simpl:-stable_order(p));
+        else
+          x
+        end if;
+      end if;
+    end proc);
+end proc;
+
 Summarize := proc(e, _) Summary:-Summarize(e,_rest) end proc;
 
 Simplify := proc(e, t::t_type, {ctx :: list := []})
