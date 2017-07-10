@@ -25,8 +25,8 @@
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 ----------------------------------------------------------------
 module Language.Hakaru.Simplify
-    ( simplify
-    , simplify' 
+    ( simplify, simplifyWithOpts
+    , simplify'
     , simplifyDebug
     ) where
 
@@ -42,7 +42,13 @@ simplify
     :: forall abt a
     .  (ABT Term abt) 
     => abt '[] a -> IO (abt '[] a)
-simplify = sendToMaple defaultMapleOptions{command=Simplify}
+simplify = simplifyWithOpts defaultMapleOptions
+
+simplifyWithOpts
+    :: forall abt a
+    .  (ABT Term abt) 
+    => MapleOptions () -> abt '[] a -> IO (abt '[] a)
+simplifyWithOpts o = sendToMaple o{command=Simplify}
 
 simplify'
     :: forall abt a
