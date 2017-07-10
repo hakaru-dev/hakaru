@@ -34,9 +34,11 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
       result := subsindets(result, op(2,cs), x->convert(x,op(3,cs)));
     end do;
     result := eval(ToInert(result), _Inert_ATTRIBUTE=NULL);
-    result := sprintf("%a",result);
-    if 'print' in ret_type then printf("%s\n",result); end if;
-    if not ('string' in ret_type) then
+    if ({'print','string'} intersect ret_type) <> {} then
+      result := sprintf("%a",result);
+    end if;
+    if 'print' in ret_type then
+      printf("%s\n",result);
       result := NULL;
     end if;
   finally
