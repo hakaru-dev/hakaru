@@ -34,7 +34,7 @@ toLO := module()
                            Partition:-Pmap(z->integrate(z,h,loops),p)
                        end if;
                    end proc
-                 , m);
+                 , m, ['no_split_disj']);
     elif m :: t_case and not depends(op(1,m), map(lhs, loops)) then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='integrate'(op(2,b), x, loops),b), x=h)
