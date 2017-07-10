@@ -6,7 +6,11 @@
            , ScopedTypeVariables
            , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Tests.TestTools where
+module Tests.TestTools
+  ( module Tests.TestTools
+  , MapleOptions(..)
+  , defaultMapleOptions)
+   where
 
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Parser.Parser (parseHakaru)
@@ -20,6 +24,7 @@ import Language.Hakaru.Syntax.AST.Eq (alphaEq)
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), jmEq1)
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Simplify
+import Language.Hakaru.Maple (MapleOptions(..), defaultMapleOptions)
 import Language.Hakaru.Syntax.AST.Eq()
 import Text.PrettyPrint (Doc)
 
@@ -70,7 +75,17 @@ testSS1
     -> abt '[] a -- | Expected
     -> abt '[] a -- | To simplify
     -> Assertion
-testSS1 nm t' t = simplify t >>= \p -> assertAlphaEq nm p t'
+testSS1 = testSS1WithOpts defaultMapleOptions
+
+testSS1WithOpts
+    :: (ABT Term abt)
+    => MapleOptions ()
+    -> String
+    -> abt '[] a -- | Expected
+    -> abt '[] a -- | To simplify
+    -> Assertion
+testSS1WithOpts o nm t' t =
+   simplifyWithOpts o t >>= \p -> assertAlphaEq nm p t'
 
 -- Assert that all the given Hakaru programs simplify to the given one
 testSS 
@@ -168,9 +183,17 @@ testConcreteFilesMany
     :: [FilePath] 
     -> FilePath
     -> Test
-testConcreteFilesMany fs f =
+testConcreteFilesMany = testConcreteFilesManyWithOpts defaultMapleOptions
+
+-- TODO: Should there be a variant with options for each program?
+testConcreteFilesManyWithOpts
+    :: MapleOptions ()
+    -> [FilePath]
+    -> FilePath
+    -> Test
+testConcreteFilesManyWithOpts o fs f =
   testWithConcreteMany' f fs LaxMode $
-  \_ -> testSS1 ""
+  \_ -> testSS1WithOpts o ""
 
 -- Like testSStriv but for two concrete files
 testConcreteFiles
