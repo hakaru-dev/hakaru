@@ -1,11 +1,11 @@
-  ReparamDetermined := proc(lo :: LO(name, anything))
+  ReparamDetermined := proc(lo :: LO(name, anything), kb::t_kb)
     local h;
     h := op(1,lo);
     LO(h,
        evalindets(op(2,lo),
                   'And'('specfunc({Int,int})',
                         'anyfunc'(anything, 'name=anything')),
-                  g -> `if`(determined(op(1,g),h), Reparam(g,h), g)))
+                  g -> `if`(determined(op(1,g),h), reparam(g,h,kb), g)))
   end proc;
 
   determined := proc(e, h :: name)
@@ -71,7 +71,7 @@
   end proc;
 
   #main procedure for int/sum reparamterizations
-  reparam:= proc(e::LO(symbol, algebraic), ctx::{list,t_kb}:= [], $)
+  reparam:= proc(e::algebraic, h::symbol, ctx::{list,t_kb}:= [], $)
     local
     J:= innermostIntSum(e),   #the integral or sum
     newJ, #What J will become possible subs target(s)
