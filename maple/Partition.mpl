@@ -305,6 +305,7 @@ export
   # in fact, kb_piecewise does something extremely similar to this
   PWToPartition := module()
     export ModuleApply := proc(x::specfunc(piecewise),{_kb::t_kb:=KB:-empty})
+      option remember, system;
       general(x,kb,_rest);
     end proc;
 
