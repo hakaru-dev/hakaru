@@ -64,22 +64,27 @@ testStriv
     -> Assertion
 testStriv = testS ""
 
+testSS1
+    :: (ABT Term abt)
+    => String
+    -> abt '[] a -- | Expected
+    -> abt '[] a -- | To simplify
+    -> Assertion
+testSS1 nm t' t = simplify t >>= \p -> assertAlphaEq nm p t'
+
 -- Assert that all the given Hakaru programs simplify to the given one
 testSS 
     :: (ABT Term abt)
     => String
     -> [(abt '[] a)] 
     -> abt '[] a 
-    -> Assertion
-testSS nm ts t' = 
-     mapM_ (\t -> do p <- simplify t 
-                     assertAlphaEq nm p t')
-           (t':ts)
+    -> Test
+testSS nm ts t' = test $ map (testSS1 nm t') (t':ts)
 
 testSStriv 
     :: [(TrivialABT Term '[] a)] 
     -> TrivialABT Term '[] a 
-    -> Assertion
+    -> Test
 testSStriv = testSS ""
 
 assertAlphaEq ::
@@ -122,23 +127,23 @@ testWithConcrete t m k = testWithConcreteImport (noFileSource t) m k
 -- Like testWithConcrete, but for many programs 
 testWithConcreteMany 
   :: forall abt. (ABT Term abt) 
-  => Source
-  -> [Source]
+  => FilePath
+  -> [FilePath]
   -> TypeCheckMode 
-  -> (forall a . Sing a -> [abt '[] a] ->  abt '[] a -> Assertion) 
-  -> Assertion 
-testWithConcreteMany t ts mode k = 
-  case ts of 
-    []       -> testWithConcreteImport t mode $ \ty ast -> k ty [] ast 
-    (t0:ts') -> 
-      testWithConcreteImport t0 mode $ \ty0 (ast0 :: abt '[] x0) -> 
-      testWithConcreteMany t ts' mode $ \ty1 asts (ast1 :: abt '[] x1) -> 
-        case jmEq1 ty0 ty1 of 
-          Just Refl -> k ty0 (ast0:asts) ast1 
-          Nothing   -> assertFailure $ concat
-                         [ "Files don't have same type (" 
-                         , T.unpack (source t0), " :: ", show ty0, ", "
-                         , T.unpack (source t ), " :: ", show ty1 ]
+  -> (forall a . Sing a -> abt '[] a -> abt '[] a -> Assertion) 
+  -> Test
+testWithConcreteMany t ts mode k = test $ map (mkT t) (t:ts)
+  where mkT :: FilePath -> FilePath -> Assertion
+        mkT t0' t1' =
+          mapM (\t -> fileSource t <$> IO.readFile t) [t0', t1'] >>= \[t0,t1] ->
+          testWithConcreteImport t0 mode $ \t0ty (t0p :: abt '[] x0) ->
+          testWithConcreteImport t1 mode $ \t1ty (t1p :: abt '[] x1) ->
+            case jmEq1 t0ty t1ty of
+              Just Refl -> k t0ty t0p t1p
+              Nothing   -> assertFailure $ concat
+                           [ "Files don't have same type ("
+                           , T.unpack (source t0), " :: ", show t0ty, ", "
+                           , T.unpack (source t1), " :: ", show t1ty ]
 
 testWithConcrete'
     :: T.Text
@@ -148,31 +153,30 @@ testWithConcrete'
 testWithConcrete' = testWithConcrete
 
 testWithConcreteMany'
-  :: Source
-  -> [Source] 
+  :: FilePath
+  -> [FilePath] 
   -> TypeCheckMode 
   -> (forall a . Sing a 
-        -> [TrivialABT Term '[] a] 
-        -> TrivialABT Term '[] a 
+        -> TrivialABT Term '[] a
+        -> TrivialABT Term '[] a
         -> Assertion) 
-  -> Assertion 
+  -> Test
 testWithConcreteMany' = testWithConcreteMany
 
 -- Like testSStriv but for many concrete files
 testConcreteFilesMany
     :: [FilePath] 
     -> FilePath
-    -> Assertion
+    -> Test
 testConcreteFilesMany fs f =
-  mapM IO.readFile (f:fs) >>= \(t:ts) ->
-  testWithConcreteMany' (fileSource f t) (zipWith fileSource fs ts) LaxMode $
-  \_ -> testSStriv
+  testWithConcreteMany' f fs LaxMode $
+  \_ -> testSS1 ""
 
 -- Like testSStriv but for two concrete files
 testConcreteFiles
     :: FilePath
     -> FilePath
-    -> Assertion
+    -> Test
 testConcreteFiles f1 f2 = testConcreteFilesMany [f1] f2 
 
 -- Like testStriv but for a concrete file. 
