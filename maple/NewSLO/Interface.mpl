@@ -2,10 +2,12 @@
 
 Commands := [ `Simplify`, `Disintegrate`, `Summarize` ];
 
-RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition', 'piecewise'] }
+RoundTrip := proc(e, t::t_type, {_ret_type := {'print'}
+                                ,_postproc := [['convert','Partition','piecewise'],
+                                               'stable_piecewise_order']
                                 ,_gensym_charset := FAIL
                                 ,_command := Simplify})
-  local result, ret_type, cs, ifc_opts, syms0, command;
+  local result, ret_type, cs, ifc_opts, syms0, command, pp;
   ret_type := _ret_type; command := _command;
   if not(ret_type::set) then ret_type := {ret_type}; end if;
   if command::string then command := convert(command, name); end if;
@@ -30,8 +32,12 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
   try
     kernelopts(assertlevel=0);
     result := _command(e,t,_rest);
-    for cs in select(type, ret_type, [ identical(convert), type, anything ]) do
-      result := subsindets(result, op(2,cs), x->convert(x,op(3,cs)));
+    for pp in _postproc do
+      if assigned(RoundTrip_postproc[op(1,pp)]) then
+        result := RoundTrip_postproc[op(1,pp)](result, op(2..-1,pp))
+      else
+        error "invalid postproc option: %1", pp;
+      end if;
     end do;
     if not ('expr' in ret_type) then
       result := eval(ToInert(result), _Inert_ATTRIBUTE=NULL);
@@ -50,6 +56,9 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
   return result;
 end proc;
 
+RoundTrip_postproc[convert] := proc(r, f::type, t, $)
+  subsindets(r, f, x->convert(x,t));
+end proc;
 Summarize := proc(e, _) Summary:-Summarize(e,_rest) end proc;
 
 Simplify := proc(e, t::t_type, {ctx :: list := []})

@@ -35,7 +35,7 @@ NewSLO := module ()
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, SimplifyKB,  apply_LO,
+         RoundTrip, RoundTrip_postproc, Simplify, SimplifyKB,  apply_LO,
          Commands, Rename, Disintegrate, Summarize,
          TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
          Concrete, Profile,
