@@ -724,20 +724,25 @@ Hakaru := module ()
     ]);
 
   ProfileFn := proc(min_t,fn)
-    local t, res;
+    local t, res, ctx, fncall;
     if kernelopts(assertlevel) > 0 then
       t[0] := time[real]();
       res  := fn(_rest);
       t[1] := time[real]();
       t[2] := t[1]-t[0];
+      ctx  := map(op@getassumptions,indets([fn,_rest],Name));
+      fncall := sprintf("%a(%q)",fn,_rest);
+      ctx    := sprintf("assuming (%q)", op(ctx));
       if t[2] > min_t then
         userinfo(3, fn,
-                 printf("Evaluating %a%a took %f seconds\n",
-                        fn,[_rest],t[2]));
+                 printf("Evaluating\n\t%s\n\t%s\n\ttook "
+                        "%f seconds\n",
+                        fncall,ctx,t[2]));
       else
         userinfo(5, fn,
-                 printf("Evaluating %a%a took less than %f seconds\n",
-                        fn,[_rest],min_t));
+                 printf("Evaluating\n\t%s\n\t%s\n\ttook "
+                        "less than %f seconds\n",
+                        fncall,ctx,min_t));
       end if;
       res;
     else
