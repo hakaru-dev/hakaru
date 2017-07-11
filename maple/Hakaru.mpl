@@ -752,7 +752,10 @@ Hakaru := module ()
       proc()
         local t, min_prof, profs, res, ctx, fncall;
         if kernelopts(assertlevel) > 0 and
-        not (assigned(_Env_ProfileFn_inside[fn])) then
+           not (assigned(_Env_ProfileFn_inside[fn])) and
+           assigned(infolevel['procname']) and
+           infolevel['procname'] >= 3
+        then
           _Env_ProfileFn_inside[fn] := true;
           t[0] := get_prof();
           res  := fn(args);
