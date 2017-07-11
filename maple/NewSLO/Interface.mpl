@@ -163,7 +163,8 @@ eval_for_Simplify_tbl := table(
   [ `Int`=`int`
   # Some parts (which?) of the simplifier still always need `sum` instead of `Sum`
   , `Sum`=[`sum`,Not(anything)]
-  , `Product`=`product`
+  # Some parts (e.g. gmm_gibbs, see #103) of the simplifier still need `product`
+  , `Product`=[`product`,Not(satisfies(x->has(x,{Hakaru:-idx,Hakaru:-size})))]
   ]);
 
 eval_for_Simplify := proc(e,kb,$)
