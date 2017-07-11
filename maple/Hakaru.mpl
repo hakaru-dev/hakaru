@@ -725,7 +725,9 @@ Hakaru := module ()
 
   ProfileFn := proc(min_t,fn)
     local t, res, ctx, fncall;
-    if kernelopts(assertlevel) > 0 then
+    if kernelopts(assertlevel) > 0 and
+       not (assigned(_Env_ProfileFn_inside[fn])) then
+      _Env_ProfileFn_inside[fn] := true;
       t[0] := time[real]();
       res  := fn(_rest);
       t[1] := time[real]();
