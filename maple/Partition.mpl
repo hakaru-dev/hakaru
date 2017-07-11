@@ -696,10 +696,14 @@ export
       ks  := map(nops, ps1); # number of pieces per group
 
       # build the result
-      ps1 := map(p->Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), kb,
-                                            'do_solve', 'do_kb', 'do_check')[])
-                          ,valOf(op(1,p)))
-                 ,ps1);
+      ps1 := zip((p,k)->
+                 Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), kb,
+                         `if`(k<>1,
+                              ['do_solve', 'do_kb', 'do_check'],
+                              ['reduce_conjs']
+                             )[])[]),
+                       valOf(op(1,p)))
+                 ,ps1, ks);
       userinfo(3, :-reduce_branches, printf("condition: %a\n", ps1));
 
       # replace the condition of each piece built from many others
