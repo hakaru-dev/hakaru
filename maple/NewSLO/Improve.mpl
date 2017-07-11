@@ -102,6 +102,9 @@ end proc;
 reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,do_check::truefalse, $)
   local e := ee;
   if do_check and not(can_reduce_Partition(e)) then return e end if;
+  # big hammer: simplify knows about bound variables, amongst many
+  # other things
+  Testzero := x -> evalb(simplify(x) = 0);
 
   e := subsindets(e, t_pw, PWToPartition);
   e := Partition:-Simpl(e, kb);
@@ -121,9 +124,6 @@ do_reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,$)
   e := kb_Partition(e, kb, simplify_assuming,
                     ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
   e := eval(e, %reduce=reduce);
-  # big hammer: simplify knows about bound variables, amongst many
-  # other things
-  Testzero := x -> evalb(simplify(x) = 0);
   e := Partition:-Simpl(e, kb);
 end proc;
 
