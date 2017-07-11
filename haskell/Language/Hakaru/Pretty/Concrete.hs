@@ -60,6 +60,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Value
+import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Pretty.Haskell (Associativity(..))
 
@@ -217,6 +218,34 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                     = ppApply2 p "weight" w m
 
         Reject_ typ -> parensIf (p > 5) (text "reject." <+> prettyType 0 typ)
+
+        Bucket lo hi red -> ppFun p "rbucket"
+                            [ flip prettyPrec lo, flip prettyPrec hi
+                            , flip prettyPrec_ red ]
+
+instance ABT Term abt => Pretty (Reducer abt xs) where
+  prettyPrec_ = flip ppr where
+    ppRbinder :: abt xs1 a -> Int -> Doc
+    ppRbinder f p =
+      let (vs,b) = ppBinder f
+      in parensIf (p > 0) $ sep [ sepComma vs <> colon, b ]
+
+    ppr :: Reducer abt xs1 a -> Int -> Doc
+    ppr red p =
+      case red of
+        Red_Fanout l r  -> ppFun p "rfanout"
+                             [ ppr l
+                             , ppr r ]
+        Red_Index s k r -> ppFun p "rindex"
+                             [ ppRbinder s
+                             , ppRbinder k
+                             , ppr r ]
+        Red_Split b l r -> ppFun p "rsplit"
+                             [ ppRbinder b
+                             , ppr l
+                             , ppr r ]
+        Red_Nop         -> text "rnop"
+        Red_Add _ k     -> ppFun p "radd" [ ppRbinder k ]
 
 ppNaryOpSum
     :: forall abt a . (ABT Term abt) => abt '[] a -> Doc
