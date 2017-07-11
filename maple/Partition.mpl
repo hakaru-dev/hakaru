@@ -815,6 +815,15 @@ export
         end if;
       end proc;
 
+      # Removes each conjunct if it is true under the assumption of the others
+      local do_reduce_conj := proc(x::specfunc(And), $)
+        bool_And(seq(
+          `if`((is(op(i,x)) assuming
+                op(subsop(i=NULL,[op(x)]))),
+               NULL, op(i,x)),
+          i=1..nops(x)));
+      end proc;
+
       # For some reason, solve just disregards these sorts of conditions
       # altogether, but not when they appear on their own! e.g.
       #  solve( {a<>b} )       = {a=a,a<>b}
@@ -848,8 +857,9 @@ export
         end if;
 
         ctxC := KB:-chill(ctxC);
-
-        if 'do_solve' in {_rest} and _Env_HakaruSolve<>false and can_solve(ctxC) then
+        if 'reduce_conjs' in {_rest} then
+          ctxC := subsindets(ctxC,specfunc(And),do_reduce_conj)
+        elif 'do_solve' in {_rest} and _Env_HakaruSolve<>false and can_solve(ctxC) then
           ctxC1 := solve({ctxC}, 'useassumptions'=true);
           if ctxC1 = ctxC then
             # sometimes solve returns unevaluated which confuses postproc because
