@@ -764,8 +764,8 @@ Hakaru := module ()
           min_prof := [min_t,min_ba,min_bu];
           profs  := ppr_prof(min_prof, t[2],
                              [["seconds","%.3f"],
-                              ["MB alloc", "%.3f"],
-                              ["MB total used", "%.3f"]]);
+                              ["MiB alloc", "%.3f"],
+                              ["MiB total used", "%.3f"]]);
           userinfo(`if`(`or`(zip(`>`,t[2], min_prof)[]),3,5),
                    'procname',
                    printf("Evaluating\n\t%s\n\t%s%s\n",fncall,ctx,profs));
