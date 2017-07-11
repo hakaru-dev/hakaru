@@ -264,7 +264,7 @@ KB := module ()
   # return a SplitKB instead.
   assert_deny := module ()
    export ModuleApply;
-   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve,
+   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve, do_assert_deny,
          refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg, rel_coulditbe;
 
    # Either And or Or type, chosen by boolean pol
@@ -520,11 +520,12 @@ KB := module ()
               ,StringTools[FormatMessage](lastexception[2..-1]))
    end proc;
 
+   ModuleApply := curry(ProfileFn, 1, do_assert_deny);
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
    # Great deal of magic happens behind the scenes
-   ModuleApply := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb)
+   do_assert_deny := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
     local as, bbv, b, k, x, log_b, todo, kb0, ch;
     b := bb;
