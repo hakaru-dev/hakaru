@@ -46,7 +46,6 @@ import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.Datum hiding (Ident)
 import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Variable
 import qualified Language.Hakaru.Syntax.Prelude as HKP
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
@@ -55,7 +54,6 @@ import Language.Hakaru.Types.Sing
 
 import           Control.Monad.State.Strict
 import           Data.Number.Natural
-import           Data.Proxy (KProxy(..))
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence      as S
@@ -173,9 +171,7 @@ flattenSCon Let_ =
     \loc -> do
       caseBind body $ \v@(Variable _ _ typ) body'->
         do ident <- createIdent v
-           case typ of
-             (SFun _ _) -> return ()
-             _ -> declare typ ident
+           declare typ ident
            flattenABT expr (CVar ident)
            flattenABT body' loc
 
@@ -187,15 +183,31 @@ flattenSCon Lam_ =
         let freevars = fromVarSet . freeVars $ body'
             retTyp   = typeOf body'
         in do { -- create code block and closure structure
-                args' <- sequence . foldMap11 (\arg -> [genIdent]) $ args
-              ; fnId <- genIdent' "fn"
-              ; funCG (buildType retTyp) fnId [] $
-                  do { x <- flattenWithName body'
+                args' <- sequence . foldMap11 argDecl $ args
+              ; envId <- genIdent' "env"
+              ; fnId  <- genIdent' "fn"
+              ; closDataId@(Ident clos_n) <- genIdent' "clos_data"
+              ; extDeclare (closureStructure freevars args closDataId retTyp)
+              ; funCG (buildType retTyp)
+                      fnId
+                      ((buildDeclaration (callStruct clos_n) envId):args') $
+                  do { putStat (opComment "Begin Unpack Closure")
+                       -- need to re-declare variables in functions scope
+                     ; mapM_ (\(SomeVariable v@(Variable _ _ typ)) ->
+                               lookupIdent v >>= declare typ)
+                             freevars
+                     ; unpackClosure (CVar envId) cNameStream freevars
+                     ; putStat (opComment "End Unpack Closure")
+                     ; x <- flattenWithName body'
                      ; putStat . CReturn . Just $ x }
 
                 -- create the closure object
               ; closureId <- genIdent' "closure"
+              ; declare' . buildDeclaration (callStruct clos_n) $ closureId
+              ; putStat (opComment "Begin Pack Closure")
+              ; putExprStat $ ((CVar closureId) ... "_code_ptr") .=. (address (CVar fnId))
               ; packClosure (CVar closureId) cNameStream freevars
+              ; putStat (opComment "End Pack Closure")
               ; putExprStat $ loc .=. (CVar closureId) }
 
   where -- collapses nested lambdas of one argument to lambdas that take a list
@@ -213,31 +225,37 @@ flattenSCon Lam_ =
                   coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
                 _ -> k (Cons1 v Nil1) abt'
 
-        -- externally declare closure structure
-        closureStructure
-          :: [SomeVariable (KindOf (a :: Hakaru))]  -- ^ free variables
-          -> List1 Variable xs                      -- ^ function arguments
-          -> Ident                                  -- ^ identifier of function
-          -> CTypeSpec
-        closureStructure = undefined
+        argDecl :: Variable (a :: Hakaru) -> [CodeGen CDecl]
+        argDecl v@(Variable _ _ typ) =
+          [do { ident <- createIdent v ; return (typeDeclaration typ ident) }]
 
         -- captures the environment variables in closure object
-        packClosure :: CExpr
-                    -> [String]
-                    -> [SomeVariable (KindOf (a :: Hakaru))]
-                    -> CodeGen ()
+        packClosure, unpackClosure
+          :: CExpr
+          -> [String]
+          -> [SomeVariable (KindOf (a :: Hakaru))]
+          -> CodeGen ()
         packClosure _ _      [] = return ()
         packClosure c (n:ns) ((SomeVariable a):as) =
           do { a' <- CVar <$> lookupIdent a
              ; putExprStat $ c ... n .=. a'
              ; packClosure c ns as }
+        packClosure _ _ _ = error "this isn't possible"
+
+        unpackClosure _ _      [] = return ()
+        unpackClosure c (n:ns) ((SomeVariable a):as) =
+          do { a' <- CVar <$> lookupIdent a
+             ; putExprStat $ a' .=. c ... n
+             ; unpackClosure c ns as }
+        unpackClosure _ _ _ = error "this isn't possible"
 
 flattenSCon App_  =
  \(fun :* arg :* End) ->
-   \loc -> do
-     closE <- flattenWithName' fun "clos"
-     paramE <- flattenWithName' arg "param"
-     putExprStat $ loc .=. (CCall (CMember closE (Ident "fn") True) [paramE])
+   \loc ->
+     do { closE <- flattenWithName' fun "closure"
+        ; paramE <- flattenWithName' arg "param"
+        ; putExprStat $ loc .=. CCall (indirect (closE ... "_code_ptr"))
+                                      [closE,paramE] }
 
 flattenSCon (PrimOp_ op) = flattenPrimOp op
 
