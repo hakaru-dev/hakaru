@@ -347,7 +347,7 @@ export
       cs[2] := map(KB:-negate_rel, cs[0]);
       cs[3] := [ true  , op(1..-2, cs[2]) ];
       cs[4] := [ true$2, op(1..-3, cs[2]) ];
-      cs[3] := KB:-zip_k(
+      cs[3] := zip_k(
         proc(x,y,z)
           # No need to take the previous negated condition; it's implied by the
           # equality

@@ -53,7 +53,7 @@ KB := module ()
      boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw,
      array_size_assumptions, array_elem_assumptions, kb_intro_to_assumptions,
 
-     simpl_range_of_htype, zip_k,
+     simpl_range_of_htype,
      known_assuming_expections
 
      ;
@@ -1062,10 +1062,6 @@ KB := module ()
             [t_lo, t_hi] ,
             [Bound(`>`,-infinity),Bound(`<`,infinity)] ,
             simpl_range_of_htype[op(0,t)] )));
-  end proc;
-
-  zip_k := proc(f)
-    map(f@op@ListTools[Flatten], foldl((a,b)->zip(`[]`,a,b,[]), _rest));
   end proc;
 
   # Avoid FAILure modes of the assumption system
