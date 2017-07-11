@@ -6,6 +6,7 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print'}
                                 ,_postproc := [['convert','Partition','piecewise'],
                                                'stable_Partition_order']
                                 ,_gensym_charset := FAIL
+                                ,_debug :: truefalse := false
                                 ,_command := Simplify})
   local result, ret_type, cs, ifc_opts, syms0, command, pp;
   ret_type := _ret_type; command := _command;
@@ -30,7 +31,7 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print'}
 
   ifc_opts[1] := interface(ifc_opts[0]);
   try
-    kernelopts(assertlevel=0);
+    if not(_debug) then kernelopts(assertlevel=0); end if;
     result := _command(e,t,_rest);
     for pp in _postproc do
       if assigned(RoundTrip_postproc[op(1,pp)]) then
