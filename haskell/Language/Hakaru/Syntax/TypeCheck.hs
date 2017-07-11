@@ -73,7 +73,7 @@ import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Sing
     (sing_Literal, sing_MeasureOp)
-import Language.Hakaru.Pretty.Concrete (prettyType)
+import Language.Hakaru.Pretty.Concrete (prettyType, prettyTypeT)
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import Language.Hakaru.Syntax.Prelude (triv)
 
@@ -249,9 +249,6 @@ instance Alternative TypeCheckMonad where
         Right e -> Right e
 -}
 
-prettyTyT :: Sing (a :: Hakaru) -> Text
-prettyTyT = pack . show . prettyType 0
-
 show1T :: Show1 a => a (i :: Hakaru) -> Text
 show1T = pack . show1
 
@@ -325,7 +322,7 @@ missingInstance clas typ s = failwith =<<
    makeErrMsg
     "Missing Instance:"
     s
-    (mconcat $ ["No ", clas, " instance for type ", prettyTyT typ])
+    (mconcat $ ["No ", clas, " instance for type ", prettyTypeT typ])
 
 missingLub
     :: Sing (a :: Hakaru)
@@ -336,7 +333,7 @@ missingLub typ1 typ2 s = failwith =<<
     makeErrMsg
      "Missing common type:"
      s
-     (mconcat ["No lub of types ", prettyTyT typ1, " and ", prettyTyT typ2])
+     (mconcat ["No lub of types ", prettyTypeT typ1, " and ", prettyTypeT typ2])
 
 -- we can't have free variables, so it must be a typo
 ambiguousFreeVariable

@@ -29,6 +29,8 @@ module Language.Hakaru.Pretty.Concrete
     , prettyPrec
     , prettyType
     , prettyValue
+    , prettyT
+    , prettyTypeT
     -- * Helper functions (semi-public internal API)
     ) where
 
@@ -44,6 +46,7 @@ import qualified Data.Text             as Text
 import qualified Data.Sequence         as Seq
 import qualified Data.Vector           as V
 import           Data.Ratio
+import qualified Data.Text             as T
 
 import           Data.Number.Natural   (fromNatural, fromNonNegativeRational)
 import           Data.Number.Nat
@@ -65,6 +68,13 @@ import Language.Hakaru.Pretty.Haskell (Associativity(..))
 pretty :: (ABT Term abt) => abt '[] a -> Doc
 pretty = prettyPrec 0
 
+-- | Pretty print a term as a Text
+prettyT :: (ABT Term abt) => abt '[] a -> T.Text
+prettyT = T.pack . show . pretty
+
+-- | Pretty-print a type as a Text
+prettyTypeT :: Sing (a :: Hakaru) -> T.Text
+prettyTypeT = T.pack . show . prettyType 0
 
 -- | Pretty-print a term at a given precendence level.
 prettyPrec :: (ABT Term abt) => Int -> abt '[] a -> Doc
