@@ -496,6 +496,7 @@ KB := module ()
 
    rel_coulditbe := ProfileFn(do_rel_coulditbe, 1);
    do_rel_coulditbe := proc(a,as,$)
+      option remember, system;
       try
           not(is(bool_Not(a)) assuming op(as));
       catch "when calling '%1'. Received: 'contradictory assumptions'" :
