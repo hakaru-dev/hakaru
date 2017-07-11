@@ -520,7 +520,7 @@ KB := module ()
               ,StringTools[FormatMessage](lastexception[2..-1]))
    end proc;
 
-   ModuleApply := curry(ProfileFn, 1, do_assert_deny);
+   ModuleApply := ProfileFn(1, do_assert_deny);
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)

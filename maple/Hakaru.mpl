@@ -723,34 +723,34 @@ Hakaru := module ()
     ,(t_pw_or_part = 'Or(t_pw,t_partition)')
     ]);
 
-  ProfileFn := proc(min_t,fn)
+  ProfileFn := proc(min_t,fn,$) proc()
     local t, res, ctx, fncall;
     if kernelopts(assertlevel) > 0 and
        not (assigned(_Env_ProfileFn_inside[fn])) then
       _Env_ProfileFn_inside[fn] := true;
       t[0] := time[real]();
-      res  := fn(_rest);
+      res  := fn(args);
       t[1] := time[real]();
       t[2] := t[1]-t[0];
-      ctx  := map(op@getassumptions,indets([fn,_rest],Name));
-      fncall := sprintf("%a(%q)",fn,_rest);
+      ctx  := map(op@getassumptions,indets([fn,args],Name));
+      fncall := sprintf("%a(%q)",'procname',args);
       ctx    := sprintf("assuming (%q)", op(ctx));
       if t[2] > min_t then
-        userinfo(3, fn,
+        userinfo(3, 'procname',
                  printf("Evaluating\n\t%s\n\t%s\n\ttook "
                         "%f seconds\n",
                         fncall,ctx,t[2]));
       else
-        userinfo(5, fn,
+        userinfo(5, 'procname',
                  printf("Evaluating\n\t%s\n\t%s\n\ttook "
                         "less than %f seconds\n",
                         fncall,ctx,min_t));
       end if;
       res;
     else
-      fn(_rest)
+      fn(args)
     end if;
-  end proc;
+  end proc; end proc;
 
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
