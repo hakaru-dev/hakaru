@@ -23,6 +23,7 @@ import           Language.Hakaru.Command hiding (Term)
 import           Data.Text
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
+import           Data.Monoid (Monoid(mconcat))
 
 import           System.Environment
 
