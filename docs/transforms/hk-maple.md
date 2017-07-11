@@ -363,8 +363,69 @@ fn a prob: normal(prob2real(a), sqrt(3))
 ````
 
 ### Disintegrate ###
-(TODO)
 
+The following examples are simplified versions of the Borel-Kolmogorov paradox.
+Both programs choose `x` and `y` uniformly from the range `0..1` and return a
+pair consisting of a polynomial `P(x,y)` and the coordinates `x` and `y`
+themselves.
+
+````nohighlight
+ $ pretty examples/borel-sub.hk
+x <~ uniform(nat2real(0), nat2real(1))
+y <~ uniform(nat2real(0), nat2real(1))
+return (y - nat2real(2) * x, (x, y))
+````
+````nohighlight
+ $ pretty examples/borel-div.hk
+x <~ uniform(nat2real(0), nat2real(1))
+y <~ uniform(nat2real(0), nat2real(1))
+return (y / x, (x, y))
+````
+
+Disintegrating these two programs produces results which immediately reject
+values of `P(x,y)` which are impossible (e.g. `y/x` cannot be less than zero for
+`x,y` in `[0,1] x [0,1]`). For remaining permitted values of `x` and `y`,
+`y` is parametrized in terms of `x`; that is, the equation `P(x,y)=0` is solved
+for `x`.
+
+````nohighlight
+ $ hk-maple -c Disint examples/borel-sub.hk
+fn t1 real:
+if +1/1 < t1 || t1 < -2/1: reject. measure(pair(real, real))
+else:
+  if -2/1 < t1 && t1 < -1/1:
+    weight
+      (real2prob(+1/1 + t1 * (+1/2)),
+       x9 <~ uniform(t1 * (-1/2), +1/1)
+       return (x9, x9 * (+2/1) + t1))
+  else:
+    if -1/1 < t1 && t1 < +0/1:
+      weight
+        (1/2,
+         x9 <~ uniform(t1 * (-1/2), t1 * (-1/2) + (+1/2))
+         return (x9, x9 * (+2/1) + t1))
+    else:
+      weight
+        (real2prob(t1 * (-1/2) + (+1/2)),
+         x9 <~ uniform(+0/1, t1 * (-1/2) + (+1/2))
+         return (x9, x9 * (+2/1) + t1))
+````
+````nohighlight 
+ $ hk-maple -c Disint borel-div.hk
+fn t1 real:
+if t1 < +0/1: reject. measure(pair(real, real))
+else:
+  if +1/1 < t1:
+    weight
+      (real2prob(1/ t1),
+       x9 <~ uniform(+0/1, 1/ t1)
+       weight(real2prob(x9), return (x9, x9 * t1)))
+  else:
+    weight
+      (1/2,
+       x9 <~ beta(2/1, 1/1)
+       return (prob2real(x9), prob2real(x9) * t1))
+````
 
 ### Summarize ###
 
