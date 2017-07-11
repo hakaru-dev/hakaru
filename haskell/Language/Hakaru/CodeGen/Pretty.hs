@@ -114,7 +114,7 @@ instance Pretty CDirectDeclr where
   pretty (CDDeclrIdent i) = pretty i
   pretty (CDDeclrArr dd e) = pretty dd <+> (brackets . pretty $ e)
   pretty (CDDeclrFun dd ts) =
-    pretty dd <> (parens . hsep . punctuate comma . fmap pretty $ ts)
+    pretty dd <> (parens . hsep . punctuate comma . fmap (hsep . fmap pretty) $ ts)
   pretty (CDDeclrRec declr) = parens . pretty $ declr
 
 
