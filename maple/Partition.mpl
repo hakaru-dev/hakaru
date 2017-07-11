@@ -837,7 +837,7 @@ export
         evalb(indets(c, neq_nn) = {} or not has(c,`idx`))
       end proc;
 
-      export ModuleApply := ProfileFn(1.0,do_condition);
+      export ModuleApply := ProfileFn(do_condition, 1);
 
       export do_condition := proc(ctx, kb::t_kb := KB:-empty)::list(PartitionCond);
         option remember, system;

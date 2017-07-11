@@ -264,7 +264,7 @@ KB := module ()
   # return a SplitKB instead.
   assert_deny := module ()
    export ModuleApply;
-   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve, do_assert_deny,
+   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve, do_assert_deny, do_rel_coulditbe,
          refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg, rel_coulditbe;
 
    # Either And or Or type, chosen by boolean pol
@@ -494,7 +494,8 @@ KB := module ()
      warm(b);
    end proc;
 
-   rel_coulditbe := proc(a,as,$)
+   rel_coulditbe := ProfileFn(do_rel_coulditbe, 1);
+   do_rel_coulditbe := proc(a,as,$)
       try
           not(is(bool_Not(a)) assuming op(as));
       catch "when calling '%1'. Received: 'contradictory assumptions'" :
@@ -520,7 +521,7 @@ KB := module ()
               ,StringTools[FormatMessage](lastexception[2..-1]))
    end proc;
 
-   ModuleApply := ProfileFn(1, do_assert_deny);
+   ModuleApply := ProfileFn(do_assert_deny, 1);
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)

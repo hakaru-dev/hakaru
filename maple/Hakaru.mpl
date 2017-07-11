@@ -727,34 +727,55 @@ Hakaru := module ()
     ,(t_pw_or_part = 'Or(t_pw,t_partition)')
     ]);
 
-  ProfileFn := proc(min_t,fn,$) proc()
-    local t, res, ctx, fncall;
-    if kernelopts(assertlevel) > 0 and
-       not (assigned(_Env_ProfileFn_inside[fn])) then
-      _Env_ProfileFn_inside[fn] := true;
-      t[0] := time[real]();
-      res  := fn(args);
-      t[1] := time[real]();
-      t[2] := t[1]-t[0];
-      ctx  := map(op@getassumptions,indets([fn,args],Name));
-      fncall := sprintf("%a(%q)",'procname',args);
-      ctx    := sprintf("assuming (%q)", op(ctx));
-      if t[2] > min_t then
-        userinfo(3, 'procname',
-                 printf("Evaluating\n\t%s\n\t%s\n\ttook "
-                        "%f seconds\n",
-                        fncall,ctx,t[2]));
-      else
-        userinfo(5, 'procname',
-                 printf("Evaluating\n\t%s\n\t%s\n\ttook "
-                        "less than %f seconds\n",
-                        fncall,ctx,min_t));
-      end if;
-      res;
-    else
-      fn(args)
-    end if;
-  end proc; end proc;
+  ProfileFn := module()
+    local get_prof := proc()
+      [ time[real](), kernelopts(bytesalloc)/2^20, kernelopts(bytesused)/2^20 ];
+    end proc;
+    local ppr_prof1 := proc(m,a,nm,fmt0,$)
+      local v,p,fmt;
+      v,p,fmt := `if`(a>=m, ["",a,fmt0], ["less than ",m,"%a"])[];
+      cat(v,sprintf(fmt,p)," ",nm);
+    end proc;
+    local ppr_prof := proc(min_t, t, nms, $)
+      local prefix, prefixl, strs;
+      prefix := "took "; prefixl := length(prefix);
+      strs :=
+      zip_k(ppr_prof1, min_t, t, nms);
+      cat(op(
+        ListTools:-Interleave(
+          ["\n\t"$nops(strs)],
+          [prefix,cat(" "$prefixl)$(nops(strs)-1)],
+          strs)));
+    end proc;
+    export ModuleApply :=
+    proc(fn,min_t:=0.1,min_ba:=100,min_bu:=100)
+      proc()
+        local t, min_prof, profs, res, ctx, fncall;
+        if kernelopts(assertlevel) > 0 and
+        not (assigned(_Env_ProfileFn_inside[fn])) then
+          _Env_ProfileFn_inside[fn] := true;
+          t[0] := get_prof();
+          res  := fn(args);
+          t[1] := get_prof();
+          t[2] := zip(`-`,t[1],t[0]);
+          ctx  := map(op@getassumptions,indets([fn,args],Name));
+          fncall := sprintf("%a(%q)",'procname',args);
+          ctx    := sprintf("assuming (%q)", op(ctx));
+          min_prof := [min_t,min_ba,min_bu];
+          profs  := ppr_prof(min_prof, t[2],
+                             [["seconds","%.3f"],
+                              ["MB alloc", "%.3f"],
+                              ["MB total used", "%.3f"]]);
+          userinfo(`if`(`or`(zip(`>`,t[2], min_prof)[]),3,5),
+                   'procname',
+                   printf("Evaluating\n\t%s\n\t%s%s\n",fncall,ctx,profs));
+          res;
+        else
+          fn(args)
+        end if;
+      end proc;
+    end proc;
+  end module;
 
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
