@@ -15,6 +15,30 @@ tune its measurements based on its knowledge of temperature and measurement nois
 
 ## Modelling ##
 
+For our thermometer model, we must first make a few assumptions about the environment. Normally this information would be collected as
+part of the problem's domain knowledge. For this example, we will use the following information:
+
+- The temperature noise follows a uniform distribution on the interval \([\)3, 8\(]\)
+- The measurement noise follows a uniform distribution with a range of \([\)1, 4\(]\)
+- The initial temperature of the room is 21\(^{\circ}\)C
+- Temperature and measurement samples follow a normal distribution
+
+````nohighlight
+nT <~ uniform(3,8)
+nM <~ uniform(1,4)
+
+noiseT = real2prob(nT)
+noiseM = real2prob(nM)
+
+t1 <~ normal(21, noiseT)
+t2 <~ normal(t1, noiseT)
+
+m1 <~ normal(t1, noiseM)
+m2 <~ normal(t2, noiseM)
+
+return ((m1, m2), (noiseT, noiseM))
+````
+
 ## Transformation ##
 
 ## Application ##
