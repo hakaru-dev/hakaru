@@ -107,14 +107,14 @@ type MapleCommands = '[ "Simplify", "Disintegrate", "Reparam", "Summarize" ]
 
 mapleCommand
   :: ABT Term abt => MapleOptions o -> DynCommand ('OneOf MapleCommands) abt IO
-mapleCommand o = DynCmd $ \(OneOfCmds _ c) -> sendToMaple o { command = c }
+mapleCommand o = DynCmd $ \c -> sendToMaple o { command = c }
 
 sendToMaple  
-    :: (ABT Term abt, IsCommand (c :: Symbol))
-    => MapleOptions (CommandType c i o) 
+    :: (ABT Term abt)
+    => MapleOptions (CommandType ('OneOf MapleCommands) i o) 
     -> abt '[] i 
     -> IO (abt '[] o)
-sendToMaple MapleOptions{..} e = do 
+sendToMaple MapleOptions{command=OneOfCmds _ command,..} e = do 
   let typ_in = typeOf e
       typ_out = commandIsType command typ_in 
       optStr (k,v) = concat["_",k,"=",v]

@@ -14,6 +14,7 @@
            , FlexibleContexts
            , StandaloneDeriving
            , MultiParamTypeClasses
+           , OverlappingInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -220,6 +221,13 @@ data In (xs :: [k]) (x :: k) where
   InH :: In (x ': xs) x
   InT :: !(In xs x) -> In (x0 ': xs) x
 
+class Member (xs :: [k]) (x :: k) where
+  inj :: f x -> In xs x
+instance Member (x ': xs) x where
+  inj _ = InH
+instance Member xs x => Member (x0 ': xs) x where
+  inj = InT . inj
+
 listSing :: forall xs . All SingI xs => List1 Sing xs
 listSing = fmap11 (\c@Holds -> singOf c) (allHolds :: List1 (Holds SingI) xs)
 
@@ -233,6 +241,11 @@ data instance CommandType ('OneOf cs) i o where
   OneOfCmds :: IsCommand c
             => !(In cs c) -> !(CommandType c i o)
             -> CommandType ('OneOf cs) i o
+
+injCmd :: (IsCommand c, Member cs c)
+       => CommandType c i o
+       -> CommandType ('OneOf cs) i o
+injCmd c = OneOfCmds (inj Proxy) c
 
 instance (All IsCommand cs, All SingI cs, Show1 (Sing :: k -> *))
   => IsCommand ('OneOf (cs :: [k])) where
