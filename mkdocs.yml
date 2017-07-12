@@ -19,9 +19,10 @@ pages:
   - 'Compiling to Haskell':                        'transforms/compile.md' 
   - 'Compiling to C':                              'transforms/hkc.md' 
 - Workflow and Examples:
-  - 'What is the Hakaru Workflow?':                  'workflow/intro.md'
-  - 'Tutorial: Hakaru Workflow for Discrete Models': 'workflow/discrete.md'
-  - 'Examples':                                      'examples.md'
+  - 'What is the Hakaru Workflow?':                    'workflow/intro.md'
+  - 'Tutorial: Hakaru Workflow for Discrete Models':   'workflow/discrete.md'
+  - 'Tutorial: Hakaru Workflow for Continuous Models': 'workflow/continuous.md'
+  - 'Examples':                                        'examples.md'
 - Language Guide:
   - 'Primitive Probability Distributions': 'lang/rand.md'
   - 'Let and Bind':                        'lang/letbind.md'
