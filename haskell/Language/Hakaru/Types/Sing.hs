@@ -25,7 +25,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Types.Sing
     ( Sing(..)
-    , SingI(..)
+    , SingI(..), singOf
     -- * Some helpful shorthands for \"built-in\" datatypes
     -- ** Constructing singletons
     , sBool
@@ -72,6 +72,9 @@ data family Sing (a :: k) :: *
 -- | A class for automatically generating the singleton for a given
 -- Hakaru type.
 class SingI (a :: k) where sing :: Sing a
+
+singOf :: SingI a => proxy a -> Sing a
+singOf _ = sing
 
 {-
 -- TODO: we'd much rather have something like this, to prove that
