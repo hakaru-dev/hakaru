@@ -56,6 +56,11 @@ Hakaru provides a language and tools to aid in each step of the Bayesian inferen
 
 This example of a burglary alarm demonstrates the workflow typically followed when creating Hakaru programs.
 
+### [Tutorial: Hakaru Workflow for Continuous Models](workflow/continuous.md) ###
+
+This example of a thermometer calibration demonstrates the workflow typically followed when creating Hakaru programs that involve
+random real numbers in their description.
+
 ### [Examples](examples) ###
 
 Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
