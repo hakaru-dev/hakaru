@@ -304,9 +304,13 @@ reduce_Integrals := module()
 end module; # reduce_Integrals
 
 int_assuming := proc(e, v::name=anything, kb::t_kb, $)
-  simplify_factor_assuming('int'(e, v), kb);
+  simplify_factor_assuming(int(e, v), kb);
 end proc;
 
+# Should this do the same thing as `int_assuming'? i.e.
+# should it pass `sum(e,v)' instead of `'sum'(e,v)' and
+# get rid of the extra logic to evaluate the sum afterwards?
+# Is calling `simplify_factor_assuming' here even correct?
 sum_assuming := proc(e, v::name=anything, kb::t_kb)
   local r;
   r := simplify_factor_assuming('sum'(e, v), kb);
