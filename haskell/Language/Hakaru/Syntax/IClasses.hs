@@ -10,6 +10,7 @@
            , ConstraintKinds
            , MultiParamTypeClasses
            , FlexibleInstances
+           , UndecidableInstances
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -773,7 +774,8 @@ instance Traversable11 List1 where
     traverse11 f (Cons1 x xs) = Cons1 <$> f x <*> traverse11 f xs
 
 ----------------------------------------------------------------
-data Holds c x where Holds :: c x => Holds c x
+data Holds (c :: k -> Constraint) (x :: k) where
+  Holds :: c x => Holds c x
 
 class All (c :: k -> Constraint) (xs :: [k]) where
   allHolds :: List1 (Holds c) xs

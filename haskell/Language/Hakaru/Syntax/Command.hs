@@ -15,6 +15,7 @@
            , StandaloneDeriving
            , MultiParamTypeClasses
            , OverlappingInstances
+           , CPP
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -51,13 +52,19 @@ import Control.Monad.Except (ExceptT(..), runExcept, MonadError(..))
 import Control.Monad.Trans (MonadTrans(..))
 import Control.Monad (liftM)
 import Control.Monad.Fix (MonadFix)
-import Data.Functor.Compose (Compose(..))
 
 import Data.List (isInfixOf, intercalate)
 import Data.Char (toLower)
 import Data.Function (on)
 import Data.Typeable (Typeable, Proxy(..))
 import Data.Either (isRight)
+
+#if __GLASGOW_HASKELL__ < 800
+newtype Compose (f :: * -> *) (g :: k -> *) (x :: k)
+  = Compose { getCompose :: f (g x) }
+#else
+import Data.Functor.Compose (Compose(..))
+#endif
 
 ----------------------------------------------------------------
 
@@ -74,11 +81,11 @@ type HakaruTypeRep = Either String (Some1 (Sing :: Hakaru -> *))
 -- | Possible errors when matching commands
 data CommandMatchError
   = AmbiguousCommandName String [SomeCommand]
-  | UnknownCommandName String [SomeCommand] -- | Expected command name
+  | UnknownCommandName String [SomeCommand] -- Expected command name
                                             -- and actual names
   | CommandTypeMismatch
-       HakaruTypeRep         -- | Expected type
-       HakaruTypeRep         -- | Actual type
+       HakaruTypeRep         -- Expected type
+       HakaruTypeRep         -- Actual type
   | MultipleErrors [CommandMatchError]
    deriving (Typeable)
 
@@ -124,7 +131,7 @@ nameOfCommand   :: IsCommand c => CommandType c i o -> Sing c
 nameOfCommand _ = sing
 
 -- | An instance of `IsCommand' packed into a datatype
-type IsCommandDict = Holds (IsCommand :: k -> Constraint)
+type IsCommandDict = (Holds (IsCommand :: k -> Constraint) :: k -> *)
 
 -- | An existentially quantified instane of `IsCommand'
 data SomeCommand where
