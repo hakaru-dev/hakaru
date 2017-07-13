@@ -1,45 +1,56 @@
 # Extract a domain from an expression
 export Extract := module ()
   uses Domain_Type;
-  export ModuleApply := proc(e, kb, $) :: [ HDomain, anything ];
-    local b, eb, s, es, kb1, rn;
-    b, eb := op(Bound(e));
+  export ModuleApply := proc(e, kb, $) :: [ HDomain, anything, list(`=`) ];
+    local b, eb, s, es, kb1, rn, ws;
+    b, eb, ws := op(Bound(e));
     kb1, rn := Domain:-Bound:-toKB(b)[];
-    b, eb := subs(rn,[b,eb])[];
+    b, eb, ws := subs(rn,[b,eb,ws])[];
     s, es := op(Shape(eb, kb1));
-    [ DOMAIN(b, s), es ];
+    [ DOMAIN(b, s), es, ws ];
   end proc;
 
   # Extract a domain bound from an expression
   # This pops off the integration constructors recursively, keeping
   # track of the bounds in a KB (which literally become the DBound).
   export Bound := module ()
-    export ModuleApply := proc(e, $) :: [ DomBound, anything ];
-      local arg, vars, kb;
-      arg, vars := do_extract(e)[];
+    export ModuleApply := proc(e, $) :: [ DomBound, anything, list(`=`) ];
+      local arg, vars, kb, ws, w0;
+      arg, vars, ws := do_extract(e)[];
       vars := Domain:-Bound:-withVarsIxs(DBound(vars));
-      [ vars , arg ];
+      ws := map(`*`@op,ws);
+      w0 := op(1,ws); ws := subsop(1=NULL,ws);
+      if not(nops(ws)=nops(op(1,vars))) then
+        error "number of outer weights doesn't match number of vars: %1, %2",
+              op(1,vars), ws;
+      end if;
+      [ vars , w0*arg, zip(`=`,map2(op,1,op(1,vars)),ws) ];
     end proc;
 
     local do_extract_arg := proc(kind, arg_)
-      local x0, x, vars, arg := arg_, rng;
-      x0  := ExtBound[kind]:-ExtractVar(_rest);   # variable name
-      rng := ExtBound[kind]:-ExtractRange(_rest); # variable range
-      x   := DInto(x0, rng, kind);                # the variable spec
-      arg, vars := do_extract(arg)[];
-      [ arg, [ op(vars), x ] ];
+      local x0, x, vars, ws,
+            arg := op(1,arg_),
+            rest := op(2..-1,arg_),
+            rng;
+      x0  := ExtBound[kind]:-ExtractVar(rest);   # variable name
+      rng := ExtBound[kind]:-ExtractRange(rest); # variable range
+      x   := DInto(x0, rng, kind);               # the variable spec
+      arg, vars, ws := do_extract(arg)[];
+      [ arg, [ op(vars), x ], [ op(ws), [] ]];
     end proc;
 
     local do_extract := proc(arg, $)
-      local sub, prod, svars, vs;
+      local sub, prod, svars, vs, ssum, ws, wc;
       if arg :: `*` then
         sub := map(do_extract, [op(arg)]);
         prod, svars := selectremove(x->op(2,x)=[],sub);
         if nops(svars) = 1 then
-          [ `*`(op([1,1],svars),op(map2(op,1,prod)))
-            , op([1,2], svars) ];
+          [   op([1,1],svars)
+            , op([1,2],svars)
+            , applyop(w-> [op(w),op(map2(op,1,prod))], -1,
+                      op([1,3],svars)) ];
         else
-          [ arg, [] ];
+          [ arg, [], [[]] ];
         end if;
       elif arg :: `+` then
         sub := map(do_extract, [op(arg)]);
@@ -50,18 +61,29 @@ export Extract := module ()
           vs[2] := map(v->zip(`=`,v,vs[1]), vs[0]);    # variable renamings
           svars := zip(subs,vs[2], svars);             # dombounds renamed
           if the(svars) then
-            [ `+`( op(zip(subs,vs[2], map2(op,1, sub))) ),
-              op(1, svars) ];
+            ssum := zip(subs,vs[2],map2(op,1,sub));    # sub-arg summands
+            ws   := zip(subs,vs[2],map2(op,3,sub));    # sub-arg weights
+            # factor out common weight
+            ws   := map(x->{op(map(op,x))}, ws);
+            wc   := `intersect`(op(ws));
+            ws   := [op(map(w -> w minus wc, ws))];
+            ws   := map(`[]`@op, ws);
+            wc   := [op(wc)];
+            # non-common weights are pushed down
+            ssum := zip(((s,w)->`*`(s,op(w))), ssum, ws);
+            [ `+`(op(ssum)),
+              op(1, svars),
+              [ wc$(nops(op(1,svars))), [] ] ];
           else
-            [ arg, [] ]
+            [ arg, [], [[]] ]
           end if;
         else
-          [ arg, [] ]
+          [ arg, [], [[]] ]
         end if;
       elif Domain:-Has:-Bound(arg) then
-        do_extract_arg(op(0,arg), op(arg));
+        do_extract_arg(op(0,arg), [op(arg)]);
       else
-        [ arg, [] ]
+        [ arg, [], [[]] ]
       end if;
     end proc;
   end module;

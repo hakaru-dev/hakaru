@@ -6,7 +6,8 @@
            , RecordWildCards
            , ViewPatterns
            , LambdaCase
-           , DeriveFunctor, DeriveFoldable, DeriveTraversable 
+           , KindSignatures
+           , DeriveFunctor, DeriveFoldable, DeriveTraversable
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -56,6 +57,7 @@ import Data.List (intercalate)
 
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
+import Control.Monad.Except (ExceptT(..), runExceptT)
 
 ----------------------------------------------------------------
 data MapleException       
@@ -97,18 +99,22 @@ sendToMaple'
     => MapleOptions String 
     -> TypedAST (abt Term) 
     -> IO (TypedAST (abt Term))
-sendToMaple' MapleOptions{..} (TypedAST ty expr) = 
-  commandFromName command ty $ \case 
-    Left True       -> throw $ MapleInputTypeMismatch command (show ty) 
-    Left False      -> throw $ MapleUnknownCommand command 
-    Right (c, ty_o) -> fmap (TypedAST ty_o) (sendToMaple MapleOptions{command=c,..} expr)
+sendToMaple' o@MapleOptions{..} =
+  (either throw return =<<) . runExceptT .
+  dynCmd command (mapleCommand o)
+
+type MapleCommands = '[ "Simplify", "Disintegrate", "Reparam", "Summarize" ]
+
+mapleCommand
+  :: ABT Term abt => MapleOptions o -> DynCommand ('OneOf MapleCommands) abt IO
+mapleCommand o = DynCmd $ \c -> sendToMaple o { command = c }
 
 sendToMaple  
     :: (ABT Term abt)
-    => MapleOptions (CommandType c i o) 
+    => MapleOptions (CommandType ('OneOf MapleCommands) i o) 
     -> abt '[] i 
     -> IO (abt '[] o)
-sendToMaple MapleOptions{..} e = do 
+sendToMaple MapleOptions{command=OneOfCmds _ command,..} e = do 
   let typ_in = typeOf e
       typ_out = commandIsType command typ_in 
       optStr (k,v) = concat["_",k,"=",v]

@@ -7,6 +7,9 @@
            , TypeFamilies
            , Rank2Types
            , ScopedTypeVariables
+           , ConstraintKinds
+           , MultiParamTypeClasses
+           , FlexibleInstances
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -75,11 +78,14 @@ module Language.Hakaru.Syntax.IClasses
     , type (++), eqAppendIdentity, eqAppendAssoc
     , List1(..), append1
     , DList1(..), toList1, fromList1, dnil1, dcons1, dsnoc1, dsingleton1, dappend1
+    -- ** Constraints
+    , All(..), Holds(..)
     ) where
 
 import Prelude hiding   (id, (.))
 import Control.Category (Category(..))
 import Unsafe.Coerce    (unsafeCoerce)
+import GHC.Exts         (Constraint)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid      (Monoid(..))
 import Control.Applicative
@@ -766,6 +772,15 @@ instance Traversable11 List1 where
     traverse11 _ Nil1         = pure Nil1
     traverse11 f (Cons1 x xs) = Cons1 <$> f x <*> traverse11 f xs
 
+----------------------------------------------------------------
+data Holds c x where Holds :: c x => Holds c x
+
+class All (c :: k -> Constraint) (xs :: [k]) where
+  allHolds :: List1 (Holds c) xs
+
+instance All c '[] where allHolds = Nil1
+instance (All c xs, c x)
+  => All c (x ': xs) where allHolds = Cons1 Holds allHolds
 
 ----------------------------------------------------------------
 -- TODO: cf the interface of <https://hackage.haskell.org/package/dlist-0.7.1.2/docs/Data-DList.html>

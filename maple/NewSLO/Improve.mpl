@@ -134,7 +134,7 @@ reduce_Integrals := module()
   local
   # The callbacks passed by reduce_Integrals to Domain:-Reduce
     reduce_Integrals_body, reduce_Integrals_into, reduce_Integrals_apply,
-    reduce_Integrals_sum
+    reduce_Integrals_sum, reduce_Integrals_constrain
   # tries to evaluate a RootOf
   , try_eval_Root
   # tries to evaluate Int/Sum/Ints/Sums
@@ -142,13 +142,13 @@ reduce_Integrals := module()
   , distrib_over_sum;
 
   reduce_Integrals_body := proc(h,opts,x,kb1) reduce(x,h,kb1,opts) end proc;
-  reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,$)
+  reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,ows,$)
     local rr;
     rr := distrib_over_sum(
             x->elim_intsum(Domain:-Apply:-do_mk(kind,x,vn,vt,kb),
                            h,kb,opts),e);
     rr := subsindets(rr, specfunc(RootOf), x->try_eval_Root(x,a->a));
-    return rr;
+    ows * rr;
   end proc;
   reduce_Integrals_sum := proc()
     subsindets(`+`(args),
@@ -162,16 +162,24 @@ reduce_Integrals := module()
               r);
     r := distrib_over_sum(f,r);
   end proc;
+  reduce_Integrals_constrain := proc(do_c, x,$)
+    local ws, b;
+    b, ws := selectremove(has, convert(x, 'list', `*`), NewSLO:-applyintegrand);
+    b, ws := map(`*`@op, [b, ws])[];
+    ws * do_c(b);
+  end proc;
   distrib_over_sum := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
-    local rr;
-    rr := Domain:-Reduce(expr, kb
-      ,curry(reduce_Integrals_into,h,opts)
-      ,curry(reduce_Integrals_body,h,opts)
-      ,reduce_Integrals_sum
-      ,reduce_Integrals_apply
-      ,(_->:-DOM_FAIL), opts);
+    local rr, handlers;
+    handlers :=
+      Record('f_into'=curry(reduce_Integrals_into,h,opts)
+            ,'f_body'=curry(reduce_Integrals_body,h,opts)
+            ,'f_sum'=reduce_Integrals_sum
+            ,'f_constrain'=reduce_Integrals_constrain
+            ,'f_apply'=reduce_Integrals_apply
+            ,'f_nosimp'=(_->:-DOM_FAIL));
+    rr := Domain:-Reduce(expr, kb, handlers, opts);
     rr := Partition:-Simpl(rr, kb);
     if has(rr, :-DOM_FAIL) then
       return FAIL;
@@ -304,9 +312,13 @@ reduce_Integrals := module()
 end module; # reduce_Integrals
 
 int_assuming := proc(e, v::name=anything, kb::t_kb, $)
-  simplify_factor_assuming('int'(e, v), kb);
+  simplify_factor_assuming(int(e, v), kb);
 end proc;
 
+# Should this do the same thing as `int_assuming'? i.e.
+# should it pass `sum(e,v)' instead of `'sum'(e,v)' and
+# get rid of the extra logic to evaluate the sum afterwards?
+# Is calling `simplify_factor_assuming' here even correct?
 sum_assuming := proc(e, v::name=anything, kb::t_kb)
   local r;
   r := simplify_factor_assuming('sum'(e, v), kb);

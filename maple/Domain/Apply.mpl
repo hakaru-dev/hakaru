@@ -7,23 +7,40 @@
 # basically, when we see an 'unbound' variable in the 'RHS' , we should bind
 # it with the default 'DInto'.
 export Apply := module ()
-       uses Domain_Type;
+       uses Domain_Type, Hakaru;
+       # Make sure these refer to the global names, or Records don't work
+       global context, weights, f_into, f_body, f_sum, f_constrain;
        export ModuleApply :=
-         proc(dom :: HDomain_mb
-             ,f_into := "default"
-             ,f_body := "default"
-             ,f_sum  := "default", $)
-           local vs, sh, dbnd, ctx;
+         proc(dom :: HDomain_mb, ctx0::record, $)
+           local vs, sh, dbnd, ctx, defctx;
            if dom :: DomNoSol then
                error "cannot apply %1", dom;
            end if;
            dbnd, sh := op(dom);
+           defctx :=
+             Record('context'=Domain:-Bound:-contextOf(dbnd)
+                   ,'f_into'=do_mk
+                   ,'f_body'=do_body
+                   ,'f_sum'=`+`
+                   ,'f_constrain'=((f,x)->f(x)));
+           ctx := merge_record_default(defctx,ctx0);
+           if not(ctx::'apply_context') or
+              {'context'} subset {exports(ctx0)} then
+             error "invalid input: %1", ctx0;
+           end if;
            vs := Domain:-Bound:-withVarsIxs(dbnd);
-           ctx := [ Domain:-Bound:-contextOf(dbnd) ,
-              `if`(f_into="default",`do_mk`,f_into),
-              `if`(f_body="default",`do_body`,f_body),
-              `if`(f_sum="default",`+`,f_sum)];
            (e->do_apply({}, e, vs, sh, ctx));
+       end proc;
+
+       local ModuleLoad := proc($)
+         BindingTools:-load_types_from_table(
+           # context := the context as a KB
+           # weights := the weights outer to each integral
+           # f_*     := handlers for subexpressions
+           table([apply_context=
+                   '`record`(`context`,
+                    `weights`,
+                    `f_into`, `f_body`, `f_sum`, `f_constrain`)']));
        end proc;
 
        export Shape := proc(dsh :: DomShape, e, $) ModuleApply( DOMAIN( [], dsh ), e ) end proc;
@@ -34,10 +51,8 @@ export Apply := module ()
        # e      := expr
        # vs     := domain bounds
        # sh     := domain shape
-       # ctx[0] := KB (context for f_into/f_body)
-       # f_into := how to make a DomInto
-       # f_body := how to make the expression body
-       local do_apply := proc(done__, e, vs, sh_, ctx, $)
+       # ctx    := context (see apply_context)
+       local do_apply := proc(done__, e, vs, sh_, ctx::apply_context, $)
            local sh := sh_, done_ := done__
                , r, cond, cond_outer, vn, vt, shv, vars, deps, ctx1, rn;
            # If the solution is a constraint, and the constraint is true,
@@ -49,17 +64,22 @@ export Apply := module ()
                cond, cond_outer := select_cond_outer(sh, vars);
                # if there are still integrals which have not been applied, apply
                # them now
-               do_constrain(cond_outer)(do_mks(e, (r,kb1) -> do_constrain(cond)(op(3,ctx)(r, kb1)), vars, vs, ctx))
+               ctx:-f_constrain
+                (do_constrain(cond_outer),
+                  do_mks(e, (r,kb1) ->
+                    ctx:-f_constrain(do_constrain(cond),
+                      ctx:-f_body(r, kb1)), vars, vs, ctx));
            # if the solution is a sum of solutions, produce the algebraic sum
            # of each summand of the solution applied to the expression.
            elif sh :: DomSum then
-               op(4,ctx)(seq(do_apply(done_, e, vs, s, ctx), s=sh))
+               ctx:-f_sum(seq(do_apply(done_, e, vs, s, ctx), s=sh))
            # if the solution is a split solution, just make `do_apply' over
            # the values of the Partition (the subsolutions)
            elif sh :: DomSplit then
                Partition:-Amap(
                  [ (c,_)->c
-                 , (p,c)->do_apply(done_, e, vs, p, applyop(kb->KB:-assert(c,kb),1,ctx))
+                 , (p,c)->do_apply(done_, e, vs, p,
+                            upd_field(ctx, 'context', curry(KB:-assert,c)))
                  , c->c ], op(1, sh) );
            # performs the 'make' on the expression after recursively
            # applying the solution
@@ -79,9 +99,11 @@ export Apply := module ()
 
                # build this integral, and the other this one depended on, then
                # recursively apply
-               do_constrain(cond_outer)(
-                 do_mks(e, (r,kb1) -> do_apply(done_, r, vs, shv, subsop(1=kb1,ctx)),
-                      deps, Domain:-Bound:-upd(vs, vn, vt), ctx));
+               ctx:-f_constrain(do_constrain(cond_outer),
+                 do_mks(e, (r,kb1) ->
+                   do_apply(done_, r, vs, shv,
+                            upd_field(ctx, 'context',_->kb1)),
+                            deps, Domain:-Bound:-upd(vs, vn, vt), ctx));
            else
                error "don't know how to apply %1", sh
            end if;
@@ -142,14 +164,15 @@ export Apply := module ()
        # that integral.
        local into_mk := proc(dbnd::DomBound, vn, vt, ctx, $)
            local kb, v_i, v_k, vn_, kb1, rn;
-           kb := op(1,ctx); if kb :: t_not_a_kb then return KB:-NotAKB() end if;
+           kb := ctx:-context;
+           if kb :: t_not_a_kb then return KB:-NotAKB() end if;
 
            v_i := Domain:-Bound:-varIx(dbnd, vn);
            v_k := op([1,v_i,3], dbnd);
            vn_, kb1 := Domain:-ExtBound[v_k]:-MakeKB(vn, Domain:-ExtBound[v_k]:-SplitRange(vt), kb);
 
            rn := `if`(evalb(vn=vn_), [], [vn=vn_]);
-           subsop(1=kb1, ctx), rn;
+           upd_field(ctx, 'context', _->kb1), rn;
        end proc;
 
        local do_mks := proc(e, kont, todo::({list,set})(DomBoundVar), dbnd :: DomBound, ctx, $)
@@ -163,7 +186,7 @@ export Apply := module ()
            end if;
 
            if nops(vs)=0 then
-             return kont(r,op(1,ctx));
+             return kont(r,ctx:-context);
            end if;
 
            v_td := op(1,vs);
@@ -177,6 +200,6 @@ export Apply := module ()
            end if;
 
            r := do_mks(r, kont, vs, dbnd, ctx1);
-           op(2,ctx)(v_mk, r, v_td, vt, op(1,ctx));
+           ctx:-f_into(v_mk, r, v_td, vt, ctx:-context, ctx:-weights[v_td]);
        end proc;
 end module;

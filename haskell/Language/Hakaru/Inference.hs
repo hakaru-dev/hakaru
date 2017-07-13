@@ -2,6 +2,10 @@
            , TypeOperators
            , NoImplicitPrelude
            , FlexibleContexts
+           , GADTs
+           , TypeFamilies
+           , FlexibleInstances
+           , ViewPatterns
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -21,7 +25,7 @@
 module Language.Hakaru.Inference
     ( priorAsProposal
     , mh
-    , mcmc
+    , mcmc, dynMCMC
     , gibbsProposal
     , slice
     , sliceX
@@ -33,6 +37,7 @@ module Language.Hakaru.Inference
     ) where
 
 import Prelude (($), (.), error, Maybe(..), return)
+import qualified Prelude as P
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST (Term)
@@ -41,8 +46,11 @@ import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Expect (expect, normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate)
+import Language.Hakaru.Syntax.Command
+import Language.Hakaru.Syntax.IClasses (TypeEq(..), JmEq1(..))
 
 import qualified Data.Text as Text
+import Control.Monad.Except (MonadError(..))
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -96,6 +104,50 @@ mcmc proposal target =
         bern (min (prob_ 1) ratio) >>= \accept ->
         dirac (if_ accept new old)
 
+data MCMCCommand :: Hakaru -> Hakaru -> Hakaru -> * where
+  MCMC :: MCMCCommand (a ':-> 'HMeasure a) ('HMeasure a)
+                      (a ':-> 'HMeasure a)
+
+data instance CommandType "MCMC" i o where
+  MCMCCmd :: !(UnderFun (MCMCCommand i0) i1 o)
+          -> CommandType "MCMC" (HPair i0 i1) o
+
+dynMCMC :: ABT Term abt => PureDynCommand "MCMC" abt
+dynMCMC =
+  DynCmd $ \(MCMCCmd c) i ->
+    return $ unpair i $ \i0 i1 ->
+      commandUnderFun'Pure (\MCMC i1' -> mcmc i0 i1') c i1
+
+instance IsCommand "MCMC" where
+  matchCommandName = matchSymbolCommandName
+  commandIsType (MCMCCmd c) (sUnPair -> (a,b)) =
+    underFunIsType (\MCMC _ -> a) c b
+
+  matchCommandType _ t =
+    P.maybe (throwError $
+                    CommandTypeMismatch
+                      (P.Left "pair(x, y)")
+                      (P.Right (Some1 t))) P.id $
+    sUnPair' t $ \(Refl, propty, tgtty') ->
+      P.fmap (\(Some1 c) -> Some1 (MCMCCmd c)) $
+      matchUnderFun (\tgtty ->
+        case (propty, tgtty) of
+          (SFun a (SMeasure b), SMeasure c) ->
+            case (jmEq1 a b, jmEq1 b c) of
+              (P.Just Refl, P.Just Refl) -> P.return $ Some1 MCMC
+              (P.Nothing  , P.Just _   ) -> throwError $
+                CommandTypeMismatch (P.Left "x -> measure x")
+                                    (P.Right $ Some1 propty)
+              (P.Just _   , P.Nothing  ) -> throwError $
+                CommandTypeMismatch (P.Right $ Some1 $ SMeasure b)
+                                    (P.Right $ Some1 tgtty)
+          (_                  , SMeasure _) -> throwError $
+            CommandTypeMismatch (P.Left "x -> measure x")
+                                (P.Right $ Some1 propty)
+          _                                 -> throwError $
+            CommandTypeMismatch (P.Left "(measure x, x -> measure x)")
+                                (P.Right $ Some1 $ sPair tgtty propty)
+        ) tgtty'
 
 gibbsProposal
     :: (ABT Term abt, SingI a, SingI b)

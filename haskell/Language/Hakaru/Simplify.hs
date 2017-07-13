@@ -48,7 +48,7 @@ simplifyWithOpts
     :: forall abt a
     .  (ABT Term abt) 
     => MapleOptions () -> abt '[] a -> IO (abt '[] a)
-simplifyWithOpts o = sendToMaple o{command=Simplify}
+simplifyWithOpts o = sendToMaple o{command=injCmd Simplify}
 
 simplify'
     :: forall abt a
@@ -63,7 +63,8 @@ simplifyDebug
     -> Int
     -> abt '[] a
     -> IO (abt '[] a)
-simplifyDebug d t = sendToMaple defaultMapleOptions{command=Simplify,debug=d,timelimit=t}
+simplifyDebug d t = sendToMaple defaultMapleOptions{command=injCmd Simplify,
+                                                    debug=d,timelimit=t}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

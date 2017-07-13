@@ -700,7 +700,7 @@ export
                  Piece(bool_Or(condition(bool_Or(map(condOf,p)[]), kb,
                          `if`(k<>1,
                               ['do_solve', 'do_kb', 'do_check'],
-                              ['reduce_conjs']
+                              ['reduce_conjs', 'do_kb']
                              )[])[]),
                        valOf(op(1,p)))
                  ,ps1, ks);

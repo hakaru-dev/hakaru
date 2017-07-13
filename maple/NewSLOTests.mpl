@@ -76,7 +76,8 @@ model4 :=
 model4s := { Bind(Gaussian(0,1),x,piecewise(x<0,Ret(0),4<x,Ret(16),
   0<x and x<4, Ret(x^2))) ,
   Bind(Gaussian(0,1),`x`,piecewise(`x` < 0,Ret(0),4 < `x`,Ret(16),
-                                   0 <= `x` and `x` <= 4,Ret(`x`^2)))
+                                   0 <= `x` and `x` <= 4,Ret(`x`^2))),
+  Bind(Gaussian(0,1),x,piecewise(x < 0,Ret(0),4 < x,Ret(16),Ret(x^2)))
  }:
 
 TestHakaru(model4, model4s, label = "piecewise test");
