@@ -142,13 +142,13 @@ reduce_Integrals := module()
   , distrib_over_sum;
 
   reduce_Integrals_body := proc(h,opts,x,kb1) reduce(x,h,kb1,opts) end proc;
-  reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,$)
+  reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,ows,$)
     local rr;
     rr := distrib_over_sum(
             x->elim_intsum(Domain:-Apply:-do_mk(kind,x,vn,vt,kb),
                            h,kb,opts),e);
     rr := subsindets(rr, specfunc(RootOf), x->try_eval_Root(x,a->a));
-    return rr;
+    ows * rr;
   end proc;
   reduce_Integrals_sum := proc()
     subsindets(`+`(args),

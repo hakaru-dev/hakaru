@@ -10,6 +10,7 @@ export Apply := module ()
        uses Domain_Type;
        export ModuleApply :=
          proc(dom :: HDomain_mb
+             ,outer_ws
              ,f_into := "default"
              ,f_body := "default"
              ,f_sum  := "default", $)
@@ -22,7 +23,8 @@ export Apply := module ()
            ctx := [ Domain:-Bound:-contextOf(dbnd) ,
               `if`(f_into="default",`do_mk`,f_into),
               `if`(f_body="default",`do_body`,f_body),
-              `if`(f_sum="default",`+`,f_sum)];
+              `if`(f_sum="default",`+`,f_sum),
+               outer_ws ];
            (e->do_apply({}, e, vs, sh, ctx));
        end proc;
 
@@ -177,6 +179,6 @@ export Apply := module ()
            end if;
 
            r := do_mks(r, kont, vs, dbnd, ctx1);
-           op(2,ctx)(v_mk, r, v_td, vt, op(1,ctx));
+           op(2,ctx)(v_mk, r, v_td, vt, op(1,ctx), op(5,ctx)[v_td]);
        end proc;
 end module;

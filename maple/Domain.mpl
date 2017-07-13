@@ -218,12 +218,12 @@ $include "Domain/Improve.mpl"
            f_apply:=((f,x)->f(x)),
            f_nosimp:=(_->FAIL),
            opts:=[],$)
-      local e := e0, dom_specb, dom_specw, dom_spec, dom_ctx1, rn;
+      local e := e0, dom_specb, dom_specw, dom_spec, dom_ctx1, rn, ws;
       # Build the domain
-      dom_specb, e := op(Domain:-Extract:-Bound(e));
+      dom_specb, e, ws := op(Domain:-Extract:-Bound(e));
       if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
       dom_ctx1, rn := Domain:-Bound:-toKB(dom_specb)[];
-      e, dom_specb := subs(rn,[e,dom_specb])[];
+      dom_specb, e, ws := subs(rn,[dom_specb,e,ws])[];
       dom_specw, e := op(Domain:-Extract:-Shape(e, dom_ctx1));
       dom_specb := DBound(op(1,dom_specb), dom_ctx);
       dom_spec := DOMAIN(dom_specb, dom_specw);
@@ -231,7 +231,7 @@ $include "Domain/Improve.mpl"
       # Improve, if necessary, then apply back to the expression
       if dom_specw <> DConstrain() and not ("no_domain" in {opts[]})
       then dom_spec := Domain:-Improve(dom_spec) end if;
-      f_apply(Domain:-Apply(dom_spec, f_into, f_body, f_sum), e);
+      f_apply(Domain:-Apply(dom_spec, table(ws), f_into, f_body, f_sum), e);
     end proc;
 
     ModuleLoad();
