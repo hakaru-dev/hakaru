@@ -146,10 +146,13 @@ matchSymbolCommandName s
 
 --------------------------------------------------------------------------------
 -- | A dynamic command for a particular command type
-data DynCommand c (abt :: [Hakaru] -> Hakaru -> *) m where
-  DynCmd :: (forall i o . CommandType c i o
-                       -> abt '[] i -> m (abt '[] o))
-         -> DynCommand c abt m
+data DynCommand' c (abt :: [Hakaru] -> Hakaru -> *) m where
+  DynCmd :: (forall i o . c i o
+                        -> abt '[] i -> m (abt '[] o))
+         -> DynCommand' c abt m
+
+type DynCommand c = DynCommand' (CommandType c)
+type PureDynCommand c abt = DynCommand c abt Identity
 
 dynCmd
   :: (ABT term abt, Monad m, IsCommand c)
@@ -176,17 +179,17 @@ dynCommand'
   -> TypedAST abt -> ExceptT CommandMatchError m (TypedAST abt)
 dynCommand' = dynCommand (CmdSpec ())
 
-dynCommandId
+dynCommandPure
   :: (ABT term abt)
-  => CommandSpec c -> DynCommand c abt Identity
+  => CommandSpec c -> PureDynCommand c abt
   -> TypedAST abt -> Either CommandMatchError (TypedAST abt)
-dynCommandId s c = runExcept . dynCommand s c
+dynCommandPure s c = runExcept . dynCommand s c
 
-dynCommand'Id
+dynCommand'Pure
   :: (ABT term abt, IsCommand c, CommandSpec' c ~ ())
-  => DynCommand c abt Identity
+  => PureDynCommand c abt
   -> TypedAST abt -> Either CommandMatchError (TypedAST abt)
-dynCommand'Id = dynCommandId (CmdSpec ())
+dynCommand'Pure = dynCommandPure (CmdSpec ())
 
 --------------------------------------------------------------------------------
 -- Some commands
