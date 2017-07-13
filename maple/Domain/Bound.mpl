@@ -109,7 +109,7 @@ export Bound := module ()
       `if`(nops(x)>1,op(2,x),KB:-empty);
     end proc;
 
-    export onContext := proc(f,x::DomBound,$)::t_kb;
+    export onContext := proc(f,x::DomBound,$)::DomBound;
       `if`(nops(x)>2,applyop(f,2,x),DBound(op(1,x),f(KB:-empty)));
     end proc;
 end module;#Bound
