@@ -29,7 +29,8 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Command
   ( module Language.Hakaru.Syntax.Command
-  , Symbol )
+  , Symbol
+  , Some1(..) )
   where
 
 import Language.Hakaru.Types.Sing
