@@ -35,6 +35,7 @@ import Language.Hakaru.Types.HClasses (HFractional(..))
 import Language.Hakaru.Types.Coercion (findCoercion, Coerce(..))
 import qualified Data.Sequence as Seq 
 import Control.Monad.Fix (MonadFix)
+import Control.Monad (liftM)
 
 import Debug.Trace
 
@@ -85,7 +86,7 @@ underLam'
     -> m (abt '[] (a ':-> b'))
 underLam' f e = do
   f' <- trace "underLam': build function" $
-        fmap (\f' b -> app (syn $ Lam_ :$ f' :* End) b) $
+        liftM (\f' b -> app (syn $ Lam_ :$ f' :* End) b) $
         binderM "" (snd $ sUnFun $ typeOf e) f
   return $ underLam'p f' e
 
