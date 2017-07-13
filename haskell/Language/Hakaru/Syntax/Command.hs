@@ -37,6 +37,7 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.AST.Transforms (underLam')
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.TypeCheck (TypedAST(..))
 import Language.Hakaru.Pretty.Concrete (prettyType)
@@ -217,6 +218,31 @@ matchUnderFun k ty@(SFun x i) =
 matchUnderFun k ty =
   (\(Some1 c) -> Some1 $ HereCmd c) <$> k ty <-|>
   Left (CommandTypeMismatch (Left "x -> y") (Right $ Some1 ty))
+
+commandUnderFun' :: forall c abt m
+                 . (ABT Term abt, Monad m)
+                => (forall i o .          c i o -> abt '[] i -> m (abt '[] o))
+                -> (forall i o . UnderFun c i o -> abt '[] i -> m (abt '[] o))
+commandUnderFun' run = go where
+  go :: forall i o . UnderFun c i o -> abt '[] i -> m (abt '[] o)
+  go c0 =
+    case c0 of
+      HereCmd  c -> run c
+      UnderFun c -> underLam' (go c)
+
+commandUnderFun'Pure
+  :: forall c abt
+   . (ABT Term abt)
+  => (forall i o .          c i o -> abt '[] i -> abt '[] o)
+  -> (forall i o . UnderFun c i o -> abt '[] i -> abt '[] o)
+commandUnderFun'Pure run c i0 =
+  runIdentity $ commandUnderFun' (\c i -> pure $ run c i) c i0
+
+commandUnderFun :: forall c abt m
+                 . (ABT Term abt, Monad m)
+                => DynCommand'           c  abt m
+                -> DynCommand' (UnderFun c) abt m
+commandUnderFun (DynCmd run) = DynCmd $ commandUnderFun' run
 
 --------------------------------------------------------------------------------
 data OneOf x = OneOf [x]
