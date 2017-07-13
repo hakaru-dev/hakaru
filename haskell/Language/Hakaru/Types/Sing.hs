@@ -41,6 +41,7 @@ module Language.Hakaru.Types.Sing
     , sUnEither, sUnEither'
     , sUnList
     , sUnMaybe
+    , sUnFun
     -- ** Singletons for `Symbol`
     , someSSymbol, ssymbolVal
     , sSymbol_Bool
@@ -243,6 +244,9 @@ sMaybe a =
 sUnMaybe :: Sing (HMaybe a) -> Sing a
 sUnMaybe (SData (STyApp (STyCon _) a) _) = a
 sUnMaybe _ = error "sUnMaybe: the impossible happened"
+
+sUnFun :: Sing (a ':-> b) -> (Sing a, Sing b)
+sUnFun (SFun a b) = (a,b)
 
 ----------------------------------------------------------------
 data instance Sing (a :: HakaruCon) where
