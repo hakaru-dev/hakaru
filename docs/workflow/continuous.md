@@ -20,8 +20,12 @@ part of the problem's domain knowledge. For this example, we will use the follow
 
 - The temperature noise follows a uniform distribution on the interval \([\)3, 8\(]\)
 - The measurement noise follows a uniform distribution with a range of \([\)1, 4\(]\)
-- The initial temperature of the room is 21\(^{\circ}\)C
 - Temperature and measurement samples follow a normal distribution
+- The initial temperature of the room is 21\(^{\circ}\)C
+
+Our model starts with the definition of the temperature and measurement noise. From our assumptions, we know that these values follow
+a uniform distribution with real number intervals. In addition to defining distributions for these values, we will also use 
+[coercions](../lang/coercions.md) to cast the values from `real` to `prob` values:
 
 ````nohighlight
 nT <~ uniform(3,8)
@@ -29,15 +33,45 @@ nM <~ uniform(1,4)
 
 noiseT = real2prob(nT)
 noiseM = real2prob(nM)
+````
 
+**Note:** See [Let and Bind](../lang/letbind.md) for usage differences.
+
+The values generated for `noiseT` and `noiseM` are used as the standard deviation required by the [`normal` primitive probability 
+distribution](../lang/rand.md) when generating values for temperature (`t1`, `t2`) and measurement (`m1`, `m2`).
+
+For temperature, we need two values. The first is a temperature centered about the initial room temperature (21\(^{\circ}\)C) and the 
+second is a future room temperature centered about the the first measured temperature. Both follow a normal distribution with a 
+standard deviation of `noiseT`: 
+
+````nohighlight
 t1 <~ normal(21, noiseT)
 t2 <~ normal(t1, noiseT)
+````
 
+Temperature measurements are centered about the temperature value being measured, therefore the values `t1` and `t2` are used. 
+We made the initial assumption that measurement values follow a normal distribution, and we have generated `noiseM` as the standard
+deviation:
+
+````nohighlight
 m1 <~ normal(t1, noiseM)
 m2 <~ normal(t2, noiseM)
+````
 
+Finally, we must return the information that we are interested in from our model. For measurement tuning, we are interested in the 
+values of `m1` and `m2`. We would also like to know what kind of noise was generated in our model, `noiseT` and `noiseM`. We will
+package these values together in related pairs. Instead of returning two seperate pairs of information, we will encapsulate the sets
+into a container pair:
+
+````nohighlight
 return ((m1, m2), (noiseT, noiseM))
 ````
+
+The return statement completes our model definition. We have defined two values, `noiseT` and `noiseM`, to represent the environmental
+noise in the temperature and measurement samples. We generated two room temperatures, `t1` and `t2`, which we used to generate the 
+dependent measurement samples `m1` and `m2`. Once all the values have been generated, we return an information set containing the two
+measurement samples and the environmental noise. With our completed model, we can use Hakaru program transformations to determine 
+plausible thermometer calibration values.
 
 ## Transformation ##
 
