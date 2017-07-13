@@ -72,6 +72,26 @@ underLam f e = caseVarSyn e (return . var) $ \t ->
 
                    _ -> error "TODO: underLam"
 
+underLam'
+    :: (ABT Term abt, Monad m)
+    => (abt '[] b -> m (abt '[] b'))
+    -> abt '[] (a ':-> b)
+    -> m (abt '[] (a ':-> b'))
+underLam' f e = caseVarSyn e (error "underLam': unbound var (?)") $ \t ->
+                   case t of
+                   Lam_ :$ e1 :* End ->
+                       caseBind e1 $ \x e1' -> do
+                           e1'' <- f e1'
+                           return . syn $
+                                  Lam_  :$ (bind x e1'' :* End)
+
+                   Let_ :$ e1 :* e2 :* End ->
+                       caseBind e2 $ \x e2' -> do
+                         e2'' <- underLam' f e2'
+                         return . syn $
+                                Let_ :$ e1 :* (bind x e2'') :* End
+
+                   _ -> error "TODO: underLam'"
 
 expandTransformations
     :: forall abt a
