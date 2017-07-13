@@ -45,7 +45,7 @@ import GHC.TypeLits (Symbol, KnownSymbol, symbolVal)
 
 import Control.Exception (Exception)
 import Control.Monad.Identity (Identity(..))
-import Control.Monad.Except (ExceptT(..), runExcept)
+import Control.Monad.Except (ExceptT(..), runExcept, MonadError(..))
 import Control.Monad.Trans (MonadTrans(..))
 import Control.Monad (liftM)
 import Data.Functor.Compose (Compose(..))
@@ -287,7 +287,7 @@ data instance CommandType "Simplify" i o where
 instance IsCommand "Simplify" where
   matchCommandName = matchSymbolCommandName
   commandIsType Simplify = id
-  matchCommandType _ _ = Right $ Some1 $ Simplify
+  matchCommandType _ _ = return $ Some1 $ Simplify
 
 --------------------------------------------------------------------------------
 data instance CommandType "Reparam" i o where
@@ -296,7 +296,7 @@ data instance CommandType "Reparam" i o where
 instance IsCommand "Reparam" where
   matchCommandName = matchSymbolCommandName
   commandIsType Reparam = id
-  matchCommandType _ _ = Right $ Some1 $ Reparam
+  matchCommandType _ _ = return $ Some1 $ Reparam
 
 --------------------------------------------------------------------------------
 data instance CommandType "Summarize" i o where
@@ -305,7 +305,7 @@ data instance CommandType "Summarize" i o where
 instance IsCommand "Summarize" where
   matchCommandName = matchSymbolCommandName
   commandIsType Summarize = id
-  matchCommandType _ _ = Right $ Some1 $ Summarize
+  matchCommandType _ _ = return $ Some1 $ Summarize
 
 --------------------------------------------------------------------------------
 data DisintCommand :: Hakaru -> Hakaru -> * where
@@ -325,6 +325,7 @@ instance IsCommand "Disintegrate" where
     case i of
       SMeasure (SData (STyApp (STyApp
           (STyCon (jmEq1 sSymbol_Pair -> Just Refl)) a) b) _) ->
-        Right $ Some1 Disint
-      _ -> Left $ CommandTypeMismatch (Left "measure (pair (a,b))")
-                                      (Right $ Some1 i))
+        return $ Some1 Disint
+      _ -> throwError $
+              CommandTypeMismatch (Left "measure (pair (a,b))")
+                                  (Right $ Some1 i))
