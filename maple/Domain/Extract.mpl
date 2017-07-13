@@ -22,10 +22,13 @@ export Extract := module ()
     end proc;
 
     local do_extract_arg := proc(kind, arg_)
-      local x0, x, vars, arg := arg_, rng;
-      x0  := ExtBound[kind]:-ExtractVar(_rest);   # variable name
-      rng := ExtBound[kind]:-ExtractRange(_rest); # variable range
-      x   := DInto(x0, rng, kind);                # the variable spec
+      local x0, x, vars,
+            arg := op(1,arg_),
+            rest := op(2..-1,arg_),
+            rng;
+      x0  := ExtBound[kind]:-ExtractVar(rest);   # variable name
+      rng := ExtBound[kind]:-ExtractRange(rest); # variable range
+      x   := DInto(x0, rng, kind);               # the variable spec
       arg, vars := do_extract(arg)[];
       [ arg, [ op(vars), x ] ];
     end proc;
@@ -59,7 +62,7 @@ export Extract := module ()
           [ arg, [] ]
         end if;
       elif Domain:-Has:-Bound(arg) then
-        do_extract_arg(op(0,arg), op(arg));
+        do_extract_arg(op(0,arg), [op(arg)]);
       else
         [ arg, [] ]
       end if;
