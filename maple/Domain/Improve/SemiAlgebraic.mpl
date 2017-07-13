@@ -1,5 +1,5 @@
 SemiAlgebraic := module()
-    uses Domain, Domain_Type, SolveTools;
+    uses Domain, Domain_Type, SolveTools, Hakaru;
     export SimplName  := "SemiAlgebraic";
     export SimplOrder := 6+(1/2);
 
@@ -19,12 +19,50 @@ SemiAlgebraic := module()
            ,[list(relation),x->DConstrain(remove(extra_sol,x)[])]);
     end proc;
 
+    # Check for trivial solutions, which are rejected because they are not an
+    # improvement in terms of Hakaru semantics (but SemiAlgebraic doesn't know
+    # anything about that)
+    local trivial_sol := proc(sh :: DomShape, ctx :: DomBound, $)
+      local ps, vs, vsc;
+      if sh::DomConstrain then
+        nops(sh)=0
+      elif sh::DomSplit then
+        # we assume that the conditions of a solution of SemiAlgebraic cover the
+        # entire domain, so it is left to check only the values
+        ps := KB:-kb_Partition( op(1,sh), Domain:-Bound:-contextOf(ctx),
+                               ((x_,y_)->true), #unused dummy to pass typechecks
+                               ((v,kb)->trivial_sol
+                                  (v,Domain:-Bound:-onContext(_->kb,ctx))) );
+        `and`(op(map(evalb@Partition:-valOf,Partition:-piecesOf(ps))));
+      elif sh::DomSum then
+        if nops(sh)<>2 then return false end if;
+        if ormap(s->not(s::DomConstrain) or nops(s)<>1,sh)
+        then return false; end if;
+        vs := Domain:-Bound:-varsOf(ctx,"set");
+        vsc := map((v->(v,-v)), vs);
+        ps := map2(op,1,[op(sh)]);
+        ps := map(p->Domain:-Improve:-classify_relation(p,v->v in vsc), ps);
+        if not(has(ps, {B_LO,B_HI})) then return false; end if;
+        if not(the(map2(op,3,ps))) then return false; end if;
+        if not(the(map(abs,map2(op,4,ps)))) then return; false end if;
+        return true;
+      elif sh::DomInto then
+        error "solution should not have DIntos: %1", sh;
+      else
+        error "unrecognized DomShape: %1", sh;
+      end if;
+    end proc;
+
     local do_sh := proc( sh :: DomShape, ctx :: DomBound, vs, $)
         local sol;
         if sh :: DomConstrain then
             sol := do_Constrain(sh, ctx, vs);
-            if sol :: DomShape then sol
-            else postproc(sol) end if;
+            sol := `if`(sol::DomShape, sol, postproc(sol));
+            if not(sol::DomNoSol) and trivial_sol(sol, ctx) then
+              userinfo(3, Domain:-Improve,
+                       printf("Discarding solution: %a\n", sol));
+              sh;
+            else sol end if;
         elif sh :: DomSplit then
             DSplit(Partition:-Amap(
               [ (c,_)->c
