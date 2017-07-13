@@ -69,6 +69,7 @@ Hakaru := module ()
          closed_bounds, open_bounds,
          htype_patterns,
          bool_And, bool_Or, bool_Not, the, zip_k,
+         merge_record_default, upd_field,
          UpdateArchive, ProfileFn;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
@@ -779,6 +780,20 @@ Hakaru := module ()
       end proc;
     end proc;
   end module;
+
+  # Merges two records, `rspec' and `rdef'. If `rspec' contains any fields of
+  # `rdef', the fields of `rspec' are taken.
+  merge_record_default := proc(rdef::record, rspec::record, $)
+    local s;
+    s   := {exports(rdef)} intersect {exports(rspec)};
+    Record[ Record[rdef](op(map(`-`,s))) , rspec ]();
+  end proc;
+
+  # Perhaps theres a better home for this, or its available in the Maple
+  # lib (?)
+  upd_field := proc(r::record, field::name, k, $)
+    Record[r](-field,field=k(r[field]))
+  end proc;
 
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals
