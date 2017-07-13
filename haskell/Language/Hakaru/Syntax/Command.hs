@@ -50,6 +50,7 @@ import Control.Monad.Identity (Identity(..))
 import Control.Monad.Except (ExceptT(..), runExcept, MonadError(..))
 import Control.Monad.Trans (MonadTrans(..))
 import Control.Monad (liftM)
+import Control.Monad.Fix (MonadFix)
 import Data.Functor.Compose (Compose(..))
 
 import Data.List (isInfixOf, intercalate)
@@ -227,7 +228,7 @@ matchUnderFun k ty =
   Left (CommandTypeMismatch (Left "x -> y") (Right $ Some1 ty))
 
 commandUnderFun' :: forall c abt m
-                 . (ABT Term abt, Monad m)
+                 . (ABT Term abt, MonadFix m)
                 => (forall i o .          c i o -> abt '[] i -> m (abt '[] o))
                 -> (forall i o . UnderFun c i o -> abt '[] i -> m (abt '[] o))
 commandUnderFun' run = go where
@@ -246,7 +247,7 @@ commandUnderFun'Pure run c i0 =
   runIdentity $ commandUnderFun' (\c i -> pure $ run c i) c i0
 
 commandUnderFun :: forall c abt m
-                 . (ABT Term abt, Monad m)
+                 . (ABT Term abt, MonadFix m)
                 => DynCommand'           c  abt m
                 -> DynCommand' (UnderFun c) abt m
 commandUnderFun (DynCmd run) = DynCmd $ commandUnderFun' run
