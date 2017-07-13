@@ -78,6 +78,7 @@ data CommandMatchError
   | CommandTypeMismatch
        HakaruTypeRep         -- | Expected type
        HakaruTypeRep         -- | Actual type
+  | MultipleErrors [CommandMatchError]
    deriving (Typeable)
 
 instance Exception CommandMatchError
@@ -206,9 +207,15 @@ underFunIsType k (HereCmd  c)         i  = k c i
 underFunIsType k (UnderFun c) (SFun x i) = SFun x (underFunIsType k c i)
 
 infixl 3 <-|>
-(<-|>) :: Either e x -> Either e x -> Either e x
-(<-|>) Left{}    x = x
-(<-|>) x@Right{} _ = x
+(<-|>) :: Either CommandMatchError x
+       -> Either CommandMatchError x
+       -> Either CommandMatchError x
+(<-|>) (Left x) (Left y) =
+  Left $ MultipleErrors (unnest x ++ unnest y) where
+    unnest (MultipleErrors e) = concatMap unnest e
+    unnest                 e  = [e]
+(<-|>) Left{}         x  = x
+(<-|>) x@Right{}      _  = x
 
 matchUnderFun :: (forall i' . Sing i' -> Either CommandMatchError (Some1 (c i')))
               -> Sing i -> Either CommandMatchError (Some1 (UnderFun c i))
