@@ -487,7 +487,7 @@ fromLO := module()
 
   local
   msum := proc()
-    local as := {args};
+    local as := [args];
     as := remove(`=`,as,Msum());
     as := map(a-> if a::specfunc(Msum) then op(a) else a end if, as);
     if    nops(as)=1 then op(1,as)
