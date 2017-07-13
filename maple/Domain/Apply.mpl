@@ -13,7 +13,8 @@ export Apply := module ()
              ,outer_ws
              ,f_into := "default"
              ,f_body := "default"
-             ,f_sum  := "default", $)
+             ,f_sum  := "default"
+             ,f_cnst := "default", $)
            local vs, sh, dbnd, ctx;
            if dom :: DomNoSol then
                error "cannot apply %1", dom;
@@ -24,7 +25,8 @@ export Apply := module ()
               `if`(f_into="default",`do_mk`,f_into),
               `if`(f_body="default",`do_body`,f_body),
               `if`(f_sum="default",`+`,f_sum),
-               outer_ws ];
+               outer_ws,
+               `if`(f_cnst="default",((f,x)->f(x)),f_cnst)];
            (e->do_apply({}, e, vs, sh, ctx));
        end proc;
 
@@ -51,7 +53,9 @@ export Apply := module ()
                cond, cond_outer := select_cond_outer(sh, vars);
                # if there are still integrals which have not been applied, apply
                # them now
-               do_constrain(cond_outer)(do_mks(e, (r,kb1) -> do_constrain(cond)(op(3,ctx)(r, kb1)), vars, vs, ctx))
+               op(6,ctx)(do_constrain(cond_outer),
+                  do_mks(e, (r,kb1) ->
+                         op(6,ctx)(do_constrain(cond),op(3,ctx)(r, kb1)), vars, vs, ctx));
            # if the solution is a sum of solutions, produce the algebraic sum
            # of each summand of the solution applied to the expression.
            elif sh :: DomSum then
@@ -81,7 +85,7 @@ export Apply := module ()
 
                # build this integral, and the other this one depended on, then
                # recursively apply
-               do_constrain(cond_outer)(
+               op(6,ctx)(do_constrain(cond_outer),
                  do_mks(e, (r,kb1) -> do_apply(done_, r, vs, shv, subsop(1=kb1,ctx)),
                       deps, Domain:-Bound:-upd(vs, vn, vt), ctx));
            else
