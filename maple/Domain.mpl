@@ -142,6 +142,7 @@ Domain := module()
         end if;
         protect(g);
       end do;
+      Apply:-ModuleLoad(); # Needed to load types properly (?)
     end proc;
 
     local ModuleUnload := proc($) NULL; end proc;
@@ -209,20 +210,20 @@ $include "Domain/Improve.mpl"
         map(x -> if not x :: inty then inmk(x) else x end if, expr);
     end proc;
 
+    local default_handlers :=
+      Record('f_apply'=((f,x)->f(x)), 'f_nosimp'=(_->FAIL));
+
     # The main interface to Domain
     export Reduce :=
-      proc(e0,dom_ctx::t_kb,
-           f_into,
-           f_body,
-           f_sum,
-           f_cnst,
-           f_apply:=((f,x)->f(x)),
-           f_nosimp:=(_->FAIL),
-           opts:=[],$)
-      local e := e0, dom_specb, dom_specw, dom_spec, dom_ctx1, rn, ws;
+      proc(e0,dom_ctx::t_kb,handlers0,opts:=[],$)
+      local e := e0, dom_specb, dom_specw, dom_spec, dom_ctx1, rn, ws
+          , handlers := merge_record_default(default_handlers, handlers0)
+          , apply_ctx ;
+
       # Build the domain
       dom_specb, e, ws := op(Domain:-Extract:-Bound(e));
-      if Domain:-Bound:-isEmpty(dom_specb) then return f_nosimp(e0) end if;
+      if Domain:-Bound:-isEmpty(dom_specb)
+      then return handlers:-f_nosimp(e0) end if;
       dom_ctx1, rn := Domain:-Bound:-toKB(dom_specb)[];
       dom_specb, e, ws := subs(rn,[dom_specb,e,ws])[];
       dom_specw, e := op(Domain:-Extract:-Shape(e, dom_ctx1));
@@ -232,7 +233,9 @@ $include "Domain/Improve.mpl"
       # Improve, if necessary, then apply back to the expression
       if dom_specw <> DConstrain() and not ("no_domain" in {opts[]})
       then dom_spec := Domain:-Improve(dom_spec) end if;
-      f_apply(Domain:-Apply(dom_spec, table(ws), f_into, f_body, f_sum, f_cnst), e);
+
+      apply_ctx := Record[handlers]('weights'=table(ws),-'f_apply',-'f_nosimp');
+      handlers:-f_apply(Domain:-Apply(dom_spec, apply_ctx), e);
     end proc;
 
     ModuleLoad();

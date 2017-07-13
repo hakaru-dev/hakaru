@@ -171,14 +171,15 @@ reduce_Integrals := module()
   distrib_over_sum := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
-    local rr;
-    rr := Domain:-Reduce(expr, kb
-      ,curry(reduce_Integrals_into,h,opts)
-      ,curry(reduce_Integrals_body,h,opts)
-      ,reduce_Integrals_sum
-      ,reduce_Integrals_constrain
-      ,reduce_Integrals_apply
-      ,(_->:-DOM_FAIL), opts);
+    local rr, handlers;
+    handlers :=
+      Record('f_into'=curry(reduce_Integrals_into,h,opts)
+            ,'f_body'=curry(reduce_Integrals_body,h,opts)
+            ,'f_sum'=reduce_Integrals_sum
+            ,'f_constrain'=reduce_Integrals_constrain
+            ,'f_apply'=reduce_Integrals_apply
+            ,'f_nosimp'=(_->:-DOM_FAIL));
+    rr := Domain:-Reduce(expr, kb, handlers, opts);
     rr := Partition:-Simpl(rr, kb);
     if has(rr, :-DOM_FAIL) then
       return FAIL;
