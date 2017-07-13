@@ -215,6 +215,7 @@ $include "Domain/Improve.mpl"
            f_into,
            f_body,
            f_sum,
+           f_cnst,
            f_apply:=((f,x)->f(x)),
            f_nosimp:=(_->FAIL),
            opts:=[],$)
@@ -231,7 +232,7 @@ $include "Domain/Improve.mpl"
       # Improve, if necessary, then apply back to the expression
       if dom_specw <> DConstrain() and not ("no_domain" in {opts[]})
       then dom_spec := Domain:-Improve(dom_spec) end if;
-      f_apply(Domain:-Apply(dom_spec, table(ws), f_into, f_body, f_sum), e);
+      f_apply(Domain:-Apply(dom_spec, table(ws), f_into, f_body, f_sum, f_cnst), e);
     end proc;
 
     ModuleLoad();

@@ -134,7 +134,7 @@ reduce_Integrals := module()
   local
   # The callbacks passed by reduce_Integrals to Domain:-Reduce
     reduce_Integrals_body, reduce_Integrals_into, reduce_Integrals_apply,
-    reduce_Integrals_sum
+    reduce_Integrals_sum, reduce_Integrals_constrain
   # tries to evaluate a RootOf
   , try_eval_Root
   # tries to evaluate Int/Sum/Ints/Sums
@@ -162,6 +162,12 @@ reduce_Integrals := module()
               r);
     r := distrib_over_sum(f,r);
   end proc;
+  reduce_Integrals_constrain := proc(do_c, x,$)
+    local ws, b;
+    b, ws := selectremove(has, convert(x, 'list', `*`), NewSLO:-applyintegrand);
+    b, ws := map(`*`@op, [b, ws])[];
+    ws * do_c(b);
+  end proc;
   distrib_over_sum := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
@@ -170,6 +176,7 @@ reduce_Integrals := module()
       ,curry(reduce_Integrals_into,h,opts)
       ,curry(reduce_Integrals_body,h,opts)
       ,reduce_Integrals_sum
+      ,reduce_Integrals_constrain
       ,reduce_Integrals_apply
       ,(_->:-DOM_FAIL), opts);
     rr := Partition:-Simpl(rr, kb);
