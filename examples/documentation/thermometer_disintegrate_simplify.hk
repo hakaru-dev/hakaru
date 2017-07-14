@@ -1,0 +1,56 @@
+fn x8 pair(real, real):
+match x8:
+(r3, r1):
+  weight
+    (1/ pi * (1/2),
+     nTd <~ uniform(+3/1, +8/1)
+     nMb <~ uniform(+1/1, +4/1)
+     weight
+       (exp
+          (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+           * nMb ^ 2
+           * r1 ^ 2
+           * (-1/2))
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nMb ^ 2
+             * r3 ^ 2
+             * (-1/2))
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * r1 ^ 2
+             * (-1/2))
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * r1
+             * r3)
+        / exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * r3 ^ 2)
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nMb ^ 2
+             * r1) ^
+          21
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nMb ^ 2
+             * r3) ^
+          21
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * r3) ^
+          21
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4) * nMb ^ 2) **
+          (-441/1)
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * (-441/2))
+        / sqrt(real2prob(nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)),
+        return (real2prob(nTd), real2prob(nMb))))
