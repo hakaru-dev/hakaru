@@ -484,38 +484,50 @@ export
   Simpl := module()
     export ModuleApply := proc()
       local p;
-      p := do_Simpl(args);
+      p := do_Simpl_fin("outer",args);
       p := subsindets[flat](p,Partition,Factor);
     end proc;
 
+    local do_Simpl_fin := proc(io::identical("inner","outer"))
+      local k, r; k, r := do_Simpl(_rest)[];
+      if io="inner" and r::Partition then
+        Pmap(k, r)
+      else
+        k(r)
+      end if;
+    end proc;
     local do_Simpl := proc(p)
       option remember, system;
       local ps, qs, qs1, mk, as; as := _rest;
       if p :: Partition then
+        [ (x->x),
         foldr((f,x)->f(x,as), p,
               reduce_branches,
               coalesce_equalities,
               remove_false_pieces,
               flatten,
-              singular_pts);
+              singular_pts) ];
       elif not hastype(p, Partition) then
-        p;
+        [ (x->x), p ]
       elif assigned(distrib_op_Partition[op(0,p)]) then
         ps := simpl_op_Partition[op(0,p)](p);
         if op(0,p)=op(0,ps) then
           mk := distrib_op_Partition[op(0,ps)];
           ps := [op(ps)];
-          ps := map(x->do_Simpl(x,as), ps);
+          ps := map(x->do_Simpl_fin("inner",x,as), ps);
           ps, qs := selectremove(type, ps, Partition);
-          if nops(ps)=0 then return p end if;
-          mk(op(qs),foldr(((a,b)->
-                           remove_false_pieces(Partition:-PProd(a,b,_add=mk))),
-                          op(ps)));
+          if nops(ps)=0 then return [(x->x),p] end if;
+          ps := foldr(((a,b)->
+                       remove_false_pieces(Partition:-PProd(a,b,_add=mk))),
+                      op(ps));
+          [ x->mk(op(qs),x), ps ];
         else
           do_Simpl(ps,as);
         end if;
       else
-        subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},x->do_Simpl(x,as));
+        [ (x->x),
+          subsindets(p,{Partition,indices(distrib_op_Partition,nolist)},
+                     x->do_Simpl_fin("outer",x,as)) ];
       end if;
     end proc;
     local  simpl_op_Partition := table([`+`=factor,`*`=(x->x)]);
