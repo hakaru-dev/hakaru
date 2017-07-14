@@ -100,19 +100,29 @@ end proc;
 # when true, checks `can_reduce_Partition' (when the check is false, there is a
 # great chance this function will throw an error!)
 reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,do_check::truefalse, $)
-  local e := ee;
+  local e, e1, k; e := ee;
   if do_check and not(can_reduce_Partition(e)) then return e end if;
   # big hammer: simplify knows about bound variables, amongst many
   # other things
   Testzero := x -> evalb(simplify(x) = 0);
 
-  e := subsindets(e, t_pw, PWToPartition);
-  e := Partition:-Simpl(e, kb);
+  e  := subsindets(e, t_pw, PWToPartition);
+  e1 := Partition:-Simpl(e, kb);
 
   # This is necessary because subsequent calls to kb_Partition do not work on
   # nested Partitions; but Simpl calls flatten, which should gives us a
   # Partition on the top level.
-  e := (`if`(e::Partition,do_reduce_Partition,reduce))(e, h, kb, opts);
+  if e1::Partition then
+    k := do_reduce_Partition;
+  elif e1<>e then
+    k := reduce;
+  else
+    userinfo(3, 'procname',
+             printf("Partition simpl probably failed on:"
+                    "\n\t%a", e));
+    k := (proc(x) x end proc);
+  end if;
+  e := k(e1, h, kb, opts);
   if ee::t_pw and e :: Partition then
     e := Partition:-PartitionToPW(e);
   end if;
