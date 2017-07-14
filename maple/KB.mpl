@@ -744,8 +744,7 @@ KB := module ()
       else error; end if;
     end try;
 
-    e := warm(e);                                            `warm (then expand@exp)`;
-    e := eval(e, exp = expand @ exp);
+    e := warm(e);
     e := subs([Sum=sum], e);
   end proc;
 

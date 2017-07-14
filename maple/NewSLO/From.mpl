@@ -19,6 +19,7 @@ fromLO := module()
       x, kb1 := genLebesgue(op([2,1],e), lo, hi, kb);
       subintegral := eval(op(1,e), op([2,1],e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
+      w := eval(w, exp=expand@exp);
       recognition := recognize_continuous(w, x, lo, hi, kb1);
       if recognition :: 'Recognized(anything, anything)' then
         (w, w0) := factorize(op(2,recognition), x, kb1);
