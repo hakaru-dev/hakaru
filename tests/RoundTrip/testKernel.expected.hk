@@ -10,4 +10,4 @@ if x2 ^ 2 * (-1/50) + x3 ^ 2 * (+1/50) <= +0/1:
           * prob2real(exp(x3 ^ 2 * (+1/50)))
           * (-1/1)),
      return x3)
-else: reject. measure(real)
+else: return x2
