@@ -82,7 +82,7 @@ Loop := module ()
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Ints, Sums, csgn, sum;
-  uses Hakaru, KB;
+  uses Hakaru, KB, Utilities;
 
   t_binder := 'Binder(identical(product, Product, sum, Sum), t_kb)';
   t_stmt   := 'Stmt(anything, list, list)';

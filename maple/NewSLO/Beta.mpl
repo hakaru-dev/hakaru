@@ -2,15 +2,6 @@
 # Loop:-intssums > simplify_factor_assuming > eval_factor > hack_Beta > Loop:-graft
 # but Loop:-intssums does not seem to even be used anywhere...
 
-    # A debugging utility that's like `and` except it calls `userinfo` if there is disagreement
-    and_info := proc(e :: {list,set})
-      local s, r;
-      s, r := selectremove(evalb, e);
-      if nops(r) = 0 then return true end if;
-      if nops(s) > 0 then userinfo(op([_rest, s, r])) end if;
-      return false;
-    end proc;
-
     hack_Beta_pw := proc(pw::specfunc(piecewise), x::name, bounds::range, $)
       local i, cond, via, dif, ineq, k;
       # Remove a particular superfluous inequality
@@ -87,7 +78,6 @@
 
     hackier_Beta := proc(loops,e)
       local s1, r1, s2, r2;
-
       if nops(loops) = 0 and e :: 'specfunc(And(`+`, Not(`+`(Not(idx({[1,0],[0,1]}, anything))))), Beta)' then
         s1, r1 := selectremove(type, op(1,e), 'idx({[1,0],[0,1]}, anything)');
         s2, r2 := selectremove(type, op(2,e), 'idx({[1,0],[0,1]}, anything)');
@@ -97,12 +87,8 @@
           return Beta(r1, r2) * idx([r2, r1], op(2,s1)) / (r1 + r2);
         end if
       end if;
-
       FAIL
-
     end proc;
-
-
 
     # GAMMAratio(s, r) = GAMMA(s+r) / GAMMA(r)
     GAMMAratio := proc(s, r, $)
@@ -119,9 +105,6 @@
         Product(var+r, var=0..s-1) # inert so as to not become GAMMA
       end if
     end proc;
-
-
-
 
     # Rewrite piecewise(i<=j-1,1,0) + piecewise(i=j,1,0) + ...
     #      to piecewise(i<=j,1,0) + ...

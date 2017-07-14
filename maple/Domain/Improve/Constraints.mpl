@@ -26,6 +26,8 @@ local Simplify_DConstrain := (can_simp, do_simp) -> module()
 end module;
 
 Domain_try_improve_exp := module()
+  uses Utilities;
+
   export SimplName  := "Try improve exp";
   export SimplOrder := 6 - 2/10;
   export ModuleApply := Simplify_DConstrain(can, `try`);
@@ -41,11 +43,12 @@ Domain_try_improve_exp := module()
     if nops(vars_q)=0 then return q end if;
 
     vars_q := op(1,vars_q);
-    KB:-try_improve_exp(q, vars_q, ctx1);
+    try_improve_exp(q, vars_q, ctx1);
   end proc;
 end module;
 
 constraints_about_vars := module()
+  uses Utilities;
   export SimplName  := "Make constraints abouts vars";
   export SimplOrder := 6;
   export ModuleApply := Simplify_DConstrain(can_make_about, try_make_about);
@@ -61,7 +64,7 @@ constraints_about_vars := module()
       if nops(vars_q)=0 then return q end if;
 
       vars_q := op(1,vars_q);
-      q := KB:-try_improve_exp(q, vars_q, ctx1);
+      q := try_improve_exp(q, vars_q, ctx1);
       q_r := `if`(has(q,{ln,exp}),q0,q);
       q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
       q_s := eval(q_s);
@@ -81,6 +84,7 @@ end module;
 
 
 clamp_extraneous_constraints := module()
+  uses Utilities;
   export SimplName  := "clamp_extraneous_constraints";
   export SimplOrder := 6 - 1/10;
   export ModuleApply := Simplify_DConstrain(can, `try`);
@@ -95,7 +99,7 @@ clamp_extraneous_constraints := module()
     local bnd, b_ty, b_rel, b_var, b_bnd, b_bnd_vs, vars, extremum, q := q0;
     if has(q, {ln,exp}) then
       vars := Domain:-Bound:-varsOf(dbnd, "set");
-      bnd := Domain:-Improve:-classify_relation(q0, x -> type(x, Name) and not (x in vars));
+      bnd := classify_relation(q0, x -> type(x, Name) and not (x in vars));
       if bnd=FAIL then return q0 end if;
       b_ty, b_rel, b_var, b_bnd := op(bnd):
       b_bnd_vs := indets(b_bnd, satisfies(x -> x in vars));
@@ -139,7 +143,7 @@ end module;
 
 # Turns constraints(relations) into bounds
 classify_DConstrains := module()
-  uses Domain;
+  uses Domain, Utilities;
 
   export SimplName  := "Classify constraints";
   export SimplOrder := 8;
@@ -163,7 +167,7 @@ classify_DConstrains := module()
     vars := Domain:-Bound:-varsOf(dbnd,"set");
 
     # extract a representation of the relation, and check that it is a bound
-    cl := Domain:-Improve:-classify_relation(r, vars);
+    cl := classify_relation(r, vars);
     if cl=FAIL or not (op(1,cl) in {B_LO,B_HI}) then return ret; end if;
     bnd_k,mk_k,lhs_r,rhs_r := op(cl);
 

@@ -1,6 +1,6 @@
 # Extract a domain from an expression
 export Extract := module ()
-  uses Domain_Type;
+  uses Domain_Type, Utilities;
   export ModuleApply := proc(e, kb, $) :: [ HDomain, anything, list(`=`) ];
     local b, eb, s, es, kb1, rn, ws;
     b, eb, ws := op(Bound(e));
@@ -138,7 +138,7 @@ export Extract := module ()
 
     # todo: simplify the shape
     local simpl_shape := proc(e0,$)
-      local e := Domain:-simpl_relation(e0);
+      local e := simpl_relation(e0);
       e := subsindets(e, specfunc(`Or`) , x->DSum(op(x)));
       e := subsindets(e, specfunc(`And`), x->DConstrain(op(x)));
       e;

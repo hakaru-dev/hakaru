@@ -7,7 +7,7 @@
 # basically, when we see an 'unbound' variable in the 'RHS' , we should bind
 # it with the default 'DInto'.
 export Apply := module ()
-       uses Domain_Type, Hakaru;
+       uses Domain_Type, Hakaru, Utilities;
        # Make sure these refer to the global names, or Records don't work
        global context, weights, f_into, f_body, f_sum, f_constrain;
        export ModuleApply :=

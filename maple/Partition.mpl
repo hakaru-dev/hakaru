@@ -214,9 +214,9 @@ export
   Foldr := proc( cons, nil, prt :: Partition, $ )
     foldr(proc(p, x) cons(condOf(p), valOf(p), x); end proc,nil,op(piecesOf(prt)));
   end proc,
-
-  Case := proc(ty,f,g) proc(x) if x::ty then f(x) else g(x) end if end proc end proc,
-  Foldr_mb := proc(cons,nil,prt) Case(Partition, x->Foldr(cons,nil,x), x->cons(true,x,nil)) end proc,
+  Foldr_mb := proc(cons,nil,prt)
+    Case(Partition, x->Foldr(cons,nil,x), x->cons(true,x,nil))
+  end proc,
   PartitionToPW_mb := Case(Partition, PartitionToPW, x->x),
   PWToPartition_mb := Case(specfunc(piecewise), PWToPartition, x->x),
 
@@ -240,7 +240,7 @@ export
       cond := {extr_conjs(cond)};
       cond := remove(x->x in ctx, cond);
       ncond := `if`(nops(cond)=1
-                    , KB:-negate_rel(op(1,cond))
+                    , negate_rel(op(1,cond))
                     , `Not`(bool_And(op(cond))) );
       cond := bool_And(op(cond));
       ctx := ctx union { ncond };
@@ -328,10 +328,10 @@ export
       if ormap(c->not(c::relation), cs[0]) then return FAIL; end if;
       if ns::odd then
         # Assuming it is semantically a Partition, construct the otherwise case
-        cs[0] := [ cs[0][], KB:-negate_rel(cs[0][-1]) ];
+        cs[0] := [ cs[0][], negate_rel(cs[0][-1]) ];
       end if;
       # Check if the conditions are of the desired form...
-      cs[1] := map(c->Domain:-Improve:-classify_relation(c,x->type(x,realcons)),
+      cs[1] := map(c->classify_relation(c,x->type(x,realcons)),
                    cs[0]);
       if has(cs[1], FAIL)
          # Relations must be in {<,<=,=}
@@ -344,7 +344,7 @@ export
       or (cs[1] <> sort(cs[1],key=bnd_key))
       then return FAIL end if;
       # ...they are; build the resulting conditions
-      cs[2] := map(KB:-negate_rel, cs[0]);
+      cs[2] := map(negate_rel, cs[0]);
       cs[3] := [ true  , op(1..-2, cs[2]) ];
       cs[4] := [ true$2, op(1..-3, cs[2]) ];
       cs[3] := zip_k(
@@ -897,7 +897,7 @@ export
           end if;
         else
           ctxC1 := ctxC;
-          ctxC := [seq(Domain:-simpl_relation(ctxC1, norty=t), t=['DNF','CNF'])];
+          ctxC := [seq(simpl_relation(ctxC1, norty=t), t=['DNF','CNF'])];
           ctxC := eval(ctxC,`And`=bool_And);
           ctxC := op(1, sort(ctxC, key=condition_complexity));
           if ctxC :: specfunc(`Or`) then
@@ -931,6 +931,6 @@ export
     true;
   end proc
 ;
-  uses Hakaru;
+  uses Hakaru, Utilities;
   ModuleLoad();
 end module:

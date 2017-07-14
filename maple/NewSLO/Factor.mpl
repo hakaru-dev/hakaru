@@ -3,7 +3,7 @@
   simplify_factor_assuming := module ()
 
     export ModuleApply;
-    local graft_pw, GAMMAratio, wrap, and_info,
+    local graft_pw, GAMMAratio, wrap,
           hack_Beta_pw, hack_Beta, hackier_Beta,
           eval_piecewise, bounds_are_simple, eval_loop, eval_factor;
 

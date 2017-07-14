@@ -53,11 +53,6 @@
 #    we have lots of different information for which the convenient formats are
 #    all different)
 #
-# A better interface for `simpl_relation` - something that allows it to treat
-#   arbitrary constructor forms as And, Or, Not. Typically, we do a `subs` right
-#   before the call to `simpl_relation` to put things in the right form, then
-#   another `subs` immediately inside `simpl_relation` to turn `And,Or` into `&and,&or`.
-#
 # Long term, KB and Domain should be merged, as their functionality overlaps
 #   quite a bit; basically
 #     - Introduce becomes a variable in DBound
@@ -128,7 +123,7 @@ Domain_Type := module()
 end module;
 
 Domain := module()
-    uses Hakaru, Partition, SolveTools[Inequality], Domain_Type ;
+    uses Hakaru, Utilities, Partition, SolveTools[Inequality], Domain_Type ;
 
     local ModuleLoad := proc($)
       local g;
@@ -170,45 +165,6 @@ $include "Domain/Types.mpl"
 $include "Domain/Extract.mpl"
 $include "Domain/Apply.mpl"
 $include "Domain/Improve.mpl"
-
-    export simpl_relation :=
-    proc( expr_ :: {relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}
-        , { norty := 'DNF' }
-        , $) :: { specfunc(specfunc({relation, specfunc(relation, Not)}, `Or`), `And`)
-                , specfunc(specfunc({relation, specfunc(relation, Not)}, `And`), `Or`)
-                };
-        local expr := expr_, outty, outmk, inty, inmk, ty_ord ;
-
-        expr := foldr( proc(v,e) subsindets(e, op(v)) end proc
-                     , expr
-                     , [ { specfunc(relation, `Not`), `not`(relation) }
-                       , x-> KB:-negate_rel(op(1,x)) ]
-                     , [ { specfunc(`Not`), `not` }
-                       , x->Logic:-`&not`(op(1,x)) ]
-                     , [ { specfunc(`Or`), `or` }
-                       , x->Logic:-`&or`(op(x)) ]
-                     , [ { specfunc(`And`), `and` }
-                       , x->Logic:-`&and`(op(x)) ] );
-        expr := Logic:-Normalize(expr, form=norty);
-        expr := foldr( proc(v,e) subsindets(e, op(v)) end proc
-                     , expr
-                     , [ specfunc(Logic:-`&and`), x->`And`(op(x)) ]
-                     , [ specfunc(Logic:-`&or`) , x->`Or`(op(x)) ]
-                     , [ specfunc(Logic:-`&not`), x->KB:-negate_rel(op(1,x))  ] );
-
-        if expr :: identical(false) then
-            return `if`(norty='DNF', `Or`(), `And`(`Or`()));
-        elif expr :: identical(true) then
-            return `if`(norty='DNF', `Or`(`And`()), `And`());
-        end if;
-
-        ty_ord := `if`(norty='DNF', [1,2], [2,1]);
-        outty, inty := [ 'specfunc(Or)', 'specfunc(And)' ][ty_ord][];
-        outmk, inmk := [ `Or`, `And` ][ty_ord][];
-
-        if not expr :: outty then expr := outmk(expr) end if;
-        map(x -> if not x :: inty then inmk(x) else x end if, expr);
-    end proc;
 
     local default_handlers :=
       Record('f_apply'=((f,x)->f(x)), 'f_nosimp'=(_->FAIL));

@@ -55,7 +55,8 @@ end proc:
 #############################################################################
 Hakaru := module ()
   option package;
-  local p_true, p_false, make_piece, Mk_Plus, lift1_piecewise, TYPES,
+  uses Utilities;
+  local p_true, p_false, make_piece, lift1_piecewise, TYPES,
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
@@ -68,9 +69,7 @@ Hakaru := module ()
          pattern_match, pattern_binds, bound_names_in,
          closed_bounds, open_bounds,
          htype_patterns,
-         bool_And, bool_Or, bool_Not, the, zip_k,
-         merge_record_default, upd_field,
-         UpdateArchive, ProfileFn;
+         UpdateArchive;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global
@@ -105,6 +104,7 @@ Hakaru := module ()
   p_true  := 'PDatum(true,PInl(PDone))';
   p_false := 'PDatum(false,PInr(PInl(PDone)))';
 
+  # Names 'bound' in an expression, in terms of Hakaru binding forms
   bound_names_in := proc(e, $)
     local ns, as;
     ns := table(
@@ -458,9 +458,9 @@ Hakaru := module ()
      #piecewise.
      r:= [
           And(C_O, C_I[1]), B_I[1],
-          And(C_O, KB:-negate_rel(C_I[1])), B_I[2],
-          And(KB:-negate_rel(C_O), C_I[2]), B_I[3],
-          And(KB:-negate_rel(C_O), KB:-negate_rel(C_I[2])), B_I[4]
+          And(C_O, negate_rel(C_I[1])), B_I[2],
+          And(negate_rel(C_O), C_I[2]), B_I[3],
+          And(negate_rel(C_O), negate_rel(C_I[2])), B_I[4]
      ];
      userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
      piecewise(r[])
@@ -587,48 +587,6 @@ Hakaru := module ()
     Bound(`>`, lhs(r)), Bound(`<`, rhs(r))
   end proc;
 
-  # Creates an N-ary operator `Plus` such:
-  #  Plus(Plus(a,b),c)=Plus(a,Plus(a,b))
-  #  Plus(a,Iden)=a
-  #  Plus(a,Zero)=Zero
-  #  Plus(a)=a
-  #  Plus(x,x)=x
-  Mk_Plus := proc(plus,iden,zero,$) proc()
-    local as := {args};
-    as := map(a->if op(0,a)=plus then op(a) else a end if, as);
-    if zero in as then return zero end if;
-    as := remove(`=`,as,iden);
-    if nops(as)=0 then iden
-    elif nops(as)=1 then op(1,as)
-    else plus(op(as))
-    end if;
-  end proc; end proc;
-
-  # Replacements for `and` and `or` which do not
-  # evaluate "x = y" to "false" when "x,y" are unbound vars.
-  bool_And := Mk_Plus(And,true ,false);
-  bool_Or  := Mk_Plus(Or ,false,true);
-
-  bool_Not := proc(a,$)
-    if a :: t_kb_atom and not (a :: `::`) then
-      subsindets(KB:-negate_rel(a), `not`, Not@op);
-    else
-      Not(a)
-    end if;
-  end proc;
-
-  # Returns true for a sequence for which all the elements are equal up to the
-  # specified equality, or false otherwise. A 0-length sequence produces an
-  # error.
-  the := proc(as, eq:=`=`, $)
-    if nops(as)=0 then error "sequence %1 must have at least one operand", as; end if;
-    andmap(x -> eq(x,op(1,as)), [op(2..-1,as)]);
-  end proc;
-
-  zip_k := proc(f)
-    map(f@op@ListTools[Flatten], foldl((a,b)->zip(`[]`,a,b,[]), _rest));
-  end proc;
-
   # Enumerate patterns for a given Hakaru type
   htype_patterns := proc(t::t_type, $)
     :: specfunc(Branch(anything, list(t_type)), Branches);
@@ -663,7 +621,6 @@ Hakaru := module ()
   TYPES := table(
     [(`&implies` =
          'proc(e, t1, t2, $) type(e, Or(Not(t1), t2)) end proc')
-    ,(Name = 'And(name, Not({constant,undefined}))')
     ,(known_continuous =
          ''{
               Lebesgue(anything, anything), Uniform(anything, anything),
@@ -727,73 +684,6 @@ Hakaru := module ()
     # A temporary type which should be removed when piecewise is gone
     ,(t_pw_or_part = 'Or(t_pw,t_partition)')
     ]);
-
-  ProfileFn := module()
-    local get_prof := proc()
-      [ time[real](), kernelopts(bytesalloc)/2^20, kernelopts(bytesused)/2^20 ];
-    end proc;
-    local ppr_prof1 := proc(m,a,nm,fmt0,$)
-      local v,p,fmt;
-      v,p,fmt := `if`(a>=m, ["",a,fmt0], ["less than ",m,"%a"])[];
-      cat(v,sprintf(fmt,p)," ",nm);
-    end proc;
-    local ppr_prof := proc(min_t, t, nms, $)
-      local prefix, prefixl, strs;
-      prefix := "took "; prefixl := length(prefix);
-      strs :=
-      zip_k(ppr_prof1, min_t, t, nms);
-      cat(op(
-        ListTools:-Interleave(
-          ["\n\t"$nops(strs)],
-          [prefix,cat(" "$prefixl)$(nops(strs)-1)],
-          strs)));
-    end proc;
-    export ModuleApply :=
-    proc(fn,min_t:=0.1,min_ba:=100,min_bu:=100)
-      proc()
-        local t, min_prof, profs, res, ctx, fncall;
-        if kernelopts(assertlevel) > 0 and
-           not (assigned(_Env_ProfileFn_inside[fn])) and
-           assigned(infolevel['procname']) and
-           infolevel['procname'] >= 3
-        then
-          _Env_ProfileFn_inside[fn] := true;
-          t[0] := get_prof();
-          res  := fn(args);
-          t[1] := get_prof();
-          t[2] := zip(`-`,t[1],t[0]);
-          ctx  := map(op@getassumptions,indets([fn,args],Name));
-          fncall := sprintf("%a(%q)",'procname',args);
-          ctx    := sprintf("assuming (%q)", op(ctx));
-          min_prof := [min_t,min_ba,min_bu];
-          profs  := ppr_prof(min_prof, t[2],
-                             [["seconds","%.3f"],
-                              ["MiB alloc", "%.3f"],
-                              ["MiB total used", "%.3f"]]);
-          userinfo(`if`(`or`(zip(`>`,t[2], min_prof)[]),3,5),
-                   'procname',
-                   printf("Evaluating\n\t%s\n\t%s%s\n",fncall,ctx,profs));
-          res;
-        else
-          fn(args)
-        end if;
-      end proc;
-    end proc;
-  end module;
-
-  # Merges two records, `rspec' and `rdef'. If `rspec' contains any fields of
-  # `rdef', the fields of `rspec' are taken.
-  merge_record_default := proc(rdef::record, rspec::record, $)
-    local s;
-    s   := {exports(rdef)} intersect {exports(rspec)};
-    Record[ Record[rdef](op(map(`-`,s))) , rspec ]();
-  end proc;
-
-  # Perhaps theres a better home for this, or its available in the Maple
-  # lib (?)
-  upd_field := proc(r::record, field::name, k, $)
-    Record[r](-field,field=k(r[field]))
-  end proc;
 
   ModuleLoad := proc($)
     local g; #Iterator over thismodule's globals

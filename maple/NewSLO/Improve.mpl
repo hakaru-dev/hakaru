@@ -148,8 +148,7 @@ reduce_Integrals := module()
   # tries to evaluate a RootOf
   , try_eval_Root
   # tries to evaluate Int/Sum/Ints/Sums
-  , elim_intsum
-  , distrib_over_sum;
+  , elim_intsum;
 
   reduce_Integrals_body := proc(h,opts,x,kb1) reduce(x,h,kb1,opts) end proc;
   reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,ows,$)
@@ -178,7 +177,6 @@ reduce_Integrals := module()
     b, ws := map(`*`@op, [b, ws])[];
     ws * do_c(b);
   end proc;
-  distrib_over_sum := proc(f,e,$) `+`(op(map(f,convert(e, 'list',`+`)))) end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
     local rr, handlers;

@@ -351,7 +351,6 @@ fromLO := module()
     FAIL
   end proc;
 
-
   # (s,r):=factorize(e,var,kb) expresses e in the context kb as s*r,
   # where r doesn't depend on var and s is as simple as possible
   # (and non-negative if possible).
@@ -389,9 +388,6 @@ fromLO := module()
     end if;
     e, 1;
   end proc;
-
-
-
 
   # (s,r):=termize(e,var,kb) expresses e in the context kb as s+r,
   # where r doesn't depend on var and s is as simple as possible.

@@ -49,8 +49,8 @@ KB := module ()
      ModuleLoad, ModuleUnload, TYPES,
 
      # Various utilities
-     t_intro, t_lo, t_hi, log_metric,
-     boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw,
+     t_intro, t_lo, t_hi,
+     coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw,
      array_size_assumptions, array_elem_assumptions, kb_intro_to_assumptions,
 
      simpl_range_of_htype,
@@ -68,10 +68,6 @@ KB := module ()
      build_unsafely,
 
      chill, warm, chillFns, warmFns,
-
-     # Negation of 'Constrain' atoms, that is, equality and
-     # inequality constraints
-     negated_relation, negate_rel, negate_rels,
 
      # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
      kb_subtract,
@@ -95,7 +91,7 @@ KB := module ()
      kb_atom_to_assumptions,
 
      # Various utilities ...
-     list_of_mul, for_poly, range_of_HInt, range_of_htype, eval_kb, kb_is_false, try_improve_exp,
+     range_of_HInt, range_of_htype, eval_kb, kb_is_false,
 
      # Types corresponding to the constructor forms of the 'atoms' of KBs
      t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
@@ -116,7 +112,7 @@ KB := module ()
      # Hakaru 'terms'.
      `expand/product`, `simplify/int/simplify`,
      `product/indef/indef`, `convert/Beta`;
-  uses Hakaru, SolveTools:-Inequality ;
+  uses Hakaru, Utilities, SolveTools:-Inequality ;
 
   # The type of introductions about which we want to pass some useful
   # information to Maple.
@@ -183,28 +179,6 @@ KB := module ()
     local x, t;
     x := `if`(depends([e,kb,_rest], xx), gensym(xx), xx);
     x, KB(Let(x, e), op(kb));
-  end proc;
-
-  #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
-  negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
-
-  # Takes the bool type (true/false) to mean universal and empty relations respectively.
-  # i.e. negate R, where R is an 'atomic' relation of a KB
-  negate_rel:= proc(R::t_kb_atom, $)::t_kb_atom;
-      if R :: truefalse then
-        not R
-      elif R :: relation then
-          negated_relation[op(0,R)](op(R));
-      else
-          # This is to appease 'piecewise', which won't be happy with Not
-          # However, KB doesn't really care - it's already expecting {Not,not}
-          # 'Technically' this is a KB 'constructor'!
-          not(R);
-      end if;
-  end proc;
-
-  negate_rels := proc(e, $)
-      subsindets(e, { specfunc(relation, `Not`), `not`(relation) }, negate_rel@op );
   end proc;
 
   # Builds a kb from:
@@ -613,53 +587,6 @@ KB := module ()
    end proc: # ModuleApply
   end module; # assert_deny
 
-  # In order to hopefully produce a simplification,
-  #   assert_deny will on some occasions repeatedly apply
-  #   `simplify@ln` in the hopes of producing an 'improved'
-  #   constraint. This metric gives the stopping condition
-  # - when the simplification ceases to improve the constraint
-  # - which is when the metric is made no less by the `simplify@ln`.
-  # Since this is a `length`, this is strictly decreasing,
-  #  so such a loop will 'provably' always terminate
-  log_metric := proc(e, x, $)
-    local m, L;
-    m := select(depends, indets(e, 'exp(anything)'), x);
-    length(subsindets(map2(op, 1, m), name, _->L));
-  end proc;
-
-  # This should be local to KB (or even to assert_deny) but it is used
-  # by Domain.
-  try_improve_exp := proc(b0, x, ctx, $)
-        local b := b0, log_b;
-        do
-          try log_b := map(simplify@ln, b) assuming op(ctx); catch: break; end try;
-
-          if log_metric(log_b, x) < log_metric(b, x)
-             and (andmap(e->is(e,real)=true, log_b) assuming op(ctx)) then
-            b := log_b;
-          else
-            break;
-          end if;
-        end do;
-        b;
-  end proc;
-
-  # boolean_if should be equivalent to `if`, but it assumes
-  # all its arguments are boolean conditions, so it basically
-  # simplifies "cond and th or not cond and el"
-  boolean_if := proc(cond, th, el, $)
-    use
-      a = ((x,y)-> `if`(x=true,y, `if`(x=false,x,
-                   `if`(y=true,x, `if`(y=false,y, And(x,y)))))),
-      o = ((x,y)-> `if`(x=false,y, `if`(x=true,x,
-                   `if`(y=false,x, `if`(y=true,y, Or (x,y)))))),
-      n = (x    -> `if`(x=false,true,
-                   `if`(x=true,false,             Not(x))))
-    in
-      o(a(cond,th), a(n(cond),el))
-    end use
-  end proc;
-
   # Given that kb is an extension of kb0
   # (in that all the knowledge in kb0 is contained in kb)
   # then produces kb 'without' kb0.
@@ -1001,48 +928,6 @@ KB := module ()
     eval(pr, %doThen=doThen);
   end proc;
 
-  # Like convert(e, 'list', `*`) but tries to keep the elements positive
-  list_of_mul := proc(e, $)
-    local rest, should_negate, can_negate, fsn;
-    rest := convert(e, 'list', `*`);
-    rest := map((f -> [f, signum(f),
-                       `if`(f::'{specfunc({Sum,sum}),anything^odd}',
-                            applyop(`-`,1,f),
-                       `if`(f::'specfunc(ln)',
-                            applyop(`/`,1,f),
-                            -f))]),
-                rest);
-    should_negate, rest := selectremove(type, rest,
-      '[anything, -1, Not(`*`)]');
-    if nops(should_negate) :: even then
-      [seq(op(3,fsn), fsn=should_negate),
-       seq(op(1,fsn), fsn=rest)]
-    else
-      can_negate, rest := selectremove(type, rest,
-        '[{`+`, specfunc({Sum,sum,ln}), `^`}, Not(1), Not(`*`)]');
-      if nops(can_negate) > 0 then
-        [seq(op(3,fsn), fsn=should_negate),
-         op([1,3], can_negate),
-         seq(op(1,fsn), fsn=subsop(1=NULL, can_negate)),
-         seq(op(1,fsn), fsn=rest)]
-      else
-        [seq(op(3,fsn), fsn=subsop(-1=NULL, should_negate)),
-         op([-1,1], should_negate),
-         seq(op(1,fsn), fsn=rest)]
-      end if
-    end if
-  end proc;
-
-  # Given an expression containing products and sums, i.e. polynomials
-  # and a function , applies this expression to each factor and summand
-  for_poly := proc(e, f, $)
-    if e :: '{`+`,`*`}' then map(for_poly, e, f)
-    elif e :: 'specfunc({product,Product,sum,Sum})' then
-      applyop(for_poly, 1, e, f)
-    else f(e)
-    end if
-  end proc;
-
   # Computes the range of (possible values of) a Hakaru Int,
   # given a Hakaru type for that Int.
   range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)
@@ -1098,8 +983,7 @@ KB := module ()
 
     # KB 'atoms' , i.e. single pieces of knowledge, in "maple form".
     # Note that boolean already includes `Bound`s in the form `x R y`
-    ,(t_kb_atom =
-      ''{`::`, boolean, `in`, specfunc(anything,{Or,Not,And})}'')
+    ,(t_kb_atom = ''Relation'')
     ,(t_kb_atoms = 'list(t_kb_atom)')
 
     # The 'false' KB, produced when a contradiction arises in a KB
@@ -1110,7 +994,8 @@ KB := module ()
     ]);
 
   ModuleLoad := proc($)
-    Hakaru; # Make sure the KB module is loaded, for the type t_type
+    # Make sure modules are loaded for types
+    Hakaru; Utilities;
 
     BindingTools:-load_types_from_table(TYPES);
 

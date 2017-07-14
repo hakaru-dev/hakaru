@@ -1,5 +1,5 @@
 SemiAlgebraic := module()
-    uses Domain, Domain_Type, SolveTools, Hakaru;
+    uses Domain, Domain_Type, SolveTools, Utilities;
     export SimplName  := "SemiAlgebraic";
     export SimplOrder := 6+(1/2);
 
@@ -41,7 +41,7 @@ SemiAlgebraic := module()
         vs := Domain:-Bound:-varsOf(ctx,"set");
         vsc := map((v->(v,-v)), vs);
         ps := map2(op,1,[op(sh)]);
-        ps := map(p->Domain:-Improve:-classify_relation(p,v->v in vsc), ps);
+        ps := map(p->classify_relation(p,v->v in vsc), ps);
         if not(has(ps, {B_LO,B_HI})) then return false; end if;
         if not(the(map2(op,3,ps))) then return false; end if;
         if not(the(map(abs,map2(op,4,ps)))) then return; false end if;
