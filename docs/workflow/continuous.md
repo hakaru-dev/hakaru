@@ -75,6 +75,105 @@ plausible thermometer calibration values.
 
 ## Transformation ##
 
+To calibrate our thermometers, we need to know how differences in environmental noises affect temperature measurements. For our scenario,
+this means that we want to know what the conditional distribution on environmental noise given the measurement data. Unlike the [discrete
+model example](discrete.md), this problem would be extremely difficult to reason about without transforming it in any way. 
+
+To generate a conditional distribution for this problem, we will use Hakaru's [disintegrate transform](../transforms/disintegrate.md).
+This transformation requires that the target model have a [return statement](../lang/rand.md) that presents information in the order of 
+known information followed by unknown information. We have already configured our model in this manner, so we can run the `disintegrate`
+transform immediately:
+
+````nohighlight
+fn x8 pair(real, real):
+match x8:
+(x25, x26):
+  nT <~ uniform(+3/1, +8/1)
+  nM <~ uniform(+1/1, +4/1)
+  noiseT = real2prob(nT)
+  noiseM = real2prob(nM)
+  t1 <~ normal(+21/1, noiseT)
+  t2 <~ normal(t1, noiseT)
+  x28 <~ weight
+           (exp((-(x25 - t1) ^ 2) / prob2real(2/1 * noiseM ^ 2))
+            / noiseM
+            / sqrt(2/1 * pi),
+            return ())
+  x27 <~ weight
+           (exp((-(x26 - t2) ^ 2) / prob2real(2/1 * noiseM ^ 2))
+            / noiseM
+            / sqrt(2/1 * pi),
+            return ())
+  return (noiseT, noiseM)
+_: reject. measure(pair(prob, prob))
+````
+
+An additional Hakaru transformation that can be performed at this stage is the [Hakaru-Maple `simplify` subcommand](../transforms/hk-maple.md). This will call Maple to 
+algebraically simplify Hakaru models. However, this transform can sometimes produce a longer, harder to read version of the original model. This is the case with our 
+conditional measurement model:
+
+````nohighlight
+fn x8 pair(real, real):
+match x8:
+(r3, r1):
+  weight
+    (1/ pi * (1/2),
+     nTd <~ uniform(+3/1, +8/1)
+     nMb <~ uniform(+1/1, +4/1)
+     weight
+       (exp
+          (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+           * nMb ^ 2
+           * r1 ^ 2
+           * (-1/2))
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nMb ^ 2
+             * r3 ^ 2
+             * (-1/2))
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * r1 ^ 2
+             * (-1/2))
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * r1
+             * r3)
+        / exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * r3 ^ 2)
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nMb ^ 2
+             * r1) ^
+          21
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nMb ^ 2
+             * r3) ^
+          21
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * r3) ^
+          21
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4) * nMb ^ 2) **
+          (-441/1)
+        * exp
+            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
+             * nTd ^ 2
+             * (-441/2))
+        / sqrt(real2prob(nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)),
+        return (real2prob(nTd), real2prob(nMb))))
+````
+
+The two models are equivalent, so you must decide which model that you want to use for your application. For the purposes of this tutorial, we will use the
+unsimplified version of the model (`thermometer_disintegrate.hk`).
+
 ## Application ##
 
 [^1]: P. Narayanan, J. Carette, W. Romano, C. Shan and R. Zinkov, "Probabilistic Inference by Program Transformation in Hakaru (System Description)", Functional and Logic 

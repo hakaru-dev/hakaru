@@ -60,6 +60,10 @@ import Data.Function (on)
 import Data.Typeable (Typeable, Proxy(..))
 import Data.Either (isRight)
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
+
 #if __GLASGOW_HASKELL__ < 800
 newtype Compose (f :: * -> *) (g :: k -> *) (x :: k)
   = Compose { getCompose :: f (g x) }
