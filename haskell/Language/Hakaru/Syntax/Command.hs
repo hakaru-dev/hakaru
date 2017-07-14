@@ -16,6 +16,7 @@
            , MultiParamTypeClasses
            , OverlappingInstances
            , CPP
+           , DeriveDataTypeable
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
