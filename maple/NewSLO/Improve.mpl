@@ -330,6 +330,15 @@ end proc;
 sum_assuming := proc(e, v::name=anything, kb::t_kb)
   local r;
   r := simplify_factor_assuming('sum'(e, v), kb);
+  # This is only necessary because `simplify_assuming' will `chill' idx inside
+  # things like `sum( .. idx([0,1], x) .., x=0..1)'.  The result of this is that
+  # the `idx' doesn't evaluate, and we end up with things like
+  # `piecewise(true=true,..)' and `piecewise(false=true,..)'. The presence of
+  # these superfluous piecewise breaks simplification further on.
+  #
+  # `eval' should actually be safe here, since `simplify_assuming' will call
+  # `eval' anyways, inside the call to `assuming'
+  r := eval(r);
   if r::specfunc(`sum`) then sum(op(r)) else r; end if;
 end proc;
 
