@@ -7,50 +7,17 @@ match x8:
      nMb <~ uniform(+1/1, +4/1)
      weight
        (exp
-          (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-           * nMb ^ 2
-           * r1 ^ 2
+          ((nMb ^ 2 * r1 ^ 2
+            + nMb ^ 2 * r3 ^ 2
+            + nTd ^ 2 * r1 ^ 2
+            + nTd ^ 2 * r1 * r3 * (-2/1)
+            + nTd ^ 2 * r3 ^ 2 * (+2/1)
+            + nMb ^ 2 * r1 * (-42/1)
+            + r3 * nMb ^ 2 * (-42/1)
+            + r3 * nTd ^ 2 * (-42/1)
+            + nMb ^ 2 * (+882/1)
+            + nTd ^ 2 * (+441/1))
+           / (nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)
            * (-1/2))
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nMb ^ 2
-             * r3 ^ 2
-             * (-1/2))
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * r1 ^ 2
-             * (-1/2))
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * r1
-             * r3)
-        / exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * r3 ^ 2)
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nMb ^ 2
-             * r1) ^
-          21
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nMb ^ 2
-             * r3) ^
-          21
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * r3) ^
-          21
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4) * nMb ^ 2) **
-          (-441/1)
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * (-441/2))
-        / sqrt(real2prob(nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)),
+        / sqrt(real2prob(nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)),
         return (real2prob(nTd), real2prob(nMb))))

@@ -108,9 +108,10 @@ match x8:
 _: reject. measure(pair(prob, prob))
 ````
 
-An additional Hakaru transformation that can be performed at this stage is the [Hakaru-Maple `simplify` subcommand](../transforms/hk-maple.md). This will call Maple to 
-algebraically simplify Hakaru models. However, this transform can sometimes produce a longer, harder to read version of the original model. This is the case with our 
-conditional measurement model:
+An additional Hakaru transformation that can be performed at this stage is
+the [Hakaru-Maple `simplify` subcommand](../transforms/hk-maple.md). This will
+call Maple to algebraically simplify Hakaru models. The result is a more
+efficient program, sampling from two `uniform` distributions instead of four.
 
 ````nohighlight
 fn x8 pair(real, real):
@@ -122,52 +123,19 @@ match x8:
      nMb <~ uniform(+1/1, +4/1)
      weight
        (exp
-          (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-           * nMb ^ 2
-           * r1 ^ 2
+          ((nMb ^ 2 * r1 ^ 2
+            + nMb ^ 2 * r3 ^ 2
+            + nTd ^ 2 * r1 ^ 2
+            + nTd ^ 2 * r1 * r3 * (-2/1)
+            + nTd ^ 2 * r3 ^ 2 * (+2/1)
+            + nMb ^ 2 * r1 * (-42/1)
+            + r3 * nMb ^ 2 * (-42/1)
+            + r3 * nTd ^ 2 * (-42/1)
+            + nMb ^ 2 * (+882/1)
+            + nTd ^ 2 * (+441/1))
+           / (nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)
            * (-1/2))
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nMb ^ 2
-             * r3 ^ 2
-             * (-1/2))
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * r1 ^ 2
-             * (-1/2))
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * r1
-             * r3)
-        / exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * r3 ^ 2)
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nMb ^ 2
-             * r1) ^
-          21
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nMb ^ 2
-             * r3) ^
-          21
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * r3) ^
-          21
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4) * nMb ^ 2) **
-          (-441/1)
-        * exp
-            (1/ (nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)
-             * nTd ^ 2
-             * (-441/2))
-        / sqrt(real2prob(nMb ^ 4 + nMb ^ 2 * nTd ^ 2 * (+3/1) + nTd ^ 4)),
+        / sqrt(real2prob(nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)),
         return (real2prob(nTd), real2prob(nMb))))
 ````
 
