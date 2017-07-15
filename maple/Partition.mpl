@@ -515,7 +515,7 @@ export
           mk := distrib_op_Partition[op(0,ps)];
           ps := [op(ps)];
           ps := map(x->do_Simpl_fin("inner",x,as), ps);
-          ps, qs := selectremove(type, ps, Partition);
+          ps, qs := selectremove_outerPartitions(ps);
           if nops(ps)=0 then
             return [(x->x), mk(op(qs))]
           end if;
@@ -534,6 +534,23 @@ export
     end proc;
     local  simpl_op_Partition := table([`+`=factor,`*`=(x->x)]);
     export distrib_op_Partition := table([`+`=`+`,`*`=`*`]);
+
+    # Selects those list elements which are Partitions, and those which are
+    # `applyintegrand' with a Partition argument. In the latter case, the
+    # `applyintegrand' is pushed down over the pieces.
+    local selectremove_outerPartitions :=
+    proc(ps0::list,$)::list(Partition),list;
+      local ps, rs;
+      ps[1], rs[1] := selectremove(type, ps0, Partition);
+      ps[2], rs[2] := selectremove(type, rs[1],
+                                   'NewSLO:-applyintegrand'
+                                     (anything, Partition));
+      ps[2] := map(p->Pmap(x->NewSLO:-applyintegrand(op(1,p),x),op(2,p)),
+                   ps[2]);
+
+      map(op, [ps[1],ps[2]]),
+      [op(rs[2])] ;
+    end proc;
 
     local Factor := proc(p::Partition)
       local ps, qs, zs, tycands, v, p1;
