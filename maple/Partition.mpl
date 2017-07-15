@@ -516,7 +516,9 @@ export
           ps := [op(ps)];
           ps := map(x->do_Simpl_fin("inner",x,as), ps);
           ps, qs := selectremove(type, ps, Partition);
-          if nops(ps)=0 then return [(x->x),p] end if;
+          if nops(ps)=0 then
+            return [(x->x), mk(op(qs))]
+          end if;
           ps := foldr(((a,b)->
                        remove_false_pieces(Partition:-PProd(a,b,_add=mk))),
                       op(ps));
