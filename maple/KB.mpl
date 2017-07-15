@@ -728,10 +728,9 @@ KB := module ()
 
     e := eval_kb(ee,kb);                                                  `eval`;
     as := kb_to_assumptions(kb, e);
+    e0 := e;
     e  := chill(e);
     as := chill(as);
-
-    e0 := e;
     e  := subs([sum=Sum], e);
 
     userinfo(3, procname, printf("Trying\n%a(%a) assuming op(%a)\n", simpl, e, as));
@@ -740,7 +739,7 @@ KB := module ()
       if lastexception[2] in known_assuming_expections then
         userinfo(3, procname, printf("...threw a known exception:\n%s",
                                      StringTools[FormatMessage](lastexception[2..-1])));
-        failure(e0);
+        return failure(e0);
       else error; end if;
     end try;
 
