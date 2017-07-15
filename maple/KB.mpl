@@ -731,7 +731,6 @@ KB := module ()
     e0 := e;
     e  := chill(e);
     as := chill(as);
-    e  := subs([sum=Sum], e);
 
     userinfo(3, procname, printf("Trying\n%a(%a) assuming op(%a)\n", simpl, e, as));
     try e := simpl(e) assuming op(as);
@@ -744,7 +743,6 @@ KB := module ()
     end try;
 
     e := warm(e);
-    e := subs([Sum=sum], e);
   end proc;
 
   # Given a function `f', 'evaluates' the given expression `e' as follows:
