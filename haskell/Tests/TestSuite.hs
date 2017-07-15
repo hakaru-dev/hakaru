@@ -1,4 +1,4 @@
--- module Tests.TestSuite(main) where
+module Main(main, justRelationships) where
 
 import System.Exit (exitFailure)
 import System.Environment (lookupEnv)
@@ -26,8 +26,8 @@ simplifyTests t env =
     Just _  -> t
     Nothing -> test ignored
 
-allTests :: Maybe String -> Test
-allTests env = test
+allTests, relationshipsTests :: Maybe String -> Test
+allTests env = test $
   [ TestLabel "Parser"       P.allTests
   , TestLabel "Pretty"       Pr.allTests
   , TestLabel "TypeCheck"    TC.allTests
@@ -36,16 +36,17 @@ allTests env = test
   , TestLabel "Evaluate"     E.allTests
   , TestLabel "RoundTrip"    (simplifyTests RT.allTests env)
   , TestLabel "ASTTransforms" TR.allTests
-  , TestLabel "Relationships" (simplifyTests REL.allTests env)
   ]
+relationshipsTests env =
+  TestLabel "Relationships" (simplifyTests REL.allTests env)
 
-main :: IO ()
-main = mainWith (fmap Just . runTestTT)
+main, justRelationships :: IO ()
+main = mainWith allTests (fmap Just . runTestTT)
 
-mainWith :: (Test -> IO (Maybe Counts)) -> IO ()
-mainWith run = do
+justRelationships = mainWith relationshipsTests (fmap Just . runTestTT)
+
+mainWith :: (Maybe String -> Test) -> (Test -> IO (Maybe Counts)) -> IO ()
+mainWith mkTests run = do
     env <- lookupEnv "LOCAL_MAPLE"
-    run (allTests env) >>=
+    run (mkTests env) >>=
       maybe (return ()) (\(Counts _ _ e f) -> if (e>0) || (f>0) then exitFailure else return ())
-
--- maini = mainWith 
