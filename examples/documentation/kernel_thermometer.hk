@@ -1,0 +1,6 @@
+fn noiseTprev prob:
+ fn noiseMprev prob:
+  noiseT' <~ uniform(3,8)
+  noiseM' <~ uniform(1,4)
+  weight(1/2, return (real2prob(noiseT'), noiseMprev)) <|>
+  weight(1/2, return (noiseTprev, real2prob(noiseM')))
