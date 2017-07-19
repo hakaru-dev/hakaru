@@ -111,7 +111,7 @@ instance Show CommandMatchError where
            , showCmd expt, " doesn't match expected command type:\n"
            , showCmd act ]
   show (MultipleErrors es) =
-    concat ("Multiple errors" : map (("\n\n" ++) . show) es)
+    concat $ "Multiple errors" : map (("\n\n" ++) . show) es
 
   
 --------------------------------------------------------------------------------
