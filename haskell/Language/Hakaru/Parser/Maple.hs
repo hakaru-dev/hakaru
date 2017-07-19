@@ -239,7 +239,7 @@ not =
 
 lesseq :: Parser InertExpr
 lesseq = do
-    text "_Inert_LESSEQ"
+    _ <- text "_Inert_LESSEQ"
     args <- arg expr
     return $ InertArgs Not_
                [ InertArgs Less (reverse args)]
