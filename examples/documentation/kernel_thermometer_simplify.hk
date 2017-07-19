@@ -1,0 +1,10 @@
+fn noiseTprev prob:
+fn noiseMprev prob:
+weight
+  (1/2,
+   noiseTprime9 <~ uniform(+3/1, +8/1)
+   return (real2prob(noiseTprime9), noiseMprev)) <|>
+weight
+  (1/2,
+   noiseMprime7 <~ uniform(+1/1, +4/1)
+   return (noiseTprev, real2prob(noiseMprime7)))
