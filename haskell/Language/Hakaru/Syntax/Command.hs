@@ -98,19 +98,22 @@ instance Exception CommandMatchError
 
 instance Show CommandMatchError where
   show (AmbiguousCommandName str cmds) =
-    concat[ "Ambiguous command\n"
-          , str, " could refer to any of\n"
-          , intercalate "," $ map nameOfSomeCommand cmds ]
+    concat [ "Ambiguous command\n"
+           , str, " could refer to any of\n"
+           , intercalate "," $ map nameOfSomeCommand cmds ]
   show (UnknownCommandName str cmds) =
-    concat[ "Unknown command\n"
-          , str, " doesn't match any available commands:\n"
-          , intercalate "," $ map nameOfSomeCommand cmds ]
+    concat [ "Unknown command\n"
+           , str, " doesn't match any available commands:\n"
+           , intercalate "," $ map nameOfSomeCommand cmds ]
   show (CommandTypeMismatch expt act) =
     let showCmd = either id (\(Some1 x) -> show $ prettyType 0 x) in
-    concat[ "Type of input\n"
-          , showCmd expt, " doesn't match expected command type:\n"
-          , showCmd act ]
+    concat [ "Type of input\n"
+           , showCmd expt, " doesn't match expected command type:\n"
+           , showCmd act ]
+  show (MultipleErrors es) =
+    concat ("Multiple errors" : map (("\n\n" ++) . show) es)
 
+  
 --------------------------------------------------------------------------------
 -- | The class of commands
 class (SingI c, Show (Sing c)) => IsCommand (c :: k) where
