@@ -66,9 +66,11 @@ constraints_about_vars := module()
       vars_q := op(1,vars_q);
       q := try_improve_exp(q, vars_q, ctx1);
       q_r := `if`(has(q,{ln,exp}),q0,q);
-      q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
-      q_s := eval(q_s);
-      if q_s::list then
+      q_s :=
+        KB:-kb_assuming_mb(
+          (q0 -> solve({q0}, [op(vars_q)], 'useassumptions'=true)),
+          q, Domain:-Bound:-contextOf(dbnd), _->FAIL);
+      if q_s::list and not has(q_s, signum) then
         if nops(q_s)=0 then return q_r end if;
         q_s := map(s->remove(c->c in ctx1 or `and`(c::relation,lhs(c)::name,lhs(c)=rhs(c)), s), q_s);
         q_s := remove(x->x=[],q_s);
