@@ -1,0 +1,9 @@
+fn noise pair(real, real):
+  match noise:
+   (noiseTprev, noiseMprev):
+    weight(1/2, 
+            noiseTprime <~ uniform(3,8)
+            return (real2prob(noiseTprime), real2prob(noiseMprev))) <|>
+    weight(1/2, 
+           noiseMprime <~ uniform(1,4)
+           return (real2prob(noiseTprev), real2prob(noiseMprime)))
