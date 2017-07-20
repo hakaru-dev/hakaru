@@ -155,10 +155,15 @@ showsRational a =
 
 var1 :: Variable (a :: Hakaru) -> ShowS
 var1 x | Text.null (varHint x) = showChar 'x' . (shows . fromNat . varID) x
-       | otherwise             = showString (Text.unpack $
-                                             replaceQuote (varHint x))
-  where replaceQuote :: Text.Text -> Text.Text
-        replaceQuote x = Text.replace "'" "_" x
+       | otherwise             = quoteName . Text.unpack . varHint $ x
+
+quoteName :: String -> ShowS
+quoteName s =
+  foldr1 (.) $ map showString
+    ["`", concatMap quoteChar s, "`"]
+      where quoteChar '`'  = "\\`"
+            quoteChar '\\' = "\\\\"
+            quoteChar c    = [c]
 
 list1vars :: List1 Variable (vars :: [Hakaru]) -> [String]
 list1vars Nil1         = []
