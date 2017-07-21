@@ -1,4 +1,9 @@
-{-# LANGUAGE OverloadedStrings, DataKinds, GADTs, CPP, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings
+           , DataKinds
+           , GADTs
+           , CPP
+           , RecordWildCards
+           #-}
 
 module Main where
 
@@ -20,7 +25,6 @@ import qualified Options.Applicative as O
 
 data Options = Options
   { printType :: Bool 
-  , internal  :: Bool 
   , program   :: FilePath 
   }
 
@@ -30,10 +34,6 @@ options = Options
       ( O.short 't' <>
         O.long "print-type" <>
         O.help "Annotate the program with its type." )
-  <*> O.switch
-      ( O.short 'i' <>
-        O.long "internal-syntax" <>
-        O.help "Print the program in internal Haskell syntax instead of in concrete syntax." )
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
         O.help "Filename containing program to be pretty printed, or \"-\" to read from input." ) 
@@ -49,12 +49,14 @@ runPretty :: Options -> IO ()
 runPretty Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
     case prog of
     Left  err               -> IO.hPutStrLn stderr err
-    Right (TypedAST ty ast) -> IO.putStrLn $
-      (if printType then \x ->
-           T.concat [ "(", x, ")"
-                    , "\n.\n" <> T.pack ((if internal then show else show . prettyType 12) ty)
-                    ]
-       else id) (T.pack . (if internal then
-                               show
-                           else show.pretty) . expandTransformations $ ast)
+    Right (TypedAST typ ast) -> IO.putStrLn . T.pack $
+      let concreteProgram = show . pretty . expandTransformations $ ast
+          withType t x = concat [ "(", x, ")"
+                                , "\n.\n"
+                                , show (prettyType 12 t)
+                                ] in
+
+      if printType then
+          withType typ concreteProgram
+      else concreteProgram
 
