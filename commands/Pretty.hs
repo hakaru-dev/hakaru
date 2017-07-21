@@ -48,7 +48,7 @@ main = parseOpts >>= runPretty
 runPretty :: Options -> IO ()
 runPretty Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
     case prog of
-    Left  err               -> IO.hPutStrLn stderr err
+    Left  err                -> IO.hPutStrLn stderr err
     Right (TypedAST typ ast) -> IO.putStrLn . T.pack $
       let concreteProgram = show . pretty . expandTransformations $ ast
           withType t x = concat [ "(", x, ")"
