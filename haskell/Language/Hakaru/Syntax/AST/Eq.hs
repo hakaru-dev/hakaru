@@ -133,9 +133,28 @@ jmEq_S (Product h1 h2) es (Product h1' h2') es' = do
     Refl <- jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
     Refl <- jmEq1 es es'
     Just (Refl, Refl)
-jmEq_S Expect    es Expect     es' =
-    jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
+jmEq_S (Transform_ t0) es (Transform_ t1)   es' = do
+    Refl <- jmEq1 es es'
+    Refl <- jmEq_Transform t0 t1
+    Just (Refl, Refl)
 jmEq_S _         _  _          _   = Nothing
+
+jmEq_Transform
+    :: Transform args a
+    -> Transform args a'
+    -> Maybe (TypeEq a a')
+jmEq_Transform t0 t1 =
+  case (t0, t1) of
+    (Expect   , Expect   ) -> Just Refl
+    (Observe  , Observe  ) -> Just Refl
+    (MH       , MH       ) -> Just Refl
+    (MCMC     , MCMC     ) -> Just Refl
+    (Disint k0, Disint k1) ->
+      if k0==k1 then Just Refl else Nothing
+    (Summarize, Summarize) -> Just Refl
+    (Simplify , Simplify ) -> Just Refl
+    (Reparam  , Reparam  ) -> Just Refl
+    _                      -> Nothing
 
 -- TODO: Handle jmEq2 of pat and pat'
 jmEq_Branch
@@ -451,14 +470,37 @@ alphaEq e1 e2 =
         Refl <- lift $ jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
         sArgsEq e1 e2
 
-    sConEq Expect (e1  :* e2  :* End)
-           Expect (e1' :* e2' :* End) = do
-        Refl <- lift $ jmEq1 (typeOf e1) (typeOf e1')
-        go (viewABT e1) (viewABT e1')
-        go (viewABT e2) (viewABT e2')
+    sConEq (Transform_ t1) e1
+           (Transform_ t2) e2 = transformEq t1 e1 t2 e2
 
     sConEq _ _ _ _ = lift Nothing
 
+    transformEq
+        :: Transform args1 a1
+        -> SArgs abt args1
+        -> Transform args2 a1
+        -> SArgs abt args2
+        -> ReaderT Varmap Maybe ()
+    transformEq t0 e0 t1 e1 =
+      case (t0, t1) of
+        -- Special case needed because some type variables in the input do not
+        -- appear in the output
+        (Expect   , Expect   ) ->
+          case (e0, e1) of
+           (e1  :* e2  :* End,
+            e1' :* e2' :* End) -> do
+             Refl <- lift $ jmEq1 (typeOf e1) (typeOf e1')
+             go (viewABT e1) (viewABT e1')
+             go (viewABT e2) (viewABT e2')
+        (Observe  , Observe  ) -> sArgsEq e0 e1
+        (MH       , MH       ) -> sArgsEq e0 e1
+        (MCMC     , MCMC     ) -> sArgsEq e0 e1
+        (Disint k0, Disint k1) ->
+          if k0==k1 then sArgsEq e0 e1 else lift Nothing
+        (Summarize, Summarize) -> sArgsEq e0 e1
+        (Simplify , Simplify ) -> sArgsEq e0 e1
+        (Reparam  , Reparam  ) -> sArgsEq e0 e1
+        _                      -> lift Nothing
 
     primOpEq
         :: forall a typs1 typs2 args1 args2
