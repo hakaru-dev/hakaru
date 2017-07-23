@@ -43,6 +43,7 @@ module Language.Hakaru.Syntax.AST
     , SArgs(..)
     , Term(..)
     , Transform(..), TransformImpl(..)
+    , transformName, allTransforms
     -- * Operators
     , LC, LCs, UnLCs
     , LC_(..)
@@ -731,6 +732,28 @@ data Transform :: [([Hakaru], Hakaru)] -> Hakaru -> * where
 
 deriving instance Eq   (Transform args a)
 deriving instance Show (Transform args a)
+
+transformName :: Transform args a -> String
+transformName =
+  \case
+    Expect    -> "expect"
+    Observe   -> "observe"
+    MH        -> "mh"
+    MCMC      -> "mcmc"
+    Disint k  -> "disint" ++
+      (case k of
+         InHaskell -> ""
+         InMaple   -> "_m")
+    Summarize -> "summarize"
+    Simplify  -> "simplify"
+    Reparam   -> "reparam"
+
+allTransforms :: [Some2 Transform]
+allTransforms =
+  [ Some2 Expect, Some2 Observe, Some2 MH, Some2 MCMC
+  , Some2 (Disint InHaskell), Some2 (Disint InMaple)
+  , Some2 Summarize, Some2 Simplify, Some2 Reparam ]
+
 ----------------------------------------------------------------
 -- TODO: ideally we'd like to make SArgs totally flat, like tuples and arrays. Is there a way to do that with data families?
 -- TODO: is there any good way to reuse 'List1' instead of defining 'SArgs' (aka @List2@)?
