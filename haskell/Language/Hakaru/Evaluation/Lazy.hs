@@ -154,15 +154,9 @@ evaluate perform = evaluate_
         ArrayOp_ o :$ es -> evaluateArrayOp evaluate_ o es
         PrimOp_  o :$ es -> evaluatePrimOp  evaluate_ o es
 
-        -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
-        -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
-        Expect :$ e1 :* e2 :* End ->
-            error "TODO: evaluate{Expect}: unclear how to handle this without cyclic dependencies"
-        {-
-        -- BUG: can't call E.expect because of cyclic dependency
-            evaluate_ . E.expect e1 $ \e3 ->
-                syn (Let_ :$ e3 :* e2 :* End)
-        -}
+        Transform_ t :$ _ -> error $
+            concat ["TODO: evaluate{", show t, "}"
+                   ,": cannot evaluate transforms; expand them first"]
 
         Case_ e bs -> evaluateCase_ e bs
 
