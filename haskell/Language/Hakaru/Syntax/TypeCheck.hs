@@ -191,8 +191,11 @@ mustCheck e = caseVarSyn e (const False) go
     go (U.Product_    _ _ _) = False
     go (U.Bucket_     _ _ _) = False
     go U.Reject_             = True
-    go (U.Expect_ _ e2)      = mustCheck' e2
-    go (U.Observe_  e1  _)   = mustCheck  e1
+    go (U.Transform_ tr es ) =
+      case (tr, es) of
+        (Expect , _ U.:* (Cons2 U.ToU Nil2, e2) U.:* U.End) -> mustCheck' e2
+        (Observe, (Nil2, e1) U.:* _ U.:* U.End) -> mustCheck  e1
+        _ -> True -- TODO: for which terms can types actually be inferred?
     go U.InjTyped{}          = False
 
 mustCheck'
@@ -721,21 +724,7 @@ inferType = inferType_
            return . TypedAST typ1 $
                   syn (Bucket e1' e2' r1')
 
-       U.Expect_ e1 e2 -> do
-           TypedAST typ1 e1' <- inferType_ e1
-           case typ1 of
-               SMeasure typ2 -> do
-                   e2' <- checkBinder typ2 SProb e2
-                   return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
-               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
-
-       U.Observe_ e1 e2 -> do
-           TypedAST typ1 e1' <- inferType_ e1
-           case typ1 of
-               SMeasure typ2 -> do
-                   e2' <- checkType_ typ2 e2
-                   return . TypedAST typ1 $ syn (Observe :$ e1' :* e2' :* End)
-               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+       U.Transform_ tr es -> inferTransform sourceSpan tr es
 
        U.Superpose_ pes -> do
            -- TODO: clean up all this @map fst@, @map snd@, @zip@ stuff
@@ -755,6 +744,35 @@ inferType = inferType_
 
        _   | mustCheck e0 -> ambiguousMustCheck sourceSpan
            | otherwise    -> error "inferType: missing an inferable branch!"
+
+  inferTransform
+      :: Maybe U.SourceSpan
+      -> Transform as x
+      -> U.SArgs U.U_ABT as
+      -> TypeCheckMonad (TypedAST abt)
+  inferTransform sourceSpan
+                 Expect
+                 ((Nil2, e1) U.:* (Cons2 U.ToU Nil2, e2) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    case typ1 of
+        SMeasure typ2 -> do
+            e2' <- checkBinder typ2 SProb e2
+            return . TypedAST SProb $ syn
+              (Transform_ Expect :$ e1' :* e2' :* End)
+        _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+
+  inferTransform sourceSpan
+                 Observe
+                 ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    case typ1 of
+        SMeasure typ2 -> do
+            e2' <- checkType_ typ2 e2
+            return . TypedAST typ1 $ syn
+              (Transform_ Observe :$ e1' :* e2' :* End)
+        _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+
+  inferTransform _ tr _ = error $ "inferTransform{" ++ show tr ++ "}: TODO"
 
   inferPrimOp
       :: U.PrimOp
@@ -1493,26 +1511,7 @@ checkType = checkType_
                     return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
                 Nothing -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure(HPair(HArray, s)")
             _           -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure(HPair(HArray, s)")
-
-
-        U.Expect_ e1 e2 ->
-            case typ0 of
-            SProb -> do
-                TypedAST typ1 e1' <- inferType_ e1
-                case typ1 of
-                    SMeasure typ2 -> do
-                        e2' <- checkBinder typ2 typ0 e2
-                        return $ syn (Expect :$ e1' :* e2' :* End)
-                    _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HProb")
-
-        U.Observe_ e1 e2 ->
-            case typ0 of
-            SMeasure typ2 -> do
-                e1' <- checkType_ typ0 e1
-                e2' <- checkType_ typ2 e2
-                return $ syn (Observe :$ e1' :* e2' :* End)
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+        U.Transform_ tr es -> checkTransform sourceSpan typ0 tr es
 
         U.Superpose_ pes ->
             case typ0 of
@@ -1545,6 +1544,36 @@ checkType = checkType_
                   UnsafeMode -> checkOrUnsafeCoerce sourceSpan e0' typ' typ0
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
+    checkTransform
+        :: Maybe U.SourceSpan
+        -> Sing x'
+        -> Transform as x
+        -> U.SArgs U.U_ABT as
+        -> TypeCheckMonad (abt '[] x')
+    checkTransform sourceSpan typ0
+                   Expect
+                   ((Nil2, e1) U.:* (Cons2 U.ToU Nil2, e2) U.:* U.End) =
+      case typ0 of
+      SProb -> do
+          TypedAST typ1 e1' <- inferType_ e1
+          case typ1 of
+              SMeasure typ2 -> do
+                  e2' <- checkBinder typ2 typ0 e2
+                  return $ syn (Transform_ Expect :$ e1' :* e2' :* End)
+              _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+      _ -> typeMismatch sourceSpan (Right typ0) (Left "HProb")
+
+    checkTransform sourceSpan typ0
+                   Observe
+                   ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) =
+      case typ0 of
+      SMeasure typ2 -> do
+          e1' <- checkType_ typ0 e1
+          e2' <- checkType_ typ2 e2
+          return $ syn (Transform_ Observe :$ e1' :* e2' :* End)
+      _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+
+    checkTransform _ _ tr _ = error $ "checkTransform{" ++ show tr ++ "}: TODO"
 
     --------------------------------------------------------
     -- We make these local to 'checkType' for the same reason we have 'checkType_'
