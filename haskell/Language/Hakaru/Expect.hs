@@ -99,7 +99,7 @@ residualizeExpect e = do
     -- BUG: is this what we really mean? or do we actually mean the old 'emit' version?
     x <- freshVar Text.empty (sUnMeasure $ typeOf e)
     unsafePush (SStuff1 (Location x) (\c ->
-        syn (AST.Expect :$ e :* bind x c :* End)) [])
+        syn (AST.Transform_ AST.Expect :$ e :* bind x c :* End)) [])
     return $ var x
 {-
 residualizeExpect e = do
