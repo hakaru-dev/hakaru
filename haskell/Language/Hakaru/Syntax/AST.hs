@@ -8,6 +8,8 @@
            , FlexibleContexts
            , UndecidableInstances
            , Rank2Types
+           , DeriveDataTypeable
+           , LambdaCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -40,6 +42,7 @@ module Language.Hakaru.Syntax.AST
       SCon(..)
     , SArgs(..)
     , Term(..)
+    , Transform(..), TransformImpl(..)
     -- * Operators
     , LC, LCs, UnLCs
     , LC_(..)
@@ -66,6 +69,8 @@ import           Data.Traversable
 
 import           Control.Arrow ((***))
 import           Data.Ratio    (numerator, denominator)
+
+import Data.Data (Data, Typeable)
 
 import Data.Number.Natural
 import Language.Hakaru.Syntax.IClasses
@@ -678,29 +683,30 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         -> HSemiring b
         -> SCon '[ LC a, LC a, '( '[ a ], b) ] b
 
-    -- -- Internalized program transformations
-    -- TODO: do these belong in their own place?
-    --
-    -- We generally want to evaluate these away at compile-time,
-    -- but sometimes we may be stuck with a few unresolved things
-    -- for open terms.
-
-    -- TODO: did we want the singleton @a@ argument back?
-    Expect :: SCon '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
-
-    -- TODO: implement a \"change of variables\" program transformation
-    -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
-    -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
-
-    -- TODO: add the four ops for disintegration
-    Observe :: SCon '[ LC ('HMeasure a), LC a ] ('HMeasure a)
-
+    -- Internalized program transformations
+    Transform_ :: !(Transform as x)
+               -> SCon as x
 
 deriving instance Eq   (SCon args a)
 -- TODO: instance Read (SCon args a)
 deriving instance Show (SCon args a)
 
+----------------------------------------------------------------
 
+data TransformImpl = InMaple | InHaskell
+  deriving (Eq, Ord, Show, Read, Data, Typeable)
+
+data Transform :: [([Hakaru], Hakaru)] -> Hakaru -> * where
+  Expect  ::
+    Transform
+      '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
+
+  Observe ::
+    Transform
+      '[ LC ('HMeasure a), LC a ] ('HMeasure a)
+
+deriving instance Eq   (Transform args a)
+deriving instance Show (Transform args a)
 ----------------------------------------------------------------
 -- TODO: ideally we'd like to make SArgs totally flat, like tuples and arrays. Is there a way to do that with data families?
 -- TODO: is there any good way to reuse 'List1' instead of defining 'SArgs' (aka @List2@)?
