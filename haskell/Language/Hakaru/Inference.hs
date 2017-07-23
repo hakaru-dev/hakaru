@@ -25,7 +25,7 @@
 module Language.Hakaru.Inference
     ( priorAsProposal
     , mh
-    , mcmc, dynMCMC
+    , mcmc
     , gibbsProposal
     , slice
     , sliceX
@@ -103,51 +103,6 @@ mcmc proposal target =
         new_ratio `unpair` \new ratio ->
         bern (min (prob_ 1) ratio) >>= \accept ->
         dirac (if_ accept new old)
-
-data MCMCCommand :: Hakaru -> Hakaru -> Hakaru -> * where
-  MCMC :: MCMCCommand (a ':-> 'HMeasure a) ('HMeasure a)
-                      (a ':-> 'HMeasure a)
-
-data instance CommandType "MCMC" i o where
-  MCMCCmd :: !(UnderFun (MCMCCommand i0) i1 o)
-          -> CommandType "MCMC" (HPair i0 i1) o
-
-dynMCMC :: ABT Term abt => PureDynCommand "MCMC" abt
-dynMCMC =
-  DynCmd $ \(MCMCCmd c) i ->
-    return $ unpair i $ \i0 i1 ->
-      commandUnderFun'Pure (\MCMC i1' -> mcmc i0 i1') c i1
-
-instance IsCommand "MCMC" where
-  matchCommandName = matchSymbolCommandName
-  commandIsType (MCMCCmd c) (sUnPair -> (a,b)) =
-    underFunIsType (\MCMC _ -> a) c b
-
-  matchCommandType _ t =
-    P.maybe (throwError $
-                    CommandTypeMismatch
-                      (P.Left "pair(x, y)")
-                      (P.Right (Some1 t))) P.id $
-    sUnPair' t $ \(Refl, propty, tgtty') ->
-      P.fmap (\(Some1 c) -> Some1 (MCMCCmd c)) $
-      matchUnderFun (\tgtty ->
-        case (propty, tgtty) of
-          (SFun a (SMeasure b), SMeasure c) ->
-            case (jmEq1 a b, jmEq1 b c) of
-              (P.Just Refl, P.Just Refl) -> P.return $ Some1 MCMC
-              (P.Nothing  , P.Just _   ) -> throwError $
-                CommandTypeMismatch (P.Left "x -> measure x")
-                                    (P.Right $ Some1 propty)
-              (P.Just _   , P.Nothing  ) -> throwError $
-                CommandTypeMismatch (P.Right $ Some1 $ SMeasure b)
-                                    (P.Right $ Some1 tgtty)
-          (_                  , SMeasure _) -> throwError $
-            CommandTypeMismatch (P.Left "x -> measure x")
-                                (P.Right $ Some1 propty)
-          _                                 -> throwError $
-            CommandTypeMismatch (P.Left "(measure x, x -> measure x)")
-                                (P.Right $ Some1 $ sPair tgtty propty)
-        ) tgtty'
 
 gibbsProposal
     :: (ABT Term abt, SingI a, SingI b)
