@@ -548,7 +548,10 @@ constrainValue v0 e0 =
             constrainValue  (P.coerceTo_ c v0) e1
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
-        Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
+
+        Transform_ t :$ _            -> error $
+          concat["constrainValue{", show t, "}"
+                ,": cannot yet disintegrate transforms; expand them first"]
 
         Case_ e bs ->
             -- First we try going forward on the scrutinee, to make
