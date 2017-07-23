@@ -705,6 +705,30 @@ data Transform :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     Transform
       '[ LC ('HMeasure a), LC a ] ('HMeasure a)
 
+  MH ::
+    Transform
+      '[ LC (a ':-> 'HMeasure a), LC ('HMeasure a) ]
+      (a ':-> 'HMeasure (HPair a 'HProb))
+
+  MCMC ::
+    Transform
+      '[ LC (a ':-> 'HMeasure a), LC ('HMeasure a) ]
+      (a ':-> 'HMeasure a)
+
+  Disint :: TransformImpl ->
+    Transform
+      '[ LC ('HMeasure (HPair a b)) ]
+      (a :-> HMeasure b)
+
+  Summarize ::
+    Transform '[ LC a ] a
+
+  Simplify ::
+    Transform '[ LC a ] a
+
+  Reparam ::
+    Transform '[ LC a ] a
+
 deriving instance Eq   (Transform args a)
 deriving instance Show (Transform args a)
 ----------------------------------------------------------------
