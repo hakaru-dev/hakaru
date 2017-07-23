@@ -3,6 +3,7 @@
            , DataKinds
            , FlexibleContexts
            , UndecidableInstances
+           , LambdaCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -48,7 +49,8 @@ import qualified Data.Sequence      as Seq -- Because older versions of "Data.Fo
 
 import Data.Number.Nat                 (fromNat)
 import Data.Number.Natural             (fromNatural)
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, List1(..))
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, List1(..)
+                                       ,Foldable21(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
@@ -276,13 +278,7 @@ ppSCon p MBind = \(e1 :* e2 :* End) ->
         adjustHead
             (prettyPrec 1 e1 <+> PP.text ">>=" <+>)
             (ppBinder e2)
-ppSCon p Expect = \(e1 :* e2 :* End) ->
-    -- N.B., for this to be read back in correctly, "Language.Hakaru.Expect" must be in scope as well as the prelude.
-    parens (p > 0) $
-        adjustHead
-            (PP.text "expect" <+> ppArg e1 <+> PP.char '$' <+>)
-            (ppBinder e2)
-ppSCon p Observe   = \(e1 :* e2 :* End) -> ppApply2 p "observe" e1 e2
+ppSCon p (Transform_ t) = ppTransform p t
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "integrate"
         [ ppArg e1
@@ -315,6 +311,19 @@ ppSCon _ Chain = \(e1 :* e2 :* e3 :* End) ->
         , ppArg e2 <+> PP.char '$'
         , toDoc $ ppBinder e3
         ]
+
+ppTransform :: (ABT Term abt)
+            => Int -> Transform args a -> SArgs abt args -> Docs
+ppTransform p t es =
+  case t of
+     Expect ->
+       case es of
+         e1 :* e2 :* End ->
+           parens (p > 0) $
+              adjustHead
+                (PP.text "expect" <+> ppArg e1 <+> PP.char '$' <+>)
+                (ppBinder e2)
+     _ -> ppApply p (transformName t) es
 
 ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Docs
 ppCoerceTo =
@@ -540,6 +549,9 @@ ppApply2
     :: (ABT Term abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
 ppApply2 p f e1 e2 = ppFun p f [ppArg e1, ppArg e2]
 
+ppApply
+    :: (ABT Term abt) => Int -> String -> SArgs abt as -> Docs
+ppApply p f es = ppFun p f $ foldMap21 ppBinder es
 
 -- | Something prettier than 'PP.rational'. This works correctly
 -- for both 'Rational' and 'NonNegativeRational', though it may not
