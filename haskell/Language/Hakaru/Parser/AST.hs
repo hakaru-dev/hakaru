@@ -11,6 +11,7 @@
            , ScopedTypeVariables
            , RankNTypes
            , FlexibleContexts
+           , LambdaCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -148,6 +149,28 @@ data Reducer' a
     | R_Add (AST' a)
     deriving (Eq, Show, Data, Typeable)
 
+data Transform'
+    = Observe
+    | MH
+    | MCMC
+    | Disint T.TransformImpl
+    | Summarize
+    | Simplify
+    | Reparam
+    | Expect
+    deriving (Eq, Show, Data, Typeable)
+
+trFromTyped :: T.Transform as x -> Transform'
+trFromTyped = \case
+  T.Observe   -> Observe
+  T.MH        -> MH
+  T.MCMC      -> MCMC
+  T.Disint k  -> Disint k
+  T.Summarize -> Summarize
+  T.Simplify  -> Simplify
+  T.Reparam   -> Reparam
+  T.Expect    -> Expect
+
 data AST' a
     = Var a
     | Lam a TypeAST' (AST' a)
@@ -171,11 +194,18 @@ data AST' a
     | Summate   a (AST' a) (AST' a) (AST' a)
     | Product   a (AST' a) (AST' a) (AST' a)
     | Bucket    a (AST' a) (AST' a) (Reducer' a)
-    | Expect a (AST' a) (AST' a)
+    | Transform Transform' (SArgs' a)
     | Msum  [AST' a]
     | Data  a [a] [TypeAST'] (AST' a)
     | WithMeta (AST' a) SourceSpan
     deriving (Show, Data, Typeable)
+
+newtype SArgs' a = SArgs' [ ([a], AST' a) ]
+    deriving (Eq, Show, Data, Typeable)
+
+-- For backwards compatibility
+_Expect :: a -> AST' a -> AST' a -> AST' a
+_Expect v a b = Transform Expect $ SArgs' $ [ ([v], a), ([], b) ]
 
 withoutMeta :: AST' a -> AST' a
 withoutMeta (WithMeta e _) = withoutMeta e
@@ -240,9 +270,8 @@ instance Eq a => Eq (AST' a) where
                                                       b    == b' &&
                                                       c    == c' &&
                                                       d    == d'
-    (Expect e1 e2 e3)   == (Expect e1' e2' e3')     = e1   == e1' &&
-                                                      e2   == e2' &&
-                                                      e3   == e3'
+    (Transform t0 es0)  == (Transform t1 es1)       = t0   == t1 &&
+                                                      es0  == es1
     (Msum  es)          == (Msum   es')             = es   == es'
     (Data  n ft ts e)   == (Data   n' ft' ts' e')   = n    == n'  &&
                                                       ft   == ft' &&
@@ -454,13 +483,26 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Summate_      :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
     Product_      :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
     Bucket_       :: abt '[] 'U       -> abt '[]     'U  -> Reducer xs abt 'U -> Term abt 'U
-    Expect_       :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Observe_      :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
+    Transform_    :: T.Transform as x -> SArgs abt as    -> Term abt 'U
     Superpose_    :: L.NonEmpty (abt '[] 'U, abt '[] 'U) -> Term abt 'U
     Reject_       ::                                        Term abt 'U
     InjTyped      :: (forall abt . ABT T.Term abt
                                  => abt '[] x)           -> Term abt 'U
 
+infixr 5 :*
+data SArgs (abt :: [Untyped] -> Untyped -> *) (as :: [([k], k)]) where
+  End :: SArgs abt '[]
+  (:*) :: !(List2 ToUntyped vars varsu, abt varsu 'U)
+       -> !(SArgs abt args)
+       -> SArgs abt ( '(vars, a) ': args)
+
+data ToUntyped (x :: k) (y :: Untyped) where
+  ToU :: ToUntyped x 'U
+
+instance Functor21 SArgs where
+    fmap21 f = \case
+      End          -> End
+      (m, a) :* as -> (m, f a) :* fmap21 f as
 
 -- TODO: instance of Traversable21 for Term
 instance Functor21 Term where
@@ -488,11 +530,15 @@ instance Functor21 Term where
     fmap21 f (Summate_   e1  e2 e3) = Summate_   (f e1) (f e2) (f e3)
     fmap21 f (Product_   e1  e2 e3) = Product_   (f e1) (f e2) (f e3)
     fmap21 f (Bucket_    e1  e2 e3) = Bucket_    (f e1) (f e2) (fmap21 f e3)
-    fmap21 f (Expect_    e1  e2)    = Expect_    (f e1) (f e2)
-    fmap21 f (Observe_   e1  e2)    = Observe_   (f e1) (f e2)
+    fmap21 f (Transform_ t as)      = Transform_ t (fmap21 f as)
     fmap21 f (Superpose_ es)        = Superpose_ (L.map (f *** f) es)
     fmap21 _ Reject_                = Reject_
     fmap21 _ (InjTyped x)           = InjTyped x
+
+instance Foldable21 SArgs where
+    foldMap21 f = \case
+      End          -> mempty
+      (_, a) :* as -> f a `mappend` foldMap21 f as
 
 instance Foldable21 Term where
     foldMap21 f (Lam_       _  e1)    = f e1
@@ -519,8 +565,7 @@ instance Foldable21 Term where
     foldMap21 f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap21 f (Product_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap21 f (Bucket_    e1 e2 e3) = f e1 `mappend` f e2 `mappend` foldMap21 f e3
-    foldMap21 f (Expect_    e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Observe_   e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (Transform_ _ es)     = foldMap21 f es
     foldMap21 f (Superpose_ es)       = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) es
     foldMap21 _ Reject_               = mempty
     foldMap21 _ InjTyped{}            = mempty
