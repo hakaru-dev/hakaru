@@ -31,7 +31,6 @@ module Language.Hakaru.Summary
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Command
 import Language.Hakaru.Maple 
 
 ----------------------------------------------------------------

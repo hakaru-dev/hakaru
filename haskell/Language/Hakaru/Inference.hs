@@ -46,7 +46,6 @@ import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Expect (expect, normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate)
-import Language.Hakaru.Syntax.Command
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), JmEq1(..))
 
 import qualified Data.Text as Text

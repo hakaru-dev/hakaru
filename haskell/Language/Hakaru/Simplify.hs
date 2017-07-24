@@ -32,7 +32,6 @@ module Language.Hakaru.Simplify
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Command
 import Language.Hakaru.Maple 
 import Language.Hakaru.Syntax.TypeCheck
 
