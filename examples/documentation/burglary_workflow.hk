@@ -1,0 +1,11 @@
+def bern(p prob):
+    x <~ categorical([p, real2prob(1 - p)])
+    return [true, false][x]
+
+burg = burglary <~ bern(0.0001)
+       alarm    <~ bern(if burglary: 0.95 else: 0.01)
+       return (alarm, burglary)
+
+burg_disint = disint(burg)
+burg_simpl  = simplify(burg_disint)
+burg_simpl(true)
