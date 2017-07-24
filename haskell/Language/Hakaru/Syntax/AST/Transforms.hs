@@ -209,7 +209,7 @@ expandTransformationsWith tbl =
                           ($ (as, as'))
                           (tbl tr)
 
-        _ -> return $ syn t
+        _ -> syn <$> traverse21 go' t
 
 
 mapleTransformations :: ABT Term abt => TransformTable abt IO
