@@ -250,7 +250,7 @@ haskellTransformations tr =
 
     Disint InHaskell ->
       (Just . fmap pure) $ \case
-        (es@(e1 :* End), _) ->
+        (_, es@(e1 :* End)) ->
           case determine (disintegrate e1) of
             Just t' -> t'
             Nothing -> syn $ Transform_ tr :$ es
