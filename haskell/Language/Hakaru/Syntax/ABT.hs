@@ -72,6 +72,7 @@ module Language.Hakaru.Syntax.ABT
     , cataABT
     , cataABTM
     , paraABT
+    , dupABT
 
     -- * Some ABT instances
     , TrivialABT()
@@ -1129,6 +1130,16 @@ resolveVar e xs =
         case lookupAssoc x xs of
         Just e' -> resolveVar e' xs
         Nothing -> Left x
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+
+-- | Makes a copy of an ABT at another type
+dupABT
+    :: (ABT syn abt0, ABT syn abt1, Functor21 syn)
+    => abt0 xs a
+    -> abt1 xs a
+dupABT = cataABT var bind syn
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
