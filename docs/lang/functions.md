@@ -15,7 +15,7 @@ We may optionally provide a type for the return value of a function if
 we wish.
 
 ````nohighlight
-def add(x. real, y. real) real:
+def add(x real, y real) real:
     x + y
 	
 add(4,5)
