@@ -293,7 +293,7 @@ transform_expr = expect_expr <|> tr
 
      sarg :: Parser ([Text], AST' Text)
      sarg = (,)
-       <$> chainl (pure <$> (identifier <* reservedOp ":"))
+       <$> chainl (try $ pure <$> (identifier <* reservedOp ":"))
                   (pure (++)) []
        <*> expr
 
