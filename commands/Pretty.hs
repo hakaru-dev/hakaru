@@ -9,6 +9,8 @@ module Main where
 
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Syntax.AST.Transforms
+import           Language.Hakaru.Syntax.Transform (Transform(..))
+import           Language.Hakaru.Syntax.IClasses (Some2(..))
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Command
 
@@ -26,6 +28,7 @@ import qualified Options.Applicative as O
 data Options = Options
   { printType :: Bool 
   , program   :: FilePath 
+  , toExpand  :: [Some2 Transform]
   }
 
 options :: O.Parser Options
@@ -37,6 +40,11 @@ options = Options
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
         O.help "Filename containing program to be pretty printed, or \"-\" to read from input." ) 
+  <*> O.option O.auto
+      ( O.short 'e' <>
+        O.long "to-expand" <>
+        O.value [Some2 Expect, Some2 Observe] <>
+        O.help "Transformations to be expanded; default [Expect, Observe]" )
 
 parseOpts :: IO Options
 parseOpts = O.execParser $ O.info (O.helper <*> options)
@@ -50,7 +58,9 @@ runPretty Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
     case prog of
     Left  err                -> IO.hPutStrLn stderr err
     Right (TypedAST typ ast) -> IO.putStrLn . T.pack $
-      let concreteProgram = show . pretty . expandTransformations $ ast
+      let et = expandTransformationsWith'
+                 (someTransformations toExpand haskellTransformations)
+          concreteProgram = show . pretty . et $ ast
           withType t x = concat [ "(", x, ")"
                                 , "\n.\n"
                                 , show (prettyType 12 t)

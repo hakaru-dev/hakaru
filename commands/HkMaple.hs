@@ -18,6 +18,8 @@ import           Language.Hakaru.Simplify
 import           Language.Hakaru.Maple 
 import           Language.Hakaru.Parser.Maple 
 
+import           Language.Hakaru.Syntax.Transform (Transform(..))
+import           Language.Hakaru.Syntax.IClasses (Some2(..))
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -39,6 +41,7 @@ data Options a
   = Options
     { moptions      :: MapleOptions (Maybe String)
     , no_unicode    :: Bool
+    , toExpand      :: Maybe [Some2 Transform]
     , program       :: a } 
   | ListCommands 
 
@@ -79,6 +82,11 @@ options = (Options
       ( O.long "no-unicode" <> 
         O.short 'u' <> 
         O.help "Removes unicode characters from names in the Maple output.")
+  <*> O.option (O.maybeReader $ fmap (fmap Just) readMaybe)
+      ( O.short 'e' <>
+        O.long "to-expand" <>
+        O.value Nothing <>
+        O.help "Transformations to be expanded; default is all transformations" )
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
         O.help "Filename containing program to be simplified, or \"-\" to read from input." )) O.<|> 
@@ -100,8 +108,6 @@ progDesc = unwords
   ,"pretty print, parse and typecheck the program resulting from Maple"
   ]
 
-et (TypedAST t (x :: Term a)) = TypedAST t (expandTransformations x)
-
 main :: IO ()
 main = parseOpts >>= runMaple
 
@@ -112,11 +118,13 @@ runMaple ListCommands =
 runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
   case prog of
     Left  err  -> IO.hPutStrLn stderr err
-    Right ast  -> do 
+    Right ast  -> do
+      let et = onTypedASTM $ expandTransformationsWith $
+                (maybe id someTransformations toExpand) allTransformations
       TypedAST _ ast' <-
-        case command moptions of
-          Just c  -> sendToMaple' moptions{command=c} (et ast)
-          Nothing -> onTypedASTM expandAllTransformations ast
+        (case command moptions of
+           Just c  -> sendToMaple' moptions{command=c}
+           Nothing -> return) =<< et ast
       IO.print
             $ pretty 
             $ (if no_unicode then renameAST removeUnicodeChars else id) 
