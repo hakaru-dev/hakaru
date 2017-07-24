@@ -7,6 +7,7 @@
            , ViewPatterns
            , DeriveDataTypeable
            , StandaloneDeriving
+           , OverlappingInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -40,6 +41,8 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 
 import Data.Data (Data, Typeable)
+
+import Data.List (stripPrefix)
 
 ----------------------------------------------------------------
 
@@ -85,6 +88,27 @@ data Transform :: [([Hakaru], Hakaru)] -> Hakaru -> * where
 
 deriving instance Eq   (Transform args a)
 deriving instance Show (Transform args a)
+
+instance Eq (Some2 Transform) where
+  Some2 t0 == Some2 t1 =
+    case (t0, t1) of
+      (Expect    , Expect   ) -> True
+      (Observe   , Observe  ) -> True
+      (MH        , MH       ) -> True
+      (MCMC      , MCMC     ) -> True
+      (Disint k0 , Disint k1) -> k0==k1
+      (Summarize , Summarize) -> True
+      (Simplify  , Simplify ) -> True
+      (Reparam   , Reparam  ) -> True
+      _ -> False
+
+instance Read (Some2 Transform) where
+  readsPrec p s =
+    let trs = map (\t'@(Some2 t) -> (show t, t')) allTransforms
+        readMay (s', t)
+          | Just rs <- stripPrefix s' s = [(t, rs)]
+          | otherwise                   = []
+    in concatMap readMay trs
 
 -- | The concrete syntax names of transformations.
 transformName :: Transform args a -> String
