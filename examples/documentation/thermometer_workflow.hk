@@ -1,0 +1,8 @@
+import thermometer
+import proposal_thermometer
+
+therm_disint       = disint(thermometer)
+therm_disint_simpl = simplify(therm_disint)
+prop_therm_simpl   = simplify(prop_thermometer)
+fn x pair(real, real):
+  mcmc( prop_therm_simpl, therm_disint_simpl(x) )
