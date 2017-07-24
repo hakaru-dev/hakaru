@@ -1,0 +1,12 @@
+# To evaluate, call `hk-maple easyroad_workflow.hk'
+
+import easyroad
+import easyroad_prop
+
+easyroad_disint       = disint(easyroad)
+easyroad_disint_simp  = simplify(easyroad_disint)
+easyroad_mcmc         =
+  fn x pair(real,real):
+    mcmc(easyroad_prop, easyroad_disint_simp(x))
+
+easyroad_mcmc
