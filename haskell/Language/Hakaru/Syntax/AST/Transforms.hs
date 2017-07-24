@@ -262,6 +262,12 @@ allTransformations t =
   mapleTransformations t <|>
   fmap (fmap (pure . runIdentity)) (haskellTransformations t)
 
+someTransformations :: [Some2 Transform]
+                    -> TransformTable abt m
+                    -> TransformTable abt m
+someTransformations toExpand tbl =
+  \tr -> if Some2 tr `elem` toExpand then tbl tr else Nothing
+
 --------------------------------------------------------------------------------
 
 coalesce
