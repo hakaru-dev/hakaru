@@ -39,14 +39,15 @@ summary
     :: forall abt a
     .  (ABT Term abt) 
     => abt '[] a -> IO (abt '[] a)
-summary = sendToMaple defaultMapleOptions{command=injCmd Summarize}
+summary = sendToMaple defaultMapleOptions{command=MapleCommand Summarize}
 
 summaryDebug
     :: forall abt a
     .  (ABT Term abt) 
     => Bool -> abt '[] a -> IO (abt '[] a)
-summaryDebug d = sendToMaple defaultMapleOptions{command=injCmd Summarize,
-                                                 debug=d}
+summaryDebug d = sendToMaple
+   defaultMapleOptions{command=MapleCommand Summarize,
+                       debug=d}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

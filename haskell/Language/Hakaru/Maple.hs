@@ -27,6 +27,7 @@
 module Language.Hakaru.Maple
   ( MapleException(..)
   , MapleOptions(..)
+  , MapleCommand(MapleCommand)
   , defaultMapleOptions
   , sendToMaple, sendToMaple'
   , maple
