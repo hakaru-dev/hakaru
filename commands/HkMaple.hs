@@ -120,7 +120,8 @@ runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
     Left  err  -> IO.hPutStrLn stderr err
     Right ast  -> do
       let et = onTypedASTM $ expandTransformationsWith $
-                (maybe id someTransformations toExpand) allTransformations
+                (maybe id someTransformations toExpand)
+                (allTransformationsWithMOpts moptions{command=()})
       TypedAST _ ast' <-
         (case command moptions of
            Just c  -> sendToMaple' moptions{command=c}

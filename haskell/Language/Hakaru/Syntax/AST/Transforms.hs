@@ -222,9 +222,15 @@ expandTransformationsWith tbl =
         _ -> syn <$> traverse21 go' t
 
 
-mapleTransformations :: ABT Term abt => TransformTable abt IO
-mapleTransformations = TransformTable $ \tr ->
-  let cmd c = sendToMaple defaultMapleOptions{command=MapleCommand c} in
+mapleTransformationsWithOpts
+  :: forall abt
+   . ABT Term abt
+  => MapleOptions ()
+  -> TransformTable abt IO
+mapleTransformationsWithOpts opts = TransformTable $ \tr ->
+  let cmd c = sendToMaple opts{command=MapleCommand c}
+      cmd :: Transform '[LC i] o
+          -> abt '[] i  -> IO (abt '[] o) in
   case tr of
     Simplify       ->
       Just $ \case { (_, e1 :* End) -> cmd tr e1 }
@@ -235,6 +241,12 @@ mapleTransformations = TransformTable $ \tr ->
     Disint InMaple ->
       Just $ \case { (_, e1 :* End) -> cmd tr e1 }
     _              -> Nothing
+
+
+mapleTransformations
+  :: ABT Term abt
+  => TransformTable abt IO
+mapleTransformations = mapleTransformationsWithOpts defaultMapleOptions
 
 haskellTransformations :: ABT Term abt => TransformTable abt Identity
 haskellTransformations = TransformTable $ \tr ->
@@ -267,10 +279,16 @@ haskellTransformations = TransformTable $ \tr ->
 
     _ -> Nothing
 
-allTransformations :: ABT Term abt => TransformTable abt IO
-allTransformations = TransformTable $ \t ->
-  lookupTransform mapleTransformations t <|>
+allTransformationsWithMOpts
+   :: ABT Term abt
+   => MapleOptions ()
+   -> TransformTable abt IO
+allTransformationsWithMOpts opts = TransformTable $ \t ->
+  lookupTransform (mapleTransformationsWithOpts opts) t <|>
   fmap (fmap (pure . runIdentity)) (lookupTransform haskellTransformations t)
+
+allTransformations :: ABT Term abt => TransformTable abt IO
+allTransformations = allTransformationsWithMOpts defaultMapleOptions
 
 someTransformations :: [Some2 Transform]
                     -> TransformTable abt m
