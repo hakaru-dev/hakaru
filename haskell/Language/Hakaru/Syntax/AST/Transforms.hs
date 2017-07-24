@@ -143,7 +143,7 @@ expandTransformations
     . (ABT Term abt)
     => abt '[] a -> abt '[] a
 expandTransformations =
-  runIdentity . expandTransformationsWith haskellTransformations
+  expandTransformationsWith' haskellTransformations
 
 expandAllTransformations
     :: forall abt a
@@ -151,6 +151,14 @@ expandAllTransformations
     => abt '[] a -> IO (abt '[] a)
 expandAllTransformations =
   expandTransformationsWith allTransformations
+
+expandTransformationsWith'
+    :: forall abt a
+    . (ABT Term abt)
+    => TransformTable abt Identity
+    -> abt '[] a -> abt '[] a
+expandTransformationsWith' tbl =
+  runIdentity . expandTransformationsWith tbl
 
 -- | A functional lookup table which indicates how to expand
 --   transformations. The function returns @Nothing@ when the transformation
