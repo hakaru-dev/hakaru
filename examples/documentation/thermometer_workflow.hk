@@ -1,3 +1,12 @@
+# To evaluate:
+#
+#    hk-maple thermometer_workflow.hk -e [Disint InHaskell,Simplify] 
+#  | pretty - -e [MCMC] 
+#  | hk-maple -c Simpl -
+#
+# Just `hk-maple thermometer_workflow.hk | hk-maple -c Simpl -` should work,
+# but that currently causes a variable collision error
+
 import thermometer
 import proposal_thermometer
 
