@@ -778,6 +778,29 @@ inferType = inferType_
         _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
 
   inferTransform sourceSpan
+                 MCMC
+                 ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    TypedAST typ2 e2' <- inferType_ e2
+    case typ1 of
+      SFun typa typmb ->
+        case typmb of
+          SMeasure typb ->
+            case typ2 of
+              SMeasure typc ->
+                case (jmEq1 typa typb, jmEq1 typb typc) of
+                  (Just Refl, Just Refl) ->
+                     return $ TypedAST (SFun typa (SMeasure typa))
+                            $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
+                  (Just {}, _) ->
+                    typeMismatch sourceSpan (Right typb) (Right typc)
+                  (_, Just {}) ->
+                    typeMismatch sourceSpan (Right typa) (Right typb)
+              _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ2)
+          _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typmb)
+      _ -> typeMismatch sourceSpan (Left ":->") (Right typ1)
+
+  inferTransform sourceSpan
                  (Disint k)
                  ((Nil2, e1) U.:* U.End) = do
     TypedAST typ1 e1' <- inferType_ e1
@@ -1609,6 +1632,23 @@ checkType = checkType_
           return $ syn (Transform_ Observe :$ e1' :* e2' :* End)
       _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
+    checkTransform sourceSpan typ0
+                   MCMC
+                   ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
+      case typ0 of
+        SFun typa typmb ->
+          case typmb of
+            SMeasure typb ->
+              case jmEq1 typa typb of
+                Just Refl -> do
+                  e1' <- checkType (SFun typa (SMeasure typa)) e1
+                  e2' <- checkType            (SMeasure typa)  e2
+                  return $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
+                Nothing   ->
+                  typeMismatch sourceSpan
+                                  (Right $ SFun typa (SMeasure typa))
+                                  (Right typ0)
+        _ -> typeMismatch sourceSpan (Left ":->") (Right typ0)
 
     checkTransform sourceSpan typ0
                    (Disint k)
