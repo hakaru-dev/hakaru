@@ -242,7 +242,7 @@ haskellTransformations tr =
 
     MCMC ->
       (Just . fmap pure) $ \case
-        (e1 :* e2 :* End, _) -> mcmc e1 e2
+        (_, e1 :* e2 :* End) -> mcmc e1 e2
 
     MH ->
       (Just . fmap pure) $ \case
