@@ -778,6 +778,19 @@ inferType = inferType_
         _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
 
   inferTransform sourceSpan
+                 (Disint k)
+                 ((Nil2, e1) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    case typ1 of
+      SMeasure typ2 ->
+        maybe (typeMismatch sourceSpan (Left "HPair") (Right typ2))
+              return $
+        sUnPair' typ2 $ \(Refl, typa, typb) ->
+          TypedAST (SFun typa (SMeasure typb)) $
+            syn $ Transform_ (Disint k) :$ e1' :* End
+      _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+
+  inferTransform sourceSpan
                  Simplify
                  ((Nil2, e1) U.:* U.End) = do
     TypedAST typ1 e1' <- inferType_ e1
@@ -1595,6 +1608,19 @@ checkType = checkType_
           e2' <- checkType_ typ2 e2
           return $ syn (Transform_ Observe :$ e1' :* e2' :* End)
       _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+
+
+    checkTransform sourceSpan typ0
+                   (Disint k)
+                   ((Nil2, e1) U.:* U.End) = do
+      case typ0 of
+        SFun typa typmb ->
+          case typmb of
+            SMeasure typb -> do
+              e1' <- checkType (SMeasure (sPair typa typb)) e1
+              return $ syn $ Transform_ (Disint k) :$ e1' :* End
+            _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typmb)
+        _ -> typeMismatch sourceSpan (Left ":->") (Right typ0)
 
     checkTransform sourceSpan typ0
                    Simplify
