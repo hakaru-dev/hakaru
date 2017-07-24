@@ -7,6 +7,9 @@
            , ViewPatterns
            , LambdaCase
            , KindSignatures
+           , TypeOperators
+           , GADTs
+           , RankNTypes
            , DeriveFunctor, DeriveFoldable, DeriveTraversable
            #-}
 
@@ -18,52 +21,53 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- Take strings from Maple and interpret them in Haskell (Hakaru), 
--- in a type-safe way. 
+-- Take strings from Maple and interpret them in Haskell (Hakaru),
+-- in a type-safe way.
 ----------------------------------------------------------------
-module Language.Hakaru.Maple 
+module Language.Hakaru.Maple
   ( MapleException(..)
   , MapleOptions(..)
   , defaultMapleOptions
   , sendToMaple, sendToMaple'
   , maple
-  ) where 
-    
-import Control.Exception
+  ) where
+
+import Control.Exception (Exception, throw)
 import Control.Monad (when)
+import Data.Typeable (Typeable)
 
 import qualified Language.Hakaru.Pretty.Maple as Maple
 
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.AST (Name)
+import Language.Hakaru.Pretty.Concrete (prettyType)
 import qualified Language.Hakaru.Parser.SymbolResolve as SR (resolveAST', fromVarSet)
 
 import Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
-import Language.Hakaru.Syntax.Command 
+import Language.Hakaru.Syntax.IClasses
 
 import Language.Hakaru.Evaluation.ConstantPropagation
-
-import Data.Typeable (Typeable)
 
 import System.MapleSSH (maple)
 import System.IO
 import Data.Text (pack)
-import qualified Data.Map as M 
-import Data.List (intercalate) 
-
-import Data.Foldable (Foldable)
-import Data.Traversable (Traversable)
-import Control.Monad.Except (ExceptT(..), runExceptT)
+import qualified Data.Map as M
+import Data.List (isInfixOf, intercalate)
+import Data.Char (toLower)
+import Data.Function (on)
 
 ----------------------------------------------------------------
-data MapleException       
+data MapleException
   = MapleInterpreterException String String
   | MapleInputTypeMismatch String String
   | MapleUnknownCommand String
+  | MapleAmbiguousCommand String [String]
+  | MultipleErrors [MapleException]
       deriving Typeable
 
 instance Exception MapleException
@@ -79,6 +83,12 @@ instance Show MapleException where
       concat["Maple command ", command, " does not take input of type ", ty] 
     show (MapleUnknownCommand command) = 
       concat["Maple command ", command, " does not exist"] 
+    show (MapleAmbiguousCommand str cmds) =
+      concat [ "Ambiguous command\n"
+             , str, " could refer to any of\n"
+             , intercalate "," cmds ]
+    show (MultipleErrors es) =
+      concat $ "Multiple errors" : map (("\n\n" ++) . show) es
 
 data MapleOptions nm = MapleOptions 
   { command   :: nm 
@@ -94,34 +104,110 @@ defaultMapleOptions = MapleOptions
   , timelimit = 90
   , extraOpts = M.empty }
 
+--------------------------------------------------------------------------------
+
+-- | Maple commands operate on closed terms and take a single argument, and can
+--   be applied under functions.
+data MapleCommand (i :: Hakaru) (o :: Hakaru) where
+  MapleCommand :: !(Transform '[ '( '[], i ) ] o) -> MapleCommand i o
+  UnderFun     :: !(MapleCommand i o) -> MapleCommand (x ':-> i) (x ':-> o)
+
+typeOfMapleCommand :: MapleCommand i o -> Sing i -> Sing o
+typeOfMapleCommand (MapleCommand t) i =
+  typeOfTransform t (Pw (Lift1 ()) i :* End)
+typeOfMapleCommand (UnderFun c) (SFun x i) =
+  SFun x (typeOfMapleCommand c i)
+
+newtype CommandMatcher
+   = CommandMatcher (forall i . Sing i
+                             -> Either MapleException (Some1 (MapleCommand i)))
+
+infixl 3 <-|>
+(<-|>) :: Either MapleException x
+       -> Either MapleException x
+       -> Either MapleException x
+(<-|>) (Left x) (Left y) =
+  Left $ MultipleErrors (unnest x ++ unnest y) where
+    unnest (MultipleErrors e) = concatMap unnest e
+    unnest                 e  = [e]
+(<-|>) Left{}         x  = x
+(<-|>) x@Right{}      _  = x
+
+matchUnderFun :: CommandMatcher -> CommandMatcher
+matchUnderFun (CommandMatcher k) = CommandMatcher go where
+  go :: Sing i -> Either MapleException (Some1 (MapleCommand i))
+  go ty@(SFun x i) =
+    fmap (\(Some1 c) -> Some1 (UnderFun c)) (go i) <-|>
+    k ty
+  go ty =
+    k ty <-|>
+    Left (MapleInputTypeMismatch "x -> y" (show $ prettyType 0 ty))
+
+mapleCommands
+  :: [ (String, CommandMatcher) ]
+mapleCommands =
+  [ ("Simplify"
+    , CommandMatcher $ \i -> return $ Some1 $ MapleCommand Simplify)
+  , ("Reparam"
+    , CommandMatcher $ \i -> return $ Some1 $ MapleCommand Reparam)
+  , ("Summarize"
+    , CommandMatcher $ \i -> return $ Some1 $ MapleCommand Summarize)
+  , ("Disintegrate"
+    , matchUnderFun $ CommandMatcher $ \i ->
+        case i of
+          SMeasure (SData (STyApp (STyApp
+              (STyCon (jmEq1 sSymbol_Pair -> Just Refl)) a) b) _) ->
+            return $ Some1 $ MapleCommand $ Disint InMaple
+          _ -> Left $
+                  MapleInputTypeMismatch "measure (pair (a,b))"
+                                         (show $ prettyType 0 i))
+  ]
+
+matchCommandName :: String -> Sing i
+                 -> Either MapleException (Some1 (MapleCommand i))
+matchCommandName s i =
+  case filter ((isInfixOf `on` map toLower) s . fst) mapleCommands of
+    [(_,CommandMatcher m)]
+       -> m i
+    [] -> Left $ MapleUnknownCommand s
+    cs -> Left $ MapleAmbiguousCommand s (map fst cs)
+
+nameOfMapleCommand :: MapleCommand i o -> Either MapleException String
+nameOfMapleCommand (MapleCommand t) = nm t where
+  nm :: Transform xs x -> Either MapleException String
+  nm Simplify         = Right "Simplify"
+  nm (Disint InMaple) = Right "Disintegrate"
+  nm Summarize        = Right "Summarize"
+  nm Reparam          = Right "Reparam"
+  nm t                = Left $ MapleUnknownCommand (show t)
+nameOfMapleCommand (UnderFun c) = nameOfMapleCommand c
+
+--------------------------------------------------------------------------------
+
 sendToMaple' 
     :: ABT Term (abt Term) 
     => MapleOptions String 
     -> TypedAST (abt Term) 
     -> IO (TypedAST (abt Term))
-sendToMaple' o@MapleOptions{..} =
-  (either throw return =<<) . runExceptT .
-  dynCmd command (mapleCommand o)
+sendToMaple' o@MapleOptions{..} (TypedAST typ term) = do
+  Some1 cmdT <- either throw return $ matchCommandName command typ
+  res        <- sendToMaple o{command=cmdT} term
+  return $ TypedAST (typeOf res) res
 
-type MapleCommands = '[ "Simplify", "Disintegrate", "Reparam", "Summarize" ]
-
-mapleCommand
-  :: ABT Term abt => MapleOptions o -> DynCommand ('OneOf MapleCommands) abt IO
-mapleCommand o = DynCmd $ \c -> sendToMaple o { command = c }
-
-sendToMaple  
+sendToMaple
     :: (ABT Term abt)
-    => MapleOptions (CommandType ('OneOf MapleCommands) i o) 
-    -> abt '[] i 
+    => MapleOptions (MapleCommand i o)
+    -> abt '[] i
     -> IO (abt '[] o)
-sendToMaple MapleOptions{command=OneOfCmds _ command,..} e = do 
+sendToMaple MapleOptions{..} e = do
+  nm <- either throw return $ nameOfMapleCommand command
   let typ_in = typeOf e
-      typ_out = commandIsType command typ_in 
+      typ_out = typeOfMapleCommand command typ_in 
       optStr (k,v) = concat["_",k,"=",v]
       optsStr = 
         intercalate "," $ 
         map optStr $ M.assocs $ 
-        M.insert "command" (ssymbolVal(nameOfCommand command)) extraOpts 
+        M.insert "command" nm extraOpts 
       toMaple_ = "use Hakaru, NewSLO in timelimit("
                  ++ show timelimit ++ ", RoundTrip("
                  ++ Maple.pretty e ++ ", " ++ Maple.mapleType typ_in (", "
@@ -140,7 +226,7 @@ sendToMaple MapleOptions{command=OneOfCmds _ command,..} e = do
                  (SR.resolveAST' (getNames e) (maple2AST past))
         leftShow $ unTCM m (freeVars e) Nothing UnsafeMode
     _ -> throw (MapleInterpreterException toMaple_ fromMaple)
-  
+
 leftShow :: forall b c. Show b => Either b c -> Either String c
 leftShow (Left err) = Left (show err)
 leftShow (Right x)  = Right x
