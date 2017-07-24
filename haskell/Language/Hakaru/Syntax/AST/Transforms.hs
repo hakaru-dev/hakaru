@@ -30,7 +30,10 @@ import Language.Hakaru.Syntax.Prelude (lamWithVar, app)
 import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Expect       (expect)
-import Language.Hakaru.Disintegrate (determine, observe)
+import Language.Hakaru.Disintegrate (determine, observe, disintegrate)
+import Language.Hakaru.Inference    (mcmc, mh)
+import Language.Hakaru.Maple        (sendToMaple, MapleOptions(..)
+                                    ,defaultMapleOptions, MapleCommand(..))
 
 import Data.Ratio (numerator, denominator)
 import Language.Hakaru.Types.Sing (sing, Sing(..), sUnFun)
@@ -208,7 +211,18 @@ expandTransformationsWith tbl =
 
 
 mapleTransformations :: ABT Term abt => TransformTable abt IO
-mapleTransformations = const Nothing -- TODO
+mapleTransformations tr =
+  let cmd c = sendToMaple defaultMapleOptions{command=MapleCommand c} in
+  case tr of
+    Simplify       ->
+      Just $ \case { (_, e1 :* End) -> cmd tr e1 }
+    Summarize      ->
+      Just $ \case { (_, e1 :* End) -> cmd tr e1 }
+    Reparam        ->
+      Just $ \case { (_, e1 :* End) -> cmd tr e1 }
+    Disint InMaple ->
+      Just $ \case { (_, e1 :* End) -> cmd tr e1 }
+    _              -> Nothing
 
 haskellTransformations :: ABT Term abt => TransformTable abt Identity
 haskellTransformations tr =
@@ -222,7 +236,22 @@ haskellTransformations tr =
         (es@(e1 :* e2 :* End), _) ->
           case determine (observe e1 e2) of
             Just t' -> t'
-            Nothing -> syn $ Transform_ Observe :$ es
+            Nothing -> syn $ Transform_ tr :$ es
+
+    MCMC ->
+      (Just . fmap pure) $ \case
+        (e1 :* e2 :* End, _) -> mcmc e1 e2
+
+    MH ->
+      (Just . fmap pure) $ \case
+        (e1 :* e2 :* End, _) -> mh e1 e2
+
+    Disint InHaskell ->
+      (Just . fmap pure) $ \case
+        (es@(e1 :* End), _) ->
+          case determine (disintegrate e1) of
+            Just t' -> t'
+            Nothing -> syn $ Transform_ tr :$ es
 
     _ -> Nothing
 
