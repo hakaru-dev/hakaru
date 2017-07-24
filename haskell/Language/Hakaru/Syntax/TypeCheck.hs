@@ -777,6 +777,24 @@ inferType = inferType_
               (Transform_ Observe :$ e1' :* e2' :* End)
         _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
 
+  inferTransform sourceSpan
+                 Simplify
+                 ((Nil2, e1) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    return $ TypedAST typ1 $ syn (Transform_ Simplify :$ e1' :* End)
+
+  inferTransform sourceSpan
+                 Reparam
+                 ((Nil2, e1) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    return $ TypedAST typ1 $ syn (Transform_ Reparam :$ e1' :* End)
+
+  inferTransform sourceSpan
+                 Summarize
+                 ((Nil2, e1) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    return $ TypedAST typ1 $ syn (Transform_ Summarize :$ e1' :* End)
+
   inferTransform _ tr _ = error $ "inferTransform{" ++ show tr ++ "}: TODO"
 
   inferPrimOp
@@ -1577,6 +1595,24 @@ checkType = checkType_
           e2' <- checkType_ typ2 e2
           return $ syn (Transform_ Observe :$ e1' :* e2' :* End)
       _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+
+    checkTransform sourceSpan typ0
+                   Simplify
+                   ((Nil2, e1) U.:* U.End) = do
+      e1' <- checkType_ typ0 e1
+      return $ syn (Transform_ Simplify :$ e1' :* End)
+
+    checkTransform sourceSpan typ0
+                   Reparam
+                   ((Nil2, e1) U.:* U.End) = do
+      e1' <- checkType_ typ0 e1
+      return $ syn (Transform_ Reparam :$ e1' :* End)
+
+    checkTransform sourceSpan typ0
+                   Summarize
+                   ((Nil2, e1) U.:* U.End) = do
+      e1' <- checkType_ typ0 e1
+      return $ syn (Transform_ Summarize :$ e1' :* End)
 
     checkTransform _ _ tr _ = error $ "checkTransform{" ++ show tr ++ "}: TODO"
 
