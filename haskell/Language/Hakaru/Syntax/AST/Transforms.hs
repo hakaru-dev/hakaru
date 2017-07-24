@@ -6,6 +6,9 @@
            , TypeOperators
            , ViewPatterns
            , OverloadedStrings
+           , PolyKinds
+           , KindSignatures
+           , LambdaCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -36,6 +39,10 @@ import Language.Hakaru.Types.Coercion (findCoercion, Coerce(..))
 import qualified Data.Sequence as Seq 
 import Control.Monad.Fix (MonadFix)
 import Control.Monad (liftM)
+import Control.Monad.Trans (MonadTrans(..))
+import Control.Monad.Reader (ReaderT(..), runReaderT, local, ask)
+import Control.Applicative (Applicative(..), Alternative(..))
+import Data.Functor.Identity (Identity(..))
 
 import Debug.Trace
 
@@ -126,23 +133,106 @@ underLam'p f e =
               caseVarSyn e' var_ syn_
   in go e
 
+--------------------------------------------------------------------------------
+
 expandTransformations
     :: forall abt a
     . (ABT Term abt)
     => abt '[] a -> abt '[] a
 expandTransformations =
-    cataABT var bind alg
-    where 
-    alg :: forall b. Term abt b -> abt '[] b
-    alg t =
-        case t of
-        Expect  :$ e1 :* e2 :* End -> expect  e1 e2
-        Observe :$ e1 :* e2 :* End ->
+  runIdentity . expandTransformationsWith haskellTransformations
+
+expandAllTransformations
+    :: forall abt a
+    . (ABT Term abt)
+    => abt '[] a -> IO (abt '[] a)
+expandAllTransformations =
+  expandTransformationsWith allTransformations
+
+-- | A functional lookup table which indicates how to expand
+--   transformations. The function returns @Nothing@ when the transformation
+--   shouldn't be expanded. When it returns @Just k@, @k@ is passed a pair of
+--   @SArgs@, whose first component is the original @SArgs@ as passed to the
+--   transform, and whose second component is that @SArgs@ with all enclosing
+--   @Let@ bindings pushed down over the arguments.
+type TransformTable abt m
+  =  forall as b
+  .  Transform as b
+  -> Maybe ((SArgs abt as, SArgs abt as) -> m (abt '[] b))
+
+type LetBinds' (abt :: [k] -> k -> *) = List1 (Pair1 Variable (abt '[]))
+type LetBinds abt = Some1 (LetBinds' abt)
+
+expandTransformationsWith
+    :: forall abt a m
+    . (ABT Term abt, Applicative m, Monad m)
+    => TransformTable abt m
+    -> abt '[] a -> m (abt '[] a)
+expandTransformationsWith tbl =
+  flip runReaderT (Some1 Nil1) . go' where
+
+    lets' :: LetBinds' abt vs -> abt '[] b -> abt '[] b
+    lets' Nil1 x = x
+    lets' (Cons1 (Pair1 var val) vs) x =
+      lets' vs $ syn $ Let_ :$ val :* bind var x :* End
+
+    lets :: LetBinds abt -> abt xs b -> abt xs b
+    lets (Some1 ls) x =
+      let (vs, x1) = caseBinds x
+          x2       = lets' ls x1
+      in binds_ vs x2
+
+    insLet :: Variable x -> abt '[] x -> LetBinds abt -> LetBinds abt
+    insLet var val (Some1 ls) = Some1 $ Cons1 (Pair1 var val) ls
+
+    go' :: abt xs b
+        -> ReaderT (LetBinds abt) m (abt xs b)
+    go' = go . viewABT
+
+    go :: View (Term abt) xs b
+       -> ReaderT (LetBinds abt) m (abt xs b)
+    go (Var x)    = pure $ var x
+    go (Bind x e) = bind x <$> go e
+    go (Syn t)    =
+      case t of
+        Let_ :$ e0 :* e1 :* End -> do
+          e0' <- go' e0
+          e1' <- local (insLet (caseBind e1 const) e0) (go' e1)
+          pure $ syn $ Let_ :$ e0' :* e1' :* End
+
+        Transform_ tr :$ as -> ask >>= \ls ->
+          let as' = fmap21 (lets ls) as
+          in lift $ maybe (pure $ syn t)
+                          ($ (as, as'))
+                          (tbl tr)
+
+
+mapleTransformations :: ABT Term abt => TransformTable abt IO
+mapleTransformations = const Nothing -- TODO
+
+haskellTransformations :: ABT Term abt => TransformTable abt Identity
+haskellTransformations tr =
+  case tr of
+    Expect ->
+      (Just . fmap pure) $ \case
+        (e1 :* e2 :* End, _) -> expect e1 e2
+
+    Observe ->
+      (Just . fmap pure) $ \case
+        (es@(e1 :* e2 :* End), _) ->
           case determine (observe e1 e2) of
-          Just t' -> t'
-          Nothing -> syn t
-        _                         -> syn t
-        
+            Just t' -> t'
+            Nothing -> syn $ Transform_ Observe :$ es
+
+    _ -> Nothing
+
+allTransformations :: ABT Term abt => TransformTable abt IO
+allTransformations t =
+  mapleTransformations t <|>
+  fmap (fmap (pure . runIdentity)) (haskellTransformations t)
+
+--------------------------------------------------------------------------------
+
 coalesce
   :: forall abt a
   .  (ABT Term abt)
