@@ -35,7 +35,7 @@ module Language.Hakaru.Syntax.TypeCheck
     , inferable
     , mustCheck
     , TypedAST(..)
-    , onTypedAST, elimTypedAST
+    , onTypedAST, onTypedASTM, elimTypedAST
     , inferType
     , checkType
     ) where
@@ -403,6 +403,11 @@ data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
 
 onTypedAST :: (forall b . abt '[] b -> abt '[] b) -> TypedAST abt -> TypedAST abt
 onTypedAST f (TypedAST t p) = TypedAST t (f p)
+
+onTypedASTM :: (Functor m)
+            => (forall b . abt '[] b -> m (abt '[] b))
+            -> TypedAST abt -> m (TypedAST abt)
+onTypedASTM f (TypedAST t p) = TypedAST t <$> f p
 
 elimTypedAST :: (forall b . Sing b -> abt '[] b -> x) -> TypedAST abt -> x 
 elimTypedAST f (TypedAST t p) = f t p 

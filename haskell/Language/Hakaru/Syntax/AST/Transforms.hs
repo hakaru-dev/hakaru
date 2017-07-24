@@ -209,6 +209,8 @@ expandTransformationsWith tbl =
                           ($ (as, as'))
                           (tbl tr)
 
+        _ -> return $ syn t
+
 
 mapleTransformations :: ABT Term abt => TransformTable abt IO
 mapleTransformations tr =

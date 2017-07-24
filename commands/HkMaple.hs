@@ -37,7 +37,7 @@ import qualified Data.Map as M
 
 data Options a 
   = Options
-    { moptions      :: MapleOptions String
+    { moptions      :: MapleOptions (Maybe String)
     , no_unicode    :: Bool
     , program       :: a } 
   | ListCommands 
@@ -53,13 +53,12 @@ parseKeyVal =
 options :: O.Parser (Options FilePath)
 options = (Options
   <$> (MapleOptions <$> 
-        O.option O.str
+        O.option (O.maybeReader (Just . Just))
         ( O.long "command" <>
           O.help ("Command to send to Maple. You may enter a prefix of the command string if "
-                 ++"it uniquely identifies a command. "
-                 ++"Default: Simplify") <>
+                 ++"it uniquely identifies a command. ") <>
           O.short 'c' <> 
-          O.value "Simplify" ) 
+          O.value Nothing ) 
     <*> O.switch
         ( O.long "debug" <>
           O.help "Prints output that is sent to Maple." )
@@ -110,11 +109,14 @@ runMaple :: Options FilePath -> IO ()
 runMaple ListCommands = 
   listCommands >>= \cs -> putStrLn $ "Available Hakaru Maple commands:\n\t"++ intercalate ", " cs
 
-runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog -> 
+runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
   case prog of
     Left  err  -> IO.hPutStrLn stderr err
     Right ast  -> do 
-      TypedAST _ ast' <- sendToMaple' moptions (et ast)
+      TypedAST _ ast' <-
+        case command moptions of
+          Just c  -> sendToMaple' moptions{command=c} (et ast)
+          Nothing -> onTypedASTM expandAllTransformations ast
       IO.print
             $ pretty 
             $ (if no_unicode then renameAST removeUnicodeChars else id) 
