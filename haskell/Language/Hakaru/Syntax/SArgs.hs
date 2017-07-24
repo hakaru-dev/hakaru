@@ -16,7 +16,7 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Control.Applicative
-
+import Data.Monoid
 
 
 -- | Locally closed values (i.e., not binding forms) of a given type.
