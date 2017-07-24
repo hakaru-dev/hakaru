@@ -200,7 +200,7 @@ expandTransformationsWith tbl =
       case t of
         Let_ :$ e0 :* e1 :* End -> do
           e0' <- go' e0
-          e1' <- local (insLet (caseBind e1 const) e0) (go' e1)
+          e1' <- local (insLet (caseBind e1 const) e0') (go' e1)
           pure $ syn $ Let_ :$ e0' :* e1' :* End
 
         Transform_ tr :$ as -> ask >>= \ls ->
