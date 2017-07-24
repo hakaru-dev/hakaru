@@ -1,4 +1,11 @@
-# To evaluate, call `hk-maple easyroad_workflow.hk'
+# To evaluate:
+#
+#    hk-maple examples/easyroad_workflow.hk -e [Disint InHaskell,Simplify] 
+#  | pretty - -e [MCMC] 
+#  | hk-maple -c Simpl -
+#
+# Just `hk-maple examples/easyroad_workflow.hk | hk-maple -` should work,
+# but that currently causes a variable collision error
 
 import easyroad
 import easyroad_prop
