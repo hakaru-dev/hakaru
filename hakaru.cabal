@@ -48,21 +48,23 @@ Library
                        Language.Hakaru.Types.HClasses,
                        Language.Hakaru.Types.Coercion,
                        Language.Hakaru.Syntax.ANF,
-                       Language.Hakaru.Syntax.Uniquify,
-                       Language.Hakaru.Syntax.Unroll,
                        Language.Hakaru.Syntax.AST,
-                       Language.Hakaru.Syntax.AST.Transforms,
-                       Language.Hakaru.Syntax.AST.Sing,
                        Language.Hakaru.Syntax.AST.Eq,
-                       Language.Hakaru.Syntax.Command,
+                       Language.Hakaru.Syntax.AST.Sing,
+                       Language.Hakaru.Syntax.AST.Transforms,
                        Language.Hakaru.Syntax.CSE,
+                       Language.Hakaru.Syntax.Command,
                        Language.Hakaru.Syntax.Gensym,
-                       Language.Hakaru.Syntax.Rename,
                        Language.Hakaru.Syntax.Hoist,
+                       Language.Hakaru.Syntax.Prelude,
                        Language.Hakaru.Syntax.Prune,
+                       Language.Hakaru.Syntax.Rename,
+                       Language.Hakaru.Syntax.SArgs,
+                       Language.Hakaru.Syntax.Transform,
                        Language.Hakaru.Syntax.TypeCheck,
                        Language.Hakaru.Syntax.TypeOf,
-                       Language.Hakaru.Syntax.Prelude,
+                       Language.Hakaru.Syntax.Uniquify,
+                       Language.Hakaru.Syntax.Unroll,
                        Language.Hakaru.Parser.AST,
                        Language.Hakaru.Parser.Maple,
                        Language.Hakaru.Parser.Import,
@@ -182,6 +184,8 @@ Test-Suite system-testsuite
                        Language.Hakaru.Syntax.Prelude
                        Language.Hakaru.Syntax.Prune
                        Language.Hakaru.Syntax.Reducer
+                       Language.Hakaru.Syntax.SArgs
+                       Language.Hakaru.Syntax.Transform
                        Language.Hakaru.Syntax.TypeCheck
                        Language.Hakaru.Syntax.TypeOf
                        Language.Hakaru.Syntax.Uniquify
@@ -269,7 +273,6 @@ Test-Suite relationships-testsuite
                        Language.Hakaru.Syntax.ANF
                        Language.Hakaru.Syntax.AST
                        Language.Hakaru.Syntax.AST.Eq
-                       Language.Hakaru.Syntax.AST.Transforms
                        Language.Hakaru.Syntax.AST.Sing
                        Language.Hakaru.Syntax.Command
                        Language.Hakaru.Syntax.CSE
@@ -282,6 +285,8 @@ Test-Suite relationships-testsuite
                        Language.Hakaru.Syntax.Prelude
                        Language.Hakaru.Syntax.Prune
                        Language.Hakaru.Syntax.Reducer
+                       Language.Hakaru.Syntax.SArgs
+                       Language.Hakaru.Syntax.Transform
                        Language.Hakaru.Syntax.TypeCheck
                        Language.Hakaru.Syntax.TypeOf
                        Language.Hakaru.Syntax.Uniquify

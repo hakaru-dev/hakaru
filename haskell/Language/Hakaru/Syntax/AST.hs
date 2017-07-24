@@ -57,6 +57,8 @@ module Language.Hakaru.Syntax.AST
     -- * implementation details
     , foldMapPairs
     , traversePairs
+    , module Language.Hakaru.Syntax.SArgs
+    , module Language.Hakaru.Syntax.Transform
     ) where
 
 import           Data.Sequence (Seq)
@@ -82,6 +84,9 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.ABT (ABT(syn))
+
+import Language.Hakaru.Syntax.SArgs
+import Language.Hakaru.Syntax.Transform
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -250,10 +255,6 @@ instance Eq (NaryOp a) where -- This one can be derived
 
 ----------------------------------------------------------------
 -- TODO: should we define our own datakind for @([Hakaru], Hakaru)@ or perhaps for the @/\a -> ([a], Hakaru)@ part of it?
-
--- | Locally closed values (i.e., not binding forms) of a given type.
--- TODO: come up with a better name
-type LC (a :: Hakaru) = '( '[], a )
 
 -- BUG: how to declare that these are inverses?
 type family LCs (xs :: [Hakaru]) :: [([Hakaru], Hakaru)] where
@@ -581,8 +582,6 @@ instance Eq (MeasureOp typs a) where -- This one can be derived
 -- N.B., the precedence of (:$) must be lower than (:*).
 -- N.B., if these are changed, then be sure to update the Show instances
 infix  4 :$ -- Chosen to be at the same precedence as (<$>) rather than ($)
-infixr 5 :* -- Chosen to match (:)
-
 
 -- | The constructor of a @(':$')@ node in the 'Term'. Each of these
 -- constructors denotes a \"normal\/standard\/basic\" syntactic
@@ -691,121 +690,6 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
 deriving instance Eq   (SCon args a)
 -- TODO: instance Read (SCon args a)
 deriving instance Show (SCon args a)
-
-----------------------------------------------------------------
-
-data TransformImpl = InMaple | InHaskell
-  deriving (Eq, Ord, Show, Read, Data, Typeable)
-
-data Transform :: [([Hakaru], Hakaru)] -> Hakaru -> * where
-  Expect  ::
-    Transform
-      '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
-
-  Observe ::
-    Transform
-      '[ LC ('HMeasure a), LC a ] ('HMeasure a)
-
-  MH ::
-    Transform
-      '[ LC (a ':-> 'HMeasure a), LC ('HMeasure a) ]
-      (a ':-> 'HMeasure (HPair a 'HProb))
-
-  MCMC ::
-    Transform
-      '[ LC (a ':-> 'HMeasure a), LC ('HMeasure a) ]
-      (a ':-> 'HMeasure a)
-
-  Disint :: TransformImpl ->
-    Transform
-      '[ LC ('HMeasure (HPair a b)) ]
-      (a :-> HMeasure b)
-
-  Summarize ::
-    Transform '[ LC a ] a
-
-  Simplify ::
-    Transform '[ LC a ] a
-
-  Reparam ::
-    Transform '[ LC a ] a
-
-deriving instance Eq   (Transform args a)
-deriving instance Show (Transform args a)
-
-transformName :: Transform args a -> String
-transformName =
-  \case
-    Expect    -> "expect"
-    Observe   -> "observe"
-    MH        -> "mh"
-    MCMC      -> "mcmc"
-    Disint k  -> "disint" ++
-      (case k of
-         InHaskell -> ""
-         InMaple   -> "_m")
-    Summarize -> "summarize"
-    Simplify  -> "simplify"
-    Reparam   -> "reparam"
-
-allTransforms :: [Some2 Transform]
-allTransforms =
-  [ Some2 Expect, Some2 Observe, Some2 MH, Some2 MCMC
-  , Some2 (Disint InHaskell), Some2 (Disint InMaple)
-  , Some2 Summarize, Some2 Simplify, Some2 Reparam ]
-
-----------------------------------------------------------------
--- TODO: ideally we'd like to make SArgs totally flat, like tuples and arrays. Is there a way to do that with data families?
--- TODO: is there any good way to reuse 'List1' instead of defining 'SArgs' (aka @List2@)?
-
--- TODO: come up with a better name for 'End'
--- TODO: unify this with 'List1'? However, strictness differences...
---
--- | The arguments to a @(':$')@ node in the 'Term'; that is, a list
--- of ASTs, where the whole list is indexed by a (type-level) list
--- of the indices of each element.
-data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
-    where
-    End :: SArgs abt '[]
-    (:*) :: !(abt vars a)
-        -> !(SArgs abt args)
-        -> SArgs abt ( '(vars, a) ': args)
-
--- TODO: instance Read (SArgs abt args)
-
-instance Show2 abt => Show1 (SArgs abt) where
-    showsPrec1 _ End       = showString "End"
-    showsPrec1 p (e :* es) =
-        showParen (p > 5)
-            ( showsPrec2 (p+1) e
-            . showString " :* "
-            . showsPrec1 (p+1) es
-            )
-
-instance Show2 abt => Show (SArgs abt args) where
-    showsPrec = showsPrec1
-    show      = show1
-
-instance Eq2 abt => Eq1 (SArgs abt) where
-    eq1 End       End       = True
-    eq1 (x :* xs) (y :* ys) = eq2 x y && eq1 xs ys
-    eq1 _         _         = False
-
-instance Eq2 abt => Eq (SArgs abt args) where
-    (==) = eq1
-
-instance Functor21 SArgs where
-    fmap21 f (e :* es) = f e :* fmap21 f es
-    fmap21 _ End       = End
-
-instance Foldable21 SArgs where
-    foldMap21 f (e :* es) = f e `mappend` foldMap21 f es
-    foldMap21 _ End       = mempty
-
-instance Traversable21 SArgs where
-    traverse21 f (e :* es) = (:*) <$> f e <*> traverse21 f es
-    traverse21 _ End       = pure End
-
 
 ----------------------------------------------------------------
 -- | The generating functor for Hakaru ASTs. This type is given in

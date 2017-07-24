@@ -28,9 +28,6 @@ module Language.Hakaru.Syntax.TypeOf
     -- * Get singletons for well-typed ABTs
       typeOf
     , typeOfReducer
-    -- * Mapping of input type to output type for transforms
-    , SArgsSing
-    , typeOfTransform
     -- * Implementation details
     , getTermSing
     ) where
@@ -54,7 +51,8 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.Datum    (Datum(..), Branch(..))
 import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST      (Term(..), SCon(..), SArgs(..)
-                                       ,Transform(..))
+                                       ,Transform(..), typeOfTransform
+                                       ,getSArgsSing)
 import Language.Hakaru.Syntax.AST.Sing
     (sing_PrimOp, sing_ArrayOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
 
@@ -159,14 +157,6 @@ getTermSing singify = go
     getBranchSing (Branch _ e) = getSing e
     {-# INLINE getBranchSing #-}
 
-    getSArgsSing
-        :: forall xs
-        .  SArgs (Pair2 abt r) xs
-        -> Either String (SArgsSing xs)
-    getSArgsSing End = return End
-    getSArgsSing (x :* xs) =
-      (:*) <$> (Pw (Lift1 ()) <$> getSing x) <*> getSArgsSing xs
-
     go :: forall a. Term (Pair2 abt r) a -> Either String (Sing a)
     go (Lam_ :$ r1 :* End) =
         caseBind (fst2 r1) $ \x _ ->
@@ -192,7 +182,7 @@ getTermSing singify = go
     go (Summate _ h :$  _)          = return $ sing_HSemiring h
     go (Product _ h :$  _)          = return $ sing_HSemiring h
     go (Transform_ t :$ as)         =
-      typeOfTransform t <$> getSArgsSing as
+      typeOfTransform t <$> getSArgsSing getSing as
     go (NaryOp_  o  _)              = return $ sing_NaryOp o
     go (Literal_ v)                 = return $ sing_Literal v
     go (Empty_   typ)               = return typ
@@ -204,32 +194,6 @@ getTermSing singify = go
     go (Superpose_ pes) = tryAll "Superpose_" (getSing . snd) pes
     go (Reject_ typ)    = return typ
     go (_ :$ _) = error "getTermSing: the impossible happened"
-
-type SArgsSing = SArgs (Pointwise (Lift1 ()) Sing)
-
-typeOfTransform
-    :: Transform as x
-    -> SArgsSing as
-    -> Sing x
-typeOfTransform t as =
-  case (t,as) of
-    (Expect   , _)
-      -> SProb
-    (Observe  , Pw _ e :* _ :* End)
-      -> e
-    (MH       , Pw _ (fst.sUnFun -> a) :* _ :* End)
-      -> SFun a (SMeasure (sPair a SProb))
-    (MCMC     , Pw _ a :* _)
-      -> a
-    (Disint k0, Pw _ (sUnPair.sUnMeasure -> (a,b)) :* End)
-      -> SFun a (SMeasure b)
-    (Summarize, Pw _ e :* End)
-      -> e
-    (Simplify , Pw _ e :* End)
-      -> e
-    (Reparam  , Pw _ e :* End)
-      -> e
-
 
 tryAll
     :: F.Foldable f
