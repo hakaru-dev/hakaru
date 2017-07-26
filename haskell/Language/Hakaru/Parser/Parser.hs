@@ -32,6 +32,7 @@ names = concatMap words [ "def fn"
                         , "return dirac"
                         , "integrate summate product from to"
                         , "array plate chain of"
+                        , "r_nop r_split r_index r_fanout r_add bucket"
                         , "import data ∞" ] ++
         map (\(Some2 t) -> transformName t) allTransforms
 
@@ -193,6 +194,51 @@ table = [ [ postfix (array_index <|> fun_call) ]
         , [ binary "||"  AssocRight $ bi (NaryOp Or) ]
         , [ binary "<|>" AssocRight $ bi Msum ] ]
 
+red_expr :: Parser (Reducer' Text)
+red_expr =  red_fanout
+        <|> red_index
+        <|> red_split
+        <|> red_nop
+        <|> red_add
+
+red_fanout :: Parser (Reducer' Text)
+red_fanout = reserved "r_fanout" *>
+             (R_Fanout
+              <$> red_expr
+              <*  reservedOp "||"
+              <*> red_expr
+              )
+
+red_split :: Parser (Reducer' Text)
+red_split = reserved "r_split" *>
+             (R_Split
+              <$> expr
+              <*  reservedOp ":"
+              <*> red_expr
+              <*  reserved "else"
+              <*  reservedOp ":"
+              <*> red_expr
+              )
+
+red_index :: Parser (Reducer' Text)
+red_index = reserved "r_index" *>
+             (R_Index
+              <$> identifier
+              <*  reservedOp "="
+              <*> expr
+              <*  reserved "of"
+              <*> expr
+              <*  reservedOp ":"
+              <*> red_expr
+              )
+
+red_nop :: Parser (Reducer' Text)
+red_nop = reserved "r_nop" *> return R_Nop
+
+red_add :: Parser (Reducer' Text)
+red_add = reserved "r_add" *> (R_Add <$> expr)
+
+
 natOrProb :: Parser (AST' a)
 natOrProb = (ULiteral <$> decimalFloat) <* whiteSpace
 
@@ -312,6 +358,19 @@ transform_expr = expect_expr <|> tr
              <*> expr
              )
 
+bucket_expr :: Parser (AST' Text)
+bucket_expr =
+    reserved "bucket"
+    *> (Bucket
+        <$> identifier
+        <*  reserved "from"
+        <*> expr
+        <*  reserved "to"
+        <*> expr
+        <*  reservedOp ":"
+        <*> red_expr
+        )
+
 array_expr :: Parser (AST' Text)
 array_expr =
     reserved "array"
@@ -414,6 +473,7 @@ term =  if_expr
     <|> summate_expr
     <|> product_expr
     <|> transform_expr
+    <|> bucket_expr
     <|> array_expr
     <|> plate_expr
     <|> chain_expr
