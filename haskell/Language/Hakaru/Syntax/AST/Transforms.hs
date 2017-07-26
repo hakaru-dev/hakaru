@@ -46,7 +46,7 @@ import Control.Monad (liftM)
 import Control.Monad.Trans (MonadTrans(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT, local, ask)
 import Control.Monad.State  (StateT(..), runStateT, put)
-import Control.Applicative (Applicative(..), Alternative(..))
+import Control.Applicative (Applicative(..), Alternative(..), (<$>))
 import Data.Functor.Identity (Identity(..))
 
 import Control.Exception (try)
