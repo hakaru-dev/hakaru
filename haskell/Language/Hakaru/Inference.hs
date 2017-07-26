@@ -24,8 +24,8 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Inference
     ( priorAsProposal
-    , mh
-    , mcmc
+    , mh, mh'
+    , mcmc, mcmc'
     , gibbsProposal
     , slice
     , sliceX
@@ -51,6 +51,8 @@ import Language.Hakaru.Syntax.IClasses (TypeEq(..), JmEq1(..))
 import qualified Data.Text as Text
 import Control.Monad.Except (MonadError(..))
 
+import qualified Control.Applicative as P
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 priorAsProposal
@@ -75,33 +77,46 @@ priorAsProposal p x =
 --
 -- TODO: the @a@ type should be pure (aka @a ~ Expect' a@ in the old parlance).
 -- BUG: get rid of the SingI requirements due to using 'lam'
-mh  :: (ABT Term abt)
-    => abt '[] (a ':-> 'HMeasure a)
-    -> abt '[] ('HMeasure a)
-    -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
-mh proposal target =
-    case determine $ density target of
-    Nothing -> error "mh: couldn't get density"
-    Just theDensity ->
-        let_ theDensity $ \mu ->
+mh'  :: (ABT Term abt)
+     => abt '[] (a ':-> 'HMeasure a)
+     -> abt '[] ('HMeasure a)
+     -> Maybe (abt '[] (a ':-> 'HMeasure (HPair a 'HProb)))
+mh' proposal target =
+        let_ P.<$> (determine $ density target) P.<*> P.pure (\mu ->
         lam' $ \old ->
             app proposal old >>= \new ->
-            dirac $ pair' new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
+            dirac $ pair' new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-}))
   where lam' f = lamWithVar Text.empty (sUnMeasure $ typeOf target) f
         pair'  = pair_ (sUnMeasure $ typeOf target) SProb
 
+mh  :: (ABT Term abt)
+     => abt '[] (a ':-> 'HMeasure a)
+     -> abt '[] ('HMeasure a)
+     -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
+mh proposal target =
+  P.maybe (error "mh: couldn't compute density") P.id $
+  mh' proposal target
+
 -- BUG: get rid of the SingI requirements due to using 'lam' in 'mh'
-mcmc :: (ABT Term abt)
-    => abt '[] (a ':-> 'HMeasure a)
-    -> abt '[] ('HMeasure a)
-    -> abt '[] (a ':-> 'HMeasure a)
-mcmc proposal target =
-    let_ (mh proposal target) $ \f ->
+mcmc' :: (ABT Term abt)
+      => abt '[] (a ':-> 'HMeasure a)
+      -> abt '[] ('HMeasure a)
+      -> Maybe (abt '[] (a ':-> 'HMeasure a))
+mcmc' proposal target =
+    let_ P.<$> mh' proposal target P.<*> P.pure (\f ->
     lamWithVar Text.empty (sUnMeasure $ typeOf target) $ \old ->
         app f old >>= \new_ratio ->
         new_ratio `unpair` \new ratio ->
         bern (min (prob_ 1) ratio) >>= \accept ->
-        dirac (if_ accept new old)
+        dirac (if_ accept new old))
+
+mcmc :: (ABT Term abt)
+     => abt '[] (a ':-> 'HMeasure a)
+     -> abt '[] ('HMeasure a)
+     -> abt '[] (a ':-> 'HMeasure a)
+mcmc proposal target =
+  P.maybe (error "mcmc: couldn't compute density") P.id $
+  mcmc' proposal target
 
 gibbsProposal
     :: (ABT Term abt, SingI a, SingI b)
