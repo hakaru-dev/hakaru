@@ -207,19 +207,19 @@ expandTransformationsWith tbl =
     go (Var x)    = pure $ var x
     go (Bind x e) = bind x <$> go e
     go (Syn t)    =
-      case t of
-        Let_ :$ e0 :* e1 :* End -> do
-          e0' <- go' e0
-          e1' <- local (insLet (caseBind e1 const) e0') (go' e1)
-          pure $ syn $ Let_ :$ e0' :* e1' :* End
-
-        Transform_ tr :$ as -> ask >>= \ls ->
-          let as' = fmap21 (lets ls) as
-          in lift $ maybe (pure $ syn t)
-                          ($ (as, as'))
-                          (lookupTransform tbl tr)
-
-        _ -> syn <$> traverse21 go' t
+      (case t of
+         Let_ :$ e0 :* e1 :* End -> do
+           e0' <- go' e0
+           e1' <- local (insLet (caseBind e1 const) e0') (go' e1)
+           pure $ Let_ :$ e0' :* e1' :* End
+         _ -> traverse21 go' t) >>= \t1 ->
+      (case t1 of
+         Transform_ tr :$ as -> ask >>= \ls ->
+           let as' = fmap21 (lets ls) as
+           in lift $ maybe (pure $ syn t1)
+                           ($ (as, as'))
+                           (lookupTransform tbl tr)
+         _ -> pure $ syn t1)
 
 
 mapleTransformationsWithOpts
