@@ -7,6 +7,7 @@
            , NoImplicitPrelude
            , ScopedTypeVariables
            , FlexibleContexts
+           , ViewPatterns
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -25,10 +26,10 @@
 module Language.Hakaru.Expect
     ( normalize
     , total
-    , expect
+    , expect, expect'
     ) where
 
-import           Prelude               (($), (.), error, reverse)
+import           Prelude               (($), (.), error, reverse, Maybe(..))
 import qualified Data.Text             as Text
 import           Data.Functor          ((<$>))
 import qualified Data.Foldable         as F
@@ -89,6 +90,16 @@ expect
     -> abt '[a] 'HProb
     -> abt '[] 'HProb
 expect e f = runExpect (expectTerm e) f [Some2 e, Some2 f]
+
+expect'
+    :: (ABT Term abt)
+    => abt '[] ('HMeasure a)
+    -> abt '[a] 'HProb
+    -> Maybe (abt '[] 'HProb)
+expect' e f =
+  case expect e f of
+    (viewABT -> Syn (AST.Transform_ AST.Expect :$ _)) -> Nothing
+    r -> Just r
 
 
 residualizeExpect

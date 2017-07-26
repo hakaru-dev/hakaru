@@ -29,7 +29,7 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Prelude (lamWithVar, app)
 import Language.Hakaru.Types.DataKind
 
-import Language.Hakaru.Expect       (expect)
+import Language.Hakaru.Expect       (expect, expect')
 import Language.Hakaru.Disintegrate (determine, observe, disintegrate)
 import Language.Hakaru.Inference    (mcmc', mh')
 import Language.Hakaru.Maple        (sendToMaple, MapleOptions(..)
@@ -272,7 +272,7 @@ haskellTransformations = simpleTable $ \tr ->
   case tr of
     Expect ->
       Just $ \case
-        (e1 :* e2 :* End, _) -> Just $ expect e1 e2
+        (e1 :* e2 :* End, _) -> expect' e1 e2
 
     Observe ->
       Just $ \case
