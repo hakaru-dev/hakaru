@@ -5,6 +5,7 @@
            , GADTs
            , LambdaCase
            , PolyKinds
+           , RankNTypes
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve
@@ -18,6 +19,7 @@ import Data.Functor                     ((<$>))
 import Control.Applicative              ((<*>))
 #endif
 import Control.Monad.Trans.State.Strict (State, state, evalState)
+import Control.Monad (join)
 
 import qualified Data.Number.Nat                 as N
 import qualified Data.IntMap                     as IM
@@ -283,16 +285,14 @@ resolveTransform
     -> U.Transform'
     -> U.SArgs' Text
     -> State Int (U.AST' (Symbol U.AST))
-resolveTransform symbols0 tr (U.SArgs' es) =
-    U.Transform tr . U.SArgs' <$> go symbols0 es where
-      go :: SymbolTable
-         -> [ ([Text], U.AST' Text) ]
-         -> State Int [ ([Symbol U.AST], U.AST' (Symbol U.AST)) ]
-      go _       []           = pure []
-      go symbols ((nms,x):xs) = do
+resolveTransform symbols tr (U.SArgs' es) =
+    U.Transform tr . U.SArgs' <$> mapM go es where
+      go :: ([Text], U.AST' Text)
+         -> State Int ([Symbol U.AST], U.AST' (Symbol U.AST))
+      go (nms,x) = do
         nms' <- mapM gensym nms
-        (:) <$> ((,) (map mkSym nms') <$> symbolResolution symbols x)
-            <*> (go (insertSymbols nms' symbols) xs)
+        (,) (map mkSym nms') <$>
+            symbolResolution (insertSymbols nms' symbols) x
 
 -- TODO: clean up by merging the @Reader (SymbolTable)@ and @State Int@ monads
 -- | Figure out symbols and types.
@@ -642,20 +642,7 @@ makeTransform tru esu =
     Some2 tr ->
       let wrongArgsErr = error $ "Wrong number of arguments passed to " ++
                                  T.transformName tr
-
-          res :: Maybe (U.Term U.U_ABT 'U.U)
-          res = case tr of
-                  T.Expect -> do
-                    U.SArgs' [([s], e1), ([], e2)] <- Just esu
-                    Just $ withName "Expect" s $ \name ->
-                      U.Transform_ tr $
-                         (Nil2, makeAST e1) U.:*
-                         (Cons2 U.ToU Nil2, bind name $ makeAST e2) U.:*
-                         U.End
-
-                  _        -> U.Transform_ tr
-                          <$> matchSArgsNoBind (transformArgs tr) esu
-
+          res = U.Transform_ tr <$> matchSArgs (transformArgs tr) esu
       in maybe wrongArgsErr syn res
 
 type SVarsSpine = (List1 (Lift1 ()) :: [k] -> *)
@@ -677,15 +664,28 @@ transformArgs t =
        T.Reparam   -> Cons1 arg0 Nil1
        T.Expect    -> Cons1 arg0 $ Cons1 arg1 Nil1
 
--- Doesn't handle SArgs with binders, as the meaning of a binder is specific to
--- whichever term (currently only Transform) creates it.
-matchSArgsNoBind :: SArgsSpine xs -> U.SArgs' (Symbol U.AST)
-                 -> Maybe (U.SArgs U.U_ABT xs)
-matchSArgsNoBind sp (U.SArgs' es) =
+matchSArgs :: SArgsSpine xs -> U.SArgs' (Symbol U.AST)
+           -> Maybe (U.SArgs U.U_ABT xs)
+matchSArgs sp (U.SArgs' es) =
   case (sp, es) of
     ( Nil1, [] ) -> Just U.End
-    ( Cons1 (PwP Nil1 _) sp', ([],e0):es' )
-      -> (U.:*) (Nil2, makeAST e0) <$> matchSArgsNoBind sp' (U.SArgs' es')
+    ( Cons1 (PwP vs _) sp', (vs',e0):es' )
+      -> join $ matchSVars vs vs' e0 $ \vsu e0' ->
+           (U.:*) (vsu, e0') <$> matchSArgs sp' (U.SArgs' es')
+    _ -> Nothing
+
+matchSVars :: SVarsSpine vs -> [Symbol U.AST] -> U.AST' (Symbol U.AST)
+           -> (forall vsu . List2 U.ToUntyped vs vsu
+                         -> U.U_ABT vsu 'U.U
+                         -> r)
+           -> Maybe r
+matchSVars vs nms e k =
+  case (vs, nms) of
+    (Nil1       , []     ) -> Just $ k Nil2 (makeAST e)
+    (Cons1 v vs', nm:nms') ->
+      matchSVars vs' nms' e $ \vsu e' ->
+        withName "U.SArgs" nm $ \nm' ->
+          k (Cons2 U.ToU vsu) (bind nm' e')
     _ -> Nothing
 
 typedTransform :: U.Transform' -> Some2 T.Transform

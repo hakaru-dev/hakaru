@@ -205,7 +205,7 @@ newtype SArgs' a = SArgs' [ ([a], AST' a) ]
 
 -- For backwards compatibility
 _Expect :: a -> AST' a -> AST' a -> AST' a
-_Expect v a b = Transform Expect $ SArgs' $ [ ([v], a), ([], b) ]
+_Expect v a b = Transform Expect $ SArgs' $ [ ([], a), ([v], b) ]
 
 withoutMeta :: AST' a -> AST' a
 withoutMeta (WithMeta e _) = withoutMeta e
