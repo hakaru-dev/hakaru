@@ -807,9 +807,9 @@ inferType = inferType_
                   (Just Refl, Just Refl) ->
                      return $ TypedAST (SFun typa (SMeasure typa))
                             $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
-                  (Just {}, _) ->
+                  (_, Nothing) ->
                     typeMismatch e2src (Right typmb) (Right typ2)
-                  (_, Just {}) ->
+                  (Nothing, _) ->
                     typeMismatch e1src (Right $ SFun typa (SMeasure typa))
                                        (Right typ1)
               _ -> typeMismatch e2src (Left "HMeasure") (Right typ2)
