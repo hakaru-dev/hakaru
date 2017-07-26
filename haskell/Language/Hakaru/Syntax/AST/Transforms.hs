@@ -44,6 +44,7 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad (liftM)
 import Control.Monad.Trans (MonadTrans(..))
 import Control.Monad.Reader (ReaderT(..), runReaderT, local, ask)
+import Control.Monad.State  (StateT(..), runStateT, put)
 import Control.Applicative (Applicative(..), Alternative(..))
 import Data.Functor.Identity (Identity(..))
 
@@ -175,6 +176,7 @@ newtype TransformTable abt m
 
 type LetBinds' (abt :: [k] -> k -> *) = List1 (Pair1 Variable (abt '[]))
 type LetBinds abt = Some1 (LetBinds' abt)
+type TransformM abt m = StateT Bool (ReaderT (LetBinds abt) m)
 
 expandTransformationsWith
     :: forall abt a m
@@ -182,7 +184,10 @@ expandTransformationsWith
     => TransformTable abt m
     -> abt '[] a -> m (abt '[] a)
 expandTransformationsWith tbl =
-  fmap prune . flip runReaderT (Some1 Nil1) . go'
+  fmap (\(x,d) -> (if d then prune else id) x) .
+  flip runReaderT (Some1 Nil1) .
+  flip runStateT False .
+  go'
    where
 
     lets' :: LetBinds' abt vs -> abt '[] b -> abt '[] b
@@ -200,11 +205,11 @@ expandTransformationsWith tbl =
     insLet var val (Some1 ls) = Some1 $ Cons1 (Pair1 var val) ls
 
     go' :: abt xs b
-        -> ReaderT (LetBinds abt) m (abt xs b)
+        -> TransformM abt m (abt xs b)
     go' = go . viewABT
 
     go :: View (Term abt) xs b
-       -> ReaderT (LetBinds abt) m (abt xs b)
+       -> TransformM abt m (abt xs b)
     go (Var x)    = pure $ var x
     go (Bind x e) = bind x <$> go e
     go (Syn t)    =
@@ -217,9 +222,9 @@ expandTransformationsWith tbl =
       (case t1 of
          Transform_ tr :$ as -> ask >>= \ls ->
            let as' = fmap21 (lets ls) as
-           in lift $ maybe (pure $ syn t1)
-                           ($ (as, as'))
-                           (lookupTransform tbl tr)
+           in maybe (pure $ syn t1)
+                    (\f -> put True >> (lift.lift) (f (as, as')) )
+                    (lookupTransform tbl tr)
          _ -> pure $ syn t1)
 
 
