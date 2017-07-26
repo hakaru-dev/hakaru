@@ -63,6 +63,9 @@ import Data.List (isInfixOf, intercalate)
 import Data.Char (toLower)
 import Data.Function (on)
 
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
+
 ----------------------------------------------------------------
 data MapleException
   = MapleInterpreterException String String
