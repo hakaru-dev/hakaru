@@ -182,7 +182,8 @@ expandTransformationsWith
     => TransformTable abt m
     -> abt '[] a -> m (abt '[] a)
 expandTransformationsWith tbl =
-  flip runReaderT (Some1 Nil1) . go' where
+  fmap prune . flip runReaderT (Some1 Nil1) . go'
+   where
 
     lets' :: LetBinds' abt vs -> abt '[] b -> abt '[] b
     lets' Nil1 x = x

@@ -2,23 +2,6 @@
 bern = fn p prob:
        x <~ categorical([p, real2prob(nat2real(1) - prob2real(p))])
        return [true, false][x]
-burg = burglary <~ bern(1/10000)
-       alarm <~ bern(if burglary: 19/20 else: 1/100)
-       return (alarm, burglary)
-burg_disint = fn x6 bool:
-              bern = fn p prob:
-                     x <~ categorical([p, real2prob(nat2real(1) - prob2real(p))])
-                     return [true, false][x]
-              burglary <~ bern(1/10000)
-              p = if burglary: 19/20 else: 1/100
-              x19 <~ weight
-                       ([p, real2prob(nat2real(1) - prob2real(p))][if x6: 0 else: 1]
-                        / (summate x0
-                           from 0
-                           to size([p, real2prob(nat2real(1) - prob2real(p))]):
-                           [p, real2prob(nat2real(1) - prob2real(p))][x0]),
-                        return ())
-              return burglary
 burg_simpl = fn x6 bool:
              if x6:
                weight(19/200000, return true) <|>
