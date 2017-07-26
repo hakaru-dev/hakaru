@@ -122,7 +122,7 @@ ppBinder e = go [] (viewABT e)
 ppBinderAsFun :: forall abt xs a . ABT Term abt => abt xs a -> Doc
 ppBinderAsFun e =
   let (vars, body) = ppBinder e in
-  foldr (\v b -> sep [ v <> colon, b ]) body vars
+  if null vars then body else sep [fsep vars <> colon, body]
 
 ppBinder1 :: (ABT Term abt) => abt '[x] a -> (Doc, Doc, Doc)
 ppBinder1 e = caseBind e $ \x v ->
