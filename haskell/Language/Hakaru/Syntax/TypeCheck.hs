@@ -193,9 +193,20 @@ mustCheck e = caseVarSyn e (const False) go
     go U.Reject_             = True
     go (U.Transform_ tr es ) =
       case (tr, es) of
-        (Expect , _ U.:* (Cons2 U.ToU Nil2, e2) U.:* U.End) -> mustCheck' e2
-        (Observe, (Nil2, e1) U.:* _ U.:* U.End) -> mustCheck  e1
-        _ -> True -- TODO: for which terms can types actually be inferred?
+        (Expect   , (Nil2, e1) U.:* _ U.:* U.End)
+          -> mustCheck e1
+        (Observe  , (Nil2, e1) U.:* _ U.:* U.End)
+          -> mustCheck e1
+        (MCMC     , (Nil2, e1) U.:* (Nil2, e2) U.:* U.End)
+          -> mustCheck e1 && mustCheck e2
+        (Disint _ , (Nil2, e1) U.:* U.End)
+          -> mustCheck e1
+        (Simplify , (Nil2, e1) U.:* U.End)
+          -> mustCheck e1
+        (Summarize, (Nil2, e1) U.:* U.End)
+          -> mustCheck e1
+        (Reparam  , (Nil2, e1) U.:* U.End)
+          -> mustCheck e1
     go U.InjTyped{}          = False
 
 mustCheck'
