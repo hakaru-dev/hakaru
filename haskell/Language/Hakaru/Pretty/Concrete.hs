@@ -118,18 +118,10 @@ ppBinder e = go [] (viewABT e)
     go xs (Var  x)   = (reverse xs, ppVariable x)
     go xs (Syn  t)   = (reverse xs, pretty (syn t))
 
-ppBinderAsFun :: forall abt xs a . ABT Term abt => Int -> abt xs a -> Doc
-ppBinderAsFun p0 = go p0 . viewABT where
-  go :: Int -> View (Term abt) xs1 a1 -> Doc
-  go p e =
-    case e of
-      Var x    -> ppVariable x
-      Syn t    -> prettyPrec p (syn t)
-      Bind v x ->
-        parensIf (p > 0) $
-          sep [ text "fn" <+> ppVariable v
-                          <+> prettyType p (varType v) <> colon
-              , go 0 x ]
+ppBinderAsFun :: forall abt xs a . ABT Term abt => abt xs a -> Doc
+ppBinderAsFun e =
+  let (vars, body) = ppBinder e in
+  foldr (\v b -> sep [ v <> colon, b ]) body vars
 
 ppBinder1 :: (ABT Term abt) => abt '[x] a -> (Doc, Doc, Doc)
 ppBinder1 e = caseBind e $ \x v ->
@@ -686,7 +678,7 @@ ppApply2 p f e1 e2 = ppFun p f [flip prettyPrec e1, flip prettyPrec e2]
 ppApply :: ABT Term abt => Int -> String
         -> SArgs abt xs -> Doc
 ppApply p f es =
-  ppFun p f $ foldMap21 (pure . flip ppBinderAsFun) es
+  ppFun p f $ foldMap21 (pure . const . ppBinderAsFun) es
 
 ppBinop
     :: (ABT Term abt)
