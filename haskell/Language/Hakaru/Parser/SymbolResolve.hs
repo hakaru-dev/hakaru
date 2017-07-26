@@ -10,7 +10,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve
     (
-      resolveAST, resolveAST', makeName, fromVarSet
+      resolveAST, resolveAST', resolveAST'From, makeName, fromVarSet
     ) where
 
 import Data.Text hiding (concat, map, maximum, foldr1, singleton)
@@ -716,16 +716,23 @@ resolveAST'
     :: [U.Name]
     -> U.AST' Text
     -> U.AST
-resolveAST' syms ast =
+resolveAST' = resolveAST'From 0
+
+resolveAST'From
+    :: N.Nat
+    -> [U.Name]
+    -> U.AST' Text
+    -> U.AST
+resolveAST'From nextVar syms ast =
     coalesce .
     makeAST  .
     normAST  $
     evalState (symbolResolution
         (insertSymbols syms primTable) ast)
-        (nextVarID_ syms)
+        (N.fromNat $ nextVarID_ syms)
     where
-    nextVarID_ [] = N.fromNat 0
-    nextVarID_ xs = N.fromNat . (1+) . F.maximum $ map U.nameID xs
+    nextVarID_ [] = nextVar
+    nextVarID_ xs = max nextVar . (1+) . F.maximum $ map U.nameID xs
 
 makeName :: SomeVariable ('KProxy :: KProxy Hakaru) -> U.Name
 makeName (SomeVariable (Variable hint vID _)) = U.Name vID hint

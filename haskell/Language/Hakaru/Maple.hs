@@ -42,7 +42,8 @@ import qualified Language.Hakaru.Pretty.Maple as Maple
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.AST (Name)
 import Language.Hakaru.Pretty.Concrete (prettyType)
-import qualified Language.Hakaru.Parser.SymbolResolve as SR (resolveAST', fromVarSet)
+import qualified Language.Hakaru.Parser.SymbolResolve as SR
+                  (resolveAST'From, fromVarSet)
 
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.DataKind
@@ -224,7 +225,8 @@ sendToMaple MapleOptions{..} e = do
              (return . constantPropagation) $ do
         past <- leftShow $ parseMaple (pack fromMaple)
         let m = checkType typ_out
-                 (SR.resolveAST' (getNames e) (maple2AST past))
+                 (SR.resolveAST'From (nextFreeOrBind e)
+                                     (getNames e) (maple2AST past))
         leftShow $ unTCM m (freeVars e) Nothing UnsafeMode
     _ -> throw (MapleInterpreterException toMaple_ fromMaple)
 

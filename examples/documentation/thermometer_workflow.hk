@@ -1,11 +1,4 @@
-# To evaluate:
-#
-#    hk-maple thermometer_workflow.hk -e [Disint InHaskell,Simplify] 
-#  | pretty - -e [MCMC] 
-#  | hk-maple -c Simpl -
-#
-# Just `hk-maple thermometer_workflow.hk | hk-maple -c Simpl -` should work,
-# but that currently causes a variable collision error
+# To evaluate: `hk-maple thermometer_workflow.hk'
 
 import thermometer
 import proposal_thermometer
@@ -13,5 +6,7 @@ import proposal_thermometer
 therm_disint       = disint(thermometer)
 therm_disint_simpl = simplify(therm_disint)
 prop_therm_simpl   = simplify(prop_thermometer)
-fn x pair(real, real):
-  mcmc( prop_therm_simpl, therm_disint_simpl(x) )
+infer_therm = 
+  fn x pair(real, real):
+    mcmc( prop_therm_simpl, therm_disint_simpl(x) )
+simplify(infer_therm)
