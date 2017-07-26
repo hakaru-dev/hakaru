@@ -769,28 +769,32 @@ inferType = inferType_
   inferTransform sourceSpan
                  Expect
                  ((Nil2, e1) U.:* (Cons2 U.ToU Nil2, e2) U.:* U.End) = do
+    let e1src = getMetadata e1
     TypedAST typ1 e1' <- inferType_ e1
     case typ1 of
         SMeasure typ2 -> do
             e2' <- checkBinder typ2 SProb e2
             return . TypedAST SProb $ syn
               (Transform_ Expect :$ e1' :* e2' :* End)
-        _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+        _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
 
   inferTransform sourceSpan
                  Observe
                  ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
+    let e1src = getMetadata e1
     TypedAST typ1 e1' <- inferType_ e1
     case typ1 of
         SMeasure typ2 -> do
             e2' <- checkType_ typ2 e2
             return . TypedAST typ1 $ syn
               (Transform_ Observe :$ e1' :* e2' :* End)
-        _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+        _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
 
   inferTransform sourceSpan
                  MCMC
                  ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
+    let e1src = getMetadata e1
+        e2src = getMetadata e2
     TypedAST typ1 e1' <- inferType_ e1
     TypedAST typ2 e2' <- inferType_ e2
     case typ1 of
@@ -804,25 +808,27 @@ inferType = inferType_
                      return $ TypedAST (SFun typa (SMeasure typa))
                             $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
                   (Just {}, _) ->
-                    typeMismatch sourceSpan (Right typb) (Right typc)
+                    typeMismatch e2src (Right typmb) (Right typ2)
                   (_, Just {}) ->
-                    typeMismatch sourceSpan (Right typa) (Right typb)
-              _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ2)
-          _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typmb)
-      _ -> typeMismatch sourceSpan (Left ":->") (Right typ1)
+                    typeMismatch e1src (Right $ SFun typa (SMeasure typa))
+                                       (Right typ1)
+              _ -> typeMismatch e2src (Left "HMeasure") (Right typ2)
+          _ -> typeMismatch e1src (Left "HMeasure") (Right typmb)
+      _ -> typeMismatch e1src (Left ":->") (Right typ1)
 
   inferTransform sourceSpan
                  (Disint k)
                  ((Nil2, e1) U.:* U.End) = do
+    let e1src = getMetadata e1
     TypedAST typ1 e1' <- inferType_ e1
     case typ1 of
       SMeasure typ2 ->
-        maybe (typeMismatch sourceSpan (Left "HPair") (Right typ2))
+        maybe (typeMismatch e1src (Left "HPair") (Right typ2))
               return $
         sUnPair' typ2 $ \(Refl, typa, typb) ->
           TypedAST (SFun typa (SMeasure typb)) $
             syn $ Transform_ (Disint k) :$ e1' :* End
-      _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+      _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
 
   inferTransform sourceSpan
                  Simplify
