@@ -10,7 +10,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve
     (
-      resolveAST, resolveAST', resolveAST'From, makeName, fromVarSet
+      resolveAST, resolveAST', makeName, fromVarSet
     ) where
 
 import Data.Text hiding (concat, map, maximum, foldr1, singleton)
@@ -713,17 +713,11 @@ resolveAST ast =
     evalState (symbolResolution primTable ast) 0
 
 resolveAST'
-    :: [U.Name]
-    -> U.AST' Text
-    -> U.AST
-resolveAST' = resolveAST'From 0
-
-resolveAST'From
     :: N.Nat
     -> [U.Name]
     -> U.AST' Text
     -> U.AST
-resolveAST'From nextVar syms ast =
+resolveAST' nextVar syms ast =
     coalesce .
     makeAST  .
     normAST  $
