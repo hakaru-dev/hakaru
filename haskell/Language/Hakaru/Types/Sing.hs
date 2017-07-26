@@ -207,7 +207,7 @@ sUnPair' :: Sing (x :: Hakaru)
          -> Maybe r
 sUnPair' (SData (STyApp (STyApp (STyCon t) a) b) _) k
   | Just Refl <- jmEq1 t sSymbol_Pair = Just $ k (Refl, a, b)
-  | otherwise                         = Nothing
+sUnPair' _ _                          = Nothing
 
 sEither :: Sing a -> Sing b -> Sing (HEither a b)
 sEither a b =
@@ -225,7 +225,7 @@ sUnEither' :: Sing (x :: Hakaru)
          -> Maybe r
 sUnEither' (SData (STyApp (STyApp (STyCon t) a) b) _) k
   | Just Refl <- jmEq1 t sSymbol_Either = Just $ k (Refl, a, b)
-  | otherwise                           = Nothing
+sUnEither' _ _                          = Nothing
 
 sList :: Sing a -> Sing (HList a)
 sList a =
