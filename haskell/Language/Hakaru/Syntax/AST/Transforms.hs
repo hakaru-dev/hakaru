@@ -33,7 +33,8 @@ import Language.Hakaru.Expect       (expect, expect')
 import Language.Hakaru.Disintegrate (determine, observe, disintegrate)
 import Language.Hakaru.Inference    (mcmc', mh')
 import Language.Hakaru.Maple        (sendToMaple, MapleOptions(..)
-                                    ,defaultMapleOptions, MapleCommand(..))
+                                    ,defaultMapleOptions, MapleCommand(..)
+                                    ,MapleException)
 
 import Data.Ratio (numerator, denominator)
 import Language.Hakaru.Types.Sing (sing, Sing(..), sUnFun)
@@ -47,6 +48,11 @@ import Control.Monad.Reader (ReaderT(..), runReaderT, local, ask)
 import Control.Monad.State  (StateT(..), runStateT, put)
 import Control.Applicative (Applicative(..), Alternative(..))
 import Data.Functor.Identity (Identity(..))
+
+import Control.Exception (try)
+import System.IO (stderr)
+import Data.Text.Utf8 (hPutStrLn)
+import Data.Text (pack)
 
 import Debug.Trace
 
@@ -172,20 +178,24 @@ newtype TransformTable abt m
   {  lookupTransform
   :: forall as b
   .  Transform as b
-  -> Maybe ((SArgs abt as, SArgs abt as) -> Maybe (m (abt '[] b))) }
+  -> Maybe ((SArgs abt as, SArgs abt as) -> m (Maybe (abt '[] b))) }
 
 lookupTransform'
-  :: TransformTable abt m
+  :: (Applicative m)
+  => TransformTable abt m
   -> Transform as b
-  -> (SArgs abt as, SArgs abt as) -> Maybe (m (abt '[] b))
-lookupTransform' tbl tr args = lookupTransform tbl tr >>= ($ args)
+  -> (SArgs abt as, SArgs abt as) -> m (Maybe (abt '[] b))
+lookupTransform' tbl tr args =
+  case lookupTransform tbl tr of
+    Just f  -> f args
+    Nothing -> pure Nothing
 
 simpleTable
   :: (Applicative m)
   => (forall as b . Transform as b
                  -> Maybe((SArgs abt as, SArgs abt as) -> Maybe (abt '[] b)))
   -> TransformTable abt m
-simpleTable k = TransformTable $ \tr -> fmap (fmap (fmap pure)) $ k tr
+simpleTable k = TransformTable $ \tr -> fmap (fmap pure) $ k tr
 
 type LetBinds' (abt :: [k] -> k -> *) = List1 (Pair1 Variable (abt '[]))
 type LetBinds abt = Some1 (LetBinds' abt)
@@ -235,9 +245,11 @@ expandTransformationsWith tbl =
       (case t1 of
          Transform_ tr :$ as -> ask >>= \ls ->
            let as' = fmap21 (lets ls) as
-           in maybe (pure $ syn t1)
-                    (\f -> put True >> (lift.lift) f)
-                    (lookupTransform' tbl tr (as, as'))
+               orig = pure $ syn t1
+           in maybe orig
+                    (\f -> (lift.lift) (f (as, as')) >>=
+                             maybe orig (\r -> put True >> return r))
+                    (lookupTransform tbl tr)
          _ -> pure $ syn t1)
 
 
@@ -247,9 +259,15 @@ mapleTransformationsWithOpts
   => MapleOptions ()
   -> TransformTable abt IO
 mapleTransformationsWithOpts opts = TransformTable $ \tr ->
-  let cmd c = Just . sendToMaple opts{command=MapleCommand c}
+  let cmd c x =
+        try (sendToMaple opts{command=MapleCommand c} x) >>=
+          \case
+            Left (err :: MapleException) ->
+              hPutStrLn stderr (pack $ show err) >> pure Nothing
+            Right r ->
+              pure $ Just r
       cmd :: Transform '[LC i] o
-          -> abt '[] i  -> Maybe (IO (abt '[] o)) in
+          -> abt '[] i  -> IO (Maybe (abt '[] o)) in
   case tr of
     Simplify       ->
       Just $ \case { (_, e1 :* End) -> cmd tr e1 }
