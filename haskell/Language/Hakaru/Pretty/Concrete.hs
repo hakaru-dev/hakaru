@@ -48,6 +48,7 @@ import qualified Data.Sequence         as Seq
 import qualified Data.Vector           as V
 import           Data.Ratio
 import qualified Data.Text             as T
+import           Control.Applicative   (Applicative(..))
 
 import           Data.Number.Natural   (fromNatural, fromNonNegativeRational)
 import           Data.Number.Nat
