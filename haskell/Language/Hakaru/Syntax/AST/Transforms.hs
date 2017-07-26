@@ -31,7 +31,7 @@ import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Expect       (expect)
 import Language.Hakaru.Disintegrate (determine, observe, disintegrate)
-import Language.Hakaru.Inference    (mcmc, mh)
+import Language.Hakaru.Inference    (mcmc', mh')
 import Language.Hakaru.Maple        (sendToMaple, MapleOptions(..)
                                     ,defaultMapleOptions, MapleCommand(..))
 
@@ -172,7 +172,20 @@ newtype TransformTable abt m
   {  lookupTransform
   :: forall as b
   .  Transform as b
-  -> Maybe ((SArgs abt as, SArgs abt as) -> m (abt '[] b)) }
+  -> Maybe ((SArgs abt as, SArgs abt as) -> Maybe (m (abt '[] b))) }
+
+lookupTransform'
+  :: TransformTable abt m
+  -> Transform as b
+  -> (SArgs abt as, SArgs abt as) -> Maybe (m (abt '[] b))
+lookupTransform' tbl tr args = lookupTransform tbl tr >>= ($ args)
+
+simpleTable
+  :: (Applicative m)
+  => (forall as b . Transform as b
+                 -> Maybe((SArgs abt as, SArgs abt as) -> Maybe (abt '[] b)))
+  -> TransformTable abt m
+simpleTable k = TransformTable $ \tr -> fmap (fmap (fmap pure)) $ k tr
 
 type LetBinds' (abt :: [k] -> k -> *) = List1 (Pair1 Variable (abt '[]))
 type LetBinds abt = Some1 (LetBinds' abt)
@@ -223,8 +236,8 @@ expandTransformationsWith tbl =
          Transform_ tr :$ as -> ask >>= \ls ->
            let as' = fmap21 (lets ls) as
            in maybe (pure $ syn t1)
-                    (\f -> put True >> (lift.lift) (f (as, as')) )
-                    (lookupTransform tbl tr)
+                    (\f -> put True >> (lift.lift) f)
+                    (lookupTransform' tbl tr (as, as'))
          _ -> pure $ syn t1)
 
 
@@ -234,9 +247,9 @@ mapleTransformationsWithOpts
   => MapleOptions ()
   -> TransformTable abt IO
 mapleTransformationsWithOpts opts = TransformTable $ \tr ->
-  let cmd c = sendToMaple opts{command=MapleCommand c}
+  let cmd c = Just . sendToMaple opts{command=MapleCommand c}
       cmd :: Transform '[LC i] o
-          -> abt '[] i  -> IO (abt '[] o) in
+          -> abt '[] i  -> Maybe (IO (abt '[] o)) in
   case tr of
     Simplify       ->
       Just $ \case { (_, e1 :* End) -> cmd tr e1 }
@@ -254,34 +267,28 @@ mapleTransformations
   => TransformTable abt IO
 mapleTransformations = mapleTransformationsWithOpts defaultMapleOptions
 
-haskellTransformations :: ABT Term abt => TransformTable abt Identity
-haskellTransformations = TransformTable $ \tr ->
+haskellTransformations :: (Applicative m, ABT Term abt) => TransformTable abt m
+haskellTransformations = simpleTable $ \tr ->
   case tr of
     Expect ->
-      (Just . fmap pure) $ \case
-        (e1 :* e2 :* End, _) -> expect e1 e2
+      Just $ \case
+        (e1 :* e2 :* End, _) -> Just $ expect e1 e2
 
     Observe ->
-      (Just . fmap pure) $ \case
-        (es@(e1 :* e2 :* End), _) ->
-          case determine (observe e1 e2) of
-            Just t' -> t'
-            Nothing -> syn $ Transform_ tr :$ es
+      Just $ \case
+        (es@(e1 :* e2 :* End), _) -> determine (observe e1 e2)
 
     MCMC ->
-      (Just . fmap pure) $ \case
-        (_, e1 :* e2 :* End) -> mcmc e1 e2
+      Just $ \case
+        (_, e1 :* e2 :* End) -> mcmc' e1 e2
 
     MH ->
-      (Just . fmap pure) $ \case
-        (e1 :* e2 :* End, _) -> mh e1 e2
+      Just $ \case
+        (e1 :* e2 :* End, _) -> mh' e1 e2
 
     Disint InHaskell ->
-      (Just . fmap pure) $ \case
-        (_, es@(e1 :* End)) ->
-          case determine (disintegrate e1) of
-            Just t' -> t'
-            Nothing -> syn $ Transform_ tr :$ es
+      Just $ \case
+        (_, es@(e1 :* End)) -> determine (disintegrate e1)
 
     _ -> Nothing
 
@@ -291,7 +298,7 @@ allTransformationsWithMOpts
    -> TransformTable abt IO
 allTransformationsWithMOpts opts = TransformTable $ \t ->
   lookupTransform (mapleTransformationsWithOpts opts) t <|>
-  fmap (fmap (pure . runIdentity)) (lookupTransform haskellTransformations t)
+  (lookupTransform haskellTransformations t)
 
 allTransformations :: ABT Term abt => TransformTable abt IO
 allTransformations = allTransformationsWithMOpts defaultMapleOptions
