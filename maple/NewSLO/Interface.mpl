@@ -250,7 +250,7 @@ TestEfficient := proc(e, t::t_type, t_kb := KB:-empty, {label::string := "Test" 
   _Env_TestTools_Try_printf := false;
   result := TestTools[Try](label, Efficient(out),true);
   if result = NULL then
-    printf("%s passed.\n", label);
+    printf("%s passed\n", label);
   else
     error sprintf("%s FAILED.\n"
                   "The result of\n\tSimplifyKB(%a,%a,%a)\n\tis not efficient.\n"
