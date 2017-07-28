@@ -107,7 +107,7 @@ $include "NewSLO/Piecewise.mpl"
           #        to a^   sum(b(i)^2   ,i=...)
           #         * a^(2*sum(b(i)*c(i),i=...))
           #         * a^   sum(c(i)^2   ,i=...)
-          return mul(subsop(-1=j,e),
+          return mul(subsop(-1=j,'e'),
                      j in convert(eval_factor(expand(op(-1,e)), kb, `+`,
                                               map2(subsop,1=sum,loops)),
                                   'list', `+`));
