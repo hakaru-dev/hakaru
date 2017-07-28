@@ -371,10 +371,9 @@ fromLO := module()
       return s^op(2,e),
              r^op(2,e);
     end if;
-    if e :: '{exp(anything), freeof(var)^anything}' then
+    if e :: 'exp(anything)' then
       s, r := termize(op(-1,e), var, kb);
-      return subsop(-1=s, e),
-             subsop(-1=r, e);
+      return exp(s), exp(r);
     end if;
     if e :: 'And(specfunc({product,Product}),
                  anyfunc(anything, name=range(freeof(var))))' then
