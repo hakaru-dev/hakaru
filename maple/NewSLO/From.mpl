@@ -371,6 +371,11 @@ fromLO := module()
       return s^op(2,e),
              r^op(2,e);
     end if;
+    if e :: '{exp(anything), freeof(var)^anything}' then
+      s, r := termize(op(-1,e), var, kb);
+      return subsop(-1=s, e),
+             subsop(-1=r, e);
+    end if;
     if e :: 'And(specfunc({product,Product}),
                  anyfunc(anything, name=range(freeof(var))))' then
       x, kb1 := genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb, var);
