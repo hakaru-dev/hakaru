@@ -57,8 +57,10 @@ constraints_about_vars := module()
     local vars := Domain:-Bound:-varsOf(vs,"set");
     c -> c::relation and (not(lhs(c) in vars) and not(rhs(c) in vars));
   end proc;
-  local try_make_about := proc(dbnd, ctx1, q0, $)
-      local vars_q, vars, q_s, q_r, q := q0;
+  local try_make_about := proc(dbnd, ctx1_, q0, $)
+      local vars_q, vars, q_s, q_r
+          , q := q0
+          , ctx1 := ctx1_ ;
       vars := Domain:-Bound:-varsOf(dbnd,"set");
       vars_q := indets(q, name) intersect vars;
       if nops(vars_q)=0 then return q end if;
@@ -66,10 +68,12 @@ constraints_about_vars := module()
       vars_q := op(1,vars_q);
       q := try_improve_exp(q, vars_q, ctx1);
       q_r := `if`(has(q,{ln,exp}),q0,q);
-      q_s :=
-        KB:-kb_assuming_mb(
-          (q0 -> solve({q0}, [op(vars_q)], 'useassumptions'=true)),
-          q, Domain:-Bound:-contextOf(dbnd), _->FAIL);
+
+      q, ctx1 := map(KB:-chill, [q,ctx1])[];
+      # Unevaluated for debugging
+      q_s := 'solve({q},[op(vars_q)], 'useassumptions'=true) assuming (op(ctx1))';
+      q_s := eval(q_s);
+      q, ctx1 := map(KB:-warm, [q,ctx1])[];
       if q_s::list and not has(q_s, signum) then
         if nops(q_s)=0 then return q_r end if;
         q_s := map(s->remove(c->c in ctx1 or `and`(c::relation,lhs(c)::name,lhs(c)=rhs(c)), s), q_s);
