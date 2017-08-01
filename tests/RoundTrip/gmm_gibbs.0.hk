@@ -1,0 +1,25 @@
+def dirichlet(as array(prob)):
+    xs <~ plate i of int2nat(size(as)-1):
+            beta(summate j from i+1 to size(as): as[j],
+                 as[i])
+    return array i of size(as):
+             x = product j from 0 to i: xs[j]
+             x * if i+1==size(as): 1 else: real2prob(1-xs[i])
+
+fn as array(prob):
+fn z array(nat):
+fn t array(real):
+fn docUpdate nat:
+  if size(z) == size(t) && docUpdate < size(z):
+
+    theta <~ dirichlet(as)
+    phi <~ plate k of size(as): normal(0,1)
+    zNew <~ categorical(array i of size(as): 1)
+    t <~ plate i of size(t):
+           zz = if i == docUpdate: zNew else: z[i]
+           zz <~ observe(categorical(theta), zz)
+           observe(normal(phi[zz], 1), t[i])
+
+    return zNew
+
+  else: reject . measure(nat)
