@@ -208,7 +208,8 @@ testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
     "testRoadmapProg1" ~: testConcreteFile "tests/RoundTrip/testRoadmapProg1.hk",
-    "testKernel"       ~: testConcreteFiles "tests/RoundTrip/testKernel.0.hk" "tests/RoundTrip/testKernel.expected.hk"
+    "testKernel"       ~: testConcreteFiles "tests/RoundTrip/testKernel.0.hk" "tests/RoundTrip/testKernel.expected.hk",
+    "gmm_gibbs"        ~: testConcreteFiles "tests/RoundTrip/gmm_gibbs.0.hk" "tests/RoundTrip/gmm_gibbs.expected.hk"
     --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
     --"testTrueDetection" ~: testStriv (lam2 seismicTrueDetection)
     --"testTrueDetectionL" ~: testStriv tdl,
