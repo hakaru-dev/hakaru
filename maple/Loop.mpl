@@ -523,15 +523,21 @@ Loop := module ()
     unprotect(csgn);
     csgn := overload([
       # Handle if the csgn of a piecewise doesn't depend on which branch
-      proc(a :: specfunc(piecewise), $)
+      proc(a :: `hasfun/has`(piecewise), $)
         option overload;
-        local r, i;
-        r := {seq(`if`(i::even or i=nops(a), csgn(op(i,a)), NULL),
-                  i=1..nops(a))};
-        if nops(r)=1 then return op(r) end if;
-        if not assigned(_Envsignum0) then
-          r := r minus {0};
+        local pw, r, i;
+        pw := indets(a, 'specfunc(piecewise)');
+        if 0<nops(pw) then
+          pw := op(1,pw);
+          r := {seq(`if`(i::even or i=nops(pw),
+                         csgn(subs(pw=op(i,pw),a)),
+                         NULL),
+                    i=1..nops(pw))};
           if nops(r)=1 then return op(r) end if;
+          if not assigned(_Envsignum0) then
+            r := r minus {0};
+            if nops(r)=1 then return op(r) end if;
+          end if;
         end if;
         error "invalid input: cannot csgn %1", a;
       end proc,
