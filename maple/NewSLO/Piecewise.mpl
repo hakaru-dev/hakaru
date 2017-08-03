@@ -61,42 +61,6 @@
       if nops(res) <= 1 then
         return eval_factor(default, kb, mode, loops);
       end if;
-      if nops(res) <= 3
-         and op(1,res) :: '{`=`,And(specfunc(And),Not(specfunc(Not(`=`),And)))}'
-         and Testzero(default - mode()) then
-        # Reduce product(piecewise(i=3,f(i),1),i=1..10) to f(3)
-        r := op(1,res);
-        r := `if`(r::`=`, And(r), select(type,r,`=`));
-        for i from 1 to nops(loops) do
-          x := op([i,2,1],loops);
-          s, r := selectremove(depends, r, x);
-          for cond in s do
-            if ispoly(lhs(cond)-rhs(cond), 'linear', x, 'b', 'a') then
-              b := Normalizer(-b/a);
-              if kb_entails(kb,
-                            And(b :: integer,
-                                op([i,2,2,1],loops) <= b,
-                                b <= op([i,2,2,2],loops))
-                            ) then
-                kb := assert(x=b, kb);# TODO: why not just use kb?
-                ASSERT(type(kb,t_kb), "eval_piecewise{product of pw}: not a kb");
-                res := `if`(op(1,res) = cond,
-                            op(2,res),
-                            piecewise(bool_And(op(remove(`=`, op(1,res), cond))),
-                                      op(2..-1,res)));
-                return eval_factor(eval(res, x=b),
-                                   kb,
-                                   mode,
-                                   eval(subsop(i=NULL, loops), x=b));
-              else
-                userinfo(3, 'procname', "Trivial %1 almost reduced to %2!",
-                         op(i,loops), b);
-              end if;
-            end if;
-          end do;
-          if nops(r) = 0 then break end if;
-        end do;
-      end if;
       # Recursively process pieces
       inds := [indices(pieces, 'nolist', 'indexorder')];
       for i in inds do

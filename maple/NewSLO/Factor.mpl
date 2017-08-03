@@ -32,7 +32,8 @@ $include "NewSLO/Piecewise.mpl"
                       kb :: t_kb,
                       mode :: identical(`*`,`+`),
                       loops, $)
-      local o, body, x, bounds, res, go, y, kb1;
+      local o, body, x, bounds, res, go, y, kb1,
+            extra, cond, b, a, bodyNe, bodyEq, bodyDiff;
       o := op(0,e);
       body, bounds := op(e);
       x, bounds := op(bounds);
@@ -50,8 +51,36 @@ $include "NewSLO/Piecewise.mpl"
         res := eval(res, go = (i -> eval(body, x=i)));
         return eval_factor(res, kb, mode, loops);
       end if;
+      extra := mode();
+      for cond in select(depends, indets(body, '{`=`,`<>`}'), x) do
+        try
+          if not ispoly(`-`(op(cond)), 'linear', x, 'b', 'a') then next end if;
+          b := Normalizer(-b/a);
+          bodyNe := eval(body, {subsop(0=`=` , cond) = false,
+                                subsop(0=`<>`, cond) = true});
+          if length(body) <= length(bodyNe) then next end if;
+          if mode = `*` and
+             not kb_entails(kb, 0 <> eval(bodyNe, x=b)) then next end if;
+          bodyEq := eval(body, {subsop(0=`=` , cond) = true,
+                                subsop(0=`<>`, cond) = false});
+          bodyDiff :=
+            piecewise(And(b :: integer, lhs(bounds) <= b, b <= rhs(bounds)),
+                      eval(`if`(mode=`*`,`/`,`-`)(bodyEq, bodyNe), x=b),
+                      mode());
+          if has(bodyDiff, '{undefined, infinity, FAIL}') then next end if;
+          bodyDiff := eval_factor(bodyDiff, kb, mode, loops);
+          userinfo(3, procname, "Kronecker expansion succeeded on pivot %1: %2",
+                   cond, bodyDiff);
+          extra := mode(extra, bodyDiff);
+          body  := bodyNe;
+        catch:
+          userinfo(3, procname, "Kronecker expansion failed on pivot %1: %2",
+                   cond, lastexception);
+        end try;
+      end do;
       y, kb1 := genType(x, HInt(closed_bounds(bounds)), kb);
-      return eval_factor(subs(x=y,body), kb1, mode, [[o,y=bounds],op(loops)]);
+      mode(extra,
+           eval_factor(subs(x=y,body), kb1, mode, [[o,y=bounds],op(loops)]));
     end proc;
 
     # eval_factor is a simplifier.  It maintains the following invariants:
