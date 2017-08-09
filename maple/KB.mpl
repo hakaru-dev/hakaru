@@ -403,6 +403,10 @@ KB := module ()
          # sometimes solve returns unevaluated which confuses postproc because
          # it expects the typical output of solve
          return FAIL
+       elif has(c,signum) then
+         WARNING( "Solving %1 in ctx %2 produced %3 which contains `signum`. "
+                  "Probably a bug in `solve`?", b, kb, c);
+         return FAIL
        end if;
 
        c := postproc_for_solve(warm(c), kb);
