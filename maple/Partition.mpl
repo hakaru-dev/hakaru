@@ -286,8 +286,8 @@ export
     option remember, system;
     local i, cs; cs := map(condOf, piecesOf(p));
     for i from 2 to nops(cs) do
-      if not(is(bool_Not(op(i  ,cs))) assuming op(i-1,cs)) or
-         not(is(bool_Not(op(i-1,cs))) assuming op(i  ,cs)) then
+      if rel_coulditbe(op(i  ,cs), op(i-1,cs)) or
+         rel_coulditbe(op(i-1,cs), op(i  ,cs)) then
         return false; end if;
     end do;
     return true;
