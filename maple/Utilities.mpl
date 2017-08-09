@@ -310,6 +310,59 @@ Utilities := module ()
     end proc
   end proc;
 
+  # A replacement for `coulditbe .. assuming ..' which uses `is' internally
+  # (since `is' is actually stronger than `coulditbe'); tries to handle `Or`s
+  # correctly (which don't do well with `assuming'); and catches some exceptions
+  # which we are reasonably sure have a valid interpretation.
+  export rel_coulditbe := ProfileFn(do_rel_coulditbe, 1);
+  local do_rel_coulditbe := proc(a,as_,$)
+    option remember, system;
+    local os, rs, as := as_;
+    if as::{set,list,specfunc(And),`and`} then
+      as := [op(as)];
+    elif as::Relation then
+      as := [as];
+    else
+      error "unknown input format: %1", as;
+    end if;
+    os, rs := selectremove(type, as, {specfunc(Or),`or`});
+
+    if os=[] then
+      try
+        not(is(bool_Not(a)) assuming op(as));
+      catch "when calling '%1'. Received: 'contradictory assumptions'" :
+        # technically this means the KB was already contradictory, we
+        # just didn't know?
+        return false;
+      catch "when calling '%1'. Received: "
+            "'side relations must be polynomials in"
+            " (name or function) variables'":
+        # This is seemingly a Maple bug - the condition could still be, but we
+        # don't know, so conservatively return true.
+        WARNING( sprintf( "siderels bug:\n\t'%s'\n"
+                          "when calling coulditbe(%%1) assuming (%%2)"
+                          , StringTools[FormatMessage](lastexception[2..-1])),
+                 a, as );
+        return true;
+      catch "when calling '%3'. Received: "
+            "'when calling '%2'. Received: "
+            "'expression independent of, %0''":
+        error expr_indp_errMsg(), a, as;
+      catch "when calling '%2'. Received: 'expression independent of, %0'":
+        error expr_indp_errMsg(), a, as;
+      end try;
+    else
+      ormap(o1->rel_coulditbe(a,[o,op(rs)])=true, os);
+    end if;
+  end proc;
+
+  local expr_indp_errMsg := proc($)
+    sprintf("Something strange happened(%s)\n"
+            "\tin coulditbe(%%1) assuming %%2"
+            ,StringTools[FormatMessage](lastexception[2..-1]))
+  end proc;
+
+
   # Print profiling information for a function when `infolevel' for that
   # function is set to at least 3, and assertlevel>0; e.g.
   #  > do_func := proc() .. func .. end: func := ProfileFn(do_func):
