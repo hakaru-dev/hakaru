@@ -231,8 +231,8 @@ Utilities := module ()
   export simpl_relation :=
   proc( expr_ :: {relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}
       , { norty := 'DNF' }
-      , $) :: { specfunc(specfunc({relation, specfunc(relation, Not)}, `Or`), `And`)
-              , specfunc(specfunc({relation, specfunc(relation, Not)}, `And`), `Or`)
+      , $) :: { specfunc(specfunc({Relation, specfunc(relation, Not)}, `Or`), `And`)
+              , specfunc(specfunc({Relation, specfunc(relation, Not)}, `And`), `Or`)
               };
       local expr := expr_, outty, outmk, inty, inmk, ty_ord ;
 
