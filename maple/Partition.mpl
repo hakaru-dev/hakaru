@@ -852,6 +852,8 @@ export
 
       # Removes each conjunct if it is true under the assumption of the others
       local do_reduce_conj := proc(x::specfunc(And), $)
+        if has(x, {idx,size}) then return x end if;
+
         bool_And(seq(
           `if`((is(op(i,x)) assuming
                 op(subsop(i=NULL,[op(x)]))),
