@@ -21,6 +21,7 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Eq (alphaEq)
+import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), jmEq1)
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Simplify
@@ -61,7 +62,8 @@ testS
     -> abt '[] a
     -> Assertion
 testS p x = do
-    _ <- simplify x `catch` handleException (p ++ ": simplify failed")
+    _ <- simplify (expandTransformations x) `catch`
+           handleException (p ++ ": simplify failed")
     return ()
 
 testStriv 
@@ -85,7 +87,7 @@ testSS1WithOpts
     -> abt '[] a -- | To simplify
     -> Assertion
 testSS1WithOpts o nm t' t =
-   simplifyWithOpts o t >>= \p -> assertAlphaEq nm p t'
+   simplifyWithOpts o (expandTransformations t) >>= \p -> assertAlphaEq nm p t'
 
 -- Assert that all the given Hakaru programs simplify to the given one
 testSS 
