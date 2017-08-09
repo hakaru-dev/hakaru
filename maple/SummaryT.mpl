@@ -32,15 +32,27 @@ module()
   f := simplify_factor_assuming(f, kb);
   bkt := bucket(mr, i=0..size(t)-1);
   CodeTools[Test](eval(f, summary=bkt),
-                  piecewise(b=zNew,
-                            sum(piecewise(i=docUpdate, idx(t,i), 0),
-                                i=0..size(t)-1),
-                            0) +
-                  sum(piecewise(And(b=idx(z,i), Not(i=docUpdate)),
-                                idx(t,i),
-                                0),
-                      i=0..size(t)-1),
-                  simplify);
+                  {piecewise(b=zNew,
+                             sum(piecewise(i=docUpdate, idx(t,i), 0),
+                                 i=0..size(t)-1),
+                             0) +
+                   sum(piecewise(And(b=idx(z,i), Not(i=docUpdate)),
+                                 idx(t,i),
+                                 0),
+                       i=0..size(t)-1),
+                   piecewise(And(docUpdate::integer,A <= docUpdate,docUpdate <= B)
+                            ,piecewise(b = zNew,idx(t,docUpdate))-
+                             piecewise(And(idx(z,docUpdate) <= size(as)-1,
+                                           0 <= idx(z,docUpdate),
+                                           b = idx(z,docUpdate)),
+                                           idx(t,docUpdate)),
+                                      0)+
+                             sum(piecewise(b = idx(z,i),
+                                           idx(t,i),
+                                           0),
+                                 i = 0 .. size(t)-1)
+                  },
+                  'member'(simplify));
 end module:
 
 module()
