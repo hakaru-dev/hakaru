@@ -315,21 +315,17 @@ Utilities := module ()
   # correctly (which don't do well with `assuming'); and catches some exceptions
   # which we are reasonably sure have a valid interpretation.
   export rel_coulditbe := ProfileFn(do_rel_coulditbe, 1);
-  local do_rel_coulditbe := proc(a,as_,$)
+  local do_rel_coulditbe := proc(a,as_::{set,list,Relation},$)
     option remember, system;
     local os, rs, as := as_;
-    if as::{set,list,specfunc(And),`and`} then
-      as := [op(as)];
-    elif as::Relation then
-      as := [as];
-    else
-      error "unknown input format: %1", as;
+    if as::{set,list} then
+      as := And(op(as));
     end if;
-    os, rs := selectremove(type, as, {specfunc(Or),`or`});
+    as := simpl_relation(as,norty='DNF');
 
-    if os=[] then
+    if nops(as)=1 then
       try
-        not(is(bool_Not(a)) assuming op(as));
+        not(is(bool_Not(a)) assuming op(1,as));
       catch "when calling '%1'. Received: 'contradictory assumptions'" :
         # technically this means the KB was already contradictory, we
         # just didn't know?
@@ -342,17 +338,17 @@ Utilities := module ()
         WARNING( sprintf( "siderels bug:\n\t'%s'\n"
                           "when calling coulditbe(%%1) assuming (%%2)"
                           , StringTools[FormatMessage](lastexception[2..-1])),
-                 a, as );
+                 a, as_ );
         return true;
       catch "when calling '%3'. Received: "
             "'when calling '%2'. Received: "
             "'expression independent of, %0''":
-        error expr_indp_errMsg(), a, as;
+        error expr_indp_errMsg(), a, as_;
       catch "when calling '%2'. Received: 'expression independent of, %0'":
-        error expr_indp_errMsg(), a, as;
+        error expr_indp_errMsg(), a, as_;
       end try;
     else
-      ormap(o1->rel_coulditbe(a,[o,op(rs)])=true, os);
+      ormap(o1->rel_coulditbe(a,o1)=true, as);
     end if;
   end proc;
 
