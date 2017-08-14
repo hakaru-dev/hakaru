@@ -40,7 +40,7 @@ import qualified Data.Sequence as Seq
 import Control.Monad.Fix (MonadFix)
 import Control.Monad (liftM)
 import Control.Monad.Trans (MonadTrans(..))
-import Control.Monad.Reader (ReaderT(..), runReaderT, local, ask)
+import Control.Monad.Reader (ReaderT(..), runReaderT, withReaderT, ask)
 import Control.Monad.State  (StateT(..), runStateT, put)
 import Control.Applicative (Applicative(..), Alternative(..), (<$>))
 import Data.Functor.Identity (Identity(..))
@@ -49,6 +49,7 @@ import Control.Exception (try)
 import System.IO (stderr)
 import Data.Text.Utf8 (hPutStrLn)
 import Data.Text (pack)
+import Data.Monoid (Monoid(..), (<>))
 
 import Debug.Trace
 
@@ -163,10 +164,7 @@ expandTransformationsWith'
 expandTransformationsWith' tbl =
   runIdentity . expandTransformationsWith tbl
 
-
-type LetBinds' (abt :: [k] -> k -> *) = List1 (Pair1 Variable (abt '[]))
-type LetBinds abt = Some1 (LetBinds' abt)
-type TransformM abt m = StateT Bool (ReaderT (LetBinds abt) m)
+type TransformM = ReaderT TransformCtx
 
 expandTransformationsWith
     :: forall abt a m
@@ -174,51 +172,22 @@ expandTransformationsWith
     => TransformTable abt m
     -> abt '[] a -> m (abt '[] a)
 expandTransformationsWith tbl =
-  fmap (\(x,d) -> (if d then prune else id) x) .
-  flip runReaderT (Some1 Nil1) .
-  flip runStateT False .
-  go'
-   where
+  flip runReaderT mempty .
+  cataABTM (pure . var) bind_ (>>= syn_)
+    where
+    bind_ :: forall x xs b
+           . Variable x
+          -> TransformM m (abt xs b)
+          -> TransformM m (abt (x ': xs) b)
+    bind_ v mt = bind v <$> withReaderT (ctxOf v <>) mt
 
-    lets' :: LetBinds' abt vs -> abt '[] b -> abt '[] b
-    lets' Nil1 x = x
-    lets' (Cons1 (Pair1 var val) vs) x =
-      lets' vs $ syn $ Let_ :$ val :* bind var x :* End
-
-    lets :: LetBinds abt -> abt xs b -> abt xs b
-    lets (Some1 ls) x =
-      let (vs, x1) = caseBinds x
-          x2       = lets' ls x1
-      in binds_ vs x2
-
-    insLet :: Variable x -> abt '[] x -> LetBinds abt -> LetBinds abt
-    insLet var val (Some1 ls) = Some1 $ Cons1 (Pair1 var val) ls
-
-    go' :: abt xs b
-        -> TransformM abt m (abt xs b)
-    go' = go . viewABT
-
-    go :: View (Term abt) xs b
-       -> TransformM abt m (abt xs b)
-    go (Var x)    = pure $ var x
-    go (Bind x e) = bind x <$> go e
-    go (Syn t)    =
-      (case t of
-         Let_ :$ e0 :* e1 :* End -> do
-           e0' <- go' e0
-           e1' <- local (insLet (caseBind e1 const) e0') (go' e1)
-           pure $ Let_ :$ e0' :* e1' :* End
-         _ -> traverse21 go' t) >>= \t1 ->
-      (case t1 of
-         Transform_ tr :$ as -> ask >>= \ls ->
-           let as' = fmap21 (lets ls) as
-               orig = pure $ syn t1
-           in maybe orig
-                    (\f -> (lift.lift) (f (as, as')) >>=
-                             maybe orig (\r -> put True >> return r))
-                    (lookupTransform tbl tr)
-         _ -> pure $ syn t1)
-
+    syn_ :: forall b. Term abt b -> TransformM m (abt '[] b)
+    syn_ t =
+      case t of
+        Transform_ tr :$ as ->
+          ask >>= \ctx ->
+          maybe (syn t) id <$> lift (lookupTransform' tbl tr ctx as)
+        _ -> pure $ syn t
 
 mapleTransformationsWithOpts
   :: forall abt
