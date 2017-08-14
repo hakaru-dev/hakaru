@@ -9,6 +9,7 @@
            , StandaloneDeriving
            , OverlappingInstances
            , UndecidableInstances
+           , RankNTypes
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -34,6 +35,9 @@ module Language.Hakaru.Syntax.Transform
   , typeOfTransform
   -- * Transformation contexts
   , TransformCtx(..), HasTransformCtx(..), unionCtx, minimalCtx
+  -- * Transformation tables
+  , TransformTable(..), lookupTransform', simpleTable
+  , unionTable, someTransformations
   )
   where
 
@@ -45,6 +49,7 @@ import Language.Hakaru.Syntax.Variable
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 
+import Control.Applicative (Alternative(..))
 import Data.Number.Nat
 import Data.Data (Data, Typeable)
 import Data.List (stripPrefix)
@@ -193,3 +198,49 @@ instance HasTransformCtx (Variable (a :: Hakaru)) where
 instance ABT syn abt => HasTransformCtx (abt (xs :: [Hakaru]) (a :: Hakaru)) where
   ctxOf t = TransformCtx { nextFreeVar = nextFree t }
 
+-- | A functional lookup table which indicates how to expand
+--   transformations. The function returns @Nothing@ when the transformation
+--   shouldn't be expanded. When it returns @Just k@, @k@ is passed an @SArgs@
+--   and a @TransformCtx@.
+newtype TransformTable abt m
+  =  TransformTable
+  {  lookupTransform
+  :: forall as b
+  .  Transform as b
+  -> Maybe (TransformCtx -> SArgs abt as -> m (Maybe (abt '[] b))) }
+
+-- | A variant of @lookupTransform@ which joins the two layers of @Maybe@.
+lookupTransform'
+  :: (Applicative m)
+  => TransformTable abt m
+  -> Transform as b
+  -> TransformCtx
+  -> SArgs abt as -> m (Maybe (abt '[] b))
+lookupTransform' tbl tr ctx args=
+  case lookupTransform tbl tr of
+    Just f  -> f ctx args
+    Nothing -> pure Nothing
+
+-- | Builds a 'simple' transformation table, i.e. one which doesn't make use of
+--  the monadic context. Such a table is valid in every @Applicative@ context.
+simpleTable
+  :: (Applicative m)
+  => (forall as b . Transform as b
+                 -> Maybe (TransformCtx -> SArgs abt as -> Maybe (abt '[] b)))
+  -> TransformTable abt m
+simpleTable k = TransformTable $ \tr -> fmap (fmap (fmap pure)) $ k tr
+
+-- | Take the left-biased union of two transformation tables
+unionTable :: TransformTable abt m
+           -> TransformTable abt m
+           -> TransformTable abt m
+unionTable tbl0 tbl1 = TransformTable $ \tr ->
+  lookupTransform tbl0 tr <|>
+  lookupTransform tbl1 tr
+
+-- | Intersect a transformation table with a list of transformations
+someTransformations :: [Some2 Transform]
+                    -> TransformTable abt m
+                    -> TransformTable abt m
+someTransformations toExpand tbl = TransformTable $
+  \tr -> if Some2 tr `elem` toExpand then lookupTransform tbl tr else Nothing

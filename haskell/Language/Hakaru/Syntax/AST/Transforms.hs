@@ -1,13 +1,9 @@
 {-# LANGUAGE FlexibleContexts
            , GADTs
-           , Rank2Types
            , ScopedTypeVariables
            , DataKinds
            , TypeOperators
-           , ViewPatterns
            , OverloadedStrings
-           , PolyKinds
-           , KindSignatures
            , LambdaCase
            #-}
 
@@ -167,35 +163,6 @@ expandTransformationsWith'
 expandTransformationsWith' tbl =
   runIdentity . expandTransformationsWith tbl
 
--- | A functional lookup table which indicates how to expand
---   transformations. The function returns @Nothing@ when the transformation
---   shouldn't be expanded. When it returns @Just k@, @k@ is passed a pair of
---   @SArgs@, whose first component is the original @SArgs@ as passed to the
---   transform, and whose second component is that @SArgs@ with all enclosing
---   @Let@ bindings pushed down over the arguments.
-newtype TransformTable abt m
-  =  TransformTable
-  {  lookupTransform
-  :: forall as b
-  .  Transform as b
-  -> Maybe ((SArgs abt as, SArgs abt as) -> m (Maybe (abt '[] b))) }
-
-lookupTransform'
-  :: (Applicative m)
-  => TransformTable abt m
-  -> Transform as b
-  -> (SArgs abt as, SArgs abt as) -> m (Maybe (abt '[] b))
-lookupTransform' tbl tr args =
-  case lookupTransform tbl tr of
-    Just f  -> f args
-    Nothing -> pure Nothing
-
-simpleTable
-  :: (Applicative m)
-  => (forall as b . Transform as b
-                 -> Maybe((SArgs abt as, SArgs abt as) -> Maybe (abt '[] b)))
-  -> TransformTable abt m
-simpleTable k = TransformTable $ \tr -> fmap (fmap pure) $ k tr
 
 type LetBinds' (abt :: [k] -> k -> *) = List1 (Pair1 Variable (abt '[]))
 type LetBinds abt = Some1 (LetBinds' abt)
@@ -270,15 +237,14 @@ mapleTransformationsWithOpts opts = TransformTable $ \tr ->
           -> abt '[] i  -> IO (Maybe (abt '[] o)) in
   case tr of
     Simplify       ->
-      Just $ \case { (_, e1 :* End) -> cmd tr e1 }
+      Just $ \ctx -> \case { e1 :* End -> cmd tr e1 }
     Summarize      ->
-      Just $ \case { (_, e1 :* End) -> cmd tr e1 }
+      Just $ \ctx -> \case { e1 :* End -> cmd tr e1 }
     Reparam        ->
-      Just $ \case { (_, e1 :* End) -> cmd tr e1 }
+      Just $ \ctx -> \case { e1 :* End -> cmd tr e1 }
     Disint InMaple ->
-      Just $ \case { (_, e1 :* End) -> cmd tr e1 }
+      Just $ \ctx -> \case { e1 :* End -> cmd tr e1 }
     _              -> Nothing
-
 
 mapleTransformations
   :: ABT Term abt
@@ -289,24 +255,24 @@ haskellTransformations :: (Applicative m, ABT Term abt) => TransformTable abt m
 haskellTransformations = simpleTable $ \tr ->
   case tr of
     Expect ->
-      Just $ \case
-        (e1 :* e2 :* End, _) -> expect' e1 e2
+      Just $ \ctx -> \case
+        e1 :* e2 :* End -> expect' e1 e2
 
     Observe ->
-      Just $ \case
-        (es@(e1 :* e2 :* End), _) -> determine (observe e1 e2)
+      Just $ \ctx -> \case
+        e1 :* e2 :* End -> determine (observe e1 e2)
 
     MCMC ->
-      Just $ \case
-        (_, e1 :* e2 :* End) -> mcmc' e1 e2
+      Just $ \ctx -> \case
+        e1 :* e2 :* End -> mcmc' e1 e2
 
     MH ->
-      Just $ \case
-        (e1 :* e2 :* End, _) -> mh' e1 e2
+      Just $ \ctx -> \case
+        e1 :* e2 :* End -> mh' e1 e2
 
     Disint InHaskell ->
-      Just $ \case
-        (_, es@(e1 :* End)) -> determine (disintegrate e1)
+      Just $ \ctx -> \case
+        e1 :* End -> determine (disintegrate e1)
 
     _ -> Nothing
 
@@ -314,18 +280,12 @@ allTransformationsWithMOpts
    :: ABT Term abt
    => MapleOptions ()
    -> TransformTable abt IO
-allTransformationsWithMOpts opts = TransformTable $ \t ->
-  lookupTransform (mapleTransformationsWithOpts opts) t <|>
-  (lookupTransform haskellTransformations t)
+allTransformationsWithMOpts opts = unionTable
+  (mapleTransformationsWithOpts opts)
+  haskellTransformations
 
 allTransformations :: ABT Term abt => TransformTable abt IO
 allTransformations = allTransformationsWithMOpts defaultMapleOptions
-
-someTransformations :: [Some2 Transform]
-                    -> TransformTable abt m
-                    -> TransformTable abt m
-someTransformations toExpand tbl = TransformTable $
-  \tr -> if Some2 tr `elem` toExpand then lookupTransform tbl tr else Nothing
 
 --------------------------------------------------------------------------------
 
