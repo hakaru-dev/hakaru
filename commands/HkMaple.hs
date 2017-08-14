@@ -18,7 +18,8 @@ import           Language.Hakaru.Simplify
 import           Language.Hakaru.Maple 
 import           Language.Hakaru.Parser.Maple 
 
-import           Language.Hakaru.Syntax.Transform (Transform(..))
+import           Language.Hakaru.Syntax.Transform (Transform(..)
+                                                  ,someTransformations)
 import           Language.Hakaru.Syntax.IClasses (Some2(..))
 
 #if __GLASGOW_HASKELL__ < 710

@@ -9,7 +9,8 @@ module Main where
 
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Syntax.AST.Transforms
-import           Language.Hakaru.Syntax.Transform (Transform(..))
+import           Language.Hakaru.Syntax.Transform (Transform(..)
+                                                  ,someTransformations)
 import           Language.Hakaru.Syntax.IClasses (Some2(..))
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Command
