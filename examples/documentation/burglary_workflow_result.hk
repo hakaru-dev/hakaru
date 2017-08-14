@@ -1,12 +1,9 @@
 # Produced by `hk-maple burglary_workflow.hk'
-bern = fn p prob:
-       x <~ categorical([p, real2prob(nat2real(1) - prob2real(p))])
-       return [true, false][x]
-burg_simpl = fn x6 bool:
-             if x6:
-               weight(19/200000, return true) <|>
-               weight(9999/1000000, return false)
-             else:
-               weight(1/200000, return true) <|>
-               weight(989901/1000000, return false)
-burg_simpl(true)
+(fn x5 bool:
+ if x5:
+   weight(19/200000, return true) <|>
+   weight(9999/1000000, return false)
+ else:
+   weight(1/200000, return true) <|>
+   weight(989901/1000000, return false))
+  (true)

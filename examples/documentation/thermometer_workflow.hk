@@ -1,12 +1,32 @@
 # To evaluate: `hk-maple thermometer_workflow.hk'
 
-import thermometer
-import proposal_thermometer
-
-therm_disint       = disint(thermometer)
-therm_disint_simpl = simplify(therm_disint)
-prop_therm_simpl   = simplify(prop_thermometer)
-infer_therm = 
-  fn x pair(real, real):
-    mcmc( prop_therm_simpl, therm_disint_simpl(x) )
-simplify(infer_therm)
+simplify(
+fn x pair(real, real):
+mcmc(
+simplify(
+  fn noise pair(prob, prob):
+    match noise:
+     (noiseTprev, noiseMprev):
+      weight(1/2, 
+              noiseTprime <~ uniform(3,8)
+              return (real2prob(noiseTprime), noiseMprev)) <|>
+      weight(1/2, 
+             noiseMprime <~ uniform(1,4)
+             return (noiseTprev, real2prob(noiseMprime))))
+,
+simplify(
+disint(
+  nT <~ uniform(3,8)
+  nM <~ uniform(1,4)
+  
+  noiseT = real2prob(nT)
+  noiseM = real2prob(nM)
+  
+  t1 <~ normal(21, noiseT)
+  t2 <~ normal(t1, noiseT)
+  
+  m1 <~ normal(t1, noiseM)
+  m2 <~ normal(t2, noiseM)
+  
+  return ((m1, m2), (noiseT, noiseM))))(x)
+))
