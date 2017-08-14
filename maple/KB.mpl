@@ -396,6 +396,15 @@ KB := module ()
      bad := select(depends, indets(b, specfunc(chilled)),x);
      if not (bad = {}) then return FAIL; end if;
 
+     # don't try to solve `var = e' where `depends(e,var)' and
+     # `has(e,piecewise)'. this produces an error:
+     #     (in Piecewise:-Apply) invalid subscript selector
+     if b::{`=`,`<>`} and
+        is_lhs((q,r)->q::name and depends(r,q) and has(r,piecewise), b)
+          <> FAIL
+     then return FAIL;
+     end if;
+
      # otherwise go ahead
      try
        c := kb_assuming_mb(b->solve({chill(b)},[x], 'useassumptions'=true),b,kb,_->FAIL);
