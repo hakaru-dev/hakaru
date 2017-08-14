@@ -231,8 +231,8 @@ Utilities := module ()
   export simpl_relation :=
   proc( expr_ :: {relation, boolean, specfunc({`And`,`Not`,`Or`}), `and`, `not`, `or`}
       , { norty := 'DNF' }
-      , $) :: { specfunc(specfunc({relation, specfunc(relation, Not)}, `Or`), `And`)
-              , specfunc(specfunc({relation, specfunc(relation, Not)}, `And`), `Or`)
+      , $) :: { specfunc(specfunc({Relation, specfunc(relation, Not)}, `Or`), `And`)
+              , specfunc(specfunc({Relation, specfunc(relation, Not)}, `And`), `Or`)
               };
       local expr := expr_, outty, outmk, inty, inmk, ty_ord ;
 
@@ -308,6 +308,67 @@ Utilities := module ()
     proc(x)
       if x::ty then f(x) else g(x) end if
     end proc
+  end proc;
+
+  # A replacement for `coulditbe .. assuming ..' which uses `is' internally
+  # (since `is' is actually stronger than `coulditbe'); tries to handle `Or`s
+  # correctly (which don't do well with `assuming'); and catches some exceptions
+  # which we are reasonably sure have a valid interpretation.
+  export rel_coulditbe := ProfileFn(do_rel_coulditbe, 1);
+  local do_rel_coulditbe := proc(a,as_::{set,list,Relation},$)
+    option remember, system;
+    local os, rs, as := as_;
+    if as::{set,list} then
+      as := And(op(as));
+    end if;
+    as := simpl_relation(as,norty='DNF');
+
+    if nops(as)=1 then
+      try
+        not(is(bool_Not(a)) assuming op(1,as));
+      catch "when calling '%1'. Received: 'contradictory assumptions'" :
+        # technically this means the KB was already contradictory, we
+        # just didn't know?
+        return false;
+      catch "when calling '%1'. Received: "
+            "'side relations must be polynomials in"
+            " (name or function) variables'":
+        # This is seemingly a Maple bug - the condition could still be, but we
+        # don't know, so conservatively return true.
+        WARNING( sprintf( "siderels bug:\n\t'%s'\n"
+                          "when calling coulditbe(%%1) assuming (%%2)"
+                          , StringTools[FormatMessage](lastexception[2..-1])),
+                 a, as_ );
+        return true;
+      catch "when calling '%3'. Received: "
+            "'when calling '%2'. Received: "
+            "'expression independent of, %0''":
+        error expr_indp_errMsg(), a, as_;
+      catch "when calling '%2'. Received: 'expression independent of, %0'":
+        error expr_indp_errMsg(), a, as_;
+      end try;
+    else
+      ormap(o1->rel_coulditbe(a,o1)=true, as);
+    end if;
+  end proc;
+
+  local expr_indp_errMsg := proc($)
+    sprintf("Something strange happened(%s)\n"
+            "\tin coulditbe(%%1) assuming %%2"
+            ,StringTools[FormatMessage](lastexception[2..-1]))
+  end proc;
+
+  # Given a symmetric relation `x0', applies `test' the operands of the relation
+  # in a symmetric manner. If it succeeds, returns `x0' with the side satisifying
+  # `test' on the left-hand. If neither side satisfies `test', returns FAIL.
+  #  e.g.:
+  #   is_lhs(x=3, (a,_)->type(a,integer))  =  3=x
+  #   is_lhs(x=3, (a,_)->type(a,name))     =  x=3
+  #   is_lhs(x=3, (a,_)->type(a,complex))  =  FAIL
+  export is_lhs := proc(test,x)
+    if test(lhs(x), rhs(x),_rest) then return x end if;
+    if test(rhs(x), lhs(x),_rest) then return op(0,x)(rhs(x),lhs(x)) end if;
+    FAIL;
   end proc;
 
   # Print profiling information for a function when `infolevel' for that

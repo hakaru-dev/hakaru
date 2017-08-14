@@ -126,7 +126,7 @@ export
       ps := map(mapPiece(proc(c0,v0)
                   local c,c1,v,s; c,v := c0,v0; s := (x->x);
                   if v::PieceRef then
-                    c1 := is_lhs(type,c,name);
+                    c1 := is_lhs((s,_)->type(s,name),c);
                     if c1<>FAIL then s := x->subs(c1,x) end if;
                     c, s(op(op(1,v),rs))
                   else
@@ -149,13 +149,6 @@ export
   mapPiece := proc(f,$) proc(x::PartitionPiece,$) Piece(f(condOf(x), valOf(x))) end proc; end proc,
   unPiece := mapPiece(ident),
   ident := proc() args end proc,
-  is_lhs := proc(test,x0)
-    local x := x0;
-    if test(rhs(x),_rest) then x := op(0,x)(rhs(x),lhs(x)) end if;
-    if test(lhs(x),_rest) then return x
-    else                       return FAIL
-    end if;
-  end proc,
 
   # This is an alternate (to PARTITION) constructor for partition, which has the
   # same call convention as piecewise, except there are no implicit cases. if
@@ -286,8 +279,8 @@ export
     option remember, system;
     local i, cs; cs := map(condOf, piecesOf(p));
     for i from 2 to nops(cs) do
-      if not(is(bool_Not(op(i  ,cs))) assuming op(i-1,cs)) or
-         not(is(bool_Not(op(i-1,cs))) assuming op(i  ,cs)) then
+      if rel_coulditbe(op(i  ,cs), op(i-1,cs)) or
+         rel_coulditbe(op(i-1,cs), op(i  ,cs)) then
         return false; end if;
     end do;
     return true;
@@ -852,6 +845,8 @@ export
 
       # Removes each conjunct if it is true under the assumption of the others
       local do_reduce_conj := proc(x::specfunc(And), $)
+        if has(x, {idx,size}) then return x end if;
+
         bool_And(seq(
           `if`((is(op(i,x)) assuming
                 op(subsop(i=NULL,[op(x)]))),

@@ -238,8 +238,8 @@ KB := module ()
   # return a SplitKB instead.
   assert_deny := module ()
    export ModuleApply;
-   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve, do_assert_deny, do_rel_coulditbe,
-         refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg, rel_coulditbe;
+   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve, do_assert_deny,
+         refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg;
 
    # Either And or Or type, chosen by boolean pol
    t_if_and_or_of := proc(pol,$)
@@ -396,12 +396,25 @@ KB := module ()
      bad := select(depends, indets(b, specfunc(chilled)),x);
      if not (bad = {}) then return FAIL; end if;
 
+     # don't try to solve `var = e' where `depends(e,var)' and
+     # `has(e,piecewise)'. this produces an error:
+     #     (in Piecewise:-Apply) invalid subscript selector
+     if b::{`=`,`<>`} and
+        is_lhs((q,r)->q::name and depends(r,q) and has(r,piecewise), b)
+          <> FAIL
+     then return FAIL;
+     end if;
+
      # otherwise go ahead
      try
        c := kb_assuming_mb(b->solve({chill(b)},[x], 'useassumptions'=true),b,kb,_->FAIL);
        if c = b then
          # sometimes solve returns unevaluated which confuses postproc because
          # it expects the typical output of solve
+         return FAIL
+       elif has(c,signum) then
+         WARNING( "Solving %1 in ctx %2 produced %3 which contains `signum`. "
+                  "Probably a bug in `solve`?", b, kb, c);
          return FAIL
        end if;
 
@@ -466,34 +479,6 @@ KB := module ()
      b := chill(bb);
      b := simplify(b) assuming op(as);
      warm(b);
-   end proc;
-
-   rel_coulditbe := ProfileFn(do_rel_coulditbe, 1);
-   do_rel_coulditbe := proc(a,as,$)
-      option remember, system;
-      try
-          not(is(bool_Not(a)) assuming op(as));
-      catch "when calling '%1'. Received: 'contradictory assumptions'" :
-          # technically this means the KB was already contradictory, we
-          # just didn't know?
-          return false;
-      catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
-          # This is seemingly a Maple bug - the condition could still be, but we
-          # don't know, so conservatively return true.
-          WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling coulditbe(%%1) assuming (%%2)"
-                          , StringTools[FormatMessage](lastexception[2..-1])), a, as );
-          return true;
-      catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
-          error expr_indp_errMsg(), a, as;
-      catch "when calling '%2'. Received: 'expression independent of, %0'":
-          error expr_indp_errMsg(), a, as;
-      end try;
-   end proc;
-
-   expr_indp_errMsg := proc($)
-       sprintf("Something strange happened(%s)\n"
-               "\tin coulditbe(%%1) assuming %%2"
-              ,StringTools[FormatMessage](lastexception[2..-1]))
    end proc;
 
    ModuleApply := ProfileFn(do_assert_deny, 1);
