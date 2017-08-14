@@ -195,24 +195,25 @@ mapleTransformationsWithOpts
   => MapleOptions ()
   -> TransformTable abt IO
 mapleTransformationsWithOpts opts = TransformTable $ \tr ->
-  let cmd c x =
-        try (sendToMaple opts{command=MapleCommand c} x) >>=
+  let cmd c ctx x =
+        try (sendToMaple opts{command=MapleCommand c
+                             ,context=ctx} x) >>=
           \case
             Left (err :: MapleException) ->
               hPutStrLn stderr (pack $ show err) >> pure Nothing
             Right r ->
               pure $ Just r
-      cmd :: Transform '[LC i] o
+      cmd :: Transform '[LC i] o -> TransformCtx
           -> abt '[] i  -> IO (Maybe (abt '[] o)) in
   case tr of
     Simplify       ->
-      Just $ \ctx -> \case { e1 :* End -> cmd tr e1 }
+      Just $ \ctx -> \case { e1 :* End -> cmd tr ctx e1 }
     Summarize      ->
-      Just $ \ctx -> \case { e1 :* End -> cmd tr e1 }
+      Just $ \ctx -> \case { e1 :* End -> cmd tr ctx e1 }
     Reparam        ->
-      Just $ \ctx -> \case { e1 :* End -> cmd tr e1 }
+      Just $ \ctx -> \case { e1 :* End -> cmd tr ctx e1 }
     Disint InMaple ->
-      Just $ \ctx -> \case { e1 :* End -> cmd tr e1 }
+      Just $ \ctx -> \case { e1 :* End -> cmd tr ctx e1 }
     _              -> Nothing
 
 mapleTransformations

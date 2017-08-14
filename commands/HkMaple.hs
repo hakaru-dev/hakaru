@@ -26,7 +26,7 @@ import           Language.Hakaru.Syntax.IClasses (Some2(..))
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 
-import           Data.Monoid ((<>), mconcat)
+import           Data.Monoid ((<>), Monoid(..))
 import           Data.Text (Text, unpack, pack)
 import qualified Data.Text as Text 
 import qualified Data.Text.Utf8 as IO
@@ -78,7 +78,8 @@ options = (Options
           O.short 'm' <> 
           O.help ( "Extra options to send to Maple\neach options is of the form KEY=VAL\n"
                  ++"where KEY is a Maple name, and VAL is a Maple expression.")
-        ))))
+        )))
+    <*> pure mempty)
   <*> O.switch 
       ( O.long "no-unicode" <> 
         O.short 'u' <> 

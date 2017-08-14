@@ -49,6 +49,7 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Transform
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.IClasses
@@ -100,6 +101,7 @@ data MapleOptions nm = MapleOptions
   , debug     :: Bool 
   , timelimit :: Int 
   , extraOpts :: M.Map String String 
+  , context   :: TransformCtx
   } deriving (Functor, Foldable, Traversable) 
 
 defaultMapleOptions :: MapleOptions () 
@@ -107,7 +109,8 @@ defaultMapleOptions = MapleOptions
   { command = ()    
   , debug = False 
   , timelimit = 90
-  , extraOpts = M.empty }
+  , extraOpts = M.empty
+  , context = mempty }
 
 --------------------------------------------------------------------------------
 
@@ -228,7 +231,7 @@ sendToMaple MapleOptions{..} e = do
              (return . constantPropagation) $ do
         past <- leftShow $ parseMaple (pack fromMaple)
         let m = checkType typ_out
-                 (SR.resolveAST' (nextFreeOrBind e)
+                 (SR.resolveAST' (max (nextFreeOrBind e) (nextFreeVar context))
                                  (getNames e) (maple2AST past))
         leftShow $ unTCM m (freeVars e) Nothing UnsafeMode
     _ -> throw (MapleInterpreterException toMaple_ fromMaple)
