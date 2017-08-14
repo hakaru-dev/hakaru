@@ -8,6 +8,7 @@
            , DeriveDataTypeable
            , StandaloneDeriving
            , OverlappingInstances
+           , UndecidableInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -31,17 +32,21 @@ module Language.Hakaru.Syntax.Transform
   , transformName, allTransforms
   -- * Mapping of input type to output type for transforms
   , typeOfTransform
+  -- * Transformation contexts
+  , TransformCtx(..), HasTransformCtx(..), unionCtx, minimalCtx
   )
   where
 
 
+import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.SArgs
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.Variable
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 
+import Data.Number.Nat
 import Data.Data (Data, Typeable)
-
 import Data.List (stripPrefix)
 
 ----------------------------------------------------------------
@@ -155,3 +160,36 @@ typeOfTransform t as =
       -> e
     (Reparam  , Pw _ e :* End)
       -> e
+
+-- | The context in which a transformation is called.  Currently this is simply
+--   the next free variable in the enclosing program, but it could one day be
+--   expanded to include more information, e.g., an association of variables to
+--   terms in the enclosing program.
+newtype TransformCtx = TransformCtx
+  { nextFreeVar :: Nat }
+    deriving (Eq, Ord, Show)
+
+-- | The smallest possible context, i.e. a default context suitable for use when
+-- performing induction on terms which may contain transformations as subterms.
+minimalCtx :: TransformCtx
+minimalCtx = TransformCtx { nextFreeVar = 0 }
+
+-- | The union of two contexts
+unionCtx :: TransformCtx -> TransformCtx -> TransformCtx
+unionCtx ctx0 ctx1 =
+  TransformCtx { nextFreeVar = max (nextFreeVar ctx0) (nextFreeVar ctx1) }
+
+instance Monoid TransformCtx where
+  mempty = minimalCtx
+  mappend = unionCtx
+
+-- | The class of types which have an associated context
+class HasTransformCtx x where
+  ctxOf :: x -> TransformCtx
+
+instance HasTransformCtx (Variable (a :: Hakaru)) where
+  ctxOf v = TransformCtx { nextFreeVar = varID v + 1 }
+
+instance ABT syn abt => HasTransformCtx (abt (xs :: [Hakaru]) (a :: Hakaru)) where
+  ctxOf t = TransformCtx { nextFreeVar = nextFree t }
+
