@@ -26,7 +26,7 @@
 module Language.Hakaru.Expect
     ( normalize
     , total
-    , expect, expect'
+    , expect, expectInCtx, determineExpect
     ) where
 
 import           Prelude               (($), (.), error, reverse, Maybe(..))
@@ -44,6 +44,7 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
+import Language.Hakaru.Syntax.Transform (TransformCtx(..), minimalCtx)
 import Language.Hakaru.Syntax.AST               hiding (Expect)
 import qualified Language.Hakaru.Syntax.AST     as AST
 import Language.Hakaru.Syntax.TypeOf            (typeOf)
@@ -89,15 +90,23 @@ expect
     => abt '[] ('HMeasure a)
     -> abt '[a] 'HProb
     -> abt '[] 'HProb
-expect e f = runExpect (expectTerm e) f [Some2 e, Some2 f]
+expect = expectInCtx minimalCtx
 
-expect'
+expectInCtx
     :: (ABT Term abt)
-    => abt '[] ('HMeasure a)
+    => TransformCtx
+    -> abt '[] ('HMeasure a)
     -> abt '[a] 'HProb
+    -> abt '[] 'HProb
+expectInCtx ctx e f = runExpect (expectTerm e) ctx f [Some2 e, Some2 f]
+
+-- | A helper which converts residualized `expect' to a `Nothing' instead.
+determineExpect
+    :: (ABT Term abt)
+    => abt '[] 'HProb
     -> Maybe (abt '[] 'HProb)
-expect' e f =
-  case expect e f of
+determineExpect e =
+  case e of
     (viewABT -> Syn (AST.Transform_ AST.Expect :$ _)) -> Nothing
     r -> Just r
 
