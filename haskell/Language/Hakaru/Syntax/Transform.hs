@@ -53,6 +53,7 @@ import Control.Applicative (Alternative(..))
 import Data.Number.Nat
 import Data.Data (Data, Typeable)
 import Data.List (stripPrefix)
+import Data.Monoid (Monoid(..))
 
 ----------------------------------------------------------------
 
