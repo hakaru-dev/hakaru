@@ -197,9 +197,7 @@ $include "NewSLO/Piecewise.mpl"
       return e;
     end proc;
 
-    ModuleApply := proc(ee, kb::t_kb, $)
-      local e;
-      e := subsindets(ee, Partition, Partition:-PartitionToPW);
-      simplify_assuming(eval_factor(convert(e, 'Beta'), kb, `*`, []), kb);
+    ModuleApply := proc(e, kb::t_kb, $)
+      simplify_assuming(eval_factor(convert(Partition:-PartitionToPW_mb(e), 'Beta'), kb, `*`, []), kb);
     end proc;
   end module; # simplify_factor_assuming
