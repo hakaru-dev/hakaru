@@ -43,9 +43,12 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT, binder)
 import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Syntax.Transform (TransformCtx(..), minimalCtx)
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Expect (expect, normalize)
-import Language.Hakaru.Disintegrate (determine, density, disintegrate)
+import Language.Hakaru.Disintegrate (determine
+                                    ,density, densityInCtx
+                                    ,disintegrate, disintegrateInCtx)
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), JmEq1(..))
 
 import qualified Data.Text as Text
@@ -78,11 +81,12 @@ priorAsProposal p x =
 -- TODO: the @a@ type should be pure (aka @a ~ Expect' a@ in the old parlance).
 -- BUG: get rid of the SingI requirements due to using 'lam'
 mh'  :: (ABT Term abt)
-     => abt '[] (a ':-> 'HMeasure a)
+     => TransformCtx
+     -> abt '[] (a ':-> 'HMeasure a)
      -> abt '[] ('HMeasure a)
      -> Maybe (abt '[] (a ':-> 'HMeasure (HPair a 'HProb)))
-mh' proposal target =
-        let_ P.<$> (determine $ density target) P.<*> P.pure (\mu ->
+mh' ctx proposal target =
+        let_ P.<$> (determine $ densityInCtx ctx target) P.<*> P.pure (\mu ->
         lam' $ \old ->
             app proposal old >>= \new ->
             dirac $ pair' new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-}))
@@ -95,15 +99,16 @@ mh  :: (ABT Term abt)
      -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
 mh proposal target =
   P.maybe (error "mh: couldn't compute density") P.id $
-  mh' proposal target
+  mh' minimalCtx proposal target
 
 -- BUG: get rid of the SingI requirements due to using 'lam' in 'mh'
 mcmc' :: (ABT Term abt)
-      => abt '[] (a ':-> 'HMeasure a)
+      => TransformCtx
+      -> abt '[] (a ':-> 'HMeasure a)
       -> abt '[] ('HMeasure a)
       -> Maybe (abt '[] (a ':-> 'HMeasure a))
-mcmc' proposal target =
-    let_ P.<$> mh' proposal target P.<*> P.pure (\f ->
+mcmc' ctx proposal target =
+    let_ P.<$> mh' ctx proposal target P.<*> P.pure (\f ->
     lamWithVar Text.empty (sUnMeasure $ typeOf target) $ \old ->
         app f old >>= \new_ratio ->
         new_ratio `unpair` \new ratio ->
@@ -116,7 +121,7 @@ mcmc :: (ABT Term abt)
      -> abt '[] (a ':-> 'HMeasure a)
 mcmc proposal target =
   P.maybe (error "mcmc: couldn't compute density") P.id $
-  mcmc' proposal target
+  mcmc' minimalCtx proposal target
 
 gibbsProposal
     :: (ABT Term abt, SingI a, SingI b)
