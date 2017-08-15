@@ -209,7 +209,7 @@ testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
     "testRoadmapProg1" ~: testConcreteFile "tests/RoundTrip/testRoadmapProg1.hk",
     "testKernel"       ~: testConcreteFiles "tests/RoundTrip/testKernel.0.hk" "tests/RoundTrip/testKernel.expected.hk",
-    "gmm_gibbs"        ~: testConcreteFilesManyWithOpts
+    "gmm_gibbs"        ~: testConcreteFilesET
                            defaultMapleOptions { timelimit=300 }
                            [ "tests/RoundTrip/gmm_gibbs.0.hk" ]
                            "tests/RoundTrip/gmm_gibbs.expected.hk"
