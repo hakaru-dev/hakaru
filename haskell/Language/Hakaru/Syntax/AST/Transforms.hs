@@ -26,7 +26,7 @@ import Language.Hakaru.Syntax.Prelude (lamWithVar, app)
 import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Expect       (expectInCtx, determineExpect)
-import Language.Hakaru.Disintegrate (determine, observe, disintegrate)
+import Language.Hakaru.Disintegrate (determine, observeInCtx, disintegrateInCtx)
 import Language.Hakaru.Inference    (mcmc', mh')
 import Language.Hakaru.Maple        (sendToMaple, MapleOptions(..)
                                     ,defaultMapleOptions, MapleCommand(..)
@@ -230,19 +230,19 @@ haskellTransformations = simpleTable $ \tr ->
 
     Observe ->
       Just $ \ctx -> \case
-        e1 :* e2 :* End -> determine (observe e1 e2)
+        e1 :* e2 :* End -> determine $ observeInCtx ctx e1 e2
 
     MCMC ->
       Just $ \ctx -> \case
-        e1 :* e2 :* End -> mcmc' e1 e2
+        e1 :* e2 :* End -> mcmc' ctx e1 e2
 
     MH ->
       Just $ \ctx -> \case
-        e1 :* e2 :* End -> mh' e1 e2
+        e1 :* e2 :* End -> mh' ctx e1 e2
 
     Disint InHaskell ->
       Just $ \ctx -> \case
-        e1 :* End -> determine (disintegrate e1)
+        e1 :* End -> determine $ disintegrateInCtx ctx e1
 
     _ -> Nothing
 
