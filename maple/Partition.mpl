@@ -662,9 +662,30 @@ export
       true, e
     end proc;
 
-    export remove_false_pieces := proc(e::Partition, kb := KB:-empty)
-      PARTITION(remove(p -> type(KB:-assert(condOf(p), kb), t_not_a_kb), piecesOf(e)));
+    export trivial_pieces := proc(triv::satisfies(x->x subset {'true', 'false'}),
+                                  e::Partition
+                                  kb := KB:-empty)
+
+      local tt, ff, rs;
+      rs := piecesOf(e);
+      rs := map(mapPiece(((c,v) -> [c,KB:-assert(c,kb)],v)), rs);
+      if 'false' in triv then
+        rs := remove(p -> type(op(2,condOf(c)),t_not_a_kb), rs);
+      end if;
+      if 'true' in triv then
+        tt, rs := selectremove(p -> KB:-kb_substract(op(2,condOf(c)),kb)=[], rs);
+        if nops(tt)=1 then
+          return valOf(op(1,tt));
+        elif nops(tt)>1 then
+          error "found an invalid Partition (with multiple conditions which"
+                " are identically `true`: %1 in context %2", e, kb;
+        end if;
+      end if;
+      PARTITION(map(p -> subsop([1,2]=NULL,p), rs));
     end proc;
+
+    export remove_false_pieces := curry(trivial_pieces, {'false'});
+    export single_true_piece   := curry(trivial_pieces, {'true' });
 
     local `&on` := proc(f,k,$) proc(a,b,$) f(k(a),k(b)) end proc end proc;
     local condition_complexity := proc(x)
