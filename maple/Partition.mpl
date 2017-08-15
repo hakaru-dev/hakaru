@@ -44,7 +44,7 @@ local
     # global extensions to maple functionality
     :-`eval/PARTITION` :=
     proc(p, eqs, $)
-      Umap(x->eval(x,eqs), p);
+      Simpl:-trivial_pieces({'true','false'},Umap(x->eval(x,eqs), p));
     end proc;
 
     # :-`depends/PARTITION` :=
