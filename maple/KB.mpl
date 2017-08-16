@@ -67,7 +67,7 @@ KB := module ()
      # for debugging
      build_unsafely,
 
-     chill, warm, chillFns, warmFns,
+     chill, warm,
 
      # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
      kb_subtract,
@@ -939,11 +939,6 @@ KB := module ()
   chilled := '{size, idx}';
   chill := curry(chillFns,chilled);
   warm  := curry(warmFns,chilled);
-
-  # For some reason making these curried also requires `chill' and `warm'
-  # to be eta-expanded (i.e. `chill := x->chillFns(chilled)(x)')
-  chillFns := (fns, e) -> subsindets(e, 'specfunc'(fns), c->op(0,c)[op(c)]);
-  warmFns  := (fns, e) -> subsindets(e, 'specindex'(fns), c->map(curry(warmFns,fns), op(0,c)(op(c))));
 
   # The KB constructors are local, but sometimes for debugging purposes one
   # would like to construct the KB directly. This converts the global names

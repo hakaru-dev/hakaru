@@ -371,6 +371,14 @@ Utilities := module ()
     FAIL;
   end proc;
 
+  # `curry(chillFns,foo)' is the function which converts all occurences of
+  # `foo(as)' to `f[as]' in the given expression. `warmFns' is the inverse.
+  #
+  # For some reason making these curried also requires `KB:-chill' and
+  # `KB:-warm' to be eta-expanded (i.e. `chill := x->chillFns(chilled)(x)')
+  export chillFns := (fns, e) -> subsindets(e, 'specfunc'(fns), c->op(0,c)[op(c)]);
+  export warmFns  := (fns, e) -> subsindets(e, 'specindex'(fns), c->map(curry(warmFns,fns), op(0,c)(op(c))));
+
   # Print profiling information for a function when `infolevel' for that
   # function is set to at least 3, and assertlevel>0; e.g.
   #  > do_func := proc() .. func .. end: func := ProfileFn(do_func):
