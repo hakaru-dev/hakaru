@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleInstances
+{-# LANGUAGE CPP
+           , FlexibleInstances
            , FlexibleContexts
            , DeriveDataTypeable
            , DataKinds
@@ -66,6 +67,10 @@ import Data.Function (on)
 import Data.Monoid (Monoid(..))
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (mempty)
+#endif
 
 ----------------------------------------------------------------
 data MapleException
