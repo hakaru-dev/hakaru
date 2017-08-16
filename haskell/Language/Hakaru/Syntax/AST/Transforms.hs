@@ -170,9 +170,9 @@ expandTransformationsWith
     . (ABT Term abt, Applicative m, Monad m)
     => TransformTable abt m
     -> abt '[] a -> m (abt '[] a)
-expandTransformationsWith tbl =
-  flip evalStateT mempty .
-  cataABTM (pure . var) bind_ (>>= syn_)
+expandTransformationsWith tbl t0 =
+  flip evalStateT (mempty {nextFreeVar = nextFreeOrBind t0}) .
+  cataABTM (pure . var) bind_ (>>= syn_) $ t0
     where
     bind_ :: forall x xs b
            . Variable x
