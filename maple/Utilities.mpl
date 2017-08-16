@@ -236,6 +236,10 @@ Utilities := module ()
               };
       local expr := expr_, outty, outmk, inty, inmk, ty_ord ;
 
+      # Necessary because we convert `And' (etc.) to `Logic:-&and' (etc.), and
+      # e.g. `Logic:-&and(a<b,c<d)' is not a valid piecewise condition.
+      expr := chillFns('piecewise', expr);
+
       expr := foldr( proc(v,e) subsindets(e, op(v)) end proc
                    , expr
                    , [ { specfunc(relation, `Not`), `not`(relation) }
@@ -264,7 +268,8 @@ Utilities := module ()
       outmk, inmk := [ `Or`, `And` ][ty_ord][];
 
       if not expr :: outty then expr := outmk(expr) end if;
-      map(x -> if not x :: inty then inmk(x) else x end if, expr);
+      expr := map(x -> if not x :: inty then inmk(x) else x end if, expr);
+      expr := warmFns('piecewise', expr);
   end proc;
 
   # Classify a relation by matching either the LHS or RHS against
