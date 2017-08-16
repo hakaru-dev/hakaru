@@ -358,6 +358,18 @@ Utilities := module ()
             ,StringTools[FormatMessage](lastexception[2..-1]))
   end proc;
 
+  # Given a symmetric relation `x0', applies `test' the operands of the relation
+  # in a symmetric manner. If it succeeds, returns `x0' with the side satisifying
+  # `test' on the left-hand. If neither side satisfies `test', returns FAIL.
+  #  e.g.:
+  #   is_lhs(x=3, (a,_)->type(a,integer))  =  3=x
+  #   is_lhs(x=3, (a,_)->type(a,name))     =  x=3
+  #   is_lhs(x=3, (a,_)->type(a,complex))  =  FAIL
+  export is_lhs := proc(test,x)
+    if test(lhs(x), rhs(x),_rest) then return x end if;
+    if test(rhs(x), lhs(x),_rest) then return op(0,x)(rhs(x),lhs(x)) end if;
+    FAIL;
+  end proc;
 
   # Print profiling information for a function when `infolevel' for that
   # function is set to at least 3, and assertlevel>0; e.g.
