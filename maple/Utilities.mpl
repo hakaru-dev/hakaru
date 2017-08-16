@@ -485,7 +485,7 @@ Utilities := module ()
   export Profile := module()
     option package;
     export ModuleApply, GetProf, PPrProf, modules_to_profile, names_to_profile;
-    local ModuleLoad, cl, profile_flag_to_ord, name_to_string, take;
+    local ModuleLoad, profile_flag_to_ord, name_to_string;
 
     modules_to_profile := proc()
       kernelopts(opaquemodules=false):
