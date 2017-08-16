@@ -40,8 +40,7 @@ import qualified Data.Sequence as Seq
 import Control.Monad.Fix (MonadFix)
 import Control.Monad (liftM)
 import Control.Monad.Trans (MonadTrans(..))
-import Control.Monad.Reader (ReaderT(..), runReaderT, withReaderT, ask)
-import Control.Monad.State  (StateT(..), runStateT, put)
+import Control.Monad.State  (StateT(..), evalStateT, put, get, withStateT)
 import Control.Applicative (Applicative(..), Alternative(..), (<$>))
 import Data.Functor.Identity (Identity(..))
 
@@ -164,7 +163,7 @@ expandTransformationsWith'
 expandTransformationsWith' tbl =
   runIdentity . expandTransformationsWith tbl
 
-type TransformM = ReaderT TransformCtx
+type TransformM = StateT TransformCtx
 
 expandTransformationsWith
     :: forall abt a m
@@ -172,21 +171,23 @@ expandTransformationsWith
     => TransformTable abt m
     -> abt '[] a -> m (abt '[] a)
 expandTransformationsWith tbl =
-  flip runReaderT mempty .
+  flip evalStateT mempty .
   cataABTM (pure . var) bind_ (>>= syn_)
     where
     bind_ :: forall x xs b
            . Variable x
           -> TransformM m (abt xs b)
           -> TransformM m (abt (x ': xs) b)
-    bind_ v mt = bind v <$> withReaderT (ctxOf v <>) mt
+    bind_ v mt = bind v <$> withStateT (ctxOf v <>) mt
 
     syn_ :: forall b. Term abt b -> TransformM m (abt '[] b)
     syn_ t =
       case t of
         Transform_ tr :$ as ->
-          ask >>= \ctx ->
-          maybe (syn t) id <$> lift (lookupTransform' tbl tr ctx as)
+          get >>= \ctx ->
+          maybe (pure $ syn t)
+                (\r -> r <$ put (ctxOf r <> ctx))
+                =<< lift (lookupTransform' tbl tr ctx as)
         _ -> pure $ syn t
 
 mapleTransformationsWithOpts
