@@ -49,7 +49,7 @@ import Language.Hakaru.Syntax.Variable
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 
-import Control.Applicative (Alternative(..))
+import Control.Applicative (Alternative(..), Applicative(..))
 import Data.Number.Nat
 import Data.Data (Data, Typeable)
 import Data.List (stripPrefix)
