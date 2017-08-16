@@ -64,7 +64,7 @@ import qualified Data.Map as M
 import Data.List (isInfixOf, intercalate)
 import Data.Char (toLower)
 import Data.Function (on)
-import Data.Monoid (Monoid(..))
+
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
 
