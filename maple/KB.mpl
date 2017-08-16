@@ -289,8 +289,8 @@ KB := module ()
    # Performs simplification(?) in case something of the form `t_bound_on` is
    # found
    # This function signals it has failed to find a result with `FAIL`
-   bound_simp := proc(b,x,k,kb,pol,as,$)
-      local e, rel, c, kb1,ch;
+   bound_simp := proc(b,x,k,kb,pol,as0,$)
+      local e, rel, c, kb1,ch, as := as0;
       # b is a bound on x, so compare it against the current bound on x.
       # First, express `if`(pol,b,Not(b)) as rel(x,e)
       rel := op(0,b);
@@ -358,6 +358,14 @@ KB := module ()
 
       # chill but also unwraps `c' (?)
       if nops(c) > 0 then c := chill(op(1,c)) end if;
+
+      # Remove assumptions which seem to cause problems (see issue #46).
+      as := remove(a->a::relation and
+                   is_lhs((s,_)->
+                           hastype(s,{specfunc({Sum,Product,Int
+                                               ,`sum`,`product`,`int`})})
+                          , a)<>FAIL
+                   ,as);
 
       # Compare the new bound rel        (x,e          )
       # against the old bound op([1,1],c)(x,op([1,2],c))
