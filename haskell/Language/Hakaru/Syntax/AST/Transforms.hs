@@ -41,7 +41,7 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad (liftM)
 import Control.Monad.Trans (MonadTrans(..))
 import Control.Monad.State  (StateT(..), evalStateT, put, get, withStateT)
-import Control.Applicative (Applicative(..), Alternative(..), (<$>))
+import Control.Applicative (Applicative(..), Alternative(..), (<$>), (<$))
 import Data.Functor.Identity (Identity(..))
 
 import Control.Exception (try)
