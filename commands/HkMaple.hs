@@ -44,7 +44,8 @@ data Options a
     , no_unicode    :: Bool
     , toExpand      :: Maybe [Some2 Transform]
     , program       :: a } 
-  | ListCommands 
+  | ListCommands
+  | PrintVersion
 
 
 parseKeyVal :: O.ReadM (String, String) 
@@ -95,7 +96,11 @@ options = (Options
   ( O.flag' ListCommands  
       ( O.long "list-commands" <>
         O.help "Get list of available commands from Maple." <>
-        O.short 'l') )
+        O.short 'l') ) O.<|>
+  ( O.flag' PrintVersion
+      ( O.long "version" <>
+        O.help "Prints the version of the Hakaru Maple library." <>
+        O.short 'v') )
 
 parseOpts :: IO (Options FilePath)
 parseOpts = O.execParser $ O.info (O.helper <*> options)
@@ -116,6 +121,8 @@ main = parseOpts >>= runMaple
 runMaple :: Options FilePath -> IO ()
 runMaple ListCommands = 
   listCommands >>= \cs -> putStrLn $ "Available Hakaru Maple commands:\n\t"++ intercalate ", " cs
+
+runMaple PrintVersion = printVersion
 
 runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
   case prog of
@@ -140,3 +147,7 @@ listCommands = do
     maybe (throw $ MapleInterpreterException fromMaple toMaple_)
           return 
           (readMaybe fromMaple) 
+
+printVersion :: IO ()
+printVersion =
+  maple "use Hakaru, NewSLO in NewSLO:-PrintVersion() end use;" >>= putStr
