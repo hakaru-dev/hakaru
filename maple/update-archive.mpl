@@ -44,6 +44,7 @@ UpdateArchive := proc(lib_::string:="ppaml.mla")
   # May be a way to retrieve all this information in one go?
   getVer := proc()
     local v, ns, vs := NULL;
+    currentdir(olddir);
     v := ssystem(`git show -s --format="[\\"%h\\", \\"%ad\\"]"`);
     if v::[0,string] then
       vs := vs,op(parse(op(2,v)));
@@ -69,6 +70,7 @@ UpdateArchive := proc(lib_::string:="ppaml.mla")
     else vs := vs,{};
     end if;
 
+    currentdir(libdir);
     ns := [`commit hash`,`date`,`commit title`,`branch`,`status`];
     zip(`=`,ns,map(StringTools:-Chomp,[vs]));
   end proc;
