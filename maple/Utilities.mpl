@@ -489,8 +489,20 @@ Utilities := module ()
 
     modules_to_profile := proc()
       kernelopts(opaquemodules=false):
-      { 'BindingTools', 'Hakaru', 'KB', 'Partition', 'Partition:-Simpl', 'Loop'
-      , 'Domain', 'NewSLO', 'Summary'
+      { 'BindingTools'
+      # , 'Hakaru'
+      , 'KB'
+      , 'Partition'
+      , 'Partition:-Simpl'
+      , 'Loop'
+      , 'Domain'
+      # , 'NewSLO'
+      , 'NewSLO:-fromLO'
+      , 'NewSLO:-toLO'
+      , 'NewSLO:-reduce'
+      , 'NewSLO:-reduce_Integrals'
+      , 'NewSLO:-reduce_Partition'
+      , 'Summary'
       , entries(Domain:-Improve:-Simplifiers, nolist)
       };
     end proc;
