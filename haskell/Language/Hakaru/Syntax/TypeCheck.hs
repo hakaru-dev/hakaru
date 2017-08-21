@@ -35,7 +35,7 @@ module Language.Hakaru.Syntax.TypeCheck
     , inferable
     , mustCheck
     , TypedAST(..)
-    , onTypedAST, elimTypedAST
+    , onTypedAST, onTypedASTM, elimTypedAST
     , inferType
     , checkType
     ) where
@@ -191,8 +191,22 @@ mustCheck e = caseVarSyn e (const False) go
     go (U.Product_    _ _ _) = False
     go (U.Bucket_     _ _ _) = False
     go U.Reject_             = True
-    go (U.Expect_ _ e2)      = mustCheck' e2
-    go (U.Observe_  e1  _)   = mustCheck  e1
+    go (U.Transform_ tr es ) =
+      case (tr, es) of
+        (Expect   , (Nil2, e1) U.:* _ U.:* U.End)
+          -> mustCheck e1
+        (Observe  , (Nil2, e1) U.:* _ U.:* U.End)
+          -> mustCheck e1
+        (MCMC     , (Nil2, e1) U.:* (Nil2, e2) U.:* U.End)
+          -> mustCheck e1 && mustCheck e2
+        (Disint _ , (Nil2, e1) U.:* U.End)
+          -> mustCheck e1
+        (Simplify , (Nil2, e1) U.:* U.End)
+          -> mustCheck e1
+        (Summarize, (Nil2, e1) U.:* U.End)
+          -> mustCheck e1
+        (Reparam  , (Nil2, e1) U.:* U.End)
+          -> mustCheck e1
     go U.InjTyped{}          = False
 
 mustCheck'
@@ -400,6 +414,11 @@ data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
 
 onTypedAST :: (forall b . abt '[] b -> abt '[] b) -> TypedAST abt -> TypedAST abt
 onTypedAST f (TypedAST t p) = TypedAST t (f p)
+
+onTypedASTM :: (Functor m)
+            => (forall b . abt '[] b -> m (abt '[] b))
+            -> TypedAST abt -> m (TypedAST abt)
+onTypedASTM f (TypedAST t p) = TypedAST t <$> f p
 
 elimTypedAST :: (forall b . Sing b -> abt '[] b -> x) -> TypedAST abt -> x 
 elimTypedAST f (TypedAST t p) = f t p 
@@ -721,21 +740,7 @@ inferType = inferType_
            return . TypedAST typ1 $
                   syn (Bucket e1' e2' r1')
 
-       U.Expect_ e1 e2 -> do
-           TypedAST typ1 e1' <- inferType_ e1
-           case typ1 of
-               SMeasure typ2 -> do
-                   e2' <- checkBinder typ2 SProb e2
-                   return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
-               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
-
-       U.Observe_ e1 e2 -> do
-           TypedAST typ1 e1' <- inferType_ e1
-           case typ1 of
-               SMeasure typ2 -> do
-                   e2' <- checkType_ typ2 e2
-                   return . TypedAST typ1 $ syn (Observe :$ e1' :* e2' :* End)
-               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+       U.Transform_ tr es -> inferTransform sourceSpan tr es
 
        U.Superpose_ pes -> do
            -- TODO: clean up all this @map fst@, @map snd@, @zip@ stuff
@@ -755,6 +760,95 @@ inferType = inferType_
 
        _   | mustCheck e0 -> ambiguousMustCheck sourceSpan
            | otherwise    -> error "inferType: missing an inferable branch!"
+
+  inferTransform
+      :: Maybe U.SourceSpan
+      -> Transform as x
+      -> U.SArgs U.U_ABT as
+      -> TypeCheckMonad (TypedAST abt)
+  inferTransform sourceSpan
+                 Expect
+                 ((Nil2, e1) U.:* (Cons2 U.ToU Nil2, e2) U.:* U.End) = do
+    let e1src = getMetadata e1
+    TypedAST typ1 e1' <- inferType_ e1
+    case typ1 of
+        SMeasure typ2 -> do
+            e2' <- checkBinder typ2 SProb e2
+            return . TypedAST SProb $ syn
+              (Transform_ Expect :$ e1' :* e2' :* End)
+        _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
+
+  inferTransform sourceSpan
+                 Observe
+                 ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
+    let e1src = getMetadata e1
+    TypedAST typ1 e1' <- inferType_ e1
+    case typ1 of
+        SMeasure typ2 -> do
+            e2' <- checkType_ typ2 e2
+            return . TypedAST typ1 $ syn
+              (Transform_ Observe :$ e1' :* e2' :* End)
+        _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
+
+  inferTransform sourceSpan
+                 MCMC
+                 ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
+    let e1src = getMetadata e1
+        e2src = getMetadata e2
+    TypedAST typ1 e1' <- inferType_ e1
+    TypedAST typ2 e2' <- inferType_ e2
+    case typ1 of
+      SFun typa typmb ->
+        case typmb of
+          SMeasure typb ->
+            case typ2 of
+              SMeasure typc ->
+                case (jmEq1 typa typb, jmEq1 typb typc) of
+                  (Just Refl, Just Refl) ->
+                     return $ TypedAST (SFun typa (SMeasure typa))
+                            $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
+                  (_, Nothing) ->
+                    typeMismatch e2src (Right typmb) (Right typ2)
+                  (Nothing, _) ->
+                    typeMismatch e1src (Right $ SFun typa (SMeasure typa))
+                                       (Right typ1)
+              _ -> typeMismatch e2src (Left "HMeasure") (Right typ2)
+          _ -> typeMismatch e1src (Left "HMeasure") (Right typmb)
+      _ -> typeMismatch e1src (Left ":->") (Right typ1)
+
+  inferTransform sourceSpan
+                 (Disint k)
+                 ((Nil2, e1) U.:* U.End) = do
+    let e1src = getMetadata e1
+    TypedAST typ1 e1' <- inferType_ e1
+    case typ1 of
+      SMeasure typ2 ->
+        maybe (typeMismatch e1src (Left "HPair") (Right typ2))
+              return $
+        sUnPair' typ2 $ \(Refl, typa, typb) ->
+          TypedAST (SFun typa (SMeasure typb)) $
+            syn $ Transform_ (Disint k) :$ e1' :* End
+      _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
+
+  inferTransform sourceSpan
+                 Simplify
+                 ((Nil2, e1) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    return $ TypedAST typ1 $ syn (Transform_ Simplify :$ e1' :* End)
+
+  inferTransform sourceSpan
+                 Reparam
+                 ((Nil2, e1) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    return $ TypedAST typ1 $ syn (Transform_ Reparam :$ e1' :* End)
+
+  inferTransform sourceSpan
+                 Summarize
+                 ((Nil2, e1) U.:* U.End) = do
+    TypedAST typ1 e1' <- inferType_ e1
+    return $ TypedAST typ1 $ syn (Transform_ Summarize :$ e1' :* End)
+
+  inferTransform _ tr _ = error $ "inferTransform{" ++ show tr ++ "}: TODO"
 
   inferPrimOp
       :: U.PrimOp
@@ -1493,26 +1587,7 @@ checkType = checkType_
                     return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
                 Nothing -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure(HPair(HArray, s)")
             _           -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure(HPair(HArray, s)")
-
-
-        U.Expect_ e1 e2 ->
-            case typ0 of
-            SProb -> do
-                TypedAST typ1 e1' <- inferType_ e1
-                case typ1 of
-                    SMeasure typ2 -> do
-                        e2' <- checkBinder typ2 typ0 e2
-                        return $ syn (Expect :$ e1' :* e2' :* End)
-                    _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HProb")
-
-        U.Observe_ e1 e2 ->
-            case typ0 of
-            SMeasure typ2 -> do
-                e1' <- checkType_ typ0 e1
-                e2' <- checkType_ typ2 e2
-                return $ syn (Observe :$ e1' :* e2' :* End)
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+        U.Transform_ tr es -> checkTransform sourceSpan typ0 tr es
 
         U.Superpose_ pes ->
             case typ0 of
@@ -1545,6 +1620,84 @@ checkType = checkType_
                   UnsafeMode -> checkOrUnsafeCoerce sourceSpan e0' typ' typ0
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
+    checkTransform
+        :: Maybe U.SourceSpan
+        -> Sing x'
+        -> Transform as x
+        -> U.SArgs U.U_ABT as
+        -> TypeCheckMonad (abt '[] x')
+    checkTransform sourceSpan typ0
+                   Expect
+                   ((Nil2, e1) U.:* (Cons2 U.ToU Nil2, e2) U.:* U.End) =
+      case typ0 of
+      SProb -> do
+          TypedAST typ1 e1' <- inferType_ e1
+          case typ1 of
+              SMeasure typ2 -> do
+                  e2' <- checkBinder typ2 typ0 e2
+                  return $ syn (Transform_ Expect :$ e1' :* e2' :* End)
+              _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+      _ -> typeMismatch sourceSpan (Right typ0) (Left "HProb")
+
+    checkTransform sourceSpan typ0
+                   Observe
+                   ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) =
+      case typ0 of
+      SMeasure typ2 -> do
+          e1' <- checkType_ typ0 e1
+          e2' <- checkType_ typ2 e2
+          return $ syn (Transform_ Observe :$ e1' :* e2' :* End)
+      _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+
+    checkTransform sourceSpan typ0
+                   MCMC
+                   ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
+      case typ0 of
+        SFun typa typmb ->
+          case typmb of
+            SMeasure typb ->
+              case jmEq1 typa typb of
+                Just Refl -> do
+                  e1' <- checkType (SFun typa (SMeasure typa)) e1
+                  e2' <- checkType            (SMeasure typa)  e2
+                  return $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
+                Nothing   ->
+                  typeMismatch sourceSpan
+                                  (Right $ SFun typa (SMeasure typa))
+                                  (Right typ0)
+        _ -> typeMismatch sourceSpan (Left ":->") (Right typ0)
+
+    checkTransform sourceSpan typ0
+                   (Disint k)
+                   ((Nil2, e1) U.:* U.End) = do
+      case typ0 of
+        SFun typa typmb ->
+          case typmb of
+            SMeasure typb -> do
+              e1' <- checkType (SMeasure (sPair typa typb)) e1
+              return $ syn $ Transform_ (Disint k) :$ e1' :* End
+            _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typmb)
+        _ -> typeMismatch sourceSpan (Left ":->") (Right typ0)
+
+    checkTransform sourceSpan typ0
+                   Simplify
+                   ((Nil2, e1) U.:* U.End) = do
+      e1' <- checkType_ typ0 e1
+      return $ syn (Transform_ Simplify :$ e1' :* End)
+
+    checkTransform sourceSpan typ0
+                   Reparam
+                   ((Nil2, e1) U.:* U.End) = do
+      e1' <- checkType_ typ0 e1
+      return $ syn (Transform_ Reparam :$ e1' :* End)
+
+    checkTransform sourceSpan typ0
+                   Summarize
+                   ((Nil2, e1) U.:* U.End) = do
+      e1' <- checkType_ typ0 e1
+      return $ syn (Transform_ Summarize :$ e1' :* End)
+
+    checkTransform _ _ tr _ = error $ "checkTransform{" ++ show tr ++ "}: TODO"
 
     --------------------------------------------------------
     -- We make these local to 'checkType' for the same reason we have 'checkType_'

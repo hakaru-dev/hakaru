@@ -32,7 +32,6 @@ module Language.Hakaru.Simplify
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Command
 import Language.Hakaru.Maple 
 import Language.Hakaru.Syntax.TypeCheck
 
@@ -48,7 +47,7 @@ simplifyWithOpts
     :: forall abt a
     .  (ABT Term abt) 
     => MapleOptions () -> abt '[] a -> IO (abt '[] a)
-simplifyWithOpts o = sendToMaple o{command=injCmd Simplify}
+simplifyWithOpts o = sendToMaple o{command=MapleCommand Simplify}
 
 simplify'
     :: forall abt a
@@ -63,8 +62,9 @@ simplifyDebug
     -> Int
     -> abt '[] a
     -> IO (abt '[] a)
-simplifyDebug d t = sendToMaple defaultMapleOptions{command=injCmd Simplify,
-                                                    debug=d,timelimit=t}
+simplifyDebug d t = sendToMaple
+  defaultMapleOptions{command=MapleCommand Simplify,
+                      debug=d,timelimit=t}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

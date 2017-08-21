@@ -18,12 +18,15 @@ import           Language.Hakaru.Simplify
 import           Language.Hakaru.Maple 
 import           Language.Hakaru.Parser.Maple 
 
+import           Language.Hakaru.Syntax.Transform (Transform(..)
+                                                  ,someTransformations)
+import           Language.Hakaru.Syntax.IClasses (Some2(..))
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 
-import           Data.Monoid ((<>), mconcat)
+import           Data.Monoid ((<>), Monoid(..))
 import           Data.Text (Text, unpack, pack)
 import qualified Data.Text as Text 
 import qualified Data.Text.Utf8 as IO
@@ -37,8 +40,9 @@ import qualified Data.Map as M
 
 data Options a 
   = Options
-    { moptions      :: MapleOptions String
+    { moptions      :: MapleOptions (Maybe String)
     , no_unicode    :: Bool
+    , toExpand      :: Maybe [Some2 Transform]
     , program       :: a } 
   | ListCommands 
 
@@ -53,13 +57,12 @@ parseKeyVal =
 options :: O.Parser (Options FilePath)
 options = (Options
   <$> (MapleOptions <$> 
-        O.option O.str
+        O.option (O.maybeReader (Just . Just))
         ( O.long "command" <>
           O.help ("Command to send to Maple. You may enter a prefix of the command string if "
-                 ++"it uniquely identifies a command. "
-                 ++"Default: Simplify") <>
+                 ++"it uniquely identifies a command. ") <>
           O.short 'c' <> 
-          O.value "Simplify" ) 
+          O.value Nothing ) 
     <*> O.switch
         ( O.long "debug" <>
           O.help "Prints output that is sent to Maple." )
@@ -75,11 +78,17 @@ options = (Options
           O.short 'm' <> 
           O.help ( "Extra options to send to Maple\neach options is of the form KEY=VAL\n"
                  ++"where KEY is a Maple name, and VAL is a Maple expression.")
-        ))))
+        )))
+    <*> pure mempty)
   <*> O.switch 
       ( O.long "no-unicode" <> 
         O.short 'u' <> 
         O.help "Removes unicode characters from names in the Maple output.")
+  <*> O.option (O.maybeReader $ fmap (fmap Just) readMaybe)
+      ( O.short 'e' <>
+        O.long "to-expand" <>
+        O.value Nothing <>
+        O.help "Transformations to be expanded; default is all transformations" )
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
         O.help "Filename containing program to be simplified, or \"-\" to read from input." )) O.<|> 
@@ -101,8 +110,6 @@ progDesc = unwords
   ,"pretty print, parse and typecheck the program resulting from Maple"
   ]
 
-et (TypedAST t (x :: Term a)) = TypedAST t (expandTransformations x)
-
 main :: IO ()
 main = parseOpts >>= runMaple
 
@@ -110,11 +117,17 @@ runMaple :: Options FilePath -> IO ()
 runMaple ListCommands = 
   listCommands >>= \cs -> putStrLn $ "Available Hakaru Maple commands:\n\t"++ intercalate ", " cs
 
-runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog -> 
+runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
   case prog of
     Left  err  -> IO.hPutStrLn stderr err
-    Right ast  -> do 
-      TypedAST _ ast' <- sendToMaple' moptions (et ast)
+    Right ast  -> do
+      let et = onTypedASTM $ expandTransformationsWith $
+                (maybe id someTransformations toExpand)
+                (allTransformationsWithMOpts moptions{command=()})
+      TypedAST _ ast' <-
+        (case command moptions of
+           Just c  -> sendToMaple' moptions{command=c}
+           Nothing -> return) =<< et ast
       IO.print
             $ pretty 
             $ (if no_unicode then renameAST removeUnicodeChars else id) 

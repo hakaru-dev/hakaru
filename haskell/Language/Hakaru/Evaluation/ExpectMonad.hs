@@ -48,6 +48,7 @@ import Language.Hakaru.Syntax.IClasses (Some2(..))
 import Language.Hakaru.Syntax.ABT      (ABT(..), caseVarSyn, subst, maxNextFreeOrBind)
 import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.AST      hiding (Expect)
+import Language.Hakaru.Syntax.Transform (TransformCtx(..))
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (evaluate)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
@@ -120,13 +121,14 @@ runExpect
     :: forall abt f a
     .  (ABT Term abt, F.Foldable f)
     => Expect abt (abt '[] a)
+    -> TransformCtx
     -> abt '[a] 'HProb
     -> f (Some2 abt)
     -> abt '[] 'HProb
-runExpect (Expect m) f es =
+runExpect (Expect m) ctx f es =
     m c0 h0
     where
-    i0   = nextFreeOrBind f `max` maxNextFreeOrBind es
+    i0   = maximum [nextFreeOrBind f, maxNextFreeOrBind es, nextFreeVar ctx]
     h0   = ListContext i0 []
     c0 e =
         residualizeExpectListContext $

@@ -31,7 +31,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     -- * The disintegration monad
     -- ** List-based version
       getStatements, putStatements
-    , ListContext(..), Ans, Dis(..), runDis
+    , ListContext(..), Ans, Dis(..), runDis, runDisInCtx
     -- ** TODO: IntMap-based version
     
     -- * Operators on the disintegration monad
@@ -107,6 +107,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.TypeOf
+import Language.Hakaru.Syntax.Transform (TransformCtx(..), minimalCtx)
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
@@ -301,11 +302,13 @@ newtype Dis abt x =
 -- We use 'Some2' on the inputs because it doesn't matter what their
 -- type or locally-bound variables are, so we want to allow @f@ to
 -- contain terms with different indices.
-runDis :: (ABT Term abt, F.Foldable f)
-    => Dis abt (abt '[] a)
+runDisInCtx
+    :: (ABT Term abt, F.Foldable f)
+    => TransformCtx
+    -> Dis abt (abt '[] a)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
-runDis d es =
+runDisInCtx ctx d es =
     m0 [] c0 (ListContext i0 []) emptyAssocs
     where
     (Dis m0) = d >>= residualizeLocs
@@ -316,7 +319,14 @@ runDis d es =
     -- that redex by changing the type of 'residualizeListContext'...
     c0 (e,rho) ss _ = [residualizeListContext ss rho (syn(Dirac :$ e :* End))]
                   
-    i0 = maxNextFree es
+    i0 = maxNextFree es `max` nextFreeVar ctx
+
+runDis
+    :: (ABT Term abt, F.Foldable f)
+    => Dis abt (abt '[] a)
+    -> f (Some2 abt)
+    -> [abt '[] ('HMeasure a)]
+runDis = runDisInCtx minimalCtx
 
 {---------------------------------------------------------------------------------- 
  

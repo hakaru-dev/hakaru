@@ -7,6 +7,7 @@
            , TypeOperators
            , FlexibleContexts
            , UndecidableInstances
+           , LambdaCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -47,12 +48,14 @@ import qualified Data.Sequence         as Seq
 import qualified Data.Vector           as V
 import           Data.Ratio
 import qualified Data.Text             as T
+import           Control.Applicative   (Applicative(..))
 
 import           Data.Number.Natural   (fromNatural, fromNonNegativeRational)
 import           Data.Number.Nat
 import qualified Data.Number.LogFloat  as LF
 
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, jmEq1, TypeEq(..))
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, jmEq1, TypeEq(..)
+                                       ,Foldable21(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
@@ -115,6 +118,11 @@ ppBinder e = go [] (viewABT e)
     go xs (Bind x v) = go (ppVariable x : xs) v
     go xs (Var  x)   = (reverse xs, ppVariable x)
     go xs (Syn  t)   = (reverse xs, pretty (syn t))
+
+ppBinderAsFun :: forall abt xs a . ABT Term abt => abt xs a -> Doc
+ppBinderAsFun e =
+  let (vars, body) = ppBinder e in
+  if null vars then body else sep [fsep vars <> colon, body]
 
 ppBinder1 :: (ABT Term abt) => abt '[x] a -> (Doc, Doc, Doc)
 ppBinder1 e = caseBind e $ \x v ->
@@ -346,15 +354,21 @@ ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
               , text "to" <+> pretty e2 <> colon ]
         , body ]
 
-ppSCon p Expect = \(e1 :* e2 :* End) ->
-    let (var, _, body) = ppBinder1 e2 in
-    parensIf (p > 0) $
-    sep [ text "expect" <+> var <+> pretty e1 <> colon
-        , body ]
+ppSCon p (Transform_ t) = ppTransform p t
 
-ppSCon p Observe = \(e1 :* e2 :* End) ->
-    ppApply2 p "observe" e1 e2
-
+ppTransform :: (ABT Term abt)
+            => Int -> Transform args a
+            -> SArgs abt args -> Doc
+ppTransform p t es =
+  case t of
+    Expect ->
+      case es of
+        e1 :* e2 :* End ->
+          let (var, _, body) = ppBinder1 e2 in
+          parensIf (p > 0) $
+          sep [ text "expect" <+> var <+> pretty e1 <> colon
+              , body ]
+    _ -> ppApply p (transformName t) es
 
 ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Doc
 ppCoerceTo p c = ppApply1 p f
@@ -661,6 +675,11 @@ ppApply1 p f e1 = ppFun p f [flip prettyPrec e1]
 
 ppApply2 :: (ABT Term abt) => Int -> String -> abt '[] a -> abt '[] b -> Doc
 ppApply2 p f e1 e2 = ppFun p f [flip prettyPrec e1, flip prettyPrec e2]
+
+ppApply :: ABT Term abt => Int -> String
+        -> SArgs abt xs -> Doc
+ppApply p f es =
+  ppFun p f $ foldMap21 (pure . const . ppBinderAsFun) es
 
 ppBinop
     :: (ABT Term abt)

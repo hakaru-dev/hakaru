@@ -1,11 +1,10 @@
 {-# LANGUAGE FlexibleContexts
            , GADTs
-           , Rank2Types
            , ScopedTypeVariables
            , DataKinds
            , TypeOperators
-           , ViewPatterns
            , OverloadedStrings
+           , LambdaCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -26,8 +25,12 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Prelude (lamWithVar, app)
 import Language.Hakaru.Types.DataKind
 
-import Language.Hakaru.Expect       (expect)
-import Language.Hakaru.Disintegrate (determine, observe)
+import Language.Hakaru.Expect       (expectInCtx, determineExpect)
+import Language.Hakaru.Disintegrate (determine, observeInCtx, disintegrateInCtx)
+import Language.Hakaru.Inference    (mcmc', mh')
+import Language.Hakaru.Maple        (sendToMaple, MapleOptions(..)
+                                    ,defaultMapleOptions, MapleCommand(..)
+                                    ,MapleException)
 
 import Data.Ratio (numerator, denominator)
 import Language.Hakaru.Types.Sing (sing, Sing(..), sUnFun)
@@ -36,6 +39,16 @@ import Language.Hakaru.Types.Coercion (findCoercion, Coerce(..))
 import qualified Data.Sequence as Seq 
 import Control.Monad.Fix (MonadFix)
 import Control.Monad (liftM)
+import Control.Monad.Trans (MonadTrans(..))
+import Control.Monad.State  (StateT(..), evalStateT, put, get, withStateT)
+import Control.Applicative (Applicative(..), Alternative(..), (<$>), (<$))
+import Data.Functor.Identity (Identity(..))
+
+import Control.Exception (try)
+import System.IO (stderr)
+import Data.Text.Utf8 (hPutStrLn)
+import Data.Text (pack)
+import Data.Monoid (Monoid(..), (<>))
 
 import Debug.Trace
 
@@ -126,23 +139,127 @@ underLam'p f e =
               caseVarSyn e' var_ syn_
   in go e
 
+--------------------------------------------------------------------------------
+
 expandTransformations
     :: forall abt a
     . (ABT Term abt)
     => abt '[] a -> abt '[] a
 expandTransformations =
-    cataABT var bind alg
-    where 
-    alg :: forall b. Term abt b -> abt '[] b
-    alg t =
-        case t of
-        Expect  :$ e1 :* e2 :* End -> expect  e1 e2
-        Observe :$ e1 :* e2 :* End ->
-          case determine (observe e1 e2) of
-          Just t' -> t'
-          Nothing -> syn t
-        _                         -> syn t
-        
+  expandTransformationsWith' haskellTransformations
+
+expandAllTransformations
+    :: forall abt a
+    . (ABT Term abt)
+    => abt '[] a -> IO (abt '[] a)
+expandAllTransformations =
+  expandTransformationsWith allTransformations
+
+expandTransformationsWith'
+    :: forall abt a
+    . (ABT Term abt)
+    => TransformTable abt Identity
+    -> abt '[] a -> abt '[] a
+expandTransformationsWith' tbl =
+  runIdentity . expandTransformationsWith tbl
+
+type TransformM = StateT TransformCtx
+
+expandTransformationsWith
+    :: forall abt a m
+    . (ABT Term abt, Applicative m, Monad m)
+    => TransformTable abt m
+    -> abt '[] a -> m (abt '[] a)
+expandTransformationsWith tbl t0 =
+  flip evalStateT (mempty {nextFreeVar = nextFreeOrBind t0}) .
+  cataABTM (pure . var) bind_ (>>= syn_) $ t0
+    where
+    bind_ :: forall x xs b
+           . Variable x
+          -> TransformM m (abt xs b)
+          -> TransformM m (abt (x ': xs) b)
+    bind_ v mt = bind v <$> withStateT (ctxOf v <>) mt
+
+    syn_ :: forall b. Term abt b -> TransformM m (abt '[] b)
+    syn_ t =
+      case t of
+        Transform_ tr :$ as ->
+          get >>= \ctx ->
+          maybe (pure $ syn t)
+                (\r -> r <$ put (ctxOf r <> ctx))
+                =<< lift (lookupTransform' tbl tr ctx as)
+        _ -> pure $ syn t
+
+mapleTransformationsWithOpts
+  :: forall abt
+   . ABT Term abt
+  => MapleOptions ()
+  -> TransformTable abt IO
+mapleTransformationsWithOpts opts = TransformTable $ \tr ->
+  let cmd c ctx x =
+        try (sendToMaple opts{command=MapleCommand c
+                             ,context=ctx} x) >>=
+          \case
+            Left (err :: MapleException) ->
+              hPutStrLn stderr (pack $ show err) >> pure Nothing
+            Right r ->
+              pure $ Just r
+      cmd :: Transform '[LC i] o -> TransformCtx
+          -> abt '[] i  -> IO (Maybe (abt '[] o)) in
+  case tr of
+    Simplify       ->
+      Just $ \ctx -> \case { e1 :* End -> cmd tr ctx e1 }
+    Summarize      ->
+      Just $ \ctx -> \case { e1 :* End -> cmd tr ctx e1 }
+    Reparam        ->
+      Just $ \ctx -> \case { e1 :* End -> cmd tr ctx e1 }
+    Disint InMaple ->
+      Just $ \ctx -> \case { e1 :* End -> cmd tr ctx e1 }
+    _              -> Nothing
+
+mapleTransformations
+  :: ABT Term abt
+  => TransformTable abt IO
+mapleTransformations = mapleTransformationsWithOpts defaultMapleOptions
+
+haskellTransformations :: (Applicative m, ABT Term abt) => TransformTable abt m
+haskellTransformations = simpleTable $ \tr ->
+  case tr of
+    Expect ->
+      Just $ \ctx -> \case
+        e1 :* e2 :* End -> determineExpect $ expectInCtx ctx e1 e2
+
+    Observe ->
+      Just $ \ctx -> \case
+        e1 :* e2 :* End -> determine $ observeInCtx ctx e1 e2
+
+    MCMC ->
+      Just $ \ctx -> \case
+        e1 :* e2 :* End -> mcmc' ctx e1 e2
+
+    MH ->
+      Just $ \ctx -> \case
+        e1 :* e2 :* End -> mh' ctx e1 e2
+
+    Disint InHaskell ->
+      Just $ \ctx -> \case
+        e1 :* End -> determine $ disintegrateInCtx ctx e1
+
+    _ -> Nothing
+
+allTransformationsWithMOpts
+   :: ABT Term abt
+   => MapleOptions ()
+   -> TransformTable abt IO
+allTransformationsWithMOpts opts = unionTable
+  (mapleTransformationsWithOpts opts)
+  haskellTransformations
+
+allTransformations :: ABT Term abt => TransformTable abt IO
+allTransformations = allTransformationsWithMOpts defaultMapleOptions
+
+--------------------------------------------------------------------------------
+
 coalesce
   :: forall abt a
   .  (ABT Term abt)

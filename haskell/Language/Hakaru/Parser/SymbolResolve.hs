@@ -3,6 +3,9 @@
            , DataKinds
            , KindSignatures
            , GADTs
+           , LambdaCase
+           , PolyKinds
+           , RankNTypes
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve
@@ -16,6 +19,7 @@ import Data.Functor                     ((<$>))
 import Control.Applicative              ((<*>))
 #endif
 import Control.Monad.Trans.State.Strict (State, state, evalState)
+import Control.Monad (join)
 
 import qualified Data.Number.Nat                 as N
 import qualified Data.IntMap                     as IM
@@ -167,8 +171,7 @@ primTable =
     ,("iff",         t2 $ \x y -> syn $ U.NaryOp_ U.Iff [x, y])
     ,("min",         t2 $ \x y -> syn $ U.NaryOp_ U.Min [x, y])
     ,("max",         t2 $ \x y -> syn $ U.NaryOp_ U.Max [x, y])
-    -- Observe
-    ,("observe",     t2 $ \x y -> syn $ U.Observe_ x y)
+
     -- Macros
     ,("weibull",     TNeu $ syn $ U.InjTyped $
                      P.lam $ \x -> P.lam $ \y -> P.weibull x y)
@@ -277,6 +280,19 @@ resolveBinder symbols name e1 e2 f = do
         <$> symbolResolution symbols e1
         <*> symbolResolution (insertSymbol name' symbols) e2
 
+resolveTransform
+    :: SymbolTable
+    -> U.Transform'
+    -> U.SArgs' Text
+    -> State Int (U.AST' (Symbol U.AST))
+resolveTransform symbols tr (U.SArgs' es) =
+    U.Transform tr . U.SArgs' <$> mapM go es where
+      go :: ([Text], U.AST' Text)
+         -> State Int ([Symbol U.AST], U.AST' (Symbol U.AST))
+      go (nms,x) = do
+        nms' <- mapM gensym nms
+        (,) (map mkSym nms') <$>
+            symbolResolution (insertSymbols nms' symbols) x
 
 -- TODO: clean up by merging the @Reader (SymbolTable)@ and @State Int@ monads
 -- | Figure out symbols and types.
@@ -360,7 +376,7 @@ symbolResolution symbols ast =
 
     U.Bind   name e1 e2    -> resolveBinder symbols name e1 e2 U.Bind
     U.Plate  name e1 e2    -> resolveBinder symbols name e1 e2 U.Plate
-    U.Expect name e1 e2    -> resolveBinder symbols name e1 e2 U.Expect
+    U.Transform tr es      -> resolveTransform symbols tr es
     U.Chain  name e1 e2 e3 -> do
         name' <- gensym name
         U.Chain (mkSym name')
@@ -467,11 +483,14 @@ normAST ast =
     U.Bind   name e1 e2       -> U.Bind   name (normAST e1) (normAST e2)
     U.Plate  name e1 e2       -> U.Plate  name (normAST e1) (normAST e2)
     U.Chain  name e1 e2 e3    -> U.Chain  name (normAST e1) (normAST e2) (normAST e3)
-    U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
+    U.Transform tr es         -> U.Transform tr (normSArgs es)
     U.Msum es                 -> U.Msum (map normAST es)
     U.Data name tvars typs e  -> U.Data name tvars typs e
      -- do we need to norm here? what if we try to define `true` which is already a constructor
     U.WithMeta a meta         -> U.WithMeta (normAST a) meta
+
+normSArgs :: U.SArgs' (Symbol U.AST) -> U.SArgs' (Symbol U.AST)
+normSArgs (U.SArgs' es) = U.SArgs' $ map (fmap normAST) es
 
 branchNorm :: U.Branch' (Symbol U.AST) -> U.Branch' (Symbol U.AST)
 branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
@@ -612,13 +631,73 @@ makeAST ast =
     U.Bucket s e1 e2 e3 ->
         withName "U.Bucket"  s $ \name ->
             syn $ U.Bucket_ (makeAST e1) (makeAST e2) (makeReducerAST name e3 Nil1)
-    U.Expect s e1 e2 ->
-        withName "U.Expect" s $ \name ->
-            syn $ U.Expect_ (makeAST e1) (bind name $ makeAST e2)
+    U.Transform tr es -> makeTransform tr es
     U.Msum es -> collapseSuperposes (map makeAST es)
-
     U.Data name tvars typs e -> error "TODO: makeAST{U.Data}" 
     U.WithMeta a meta -> withMetadata meta (makeAST a)
+
+makeTransform :: U.Transform' -> U.SArgs' (Symbol U.AST) -> U.AST
+makeTransform tru esu =
+  case typedTransform tru of
+    Some2 tr ->
+      let wrongArgsErr = error $ "Wrong number of arguments passed to " ++
+                                 T.transformName tr
+          res = U.Transform_ tr <$> matchSArgs (transformArgs tr) esu
+      in maybe wrongArgsErr syn res
+
+type SVarsSpine = (List1 (Lift1 ()) :: [k] -> *)
+type SArgsSpine = (List1 (PointwiseP SVarsSpine (Lift1 ())) :: [([k],k1)] -> *)
+
+transformArgs :: T.Transform xs a -> SArgsSpine xs
+transformArgs t =
+  let arg0 = PwP Nil1 (Lift1 ())
+      arg1 = PwP (Cons1 (Lift1 ()) Nil1) (Lift1 ())
+  in case t of
+     -- TODO: can SingI be generalized to allow things which aren't `Sing's
+     -- so these right hand sides can become `sing'?
+       T.Observe   -> Cons1 arg0 $ Cons1 arg0 Nil1
+       T.MH        -> Cons1 arg0 $ Cons1 arg0 Nil1
+       T.MCMC      -> Cons1 arg0 $ Cons1 arg0 Nil1
+       T.Disint k  -> Cons1 arg0 Nil1
+       T.Summarize -> Cons1 arg0 Nil1
+       T.Simplify  -> Cons1 arg0 Nil1
+       T.Reparam   -> Cons1 arg0 Nil1
+       T.Expect    -> Cons1 arg0 $ Cons1 arg1 Nil1
+
+matchSArgs :: SArgsSpine xs -> U.SArgs' (Symbol U.AST)
+           -> Maybe (U.SArgs U.U_ABT xs)
+matchSArgs sp (U.SArgs' es) =
+  case (sp, es) of
+    ( Nil1, [] ) -> Just U.End
+    ( Cons1 (PwP vs _) sp', (vs',e0):es' )
+      -> join $ matchSVars vs vs' e0 $ \vsu e0' ->
+           (U.:*) (vsu, e0') <$> matchSArgs sp' (U.SArgs' es')
+    _ -> Nothing
+
+matchSVars :: SVarsSpine vs -> [Symbol U.AST] -> U.AST' (Symbol U.AST)
+           -> (forall vsu . List2 U.ToUntyped vs vsu
+                         -> U.U_ABT vsu 'U.U
+                         -> r)
+           -> Maybe r
+matchSVars vs nms e k =
+  case (vs, nms) of
+    (Nil1       , []     ) -> Just $ k Nil2 (makeAST e)
+    (Cons1 v vs', nm:nms') ->
+      matchSVars vs' nms' e $ \vsu e' ->
+        withName "U.SArgs" nm $ \nm' ->
+          k (Cons2 U.ToU vsu) (bind nm' e')
+    _ -> Nothing
+
+typedTransform :: U.Transform' -> Some2 T.Transform
+typedTransform = \case
+  U.Observe   -> Some2 T.Observe
+  U.MH        -> Some2 T.MH
+  U.MCMC      -> Some2 T.MCMC
+  U.Disint k  -> Some2 $ T.Disint k
+  U.Summarize -> Some2 T.Summarize
+  U.Simplify  -> Some2 T.Simplify
+  U.Reparam   -> Some2 T.Reparam
+  U.Expect    -> Some2 T.Expect
 
 withName :: String -> Symbol U.AST -> (Variable 'U.U -> r) -> r
 withName fun s k =
@@ -634,19 +713,20 @@ resolveAST ast =
     evalState (symbolResolution primTable ast) 0
 
 resolveAST'
-    :: [U.Name]
+    :: N.Nat
+    -> [U.Name]
     -> U.AST' Text
     -> U.AST
-resolveAST' syms ast =
+resolveAST' nextVar syms ast =
     coalesce .
     makeAST  .
     normAST  $
     evalState (symbolResolution
         (insertSymbols syms primTable) ast)
-        (nextVarID_ syms)
+        (N.fromNat $ nextVarID_ syms)
     where
-    nextVarID_ [] = N.fromNat 0
-    nextVarID_ xs = N.fromNat . (1+) . F.maximum $ map U.nameID xs
+    nextVarID_ [] = nextVar
+    nextVarID_ xs = max nextVar . (1+) . F.maximum $ map U.nameID xs
 
 makeName :: SomeVariable ('KProxy :: KProxy Hakaru) -> U.Name
 makeName (SomeVariable (Variable hint vID _)) = U.Name vID hint
