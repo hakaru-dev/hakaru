@@ -38,7 +38,7 @@ NewSLO := module ()
          RoundTrip, RoundTrip_postproc, Simplify, SimplifyKB,  apply_LO,
          Commands, Rename, Disintegrate, Summarize, Reparam,
          TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
-         Concrete,
+         Concrete, PrintVersion,
          toLO, fromLO, improve, reduce,
          density, bounds, unweight,
 

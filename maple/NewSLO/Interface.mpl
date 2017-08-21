@@ -190,6 +190,15 @@ eval_in_ctx := proc(ev, e, kb, $)
   end if;
 end proc;
 
+PrintVersion := proc($)
+  local i,v,s;
+  s := max(op(map(length@lhs,Hakaru:-Version)));
+  for i in map(lhs,Hakaru:-Version) do
+    v := table(Hakaru:-Version)[i];
+    printf(cat("%-",s,"s : %s\n"), i, `if`(v::string,v,""));
+  end do;
+end proc;
+
 # Testing
 
 TestSimplify := proc(m, t, n::algebraic:=m, {verify:=simplify})

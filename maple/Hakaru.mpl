@@ -69,7 +69,7 @@ Hakaru := module ()
          pattern_match, pattern_binds, bound_names_in,
          closed_bounds, open_bounds,
          htype_patterns,
-         UpdateArchive;
+         UpdateArchive, Version;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global
