@@ -144,5 +144,62 @@ unsimplified version of the model (`thermometer_disintegrate.hk`).
 
 ## Application ##
 
+Our thermometer model is two dimensional, so it is possible for us to tune our model values using importance sampling or an exhaustive search. However, these approaches
+will not be possible in higher dimensions. Therefore, we will use a *Markov Chain Monte Carlo* method called *Metropolis-Hastings* to demonstrate how Hakaru can be used 
+for problems with high dimensionality. To use the [Metropolis-Hastings transform](../transforms/mh.md), you must have a target distribution and a transition kernel. The 
+thermometer model that we have already built will be our target distribution, but we have yet to create the transition kernel.
+
+When specifying a model to be the transition kernel, our goal is to propose samples that are representitive of the posterior model. For this example, we will hold one of 
+the noise parameters constant will updating the other by drawing new values from a `uniform` distribution. This allows the sampler to remember a good setting for a parameter
+when one is found, allowig it to concentrate on the remaining parameters:
+
+````nohighlight
+fn noise pair(prob, prob):
+          match noise:
+           (noiseTprev, noiseMprev):
+            weight(1/2, 
+                    noiseTprime <~ uniform(3,8)
+                    return (real2prob(noiseTprime), noiseMprev)) <|>
+            weight(1/2, 
+                   noiseMprime <~ uniform(1,4)
+                   return (noiseTprev, real2prob(noiseMprime)))
+````
+
+**Note: **Like any model in Hakaru, this program can be passed to other program transformations such as `hk-maple`. 
+
+With both our target distribution and transition kernel defined, we can now use the Metropolis-Hastings method to transform our program. However, instead of calling `mh` in
+the command prompt, we will include it as part of our Hakaru program by using the `mcmc(<kernel>, <target>)` syntactic transform:
+
+````nohighlight
+mcmc(
+      simplify(
+        fn noise pair(prob, prob):
+          match noise:
+           (noiseTprev, noiseMprev):
+            weight(1/2, 
+                    noiseTprime <~ uniform(3,8)
+                    return (real2prob(noiseTprime), noiseMprev)) <|>
+            weight(1/2, 
+                   noiseMprime <~ uniform(1,4)
+                   return (noiseTprev, real2prob(noiseMprime))))
+      ,
+      simplify(
+        disint(
+          nT <~ uniform(3,8)
+          nM <~ uniform(1,4)
+          
+          noiseT = real2prob(nT)
+          noiseM = real2prob(nM)
+          
+          t1 <~ normal(21, noiseT)
+          t2 <~ normal(t1, noiseT)
+          
+          m1 <~ normal(t1, noiseM)
+          m2 <~ normal(t2, noiseM)
+          
+          return ((m1, m2), (noiseT, noiseM))))(x)
+      )
+````
+
 [^1]: P. Narayanan, J. Carette, W. Romano, C. Shan and R. Zinkov, "Probabilistic Inference by Program Transformation in Hakaru (System Description)", Functional and Logic 
 Programming, pp. 62-79, 2016.
