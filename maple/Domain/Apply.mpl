@@ -209,16 +209,16 @@ export Apply := module ()
   # Move into an integral by augmenting the KB with the variables bound by
   # that integral.
   local into_mk := proc(dbnd::DomBound, vn, vt, ctx, $)
-      local kb, v_i, v_k, vn_, kb1, rn;
-      kb := ctx:-context;
-      if kb :: t_not_a_kb then return KB:-NotAKB() end if;
+    local kb, v_i, v_k, vn_, kb1, rn;
+    kb := ctx:-context;
+    if kb :: t_not_a_kb then return KB:-NotAKB() end if;
 
-      v_i := Domain:-Bound:-varIx(dbnd, vn);
-      v_k := op([1,v_i,3], dbnd);
-      vn_, kb1 := Domain:-ExtBound[v_k]:-MakeKB(vn, Domain:-ExtBound[v_k]:-SplitRange(vt), kb);
+    v_i := Domain:-Bound:-varIx(dbnd, vn);
+    v_k := op([1,v_i,3], dbnd);
+    vn_, kb1 := Domain:-ExtBound[v_k]:-MakeKB(vn, Domain:-ExtBound[v_k]:-SplitRange(vt), kb);
 
-      rn := `if`(evalb(vn=vn_), [], [vn=vn_]);
-      upd_field(ctx, 'context', _->kb1), rn;
+    rn := `if`(evalb(vn=vn_), [], [vn=vn_]);
+    upd_field(ctx, 'context', _->kb1), rn;
   end proc;
 
   # Performs multiple integrals, corresponding to those variables given in
@@ -237,30 +237,30 @@ export Apply := module ()
   #          the knowledge that
   #            `{v0 in RangeOf(v0,dbnd), v1 in RangeOf(v1,dbnd), .., vn in ..}'
   local do_mks := proc(e, kont, todo::({list,set})(DomBoundVar), dbnd :: DomBound, ctx, $)
-      local vs, v_td, i, vt, kb0, v_mk, _, ctx1, rn, r := e;
+    local vs, v_td, i, vt, kb0, v_mk, _, ctx1, rn, r := e;
 
-      if todo :: set then
-        vs := select(v->v in todo,Domain:-Bound:-varsOf(dbnd));
-        vs := ListTools[Reverse](vs);
-      else
-        vs := todo;
-      end if;
+    if todo :: set then
+      vs := select(v->v in todo,Domain:-Bound:-varsOf(dbnd));
+      vs := ListTools[Reverse](vs);
+    else
+      vs := todo;
+    end if;
 
-      if nops(vs)=0 then
-        return kont(r,ctx:-context);
-      end if;
+    if nops(vs)=0 then
+      return kont(r,ctx:-context);
+    end if;
 
-      v_td := op(1,vs);
-      vs   := subsop(1=NULL,vs);
-      i    := Domain:-Bound:-varIx(dbnd, v_td);
-      _,vt,v_mk := op(op([1,i], dbnd));
+    v_td := op(1,vs);
+    vs   := subsop(1=NULL,vs);
+    i    := Domain:-Bound:-varIx(dbnd, v_td);
+    _,vt,v_mk := op(op([1,i], dbnd));
 
-      ctx1, rn := into_mk(dbnd, v_td, vt, ctx);
-      if rn <> [] then
-        r := subs(rn,r);
-      end if;
+    ctx1, rn := into_mk(dbnd, v_td, vt, ctx);
+    if rn <> [] then
+      r := subs(rn,r);
+    end if;
 
-      r := do_mks(r, kont, vs, dbnd, ctx1);
-      ctx:-f_into(v_mk, r, v_td, vt, ctx:-context, ctx:-weights[v_td]);
+    r := do_mks(r, kont, vs, dbnd, ctx1);
+    ctx:-f_into(v_mk, r, v_td, vt, ctx:-context, ctx:-weights[v_td]);
   end proc;
 end module;
