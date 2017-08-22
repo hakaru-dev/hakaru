@@ -21,9 +21,6 @@
 #   done sort of ad-hoc) (this could be fixed by a broader design - see "merging
 #   KB with Domain")
 #
-# Shape extraction needs to be reworked; we "flatten" constraints multiple
-#   times; This should be done once after shape extraction, not at every step
-#
 # DInto should also optionally omit the bounds if they are identical to the
 #   bounds in the a-priori domain bounds (i.e. just `DInto(x)`); DInto sort of
 #   means 'we've solved this bound in this subcontext' but the `DInto`s where
