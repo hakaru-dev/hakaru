@@ -502,6 +502,7 @@ Utilities := module ()
       , 'NewSLO:-reduce'
       , 'NewSLO:-reduce_Integrals'
       , 'NewSLO:-reduce_Partition'
+      , 'NewSLO:-simplify_factor_assuming'
       , 'Summary'
       , entries(Domain:-Improve:-Simplifiers, nolist)
       };
