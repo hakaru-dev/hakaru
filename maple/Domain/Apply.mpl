@@ -11,12 +11,51 @@ export Apply := module ()
   # Make sure these refer to the global names, or Records don't work
   global context, weights, f_into, f_body, f_sum, f_constrain;
 
+  # Validates input and calls `do_apply' which implements the main logic.  This
+  # function returns a function which takes as input the program corresponding
+  # to the 'body' (i.e. what is left after extracting the domain bounds and
+  # shape) and produces a program equivalent to the original (i.e. what was
+  # present before extracting domain bounds and shape), but simplified. In
+  # equational language:
+  #   let (b,e1) = Extract:-Bound(e0)
+  #       (s,e2) = Extract:-Shape(e1)
+  #       e3     = Apply(DOMAIN(s,b))(e2)
+  #   in  e0 == e3
+  # is an invariant of Domain.
+  #
+  # `Apply' also takes an additional argument, which is a record which should
+  # contain handlers which determine how Domain constructors are applied to the
+  # resulting expression, and a table of weights which appear outermost to each
+  # domain bound variable. Some of these may have defaults (see *** below).
+  #
+  # The weights table is a mapping from variables appearing in the domain bounds
+  # to weights which appear immediately outside the application of that domain
+  # bound. It is passed to certain callbacks which can chose where to place said
+  # weights.
+  #
+  # Each handler loosely corresponds to a Domain constructor, except for
+  # `f_body'.
+  # f_into : DomBoundKind -> LO x -> DomBoundVar -> DomBoundRange -> KB
+  #        -> WeightsTable -> LO x
+  #   The 1st, 3rd, and 4th arguments come directly from a DomInto;
+  #   the 2nd argument is the recursive application of Apply;
+  #   the 5th and 6th arguments come from the context
+  # f_sum  : Sequence (LO x) -> LO x
+  #   Sequence being a Maple sequence (i.e. `f_sum' is an n-ary function)
+  # f_constrain : (forall x . LO x -> LO x) -> LO x -> LO x
+  #   The 1st argument places a constraint on a LO, the 2nd arguement is the
+  #   expression to be constrained.
+  # f_body : LO x -> KB -> LO x
+  #   This handler is called on the 'body', along with the context in which that
+  #   'body' expression exists. This may be called multiple times, if for
+  #   example the domain contains `DSum' or `DSplit'.
   export ModuleApply := proc(dom :: HDomain_mb, ctx0::record, $)
     local vs, sh, dbnd, ctx, defctx;
     if dom :: DomNoSol then
       error "cannot apply %1", dom;
     end if;
     dbnd, sh := op(dom);
+    # *** Default handlers
     defctx :=
     Record('context'=Domain:-Bound:-contextOf(dbnd)
            ,'f_into'=do_mk
@@ -43,6 +82,9 @@ export Apply := module ()
                        `f_into`, `f_body`, `f_sum`, `f_constrain`)']));
   end proc;
 
+  # Helpers for applying only a shape or a bounds.  Note that in the shape case,
+  # it may not contain `DInto's as these are only valid in the presence of a
+  # non-empty bounds. This is not checked.
   export Shape := proc(dsh :: DomShape, e, $) ModuleApply( DOMAIN( [], dsh ), e ) end proc;
   export Bound := proc(dbn :: DomBound, e, $) ModuleApply( DOMAIN( dbn, DConstrain() ), e ) end proc;
 
@@ -109,12 +151,16 @@ export Apply := module ()
     end if;
   end proc;
 
+  # A default implementation for `f_into'
   export do_mk := proc(mk, e, vn, ty_, _kb)
     Domain:-ExtBound[mk]:-DoMk(e, vn, ty_);
   end proc;
 
+  # A default implementation for `f_body'
   export do_body := proc(e, _kb) e end proc;
 
+  # Like an `Indicator' but performs some early simplification which covers the
+  # common case of `DConstrain()' (and is expressed in terms of Partition).
   local do_constrain := proc(cond0::{list,set,DomConstrain},$)
     local mk_cond, cond := cond0;
     if nops(cond)=0 then
@@ -175,6 +221,21 @@ export Apply := module ()
       upd_field(ctx, 'context', _->kb1), rn;
   end proc;
 
+  # Performs multiple integrals, corresponding to those variables given in
+  # `todo'. If `todo' is a set, then the order of integrals is one which matches
+  # the order in the original expression. If `todo' is a list, this function
+  # assumes that integrating in that order is valid (i.e. doesn't cause scope
+  # extrusion). `kont' takes an expression and a KB corresponding to the
+  # innermost context in which the input `e' will be used.
+  #   do_mks(e, kont, [v0,v1..vn], dbnd, ctx{context=outerKB}) =
+  #     Int(v0, RangeOf(v0,dbnd),
+  #     Int(v1, RangeOf(v1,dnbd),
+  #     ...
+  #     Int(vn, RangeOf(vn,dnbd),
+  #       kont(e, innerKB)) ... ))
+  #   where innerKB is outerKB additionally augmented with
+  #          the knowledge that
+  #            `{v0 in RangeOf(v0,dbnd), v1 in RangeOf(v1,dbnd), .., vn in ..}'
   local do_mks := proc(e, kont, todo::({list,set})(DomBoundVar), dbnd :: DomBound, ctx, $)
       local vs, v_td, i, vt, kb0, v_mk, _, ctx1, rn, r := e;
 
