@@ -7,6 +7,7 @@
            , NoImplicitPrelude
            , ScopedTypeVariables
            , FlexibleContexts
+           , ViewPatterns
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -25,10 +26,10 @@
 module Language.Hakaru.Expect
     ( normalize
     , total
-    , expect
+    , expect, expectInCtx, determineExpect
     ) where
 
-import           Prelude               (($), (.), error, reverse)
+import           Prelude               (($), (.), error, reverse, Maybe(..))
 import qualified Data.Text             as Text
 import           Data.Functor          ((<$>))
 import qualified Data.Foldable         as F
@@ -43,6 +44,7 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumABT
+import Language.Hakaru.Syntax.Transform (TransformCtx(..), minimalCtx)
 import Language.Hakaru.Syntax.AST               hiding (Expect)
 import qualified Language.Hakaru.Syntax.AST     as AST
 import Language.Hakaru.Syntax.TypeOf            (typeOf)
@@ -88,7 +90,25 @@ expect
     => abt '[] ('HMeasure a)
     -> abt '[a] 'HProb
     -> abt '[] 'HProb
-expect e f = runExpect (expectTerm e) f [Some2 e, Some2 f]
+expect = expectInCtx minimalCtx
+
+expectInCtx
+    :: (ABT Term abt)
+    => TransformCtx
+    -> abt '[] ('HMeasure a)
+    -> abt '[a] 'HProb
+    -> abt '[] 'HProb
+expectInCtx ctx e f = runExpect (expectTerm e) ctx f [Some2 e, Some2 f]
+
+-- | A helper which converts residualized `expect' to a `Nothing' instead.
+determineExpect
+    :: (ABT Term abt)
+    => abt '[] 'HProb
+    -> Maybe (abt '[] 'HProb)
+determineExpect e =
+  case e of
+    (viewABT -> Syn (AST.Transform_ AST.Expect :$ _)) -> Nothing
+    r -> Just r
 
 
 residualizeExpect
@@ -99,7 +119,7 @@ residualizeExpect e = do
     -- BUG: is this what we really mean? or do we actually mean the old 'emit' version?
     x <- freshVar Text.empty (sUnMeasure $ typeOf e)
     unsafePush (SStuff1 (Location x) (\c ->
-        syn (AST.Expect :$ e :* bind x c :* End)) [])
+        syn (AST.Transform_ AST.Expect :$ e :* bind x c :* End)) [])
     return $ var x
 {-
 residualizeExpect e = do

@@ -22,17 +22,19 @@ import           Text.Parsec.Expr              (Assoc(..), Operator(..))
 import qualified Text.Parsec.Token             as Tok
 
 import Language.Hakaru.Parser.AST
+import Language.Hakaru.Syntax.IClasses (Some2(..))
+import Language.Hakaru.Syntax.AST (allTransforms, transformName)
 
 ops, names :: [String]
 ops = words "^ ** * / + - .  < > <= >= == /= && || <|> -> : <~ = _"
 names = concatMap words [ "def fn"
                         , "if else match"
-                        , "expect"
                         , "return dirac"
                         , "integrate summate product from to"
                         , "array plate chain of"
                         , "r_nop r_split r_index r_fanout r_add bucket"
-                        , "import data ∞" ]
+                        , "import data ∞" ] ++
+        map (\(Some2 t) -> transformName t) allTransforms
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -326,16 +328,35 @@ product_expr =
         <*> expr
         )
 
-expect_expr :: Parser (AST' Text)
-expect_expr =
-    reserved "expect"
-    *> (Expect
-        <$> identifier
-        <*  reservedOp "<~"
-        <*> expr
-        <*  reservedOp ":"
-        <*> expr
-        )
+transform_expr :: Parser (AST' Text)
+transform_expr = expect_expr <|> tr
+  where
+     trNm :: Parser Transform'
+     trNm = choice $
+       map (\(Some2 t) -> reserved (transformName t)
+                       *> pure (trFromTyped t))
+           allTransforms
+
+     sarg :: Parser ([Text], AST' Text)
+     sarg = (,)
+       <$> option [] (try (many1 identifier <* reservedOp ":"))
+       <*> expr
+
+     tr :: Parser (AST' Text)
+     tr =  Transform
+       <$> trNm
+       <*> (SArgs' <$> parens (commaSep sarg))
+
+     expect_expr :: Parser (AST' Text)
+     expect_expr =
+         reserved "expect"
+         *> (_Expect
+             <$> identifier
+             <*  reservedOp "<~"
+             <*> expr
+             <*  reservedOp ":"
+             <*> expr
+             )
 
 bucket_expr :: Parser (AST' Text)
 bucket_expr =
@@ -451,7 +472,7 @@ term =  if_expr
     <|> integrate_expr
     <|> summate_expr
     <|> product_expr
-    <|> expect_expr
+    <|> transform_expr
     <|> bucket_expr
     <|> array_expr
     <|> plate_expr

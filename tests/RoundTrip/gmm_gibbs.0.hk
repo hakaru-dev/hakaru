@@ -1,3 +1,4 @@
+simplify(
 def dirichlet(as array(prob)):
     xs <~ plate i of int2nat(size(as)-1):
             beta(summate j from i+1 to size(as): as[j],
@@ -23,3 +24,4 @@ fn docUpdate nat:
     return zNew
 
   else: reject . measure(nat)
+)

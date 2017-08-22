@@ -21,7 +21,9 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Eq (alphaEq)
-import Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
+import Language.Hakaru.Syntax.AST.Transforms (expandTransformations
+                                             ,expandTransformationsWith
+                                             ,allTransformationsWithMOpts)
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), jmEq1)
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Simplify
@@ -103,6 +105,20 @@ testSStriv
     -> TrivialABT Term '[] a 
     -> Test
 testSStriv = testSS ""
+
+-- | Assert that the given programs are equal after expanding transformations.
+--   By convention, the first program is taken to be the expected output, but
+--   this function is symmetric.
+testET
+    :: (ABT Term abt)
+    => MapleOptions ()
+    -> String
+    -> abt '[] a
+    -> abt '[] a
+    -> Assertion
+testET opts nm t0 t1 =
+  let et = expandTransformationsWith (allTransformationsWithMOpts opts) in
+  mapM et [t0, t1] >>= \[t0', t1'] -> assertAlphaEq nm t0' t1'
 
 assertAlphaEq ::
     (ABT Term abt) 
@@ -196,6 +212,15 @@ testConcreteFilesManyWithOpts
 testConcreteFilesManyWithOpts o fs f =
   testWithConcreteMany' f fs LaxMode $
   \_ -> testSS1WithOpts o ""
+
+testConcreteFilesET
+    :: MapleOptions ()
+    -> [FilePath]
+    -> FilePath
+    -> Test
+testConcreteFilesET o fs f =
+  testWithConcreteMany' f fs LaxMode $
+  \_ -> testET o ""
 
 -- Like testSStriv but for two concrete files
 testConcreteFiles

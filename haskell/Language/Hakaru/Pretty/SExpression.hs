@@ -171,8 +171,8 @@ prettySCons MBind es     = PP.text "MBindSConsTODO"
 prettySCons Plate es     = PP.text "PlateSConsTODO"
 prettySCons Chain es     = PP.text "ChainSConsTODO"
 prettySCons Integrate es = PP.text "IntegrateSConsTODO"
-prettySCons Expect es    = PP.text "ExpectSConsTODO"
-prettySCons Observe es   = PP.text "ObserveSConsTODO"
+prettySCons (Transform_ t) _ = PP.text $
+     Prelude.concat [ "SCons{", show t, "}: TODO" ]
 
 prettyMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)

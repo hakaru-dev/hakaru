@@ -224,15 +224,10 @@ mapleSCon (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
         . showString "..("
         . arg e2
         . showString ")-1)"
-mapleSCon Expect = \(e1 :* e2 :* End) ->
-    error "TODO: mapleSCon{Expect}"
-    {-
-    caseBind e2 $ \x e2' ->
-    arg
-        . expect e1
-        . binder Text.empty (varType x)
-        $ \x' -> subst x x' e2'
-    -}
+
+mapleSCon (Transform_ t) = \_ -> error $
+    concat [ "mapleSCon{", show t, "}"
+           , ": Maple doesn't recognize transforms; expand them first" ]
 
 
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> ShowS

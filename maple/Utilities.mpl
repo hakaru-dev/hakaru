@@ -236,6 +236,10 @@ Utilities := module ()
               };
       local expr := expr_, outty, outmk, inty, inmk, ty_ord ;
 
+      # Necessary because we convert `And' (etc.) to `Logic:-&and' (etc.), and
+      # e.g. `Logic:-&and(a<b,c<d)' is not a valid piecewise condition.
+      expr := chillFns('piecewise', expr);
+
       expr := foldr( proc(v,e) subsindets(e, op(v)) end proc
                    , expr
                    , [ { specfunc(relation, `Not`), `not`(relation) }
@@ -264,7 +268,8 @@ Utilities := module ()
       outmk, inmk := [ `Or`, `And` ][ty_ord][];
 
       if not expr :: outty then expr := outmk(expr) end if;
-      map(x -> if not x :: inty then inmk(x) else x end if, expr);
+      expr := map(x -> if not x :: inty then inmk(x) else x end if, expr);
+      expr := warmFns('piecewise', expr);
   end proc;
 
   # Classify a relation by matching either the LHS or RHS against
@@ -371,6 +376,14 @@ Utilities := module ()
     FAIL;
   end proc;
 
+  # `curry(chillFns,foo)' is the function which converts all occurences of
+  # `foo(as)' to `f[as]' in the given expression. `warmFns' is the inverse.
+  #
+  # For some reason making these curried also requires `KB:-chill' and
+  # `KB:-warm' to be eta-expanded (i.e. `chill := x->chillFns(chilled)(x)')
+  export chillFns := (fns, e) -> subsindets(e, 'specfunc'(fns), c->op(0,c)[op(c)]);
+  export warmFns  := (fns, e) -> subsindets(e, 'specindex'(fns), c->map(curry(warmFns,fns), op(0,c)(op(c))));
+
   # Print profiling information for a function when `infolevel' for that
   # function is set to at least 3, and assertlevel>0; e.g.
   #  > do_func := proc() .. func .. end: func := ProfileFn(do_func):
@@ -472,7 +485,7 @@ Utilities := module ()
   export Profile := module()
     option package;
     export ModuleApply, GetProf, PPrProf, modules_to_profile, names_to_profile;
-    local ModuleLoad, cl, profile_flag_to_ord, name_to_string, take;
+    local ModuleLoad, profile_flag_to_ord, name_to_string;
 
     modules_to_profile := proc()
       kernelopts(opaquemodules=false):

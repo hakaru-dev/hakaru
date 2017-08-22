@@ -75,9 +75,11 @@ module Language.Hakaru.Syntax.IClasses
     , Some2(..)
     , Pair1(..), fst1, snd1
     , Pair2(..), fst2, snd2
+    , Pointwise(..), PointwiseP(..)
     -- ** List types
     , type (++), eqAppendIdentity, eqAppendAssoc
     , List1(..), append1
+    , List2(..)
     , DList1(..), toList1, fromList1, dnil1, dcons1, dsnoc1, dsingleton1, dappend1
     -- ** Constraints
     , All(..), Holds(..)
@@ -570,6 +572,12 @@ instance Eq a => Eq2 (Lift2 a) where
 instance Eq a => Eq1 (Lift2 a i) where
     eq1 (Lift2 a) (Lift2 b) = a == b
 
+----------------------------------------------------------------
+data Pointwise (f :: k0 -> *) (g :: k1 -> *) (x :: k0) (y :: k1) where
+    Pw :: f x -> g y -> Pointwise f g x y
+
+data PointwiseP (f :: k0 -> *) (g :: k1 -> *) (xy :: (k0, k1)) where
+    PwP :: f x -> g y -> PointwiseP f g '(x,y)
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
@@ -772,6 +780,12 @@ instance Foldable11 List1 where
 instance Traversable11 List1 where
     traverse11 _ Nil1         = pure Nil1
     traverse11 f (Cons1 x xs) = Cons1 <$> f x <*> traverse11 f xs
+
+----------------------------------------------------------------
+-- | Lifting of relations pointwise to lists
+data List2 :: (k0 -> k1 -> *) -> [k0] -> [k1] -> * where
+  Nil2  :: List2 f '[] '[]
+  Cons2 :: f x y -> List2 f xs ys -> List2 f (x ': xs) (y ': ys)
 
 ----------------------------------------------------------------
 data Holds (c :: k -> Constraint) (x :: k) where

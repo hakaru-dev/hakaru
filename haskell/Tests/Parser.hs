@@ -400,7 +400,7 @@ expect1 = unlines
     ]
 
 expect1AST :: AST' Text
-expect1AST = Expect "x" (App (App (Var "normal")
+expect1AST = _Expect "x" (App (App (Var "normal")
                               (ULiteral (Nat 0)))
                          (ULiteral (Nat 1)))
              (ULiteral (Nat 1))
@@ -412,7 +412,7 @@ expect2 = unlines
     ]
 
 expect2AST :: AST' Text
-expect2AST = Expect "x" (App (App (Var "normal")
+expect2AST = _Expect "x" (App (App (Var "normal")
                               (ULiteral (Nat 0)))
                          (ULiteral (Nat 1)))
              (App (Var "unsafeProb")
