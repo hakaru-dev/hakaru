@@ -142,8 +142,6 @@ match x8:
 The two models are equivalent, so you must decide which model that you want to use for your application. For the purposes of this tutorial, we will use the
 unsimplified version of the model (`thermometer_disintegrate.hk`).
 
-## Application ##
-
 Our thermometer model is two dimensional, so it is possible for us to tune our model values using importance sampling or an exhaustive search. However, these approaches
 will not be possible in higher dimensions. Therefore, we will use a *Markov Chain Monte Carlo* method called *Metropolis-Hastings* to demonstrate how Hakaru can be used 
 for problems with high dimensionality. To use the [Metropolis-Hastings transform](../transforms/mh.md), you must have a target distribution and a transition kernel. The 
@@ -171,7 +169,178 @@ With both our target distribution and transition kernel defined, we can now use 
 the command prompt, we will include it as part of our Hakaru program by using the `mcmc(<kernel>, <target>)` syntactic transform:
 
 ````nohighlight
-mcmc(
+	mcmc(
+		simplify(
+		fn noise pair(prob, prob):
+          match noise:
+           (noiseTprev, noiseMprev):
+            weight(1/2, 
+                    noiseTprime <~ uniform(3,8)
+                    return (real2prob(noiseTprime), noiseMprev)) <|>
+            weight(1/2, 
+                   noiseMprime <~ uniform(1,4)
+                   return (noiseTprev, real2prob(noiseMprime))))
+		  ,
+		  simplify(
+		  fn x8 pair(real, real):
+			match x8:
+			(r3, r1):
+			  weight
+				(1/ pi * (1/2),
+				 nTd <~ uniform(+3/1, +8/1)
+				 nMb <~ uniform(+1/1, +4/1)
+				 weight
+				   (exp
+					  ((nMb ^ 2 * r1 ^ 2
+						+ nMb ^ 2 * r3 ^ 2
+						+ nTd ^ 2 * r1 ^ 2
+						+ nTd ^ 2 * r1 * r3 * (-2/1)
+						+ nTd ^ 2 * r3 ^ 2 * (+2/1)
+						+ nMb ^ 2 * r1 * (-42/1)
+						+ r3 * nMb ^ 2 * (-42/1)
+						+ r3 * nTd ^ 2 * (-42/1)
+						+ nMb ^ 2 * (+882/1)
+						+ nTd ^ 2 * (+441/1))
+					   / (nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)
+					   * (-1/2))
+					/ sqrt(real2prob(nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)),
+					return (real2prob(nTd), real2prob(nMb)))))
+      )
+````
+
+**Note:** Each model within the `mcmc` syntax must be wrapped within another syntactic transform. For this example, we are using the `simplify` transform.
+
+The `mcmc` syntactic transform must also be wrapped in a Hakaru function that has the same type signature as the target model. Due to the self-referential nature of MCMC
+moethods, this function is referenced at the end of the target model's definition. We will call this function `recurse`:
+
+````nohighlight
+fn recurse pair(real, real):
+	mcmc(
+		simplify(
+		fn noise pair(prob, prob):
+          match noise:
+           (noiseTprev, noiseMprev):
+            weight(1/2, 
+                    noiseTprime <~ uniform(3,8)
+                    return (real2prob(noiseTprime), noiseMprev)) <|>
+            weight(1/2, 
+                   noiseMprime <~ uniform(1,4)
+                   return (noiseTprev, real2prob(noiseMprime))))
+		  ,
+		  simplify(
+		  fn x8 pair(real, real):
+			match x8:
+			(r3, r1):
+			  weight
+				(1/ pi * (1/2),
+				 nTd <~ uniform(+3/1, +8/1)
+				 nMb <~ uniform(+1/1, +4/1)
+				 weight
+				   (exp
+					  ((nMb ^ 2 * r1 ^ 2
+						+ nMb ^ 2 * r3 ^ 2
+						+ nTd ^ 2 * r1 ^ 2
+						+ nTd ^ 2 * r1 * r3 * (-2/1)
+						+ nTd ^ 2 * r3 ^ 2 * (+2/1)
+						+ nMb ^ 2 * r1 * (-42/1)
+						+ r3 * nMb ^ 2 * (-42/1)
+						+ r3 * nTd ^ 2 * (-42/1)
+						+ nMb ^ 2 * (+882/1)
+						+ nTd ^ 2 * (+441/1))
+					   / (nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)
+					   * (-1/2))
+					/ sqrt(real2prob(nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)),
+					return (real2prob(nTd), real2prob(nMb)))))(recurse)
+      )
+````
+
+Our MCMC transform is now defined and ready to be processed. To convert this model into a form understood by the `hakaru` command, you must run the `hk-maple` transform:
+
+````bash
+$ hk-maple examples/documentation/thermometer_mcmc.hk
+fn recurse pair(real, real):
+x5 = x17 = fn x16 pair(prob, prob):
+           1/1
+           * (1/1)
+           * (match x16:
+              (x35, x36):
+                x37 = prob2real(x35)
+                x38 = prob2real(x36)
+                match recurse:
+                (r3, r1):
+                  1/ pi
+                  * (1/2)
+                  * (match +3/1 <= x37 && x37 <= +8/1:
+                     true:
+                       1/ real2prob(+8/1 - (+3/1))
+                       * (nTdd = prob2real(x35)
+                          match +1/1 <= x38 && x38 <= +4/1:
+                          true:
+                            1/ real2prob(+4/1 - (+1/1))
+                            * (x44 = ()
+                               nMbb = prob2real(x36)
+                               exp
+                                 ((nMbb ^ 2 * r1 ^ 2
+                                   + nMbb ^ 2 * r3 ^ 2
+                                   + nTdd ^ 2 * r1 ^ 2
+                                   + nTdd ^ 2 * r1 * r3 * (-2/1)
+                                   + nTdd ^ 2 * r3 ^ 2 * (+2/1)
+                                   + nMbb ^ 2 * r1 * (-42/1)
+                                   + nMbb ^ 2 * r3 * (-42/1)
+                                   + nTdd ^ 2 * r3 * (-42/1)
+                                   + nMbb ^ 2 * (+882/1)
+                                   + nTdd ^ 2 * (+441/1))
+                                  / (nMbb ^ 4 + nMbb ^ 2 * nTdd ^ 2 * (+3/1) + nTdd ^ 4)
+                                  * (-1/2))
+                               / sqrt
+                                   (real2prob(nMbb ^ 4 + nMbb ^ 2 * nTdd ^ 2 * (+3/1) + nTdd ^ 4))
+                               * (1/1))
+                          _: 0/1)
+                     _: 0/1)
+                _: 0/1
+              _: 0/1)
+     fn x16 pair(prob, prob):
+     x0 <~ (fn noise pair(prob, prob):
+            match noise:
+            (r3, r1):
+              weight
+                (1/2,
+                 noiseTprime7 <~ uniform(+3/1, +8/1)
+                 return (real2prob(noiseTprime7), r1)) <|>
+              weight
+                (1/2,
+                 noiseMprime9 <~ uniform(+1/1, +4/1)
+                 return (r3, real2prob(noiseMprime9))))
+             (x16)
+     return (x0, x17(x0) / x17(x16))
+fn x4 pair(prob, prob):
+x3 <~ x5(x4)
+match x3:
+(x1, x2):
+  x0 <~ x0 <~ categorical
+                ([min(1/1, x2),
+                  real2prob(prob2real(1/1) - prob2real(min(1/1, x2)))])
+        return [true, false][x0]
+  return if x0: x1 else: x4
+````
+
+**Note:** You can run the `hk-maple` function on the resulting program to 
+[simplify it](https://github.com/hakaru-dev/hakaru/blob/master/examples/documentation/thermometer_mcmc_processed.hk).
+
+## Application ##
+
+With our model defined and processed, we can now assign it values to generate samples from.
+
+## Extra: A Syntactic Definition ##
+
+This tutorial demonstrates how both command line and syntactic Hakaru transforms can be used in the same problem. This might not always be necessary because you might be able
+to use only command line or only syntactic Hakaru transforms. For example, the thermometer model can be expressed 
+[using only syntactic transforms](https://github.com/hakaru-dev/hakaru/blob/master/examples/documentation/thermometer_workflow.hk):
+
+````nohighlight
+simplify(
+  fn x pair(real, real):
+    mcmc(
       simplify(
         fn noise pair(prob, prob):
           match noise:
@@ -199,7 +368,11 @@ mcmc(
           
           return ((m1, m2), (noiseT, noiseM))))(x)
       )
+)
 ````
+
+This Hakaru program will produce [the same output program](https://github.com/hakaru-dev/hakaru/blob/master/examples/documentation/thermometer_workflow_res.hk) as the 
+mixed-usage example when evaluated using `hk-maple`.
 
 [^1]: P. Narayanan, J. Carette, W. Romano, C. Shan and R. Zinkov, "Probabilistic Inference by Program Transformation in Hakaru (System Description)", Functional and Logic 
 Programming, pp. 62-79, 2016.
