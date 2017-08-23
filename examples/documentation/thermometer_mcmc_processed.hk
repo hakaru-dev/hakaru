@@ -1,6 +1,6 @@
 fn recurse pair(real, real):
-match recurse:
-(r3, r1):
+ match recurse:
+ (r3, r1):
   fn x4 pair(prob, prob):
   match x4:
   (rf, rd):

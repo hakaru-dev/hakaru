@@ -165,6 +165,8 @@ fn noise pair(prob, prob):
 
 **Note: **Like any model in Hakaru, this program can be passed to other program transformations such as `hk-maple`. 
 
+## Application ##
+
 With both our target distribution and transition kernel defined, we can now use the Metropolis-Hastings method to transform our program. However, instead of calling `mh` in
 the command prompt, we will include it as part of our Hakaru program by using the `mcmc(<kernel>, <target>)` syntactic transform:
 
@@ -327,9 +329,13 @@ match x3:
 **Note:** You can run the `hk-maple` function on the resulting program to 
 [simplify it](https://github.com/hakaru-dev/hakaru/blob/master/examples/documentation/thermometer_mcmc_processed.hk).
 
-## Application ##
+With our model defined and processed, we can now assign it values to generate samples from. For the sake of this example, let's say that we observed temperature measurements
+of 29\(^{\circ}\)C and 26\(^{\circ}\)C. To use these values, we must call the MCMC version of our model within the Hakaru program using our values:
 
-With our model defined and processed, we can now assign it values to generate samples from.
+````nohighlight
+...
+recurse(29, 26)
+````
 
 ## Extra: A Syntactic Definition ##
 
