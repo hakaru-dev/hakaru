@@ -50,5 +50,15 @@ runPretty opt prog =
     case parseAndInfer prog of
     Left  err              -> IO.hPutStrLn stderr err
     Right (TypedAST _ ast) -> do
-      ast' <-  summary . expandTransformations $ ast
-      print . pretty $ ast'
+      case opt of
+        True -> do
+          ast' <- summary . expandTransformations $ ast
+          print . pretty $ ast'
+        False -> do print . pretty . expandTransformations $ ast
+      -- case opt of
+      --   True -> do
+      --     -- ast' <-  summary . expandTransformations $ ast
+      --     print . pretty . expandTransformations $ ast
+      --   -- False -> do
+      --   --   ast'' <- expandTransformations $ ast
+      --   --   print . pretty $ ast''

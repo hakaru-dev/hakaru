@@ -21,12 +21,12 @@ import Data.Ratio
 import Data.Text (Text)
 import Data.Sequence (Seq)
 
-import Data.Text as Text
+import qualified Data.Text as Text
 import Data.Number.Nat (fromNat)
 import Data.Number.Natural (fromNatural, fromNonNegativeRational)
 import Data.Ratio
+import qualified Data.List.NonEmpty as L
 import Data.Sequence (Seq)
-import Data.Text as Text
 import Data.Text.IO as IO
 import Language.Hakaru.Command (parseAndInfer)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, jmEq1, TypeEq(..))
@@ -72,9 +72,40 @@ prettyTerm (Bucket b e r) =
 prettyTerm (Reject_ _) = PP.parens $ PP.text "reject"
 prettyTerm (Empty_ _) = PP.parens $ PP.text "empty"
 prettyTerm (ArrayLiteral_ es) = PP.text "TODO:arrayliteral"
-prettyTerm (Superpose_ pes) = PP.text "TODO:superpose"
+prettyTerm (Superpose_ pes) =
+  case pes of
+    (e1,e2) L.:| [] ->
+      PP.parens $
+      (PP.text "pose" <+> pretty e1 <+> pretty e2)
+    _ ->
+      PP.parens $
+      (PP.text "superpose" <+> foldMap (\(e1,e2) -> PP.parens (pretty e1 <+> pretty e2)) (L.toList pes))
 
-prettyTerm (Datum_ d) = PP.text "TODO:datum"
+-- prettyTerm (Datum_ (Datum "true" _typ (Inl Done))) = PP.text "#t"
+-- prettyTerm (Datum_ (Datum "false" _typ (Inr (Inl Done)))) = PP.text "#f"
+prettyTerm (Datum_ d) = prettyDatum d
+
+prettyDatum :: (ABT Term abt) => Datum (abt '[]) t -> Doc
+prettyDatum (Datum hint _ d) =
+  PP.parens $
+  PP.text "datum" <+>
+  (PP.text (Text.unpack hint)) <+>
+  (prettyDatumCode d)
+
+prettyDatumCode :: (ABT Term abt) => DatumCode xss (abt '[]) a -> Doc
+prettyDatumCode (Inr d) = PP.parens $ PP.text "inr" <+> (prettyDatumCode d)
+prettyDatumCode (Inl d) = PP.parens $ PP.text "inl" <+> (prettyDatumStruct d)
+
+prettyDatumStruct :: (ABT Term abt) => DatumStruct xs (abt '[]) a -> Doc
+prettyDatumStruct Done       = PP.text "done"
+prettyDatumStruct (Et d1 d2) =
+    PP.parens $ PP.text "et" <+> (prettyDatumFun d1) <+> (prettyDatumStruct d2)
+
+prettyDatumFun :: (ABT Term abt) => DatumFun x (abt '[]) a -> Doc
+prettyDatumFun (Konst a) = PP.parens $ PP.text "konst" <+> pretty a
+prettyDatumFun (Ident a) = PP.parens $ PP.text "ident" <+> pretty a
+
+
 
 prettyReducer :: (ABT Term abt) => Reducer abt xs a -> Doc
 prettyReducer (Red_Fanout red_a red_b) =
@@ -97,7 +128,7 @@ prettyPattern :: Pattern xs a -> Doc
 prettyPattern PWild = PP.text "*"
 prettyPattern PVar = PP.text "var"
 prettyPattern (PDatum hint c) =
-  PP.parens $ PP.text "datum" <+> PP.text (unpack hint) <+> goCode c
+  PP.parens $ PP.text "pdatum" <+> PP.text (Text.unpack hint) <+> goCode c
 goCode :: PDatumCode xss vars a -> Doc
 goCode c = PP.parens $ case c of
   (PInr d) -> PP.text "pc_inr" <+> goCode d
@@ -128,14 +159,13 @@ prettyLiteral :: Literal a -> Doc
 prettyLiteral (LNat v) = prettyShow v
 prettyLiteral (LInt i) = prettyShow i
 prettyLiteral (LProb p) = prettyRatio . fromNonNegativeRational $ p
-prettyLiteral (LReal p) = prettyShow p
+prettyLiteral (LReal p) = prettyRatio p
 
 
 prettyRatio :: (Show a, Integral a) => Ratio a -> Doc
 prettyRatio r
   | d == 1 = prettyShow n
-  | n < 0 = PP.parens $ PP.text "/" <+> PP.text "-" <> prettyShow  n <+> prettyShow d
-  | otherwise = PP.parens $ prettyShow n <+> prettyShow d
+  | otherwise = PP.parens $ PP.text "/" <+> prettyShow n <+> prettyShow d
     where
       d = denominator r
       n = numerator r
@@ -164,13 +194,20 @@ prettySCons Let_ (e1 :* e2 :* End) = caseBind e2 $ \x e2' ->
   PP.text "let" <+>
   PP.parens (prettyVariable x <+> (prettyType $ typeOf e1) <+> pretty e1)
   <+> pretty e2'
-prettySCons (UnsafeFrom_ o) es = PP.text "UnsafeSConsTODO"
+prettySCons (UnsafeFrom_ o) (e :* End) =
+
+  PP.text (pCoerce o)
+  -- (case o of
+  --   Signed HRing_Real `CCons` CNil -> "real2prob"
+  --   Signed HRing_Int  `CCons` CNil -> "int2nat"
+  --   _ -> "unsafeFrom_" ++ show o)
+  <+> pretty e
 prettySCons (MeasureOp_ o) es = prettyMeasureOp o es
-prettySCons Dirac es     = PP.text "DiracSConsTODO"
-prettySCons MBind es     = PP.text "MBindSConsTODO"
-prettySCons Plate es     = PP.text "PlateSConsTODO"
-prettySCons Chain es     = PP.text "ChainSConsTODO"
-prettySCons Integrate es = PP.text "IntegrateSConsTODO"
+prettySCons Dirac (e1 :* End) = PP.text "dirac" <+> pretty e1
+prettySCons MBind (e1 :* e2 :* End) = PP.text "mbind" <+> pretty e1 <+> prettyViewABT e2
+prettySCons Plate (e1 :* e2 :* End) = PP.text "plate" <+> pretty e1 <+> prettyViewABT e2
+prettySCons Chain (e1 :* e2 :* e3 :* End) = PP.text "chain" <+> pretty e1 <+> pretty e2 <+> prettyViewABT e3
+prettySCons Integrate (e1 :* e2 :* e3 :* End) = PP.text "integrate" <+> pretty e1 <+> pretty e2 <+> prettyViewABT e3
 prettySCons (Transform_ t) _ = PP.text $
      Prelude.concat [ "SCons{", show t, "}: TODO" ]
 
@@ -261,7 +298,7 @@ prettyFile' :: [Char] -> [Char] -> IO ()
 prettyFile' fname outFname = do
   fileText <- IO.readFile fname
   prettyText <- runPretty' fileText
-  IO.writeFile outFname (pack prettyText)
+  IO.writeFile outFname (Text.pack prettyText)
   print prettyText
 
 runPretty' :: Text -> IO String
@@ -275,5 +312,5 @@ runPretty' prog =
 fromAst :: Either Text (TypedAST (TrivialABT Term)) -> String
 fromAst prog =
     case prog of
-    Left  err              -> unpack err
+    Left  err              -> Text.unpack err
     Right (TypedAST _ ast) -> render . pretty . expandTransformations $ ast
