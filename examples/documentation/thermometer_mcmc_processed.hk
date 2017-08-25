@@ -1,4 +1,4 @@
-fn recurse pair(real, real):
+def therm (recurse pair(real, real)):
  match recurse:
  (r3, r1):
   fn x4 pair(prob, prob):
@@ -210,3 +210,4 @@ fn recurse pair(real, real):
                           * (1/15))))
                * (-1/1)),
           return (rf, rd)))
+therm((29,26))
