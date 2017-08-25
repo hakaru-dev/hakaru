@@ -324,8 +324,8 @@ typeMismatch s typ1 typ2 = failwith =<<
               , msg2
               ])
     where
-    msg1 = case typ1 of { Left msg -> msg; Right typ -> show1T typ }
-    msg2 = case typ2 of { Left msg -> msg; Right typ -> show1T typ }
+    msg1 = case typ1 of { Left msg -> msg; Right typ -> prettyTypeT typ }
+    msg2 = case typ2 of { Left msg -> msg; Right typ -> prettyTypeT typ }
 
 missingInstance
     :: Text
