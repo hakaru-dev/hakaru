@@ -73,10 +73,10 @@ main = do
               Nothing -> MWC.createSystemRandom
               Just s  -> MWC.initialize (V.singleton s)
   case transition args of
-      Nothing    -> runHakaru' g (noWeights args) =<< readFromFile' (prog args)
+      Nothing    -> runHakaru g (noWeights args) =<< readFromFile' (prog args)
       Just prog2 -> do prog' <- readFromFile' (prog args)
                        trans <- readFromFile' prog2
-                       randomWalk' g trans prog'
+                       randomWalk g trans prog'
 
 -- TODO: A better needs to be found for passing weights around
 illustrate :: Sing a -> Bool -> MWC.GenIO -> Value a -> IO ()
@@ -99,20 +99,7 @@ renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
 -- TODO: A better needs to be found for passing weights around
 runHakaru :: MWC.GenIO -> Bool -> Source -> IO ()
-runHakaru g weights prog' = parseAndInfer' prog' >>= \prog'' ->
-    case prog'' of
-      Left err                 -> IO.hPutStrLn stderr err
-      Right (TypedAST typ ast) -> do
-        case typ of
-          SMeasure _ -> forever (illustrate typ weights g $ run ast)
-          _          -> illustrate typ weights g $ run ast
-    where
-    run :: Term a -> Value a
-    run = runEvaluate . expandTransformations
-
--- TODO: A better needs to be found for passing weights around
-runHakaru' :: MWC.GenIO -> Bool -> Source -> IO ()
-runHakaru' g weights prog = do
+runHakaru g weights prog = do
     prog' <- parseAndInfer' prog
     case prog' of
       Left err                 -> IO.hPutStrLn stderr err
@@ -125,30 +112,7 @@ runHakaru' g weights prog = do
     run = runEvaluate . expandTransformations
 
 randomWalk :: MWC.GenIO -> Source -> Source -> IO ()
-randomWalk g p1 p2 =
-  (,) <$> parseAndInfer' p1 <*> parseAndInfer' p2 >>= \ps ->
-    case ps of
-      (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) ->
-          -- TODO: Use better error messages for type mismatch
-          case (typ1, typ2) of
-            (SFun a (SMeasure b), SMeasure c)
-              | (Just Refl, Just Refl) <- (jmEq1 a b, jmEq1 b c)
-              -> iterateM_ (chain $ run ast1) (run ast2)
-            _ -> IO.hPutStrLn stderr "hakaru: programs have wrong type"
-      (Left err, _) -> IO.hPutStrLn stderr err
-      (_, Left err) -> IO.hPutStrLn stderr err
-    where
-    run :: Term a -> Value a
-    run = runEvaluate . expandTransformations
-
-    chain :: Value (a ':-> b) -> Value ('HMeasure a) -> IO (Value b)
-    chain (VLam f) (VMeasure m) = do
-      Just (samp,_) <- m (VProb 1) g
-      renderLn samp
-      return (f samp)
-
-randomWalk' :: MWC.GenIO -> Source -> Source -> IO ()
-randomWalk' g p1 p2 = do
+randomWalk g p1 p2 = do
     p1' <- parseAndInfer' p1
     p2' <- parseAndInfer' p2
     case (p1', p2') of
