@@ -175,8 +175,9 @@ testWithConcreteMany t ts mode k = test $ map (mkT t) (t:ts)
               Just Refl -> k t0ty t0p t1p
               Nothing   -> assertFailure $ concat
                            [ "Files don't have same type ("
-                           , T.unpack (source t0), " :: ", show t0ty, ", "
-                           , T.unpack (source t1), " :: ", show t1ty ]
+                           , T.unpack (source t0), " :: ", prettyTypeS t0ty
+                           , ", "
+                           , T.unpack (source t1), " :: ", prettyTypeS t1ty ]
 
 testWithConcrete'
     :: T.Text

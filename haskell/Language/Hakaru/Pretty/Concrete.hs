@@ -31,7 +31,7 @@ module Language.Hakaru.Pretty.Concrete
     , prettyType
     , prettyValue
     , prettyT
-    , prettyTypeT
+    , prettyTypeT, prettyTypeS
     -- * Helper functions (semi-public internal API)
     ) where
 
@@ -79,6 +79,10 @@ prettyT = T.pack . show . pretty
 -- | Pretty-print a type as a Text
 prettyTypeT :: Sing (a :: Hakaru) -> T.Text
 prettyTypeT = T.pack . show . prettyType 0
+
+-- | Pretty-print a type as a String
+prettyTypeS :: Sing (a :: Hakaru) -> String
+prettyTypeS = show . prettyType 0
 
 -- | Pretty-print a term at a given precendence level.
 prettyPrec :: (ABT Term abt) => Int -> abt '[] a -> Doc
