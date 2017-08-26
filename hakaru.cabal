@@ -62,6 +62,7 @@ Library
                        Language.Hakaru.Syntax.Transform,
                        Language.Hakaru.Syntax.TypeCheck,
                        Language.Hakaru.Syntax.TypeCheck.TypeCheckMonad,
+                       Language.Hakaru.Syntax.TypeCheck.Unification,
                        Language.Hakaru.Syntax.TypeOf,
                        Language.Hakaru.Syntax.Uniquify,
                        Language.Hakaru.Syntax.Unroll,
@@ -187,6 +188,7 @@ Test-Suite system-testsuite
                        Language.Hakaru.Syntax.Transform
                        Language.Hakaru.Syntax.TypeCheck
                        Language.Hakaru.Syntax.TypeCheck.TypeCheckMonad
+                       Language.Hakaru.Syntax.TypeCheck.Unification
                        Language.Hakaru.Syntax.TypeOf
                        Language.Hakaru.Syntax.Uniquify
                        Language.Hakaru.Syntax.Unroll
@@ -288,6 +290,7 @@ Test-Suite relationships-testsuite
                        Language.Hakaru.Syntax.Transform
                        Language.Hakaru.Syntax.TypeCheck
                        Language.Hakaru.Syntax.TypeCheck.TypeCheckMonad
+                       Language.Hakaru.Syntax.TypeCheck.Unification
                        Language.Hakaru.Syntax.TypeOf
                        Language.Hakaru.Syntax.Uniquify
                        Language.Hakaru.Syntax.Unroll

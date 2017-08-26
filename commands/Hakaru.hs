@@ -1,5 +1,4 @@
-{-# LANGUAGE CPP
-           , OverloadedStrings
+{-# LANGUAGE OverloadedStrings
            , PatternGuards
            , DataKinds
            , GADTs
@@ -10,6 +9,7 @@ module Main where
 
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.TypeCheck
+import           Language.Hakaru.Syntax.TypeCheck.Unification
 import           Language.Hakaru.Syntax.Value
 
 import           Language.Hakaru.Syntax.IClasses
@@ -20,15 +20,14 @@ import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Command ( parseAndInfer, parseAndInfer'
                                          , readFromFile', Term, Source
+                                         , sourceInput
                                          )
 
-#if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative   (Applicative(..), (<$>))
-#endif
+import           Control.Applicative   (Applicative(..), (<$>), liftA2)
 import           Control.Monad
 
 import           Data.Monoid
-import           Data.Text
+import           Data.Text (Text, pack, unpack)
 import qualified Data.Text.IO as IO
 import qualified Data.Vector  as V
 import           Data.Word
@@ -113,16 +112,20 @@ runHakaru g weights prog = do
 
 randomWalk :: MWC.GenIO -> Source -> Source -> IO ()
 randomWalk g p1 p2 = do
+    let inp = foldl1 (liftA2 (V.++)) $ map sourceInput [p1,p2]
     p1' <- parseAndInfer' p1
     p2' <- parseAndInfer' p2
     case (p1', p2') of
       (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) ->
-          -- TODO: Use better error messages for type mismatch
-          case (typ1, typ2) of
-            (SFun a (SMeasure b), SMeasure c)
-              | (Just Refl, Just Refl) <- (jmEq1 a b, jmEq1 b c)
-              -> iterateM_ (chain $ run ast1) (run ast2)
-            _ -> IO.hPutStrLn stderr "hakaru: programs have wrong type"
+        let check =
+              unifyFun typ1 Nothing $ \a mb ->
+              unifyMeasure mb Nothing $ \b ->
+              unifyMeasure typ2 Nothing $ \c ->
+              matchTypes a b Nothing (SFun a (SMeasure a)) typ1 $
+              matchTypes b c Nothing mb typ2 $
+              return $ iterateM_ (chain $ run ast1) (run ast2)
+        in either (IO.hPutStrLn stderr) id $
+           runTCM check inp LaxMode
       (Left err, _) -> IO.hPutStrLn stderr err
       (_, Left err) -> IO.hPutStrLn stderr err
     where

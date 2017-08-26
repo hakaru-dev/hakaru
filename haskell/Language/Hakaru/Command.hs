@@ -50,6 +50,9 @@ parseAndInferWithMode x mode =
 -- Nothing, imports are searched for in the current directory.
 data Source = Source { file :: Maybe FilePath, source :: Text.Text }
 
+sourceInput :: Source -> Maybe (Vector Text.Text)
+sourceInput = splitLines . source
+
 noFileSource :: Text.Text -> Source
 noFileSource = Source Nothing
 
