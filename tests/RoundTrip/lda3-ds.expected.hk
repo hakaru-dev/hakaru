@@ -1,0 +1,24 @@
+fn nTopics nat:
+fn nTokens nat:
+fn z array(nat):
+fn wordUpdate0 nat:
+fn zNewh0 nat:
+fn wordUpdate1 nat:
+fn zNewh1 nat:
+if zNewh0 < nTopics && zNewh1 < nTopics:
+  nat2int
+    (summate dB from 0 to nTokens:
+     if zNewh1
+        == (if dB == wordUpdate1: zNewh1
+            else: if dB < nTokens: z[dB] else: 0):
+       1
+     else: 0)
+  + (-1)
+  + nat2int
+      (summate dB from 0 to nTokens:
+       if zNewh0 == (if dB < nTokens: z[dB] else: 0): 1 else: 0)
+    * (-1)
+  + (if zNewh0 == (if wordUpdate0 < nTokens: z[wordUpdate0] else: 0):
+       +1
+     else: +0)
+else: +0
