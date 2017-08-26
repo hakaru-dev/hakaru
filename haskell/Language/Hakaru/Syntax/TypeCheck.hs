@@ -58,6 +58,7 @@ import qualified Language.Hakaru.Parser.AST as U
 
 import Data.Number.Nat                (fromNat)
 import Language.Hakaru.Syntax.TypeCheck.TypeCheckMonad
+import Language.Hakaru.Syntax.TypeCheck.Unification
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
@@ -320,11 +321,15 @@ inferType = inferType_
 
        U.App_ e1 e2 -> do
            TypedAST typ1 e1' <- inferType_ e1
-           case typ1 of
-               SFun typ2 typ3 -> do
-                   e2' <- checkType_ typ2 e2
-                   return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
-               _ -> typeMismatch sourceSpan (Left "function type") (Right typ1)
+           unifyFun typ1 sourceSpan $ \typ2 typ3 -> do
+            e2' <- checkType_ typ2 e2
+            return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
+
+           -- case typ1 of
+           --     SFun typ2 typ3 -> do
+           --         e2' <- checkType_ typ2 e2
+           --         return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
+           --     _ -> typeMismatch sourceSpan (Left "function type") (Right typ1)
            -- The above is the standard rule that everyone uses.
            -- However, if the @e1@ is a lambda (rather than a primop
            -- or a variable), then it will require a type annotation.
@@ -433,37 +438,22 @@ inferType = inferType_
        U.MBind_ e1 e2 ->
            caseBind e2 $ \x e2' -> do
            TypedAST typ1 e1' <- inferType_ e1
-           case typ1 of
-               SMeasure typ2 ->
-                   let x' = makeVar x typ2 in
-                   pushCtx x' $ do
-                       TypedAST typ3 e3' <- inferType_ e2'
-                       case typ3 of
-                           SMeasure _ ->
-                               return . TypedAST typ3 $
-                                   syn (MBind :$ e1' :* bind x' e3' :* End)
-                           _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ3)
-                   {-
-                   -- BUG: the \"ambiguous\" @abt@ issue again...
-                   inferBinder typ2 e2 $ \typ3 e2' ->
-                       case typ3 of
-                       SMeasure _ -> return . TypedAST typ3 $
-                           syn (MBind :$ e1' :* e2' :* End)
-                       _ -> typeMismatch (Left "HMeasure") (Right typ3)
-                   -}
-               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+           unifyMeasure typ1 sourceSpan $ \typ2 ->
+            let x' = makeVar x typ2 in
+            pushCtx x' $ do
+             TypedAST typ3 e3' <- inferType_ e2'
+             unifyMeasure typ3 sourceSpan $ \_ ->
+              return . TypedAST typ3 $ syn (MBind :$ e1' :* bind x' e3' :* End)
 
        U.Plate_ e1 e2 ->
            caseBind e2 $ \x e2' -> do
            e1' <- checkType_ SNat e1
            let x' = makeVar x SNat
            pushCtx x' $ do
-               TypedAST typ2 e3' <- inferType_ e2'
-               case typ2 of
-                   SMeasure typ3 ->
-                       return . TypedAST (SMeasure . SArray $ typ3) $
-                              syn (Plate :$ e1' :* bind x' e3' :* End)
-                   _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ2)
+            TypedAST typ2 e3' <- inferType_ e2'
+            unifyMeasure typ2 sourceSpan $ \typ3 ->
+             return . TypedAST (SMeasure . SArray $ typ3) $
+              syn (Plate :$ e1' :* bind x' e3' :* End)
 
        U.Chain_ e1 e2 e3 ->
            caseBind e3 $ \x e3' -> do
@@ -472,14 +462,11 @@ inferType = inferType_
            let x' = makeVar x typ2
            pushCtx x' $ do
                TypedAST typ3 e4' <- inferType_ e3'
-               case typ3 of
-                   SMeasure (SData (STyCon sym `STyApp` a `STyApp` b) _) ->
-                       case (jmEq1 sym sSymbol_Pair, jmEq1 b typ2) of
-                       (Just Refl, Just Refl) ->
-                           return . TypedAST (SMeasure $ sPair (SArray a) typ2) $
-                                  syn (Chain :$ e1' :* e2' :* bind x' e4' :* End)
-                       _ -> typeMismatch sourceSpan (Left "HMeasure(HPair)") (Right typ3)
-                   _     -> typeMismatch sourceSpan (Left "HMeasure(HPair)") (Right typ3)
+               unifyMeasure typ3 sourceSpan $ \typ4 ->
+                unifyPair typ4 sourceSpan $ \a b ->
+                matchTypes typ2 b sourceSpan () () $
+                 return . TypedAST (SMeasure $ sPair (SArray a) typ2) $
+                 syn (Chain :$ e1' :* e2' :* bind x' e4' :* End)
 
        U.Integrate_ e1 e2 e3 -> do
            e1' <- checkType_ SReal e1
@@ -525,11 +512,9 @@ inferType = inferType_
                StrictMode -> inferOneCheckOthers_    (L.toList $ fmap snd pes)
                LaxMode    -> inferLubType sourceSpan (L.toList $ fmap snd pes)
                UnsafeMode -> inferLubType sourceSpan (L.toList $ fmap snd pes)
-           case typ of
-               SMeasure _ -> do
-                   ps' <- T.traverse (checkType SProb) (fmap fst pes)
-                   return $ TypedAST typ (syn (Superpose_ (L.zip ps' (L.fromList es'))))
-               _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ)
+           unifyMeasure typ sourceSpan $ \_ -> do
+            ps' <- T.traverse (checkType SProb) (fmap fst pes)
+            return $ TypedAST typ (syn (Superpose_ (L.zip ps' (L.fromList es'))))
 
        U.InjTyped t     -> let t' = t in return $ TypedAST (typeOf t') t'
 
@@ -546,24 +531,20 @@ inferType = inferType_
                  ((Nil2, e1) U.:* (Cons2 U.ToU Nil2, e2) U.:* U.End) = do
     let e1src = getMetadata e1
     TypedAST typ1 e1' <- inferType_ e1
-    case typ1 of
-        SMeasure typ2 -> do
-            e2' <- checkBinder typ2 SProb e2
-            return . TypedAST SProb $ syn
-              (Transform_ Expect :$ e1' :* e2' :* End)
-        _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
+    unifyMeasure typ1 e1src $ \typ2 -> do
+     e2' <- checkBinder typ2 SProb e2
+     return . TypedAST SProb $ syn
+       (Transform_ Expect :$ e1' :* e2' :* End)
 
   inferTransform sourceSpan
                  Observe
                  ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
     let e1src = getMetadata e1
     TypedAST typ1 e1' <- inferType_ e1
-    case typ1 of
-        SMeasure typ2 -> do
-            e2' <- checkType_ typ2 e2
-            return . TypedAST typ1 $ syn
-              (Transform_ Observe :$ e1' :* e2' :* End)
-        _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
+    unifyMeasure typ1 e1src $ \typ2 -> do
+     e2' <- checkType_ typ2 e2
+     return . TypedAST typ1 $ syn
+       (Transform_ Observe :$ e1' :* e2' :* End)
 
   inferTransform sourceSpan
                  MCMC
@@ -572,38 +553,23 @@ inferType = inferType_
         e2src = getMetadata e2
     TypedAST typ1 e1' <- inferType_ e1
     TypedAST typ2 e2' <- inferType_ e2
-    case typ1 of
-      SFun typa typmb ->
-        case typmb of
-          SMeasure typb ->
-            case typ2 of
-              SMeasure typc ->
-                case (jmEq1 typa typb, jmEq1 typb typc) of
-                  (Just Refl, Just Refl) ->
-                     return $ TypedAST (SFun typa (SMeasure typa))
-                            $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
-                  (_, Nothing) ->
-                    typeMismatch e2src (Right typmb) (Right typ2)
-                  (Nothing, _) ->
-                    typeMismatch e1src (Right $ SFun typa (SMeasure typa))
-                                       (Right typ1)
-              _ -> typeMismatch e2src (Left "HMeasure") (Right typ2)
-          _ -> typeMismatch e1src (Left "HMeasure") (Right typmb)
-      _ -> typeMismatch e1src (Left ":->") (Right typ1)
+    unifyFun     typ1  e1src $ \typa typmb ->
+     unifyMeasure typmb e1src $ \typb ->
+     unifyMeasure typ2  e2src $ \typc ->
+     matchTypes typa typb e1src (SFun typa (SMeasure typa)) typ1 $
+     matchTypes typb typc e2src typmb typ2 $
+     return $ TypedAST (SFun typa (SMeasure typa))
+            $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
 
   inferTransform sourceSpan
                  (Disint k)
                  ((Nil2, e1) U.:* U.End) = do
     let e1src = getMetadata e1
     TypedAST typ1 e1' <- inferType_ e1
-    case typ1 of
-      SMeasure typ2 ->
-        maybe (typeMismatch e1src (Left "HPair") (Right typ2))
-              return $
-        sUnPair' typ2 $ \(Refl, typa, typb) ->
-          TypedAST (SFun typa (SMeasure typb)) $
-            syn $ Transform_ (Disint k) :$ e1' :* End
-      _ -> typeMismatch e1src (Left "HMeasure") (Right typ1)
+    unifyMeasure typ1 e1src $ \typ2 ->
+     unifyPair typ2 e1src $ \typa typb ->
+     return $ TypedAST (SFun typa (SMeasure typb)) $
+     syn $ Transform_ (Disint k) :$ e1' :* End
 
   inferTransform sourceSpan
                  Simplify
@@ -819,37 +785,31 @@ inferType = inferType_
   inferArrayOp U.Index_ es =
       case es of
         [e1, e2] -> do TypedAST typ1 e1' <- inferType_ e1
-                       case typ1 of
-                         SArray typ2 -> do
-                           e2' <- checkType_ SNat e2
-                           return . TypedAST typ2 $
-                                  syn (ArrayOp_ (Index typ2) :$ e1' :* e2' :* End)
-                         _ -> typeMismatch Nothing (Left "HArray") (Right typ1)
+                       unifyArray typ1 Nothing $ \typ2 -> do
+                        e2' <- checkType_ SNat e2
+                        return . TypedAST typ2 $
+                               syn (ArrayOp_ (Index typ2) :$ e1' :* e2' :* End)
         _        -> argumentNumberError
 
   inferArrayOp U.Size es =
       case es of
         [e] -> do TypedAST typ e' <- inferType_ e
-                  case typ of
-                    SArray typ1 -> do
-                       return . TypedAST SNat $
-                              syn (ArrayOp_ (Size typ1) :$ e' :* End)
-                    _ -> typeMismatch Nothing (Left "HArray") (Right typ)
+                  unifyArray typ Nothing $ \typ1 ->
+                   return . TypedAST SNat $
+                          syn (ArrayOp_ (Size typ1) :$ e' :* End)
         _   -> argumentNumberError
 
   inferArrayOp U.Reduce es =
       case es of
         [e1, e2, e3] -> do
            TypedAST typ e1' <- inferType_ e1
-           case typ of
-             SFun typ1 typ2 -> do
-               Refl <- jmEq1_ typ2 (SFun typ1 typ1)
-               e2' <- checkType_ typ1 e2
-               e3' <- checkType_ (SArray typ1) e3
-               return . TypedAST typ1 $
-                      syn (ArrayOp_ (Reduce typ1)
-                           :$ e1' :* e2' :* e3' :* End)
-             _ -> typeMismatch Nothing (Right typ) (Left "HFun")
+           unifyFun typ Nothing $ \typ1 typ2 -> do
+            Refl <- jmEq1_ typ2 (SFun typ1 typ1)
+            e2' <- checkType_ typ1 e2
+            e3' <- checkType_ (SArray typ1) e3
+            return . TypedAST typ1 $
+                   syn (ArrayOp_ (Reduce typ1)
+                        :$ e1' :* e2' :* e3' :* End)
         _            -> argumentNumberError
 
   inferReducer :: U.Reducer xs U.U_ABT 'U.U
@@ -1089,13 +1049,10 @@ checkType = checkType_
         -- We keep it here in case, we later use a U.Lam which doesn't
         -- carry the type of its variable 
         U.Lam_ (U.SSing typ) e1 ->
-            case typ0 of
-            SFun typ1 typ2 ->
-                case jmEq1 typ1 typ of
-                  Just Refl -> do e1' <- checkBinder typ1 typ2 e1
-                                  return $ syn (Lam_ :$ e1' :* End)
-                  Nothing   -> typeMismatch sourceSpan (Right typ1) (Right typ)
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "function type")
+          unifyFun typ0 sourceSpan $ \typ1 typ2 ->
+          matchTypes typ1 typ sourceSpan () () $
+            do e1' <- checkBinder typ1 typ2 e1
+               return $ syn (Lam_ :$ e1' :* End)
 
         U.Let_ e1 e2 -> do
             TypedAST typ1 e1' <- inferType_ e1
@@ -1108,11 +1065,9 @@ checkType = checkType_
                 e1' <- checkType_ typ0 e1
                 return $ syn (CoerceTo_ CNil :$  e1' :* End)
             Just (dom, cod) ->
-                case jmEq1 typ0 cod of
-                Just Refl -> do
-                    e1' <- checkType_ dom e1
-                    return $ syn (CoerceTo_ c :$ e1' :* End)
-                Nothing -> typeMismatch sourceSpan (Right typ0) (Right cod)
+                matchTypes typ0 cod sourceSpan () () $ do
+                 e1' <- checkType_ dom e1
+                 return $ syn (CoerceTo_ c :$ e1' :* End)
 
         U.UnsafeTo_ (Some2 c) e1 ->
             case singCoerceDomCod c of
@@ -1120,11 +1075,9 @@ checkType = checkType_
                 e1' <- checkType_ typ0 e1
                 return $ syn (UnsafeFrom_ CNil :$  e1' :* End)
             Just (dom, cod) ->
-                case jmEq1 typ0 dom of
-                Just Refl -> do
-                    e1' <- checkType_ cod e1
-                    return $ syn (UnsafeFrom_ c :$ e1' :* End)
-                Nothing -> typeMismatch sourceSpan (Right typ0) (Right dom)
+                matchTypes typ0 dom sourceSpan () () $ do
+                 e1' <- checkType_ cod e1
+                 return $ syn (UnsafeFrom_ c :$ e1' :* End)
 
         -- TODO: Find better place to put this logic
         U.PrimOp_ U.Infinity [] -> do
@@ -1165,30 +1118,22 @@ checkType = checkType_
                 return $ syn (NaryOp_ op' (S.fromList es'))
 
         U.Pair_ e1 e2 ->
-            case typ0 of
-            SData (STyCon sym `STyApp` a `STyApp` b) _ ->
-                case jmEq1 sym sSymbol_Pair of
-                Just Refl  -> do
-                    e1' <- checkType_ a e1
-                    e2' <- checkType_ b e2
-                    return $ syn (Datum_ $ dPair_ a b e1' e2')
-                Nothing    -> typeMismatch sourceSpan (Right typ0) (Left "HPair")
-            _              -> typeMismatch sourceSpan (Right typ0) (Left "HPair")
+          unifyPair typ0 sourceSpan $ \a b -> do
+           e1' <- checkType_ a e1
+           e2' <- checkType_ b e2
+           return $ syn (Datum_ $ dPair_ a b e1' e2')
 
         U.Array_ e1 e2 ->
-            case typ0 of
-            SArray typ1 -> do
-                e1' <- checkType_  SNat e1
-                e2' <- checkBinder SNat typ1 e2
-                return $ syn (Array_ e1' e2')
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HArray")
+            unifyArray typ0 sourceSpan $ \typ1 -> do
+             e1' <- checkType_  SNat e1
+             e2' <- checkBinder SNat typ1 e2
+             return $ syn (Array_ e1' e2')
 
         U.ArrayLiteral_ es ->
-            case typ0 of
-            SArray typ1 -> if null es then return $ syn (Empty_ typ0) else do
+            unifyArray typ0 sourceSpan $ \typ1 ->
+            if null es then return $ syn (Empty_ typ0) else do
                es' <- T.forM es $ checkType_ typ1
                return $ syn (ArrayLiteral_ es')
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HArray")
 
         U.Datum_ (U.Datum hint d) ->
             case typ0 of
@@ -1203,59 +1148,44 @@ checkType = checkType_
             return $ syn (Case_ e1' branches')
 
         U.Dirac_ e1 ->
-            case typ0 of
-            SMeasure typ1 -> do
-                e1' <- checkType_ typ1 e1
-                return $ syn (Dirac :$ e1' :* End)
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+            unifyMeasure typ0 sourceSpan $ \typ1 -> do
+             e1' <- checkType_ typ1 e1
+             return $ syn (Dirac :$ e1' :* End)
 
         U.MBind_ e1 e2 ->
-            case typ0 of
-            SMeasure _ -> do
-                TypedAST typ1 e1' <- inferType_ e1
-                case typ1 of
-                    SMeasure typ2 -> do
-                        e2' <- checkBinder typ2 typ0 e2
-                        return $ syn (MBind :$ e1' :* e2' :* End)
-                    _ -> typeMismatch sourceSpan (Right typ0) (Right typ1)
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+            unifyMeasure typ0 sourceSpan $ \_ -> do
+             TypedAST typ1 e1' <- inferType_ e1
+             unifyMeasure typ1 (getMetadata e1) $ \typ2 -> do
+              e2' <- checkBinder typ2 typ0 e2
+              return $ syn (MBind :$ e1' :* e2' :* End)
 
         U.Plate_ e1 e2 ->
-            case typ0 of
-            SMeasure typ1 -> do
-                e1' <- checkType_ SNat e1
-                case typ1 of
-                    SArray typ2 -> do
-                        e2' <- checkBinder SNat (SMeasure typ2) e2
-                        return $ syn (Plate :$ e1' :* e2' :* End)
-                    _ -> typeMismatch sourceSpan (Right typ1) (Left "HArray")
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+            unifyMeasure typ0 sourceSpan $ \typ1 -> do
+             e1' <- checkType_ SNat e1
+             unifyArray typ1 sourceSpan $ \typ2 -> do
+              e2' <- checkBinder SNat (SMeasure typ2) e2
+              return $ syn (Plate :$ e1' :* e2' :* End)
 
         U.Chain_ e1 e2 e3 ->
-            case typ0 of
-            SMeasure (SData (STyCon sym `STyApp` (SArray a) `STyApp` s) _) ->
-                case jmEq1 sym sSymbol_Pair of
-                Just Refl -> do
-                    e1' <- checkType_  SNat e1
-                    e2' <- checkType_  s    e2
-                    e3' <- checkBinder s    (SMeasure $ sPair a s) e3
-                    return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
-                Nothing -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure(HPair(HArray, s)")
-            _           -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure(HPair(HArray, s)")
+            unifyMeasure typ0 sourceSpan $ \typ1 ->
+            unifyPair typ1 sourceSpan $ \aa s ->
+            unifyArray aa sourceSpan $ \a -> do
+              e1' <- checkType_  SNat e1
+              e2' <- checkType_  s    e2
+              e3' <- checkBinder s    (SMeasure $ sPair a s) e3
+              return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
+
         U.Transform_ tr es -> checkTransform sourceSpan typ0 tr es
 
         U.Superpose_ pes ->
-            case typ0 of
-            SMeasure _ ->
+            unifyMeasure typ0 sourceSpan $ \_ ->
                 fmap (syn . Superpose_) .
                     T.forM pes $ \(p,e) ->
                         (,) <$> checkType_ SProb p <*> checkType_ typ0 e
-            _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
         U.Reject_ ->
-            case typ0 of
-            SMeasure _ -> return $ syn (Reject_ typ0)
-            _          -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
+            unifyMeasure typ0 sourceSpan $ \_ ->
+            return $ syn (Reject_ typ0)
 
         U.InjTyped t ->
             let typ1 = typeOf $ triv t
@@ -1287,52 +1217,36 @@ checkType = checkType_
       case typ0 of
       SProb -> do
           TypedAST typ1 e1' <- inferType_ e1
-          case typ1 of
-              SMeasure typ2 -> do
-                  e2' <- checkBinder typ2 typ0 e2
-                  return $ syn (Transform_ Expect :$ e1' :* e2' :* End)
-              _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typ1)
+          unifyMeasure typ1 sourceSpan $ \typ2 -> do
+           e2' <- checkBinder typ2 typ0 e2
+           return $ syn (Transform_ Expect :$ e1' :* e2' :* End)
       _ -> typeMismatch sourceSpan (Right typ0) (Left "HProb")
 
     checkTransform sourceSpan typ0
                    Observe
                    ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) =
-      case typ0 of
-      SMeasure typ2 -> do
+      unifyMeasure typ0 sourceSpan $ \typ2 -> do
           e1' <- checkType_ typ0 e1
           e2' <- checkType_ typ2 e2
           return $ syn (Transform_ Observe :$ e1' :* e2' :* End)
-      _ -> typeMismatch sourceSpan (Right typ0) (Left "HMeasure")
 
     checkTransform sourceSpan typ0
                    MCMC
-                   ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) = do
-      case typ0 of
-        SFun typa typmb ->
-          case typmb of
-            SMeasure typb ->
-              case jmEq1 typa typb of
-                Just Refl -> do
-                  e1' <- checkType (SFun typa (SMeasure typa)) e1
-                  e2' <- checkType            (SMeasure typa)  e2
-                  return $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
-                Nothing   ->
-                  typeMismatch sourceSpan
-                                  (Right $ SFun typa (SMeasure typa))
-                                  (Right typ0)
-        _ -> typeMismatch sourceSpan (Left ":->") (Right typ0)
+                   ((Nil2, e1) U.:* (Nil2, e2) U.:* U.End) =
+      unifyFun typ0 sourceSpan $ \typa typmb ->
+      unifyMeasure typmb sourceSpan $ \typb ->
+      matchTypes typa typb sourceSpan (SFun typa (SMeasure typa)) typ0 $ do
+       e1' <- checkType (SFun typa (SMeasure typa)) e1
+       e2' <- checkType            (SMeasure typa)  e2
+       return $ syn $ Transform_ MCMC :$ e1' :* e2' :* End
 
     checkTransform sourceSpan typ0
                    (Disint k)
-                   ((Nil2, e1) U.:* U.End) = do
-      case typ0 of
-        SFun typa typmb ->
-          case typmb of
-            SMeasure typb -> do
-              e1' <- checkType (SMeasure (sPair typa typb)) e1
-              return $ syn $ Transform_ (Disint k) :$ e1' :* End
-            _ -> typeMismatch sourceSpan (Left "HMeasure") (Right typmb)
-        _ -> typeMismatch sourceSpan (Left ":->") (Right typ0)
+                   ((Nil2, e1) U.:* U.End) =
+      unifyFun typ0 sourceSpan $ \typa typmb ->
+      unifyMeasure typmb sourceSpan $ \typb -> do
+       e1' <- checkType (SMeasure (sPair typa typb)) e1
+       return $ syn $ Transform_ (Disint k) :$ e1' :* End
 
     checkTransform sourceSpan typ0
                    Simplify
