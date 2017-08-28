@@ -1,4 +1,4 @@
-def therm (recurse pair(real, real)):
+therm = fn recurse pair(real, real):
  match recurse:
  (r3, r1):
   fn x4 pair(prob, prob):
