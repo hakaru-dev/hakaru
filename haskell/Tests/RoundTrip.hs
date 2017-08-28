@@ -226,8 +226,8 @@ testOther = test [
                            "tests/RoundTrip/thermometer_workflow_res.hk",
     "\"burglary\" pipeline" ~:
                            testConcreteFilesET defaultMapleOptions
-                           [ "tests/RoundTrip/thermometer_workflow.hk" ]
-                           "tests/RoundTrip/thermometer_workflow_res.hk"
+                           [ "tests/RoundTrip/burglary_workflow.hk" ]
+                           "tests/RoundTrip/burglary_workflow_res.hk"
     --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
     --"testTrueDetection" ~: testStriv (lam2 seismicTrueDetection)
     --"testTrueDetectionL" ~: testStriv tdl,
