@@ -276,6 +276,7 @@ Test-Suite relationships-testsuite
                        Language.Hakaru.Syntax.AST
                        Language.Hakaru.Syntax.AST.Eq
                        Language.Hakaru.Syntax.AST.Sing
+                       Language.Hakaru.Syntax.AST.Transforms
                        Language.Hakaru.Syntax.CSE
                        Language.Hakaru.Syntax.Datum
                        Language.Hakaru.Syntax.DatumABT
