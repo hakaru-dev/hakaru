@@ -147,9 +147,9 @@ will not be possible in higher dimensions. Therefore, we will use a *Markov Chai
 for problems with high dimensionality. To use the [Metropolis-Hastings transform](../transforms/mh.md), you must have a target distribution and a transition kernel. The 
 thermometer model that we have already built will be our target distribution, but we have yet to create the transition kernel.
 
-When specifying a model to be the transition kernel, our goal is to propose samples that are representitive of the posterior model. For this example, we will hold one of 
+When specifying a model to be the transition kernel, our goal is to propose samples that are representative of the posterior model. For this example, we will hold one of 
 the noise parameters constant will updating the other by drawing new values from a `uniform` distribution. This allows the sampler to remember a good setting for a parameter
-when one is found, allowig it to concentrate on the remaining parameters:
+when one is found, allowing it to concentrate on the remaining parameters:
 
 ````nohighlight
 fn noise pair(prob, prob):
@@ -213,7 +213,7 @@ the command prompt, we will include it as part of our Hakaru program by using th
 **Note:** Each model within the `mcmc` syntax must be wrapped within another syntactic transform. For this example, we are using the `simplify` transform.
 
 The `mcmc` syntactic transform must also be wrapped in a Hakaru function that has the same type signature as the target model. Due to the self-referential nature of MCMC
-moethods, this function is referenced at the end of the target model's definition. We will call this function `recurse`:
+methods, this function is referenced at the end of the target model's definition. We will call this function `recurse`:
 
 ````nohighlight
 fn recurse pair(real, real):
@@ -330,11 +330,73 @@ match x3:
 [simplify it](https://github.com/hakaru-dev/hakaru/blob/master/examples/documentation/thermometer_mcmc_processed.hk).
 
 With our model defined and processed, we can now assign it values to generate samples from. For the sake of this example, let's say that we observed temperature measurements
-of 29\(^{\circ}\)C and 26\(^{\circ}\)C. To use these values, we must call the MCMC version of our model within the Hakaru program using our values:
+of 29\(^{\circ}\)C and 26\(^{\circ}\)C. To use these values, we must turn our anonymous Hakaru functions into callable ones so that we can assign them the pair (29,26). For
+our transition kernel ([thermometer_mcmc_processed.hk](https://github.com/hakaru-dev/hakaru/blob/master/examples/documentation/thermometer_mcmc_processed.hk)), this change 
+would be:
 
 ````nohighlight
+therm = fn recurse pair(real, real):
+ match recurse:
+ ...
+           return (rf, rd)))
+therm((29,26))
+````
+**Note:** This is the simplified version of our transition kernel. Due to its length, this program has been shortened to make the changes more apparent.
+
+After the same change, our target Hakru program ([thermometer_disintegrate_simplify.hk](https://github.com/hakaru-dev/hakaru/blob/master/examples/documentation/thermometer_disintegrate_simplify.hk))
+becomes:
+
+````nohighlight
+thermometer = fn x8 pair(real, real):
+ match x8:
+ (r3, r1):
+  weight
+    (1/ pi * (1/2),
+     nTd <~ uniform(+3/1, +8/1)
+     nMb <~ uniform(+1/1, +4/1)
+     weight
+       (exp
+          ((nMb ^ 2 * r1 ^ 2
+            + nMb ^ 2 * r3 ^ 2
+            + nTd ^ 2 * r1 ^ 2
+            + nTd ^ 2 * r1 * r3 * (-2/1)
+            + nTd ^ 2 * r3 ^ 2 * (+2/1)
+            + nMb ^ 2 * r1 * (-42/1)
+            + r3 * nMb ^ 2 * (-42/1)
+            + r3 * nTd ^ 2 * (-42/1)
+            + nMb ^ 2 * (+882/1)
+            + nTd ^ 2 * (+441/1))
+           / (nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)
+           * (-1/2))
+        / sqrt(real2prob(nMb ^ 4 + nTd ^ 2 * nMb ^ 2 * (+3/1) + nTd ^ 4)),
+        return (real2prob(nTd), real2prob(nMb))))
+thermometer((29,26))
+````
+
+With these alterations, we can finally use the `hakaru` command to generate samples from our model:
+
+````bash
+$ hakaru --transition-kernel thermometer_mcmc_processed.hk thermometer_disintegrate_simplify.hk
+(3.1995679303602578, 2.3093879567135325)
+(3.1995679303602578, 2.3093879567135325)
+(3.1995679303602578, 3.664010086898677)
+(3.1995679303602578, 3.664010086898677)
+(3.512655151270474, 3.664010086898677)
+(6.535434584595698, 3.664010086898677)
+(7.944581473529944, 3.664010086898677)
+(6.960163985266382, 3.664010086898677)
+(6.960163985266382, 1.850724571692917)
+(6.960163985266382, 1.850724571692917)
+(6.960163985266382, 1.850724571692917)
 ...
-recurse(29, 26)
+````
+
+In the Hakaru system definition paper[^1], a graph is generated from the data by collecting every fifth sample from 20,000 generated 
+samples. You can create a file with this information by using an `awk` script, which can then be imported into a graphing software
+package such as Maple:
+
+````bash
+$ hakaru --transition-kernel thermometer_mcmc_processed.hk thermometer_disintegrate_simplify.hk | head -n 20000 | awk 'BEGIN{i = 0}{if (i % 5 == 0) a[i/5] = $0; i = i + 1}END{for (j in a) print a[j]}' > thermometer_output.txt
 ````
 
 ## Extra: A Syntactic Definition ##
