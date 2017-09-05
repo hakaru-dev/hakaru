@@ -799,6 +799,11 @@ KB := module ()
     [op(map2(op, 1, select(type, kb, t_intro)))];
   end proc;
 
+  # This case is because the following takes forever:
+  # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_
+  # = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1,
+  # i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] =
+  # size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
   bad_assumption_pw := (x->x::`=` and has(x,piecewise));
 
   # This case is because the following takes forever:
@@ -826,11 +831,6 @@ KB := module ()
   # Returns true if the assumption is bad, false otherwise
   bad_assumption := proc(a, $)
     bad_assumption_pw(a) or
-    # The case above is because the following takes forever:
-    # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_
-    # = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1,
-    # i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] =
-    # size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
     ( a :: `=` and
       ormap(f->f(a)::name,[lhs,rhs]) and
       indets(a,'{specindex,specfunc}'(chilled))<>{} ) or
