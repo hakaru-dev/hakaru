@@ -220,6 +220,9 @@ testOther = test [
                            defaultMapleOptions { timelimit=300 }
                            [ "tests/RoundTrip/gmm_gibbs.0.hk" ]
                            "tests/RoundTrip/gmm_gibbs.expected.hk",
+    "naive_bayes_gibbs" ~: testConcreteFilesET defaultMapleOptions
+                            [ "tests/RoundTrip/naive_bayes_gibbs.0.hk" ]
+                            "tests/RoundTrip/naive_bayes_gibbs.expected.hk",
     "\"thermometer\" pipeline" ~:
                            testConcreteFilesET defaultMapleOptions
                            [ "tests/RoundTrip/thermometer_workflow.hk" ]
