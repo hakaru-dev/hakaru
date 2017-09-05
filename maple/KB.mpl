@@ -863,7 +863,7 @@ KB := module ()
     op(`if`(x_typ<>TopProp, map((b -> `if`(nops(b)>=2,[op(1,b)(x, op(2,b))],[])[]), x_ty),[]))
   end proc;
 
-  kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption_pw, $)
+  kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption, $)
     local n, as;
     as := remove(to_remove,
           [ map( kb_atom_to_assumptions ,
