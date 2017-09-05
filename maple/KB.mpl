@@ -50,7 +50,8 @@ KB := module ()
 
      # Various utilities
      t_intro, t_lo, t_hi,
-     coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw,
+     coalesce_bounds, htype_to_property,
+     bad_assumption, bad_assumption_pw, bad_assumption_SumProdInt,
      array_size_assumptions, array_elem_assumptions, kb_intro_to_assumptions,
 
      simpl_range_of_htype,
@@ -799,6 +800,29 @@ KB := module ()
   end proc;
 
   bad_assumption_pw := (x->x::`=` and has(x,piecewise));
+
+  # This case is because the following takes forever:
+  # is(y <= Hakaru:-size[topic_prior]-2) assuming
+  #  (.., j <= Sum(piecewise(docUpdate = Hakaru:-idx[doc, i2],
+  #                          piecewise(And(i = zNew0, i1 = Hakaru:-idx[w, i2]),
+  #                                    1, 0),
+  #                          0),
+  #                i2 = 0 .. Hakaru:-size[w]-1)-1
+  bad_assumption_SumProdInt := proc(a,$)
+    local a1,v,r;
+    if not(a::relation) then return false; end if;
+    a1 := is_lhs((s,_)->s::name, a);
+    if a1=FAIL then return false end if;
+    v := indets[flat](rhs(a1),specfunc({Int,Sum,Product,`int`,`sum`,`product`}));
+    r := evalb(
+      v<>{} and
+      ormap(x->has(x,piecewise) and has(x,idx),[op(v)]));
+    if r then
+      userinfo(3, procname, printf("%a is a bad assumption\n",a));
+    end if;
+    r;
+  end proc;
+
   # Returns true if the assumption is bad, false otherwise
   bad_assumption := proc(a, $)
     bad_assumption_pw(a) or
@@ -809,8 +833,9 @@ KB := module ()
     # size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
     ( a :: `=` and
       ormap(f->f(a)::name,[lhs,rhs]) and
-      indets(a,'{specindex,specfunc}'(chilled))<>{} )
+      indets(a,'{specindex,specfunc}'(chilled))<>{} ) or
     # These are dealt with otherwise and aren't understood by Maple
+    bad_assumption_SumProdInt(a)
   end proc;
 
   # Note that this returns potentially any number of operands.
