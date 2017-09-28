@@ -1,0 +1,5 @@
+fn x array(real):
+a <~ normal(2,3)
+b <~ normal(4,5)
+y <~ plate i of size(x): normal(a*x[i]+b,1)
+return (y,(a,b))
