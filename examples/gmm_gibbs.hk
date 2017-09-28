@@ -10,7 +10,7 @@ fn as array(prob):
 fn z array(nat):
 fn t array(real):
 fn docUpdate nat:
-  if size(z) == size(t) && docUpdate < size(z):
+  if size(z) == size(t) && docUpdate < size(z) && z[docUpdate] < size(as):
 
     theta <~ dirichlet(as)
     phi <~ plate k of size(as): normal(0,1)
