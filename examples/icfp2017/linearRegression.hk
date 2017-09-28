@@ -1,6 +1,6 @@
 fn dataX array(real):
    a <~ normal(0,1)
-   b <~ normal(5,1.82574185835055371152)
+   b <~ normal(5,sqrt(10/3))
    invNoise <~ gamma(1,1)
    y <~ plate i of 1000: normal(a*dataX[i]+b, recip(sqrt(invNoise)))
    return (y, [a,b,invNoise])
