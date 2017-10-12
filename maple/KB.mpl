@@ -249,7 +249,7 @@ KB := module ()
   assert_deny := module ()
    export ModuleApply;
    local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve, do_assert_deny,
-         refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg;
+         refine_given, t_match_array_type, simplify_in_context, expr_indp_errMsg;
 
    # Either And or Or type, chosen by boolean pol
    t_if_and_or_of := proc(pol,$)
@@ -266,8 +266,15 @@ KB := module ()
    # and another thing which is a name which is neither constant nor undefined
    t_constraint_flipped := 'Not({name, size(name)}) = Name';
 
-   # The 'type' representing bounds on `x', where `x' is a name
-   t_bound_on := proc(x,$) And(relation, Or(anyop(identical(x), freeof(x)), anyop(freeof(x), identical(x)))) end proc;
+   # Given a Hakaru type which may be an array type, produce the type matching
+   # expressions corresponding to indices into that array type
+   t_match_array_type := proc(x::t_type,k:=anything)
+     if x :: specfunc(HArray) then
+       'idx'( t_match_array_type(op(1,x),k), anything );
+     else
+       k
+     end if;
+   end proc;
 
    # Given (TODO: add these types to the function(?))
    #   k  :: HakaruType
@@ -296,23 +303,15 @@ KB := module ()
        ]
    end proc;
 
-   # Performs simplification(?) in case something of the form `t_bound_on` is
-   # found
-   # This function signals it has failed to find a result with `FAIL`
-   bound_simp := proc(b,x,k,kb,pol,as0,$)
-      local e, rel, c, kb1,ch, as := as0;
-      # b is a bound on x, so compare it against the current bound on x.
-      # First, express `if`(pol,b,Not(b)) as rel(x,e)
-      rel := op(0,b);
-
-      # Account for the symmetric cases of `x' being on the left or right
-      # hand side; the predicate is modified(?) in case of a 'flip'
-      if x = lhs(b) then
-        e := rhs(b);
-      else #x=rhs(b)
-        e   := lhs(b);
-        rel := subs({`<`=`>`, `<=`=`>=`}, rel);
-      end if;
+   # Performs simplification in case something of the form `t_bound_on` is
+   # found.  This function signals it has failed to find a result with `FAIL`.
+   #  rel(x,e)  : relation =  the constraint to add to the KB
+   #  k         : t_type   =  type of `x'
+   #  kb        : t_kb     =  the KB
+   #  pol       : bool     =  add the constraint or its relation
+   #  as                  :=  assumptions of the KB
+   bound_simp := proc(rel_,x,e_,k,kb,pol,as0,$)
+      local c, kb1, ch, as := as0, e := e_, rel := rel_;
 
       # Change relations to their negations if `pol = false'
       if not pol then
@@ -400,9 +399,7 @@ KB := module ()
    end proc;
 
    # Simplification when the `:: t_bound_on' predicate is false
-   # note: k is ignored, but this makes the API the same as
-   # bound_simp
-   not_bound_simp := proc(b,x,k,kb,pol,as,$)
+   not_bound_simp := proc(b,x,kb,pol,as,$)
      local c, bad;
      if _Env_HakaruSolve=false or pol=false then return FAIL; end if;
      if x::relation then
@@ -506,7 +503,7 @@ KB := module ()
    # Great deal of magic happens behind the scenes
    do_assert_deny := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, bbv, b, k, x, log_b, todo, kb0, ch;
+    local as, bbv, b, k, x, log_b, todo, kb0, ch, t_x, t_m, t_x0, c;
     b := bb;
 
     if b = pol then
@@ -547,17 +544,20 @@ KB := module ()
 
       # If that scope is not precisely the trivial KB, then ..
       if nops(k) > 0 then
-        x, k := op(op(1,k));
-        # Found the innermost scope where b makes sense.
-        # Reduce (in)equality between exp(A) and exp(B) to between A and B.
-        b := try_improve_exp(b, x, as);
+        x, t_x := op(op(1,k));
+        t_x0 := array_base_type(t_x);
+        t_m := t_match_array_type(t_x, identical(`x`));
 
-        # syntactic adjustment
-        # If `b' is of a particular form (a bound on `x'), simplification
-        # is in order
-        if not b::`::` then
-          todo := `if`(b :: t_bound_on(`x`), bound_simp, not_bound_simp);
-          kb0 := todo(b,x,k,kb,pol,as);
+        # if b is a relation of the form `op(identical(x),freeof(x))' where
+        # `x::HkName' ...
+        if b::relation then
+          c := classify_relation(b, t_m);
+          if c = FAIL or hastype(op(4,c), t_m) then
+            todo := curry(not_bound_simp, b, x);
+          else
+            todo := curry(bound_simp, op(2..4,c), t_x0)
+          end if;
+          kb0 := todo(kb, pol, as);
 
           # If it succeeds, return that result
           if not kb0 :: identical(FAIL) then return kb0 end if;
