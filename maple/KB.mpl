@@ -55,7 +55,9 @@ KB := module ()
      array_size_assumptions, array_elem_assumptions, kb_intro_to_assumptions,
 
      simpl_range_of_htype,
-     known_assuming_expections
+     known_assuming_expections,
+
+     splitHkName, array_base_type
 
      ;
   export
@@ -180,6 +182,13 @@ KB := module ()
     local x, t;
     x := `if`(depends([e,kb,_rest], xx), gensym(xx), xx);
     x, KB(Let(x, e), op(kb));
+  end proc;
+
+  # The base type of a (possibly) array type is the outermost non-array type
+  array_base_type := proc(x::t_type,$)
+    if x::specfunc(HArray) then
+      array_base_type(op(1,x))
+    else x end if;
   end proc;
 
   # Builds a kb from:
@@ -782,6 +791,17 @@ KB := module ()
     res := select(type, kb, 'Introduce(identical(x), anything)');
     if nops(res)=0 then FAIL else
       res := op([1,2], res);
+  splitHkName := proc(x :: HkName, $)::(list(appliable),name);
+    local x1, q, s, b;
+    if x :: name then
+      [] , x
+    elif x :: 'idx'(anything, anything) then
+      x1 , q := op(x);
+      s , b := splitHkName(x1);
+      [ (i->idx(i,q)), op(s) ], b
+    end if;
+  end proc;
+
       over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
                      `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
       for bound in select(type, kb, 'Bound(identical(x),
