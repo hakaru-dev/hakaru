@@ -985,8 +985,8 @@ KB := module ()
     [(t_kb=
       ''specfunc({
          Introduce(name, t_type),
-         Let(name, anything),
-         Bound(name, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
+         Let(HkName, anything),
+         Bound(HkName, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
          Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
        }, KB)'')
 
@@ -1000,6 +1000,7 @@ KB := module ()
 
     # Something that might be a KB, or is the false KB
     ,(t_kb_mb = ''{t_kb, t_not_a_kb}'')
+    ,(HkName = ''Or(name,'idx'(HkName,anything))'')
     ]);
 
   ModuleLoad := proc($)
