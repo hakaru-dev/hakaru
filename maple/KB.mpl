@@ -786,11 +786,6 @@ KB := module ()
     simplify_assuming_mb(ee,kb,e->FAIL);
   end proc;
 
-  getType := proc(kb :: t_kb, x :: name, $)
-    local res, over, bound;
-    res := select(type, kb, 'Introduce(identical(x), anything)');
-    if nops(res)=0 then FAIL else
-      res := op([1,2], res);
   splitHkName := proc(x :: HkName, $)::(list(appliable),name);
     local x1, q, s, b;
     if x :: name then
@@ -802,15 +797,35 @@ KB := module ()
     end if;
   end proc;
 
+  getType := proc(kb :: t_kb, x_ :: HkName, $)
+    local res, over, bound, cs, s, x1, k, mkt, x := x_;
+
+    s, x1 := splitHkName(x);
+    k   := nops(s);
+    mkt := foldr(`@`,(a->a),HArray$k);
+
+    res := select(type, kb, 'Introduce'(identical(x1), mkt(anything)));
+    if nops(res)<>1 then FAIL else
+      res := op([1,2,1$k], res);
+      # Bounds
       over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
                      `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
-      for bound in select(type, kb, 'Bound(identical(x),
+      for bound in select(type, kb, 'Bound'(identical(x),
                                            identical(`<`,`<=`,`>`,`>=`),
-                                           anything)') do
+                                           anything)) do
         res := remove(type, res, 'Bound'(over[op(2,bound)], 'anything'));
         res := op(0,res)(subsop(1=NULL,bound), op(res));
       end do;
-      res
+
+      # Constrains
+      cs := select(type, kb, 'Constrain'(relation));
+      # those relations whose left or right hand side is identically the variable
+      cs := map(a -> classify_relation(op(1,a), identical(x)), cs);
+      cs := select(type, cs, Not(identical(FAIL)));
+      cs := op(map(a -> Bound(op(2,a), op(4,a)), cs));
+      res := op(0,res)(cs, op(res));
+
+      mkt(res);
     end if;
   end proc;
 
