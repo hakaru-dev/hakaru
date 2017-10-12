@@ -545,6 +545,7 @@ KB := module ()
       # If that scope is not precisely the trivial KB, then ..
       if nops(k) > 0 then
         x, t_x := op(op(1,k));
+        b := try_improve_exp(b, x, as);
         t_x0 := array_base_type(t_x);
         t_m := t_match_array_type(t_x, identical(`x`));
 
