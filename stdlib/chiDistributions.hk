@@ -1,0 +1,44 @@
+def chiSq(means array(real), stdevs array(prob) ):
+	#TODO: check sizes of means==stdevs
+	q <~ plate _ of size(means): normal(means[_],stdevs[_])
+	return summate i from 0 to size(q):
+		((q[i]-means[i])/stdevs[i])^2
+
+def chi(means array(real), stdevs array(prob)):
+	q <~ chiSq(means,stdevs)
+	return sqrt(real2prob(q))
+
+# Normal Chi Squared distribution where mean/stdev are same for all degrees of freedom
+def chiSq_iid(n nat, mean real, stdev prob):
+	q <~ plate _ of n: normal(mean,stdev)
+	return summate i from 0 to size(q): 
+		((q[i]-mean)/stdev)^2
+
+def chi_iid(n nat, mean real, stdev prob):
+	q <~ chiSq_iid(n,mean,stdev)
+	return sqrt(real2prob(q))
+
+def standardChiSq(n nat):
+	#q <~ plate _ of n: normal(0,1)
+	#return summate i from 0 to size(q): q[i]^2
+	chiSq_iid(n,0,1)
+
+def standardChi(n nat):
+	q <~ standardChiSq(n)
+	return sqrt(real2prob(q))
+
+def nonCentralChiSq(means array(real), stdevs array(prob)):
+	q <~ plate _ of size(means): normal(means[_],stdevs[_])
+	return summate i from 0 to size(means): 
+		(q[i]/stdevs[i])^2
+
+def nonCentralChi(means array(real), stdevs array(prob)):
+	q <~ nonCentralChiSq(means,stdevs)
+	return sqrt(real2prob(q))
+
+def nonCentralityParameter(means array(real), stdevs array(prob)):
+	return summate i from 0 to size(means): 
+		(means[i]/stdevs[i])^2
+
+def ncp(means array(real), stdevs array(prob)):
+	return nonCentralityParameter(means, stdevs)
