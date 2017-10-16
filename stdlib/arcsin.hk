@@ -1,0 +1,9 @@
+# Arcsin Distribution
+# Justin Staples
+# October 16th, 2017
+
+def arcsin():
+	p <~ beta(0.5, 0.5)
+	return p
+
+arcsin()

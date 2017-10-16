@@ -1,0 +1,18 @@
+# Log-Normal Distribution 
+# Justin Staples
+# October 13th, 2017
+
+def logNormal(alpha prob, beta prob):
+	# computing the mean and variance of the population
+	m = exp(alpha + beta ** 2 / 2)
+	v = (exp(beta ** 2) - 1) * (exp(2 * alpha + beta ** 2))
+
+	# computing the mean and standard deviation of the variable's natural logarithm
+	mu = log(real2prob(m / (sqrt(1 + (v) / (m ** 2)))))
+	sigma = sqrt(log(real2prob(1 + (v) / (m ** 2))))
+
+	# exponentiating to get the desired distribution
+	# Z <~ stdNorma() ???
+	Z <~ normal(0, 1) 
+	return exp(mu + sigma * Z)
+
