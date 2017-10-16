@@ -1,0 +1,9 @@
+# Standard Normal Distribution 
+# Justin Staples
+# October 13th, 2017
+
+def stdNormal():
+	p <~ normal(0, 1)
+	return p
+
+stdNormal()
