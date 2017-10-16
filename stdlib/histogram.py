@@ -13,7 +13,8 @@ import sys
 filename = sys.argv[1]
 nos = sys.argv[2]
 
-command = "hakaru -w " + filename + "| head -n " + nos + "> samples.txt"
+command = "hakaru -w " + filename + " | head -n " + nos + " > samples.txt"
+print(command)
 
 os.system(command)
 
