@@ -1,0 +1,20 @@
+# khattm: Hakaru freezes after a random number of outputs from this on my machine...
+def gammaPoisson(shape prob, scale prob) measure(nat):
+	mu <~ gamma(shape, scale)
+	X <~ poisson(mu)
+	return X
+
+def pascal(n nat, p prob):
+	# TODO: error check p>1
+	shape = (1-p)/p
+	X <~ gammaPoisson(real2prob(shape), nat2prob(n))
+	return X
+
+def geometric(p prob):
+	X <~ pascal(1,p)
+	return X
+
+def betaPascal(n nat, a prob, b prob):
+	p <~ beta(a,b)
+	X <~ pascal(n,p)
+	return X
