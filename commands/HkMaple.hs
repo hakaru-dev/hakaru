@@ -8,7 +8,8 @@
 
 module Main where
 
-import           Language.Hakaru.Pretty.Concrete  
+import           Language.Hakaru.Pretty.Concrete as C
+import           Language.Hakaru.Pretty.SExpression as S
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Command (parseAndInfer', readFromFile', Term)
@@ -43,6 +44,7 @@ data Options a
     { moptions      :: MapleOptions (Maybe String)
     , no_unicode    :: Bool
     , toExpand      :: Maybe [Some2 Transform]
+    , printer       :: String
     , program       :: a } 
   | ListCommands
   | PrintVersion
@@ -90,6 +92,10 @@ options = (Options
         O.long "to-expand" <>
         O.value Nothing <>
         O.help "Transformations to be expanded; default is all transformations" )
+  <*> O.strOption
+      ( O.short 'p' <>
+        O.long "printer" <>
+        O.value "concrete" )
   <*> O.strArgument
       ( O.metavar "PROGRAM" <> 
         O.help "Filename containing program to be simplified, or \"-\" to read from input." )) O.<|> 
@@ -136,7 +142,9 @@ runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
            Just c  -> sendToMaple' moptions{command=c}
            Nothing -> return) =<< et ast
       IO.print
-            $ pretty 
+            $ (case printer of
+                 "concrete" -> C.pretty
+                 "sexpression" -> S.pretty)
             $ (if no_unicode then renameAST removeUnicodeChars else id) 
             $ ast'
 

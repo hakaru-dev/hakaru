@@ -117,7 +117,7 @@ Utilities := module ()
   #  so such a loop will 'provably' always terminate
   export log_metric := proc(e, x, $)
     local m, L;
-    m := select(depends, indets(e, 'exp(anything)'), x);
+    m := select(depends, indets(e, 'exp(anything)'), indets(x,name));
     length(subsindets(map2(op, 1, m), name, _->L));
   end proc;
 
