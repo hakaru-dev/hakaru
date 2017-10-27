@@ -1,0 +1,9 @@
+def stdTriangle():
+	X1 <~ uniform(0,1)
+	X2 <~ uniform(0,1)
+	return X1 - X2
+
+def pareto(shape nat, scale prob):
+	
+
+stdTriangle()
