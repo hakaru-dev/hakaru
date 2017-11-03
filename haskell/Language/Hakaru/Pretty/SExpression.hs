@@ -71,7 +71,7 @@ prettyTerm (Bucket b e r) =
   PP.parens $ ( PP.text "bucket" <+> pretty b <+> pretty e <+> prettyReducer r)
 prettyTerm (Reject_ _) = PP.parens $ PP.text "reject"
 prettyTerm (Empty_ _) = PP.parens $ PP.text "empty"
-prettyTerm (ArrayLiteral_ es) = PP.text "TODO:arrayliteral"
+prettyTerm (ArrayLiteral_ es) = PP.parens $ (PP.text "array-literal" <+> foldMap pretty es)
 prettyTerm (Superpose_ pes) =
   case pes of
     (e1,e2) L.:| [] ->
