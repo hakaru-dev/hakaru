@@ -189,19 +189,12 @@ prettySCons (Product _ _) (e1 :* e2 :* e3 :* End) =
   caseBind e3 $ \x e3' -> PP.text "product" <+>
                           PP.parens (prettyVariable x <+> pretty e1 <+> pretty e2) <+>
                           pretty e3'
-prettySCons App_ (e1 :* e2 :* End) = PP.text "appTODO"
+prettySCons App_ (e1 :* e2 :* End) = PP.text "app" <+> pretty e1 <+> pretty e2
 prettySCons Let_ (e1 :* e2 :* End) = caseBind e2 $ \x e2' ->
   PP.text "let" <+>
   PP.parens (prettyVariable x <+> (prettyType $ typeOf e1) <+> pretty e1)
   <+> pretty e2'
-prettySCons (UnsafeFrom_ o) (e :* End) =
-
-  PP.text (pCoerce o)
-  -- (case o of
-  --   Signed HRing_Real `CCons` CNil -> "real2prob"
-  --   Signed HRing_Int  `CCons` CNil -> "int2nat"
-  --   _ -> "unsafeFrom_" ++ show o)
-  <+> pretty e
+prettySCons (UnsafeFrom_ o) (e :* End) = PP.text (pUnsafeCoerce o) <+> pretty e
 prettySCons (MeasureOp_ o) es = prettyMeasureOp o es
 prettySCons Dirac (e1 :* End) = PP.text "dirac" <+> pretty e1
 prettySCons MBind (e1 :* e2 :* End) = PP.text "mbind" <+> pretty e1 <+> prettyViewABT e2
@@ -223,6 +216,11 @@ prettyMeasureOp Poisson = \(e1 :* End)       -> PP.text "poisson"     <+> pretty
 prettyMeasureOp Gamma   = \(e1 :* e2 :* End) -> PP.text "gamma"       <+> pretty e1 <+> pretty e2
 prettyMeasureOp Beta    = \(e1 :* e2 :* End) -> PP.text "beta"        <+> pretty e1 <+> pretty e2
 
+pUnsafeCoerce :: Coercion a b -> String
+pUnsafeCoerce (CCons (Signed HRing_Real) CNil) = "real2prob"
+pUnsafeCoerce (CCons (Signed HRing_Int)  CNil) = "int2nat"
+pUnsafeCoerce c = "unsafeFrom_" ++ show c
+
 pCoerce :: Coercion a b -> String
 pCoerce (CCons (Signed HRing_Real) CNil)             = "prob2real"
 pCoerce (CCons (Signed HRing_Int)  CNil)             = "nat2int"
@@ -232,6 +230,7 @@ pCoerce (CCons (Continuous HContinuous_Prob)
          (CCons (Signed HRing_Real) CNil))           = "nat2real"
 pCoerce (CCons (Signed HRing_Int)
          (CCons (Continuous HContinuous_Real) CNil)) = "nat2real"
+pCoerce c = "coerceTo_"++show c
 
 
 prettyNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> Doc
