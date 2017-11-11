@@ -138,7 +138,7 @@ runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
       let et = onTypedASTM $ expandTransformationsWith $
                 (maybe id someTransformations toExpand)
                 (allTransformationsWithMOpts moptions{command=()})
-      TypedAST _ ast' <-
+      TypedAST typ ast' <-
         (case command moptions of
            Just c  -> sendToMaple' moptions{command=c}
            Nothing -> return) =<< et ast
@@ -146,7 +146,7 @@ runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
             $ (case printer of
                  "concrete" -> C.pretty
                  "sexpression" -> S.pretty
-                 "haskell" -> H.pretty)
+                 "haskell" -> H.prettyString typ)
             $ (if no_unicode then renameAST removeUnicodeChars else id)
             $ ast'
 

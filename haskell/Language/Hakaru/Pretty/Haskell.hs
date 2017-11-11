@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs
+           , OverloadedStrings
            , KindSignatures
            , DataKinds
            , FlexibleContexts
@@ -23,6 +24,7 @@ module Language.Hakaru.Pretty.Haskell
     (
     -- * The user-facing API
       pretty
+    , prettyString
     , prettyPrec
     , prettyAssoc
     , prettyPrecAssoc
@@ -65,6 +67,23 @@ import Language.Hakaru.Syntax.ABT
 pretty :: (ABT Term abt) => abt '[] a -> Doc
 pretty = prettyPrec 0
 
+
+prettyString :: (ABT Term abt)
+           => Sing a
+           -> abt '[] a
+           -> Doc
+prettyString typ ast =
+  PP.text $ Text.unpack (Text.unlines $ header  ++ [ Text.pack (prettyProg "prog" typ ast)])
+
+prettyProg :: (ABT Term abt)
+           => String
+           -> Sing a
+           -> abt '[] a
+           -> String
+prettyProg name typ ast =
+    PP.renderStyle PP.style
+    (    PP.sep [PP.text (name ++ " ::"), PP.nest 2 (prettyType typ)]
+     PP.$+$ PP.sep [PP.text (name ++ " =") , PP.nest 2 (pretty     ast)] )
 
 -- | Pretty-print a term at a given precendence level.
 prettyPrec :: (ABT Term abt) => Int -> abt '[] a -> Doc
@@ -118,7 +137,7 @@ class Pretty (f :: Hakaru -> *) where
     -- | A polymorphic variant if 'prettyPrec', for internal use.
     prettyPrec_ :: Int -> f a -> Docs
 
-type Docs = [Doc] 
+type Docs = [Doc]
 
 -- So far as I can tell from the documentation, if the input is a singleton list then the result is the same as that singleton.
 toDoc :: Docs -> Doc
@@ -176,7 +195,7 @@ ppViewABT e = go [] (viewABT e)
 -- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
 instance (ABT Term abt) => Pretty (LC_ abt) where
   prettyPrec_ p (LC_ e) =
-    caseVarSyn e ((:[]) . ppVariable) $ \t -> 
+    caseVarSyn e ((:[]) . ppVariable) $ \t ->
         case t of
         o :$ es      -> ppSCon p o es
         NaryOp_ o es ->
@@ -231,7 +250,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             , ppArg e
             , toDoc $ parens True (prettyPrec_ p r)
             ]
-              
+
         Superpose_ pes ->
             case pes of
             (e1,e2) L.:| [] ->
@@ -256,7 +275,7 @@ ppSCon p Lam_ = \(e1 :* End) ->
     parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
 ppSCon p App_ = \(e1 :* e2 :* End) -> ppBinop "`app`" 9 LeftAssoc p e1 e2 -- BUG: this puts extraneous parentheses around e2 when it's a function application...
 ppSCon p Let_ = \(e1 :* e2 :* End) ->
-    parens (p > 0) $ 
+    parens (p > 0) $
         adjustHead
             (PP.text "let_" <+> ppArg e1 <+> PP.char '$' <+>)
             (ppBinder e2)
@@ -299,7 +318,7 @@ ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
         , toDoc $ parens True (ppBinder e3)
         ]
 
-ppSCon _ Plate = \(e1 :* e2 :* End) -> 
+ppSCon _ Plate = \(e1 :* e2 :* End) ->
     ppFun 11 "plate"
         [ ppArg e1 <+> PP.char '$'
         , toDoc $ ppBinder e2
@@ -445,7 +464,7 @@ instance Pretty f => Pretty (Datum f) where
         | Text.null hint =
             ppFun p "datum_"
                 [error "TODO: prettyPrec_@Datum"]
-        | otherwise = 
+        | otherwise =
           ppFun p "ann_"
             [ PP.parens . PP.text . show $ _typ
             , PP.parens . toDoc $ ppFun p (Text.unpack hint)
@@ -510,7 +529,7 @@ instance (ABT Term abt) => Pretty (Reducer abt xs) where
     prettyPrec_ p (Red_Add _ e)       =
         ppFun p "r_add"
             [ toDoc $ parens True (ppUncurryBinder e)]
-        
+
 ----------------------------------------------------------------
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs
@@ -600,12 +619,27 @@ ppBinop op p0 assoc =
             LeftAssoc  -> (p0, 1 + p0)
             RightAssoc -> (1 + p0, p0)
             NonAssoc   -> (1 + p0, 1 + p0)
-    in \p e1 e2 -> 
+    in \p e1 e2 ->
         parens (p > p0)
             [ prettyPrec p1 e1
             , PP.text op
                 <+> prettyPrec p2 e2
             ]
+
+header :: [Text.Text]
+header  =
+  [ "{-# LANGUAGE DataKinds, NegativeLiterals #-}"
+  , "module Prog where"
+  , ""
+  ,  "import           Data.Number.LogFloat (LogFloat)"
+  , "import           Prelude hiding (product, exp, log, (**))"
+  , "import           Language.Hakaru.Runtime.LogFloatPrelude"
+  , "import           Language.Hakaru.Runtime.CmdLine"
+  , "import           Language.Hakaru.Types.Sing"
+  , "import qualified System.Random.MWC                as MWC"
+  , "import           Control.Monad"
+  , "import           System.Environment (getArgs)"
+  , "" ]
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

@@ -277,8 +277,8 @@ prettyPrimOp RealPow          (e1 :* e2 :* End) = PP.text "realpow" <+> pretty e
 prettyPrimOp Exp              (e1 :* End)       = PP.text "exp"  <+> pretty e1
 prettyPrimOp Log              (e1 :* End)       = PP.text "log"  <+> pretty e1
 prettyPrimOp (Infinity  _)    End               = PP.text "infinity"
-prettyPrimOp GammaFunc        (e1 :* End)       = PP.text "gamma" <+> pretty e1
-prettyPrimOp BetaFunc         (e1 :* e2 :* End) = PP.text "beta" <+> pretty e1 <+> pretty e2
+prettyPrimOp GammaFunc        (e1 :* End)       = PP.text "gammaFunc" <+> pretty e1
+prettyPrimOp BetaFunc         (e1 :* e2 :* End) = PP.text "betaFunc" <+> pretty e1 <+> pretty e2
 prettyPrimOp (Equal _)        (e1 :* e2 :* End) = PP.text "==" <+> pretty e1 <+> pretty e2
 prettyPrimOp (Less _)         (e1 :* e2 :* End) = PP.text "<" <+> pretty e1 <+> pretty e2
 prettyPrimOp (NatPow _)       (e1 :* e2 :* End) = PP.text "natpow" <+> pretty e1 <+> pretty e2
