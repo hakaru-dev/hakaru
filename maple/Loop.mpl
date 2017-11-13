@@ -191,7 +191,8 @@ Loop := module ()
     end if;
     # The `..' (indices) of all occurences of `idx(var,..)'
     ind := map2(op, 2, indets(w, 'idx(identical(var), anything)'));
-    if nops(ind) = 1 then
+       # don't try to invert on arrays, that leads to the BUG below
+    if nops(ind) = 1 and not type(ind[1],'idx(anything,anything)') then
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
       # So, check that "extract using indets" and "rename using eval" commute.
