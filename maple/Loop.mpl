@@ -190,14 +190,14 @@ Loop := module ()
       return [wrap(heap, w, mode, kb1, kb0), 1]
     end if;
     # The `..' (indices) of all occurences of `idx(var,..)'
-    ind := map2(op, 2, indets(w, idx(identical(var), anything)));
+    ind := map2(op, 2, indets(w, 'idx(identical(var), anything)'));
     if nops(ind) = 1 then
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
       # So, check that "extract using indets" and "rename using eval" commute.
       s := indets(ind, 'name');
       s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
-      if indets(eval(w, s), idx(identical(var), anything))
+      if indets(eval(w, s), 'idx(identical(var), anything)')
                 = {idx(var, eval(ind, s))} then
         # use kb as a local context, and 'solve' for the innermost bound var
         #   used in ind.
