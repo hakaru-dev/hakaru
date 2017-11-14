@@ -191,8 +191,7 @@ Loop := module ()
     end if;
     # The `..' (indices) of all occurences of `idx(var,..)'
     ind := map2(op, 2, indets(w, 'idx(identical(var), anything)'));
-       # don't try to invert on arrays, that leads to the BUG below
-    if nops(ind) = 1 and not type(ind[1],'idx(anything,anything)') then
+    if nops(ind) = 1 then
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
       # So, check that "extract using indets" and "rename using eval" commute.
@@ -351,9 +350,15 @@ Loop := module ()
         if mode = `*` then
           (wPow, e) := selectremove(type, e, '`^`'('freeof'(var), 'anything'));
           (wExp, e) := selectremove(type, e, 'exp(anything)');
-          wExp := `+`(op(map2(op, 1, wExp)));
-          logmake := t -> `if`(make=eval,eval,Sum)
-                              (piecewise_And(dom_spec,t,0), var=new_rng);
+          wExp := expand(`+`(op(map2(op, 1, wExp))));
+          logmake := proc(t) local maker,ee;
+            maker := `if`(make=eval,eval,Sum);
+            if depends(t,var) then
+              maker(piecewise_And(dom_spec,t,0),var=new_rng)
+            else
+              maker(piecewise_And(dom_spec,1,0),var=new_rng)*expand(t)
+            end if;
+          end proc;
           w := `*`( `if`(w = 1, 1, w ^ logmake(1))
                   , op(map((f -> op(1,f) ^ logmake(op(2,f))), wPow))
                   , `if`(wExp = 0, 1, exp(logmake(wExp))) );
