@@ -350,18 +350,18 @@ Loop := module ()
         if mode = `*` then
           (wPow, e) := selectremove(type, e, '`^`'('freeof'(var), 'anything'));
           (wExp, e) := selectremove(type, e, 'exp(anything)');
-          wExp := expand(`+`(op(map2(op, 1, wExp))));
-          logmake := proc(t) local maker,ee;
-            maker := `if`(make=eval,eval,Sum);
-            if depends(t,var) then
-              maker(piecewise_And(dom_spec,t,0),var=new_rng)
-            else
-              maker(piecewise_And(dom_spec,1,0),var=new_rng)*expand(t)
-            end if;
+          wExp := `+`(op(map2(op, 1, wExp)));
+          wExp := expand(wExp, op(indets(wExp, function)));
+          logmake := proc(t)
+            local s, r;
+            s, r := selectremove(depends, convert(t, 'list', `*`), var);
+            `*`(op(r),
+                `if`(make=eval,eval,Sum)
+                    (piecewise_And(dom_spec, `*`(op(s)), 0), var=new_rng));
           end proc;
           w := `*`( `if`(w = 1, 1, w ^ logmake(1))
                   , op(map((f -> op(1,f) ^ logmake(op(2,f))), wPow))
-                  , `if`(wExp = 0, 1, exp(logmake(wExp))) );
+                  , `if`(wExp = 0, 1, exp(maptype(`+`,logmake,wExp))) );
         end if;
         e := w * make(piecewise_And(dom_spec, `*`(op(e)), mode()), var=new_rng);
 
@@ -390,7 +390,12 @@ Loop := module ()
     e, kb := enter_piecewise(e, kb, mode);
     rest := kb_subtract(kb, kb0);
     rest := map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest);
-    piecewise_And(rest,e,mode())
+    (wExp, e) := selectremove(type, convert(e, 'list', `*`), 'exp(anything)');
+    wExp := `+`(op(map2(op, 1, wExp)));
+    wExp := expand(wExp, op(indets(wExp, function)));
+    logmake := (t -> t * piecewise_And(rest,1,0));
+    `if`(wExp = 0, 1, exp(maptype(`+`,logmake,wExp)))
+      * piecewise_And(rest,`*`(op(e)),1);
   end proc;
 
   # Rewrite product(...piecewise(i+42=lo+42,th,el)...,i=lo..hi)
