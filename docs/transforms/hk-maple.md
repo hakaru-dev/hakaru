@@ -321,7 +321,7 @@ Implementation:
      summary -> piecewise(o::nonnegint and o<n, f(summary[o+1]), 0)]
     where [mr, f] = summarize(a, kb, i)
     if not depends(o, i) and kb entails ((o::nonnegint and o<n) or
-                                         (i::nonnegint and i<n))
+                                         (e::nonnegint and i<n))
 
   summarize(C[piecewise(cond,a,b)], kb, i) =
     [Split(cond, mr1, mr2),
