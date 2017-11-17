@@ -156,10 +156,10 @@ prettyShow :: (Show a) => a -> Doc
 prettyShow = PP.text . show
 
 prettyLiteral :: Literal a -> Doc
-prettyLiteral (LNat v) = prettyShow v
-prettyLiteral (LInt i) = prettyShow i
-prettyLiteral (LProb p) = prettyRatio . fromNonNegativeRational $ p
-prettyLiteral (LReal p) = prettyRatio p
+prettyLiteral (LNat v) = PP.parens $ PP.text "nat_" <+> prettyShow v
+prettyLiteral (LInt i) = PP.parens $ PP.text "int_" <+> prettyShow i
+prettyLiteral (LProb p) = PP.parens $ PP.text "prob_" <+> PP.rational (fromNonNegativeRational p)
+prettyLiteral (LReal p) = PP.parens $ PP.text "real_" <+> PP.rational p
 
 
 prettyRatio :: (Show a, Integral a) => Ratio a -> Doc
@@ -277,8 +277,8 @@ prettyPrimOp RealPow          (e1 :* e2 :* End) = PP.text "realpow" <+> pretty e
 prettyPrimOp Exp              (e1 :* End)       = PP.text "exp"  <+> pretty e1
 prettyPrimOp Log              (e1 :* End)       = PP.text "log"  <+> pretty e1
 prettyPrimOp (Infinity  _)    End               = PP.text "infinity"
-prettyPrimOp GammaFunc        (e1 :* End)       = PP.text "gammaFunc" <+> pretty e1
-prettyPrimOp BetaFunc         (e1 :* e2 :* End) = PP.text "betaFunc" <+> pretty e1 <+> pretty e2
+prettyPrimOp GammaFunc        (e1 :* End)       = PP.text "gammafunc" <+> pretty e1
+prettyPrimOp BetaFunc         (e1 :* e2 :* End) = PP.text "betafunc" <+> pretty e1 <+> pretty e2
 prettyPrimOp (Equal _)        (e1 :* e2 :* End) = PP.text "==" <+> pretty e1 <+> pretty e2
 prettyPrimOp (Less _)         (e1 :* e2 :* End) = PP.text "<" <+> pretty e1 <+> pretty e2
 prettyPrimOp (NatPow _)       (e1 :* e2 :* End) = PP.text "natpow" <+> pretty e1 <+> pretty e2
