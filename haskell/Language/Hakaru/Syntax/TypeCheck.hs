@@ -44,6 +44,7 @@ import           Prelude hiding (id, (.))
 import           Control.Category
 import           Data.Proxy            (KProxy(..))
 import           Data.Text             (pack, Text())
+import           Data.Either           (partitionEithers)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
 import qualified Data.List.NonEmpty    as L
@@ -1104,12 +1105,20 @@ checkType = checkType_
               StrictMode -> safeNaryOp typ0
               LaxMode    -> safeNaryOp typ0
               UnsafeMode -> do
-                es' <- tryWith LaxMode (safeNaryOp typ0)
-                case es' of
-                  Just es'' -> return es''
-                  Nothing   -> do
-                    TypedAST typ e0' <- inferType (syn $ U.NaryOp_ op es)
-                    checkOrUnsafeCoerce sourceSpan e0' typ typ0
+                op' <- make_NaryOp typ0 op
+                (bads, goods) <-
+                  fmap partitionEithers . T.forM es $
+                  \e -> fmap (maybe (Left e) Right)
+                             (tryWith LaxMode (checkType_ typ0 e))
+                if null bads
+                then return $ syn (NaryOp_ op' (S.fromList goods))
+                else do TypedAST typ bad <- inferType (case bads of
+                          [b] -> b
+                          _   -> syn $ U.NaryOp_ op bads)
+                        bad <- checkOrUnsafeCoerce sourceSpan bad typ typ0
+                        return (case bad:goods of
+                          [e] -> e
+                          es' -> syn $ NaryOp_ op' (S.fromList es'))
             where
             safeNaryOp :: forall c. Sing c -> TypeCheckMonad (abt '[] c)
             safeNaryOp typ = do
