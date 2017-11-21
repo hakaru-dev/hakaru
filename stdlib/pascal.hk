@@ -19,4 +19,12 @@ def betaPascal(n nat, a prob, b prob):
 	X <~ pascal(n,p)
 	return X
 
-gammaPoisson(1.0,1.0)
+def factorial(n nat):
+	res = product i from 1 to 5: i
+	return res
+
+def choose(n nat,k nat):
+	l = int2nat(n-k)
+	return factorial(n)/(factorial(k)*factorial(l))
+
+factorial(2)
