@@ -3,7 +3,65 @@ def stdTriangle():
 	X2 <~ uniform(0,1)
 	return X1 - X2
 
-def pareto(shape nat, scale prob):
-	
+###
+#TODO: check validity of this distribution
+# Not working as expected for n <= 2 values
+def tsp(a real, m real, b real, n nat):
+	side <~ uniform (0,1)
+	if (side <= (m-a)/(b-a)):
+		X1 <~ uniform(a,m)
+		X2 <~ uniform(a,m)
+		X = abs(X1-X2)^n * (m-a)^2 / (abs(X1-X2) * (m-a)^n)
+		Y = X - 2*(X - (m-a)/2) + a
+		return Y
+	else:
+		X1 <~ uniform(m,b)
+		X2 <~ uniform(m,b)
+		return abs(X1-X2)^n * (b-m)^2/(abs(X1-X2) * (b-m)^n) + m
+#################################
+def triangle(a real, m real, b real):
+	side <~ uniform (0,1)
+	# TODO: implement error checking
+	#if a > b:
+	#	temp = a
+	#	a = b
+	#	b = temp
+	#else:
+	#	temp = a
 
-stdTriangle()
+	if (side <= (m-a)/(b-a)):
+		X1 <~ uniform(a,m)
+		X2 <~ uniform(a,m)
+		X = abs(X1-X2)
+		Y = X - 2*(X - (m-a)/2) + a
+		return Y
+	else:
+		X1 <~ uniform(m,b)
+		X2 <~ uniform(m,b)
+		return abs(X1-X2) + m
+
+######################################
+
+# Don't think this is working. Issue of powers p: 0 < p < 1
+def pareto(lambda prob, inv_kappa nat):
+	X <~ uniform(0,1)
+	return lambda / (X ^ inv_kappa)
+
+# Seems to work. Issue of powers p: 0 < p < 1
+def standardPower(inv_beta nat):
+	X <~ uniform(0,1)
+	return X ^ inv_beta
+
+# Waiting on log to be fixed to test this
+def gompertz(delta prob, kappa prob):
+	X <~ uniform(0,1)
+	return log(real2prob(log(real2prob(X))*log(kappa)/delta))/log(kappa)
+
+def log_logistic(lambda prob, inv_kappa nat):
+	X <~ uniform(0,1)
+	return ((1-X)/X)^inv_kappa / lambda
+
+#tsp(0,3,8,1)
+#halftsp(0,3)
+pareto(1,1)
+#standardPower(2)
