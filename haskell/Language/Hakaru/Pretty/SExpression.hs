@@ -71,7 +71,7 @@ prettyTerm (Bucket b e r) =
   PP.parens $ ( PP.text "bucket" <+> pretty b <+> pretty e <+> prettyReducer r)
 prettyTerm (Reject_ _) = PP.parens $ PP.text "reject"
 prettyTerm (Empty_ _) = PP.parens $ PP.text "empty"
-prettyTerm (ArrayLiteral_ es) = PP.text "TODO:arrayliteral"
+prettyTerm (ArrayLiteral_ es) = PP.parens $ (PP.text "array-literal" <+> foldMap pretty es)
 prettyTerm (Superpose_ pes) =
   case pes of
     (e1,e2) L.:| [] ->
@@ -156,10 +156,10 @@ prettyShow :: (Show a) => a -> Doc
 prettyShow = PP.text . show
 
 prettyLiteral :: Literal a -> Doc
-prettyLiteral (LNat v) = prettyShow v
-prettyLiteral (LInt i) = prettyShow i
-prettyLiteral (LProb p) = prettyRatio . fromNonNegativeRational $ p
-prettyLiteral (LReal p) = prettyRatio p
+prettyLiteral (LNat v) = PP.parens $ PP.text "nat_" <+> prettyShow v
+prettyLiteral (LInt i) = PP.parens $ PP.text "int_" <+> prettyShow i
+prettyLiteral (LProb p) = PP.parens $ PP.text "prob_" <+> PP.rational (fromNonNegativeRational p)
+prettyLiteral (LReal p) = PP.parens $ PP.text "real_" <+> PP.rational p
 
 
 prettyRatio :: (Show a, Integral a) => Ratio a -> Doc
@@ -189,19 +189,12 @@ prettySCons (Product _ _) (e1 :* e2 :* e3 :* End) =
   caseBind e3 $ \x e3' -> PP.text "product" <+>
                           PP.parens (prettyVariable x <+> pretty e1 <+> pretty e2) <+>
                           pretty e3'
-prettySCons App_ (e1 :* e2 :* End) = PP.text "appTODO"
+prettySCons App_ (e1 :* e2 :* End) = PP.text "app" <+> pretty e1 <+> pretty e2
 prettySCons Let_ (e1 :* e2 :* End) = caseBind e2 $ \x e2' ->
   PP.text "let" <+>
   PP.parens (prettyVariable x <+> (prettyType $ typeOf e1) <+> pretty e1)
   <+> pretty e2'
-prettySCons (UnsafeFrom_ o) (e :* End) =
-
-  PP.text (pCoerce o)
-  -- (case o of
-  --   Signed HRing_Real `CCons` CNil -> "real2prob"
-  --   Signed HRing_Int  `CCons` CNil -> "int2nat"
-  --   _ -> "unsafeFrom_" ++ show o)
-  <+> pretty e
+prettySCons (UnsafeFrom_ o) (e :* End) = PP.text (pUnsafeCoerce o) <+> pretty e
 prettySCons (MeasureOp_ o) es = prettyMeasureOp o es
 prettySCons Dirac (e1 :* End) = PP.text "dirac" <+> pretty e1
 prettySCons MBind (e1 :* e2 :* End) = PP.text "mbind" <+> pretty e1 <+> prettyViewABT e2
@@ -223,6 +216,11 @@ prettyMeasureOp Poisson = \(e1 :* End)       -> PP.text "poisson"     <+> pretty
 prettyMeasureOp Gamma   = \(e1 :* e2 :* End) -> PP.text "gamma"       <+> pretty e1 <+> pretty e2
 prettyMeasureOp Beta    = \(e1 :* e2 :* End) -> PP.text "beta"        <+> pretty e1 <+> pretty e2
 
+pUnsafeCoerce :: Coercion a b -> String
+pUnsafeCoerce (CCons (Signed HRing_Real) CNil) = "real2prob"
+pUnsafeCoerce (CCons (Signed HRing_Int)  CNil) = "int2nat"
+pUnsafeCoerce c = "unsafeFrom_" ++ show c
+
 pCoerce :: Coercion a b -> String
 pCoerce (CCons (Signed HRing_Real) CNil)             = "prob2real"
 pCoerce (CCons (Signed HRing_Int)  CNil)             = "nat2int"
@@ -232,6 +230,7 @@ pCoerce (CCons (Continuous HContinuous_Prob)
          (CCons (Signed HRing_Real) CNil))           = "nat2real"
 pCoerce (CCons (Signed HRing_Int)
          (CCons (Continuous HContinuous_Real) CNil)) = "nat2real"
+pCoerce c = "coerceTo_"++show c
 
 
 prettyNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> Doc
@@ -278,8 +277,8 @@ prettyPrimOp RealPow          (e1 :* e2 :* End) = PP.text "realpow" <+> pretty e
 prettyPrimOp Exp              (e1 :* End)       = PP.text "exp"  <+> pretty e1
 prettyPrimOp Log              (e1 :* End)       = PP.text "log"  <+> pretty e1
 prettyPrimOp (Infinity  _)    End               = PP.text "infinity"
-prettyPrimOp GammaFunc        (e1 :* End)       = PP.text "gamma" <+> pretty e1
-prettyPrimOp BetaFunc         (e1 :* e2 :* End) = PP.text "beta" <+> pretty e1 <+> pretty e2
+prettyPrimOp GammaFunc        (e1 :* End)       = PP.text "gammafunc" <+> pretty e1
+prettyPrimOp BetaFunc         (e1 :* e2 :* End) = PP.text "betafunc" <+> pretty e1 <+> pretty e2
 prettyPrimOp (Equal _)        (e1 :* e2 :* End) = PP.text "==" <+> pretty e1 <+> pretty e2
 prettyPrimOp (Less _)         (e1 :* e2 :* End) = PP.text "<" <+> pretty e1 <+> pretty e2
 prettyPrimOp (NatPow _)       (e1 :* e2 :* End) = PP.text "natpow" <+> pretty e1 <+> pretty e2

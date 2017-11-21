@@ -147,8 +147,8 @@ expression
 
 where the capitalized keywords are newly introduced to support this
 optimization.  The variable `summary` is bound to an array whose size
-is `size(as)` and whose element at each index `_b` is the sum of those `z[i]`
-whose corresponding `t[i]` matches `_b`.  A good way to compute the summary
+is `size(as)` and whose element at each index `_b` is the sum of those `t[i]`
+whose corresponding `z[i]` matches `_b`.  A good way to compute the summary
 on sequential hardware is to initialize the summary to an all-zero
 mutable array then
 
@@ -320,7 +320,8 @@ Implementation:
     [Index(n, o, e, mr),
      summary -> piecewise(o::nonnegint and o<n, f(summary[o+1]), 0)]
     where [mr, f] = summarize(a, kb, i)
-    if not depends(o, i) and kb entails o::nonnegint and o<n
+    if not depends(o, i) and kb entails ((o::nonnegint and o<n) or
+                                         (e::nonnegint and i<n))
 
   summarize(C[piecewise(cond,a,b)], kb, i) =
     [Split(cond, mr1, mr2),
