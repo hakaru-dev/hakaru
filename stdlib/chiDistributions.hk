@@ -42,3 +42,23 @@ def nonCentralityParameter(means array(real), stdevs array(prob)):
 
 def ncp(means array(real), stdevs array(prob)):
 	return nonCentralityParameter(means, stdevs)
+
+def F_distribution(n1 nat, n2 nat):
+	X1 <~ standardChiSq(n1)
+	X2 <~ standardChiSq(n2)
+	return (X1*n2)/(X2*n1)
+
+def nonCentralT(n nat, delta prob):
+	U <~ normal(0,1)
+	X <~ standardChi(n)
+	return (U + delta)*sqrt(n)/(X)
+
+def T_distribution(n nat):
+	return nonCentralT(n,0)
+
+def stdCauchy():
+	T_distribution(1)
+
+def cauchy(a real, alpha prob):
+	X <~ stdCauchy()
+	return a + alpha*X

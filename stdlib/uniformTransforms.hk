@@ -63,5 +63,6 @@ def log_logistic(lambda prob, inv_kappa nat):
 
 #tsp(0,3,8,1)
 #halftsp(0,3)
-pareto(1,1)
+#pareto(1,1)
 #standardPower(2)
+gompertz(1,1)
