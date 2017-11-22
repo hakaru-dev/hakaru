@@ -25,6 +25,7 @@ samples = []
 for i in range(int(nos)):
 	line = data.readline()
 	sample = float(line)
+	#if (sample >=0 and sample <=4):
 	samples.append(sample)
 
 plt.hist(samples, 100)
