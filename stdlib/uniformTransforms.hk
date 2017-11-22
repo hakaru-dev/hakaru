@@ -61,8 +61,3 @@ def log_logistic(lambda prob, inv_kappa nat):
 	X <~ uniform(0,1)
 	return ((1-X)/X)^inv_kappa / lambda
 
-#tsp(0,3,8,1)
-#halftsp(0,3)
-#pareto(1,1)
-#standardPower(2)
-gompertz(1,1)

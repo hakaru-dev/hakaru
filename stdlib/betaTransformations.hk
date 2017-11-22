@@ -2,13 +2,6 @@ def invBeta(a prob, b prob):
 	X <~ beta(a,b)
 	return X / (1 - X)
 
-def stdUniform():
-	X <~ beta(1,1)
-	return X
-
 def arcsin():
 	p <~ beta(0.5, 0.5)
 	return p
-
-
-invBeta(2,2)

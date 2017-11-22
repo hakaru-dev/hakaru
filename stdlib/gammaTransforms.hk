@@ -4,5 +4,3 @@ def erlang(shape prob, scale nat):
 def invGamma(shape prob, scale prob) measure(prob):
 	X <~ gamma(shape,scale)
 	return 1/X
-
-invGamma(3.4,4)
