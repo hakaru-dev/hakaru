@@ -15,4 +15,4 @@ def cauchy(a real, alpha prob):
 	X <~ stdCauchy()
 	return a + alpha*X
 
-stdCauchy()
+cauchy(5,2)
