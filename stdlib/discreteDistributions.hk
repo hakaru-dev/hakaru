@@ -1,11 +1,11 @@
-
 def factorial(n nat):
-	product i from 1 to n+1: i
+	product i from 2 to n+1: i
 
-# Limitation: n <= 20
+
 # If return w/ real2nat, there are rounding errors
+# Overflow error when n is too high
 def choose(n nat, k nat):
-	real2nat((product i from 1 to n+1: i)/((product i from 1 to int2nat(n-k+1): i)*(product i from 1 to k+1: i)))
+	real2nat((product i from k+1 to n+1: i)/(product i from 2 to int2nat(n-k+1): i))
 
 def gammaPoisson(shape prob, scale prob) measure(nat):
 	mu <~ gamma(shape, scale)
@@ -45,7 +45,3 @@ def rectangular(n nat):
 def discreteUniform(a int,b int):
 	X <~ rectangular(int2nat(b-a))
 	return X+a
-
-
-#choose(22,10)
-choose(20,10)
