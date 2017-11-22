@@ -57,8 +57,10 @@ def T_distribution(n nat):
 	return nonCentralT(n,0)
 
 def stdCauchy():
-	T_distribution(1)
+	return T_distribution(1)
 
 def cauchy(a real, alpha prob):
 	X <~ stdCauchy()
 	return a + alpha*X
+
+T_distribution(1)

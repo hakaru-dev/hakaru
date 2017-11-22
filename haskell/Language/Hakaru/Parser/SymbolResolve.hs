@@ -114,6 +114,8 @@ primTable =
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
     ,("nat2int",     primCoerce cNat2Int)
+    ,("real2int",    primUnsafe cInt2Real)
+    ,("real2nat",    primUnsafe cNat2Real)
      -- Measures
     ,("lebesgue",    primMeasure2 (U.SomeOp T.Lebesgue))
     ,("counting",    TNeu $ syn $ U.MeasureOp_ (U.SomeOp T.Counting) [])

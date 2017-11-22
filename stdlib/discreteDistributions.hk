@@ -1,0 +1,51 @@
+
+def factorial(n nat):
+	product i from 1 to n+1: i
+
+# Limitation: n <= 20
+# If return w/ real2nat, there are rounding errors
+def choose(n nat, k nat):
+	real2nat((product i from 1 to n+1: i)/((product i from 1 to int2nat(n-k+1): i)*(product i from 1 to k+1: i)))
+
+def gammaPoisson(shape prob, scale prob) measure(nat):
+	mu <~ gamma(shape, scale)
+	X <~ poisson(mu)
+	return X
+
+def pascal(n nat, p prob):
+	# TODO: error check p>1
+	shape = (1-p)/p
+	X <~ gammaPoisson(real2prob(shape), nat2prob(n))
+	return X
+
+def geometric(p prob):
+	X <~ pascal(1,p)
+	return X
+
+def betaPascal(n nat, a prob, b prob):
+	p <~ beta(a,b)
+	X <~ pascal(n,p)
+	return X
+
+
+
+# Current limitation: n <= 20 otherwise get error
+def binomial_distribution(n nat, p prob):
+	arr = array x of n+1:
+		real2prob(choose(n,x) * p^x * (1-p)^int2nat(n-x))
+	categorical(arr)
+
+def betaBinomial(a prob, b prob, n nat):
+	p <~ beta(a,b)
+	binomial_distribution(n,p)
+
+def rectangular(n nat):
+	betaBinomial(1,1,n)
+
+def discreteUniform(a int,b int):
+	X <~ rectangular(int2nat(b-a))
+	return X+a
+
+
+#choose(22,10)
+choose(20,10)
