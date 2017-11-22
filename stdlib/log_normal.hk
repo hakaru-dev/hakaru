@@ -2,6 +2,7 @@
 # Justin Staples
 # October 13th, 2017
 
+# TODO: test this once log() is working
 def logNormal(alpha prob, beta prob):
 	# computing the mean and variance of the population
 	m = exp(alpha + beta ** 2 / 2)

@@ -1,3 +1,6 @@
+# Check that this is equivalent to uniform(0,1)
 def stdUniform():
 	X <~ beta(1,1)
 	return X
+
+stdUniform()
