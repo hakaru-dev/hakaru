@@ -1,0 +1,31 @@
+# Hakaru Standard Library
+# author: Mahmoud Khattab
+
+# Uniform distribution transformations
+
+######################
+# Uniform Transforms #
+######################
+
+# Pareto Distribution.
+# Don't think this is working. Issue of powers p: 0 < p < 1
+def pareto(lambda prob, inv_kappa nat):
+	X <~ uniform(0,1)
+	return lambda / (X ^ inv_kappa)
+
+# Standard power distribution
+# Seems to work. Issue of powers p: 0 < p < 1
+def standardPower(inv_beta nat):
+	X <~ uniform(0,1)
+	return X ^ inv_beta
+
+# Gompertz distribution
+# Waiting on log to be fixed to test this
+def gompertz(delta prob, kappa prob):
+	X <~ uniform(0,1)
+	return log(real2prob(log(real2prob(X))*log(kappa)/delta))/log(kappa)
+
+# Log-Logistic Distribution
+def log_logistic(lambda prob, inv_kappa nat):
+	X <~ uniform(0,1)
+	return ((1-X)/X)^inv_kappa / lambda
