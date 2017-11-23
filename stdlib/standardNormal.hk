@@ -1,0 +1,25 @@
+# Hakaru Standard Library
+# authors: Justin Staples, Mahmoud Khattab
+# October 13th, 2017
+
+#######################################
+# Standard Normal and Transformations #
+#######################################
+
+# Standard Normal Function
+def stdNormal():
+	p <~ normal(0, 1)
+	return p
+
+# Standard Cauchy
+def stdCauchy():
+	X1 <~ stdNormal()
+	X2 <~ stdNormal()
+	return X1/X2
+
+# Generalized Cauchy distribution is a transformation on the 
+# standard Cauchy distribution where it is scaled
+# by alpha and translated by a 
+def cauchy(a real, alpha prob):
+	X <~ stdCauchy()
+	return a + alpha*X
