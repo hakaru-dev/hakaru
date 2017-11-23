@@ -327,6 +327,12 @@ evaluatePrimOp Exp (e1 :* End) env =
     case evaluate e1 env of
       VReal v1 -> VProb . LF.logToLogFloat $ v1
       v        -> case v of {}
+
+evaluatePrimOp Log (e1 :* End) env =
+    case evaluate e1 env of
+      VProb v1 -> VReal . LF.log $ LF.fromLogFloat v1
+      v        -> case v of {}
+
 evaluatePrimOp (Infinity h) End _ =
     case h of
       HIntegrable_Nat  -> error "Can not evaluate infinity for natural numbers"
