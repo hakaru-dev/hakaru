@@ -105,10 +105,6 @@ arrays.
 
 Hakaru loops are specialized to compute the summation or product of the elements in an array.
 
-### [Expect](/transforms/expect) ###
-
-The expectation feature (`expect`) computes expectation of a measure with respect to a given function. 
-
 ## Transformations ##
 
 Hakaru includes some inference algorithms that you can use to transform your probabilistic models into other forms to extract desireable information. Its inference 
@@ -116,6 +112,10 @@ algorithms are implemented predominantly as program transformations.
 
 **Note:** By default, Hakaru assigns a weight to each generated sample. Typically a weight of one is used, but it is possible for the weights to vary between samples. This 
 might result in differing results from the original and transformed programs when summarizing a program's output by counting them.
+
+### [Expect](/transforms/expect) ###
+
+The expectation feature (`expect`) computes expectation of a measure with respect to a given function. 
 
 ### [Normalize](/transforms/normalize) ###
 
