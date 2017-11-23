@@ -8,16 +8,14 @@
 ######################
 
 # Pareto Distribution.
-# Don't think this is working. Issue of powers p: 0 < p < 1
-def pareto(lambda prob, inv_kappa nat):
+def pareto(lambda prob, kappa prob):
 	X <~ uniform(0,1)
-	return lambda / (X ^ inv_kappa)
+	return lambda / (real2prob(X) ** (1/kappa))
 
 # Standard power distribution
-# Seems to work. Issue of powers p: 0 < p < 1
-def standardPower(inv_beta nat):
+def standardPower(beta prob):
 	X <~ uniform(0,1)
-	return X ^ inv_beta
+	return real2prob(X) ** (1/beta)
 
 # Gompertz distribution
 # Waiting on log to be fixed to test this
@@ -26,6 +24,6 @@ def gompertz(delta prob, kappa prob):
 	return log(real2prob(log(real2prob(X))*log(kappa)/delta))/log(kappa)
 
 # Log-Logistic Distribution
-def log_logistic(lambda prob, inv_kappa nat):
+def log_logistic(lambda prob, kappa prob):
 	X <~ uniform(0,1)
-	return ((1-X)/X)^inv_kappa / lambda
+	return real2prob((1-X)/X) ** (1/kappa) / lambda
