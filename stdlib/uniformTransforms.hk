@@ -1,0 +1,85 @@
+# Hakaru Standard Library
+# author: Mahmoud Khattab
+
+# Uniform distribution transformations
+
+##########################
+# Triangle Distributions #
+##########################
+
+# Standard Triangle Distribution with range from -1 to 1
+def stdTriangle():
+	X1 <~ uniform(0,1)
+	X2 <~ uniform(0,1)
+	return X1 - X2
+
+# Generalized Triangle distribution from a to b with peak at m
+# Implemented by composing 2 different triangle distributions and 
+# placing them side-by-side
+# The number of samples coming from each side (i.e. the area of each triangle)
+# is proportional to the size of the base of each right-angle triangle relative to
+# the size of the base of the composite triangle. Therefore, we use a uniform 
+# distribution to determine which right triangle to pull a sample from.
+def triangle(a real, m real, b real):
+	side <~ uniform (0,1) 
+	# TODO: implement error checking
+	# i.e. a < m < b
+	if (side <= (m-a)/(b-a)): #Picking a sample from the triangle on the a-side.
+		X1 <~ uniform(a,m)
+		X2 <~ uniform(a,m)
+		X = abs(X1-X2) # absolute value turns distribution into a right triangle
+		Y = X - 2*(X - (m-a)/2) + a # Flip and translate the distribution to where it should be
+		return Y
+	else:					# Otherwise we pick from the the b-side
+		X1 <~ uniform(m,b)
+		X2 <~ uniform(m,b)
+		return abs(X1-X2) + m # Turns distribution into a right triangle and translates it
+							  # (No need to flip this side)
+
+# TSP Distribution
+# TODO: check validity of this distribution
+# Not working as expected for n=1
+# Implemented similar to triangle distribution
+def tsp(a real, m real, b real, n nat):
+	side <~ uniform (0,1) # Pick which side of the distribution we will pick from
+
+	# Because of the quadratic character of the "sides" of the triangle, we have
+	# to calculate the proportional area of each side accordingly 
+	if (side <= (m-a)^(int2nat(n-1))/((b-m)^(int2nat(n-1))+(m-a)^(int2nat(n-1)))):
+		X1 <~ uniform(a,m)
+		X2 <~ uniform(a,m)
+		X = abs(X1-X2)^n * (m-a)^2 / (abs(X1-X2) * (m-a)^n)
+		Y = X - 2*(X - (m-a)/2) + a
+		return Y
+	else:
+		X1 <~ uniform(m,b)
+		X2 <~ uniform(m,b)
+		return abs(X1-X2)^n * (b-m)^2/(abs(X1-X2) * (b-m)^n) + m
+
+
+############################
+# Other Uniform Transforms #
+############################
+
+# Pareto Distribution.
+# Don't think this is working. Issue of powers p: 0 < p < 1
+def pareto(lambda prob, inv_kappa nat):
+	X <~ uniform(0,1)
+	return lambda / (X ^ inv_kappa)
+
+# Standard power distribution
+# Seems to work. Issue of powers p: 0 < p < 1
+def standardPower(inv_beta nat):
+	X <~ uniform(0,1)
+	return X ^ inv_beta
+
+# Gompertz distribution
+# Waiting on log to be fixed to test this
+def gompertz(delta prob, kappa prob):
+	X <~ uniform(0,1)
+	return log(real2prob(log(real2prob(X))*log(kappa)/delta))/log(kappa)
+
+# Log-Logistic Distribution
+def log_logistic(lambda prob, inv_kappa nat):
+	X <~ uniform(0,1)
+	return ((1-X)/X)^inv_kappa / lambda
