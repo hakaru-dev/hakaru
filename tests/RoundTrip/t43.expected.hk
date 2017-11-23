@@ -1,1 +1,1 @@
-fn x0 bool: uniform(0, 1)
+fn x0 bool: uniform(+0/1, +1/1)

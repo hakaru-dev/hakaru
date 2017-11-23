@@ -1,4 +1,11 @@
-{-# LANGUAGE OverloadedStrings, PatternGuards, DataKinds, GADTs #-}
+{-# LANGUAGE OverloadedStrings
+           , PatternGuards
+           , DataKinds
+           , GADTs
+           , KindSignatures
+           , RankNTypes
+           , TypeOperators
+           , FlexibleContexts #-}
 
 module Main where
 
@@ -6,13 +13,19 @@ import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Syntax.TypeCheck
 
 import           Language.Hakaru.Syntax.IClasses
+import           Language.Hakaru.Syntax.ABT (ABT(..), dupABT)
+import           Language.Hakaru.Syntax.AST (Term(..), Transform(..))
+import           Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
+import qualified Language.Hakaru.Parser.AST as U
 import           Language.Hakaru.Types.Sing
+import           Language.Hakaru.Types.DataKind (Hakaru(..))
 import           Language.Hakaru.Inference
-import           Language.Hakaru.Command
+import           Language.Hakaru.Command hiding (Term)
   
 import           Data.Text
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
+import           Data.Monoid (Monoid(mconcat))
 
 import           System.Environment
 
@@ -28,11 +41,19 @@ runMH :: Text -> Text -> IO ()
 runMH prog1 prog2 =
     case (parseAndInfer prog1, parseAndInfer prog2) of
       (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) ->
-          -- TODO: Use better error messages for type mismatch
-          case (typ1, typ2) of
-            (SFun a (SMeasure b), SMeasure c)
-              | (Just Refl, Just Refl) <- (jmEq1 a b, jmEq1 b c)
-              -> print . pretty $ mcmc ast1 ast2
-            _ -> IO.hPutStrLn stderr "mh: programs have wrong type"
+         either (IO.hPutStrLn stderr)
+                (elimTypedAST $ \_ -> print . pretty) $
+         runMH' ast1 ast2
       (Left err, _) -> IO.hPutStrLn stderr err
       (_, Left err) -> IO.hPutStrLn stderr err
+
+runMH' :: (ABT Term abt)
+       => abt '[] a
+       -> abt '[] b
+       -> Either Text (TypedAST abt)
+runMH' prop tgt =
+  let uast = syn $ U.Transform_ MCMC $
+               (Nil2, syn $ U.InjTyped $ dupABT prop) U.:*
+               (Nil2, syn $ U.InjTyped $ dupABT tgt ) U.:* U.End
+  in do TypedAST rty res <- runTCM (inferType uast) Nothing LaxMode
+        return $ TypedAST rty $ expandTransformations res

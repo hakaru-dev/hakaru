@@ -85,10 +85,10 @@ module Language.Hakaru.Disintegrate
     ( lam_
     -- * the Hakaru API
     , disintegrateWithVar
-    , disintegrate
+    , disintegrate, disintegrateInCtx
     , densityWithVar
-    , density
-    , observe
+    , density, densityInCtx
+    , observe, observeInCtx
     , determine
     
     -- * Implementation details
@@ -128,6 +128,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches)
 import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.Transform (TransformCtx(..), minimalCtx)
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy
 import Language.Hakaru.Evaluation.DisintegrationMonad
@@ -170,13 +171,14 @@ lam_ x e = syn (Lam_ :$ bind x e :* End)
 -- this note should be deleted.]
 disintegrateWithVar
     :: (ABT Term abt)
-    => Text.Text
+    => TransformCtx
+    -> Text.Text
     -> Sing a
     -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)]
-disintegrateWithVar hint typ m =
+disintegrateWithVar ctx hint typ m =
     let x = Variable hint (nextFreeOrBind m) typ
-    in map (lam_ x) . flip runDis [Some2 m, Some2 (var x)] $ do
+    in map (lam_ x) . flip (runDisInCtx ctx) [Some2 m, Some2 (var x)] $ do
         ab <- perform m
 #ifdef __TRACE_DISINTEGRATE__
         ss <- getStatements
@@ -203,16 +205,26 @@ disintegrateWithVar hint typ m =
 
 -- | A variant of 'disintegrateWithVar' which automatically computes
 -- the type via 'typeOf'.
-disintegrate
+disintegrateInCtx
     :: (ABT Term abt)
-    => abt '[] ('HMeasure (HPair a b))
+    => TransformCtx
+    -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)]
-disintegrate m =
+disintegrateInCtx ctx m =
     disintegrateWithVar
+        ctx
         Text.empty
         (fst . sUnPair . sUnMeasure $ typeOf m) -- TODO: change the exception thrown form 'typeOf' so that we know it comes from here
         m
 
+-- | A variant of 'disintegrateInCtx' which takes the context to be the minimal
+-- one. Calling this function is only really valid on top-level programs, or
+-- subprograms in which the enclosing program doesn't bind any variables.
+disintegrate
+    :: (ABT Term abt)
+    => abt '[] ('HMeasure (HPair a b))
+    -> [abt '[] (a ':-> 'HMeasure b)]
+disintegrate = disintegrateInCtx minimalCtx
 
 -- | Return the density function for a given measure. The first two
 -- arguments give the hint and type of the lambda-bound variable
@@ -224,40 +236,55 @@ disintegrate m =
 -- we should make it into a Haskell function instead.
 densityWithVar
     :: (ABT Term abt)
-    => Text.Text
+    => TransformCtx
+    -> Text.Text
     -> Sing a
     -> abt '[] ('HMeasure a)
     -> [abt '[] (a ':-> 'HProb)]
-densityWithVar hint typ m =
+densityWithVar ctx hint typ m =
     let x = Variable hint (nextFree m `max` nextBind m) typ
-    in (lam_ x . E.total) <$> observe m (var x)
+    in (lam_ x . E.total) <$> observeInCtx ctx m (var x)
 
 
 -- | A variant of 'densityWithVar' which automatically computes the
 -- type via 'typeOf'.
-density
+densityInCtx
     :: (ABT Term abt)
-    => abt '[] ('HMeasure a)
+    => TransformCtx
+    -> abt '[] ('HMeasure a)
     -> [abt '[] (a ':-> 'HProb)]
-density m =
+densityInCtx ctx m =
     densityWithVar
+        ctx
         Text.empty
         (sUnMeasure $ typeOf m)
         m
 
+density
+    :: (ABT Term abt)
+    => abt '[] ('HMeasure a)
+    -> [abt '[] (a ':-> 'HProb)]
+density = densityInCtx minimalCtx
 
 -- | Constrain a measure such that it must return the observed
 -- value. In other words, the resulting measure returns the observed
 -- value with weight according to its density in the original
 -- measure, and gives all other values weight zero.
+observeInCtx
+    :: (ABT Term abt)
+    => TransformCtx
+    -> abt '[] ('HMeasure a)
+    -> abt '[] a
+    -> [abt '[] ('HMeasure a)]
+observeInCtx ctx m x =
+    runDisInCtx ctx (constrainOutcome x m >> return x) [Some2 m, Some2 x]
+
 observe
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> abt '[] a
     -> [abt '[] ('HMeasure a)]
-observe m x =
-    runDis (constrainOutcome x m >> return x) [Some2 m, Some2 x]
-
+observe = observeInCtx minimalCtx
 
 -- | Arbitrarily choose one of the possible alternatives. In the
 -- future, this function should be replaced by a better one that
@@ -548,7 +575,10 @@ constrainValue v0 e0 =
             constrainValue  (P.coerceTo_ c v0) e1
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
-        Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
+
+        Transform_ t :$ _            -> error $
+          concat["constrainValue{", show t, "}"
+                ,": cannot yet disintegrate transforms; expand them first"]
 
         Case_ e bs ->
             -- First we try going forward on the scrutinee, to make
@@ -797,7 +827,8 @@ constrainValueMeasureOp v0 = go
     -- what the old finally-tagless code seems to have been doing.
     -- But is that right, or should they really be @return ()@?
     go :: MeasureOp typs a -> SArgs abt args -> Dis abt ()
-    go Lebesgue    = \End               -> bot -- TODO: see note above
+    go Lebesgue    = \(e1 :* e2 :* End) ->
+        constrainValue v0 (P.lebesgue' e1 e2)
     go Counting    = \End               -> bot -- TODO: see note above
     go Categorical = \(e1 :* End)       ->
         constrainValue v0 (P.categorical e1)
@@ -1208,8 +1239,10 @@ constrainOutcomeMeasureOp
     -> Dis abt ()
 constrainOutcomeMeasureOp v0 = go
     where
-    -- Per the paper
-    go Lebesgue = \End -> return ()
+    go Lebesgue = \(lo :* hi :* End) -> do
+        -- TODO: optimize the cases where lo is -∞ or hi is ∞
+        v0' <- emitLet' v0
+        pushGuard (lo P.<= v0' P.&& v0' P.<= hi)
 
     -- TODO: I think, based on Hakaru v0.2.0
     go Counting = \End -> return ()

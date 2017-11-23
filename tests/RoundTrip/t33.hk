@@ -1,2 +1,2 @@
-x0 <~ uniform((-1), 1)
+x0 <~ uniform((-1/1), +1/1)
 return exp(x0)

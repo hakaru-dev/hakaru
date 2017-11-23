@@ -1,2 +1,2 @@
-x0 <~ beta(2, 1)
-return (prob2real(x0) * 2)
+x0 <~ beta(2/1, 1/1)
+return (prob2real(x0) * (+2/1))

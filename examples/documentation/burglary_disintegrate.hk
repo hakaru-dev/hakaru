@@ -1,0 +1,16 @@
+fn x5 bool: 
+ bern = fn p prob: 
+         x <~ categorical([p, real2prob((1 - prob2real(p)))])
+         return [true, false][x]
+ burglary <~ bern(1/10000)
+ p = (match burglary: 
+       true: 19/20
+       false: 1/100)
+ x16 <~ weight(([p, real2prob((1 - prob2real(p)))][(match x5: 
+                                                     true: 0
+                                                     false: 1)]
+                 / 
+                (summate x0 from 0 to size([p, real2prob((1 - prob2real(p)))]): 
+                  [p, real2prob((1 - prob2real(p)))][x0])),
+               return ())
+ return burglary

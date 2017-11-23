@@ -1,27 +1,16 @@
-fn x3 pair(real, real): 
- weight(1/2,
-        x2 <~ normal(0, 1)
-        return ((x2, (match x3: (x0, x1): x1)),
-                exp((((x2 * negate(1)) + (match x3: (x0, x1): x0))
-                      * 
-                     ((match x3: (x0, x1): x0)
-                       + 
-                      ((match x3: (x0, x1): x1) * negate(2))
-                       + 
-                      x2)
-                      / 
-                     2)))) <|> 
- weight(1/2,
-        x2 <~ normal(0, sqrt(2))
-        return (((match x3: (x0, x1): x0), x2),
-                exp(((x2 + ((match x3: (x0, x1): x1) * negate(1)))
-                      * 
-                     ((match x3: (x0, x1): x1)
-                       + 
-                      ((match x3: (x0, x1): x0) * negate(4))
-                       + 
-                      x2)
-                      * 
-                     negate(1)
-                      / 
-                     4))))
+fn x5 pair(real, real):
+match x5:
+(r3, r1):
+  weight
+    (1/2,
+     x1 <~ normal(+0/1, 1/1)
+     return ((x1, r1),
+             exp
+               ((r3 + x1 * (-1/1))
+                * (r3 * (-1/1) + r1 + x1 * (-1/1))
+                * (-1/1)))) <|>
+  weight
+    (1/2,
+     x1 <~ normal(+0/1, sqrt(2/1))
+     return ((r3, x1),
+             exp((r1 + x1 * (-1/1)) * (r1 + r3 * (-2/1) + x1) * (+1/2))))

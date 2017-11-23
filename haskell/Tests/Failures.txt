@@ -2,25 +2,16 @@ Test cases are grouped by the general reason for failure; eventually (if the fix
 is too non-trivial) these groups should have their issues, if they do not
 already.
 
-As of June 13th 2017.
+As of June 27th 2017 (94a47190d91e45d03f30e63637c0f96b42a7580d)
 
--- Pretty printer
-### Failure in: 1:Pretty:6:hof (missing parens in higher order type)
-
--- Ask the mailing list 
+-- Might be output to accept / ask the mailing list 
 ### Failure in: 6:RoundTrip:0:16:t60 (#43df6d3e)
+### Failure in: 6:RoundTrip:6:3:testKernel (#13a00ae & #bc5244e) (#94)
+### Failure in: 6:RoundTrip:0:21:t60'      ^ 
 
 -- Bad condition simplification 
 --- `A and B and C' returned, where C => B => A
 ### Failure in: 6:RoundTrip:0:17:t62
-
--- Categorical/counting failure
---- `case [a,b][ix] == val of ...' should become `weight(..,categorical)'
-### Failure in: 6:RoundTrip:2:6:t13
-### Failure in: 6:RoundTrip:2:7:t14
-### Failure in: 6:RoundTrip:3:2:t23
-### Failure in: 6:RoundTrip:3:10:priorProp
-### Failure in: 6:RoundTrip:6:3:testKernel
 
 -- normal recog. failed
 --- superposition of lebesgue+weights 
@@ -29,25 +20,79 @@ As of June 13th 2017.
 -- beta recog. failed
 ### Failure in: 6:RoundTrip:2:43:t78
 
--- #74 
-### Failure in: 6:RoundTrip:2:47:lebesgue1
-### Failure in: 6:RoundTrip:2:48:lebesgue2
+-- Relationship.hs Failures
+### Failure in: 7:Relationships:0:0:t1 --Normal to standard normal
+### Failure in: 7:Relationships:0:2:t3 -- Gamma to Chi square
+### Failure in: 7:Relationships:0:3:t4 -- Gamma to Beta
+### Failure in: 7:Relationships:0:5:t8 -- Standard Cauchy to standard Normal
+### Failure in: 7:Relationships:0:6:t9 -- Binomial to Bernoulli
+### Failure in: 7:Relationships:0:8:t11 -- Laplace to Gamma (?)
+### Failure in: 7:Relationships:0:9:t12 -- Exponential to Gamma
+### Failure in: 7:Relationships:0:10:t13 -- Weibull to Exponential
+### Failure in: 7:Relationships:0:11:t14 -- Chi square to student's t test
+### Failure in: 7:Relationships:0:13:t16 -- Normal to Normal (?)
+### Failure in: 7:Relationships:0:14:t17 -- Standard normal to normal
+### Failure in: 7:Relationships:0:15:t18 -- Normal to binomial (?)
+### Error in:   7:Relationships:0:16:t19
+    TODO: mapleArrayOp{Reduce}
+    CallStack (from HasCallStack):
+      error, called at haskell\Language\Hakaru\Pretty\Maple.hs:336:44 in main:Language.Hakaru.Pretty.Maple
+### Error in:   7:Relationships:0:17:t20
+    TODO: mapleArrayOp{Reduce}
+    CallStack (from HasCallStack):
+      error, called at haskell\Language\Hakaru\Pretty\Maple.hs:336:44 in main:Language.Hakaru.Pretty.Maple
+### Failure in: 7:Relationships:0:18:t21 -- Poisson property (?)
+### Failure in: 7:Relationships:0:19:t22 -- Gamma property (?)
+### Failure in: 7:Relationships:0:20:t23 -- Exponential to Gamma
+### Failure in: 7:Relationships:0:21:t25 -- Normal (product property)
+### Failure in: 7:Relationships:0:22:t26 -- Cauchy to standard Cauchy (n = 1)
+### Failure in: 7:Relationships:0:23:t27 -- Inverted Gamma (?)
 
--- no simplification applied 
---- of the form (var == val), var : AlmostEveryReal
-### Failure in: 6:RoundTrip:2:52:exceptionLebesgue
-### Failure in: 6:RoundTrip:2:53:exceptionUniform
+-- Concrete file errors
+lebesgue3 -- Problems reading one (not sure which) of the files; causes failure
+testKernel -- Error: unexpected 'x'\nexpecting operator or end of input"
+### Error in:   6:RoundTrip:2:17:t46 (tests/RoundTrip/t46.hk: openFile: does not exist (No such file or directory))
+### Error in:   6:RoundTrip:2:18:t45 (tests/RoundTrip/t47.hk: openFile: does not exist (No such file or directory))
+### Failure in: 6:RoundTrip:2:48:lebesgue1 (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:49:lebesgue2 (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:49:lebesgue3 (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:53:exceptionLebesgue  (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:43:t76  (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:5:3:exceptionCounting (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:6:1:testRoadmapProg1 (unexpected '~' expecting operator)
+### Failure in: 6:RoundTrip:2:44:t78 (not the same program)
 
--- Change to accept 
-### Failure in: 6:RoundTrip:0:13:t57
-### Failure in: 6:RoundTrip:0:14:t58
-### Failure in: 6:RoundTrip:0:18:t63
-### Failure in: 6:RoundTrip:3:11:mhPriorProp
-### Failure in: 6:RoundTrip:0:20:t65
-
+- All the below failures are *not* due to the simplifier 
+- failing to simplify a program. 
 -- alpha eq. 
 --- Solve later 
 ### Failure in: 6:RoundTrip:3:0:t4   (negate vs. -1* , bug in pretty printer?)
 ### Failure in: 6:RoundTrip:2:16:t46 (x*x -> x^2)
 ### Failure in: 6:RoundTrip:0:12:t56 (not (a<b) vs. a>=b)
 ### Failure in: 6:RoundTrip:0:11:t55 (not (a<b) vs. a>=b)
+### Failure in: 6:RoundTrip:0:13:t57 ^ 
+### Failure in: 6:RoundTrip:0:16:t56' equality of `match's
+
+-- Literals
+### Failure in: 6:RoundTrip:0:5:t20 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 1/2)
+### Failure in: 6:RoundTrip:0:7:t24 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 1/2)
+### Failure in: 6:RoundTrip:0:8:t25 -- (.. * recip(nat2prob(2)) vs. (.. * LReal 1/2)
+### Failure in: 6:RoundTrip:2:3:t7n -- negate(nat2int(1)) vs LInt -1
+### Failure in: 6:RoundTrip:2:52:exceptionLebesgue -- negate(..) vs .. * -1
+### Failure in: 6:RoundTrip:2:10:t31 -- negate(..) vs .. * -1
+### Failure in: 6:RoundTrip:1:3:t33 (int2real(negate(nat2int(1)) vs. int2real(-1))
+### Failure in: 6:RoundTrip:2:53:exceptionUniform  -- ^  
+### Failure in: 6:RoundTrip:3:11:mhPriorProp -- int2real(-1)*prob2real(recip(nat2prob(2)) vs LReal -1/2
+### Failure in: 6:RoundTrip:0:20:t65 -- negate(nat2int(1) vs LInt -1
+
+-- Typecheck failure (Missing common type)
+### Failure in: 6:RoundTrip:2:7:t14 
+### Failure in: 6:RoundTrip:0:13:t54
+### Failure in: 6:RoundTrip:1:10:t61
+### Failure in: 6:RoundTrip:0:24:t64
+
+-- Needs to move to testConcreteFiles but purportedly does not work
+-- (See commends in RoundTrip.hs)
+### Failure in: 6:RoundTrip:0:18:t63
+### Failure in: 6:RoundTrip:2:47:lebesgue1
+### Failure in: 6:RoundTrip:2:48:lebesgue2 

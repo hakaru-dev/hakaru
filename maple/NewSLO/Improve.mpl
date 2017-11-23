@@ -20,7 +20,9 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
   rr := reduce_Integrals(e, h, kb, opts);
   if rr <> FAIL then return rr end if;
   if e :: 'applyintegrand(anything, anything)' then
-    applyop(simplify_assuming, 2, e, kb)
+    applyop(reduce_scalar, 2, e, kb)
+  elif can_reduce_Partition(e) then
+    reduce_Partition(e,h,kb,opts,false)
   elif e :: `+` then
     map(reduce, e, h, kb, opts)
   elif e :: `*` then
@@ -34,8 +36,6 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
       w := subsindets[flat](w, t_pw_or_part, x->reduce_Partition(x,h,kb,opts,false));
     else w := w1; end if;
     w * `*`(op(subintegral));
-  elif e :: Or(Partition,t_pw) then
-    reduce_Partition(e,h,kb,opts,false)
   elif e :: t_case then
     subsop(2=map(proc(b :: Branch(anything, anything))
                    eval(subsop(2='reduce'(op(2,b),x,c,opts),b),
@@ -62,14 +62,36 @@ reduce := proc(ee, h :: name, kb :: t_kb, opts := [], $)
   end if;
 end proc;
 
+reduce_scalar := proc(e, kb :: t_kb, $)
+  foldr(((f,x)->f(x,kb)), e
+        ,simplify_assuming
+        ,Partition:-Simpl
+        ,(x->subsindets(x, t_pw, PWToPartition))
+       );
+end proc;
+
 # Returns true for expressions for which we could conceivably
 # do a Partition simplification.
-can_reduce_Partition := proc(e,$)
-  if   type(e,Or(Partition,t_pw)) then true
+can_reduce_Partition := proc(e,inside := false)
+  local ps;
+  if   type(e,Or(Partition,t_pw)) and
+       not(has(e, {erf,csgn}))    # probably output of elim_intsum
+  then true
   elif type(e,{indices(Partition:-Simpl:-distrib_op_Partition,nolist)}) then
-    nops(select(can_reduce_Partition, convert(e,list)))>1
-    # in this case, we hope to apply PProd and then maybe do some cleanup;
-    # this is only possible if the expression has at least two sub-Partitions
+    if not(inside) then
+      # in this case, we hope to apply PProd and then maybe do some cleanup; this
+      # is only possible if the expression has at least two sub-Partitions.
+      ps := select(x->can_reduce_Partition(x,true), convert(e,list));
+      ps := map(Partition:-PWToPartition_mb, indets[flat](ps, t_pw_or_part));
+      if nops(ps) < 2 then return false; end if;
+
+      # We also only do this simplification if the Partitions have the same piece values
+      the(ps, curry(SamePartition,((a,b)->true),`=`)) or
+      # or the same conditions
+      the(ps, curry(SamePartition,(`=`,(a,b)->true)))
+    else
+      ormap(x->can_reduce_Partition(x,true),convert(e,list))
+    end if;
   else false
   end if;
 end proc;
@@ -78,16 +100,29 @@ end proc;
 # when true, checks `can_reduce_Partition' (when the check is false, there is a
 # great chance this function will throw an error!)
 reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,do_check::truefalse, $)
-  local e := ee;
+  local e, e1, k; e := ee;
   if do_check and not(can_reduce_Partition(e)) then return e end if;
+  # big hammer: simplify knows about bound variables, amongst many
+  # other things
+  Testzero := x -> evalb(simplify(x) = 0);
 
-  e := subsindets(e, t_pw, PWToPartition);
-  e := Partition:-Simpl(e, kb);
+  e  := subsindets(e, t_pw, PWToPartition);
+  e1 := Partition:-Simpl(e, kb);
 
   # This is necessary because subsequent calls to kb_Partition do not work on
   # nested Partitions; but Simpl calls flatten, which should gives us a
   # Partition on the top level.
-  e := (`if`(e::Partition,do_reduce_Partition,reduce))(e, h, kb, opts);
+  if e1::Partition then
+    k := do_reduce_Partition;
+  elif e1<>e then
+    k := reduce;
+  else
+    userinfo(3, 'procname',
+             printf("Partition simpl probably failed on:"
+                    "\n\t%a", e));
+    k := (proc(x) x end proc);
+  end if;
+  e := k(e1, h, kb, opts);
   if ee::t_pw and e :: Partition then
     e := Partition:-PartitionToPW(e);
   end if;
@@ -99,9 +134,6 @@ do_reduce_Partition := proc(ee,h::name,kb::t_kb,opts::list,$)
   e := kb_Partition(e, kb, simplify_assuming,
                     ((rhs, kb) -> %reduce(rhs, h, kb, opts)));
   e := eval(e, %reduce=reduce);
-  # big hammer: simplify knows about bound variables, amongst many
-  # other things
-  Testzero := x -> evalb(simplify(x) = 0);
   e := Partition:-Simpl(e, kb);
 end proc;
 
@@ -111,26 +143,51 @@ reduce_Integrals := module()
   export ModuleApply;
   local
   # The callbacks passed by reduce_Integrals to Domain:-Reduce
-    reduce_Integrals_body, reduce_Integrals_into
+    reduce_Integrals_body, reduce_Integrals_into, reduce_Integrals_apply,
+    reduce_Integrals_sum, reduce_Integrals_constrain
   # tries to evaluate a RootOf
   , try_eval_Root
   # tries to evaluate Int/Sum/Ints/Sums
   , elim_intsum;
 
   reduce_Integrals_body := proc(h,opts,x,kb1) reduce(x,h,kb1,opts) end proc;
-  reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,$)
+  reduce_Integrals_into := proc(h,opts,kind,e,vn,vt,kb,ows,$)
     local rr;
-    rr := elim_intsum(Domain:-Apply:-do_mk(args[3..-1]), h, kb,opts);
+    rr := distrib_over_sum(
+            x->elim_intsum(Domain:-Apply:-do_mk(kind,x,vn,vt,kb),
+                           h,kb,opts),e);
     rr := subsindets(rr, specfunc(RootOf), x->try_eval_Root(x,a->a));
-    return rr;
+    ows * rr;
+  end proc;
+  reduce_Integrals_sum := proc()
+    subsindets(`+`(args),
+               And(`+`,satisfies(x->has(x,applyintegrand))),
+               e->collect(e, `applyintegrand`, 'distributed'));
+  end proc;
+  reduce_Integrals_apply := proc(f,e,$)
+    local r; r := e;
+    r := `if`(can_reduce_Partition(r),
+              Partition:-Simpl(subsindets(r,t_pw,x->PWToPartition(x,'check_valid'))),
+              r);
+    r := distrib_over_sum(f,r);
+  end proc;
+  reduce_Integrals_constrain := proc(do_c, x,$)
+    local ws, b;
+    b, ws := selectremove(has, convert(x, 'list', `*`), NewSLO:-applyintegrand);
+    b, ws := map(`*`@op, [b, ws])[];
+    ws * do_c(b);
   end proc;
 
   ModuleApply := proc(expr, h, kb, opts, $)
-    local rr;
-    rr := Domain:-Reduce(expr, kb
-      ,curry(reduce_Integrals_into,h,opts)
-      ,curry(reduce_Integrals_body,h,opts)
-      ,(_->:-DOM_FAIL), opts);
+    local rr, handlers;
+    handlers :=
+      Record('f_into'=curry(reduce_Integrals_into,h,opts)
+            ,'f_body'=curry(reduce_Integrals_body,h,opts)
+            ,'f_sum'=reduce_Integrals_sum
+            ,'f_constrain'=reduce_Integrals_constrain
+            ,'f_apply'=reduce_Integrals_apply
+            ,'f_nosimp'=(_->:-DOM_FAIL));
+    rr := Domain:-Reduce(expr, kb, handlers, opts);
     rr := Partition:-Simpl(rr, kb);
     if has(rr, :-DOM_FAIL) then
       return FAIL;
@@ -138,7 +195,7 @@ reduce_Integrals := module()
       error "Something strange happened in reduce_Integral(%a, %a, %a, %a)\n%a"
            , expr, kb, kb, opts, rr;
     end if;
-    rr;
+    rr
   end proc;
 
   try_eval_Root := proc(e0::specfunc(`RootOf`),on_fail := (_->FAIL), $)
@@ -178,8 +235,12 @@ reduce_Integrals := module()
     end proc;
 
     local known_tys := table([Int=int_assuming,Sum=sum_assuming,Ints=ints,Sums=sums]);
+    # Returns FAIL if we probably can't eliminate this intsum, or
+    # the work to be done as a list:
+    #  [ intsum body, intsum function, primary var, other var args ]
     local extract_elim := proc(e, h::name, kb::t_kb,$)
-      local t, intapps, var, f, e_k, e_args, vs, blo, bhi;
+      local t, intapps, var, f, e_k, e_args, vs, blo, bhi,
+            case_var, cond_case_var;
       vs := {op(KB:-kb_to_variables(kb))};
       t := 'applyintegrand'('identical'(h), 'anything');
       intapps := indets(op(1,e), t);
@@ -194,13 +255,26 @@ reduce_Integrals := module()
                     (Domain:-ExtBound[e_k]:-ExtractRange(e_args));
         if ormap(b->op(1,b) in map((q-> (q,-q)), vs) and op(2,b)::SymbolicInfinity
                 ,[[blo,bhi],[bhi,blo]]) then
-          return FAIL end if;
+          return FAIL end if; # This is something that `disint` wants to see unevaluated
         if var :: list then var := op(1,var) end if;
-        if not depends(intapps, var) then
-          f := known_tys[e_k];
-        else
-          return FAIL;
+        case_var := c->hastype(c, 'idx'(list,name));
+        cond_case_var := p->Partition:-ConditionsSatisfy(p,case_var);
+
+        # independant of `h' - this is a weight
+        if not depends(intapps, var)
+        # A sum whose bounds are literals and which contains a
+        # `case(idx(<literal array>, ...)) ...', or
+        # `idx(<literal array>, ...' inside a `Ret'
+        or (e_k in {Sum,Sums} and andmap(b->b::And(realcons,integer),[blo,bhi])
+            and (hastype(op(1,e),
+                           {And(Partition, satisfies(cond_case_var)),
+                            And(t_pw, satisfies(cond_case_var@PWToPartition))})
+                 or hastype(intapps, satisfies(case_var))))
+        then f := known_tys[e_k];
+        else return FAIL;
         end if;
+      else
+        error "extract_elim was passed something which is not an intsum: %1", e;
       end if;
       [ op(1,e), f, var, [e_args] ];
     end proc;
@@ -246,11 +320,26 @@ reduce_Integrals := module()
 end module; # reduce_Integrals
 
 int_assuming := proc(e, v::name=anything, kb::t_kb, $)
-  simplify_factor_assuming('int'(e, v), kb);
+  simplify_factor_assuming(int(e, v), kb);
 end proc;
 
+# Should this do the same thing as `int_assuming'? i.e.
+# should it pass `sum(e,v)' instead of `'sum'(e,v)' and
+# get rid of the extra logic to evaluate the sum afterwards?
+# Is calling `simplify_factor_assuming' here even correct?
 sum_assuming := proc(e, v::name=anything, kb::t_kb)
-  simplify_factor_assuming('sum'(e, v), kb);
+  local r;
+  r := simplify_factor_assuming('sum'(e, v), kb);
+  # This is only necessary because `simplify_assuming' will `chill' idx inside
+  # things like `sum( .. idx([0,1], x) .., x=0..1)'.  The result of this is that
+  # the `idx' doesn't evaluate, and we end up with things like
+  # `piecewise(true=true,..)' and `piecewise(false=true,..)'. The presence of
+  # these superfluous piecewise breaks simplification further on.
+  #
+  # `eval' should actually be safe here, since `simplify_assuming' will call
+  # `eval' anyways, inside the call to `assuming'
+  r := eval(r);
+  if r::specfunc(`sum`) then sum(op(r)) else r; end if;
 end proc;
 
 # Int( .., var=var_ty ) == var &X var_ty

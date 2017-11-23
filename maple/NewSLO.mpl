@@ -22,22 +22,23 @@ NewSLO := module ()
   option package;
   local
         t_sum, t_product,
-        mysolve, Shiftop, Diffop, Recognized,
+        Shiftop, Diffop, Recognized,
         bind, weight,
-        reduce_IntsSums, reduce_Integrals, reduce_Partition, do_reduce_Partition, can_reduce_Partition,
+        reduce_IntsSums, reduce_Integrals, reduce_Partition,
+        do_reduce_Partition, can_reduce_Partition, reduce_scalar,
         elim_intsum, int_assuming, sum_assuming,
         banish, isBound_IntsSums, isBound_IntSum,
         mk_sym, mk_ary, mk_idx, innermostIntSum, ChangeVarInt, SimplifyKB_,
-        eval_for_Simplify, eval_for_Simplify_tbl, eval_in_ctx, eval_in_ctx_tbl, value_for_Sum,
+        eval_for_Simplify, eval_for_Simplify_tbl, eval_in_ctx, eval_in_ctx_tbl,
         ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, SimplifyKB,  apply_LO,
-         Commands, Rename, Disintegrate, Summarize,
+         RoundTrip, RoundTrip_postproc, Simplify, SimplifyKB,  apply_LO,
+         Commands, Rename, Disintegrate, Summarize, Reparam,
          TestSimplify, TestHakaru, TestDisint, Efficient, TestEfficient,
-         Concrete, Profile,
+         Concrete, PrintVersion,
          toLO, fromLO, improve, reduce,
          density, bounds, unweight,
 
@@ -49,7 +50,7 @@ NewSLO := module ()
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global LO, Integrand, SumIE, ProductIE;
-  uses Hakaru, KB, Loop, Partition, Domain, disint;
+  uses Hakaru, Utilities, KB, Loop, Partition, Domain, disint;
 
   t_sum     := 'specfunc({sum    ,Sum    })';
   t_product := 'specfunc({product,Product})';
@@ -90,34 +91,8 @@ $include "NewSLO/Factor.mpl"
     end if
   end proc;
 
-  mysolve := proc(constraints)
-    # This wrapper around "solve" works around the problem that Maple sometimes
-    # thinks there is no solution to a set of constraints because it doesn't
-    # recognize the solution to each constraint is the same.  For example--
-    # This fails     : solve({c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}, {c}) assuming alpha>0;
-    # This also fails: solve(simplify({c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}), {c}) assuming alpha>0;
-    # But this works : map(solve, {c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}, {c}) assuming alpha>0;
-    # And the difference of the two solutions returned simplifies to zero.
-
-    local result;
-    if nops(constraints) = 0 then return NULL end if;
-    result := solve(constraints, _rest);
-    if result <> NULL or not (constraints :: {set,list}) then
-      return result
-    end if;
-    result := mysolve(subsop(1=NULL,constraints), _rest);
-    if result <> NULL
-       and op(1,constraints) :: 'anything=anything'
-       and simplify(eval(op([1,1],constraints) - op([1,2],constraints),
-                         result)) <> 0 then
-      return NULL
-    end if;
-    result
-  end proc;
-
   ###
   # smart constructors for our language
-
   bind := proc(m, x, n, $)
     if n = 'Ret'(x) then
       m # monad law: right identity

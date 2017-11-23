@@ -1,0 +1,10 @@
+burglary = fn x5 bool: 
+ (match (x5 == true): 
+   true: 
+    weight(19/200000, return true) <|> 
+    weight(9999/1000000, return false)
+   false: 
+    weight(1/200000, return true) <|> 
+    weight(989901/1000000, return false))
+
+burglary(true)

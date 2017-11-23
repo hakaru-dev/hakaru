@@ -16,9 +16,13 @@ pages:
   - 'Installing Hakaru':                           'intro/installation.md'
   - 'Generating Samples from your Hakaru Program': 'intro/samplegen.md'
   - 'Quick Start: A Mixture Model Example':        'intro/quickstart.md'
-  - 'Examples':                                    'examples.md'
   - 'Compiling to Haskell':                        'transforms/compile.md' 
   - 'Compiling to C':                              'transforms/hkc.md' 
+- Workflow and Examples:
+  - 'What is the Hakaru Workflow?':                    'workflow/intro.md'
+  - 'Tutorial: Hakaru Workflow for Discrete Models':   'workflow/discrete.md'
+  - 'Tutorial: Hakaru Workflow for Continuous Models': 'workflow/continuous.md'
+  - 'Examples':                                        'examples.md'
 - Language Guide:
   - 'Primitive Probability Distributions': 'lang/rand.md'
   - 'Let and Bind':                        'lang/letbind.md'
@@ -33,7 +37,7 @@ pages:
   - 'Normalize':           'transforms/normalize.md'
   - 'Disintegrate':        'transforms/disintegrate.md'
   - 'Density':             'transforms/density.md'
-  - 'Simplify':            'transforms/simplify.md'
+  - 'Hakaru Maple':        'transforms/hk-maple.md'
   - 'Metropolis Hastings': 'transforms/mh.md'
 - Internals:
   - 'AST and Hakaru Datakind':   'internals/ast.md'

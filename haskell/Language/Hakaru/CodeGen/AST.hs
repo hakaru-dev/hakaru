@@ -8,9 +8,10 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
---   An AST for the C Family and preprocessor
--- Much of this is based on Manuel M T Chakravarty and Benedikt
--- Hubar's "language-c" package
+--   An AST for the C Family and preprocessor. Much of this was originally based
+-- on Manuel M T Chakravarty and Benedikt Hubar's "language-c" package.
+--
+-- It is an AST for the C99 standard and should compile with the -pedantic flag
 --
 --------------------------------------------------------------------------------
 
@@ -177,7 +178,7 @@ data CPtrDeclr = CPtrDeclr [CTypeQual]
 data CDirectDeclr
   = CDDeclrIdent Ident
   | CDDeclrArr   CDirectDeclr (Maybe CExpr)
-  | CDDeclrFun   CDirectDeclr [CTypeSpec]
+  | CDDeclrFun   CDirectDeclr [[CTypeSpec]]
   | CDDeclrRec   CDeclr
   deriving (Show, Eq, Ord)
 

@@ -1,10 +1,5 @@
-fn x0 real: 
- (match not((0 < x0)): 
-   true: reject. measure(unit)
-   false: 
-    (match not((1 < x0)): 
-      true: weight(real2prob(x0), return ())
-      false: 
-       (match not((2 < x0)): 
-         true: weight(real2prob((2 + (x0 * negate(1)))), return ())
-         false: reject. measure(unit))))
+fn x0 real:
+if x0 <= +0/1 || +2/1 <= x0: reject. measure(unit)
+else:
+  if x0 <= +1/1 && +0/1 < x0: weight(real2prob(x0), return ())
+  else: weight(real2prob(+2/1 + x0 * (-1/1)), return ())

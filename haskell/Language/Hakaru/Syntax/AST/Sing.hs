@@ -121,7 +121,7 @@ sing_ArrayOp (Reduce a) =
 
 
 sing_MeasureOp :: MeasureOp typs a -> (List1 Sing typs, Sing a)
-sing_MeasureOp Lebesgue    = (Nil1, sing)
+sing_MeasureOp Lebesgue    = (sing `Cons1` sing `Cons1` Nil1, sing)
 sing_MeasureOp Counting    = (Nil1, sing)
 sing_MeasureOp Categorical = (sing `Cons1` Nil1, sing)
 sing_MeasureOp Uniform     = (sing `Cons1` sing `Cons1` Nil1, sing)

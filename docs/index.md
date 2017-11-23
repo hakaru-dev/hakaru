@@ -37,10 +37,6 @@ You can use the `hakaru` command to generate samples from your probabilistic mod
 
 This page will introduce you to Hakaru's basic functionality by creating a program to sample and condition a mixture model of a coin toss.
 
-### [Examples](examples) ###
-
-Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
-
 ### [Compiling to Haskell](/transforms/compile) ###
 
 A Hakaru program can be ported into Haskell which can then be converted into machine code for other applications.
@@ -49,6 +45,25 @@ A Hakaru program can be ported into Haskell which can then be converted into mac
 
 Depending on the scale, a Hakaru program might be resource-intensive to run. In these situations, you could port your Hakaru program to C using the `hkc` command to take
 advantage of other tools such as OpenMP for parallel processing. 
+
+## Hakaru Workflow and Examples ##
+
+### [What is the Hakaru Workflow?](/workflow/intro.md) ###
+
+Hakaru provides a language and tools to aid in each step of the Bayesian inference workflow.
+
+### [Tutorial: Hakaru Workflow for Discrete Models](workflow/discrete.md) ###
+
+This example of a burglary alarm demonstrates the workflow typically followed when creating Hakaru programs.
+
+### [Tutorial: Hakaru Workflow for Continuous Models](workflow/continuous.md) ###
+
+This example of a thermometer calibration demonstrates the workflow typically followed when creating Hakaru programs that involve
+random real numbers in their description.
+
+### [Examples](examples) ###
+
+Two examples, a Gaussian Mixture Model and a Latent Dirichlet Allocation (LDA) topic model, highlight the types of problems that Hakaru is uniquely suited to help you solve.
 
 ## Language Guide ##
 
@@ -90,10 +105,6 @@ arrays.
 
 Hakaru loops are specialized to compute the summation or product of the elements in an array.
 
-### [Expect](/transforms/expect) ###
-
-The expectation feature (`expect`) computes expectation of a measure with respect to a given function. 
-
 ## Transformations ##
 
 Hakaru includes some inference algorithms that you can use to transform your probabilistic models into other forms to extract desireable information. Its inference 
@@ -101,6 +112,10 @@ algorithms are implemented predominantly as program transformations.
 
 **Note:** By default, Hakaru assigns a weight to each generated sample. Typically a weight of one is used, but it is possible for the weights to vary between samples. This 
 might result in differing results from the original and transformed programs when summarizing a program's output by counting them.
+
+### [Expect](/transforms/expect) ###
+
+The expectation feature (`expect`) computes expectation of a measure with respect to a given function. 
 
 ### [Normalize](/transforms/normalize) ###
 
@@ -115,10 +130,10 @@ is equivalent to model conditioning in probability theory.
 
 The density transformation (`density`) is used to create a conditional distribution model that is used to estimate the density of the distribution at a particular point.
 
-### [Simplify](/transforms/simplify) ###
+### [Hakaru-Maple](/transforms/hk-maple) ###
 
-The simplify transformation (`simplify`) is used to improve Hakaru programs by simplifying probabilistic models using computer algebra. This transformation requires the
-use of Maple.
+The simplify transformation (`hk-maple -c Simplify`) is used to improve Hakaru programs by simplifying probabilistic models using computer algebra. This transformation requires the
+use of Maple. Hakaru provides two other transformations also written in Maple.
 
 ### [Metropolis Hastings](/transforms/mh) ###
 

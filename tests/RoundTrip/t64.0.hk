@@ -6,7 +6,7 @@ fn x5 real:
                      true: 
                       x0 <~ return x5
                       return recip(x0)
-                     false: return 0)
+                     false: return (0.real))
              weight(real2prob(x0), return ())
        x0 <~ return real2prob(x5)
        return log(x0)

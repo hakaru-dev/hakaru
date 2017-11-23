@@ -1,12 +1,14 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP
+           , DataKinds
+           , OverloadedStrings
+           , FlexibleContexts
+           #-}
 module Language.Hakaru.Command where
 
 import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Parser.Import (expandImports)
-import           Language.Hakaru.Parser.Parser hiding (style)
+import           Language.Hakaru.Parser.Parser (parseHakaru, parseHakaruWithImports)
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Syntax.TypeCheck
 
@@ -20,6 +22,7 @@ import           Data.Vector
 import           System.IO (stderr)
 import           System.Environment (getArgs)
 import           Data.Monoid ((<>),mconcat)
+import           System.FilePath (takeDirectory)
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -29,25 +32,52 @@ type Term a = TrivialABT T.Term '[] a
 
 parseAndInfer :: Text.Text
               -> Either Text.Text (TypedAST (TrivialABT T.Term))
-parseAndInfer x =
+parseAndInfer x = parseAndInferWithMode x LaxMode
+
+parseAndInferWithMode
+  :: ABT T.Term abt
+  => Text.Text
+  -> TypeCheckMode
+  -> Either Text.Text (TypedAST abt)
+parseAndInferWithMode x mode =
     case parseHakaru x of
     Left  err  -> Left (Text.pack . show $ err)
     Right past ->
         let m = inferType (resolveAST past) in
-        runTCM m (splitLines x) LaxMode
+        runTCM m (splitLines x) mode
 
-parseAndInfer' :: Text.Text
+-- The filepath from which the text came and the text itself. If the filepath is
+-- Nothing, imports are searched for in the current directory.
+data Source = Source { file :: Maybe FilePath, source :: Text.Text }
+
+sourceInput :: Source -> Maybe (Vector Text.Text)
+sourceInput = splitLines . source
+
+noFileSource :: Text.Text -> Source
+noFileSource = Source Nothing
+
+fileSource :: FilePath -> Text.Text -> Source
+fileSource = Source . Just
+
+parseAndInfer' :: Source
                -> IO (Either Text.Text (TypedAST (TrivialABT T.Term)))
-parseAndInfer' x =
+parseAndInfer' s = parseAndInferWithMode' s LaxMode
+
+parseAndInferWithMode'
+  :: ABT T.Term abt
+  => Source
+  -> TypeCheckMode
+  -> IO (Either Text.Text (TypedAST abt))
+parseAndInferWithMode' (Source dir x) mode =
     case parseHakaruWithImports x of
     Left  err  -> return . Left $ Text.pack . show $ err
     Right past -> do
-      past' <- runExceptT (expandImports past)
+      past' <- runExceptT (expandImports (fmap takeDirectory dir) past)
       case past' of
         Left err     -> return . Left $ Text.pack . show $ err
         Right past'' -> do
           let m = inferType (resolveAST past'')
-          return (runTCM m (splitLines x) LaxMode)
+          return (runTCM m (splitLines x) mode)
 
 parseAndInferWithDebug
     :: Bool
@@ -75,6 +105,9 @@ splitLines = Just . fromList . Text.lines
 readFromFile :: String -> IO Text.Text
 readFromFile "-" = U.getContents
 readFromFile x   = U.readFile x
+
+readFromFile' :: String -> IO Source
+readFromFile' x = Source (if x=="-" then Nothing else Just x) <$> readFromFile x
 
 simpleCommand :: (Text.Text -> IO ()) -> Text.Text -> IO ()
 simpleCommand k fnName = 

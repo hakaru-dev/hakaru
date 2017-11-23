@@ -1,8 +1,10 @@
 {-# LANGUAGE GADTs
+           , OverloadedStrings
            , KindSignatures
            , DataKinds
            , FlexibleContexts
            , UndecidableInstances
+           , LambdaCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -22,9 +24,11 @@ module Language.Hakaru.Pretty.Haskell
     (
     -- * The user-facing API
       pretty
+    , prettyString
     , prettyPrec
     , prettyAssoc
     , prettyPrecAssoc
+    , prettyType
 
     -- * Helper functions (semi-public internal API)
     , ppVariable
@@ -47,10 +51,12 @@ import qualified Data.Sequence      as Seq -- Because older versions of "Data.Fo
 
 import Data.Number.Nat                 (fromNat)
 import Data.Number.Natural             (fromNatural)
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, List1(..))
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, List1(..)
+                                       ,Foldable21(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Reducer
@@ -61,6 +67,23 @@ import Language.Hakaru.Syntax.ABT
 pretty :: (ABT Term abt) => abt '[] a -> Doc
 pretty = prettyPrec 0
 
+
+prettyString :: (ABT Term abt)
+           => Sing a
+           -> abt '[] a
+           -> Doc
+prettyString typ ast =
+  PP.text $ Text.unpack (Text.unlines $ header  ++ [ Text.pack (prettyProg "prog" typ ast)])
+
+prettyProg :: (ABT Term abt)
+           => String
+           -> Sing a
+           -> abt '[] a
+           -> String
+prettyProg name typ ast =
+    PP.renderStyle PP.style
+    (    PP.sep [PP.text (name ++ " ::"), PP.nest 2 (prettyType typ)]
+     PP.$+$ PP.sep [PP.text (name ++ " =") , PP.nest 2 (pretty     ast)] )
 
 -- | Pretty-print a term at a given precendence level.
 prettyPrec :: (ABT Term abt) => Int -> abt '[] a -> Doc
@@ -80,12 +103,41 @@ prettyPrecAssoc p (Assoc x e) =
         , prettyPrec 11 e
         ]
 
+
+-- | Pretty-print a Hakaru type as a Haskell type.
+prettyType :: Sing (a :: Hakaru) -> Doc
+prettyType SInt = PP.text "Int"
+prettyType SNat = PP.text "Int"
+prettyType SReal = PP.text "Double"
+prettyType SProb = PP.text "Prob"
+prettyType (SArray t) =
+  let t' = PP.nest 2 (prettyType t) in
+  PP.parens (PP.sep [PP.text "MayBoxVec", t', t'])
+prettyType (SMeasure t) =
+  PP.parens (PP.sep [PP.text "Measure", PP.nest 2 (prettyType t)])
+prettyType (SFun t1 t2) =
+  PP.parens (PP.sep [prettyType t1 <+> PP.text "->", prettyType t2])
+prettyType (SData _ (SDone `SPlus` SVoid)) =
+  PP.text "()"
+prettyType (SData _ (SDone `SPlus` SDone `SPlus` SVoid)) =
+  PP.text "Bool"
+prettyType (SData _ (SDone `SPlus` (SKonst t `SEt` SDone) `SPlus` SVoid)) =
+  PP.parens (PP.sep [PP.text "Maybe", PP.nest 2 (prettyType t)])
+prettyType (SData _ ((SKonst t1 `SEt` SDone) `SPlus`
+                     (SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
+  PP.parens (PP.sep [PP.text "Either", PP.nest 2 (prettyType t1),
+                                       PP.nest 2 (prettyType t2)])
+prettyType (SData _ ((SKonst t1 `SEt` SKonst t2 `SEt` SDone) `SPlus` SVoid)) =
+  PP.parens (PP.sep [prettyType t1 <> PP.comma, prettyType t2])
+prettyType s = error ("TODO: prettyType: " ++ show s)
+
+
 ----------------------------------------------------------------
 class Pretty (f :: Hakaru -> *) where
     -- | A polymorphic variant if 'prettyPrec', for internal use.
     prettyPrec_ :: Int -> f a -> Docs
 
-type Docs = [Doc] 
+type Docs = [Doc]
 
 -- So far as I can tell from the documentation, if the input is a singleton list then the result is the same as that singleton.
 toDoc :: Docs -> Doc
@@ -143,7 +195,7 @@ ppViewABT e = go [] (viewABT e)
 -- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
 instance (ABT Term abt) => Pretty (LC_ abt) where
   prettyPrec_ p (LC_ e) =
-    caseVarSyn e ((:[]) . ppVariable) $ \t -> 
+    caseVarSyn e ((:[]) . ppVariable) $ \t ->
         case t of
         o :$ es      -> ppSCon p o es
         NaryOp_ o es ->
@@ -198,7 +250,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             , ppArg e
             , toDoc $ parens True (prettyPrec_ p r)
             ]
-              
+
         Superpose_ pes ->
             case pes of
             (e1,e2) L.:| [] ->
@@ -223,7 +275,7 @@ ppSCon p Lam_ = \(e1 :* End) ->
     parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
 ppSCon p App_ = \(e1 :* e2 :* End) -> ppBinop "`app`" 9 LeftAssoc p e1 e2 -- BUG: this puts extraneous parentheses around e2 when it's a function application...
 ppSCon p Let_ = \(e1 :* e2 :* End) ->
-    parens (p > 0) $ 
+    parens (p > 0) $
         adjustHead
             (PP.text "let_" <+> ppArg e1 <+> PP.char '$' <+>)
             (ppBinder e2)
@@ -245,13 +297,7 @@ ppSCon p MBind = \(e1 :* e2 :* End) ->
         adjustHead
             (prettyPrec 1 e1 <+> PP.text ">>=" <+>)
             (ppBinder e2)
-ppSCon p Expect = \(e1 :* e2 :* End) ->
-    -- N.B., for this to be read back in correctly, "Language.Hakaru.Expect" must be in scope as well as the prelude.
-    parens (p > 0) $
-        adjustHead
-            (PP.text "expect" <+> ppArg e1 <+> PP.char '$' <+>)
-            (ppBinder e2)
-ppSCon p Observe   = \(e1 :* e2 :* End) -> ppApply2 p "observe" e1 e2
+ppSCon p (Transform_ t) = ppTransform p t
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "integrate"
         [ ppArg e1
@@ -272,7 +318,7 @@ ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
         , toDoc $ parens True (ppBinder e3)
         ]
 
-ppSCon _ Plate = \(e1 :* e2 :* End) -> 
+ppSCon _ Plate = \(e1 :* e2 :* End) ->
     ppFun 11 "plate"
         [ ppArg e1 <+> PP.char '$'
         , toDoc $ ppBinder e2
@@ -284,6 +330,19 @@ ppSCon _ Chain = \(e1 :* e2 :* e3 :* End) ->
         , ppArg e2 <+> PP.char '$'
         , toDoc $ ppBinder e3
         ]
+
+ppTransform :: (ABT Term abt)
+            => Int -> Transform args a -> SArgs abt args -> Docs
+ppTransform p t es =
+  case t of
+     Expect ->
+       case es of
+         e1 :* e2 :* End ->
+           parens (p > 0) $
+              adjustHead
+                (PP.text "expect" <+> ppArg e1 <+> PP.char '$' <+>)
+                (ppBinder e2)
+     _ -> ppApply p (transformName t) es
 
 ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Docs
 ppCoerceTo =
@@ -384,7 +443,7 @@ ppArrayOp p (Reduce  _) = \(e1 :* e2 :* e3 :* End) ->
 ppMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> MeasureOp typs a -> SArgs abt args -> Docs
-ppMeasureOp _ Lebesgue    = \End           -> [PP.text "lebesgue"]
+ppMeasureOp p Lebesgue    = \(e1 :* e2 :* End) -> ppApply2 p "lebesgue" e1 e2
 ppMeasureOp _ Counting    = \End           -> [PP.text "counting"]
 ppMeasureOp p Categorical = \(e1 :* End)   -> ppApply1 p "categorical" e1
 ppMeasureOp p Uniform = \(e1 :* e2 :* End) -> ppApply2 p "uniform"     e1 e2
@@ -405,7 +464,7 @@ instance Pretty f => Pretty (Datum f) where
         | Text.null hint =
             ppFun p "datum_"
                 [error "TODO: prettyPrec_@Datum"]
-        | otherwise = 
+        | otherwise =
           ppFun p "ann_"
             [ PP.parens . PP.text . show $ _typ
             , PP.parens . toDoc $ ppFun p (Text.unpack hint)
@@ -470,7 +529,7 @@ instance (ABT Term abt) => Pretty (Reducer abt xs) where
     prettyPrec_ p (Red_Add _ e)       =
         ppFun p "r_add"
             [ toDoc $ parens True (ppUncurryBinder e)]
-        
+
 ----------------------------------------------------------------
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs
@@ -509,6 +568,9 @@ ppApply2
     :: (ABT Term abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
 ppApply2 p f e1 e2 = ppFun p f [ppArg e1, ppArg e2]
 
+ppApply
+    :: (ABT Term abt) => Int -> String -> SArgs abt as -> Docs
+ppApply p f es = ppFun p f $ foldMap21 ppBinder es
 
 -- | Something prettier than 'PP.rational'. This works correctly
 -- for both 'Rational' and 'NonNegativeRational', though it may not
@@ -557,12 +619,27 @@ ppBinop op p0 assoc =
             LeftAssoc  -> (p0, 1 + p0)
             RightAssoc -> (1 + p0, p0)
             NonAssoc   -> (1 + p0, 1 + p0)
-    in \p e1 e2 -> 
+    in \p e1 e2 ->
         parens (p > p0)
             [ prettyPrec p1 e1
             , PP.text op
                 <+> prettyPrec p2 e2
             ]
+
+header :: [Text.Text]
+header  =
+  [ "{-# LANGUAGE DataKinds, NegativeLiterals #-}"
+  , "module Prog where"
+  , ""
+  , "import           Data.Number.LogFloat (LogFloat)"
+  , "import           Prelude hiding (product, exp, log, (**), pi)"
+  , "import           Language.Hakaru.Runtime.LogFloatPrelude"
+  , "import           Language.Hakaru.Runtime.CmdLine"
+  , "import           Language.Hakaru.Types.Sing"
+  , "import qualified System.Random.MWC                as MWC"
+  , "import           Control.Monad"
+  , "import           System.Environment (getArgs)"
+  , "" ]
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

@@ -123,7 +123,7 @@ mapleAST (LC_ e) =
         o :$ es          -> mapleSCon o  es
         NaryOp_ op es    -> mapleNary op es
         Literal_ v       -> mapleLiteral v
-        Empty_ _         -> error "TODO: mapleAST{Empty}"
+        Empty_ _         -> brackets id
         Array_ e1 e2     ->
             caseBind e2 $ \x e2' ->
                 app3 "ary" e1 (var x) e2'
@@ -155,7 +155,15 @@ showsRational a =
 
 var1 :: Variable (a :: Hakaru) -> ShowS
 var1 x | Text.null (varHint x) = showChar 'x' . (shows . fromNat . varID) x
-       | otherwise             = showString (Text.unpack (varHint x))
+       | otherwise             = quoteName . Text.unpack . varHint $ x
+
+quoteName :: String -> ShowS
+quoteName s =
+  foldr1 (.) $ map showString
+    ["`", concatMap quoteChar s, "`"]
+      where quoteChar '`'  = "\\`"
+            quoteChar '\\' = "\\\\"
+            quoteChar c    = [c]
 
 list1vars :: List1 Variable (vars :: [Hakaru]) -> [String]
 list1vars Nil1         = []
@@ -216,15 +224,10 @@ mapleSCon (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
         . showString "..("
         . arg e2
         . showString ")-1)"
-mapleSCon Expect = \(e1 :* e2 :* End) ->
-    error "TODO: mapleSCon{Expect}"
-    {-
-    caseBind e2 $ \x e2' ->
-    arg
-        . expect e1
-        . binder Text.empty (varType x)
-        $ \x' -> subst x x' e2'
-    -}
+
+mapleSCon (Transform_ t) = \_ -> error $
+    concat [ "mapleSCon{", show t, "}"
+           , ": Maple doesn't recognize transforms; expand them first" ]
 
 
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> ShowS
@@ -338,7 +341,7 @@ mapleArrayOp _         _                 = error "TODO: mapleArrayOp{Reduce}"
 mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> ShowS
-mapleMeasureOp Lebesgue    = \End               -> showString "Lebesgue(-infinity,infinity)"
+mapleMeasureOp Lebesgue    = \(e1 :* e2 :* End) -> app2 "Lebesgue" e1 e2
 mapleMeasureOp Counting    = \End               -> showString "Counting(-infinity,infinity)"
 mapleMeasureOp Categorical = \(e1 :* End)       -> app1 "Categorical" e1
 mapleMeasureOp Uniform     = \(e1 :* e2 :* End) -> app2 "Uniform"  e1 e2

@@ -25,14 +25,15 @@
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 ----------------------------------------------------------------
 module Language.Hakaru.Simplify
-    ( simplify
+    ( simplify, simplifyWithOpts
+    , simplify'
     , simplifyDebug
     ) where
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Command
 import Language.Hakaru.Maple 
+import Language.Hakaru.Syntax.TypeCheck
 
 ----------------------------------------------------------------
 
@@ -40,7 +41,19 @@ simplify
     :: forall abt a
     .  (ABT Term abt) 
     => abt '[] a -> IO (abt '[] a)
-simplify = sendToMaple defaultMapleOptions{command=Simplify}
+simplify = simplifyWithOpts defaultMapleOptions
+
+simplifyWithOpts
+    :: forall abt a
+    .  (ABT Term abt) 
+    => MapleOptions () -> abt '[] a -> IO (abt '[] a)
+simplifyWithOpts o = sendToMaple o{command=MapleCommand Simplify}
+
+simplify'
+    :: forall abt a
+    .  (ABT Term (abt Term)) 
+    => TypedAST (abt Term)  -> IO (TypedAST (abt Term))
+simplify' = sendToMaple' defaultMapleOptions{command="Simplify"}
 
 simplifyDebug
     :: forall abt a
@@ -49,7 +62,9 @@ simplifyDebug
     -> Int
     -> abt '[] a
     -> IO (abt '[] a)
-simplifyDebug d t = sendToMaple defaultMapleOptions{command=Simplify,debug=d,timelimit=t}
+simplifyDebug d t = sendToMaple
+  defaultMapleOptions{command=MapleCommand Simplify,
+                      debug=d,timelimit=t}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

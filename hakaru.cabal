@@ -3,11 +3,11 @@
 cabal-version:       >=1.16
 build-type:          Simple
 name:                hakaru
-version:             0.4.0
+version:             0.6.0
 synopsis:            A probabilistic programming language
 description:         Hakaru is a simply-typed probabilistic programming language, designed
                      for easy specification of probabilistic models, and inference algorithms.
-homepage:            http://indiana.edu/~ppaml/
+homepage:            http://hakaru-dev.github.io/
 license:             BSD3
 license-file:        LICENSE
 author:              The Hakaru Team
@@ -30,7 +30,7 @@ Flag traceDisintegrate
 Library
     Hs-Source-Dirs:    haskell
     Default-Language:  Haskell2010
-    GHC-Options:       -Wall -fwarn-tabs -j6
+    GHC-Options:       -Wall -fwarn-tabs -j6 
 
     if flag(traceDisintegrate)
         Cpp-Options:   -D__TRACE_DISINTEGRATE__
@@ -48,33 +48,36 @@ Library
                        Language.Hakaru.Types.HClasses,
                        Language.Hakaru.Types.Coercion,
                        Language.Hakaru.Syntax.ANF,
-                       Language.Hakaru.Syntax.Uniquify,
-                       Language.Hakaru.Syntax.Unroll,
                        Language.Hakaru.Syntax.AST,
-                       Language.Hakaru.Syntax.AST.Transforms,
-                       Language.Hakaru.Syntax.AST.Sing,
                        Language.Hakaru.Syntax.AST.Eq,
-                       Language.Hakaru.Syntax.Command,
+                       Language.Hakaru.Syntax.AST.Sing,
+                       Language.Hakaru.Syntax.AST.Transforms,
                        Language.Hakaru.Syntax.CSE,
                        Language.Hakaru.Syntax.Gensym,
-                       Language.Hakaru.Syntax.Rename,
                        Language.Hakaru.Syntax.Hoist,
-                       Language.Hakaru.Syntax.Prune,
-                       Language.Hakaru.Syntax.TypeCheck,
-                       Language.Hakaru.Syntax.TypeOf,
                        Language.Hakaru.Syntax.Prelude,
+                       Language.Hakaru.Syntax.Prune,
+                       Language.Hakaru.Syntax.Rename,
+                       Language.Hakaru.Syntax.SArgs,
+                       Language.Hakaru.Syntax.Transform,
+                       Language.Hakaru.Syntax.TypeCheck,
+                       Language.Hakaru.Syntax.TypeCheck.TypeCheckMonad,
+                       Language.Hakaru.Syntax.TypeCheck.Unification,
+                       Language.Hakaru.Syntax.TypeOf,
+                       Language.Hakaru.Syntax.Uniquify,
+                       Language.Hakaru.Syntax.Unroll,
                        Language.Hakaru.Parser.AST,
                        Language.Hakaru.Parser.Maple,
                        Language.Hakaru.Parser.Import,
                        Language.Hakaru.Parser.Parser,
                        Language.Hakaru.Parser.SymbolResolve,
                        Language.Hakaru.Pretty.Haskell,
+                       Language.Hakaru.Pretty.SExpression,
                        Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Runtime.Prelude,
                        Language.Hakaru.Runtime.LogFloatPrelude,
                        Language.Hakaru.Runtime.CmdLine,
-                       Language.Hakaru.Runtime.LogFloatCmdLine,
                        Language.Hakaru.Observe,
                        Language.Hakaru.Maple,
                        Language.Hakaru.Simplify,
@@ -105,31 +108,31 @@ Library
 
     other-modules:     System.MapleSSH
 
-    build-depends:     base               >= 4.7  && < 5.0,
-                       Cabal              >= 1.16,
-                       ghc-prim           >= 0.3  && < 0.6,
-                       transformers       >= 0.3  && < 0.6,
-                       transformers-compat >= 0.3  && < 0.6,
-                       containers         >= 0.5  && < 0.6,
-                       semigroups         >= 0.16,
-                       pretty             >= 1.1  && < 1.2,
-                       logfloat           >= 0.13 && < 0.14,
-                       math-functions     >= 0.1  && < 0.3,
-                       vector             >= 0.10,
-                       indentation-parsec >= 0.0,
-                       ansi-terminal      >= 0.6,
-                       text               >= 0.11 && < 1.3,
-                       parsec             >= 3.1  && < 3.2,
-                       mwc-random         >= 0.13 && < 0.14,
-                       directory          >= 1.2  && < 1.4,
-                       integration        >= 0.2.0 && < 0.3.0,
-                       primitive          >= 0.5  && < 0.7,
-                       process            >= 1.1  && < 2.0,
-                       HUnit              >= 1.2  && < 2.0,
-                       mtl                >= 2.1,
-                       filepath           >= 1.1.0.2, 
-                       bytestring         >= 0.9, 
-                       optparse-applicative >= 0.11 && < 0.15
+    build-depends:     base                 >= 4.7  && < 5.0,
+                       Cabal                >= 1.16,
+                       ghc-prim             >= 0.3  && < 0.6,
+                       transformers         >= 0.3  && < 0.6,
+                       transformers-compat  >= 0.3  && < 0.6,
+                       containers           >= 0.5  && < 0.6,
+                       semigroups           >= 0.16,
+                       pretty               >= 1.1  && < 1.2,
+                       logfloat             >= 0.13 && < 0.14,
+                       math-functions       >= 0.1  && < 0.3,
+                       vector               >= 0.10,
+                       indentation-parsec   >= 0.0,
+                       text                 >= 0.11 && < 1.3,
+                       parsec               >= 3.1  && < 3.2,
+                       mwc-random           >= 0.13 && < 0.14,
+                       directory            >= 1.2  && < 1.4,
+                       integration          >= 0.2.0 && < 0.3.0,
+                       primitive            >= 0.5  && < 0.7,
+                       process              >= 1.1  && < 2.0,
+                       HUnit                >= 1.2  && < 2.0,
+                       mtl                  >= 2.1,
+                       filepath             >= 1.1.0.2,
+                       bytestring           >= 0.9,
+                       optparse-applicative >= 0.11 && < 0.15,
+                       syb                  >= 0.6
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite
@@ -138,7 +141,7 @@ Test-Suite system-testsuite
     Hs-Source-Dirs:    haskell
     Default-Language:  Haskell2010
     GHC-Options:       -Wall -fwarn-tabs
-	
+
     other-modules:     Data.Number.Nat
                        Data.Number.Natural
                        Data.Text.Utf8
@@ -154,6 +157,110 @@ Test-Suite system-testsuite
                        Language.Hakaru.Evaluation.Types
                        Language.Hakaru.Expect
                        Language.Hakaru.Inference
+                       Language.Hakaru.Maple
+                       Language.Hakaru.Parser.AST
+                       Language.Hakaru.Parser.Import
+                       Language.Hakaru.Parser.Maple
+                       Language.Hakaru.Parser.Parser
+                       Language.Hakaru.Parser.SymbolResolve
+                       Language.Hakaru.Pretty.Concrete
+                       Language.Hakaru.Pretty.Haskell
+                       Language.Hakaru.Pretty.Maple
+                       Language.Hakaru.Sample
+                       Language.Hakaru.Simplify
+                       Language.Hakaru.Syntax.ABT
+                       Language.Hakaru.Syntax.ANF
+                       Language.Hakaru.Syntax.AST
+                       Language.Hakaru.Syntax.AST.Eq
+                       Language.Hakaru.Syntax.AST.Transforms
+                       Language.Hakaru.Syntax.AST.Sing
+                       Language.Hakaru.Syntax.CSE
+                       Language.Hakaru.Syntax.Datum
+                       Language.Hakaru.Syntax.DatumABT
+                       Language.Hakaru.Syntax.DatumCase
+                       Language.Hakaru.Syntax.Gensym
+                       Language.Hakaru.Syntax.Hoist
+                       Language.Hakaru.Syntax.IClasses
+                       Language.Hakaru.Syntax.Prelude
+                       Language.Hakaru.Syntax.Prune
+                       Language.Hakaru.Syntax.Reducer
+                       Language.Hakaru.Syntax.SArgs
+                       Language.Hakaru.Syntax.Transform
+                       Language.Hakaru.Syntax.TypeCheck
+                       Language.Hakaru.Syntax.TypeCheck.TypeCheckMonad
+                       Language.Hakaru.Syntax.TypeCheck.Unification
+                       Language.Hakaru.Syntax.TypeOf
+                       Language.Hakaru.Syntax.Uniquify
+                       Language.Hakaru.Syntax.Unroll
+                       Language.Hakaru.Syntax.Value
+                       Language.Hakaru.Syntax.Variable
+                       Language.Hakaru.Types.Coercion
+                       Language.Hakaru.Types.DataKind
+                       Language.Hakaru.Types.HClasses
+                       Language.Hakaru.Types.Sing
+                       System.MapleSSH
+                       Tests.ASTTransforms
+                       Tests.Disintegrate
+                       Tests.Models
+                       Tests.Parser
+                       Tests.Pretty
+                       Tests.Relationships
+                       Tests.RoundTrip
+                       Tests.Sample
+                       Tests.Simplify
+                       Tests.TestTools
+                       Tests.TypeCheck
+
+    Build-Depends:     base                 >= 4.6  && < 5.0,
+                       Cabal                >= 1.16,
+                       ghc-prim             >= 0.3  && < 0.6,
+                       indentation-parsec   >= 0.0,
+                       transformers         >= 0.3  && < 0.6,
+                       containers           >= 0.5  && < 0.6,
+                       semigroups           >= 0.16,
+                       logfloat             >= 0.13 && < 0.14,
+                       parsec               >= 3.1  && < 3.2,
+                       primitive            >= 0.5  && < 0.7,
+                       pretty               >= 1.1  && < 1.2,
+                       mwc-random           >= 0.13 && < 0.14,
+                       math-functions       >= 0.1  && < 0.3,
+                       integration          >= 0.2  && < 0.3,
+                       HUnit                >= 1.2  && < 2.0,
+                       QuickCheck           >= 2.6,
+                       process              >= 1.1  && < 2.0,
+                       mtl                  >= 2.1,
+                       vector               >= 0.10,
+                       text                 >= 0.11 && < 1.3,
+                       bytestring           >= 0.9,
+                       directory            >= 1.2  && < 1.4,
+                       optparse-applicative >= 0.11 && < 0.15,
+                       syb                  >= 0.6,
+                       filepath             >= 1.1.0.2
+
+----------------------------------------------------------------
+Test-Suite relationships-testsuite
+    Type:              exitcode-stdio-1.0
+    Main-is:           Tests/TestSuite.hs
+    Hs-Source-Dirs:    haskell
+    Default-Language:  Haskell2010
+    GHC-Options:       -Wall -fwarn-tabs -main-is justRelationships
+
+    other-modules:     Data.Number.Nat
+                       Data.Number.Natural
+                       Data.Text.Utf8
+                       Language.Hakaru.Command
+                       Language.Hakaru.Disintegrate
+                       Language.Hakaru.Evaluation.Coalesce
+                       Language.Hakaru.Evaluation.ConstantPropagation
+                       Language.Hakaru.Evaluation.DisintegrationMonad
+                       Language.Hakaru.Evaluation.EvalMonad
+                       Language.Hakaru.Evaluation.ExpectMonad
+                       Language.Hakaru.Evaluation.Lazy
+                       Language.Hakaru.Evaluation.PEvalMonad
+                       Language.Hakaru.Evaluation.Types
+                       Language.Hakaru.Expect
+                       Language.Hakaru.Inference
+                       Language.Hakaru.Maple
                        Language.Hakaru.Parser.AST
                        Language.Hakaru.Parser.Import
                        Language.Hakaru.Parser.Maple
@@ -169,6 +276,7 @@ Test-Suite system-testsuite
                        Language.Hakaru.Syntax.AST
                        Language.Hakaru.Syntax.AST.Eq
                        Language.Hakaru.Syntax.AST.Sing
+                       Language.Hakaru.Syntax.AST.Transforms
                        Language.Hakaru.Syntax.CSE
                        Language.Hakaru.Syntax.Datum
                        Language.Hakaru.Syntax.DatumABT
@@ -179,7 +287,11 @@ Test-Suite system-testsuite
                        Language.Hakaru.Syntax.Prelude
                        Language.Hakaru.Syntax.Prune
                        Language.Hakaru.Syntax.Reducer
+                       Language.Hakaru.Syntax.SArgs
+                       Language.Hakaru.Syntax.Transform
                        Language.Hakaru.Syntax.TypeCheck
+                       Language.Hakaru.Syntax.TypeCheck.TypeCheckMonad
+                       Language.Hakaru.Syntax.TypeCheck.Unification
                        Language.Hakaru.Syntax.TypeOf
                        Language.Hakaru.Syntax.Uniquify
                        Language.Hakaru.Syntax.Unroll
@@ -194,36 +306,39 @@ Test-Suite system-testsuite
                        Tests.Disintegrate
                        Tests.Models
                        Tests.Parser
+                       Tests.Pretty
+                       Tests.Relationships
                        Tests.RoundTrip
                        Tests.Sample
                        Tests.Simplify
                        Tests.TestTools
                        Tests.TypeCheck
 
-    Build-Depends:     base               >= 4.6  && < 5.0,
-                       Cabal              >= 1.16,
-                       ghc-prim           >= 0.3  && < 0.6,
-                       indentation-parsec >= 0.0,
-                       transformers       >= 0.3  && < 0.6,
-                       containers         >= 0.5  && < 0.6,
-                       semigroups         >= 0.16,
-                       logfloat           >= 0.13 && < 0.14,
-                       parsec             >= 3.1  && < 3.2,
-                       primitive          >= 0.5  && < 0.7,
-                       pretty             >= 1.1  && < 1.2,
-                       mwc-random         >= 0.13 && < 0.14,
-                       math-functions     >= 0.1  && < 0.3,
-                       integration        >= 0.2  && < 0.3,
-                       ansi-terminal      >= 0.6,
-                       HUnit              >= 1.2  && < 2.0,
-                       QuickCheck         >= 2.6,
-                       process            >= 1.1  && < 2.0,
-                       mtl                >= 2.1,
-                       vector             >= 0.10,
-                       text               >= 0.11 && < 1.3, 
-                       bytestring         >= 0.9, 
-                       directory          >= 1.2  && < 1.4,
-                       optparse-applicative >= 0.11 && < 0.15
+    Build-Depends:     base                 >= 4.6  && < 5.0,
+                       Cabal                >= 1.16,
+                       ghc-prim             >= 0.3  && < 0.6,
+                       indentation-parsec   >= 0.0,
+                       transformers         >= 0.3  && < 0.6,
+                       containers           >= 0.5  && < 0.6,
+                       semigroups           >= 0.16,
+                       logfloat             >= 0.13 && < 0.14,
+                       parsec               >= 3.1  && < 3.2,
+                       primitive            >= 0.5  && < 0.7,
+                       pretty               >= 1.1  && < 1.2,
+                       mwc-random           >= 0.13 && < 0.14,
+                       math-functions       >= 0.1  && < 0.3,
+                       integration          >= 0.2  && < 0.3,
+                       HUnit                >= 1.2  && < 2.0,
+                       QuickCheck           >= 2.6,
+                       process              >= 1.1  && < 2.0,
+                       mtl                  >= 2.1,
+                       vector               >= 0.10,
+                       text                 >= 0.11 && < 1.3,
+                       bytestring           >= 0.9,
+                       directory            >= 1.2  && < 1.4,
+                       optparse-applicative >= 0.11 && < 0.15,
+                       syb                  >= 0.6,
+                       filepath             >= 1.1.0.2
 
 ----------------------------------------------------------------
 Executable hakaru
@@ -319,10 +434,24 @@ Executable pretty
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
 
-    build-depends:     base             >= 4.7  && < 5.0,
-                       text             >= 0.11 && < 1.3,
-                       pretty           >= 1.1  && < 1.2,
-                       hakaru           >= 0.3
+    build-depends:     base                 >= 4.7  && < 5.0,
+                       text                 >= 0.11 && < 1.3,
+                       pretty               >= 1.1  && < 1.2,
+                       optparse-applicative >= 0.11 && < 0.15,
+                       hakaru               >= 0.3
+
+----------------------------------------------------------------
+Executable prettyinternal
+    Main-is:           PrettyInternal.hs
+    Hs-Source-Dirs:    commands
+    Default-Language:  Haskell2010
+    GHC-Options:       -O2 -Wall -fwarn-tabs
+
+    build-depends:     base                 >= 4.7  && < 5.0,
+                       text                 >= 0.11 && < 1.3,
+                       pretty               >= 1.1  && < 1.2,
+                       optparse-applicative >= 0.11 && < 0.15,
+                       hakaru               >= 0.3
 
 ----------------------------------------------------------------
 Executable momiji

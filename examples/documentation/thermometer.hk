@@ -1,0 +1,16 @@
+thermometer = 
+  nT <~ uniform(3,8)
+  nM <~ uniform(1,4)
+  
+  noiseT = real2prob(nT)
+  noiseM = real2prob(nM)
+  
+  t1 <~ normal(21, noiseT)
+  t2 <~ normal(t1, noiseT)
+  
+  m1 <~ normal(t1, noiseM)
+  m2 <~ normal(t2, noiseM)
+  
+  return ((m1, m2), (noiseT, noiseM))
+
+thermometer

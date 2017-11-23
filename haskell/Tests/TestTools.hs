@@ -3,28 +3,38 @@
            , RankNTypes
            , GADTs
            , PolyKinds
+           , ScopedTypeVariables
            , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Tests.TestTools where
+module Tests.TestTools
+  ( module Tests.TestTools
+  , MapleOptions(..)
+  , defaultMapleOptions)
+   where
 
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Parser.Parser
+import Language.Hakaru.Parser.Parser (parseHakaru)
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
-import Language.Hakaru.Command (parseAndInfer, splitLines)
+import Language.Hakaru.Command (parseAndInferWithMode', Source(..),
+                                fileSource, noFileSource)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.Eq (alphaEq)
+import Language.Hakaru.Syntax.AST.Transforms (expandTransformations
+                                             ,expandTransformationsWith
+                                             ,allTransformationsWithMOpts)
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), jmEq1)
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Simplify
+import Language.Hakaru.Maple (MapleOptions(..), defaultMapleOptions)
 import Language.Hakaru.Syntax.AST.Eq()
 import Text.PrettyPrint (Doc)
 
 import Data.Maybe (isJust)
 import Data.List
 import qualified Data.Text    as T
-import qualified Data.Text.IO as IO
+import qualified Data.Text.Utf8 as IO
 import Data.Typeable (Typeable)
 import Control.Exception
 import Control.Monad
@@ -54,7 +64,8 @@ testS
     -> abt '[] a
     -> Assertion
 testS p x = do
-    _ <- simplify x `catch` handleException (p ++ ": simplify failed")
+    _ <- simplify (expandTransformations x) `catch`
+           handleException (p ++ ": simplify failed")
     return ()
 
 testStriv 
@@ -62,23 +73,52 @@ testStriv
     -> Assertion
 testStriv = testS ""
 
+testSS1
+    :: (ABT Term abt)
+    => String
+    -> abt '[] a -- | Expected
+    -> abt '[] a -- | To simplify
+    -> Assertion
+testSS1 = testSS1WithOpts defaultMapleOptions
+
+testSS1WithOpts
+    :: (ABT Term abt)
+    => MapleOptions ()
+    -> String
+    -> abt '[] a -- | Expected
+    -> abt '[] a -- | To simplify
+    -> Assertion
+testSS1WithOpts o nm t' t =
+   simplifyWithOpts o (expandTransformations t) >>= \p -> assertAlphaEq nm p t'
+
 -- Assert that all the given Hakaru programs simplify to the given one
 testSS 
     :: (ABT Term abt)
     => String
     -> [(abt '[] a)] 
     -> abt '[] a 
-    -> Assertion
-testSS nm ts t' = 
-     mapM_ (\t -> do p <- simplify t 
-                     assertAlphaEq nm p t')
-           (t':ts)
+    -> Test
+testSS nm ts t' = test $ map (testSS1 nm t') (t':ts)
 
 testSStriv 
     :: [(TrivialABT Term '[] a)] 
     -> TrivialABT Term '[] a 
-    -> Assertion
+    -> Test
 testSStriv = testSS ""
+
+-- | Assert that the given programs are equal after expanding transformations.
+--   By convention, the first program is taken to be the expected output, but
+--   this function is symmetric.
+testET
+    :: (ABT Term abt)
+    => MapleOptions ()
+    -> String
+    -> abt '[] a
+    -> abt '[] a
+    -> Assertion
+testET opts nm t0 t1 =
+  let et = expandTransformationsWith (allTransformationsWithMOpts opts) in
+  mapM et [t0, t1] >>= \[t0', t1'] -> assertAlphaEq nm t0' t1'
 
 assertAlphaEq ::
     (ABT Term abt) 
@@ -99,21 +139,45 @@ mismatchMessage k preface a b = msg
                     ]
        p = if null preface then "" else preface ++ "\n"
 
+testWithConcreteImport ::
+    (ABT Term abt)
+    => Source
+    -> TypeCheckMode
+    -> (forall a. Sing a -> abt '[] a -> Assertion)
+    -> Assertion
+testWithConcreteImport s mode k =
+  either (assertFailure . T.unpack) (\(TypedAST typ ast) -> k typ ast) =<<
+  parseAndInferWithMode' s mode
+
 testWithConcrete ::
     (ABT Term abt)
     => T.Text
     -> TypeCheckMode
     -> (forall a. Sing a -> abt '[] a -> Assertion)
     -> Assertion
-testWithConcrete s mode k =
-    case parseHakaru s of
-      Left  err  -> assertFailure (show err)
-      Right past ->
-          let m = inferType (resolveAST past) in
-          case runTCM m (splitLines s) mode of
-            Left err                 -> assertFailure (show err)
-            Right (TypedAST typ ast) -> k typ ast
+testWithConcrete t m k = testWithConcreteImport (noFileSource t) m k
 
+-- Like testWithConcrete, but for many programs 
+testWithConcreteMany 
+  :: forall abt. (ABT Term abt) 
+  => FilePath
+  -> [FilePath]
+  -> TypeCheckMode 
+  -> (forall a . Sing a -> abt '[] a -> abt '[] a -> Assertion) 
+  -> Test
+testWithConcreteMany t ts mode k = test $ map (mkT t) (t:ts)
+  where mkT :: FilePath -> FilePath -> Assertion
+        mkT t0' t1' =
+          mapM (\t -> fileSource t <$> IO.readFile t) [t0', t1'] >>= \[t0,t1] ->
+          testWithConcreteImport t0 mode $ \t0ty (t0p :: abt '[] x0) ->
+          testWithConcreteImport t1 mode $ \t1ty (t1p :: abt '[] x1) ->
+            case jmEq1 t0ty t1ty of
+              Just Refl -> k t0ty t0p t1p
+              Nothing   -> assertFailure $ concat
+                           [ "Files don't have same type ("
+                           , T.unpack (source t0), " :: ", prettyTypeS t0ty
+                           , ", "
+                           , T.unpack (source t1), " :: ", prettyTypeS t1ty ]
 
 testWithConcrete'
     :: T.Text
@@ -122,22 +186,55 @@ testWithConcrete'
     -> Assertion
 testWithConcrete' = testWithConcrete
 
+testWithConcreteMany'
+  :: FilePath
+  -> [FilePath] 
+  -> TypeCheckMode 
+  -> (forall a . Sing a 
+        -> TrivialABT Term '[] a
+        -> TrivialABT Term '[] a
+        -> Assertion) 
+  -> Test
+testWithConcreteMany' = testWithConcreteMany
+
+-- Like testSStriv but for many concrete files
+testConcreteFilesMany
+    :: [FilePath] 
+    -> FilePath
+    -> Test
+testConcreteFilesMany = testConcreteFilesManyWithOpts defaultMapleOptions
+
+-- TODO: Should there be a variant with options for each program?
+testConcreteFilesManyWithOpts
+    :: MapleOptions ()
+    -> [FilePath]
+    -> FilePath
+    -> Test
+testConcreteFilesManyWithOpts o fs f =
+  testWithConcreteMany' f fs LaxMode $
+  \_ -> testSS1WithOpts o ""
+
+testConcreteFilesET
+    :: MapleOptions ()
+    -> [FilePath]
+    -> FilePath
+    -> Test
+testConcreteFilesET o fs f =
+  testWithConcreteMany' f fs LaxMode $
+  \_ -> testET o ""
+
+-- Like testSStriv but for two concrete files
 testConcreteFiles
     :: FilePath
     -> FilePath
-    -> Assertion
-testConcreteFiles f1 f2 = do
-  t1 <- IO.readFile f1
-  t2 <- IO.readFile f2
-  case (parseAndInfer t1, parseAndInfer t2) of
-    (Left err, _) -> assertFailure (show err)
-    (_, Left err) -> assertFailure (show err)
-    (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) -> do
-      ast1' <- simplify ast1
-      ast2' <- simplify ast2
-      case jmEq1 typ1 typ2 of
-        Just Refl -> assertAlphaEq "" ast1' ast2'
-        Nothing   -> assertFailure "files don't have same type"
+    -> Test
+testConcreteFiles f1 f2 = testConcreteFilesMany [f1] f2 
+
+-- Like testStriv but for a concrete file. 
+testConcreteFile :: FilePath -> Assertion
+testConcreteFile f =
+  IO.readFile f >>= \t -> testWithConcreteImport (fileSource f t) LaxMode $
+  \_ -> testStriv
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure

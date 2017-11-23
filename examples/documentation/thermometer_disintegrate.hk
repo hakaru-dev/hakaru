@@ -1,0 +1,21 @@
+fn x8 pair(real, real):
+match x8:
+(x25, x26):
+  nT <~ uniform(+3/1, +8/1)
+  nM <~ uniform(+1/1, +4/1)
+  noiseT = real2prob(nT)
+  noiseM = real2prob(nM)
+  t1 <~ normal(+21/1, noiseT)
+  t2 <~ normal(t1, noiseT)
+  x28 <~ weight
+           (exp((-(x25 - t1) ^ 2) / prob2real(2/1 * noiseM ^ 2))
+            / noiseM
+            / sqrt(2/1 * pi),
+            return ())
+  x27 <~ weight
+           (exp((-(x26 - t2) ^ 2) / prob2real(2/1 * noiseM ^ 2))
+            / noiseM
+            / sqrt(2/1 * pi),
+            return ())
+  return (noiseT, noiseM)
+_: reject. measure(pair(prob, prob))

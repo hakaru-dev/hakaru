@@ -91,10 +91,11 @@ module Language.Hakaru.Types.HClasses
 #if __GLASGOW_HASKELL__ < 710
 import Data.Functor ((<$>))
 #endif
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), (<*>))
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), Eq1(..), JmEq1(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
+import Control.Monad (join)
 
 ----------------------------------------------------------------
 -- | Concrete dictionaries for Hakaru types with decidable equality.
@@ -132,12 +133,13 @@ hEq_Sing SInt        = Just HEq_Int
 hEq_Sing SProb       = Just HEq_Prob
 hEq_Sing SReal       = Just HEq_Real
 hEq_Sing (SArray a)  = HEq_Array <$> hEq_Sing a
-hEq_Sing s           = (jmEq1 s sUnit  >>= \Refl -> Just HEq_Unit) <|>
-                       (jmEq1 s sBool  >>= \Refl -> Just HEq_Bool)
-{-
-hEq_Sing (sPair   a b) = HEq_Pair <$> hEq_Sing a <*> hEq_Sing b
-hEq_Sing (sEither a b) = HEq_Either <$> hEq_Sing a <*> hEq_Sing b
--}
+hEq_Sing s           =
+  (jmEq1 s sUnit  >>= \Refl -> Just HEq_Unit) <|>
+  (jmEq1 s sBool  >>= \Refl -> Just HEq_Bool) <|>
+  (join $ sUnPair' s $ \(Refl, a, b) ->
+     HEq_Pair <$> hEq_Sing a <*> hEq_Sing b)  <|>
+  (join $ sUnEither' s $ \(Refl, a, b) ->
+     HEq_Either <$> hEq_Sing a <*> hEq_Sing b)
 
 -- | Haskell type class for automatic 'HEq' inference.
 class    HEq_ (a :: Hakaru) where hEq :: HEq a

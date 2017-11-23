@@ -1,0 +1,4 @@
+import weibull
+
+fn a prob: weibull(func(a,2/1),1/1)
+

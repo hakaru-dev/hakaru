@@ -31,7 +31,6 @@ module Language.Hakaru.Summary
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Command
 import Language.Hakaru.Maple 
 
 ----------------------------------------------------------------
@@ -40,13 +39,15 @@ summary
     :: forall abt a
     .  (ABT Term abt) 
     => abt '[] a -> IO (abt '[] a)
-summary = sendToMaple defaultMapleOptions{command=Summarize}
+summary = sendToMaple defaultMapleOptions{command=MapleCommand Summarize}
 
 summaryDebug
     :: forall abt a
     .  (ABT Term abt) 
     => Bool -> abt '[] a -> IO (abt '[] a)
-summaryDebug d = sendToMaple defaultMapleOptions{command=Summarize,debug=d}
+summaryDebug d = sendToMaple
+   defaultMapleOptions{command=MapleCommand Summarize,
+                       debug=d}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

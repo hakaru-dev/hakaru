@@ -7,6 +7,10 @@
            , TypeFamilies
            , Rank2Types
            , ScopedTypeVariables
+           , ConstraintKinds
+           , MultiParamTypeClasses
+           , FlexibleInstances
+           , UndecidableInstances
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
@@ -71,15 +75,20 @@ module Language.Hakaru.Syntax.IClasses
     , Some2(..)
     , Pair1(..), fst1, snd1
     , Pair2(..), fst2, snd2
+    , Pointwise(..), PointwiseP(..)
     -- ** List types
     , type (++), eqAppendIdentity, eqAppendAssoc
     , List1(..), append1
+    , List2(..)
     , DList1(..), toList1, fromList1, dnil1, dcons1, dsnoc1, dsingleton1, dappend1
+    -- ** Constraints
+    , All(..), Holds(..)
     ) where
 
 import Prelude hiding   (id, (.))
 import Control.Category (Category(..))
 import Unsafe.Coerce    (unsafeCoerce)
+import GHC.Exts         (Constraint)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid      (Monoid(..))
 import Control.Applicative
@@ -563,6 +572,12 @@ instance Eq a => Eq2 (Lift2 a) where
 instance Eq a => Eq1 (Lift2 a i) where
     eq1 (Lift2 a) (Lift2 b) = a == b
 
+----------------------------------------------------------------
+data Pointwise (f :: k0 -> *) (g :: k1 -> *) (x :: k0) (y :: k1) where
+    Pw :: f x -> g y -> Pointwise f g x y
+
+data PointwiseP (f :: k0 -> *) (g :: k1 -> *) (xy :: (k0, k1)) where
+    PwP :: f x -> g y -> PointwiseP f g '(x,y)
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
@@ -766,6 +781,22 @@ instance Traversable11 List1 where
     traverse11 _ Nil1         = pure Nil1
     traverse11 f (Cons1 x xs) = Cons1 <$> f x <*> traverse11 f xs
 
+----------------------------------------------------------------
+-- | Lifting of relations pointwise to lists
+data List2 :: (k0 -> k1 -> *) -> [k0] -> [k1] -> * where
+  Nil2  :: List2 f '[] '[]
+  Cons2 :: f x y -> List2 f xs ys -> List2 f (x ': xs) (y ': ys)
+
+----------------------------------------------------------------
+data Holds (c :: k -> Constraint) (x :: k) where
+  Holds :: c x => Holds c x
+
+class All (c :: k -> Constraint) (xs :: [k]) where
+  allHolds :: List1 (Holds c) xs
+
+instance All c '[] where allHolds = Nil1
+instance (All c xs, c x)
+  => All c (x ': xs) where allHolds = Cons1 Holds allHolds
 
 ----------------------------------------------------------------
 -- TODO: cf the interface of <https://hackage.haskell.org/package/dlist-0.7.1.2/docs/Data-DList.html>

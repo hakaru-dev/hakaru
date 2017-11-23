@@ -72,7 +72,7 @@ module Language.Hakaru.Syntax.Prelude
     , reject, guard, withGuard
     -- ** Measure operators
     -- | When two versions of the same operator are given, the one without the prime builds an AST using the built-in operator, whereas the one with the prime is a default definition in terms of more primitive measure operators.
-    , lebesgue
+    , lebesgue, lebesgue'
     , counting
     , densityCategorical, categorical, categorical'
     , densityUniform, uniform, uniform'
@@ -1262,9 +1262,11 @@ liftM2
     -> abt '[] ('HMeasure c)
 liftM2 f m n = m >>= \x -> f x <$> n
 
+lebesgue' :: (ABT Term abt) => abt '[] 'HReal -> abt '[] 'HReal -> abt '[] ('HMeasure 'HReal)
+lebesgue' = measure2_ Lebesgue 
 
 lebesgue :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-lebesgue = measure0_ Lebesgue
+lebesgue = lebesgue' negativeInfinity infinity 
 
 counting :: (ABT Term abt) => abt '[] ('HMeasure 'HInt)
 counting = measure0_ Counting

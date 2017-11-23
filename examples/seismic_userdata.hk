@@ -62,14 +62,14 @@ def determinant(a mat33(real)):
     mkMat33(a11,a12,a13,
             a21,a22,a23,
             a31,a32,a33):
-    (a11*a22*a33 + a12*a23*a31 + a13*a21*a32) -
-    (a13*a22*a31 + a12*a21*a33 + a11*a23*a32)
+     (a11*a22*a33 + a12*a23*a31 + a13*a21*a32) -
+     (a13*a22*a31 + a12*a21*a33 + a11*a23*a32)
 
 def inverse(a mat33(real)):
-    match a:
-    mkMat33(a11,a12,a13,
-            a21,a22,a23,
-            a31,a32,a33):
+   match a:
+   mkMat33(a11,a12,a13,
+           a21,a22,a23,
+           a31,a32,a33):
     f = fn b11 real:
         fn b12 real:
         fn b21 real:
@@ -99,9 +99,9 @@ def mvMult(a mat33(real), b vec3(real)):
 	     vvMult(mkVec3(a13,a23,a33),b))
 
 def normal3(mean vec3(real), cov mat33(real)):
-    x1 <~ lebesgue
-    x2 <~ lebesgue
-    x3 <~ lebesgue
+    x1 <~ lebesgue(-∞,∞)
+    x2 <~ lebesgue(-∞,∞)
+    x3 <~ lebesgue(-∞,∞)
     x = vec3(x1,x2,x3)
     y = vvSub(x,mean)
     weight(exp(-vvMult(y,mvMult(inverse(cov),y))/2)

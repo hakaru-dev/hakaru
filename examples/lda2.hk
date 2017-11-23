@@ -17,7 +17,7 @@ def lda( topic_prior array(prob)
   numWords = size(w)
   numTopics = size(topic_prior)
 
-  if wordUpdate < numWords:
+  if wordUpdate < numWords && w[wordUpdate] < size(word_prior) && doc[wordUpdate] < numDocs:
     theta <~ plate d of numDocs:
       dirichlet(topic_prior)   # topic prevalence
 
@@ -28,8 +28,8 @@ def lda( topic_prior array(prob)
 
     foo <~ plate n of numWords:
       zz = if n == wordUpdate: zNew else: z[n]
-      bar <~ observe categorical(theta[doc[n]]) zz
-      observe categorical(phi[zz]) w[n]
+      bar <~ observe(categorical(theta[doc[n]]), zz)
+      observe(categorical(phi[zz]), w[n])
 
     return zNew
 

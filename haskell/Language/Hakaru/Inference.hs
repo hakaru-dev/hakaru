@@ -2,6 +2,10 @@
            , TypeOperators
            , NoImplicitPrelude
            , FlexibleContexts
+           , GADTs
+           , TypeFamilies
+           , FlexibleInstances
+           , ViewPatterns
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -20,8 +24,8 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Inference
     ( priorAsProposal
-    , mh
-    , mcmc
+    , mh, mh'
+    , mcmc, mcmc'
     , gibbsProposal
     , slice
     , sliceX
@@ -33,16 +37,24 @@ module Language.Hakaru.Inference
     ) where
 
 import Prelude (($), (.), error, Maybe(..), return)
+import qualified Prelude as P
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT, binder)
 import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Syntax.Transform (TransformCtx(..), minimalCtx)
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Expect (expect, normalize)
-import Language.Hakaru.Disintegrate (determine, density, disintegrate)
+import Language.Hakaru.Disintegrate (determine
+                                    ,density, densityInCtx
+                                    ,disintegrate, disintegrateInCtx)
+import Language.Hakaru.Syntax.IClasses (TypeEq(..), JmEq1(..))
 
 import qualified Data.Text as Text
+import Control.Monad.Except (MonadError(..))
+
+import qualified Control.Applicative as P
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -68,34 +80,48 @@ priorAsProposal p x =
 --
 -- TODO: the @a@ type should be pure (aka @a ~ Expect' a@ in the old parlance).
 -- BUG: get rid of the SingI requirements due to using 'lam'
-mh  :: (ABT Term abt)
-    => abt '[] (a ':-> 'HMeasure a)
-    -> abt '[] ('HMeasure a)
-    -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
-mh proposal target =
-    case determine $ density target of
-    Nothing -> error "mh: couldn't get density"
-    Just theDensity ->
-        let_ theDensity $ \mu ->
+mh'  :: (ABT Term abt)
+     => TransformCtx
+     -> abt '[] (a ':-> 'HMeasure a)
+     -> abt '[] ('HMeasure a)
+     -> Maybe (abt '[] (a ':-> 'HMeasure (HPair a 'HProb)))
+mh' ctx proposal target =
+        let_ P.<$> (determine $ densityInCtx ctx target) P.<*> P.pure (\mu ->
         lam' $ \old ->
             app proposal old >>= \new ->
-            dirac $ pair' new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
+            dirac $ pair' new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-}))
   where lam' f = lamWithVar Text.empty (sUnMeasure $ typeOf target) f
         pair'  = pair_ (sUnMeasure $ typeOf target) SProb
 
+mh  :: (ABT Term abt)
+     => abt '[] (a ':-> 'HMeasure a)
+     -> abt '[] ('HMeasure a)
+     -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
+mh proposal target =
+  P.maybe (error "mh: couldn't compute density") P.id $
+  mh' minimalCtx proposal target
+
 -- BUG: get rid of the SingI requirements due to using 'lam' in 'mh'
-mcmc :: (ABT Term abt)
-    => abt '[] (a ':-> 'HMeasure a)
-    -> abt '[] ('HMeasure a)
-    -> abt '[] (a ':-> 'HMeasure a)
-mcmc proposal target =
-    let_ (mh proposal target) $ \f ->
+mcmc' :: (ABT Term abt)
+      => TransformCtx
+      -> abt '[] (a ':-> 'HMeasure a)
+      -> abt '[] ('HMeasure a)
+      -> Maybe (abt '[] (a ':-> 'HMeasure a))
+mcmc' ctx proposal target =
+    let_ P.<$> mh' ctx proposal target P.<*> P.pure (\f ->
     lamWithVar Text.empty (sUnMeasure $ typeOf target) $ \old ->
         app f old >>= \new_ratio ->
         new_ratio `unpair` \new ratio ->
         bern (min (prob_ 1) ratio) >>= \accept ->
-        dirac (if_ accept new old)
+        dirac (if_ accept new old))
 
+mcmc :: (ABT Term abt)
+     => abt '[] (a ':-> 'HMeasure a)
+     -> abt '[] ('HMeasure a)
+     -> abt '[] (a ':-> 'HMeasure a)
+mcmc proposal target =
+  P.maybe (error "mcmc: couldn't compute density") P.id $
+  mcmc' minimalCtx proposal target
 
 gibbsProposal
     :: (ABT Term abt, SingI a, SingI b)

@@ -1,0 +1,48 @@
+fn as array(prob):
+fn z array(nat):
+fn t array(real):
+fn docUpdate nat:
+if size(z) == size(t) && docUpdate < size(z):
+  weight
+    ((2/1) **
+     (nat2real(size(t)) * (-1/2) + nat2real(size(as)) * (+1/2))
+     * exp((summate _a from 0 to size(t): t[_a] ^ 2) * (-1/2))
+     * pi ** (nat2real(size(t)) * (-1/2))
+     * (product _b from 0 to size(as):
+        product j
+        from 0
+        to summate _a from 0 to size(t):
+           if _a == docUpdate: 0 else: if _b == z[_a]: 1 else: 0:
+        nat2prob(j) + as[_b])
+     / (product _b
+        from 0
+        to summate _a from 0 to size(t): if _a == docUpdate: 0 else: 1:
+        nat2prob(_b) + (summate _a from 0 to size(as): as[_a]))
+     / (nat2prob
+          (summate _a from 0 to size(t): if _a == docUpdate: 0 else: 1)
+        + (summate _a from 0 to size(as): as[_a])),
+     categorical
+       (array zNewb of size(as):
+        exp
+          ((summate _a from 0 to size(as):
+            (summate i from 0 to size(t):
+             if _a == (if i == docUpdate: zNewb else: z[i]): t[i] else: +0/1) ^
+            2
+            * prob2real
+                (1/ nat2prob
+                      (1
+                       + (summate i from 0 to size(t):
+                          if _a == (if i == docUpdate: zNewb else: z[i]): 1 else: 0))))
+           * (+1/2))
+        / sqrt
+            (nat2prob
+               (product _b from 0 to size(as):
+                2
+                + (summate _a from 0 to size(t):
+                   if _b == (if _a == docUpdate: zNewb else: z[_a]): 1 else: 0)
+                  * 2))
+        * (nat2prob
+             (summate _a from 0 to size(t):
+              if _a == docUpdate: 0 else: if zNewb == z[_a]: 1 else: 0)
+           + as[zNewb])))
+else: reject. measure(nat)

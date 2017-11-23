@@ -1,10 +1,15 @@
-fn x1 real: 
- x0 <~ uniform(0, 1)
- weight((match ((0
-                  < 
-                 (log(real2prob((x1 + (x0 * (-1))))) * (-1))) && 
-                (x0 < (((x1 * prob2real(exp(1))) - 1) * prob2real(exp((-1))))) && 
-                (x0 < x1)): 
-          true: real2prob(recip(((x0 * (-1)) + x1)))
-          false: 0),
-        return ())
+fn x2 real: 
+  weight((match (x2 < prob2real(exp(-1/1))): 
+           true: 0/1
+           false: 
+            (match (x2 < +1/1): 
+              true: real2prob((log(real2prob(x2)) + (+1/1)))
+              false: 
+               (match (x2 < prob2real((1/1 + exp(-1/1)))): 
+                 true: 1/1
+                 false: 
+                  (match (x2 < +2/1): 
+                    true: 
+                     real2prob((log(real2prob((x2 + (-1/1)))) * (-1/1)))
+                    false: 0/1)))),
+         return ())

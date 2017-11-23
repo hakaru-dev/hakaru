@@ -45,18 +45,15 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.Datum hiding (Ident)
 import Language.Hakaru.Syntax.Reducer
+import Language.Hakaru.Syntax.IClasses
 import qualified Language.Hakaru.Syntax.Prelude as HKP
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
-import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.Sing
 
 import           Control.Monad.State.Strict
-import           Control.Monad (replicateM)
-import           Control.Applicative (pure)
 import           Data.Number.Natural
-import           Data.Monoid        hiding (Product,Sum)
 import           Data.Ratio
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence      as S
@@ -65,7 +62,10 @@ import qualified Data.Traversable   as T
 
 
 #if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative (pure)
+import           Control.Monad (replicateM)
 import           Data.Functor
+import           Data.Monoid        hiding (Product,Sum)
 #endif
 
 
@@ -171,27 +171,48 @@ flattenSCon Let_ =
     \loc -> do
       caseBind body $ \v@(Variable _ _ typ) body'->
         do ident <- createIdent v
-           case typ of
-             (SFun _ _) -> return ()
-             _ -> declare typ ident
+           declare typ ident
            flattenABT expr (CVar ident)
            flattenABT body' loc
 
 -- Lambdas produce functions and then return a function label exprssion
 flattenSCon Lam_ =
   \(body :* End) ->
-    \loc -> do
-      -- externally declare closure and function
-      closureTypeSpec <- coalesceLambda body extDeclClosure
+    \loc ->
+      coalesceLambda body $ \args body' ->
+        let freevars = fromVarSet . freeVars $ body'
+            retTyp   = typeOf body'
+        in do { -- create code block and closure structure
+                args' <- sequence . foldMap11 argDecl $ args
+              ; envId <- genIdent' "env"
+              ; fnId  <- genIdent' "fn"
+              ; closDataId@(Ident clos_n) <- genIdent' "clos_data"
+              ; extDeclare (closureStructure freevars args closDataId retTyp)
+              ; funCG (buildType retTyp)
+                      fnId
+                      ((buildDeclaration (callStruct clos_n) envId):args') $
+                  do { putStat (opComment "Begin Unpack Closure")
+                       -- need to re-declare variables in functions scope
+                     ; mapM_ (\(SomeVariable v@(Variable _ _ typ)) ->
+                               lookupIdent v >>= declare typ)
+                             freevars
+                     ; unpackClosure (CVar envId) cNameStream freevars
+                     ; putStat (opComment "End Unpack Closure")
+                     ; x <- flattenWithName body'
+                     ; putStat . CReturn . Just $ x }
 
-      -- declare local closure var
-      closureId <- genIdent' "closure"
-      declare' (buildDeclaration closureTypeSpec closureId)
+                -- create the closure object
+              ; closureId <- genIdent' "closure"
+              ; declare' . buildDeclaration (callStruct clos_n) $ closureId
+              ; putStat (opComment "Begin Pack Closure")
+              ; putExprStat $ ((CVar closureId) ... "_code_ptr") .=. (address (CVar fnId))
+              ; packClosure (CVar closureId) cNameStream freevars
+              ; putStat (opComment "End Pack Closure")
+              ; putExprStat $ loc .=. (CVar closureId) }
 
-      -- capture environment in closure
-      putExprStat $ loc .=. (CVar closureId)
-
-  where coalesceLambda
+  where -- collapses nested lambdas of one argument to lambdas that take a list
+        -- arguments
+        coalesceLambda
           :: ( ABT Term abt )
           => abt '[x] a
           -> (forall (ys :: [Hakaru]) b. List1 Variable ys -> abt '[] b -> r)
@@ -204,65 +225,37 @@ flattenSCon Lam_ =
                   coalesceLambda body $ \vars abt'' -> k (Cons1 v vars) abt''
                 _ -> k (Cons1 v Nil1) abt'
 
-        -- given a parameter, create identifiers corresponding to Hakaru vars,
-        -- and return a CTypeSpec for the param
-        -- Will this fail if the parameter is a SFun?
-        mkVarIdandSpec :: Variable (a :: Hakaru) -> CodeGen (Ident,[CTypeSpec])
-        mkVarIdandSpec v@(Variable _ _ typ) = do
-          extDeclareTypes typ
-          vId <- createIdent v
-          return (vId,buildType typ)
+        argDecl :: Variable (a :: Hakaru) -> [CodeGen CDecl]
+        argDecl v@(Variable _ _ typ) =
+          [do { ident <- createIdent v ; return (typeDeclaration typ ident) }]
 
-        extDeclClosure
-          :: ( ABT Term abt )
-          => List1 Variable (ys :: [Hakaru])
-          -> abt '[] b
-          -> CodeGen CTypeSpec
-        extDeclClosure vars body'= do
-          funcId <- genIdent' "fn"
-          idAndSpecs <- sequence $ foldMap11 (\v -> [mkVarIdandSpec v]) vars
-          let fVars   = freeVars body'
-              typ     = typeOf body'
-          sId@(Ident sname) <- extDeclClosureStruct typ (fmap snd idAndSpecs) fVars
-          funCG (head . buildType $ typ)
-                funcId
-                ([buildDeclaration (callStruct sname) (Ident "env")]
-                 ++ (fmap (\(vId,specs) -> buildDeclaration' specs vId) idAndSpecs))
-                ((putStat . CReturn . Just) =<< flattenWithName body')
-          return (callStruct sname)
+        -- captures the environment variables in closure object
+        packClosure, unpackClosure
+          :: CExpr
+          -> [String]
+          -> [SomeVariable (KindOf (a :: Hakaru))]
+          -> CodeGen ()
+        packClosure _ _      [] = return ()
+        packClosure c (n:ns) ((SomeVariable a):as) =
+          do { a' <- CVar <$> lookupIdent a
+             ; putExprStat $ c ... n .=. a'
+             ; packClosure c ns as }
+        packClosure _ _ _ = error "this isn't possible"
 
-        extDeclClosureStruct
-          :: forall (a :: Hakaru) (ys :: [Hakaru])
-          .  Sing a
-          -> [[CTypeSpec]]
-          -> VarSet (KindOf a)
-          -> CodeGen Ident
-        extDeclClosureStruct retTyp paramTypeSpecs freeVars = do
-          sId@(Ident sname) <- genIdent' "clos"
-          freeVarDecls <- mapM (\(SomeVariable v@(Variable _ _ typ)) -> do
-                                  extDeclareTypes typ
-                                  vId <- createIdent v
-                                  return (typeDeclaration typ vId)
-                               ) (fromVarSet freeVars)
-          let funPtrDecl =
-                CDecl (fmap CTypeSpec $ buildType retTyp)
-                      [( CDeclr Nothing
-                         (CDDeclrFun
-                           (CDDeclrRec (CDeclr (Just $ CPtrDeclr []) (CDDeclrIdent . Ident $ "fn")))
-                           ([callStruct sname]++(concat paramTypeSpecs)))
-                       , Nothing)]
-          extDeclare $ CDeclExt
-                     $ CDecl [ CTypeSpec $ buildStruct (Just sId)
-                                             ([funPtrDecl]++freeVarDecls) ]
-                             []
-          return sId
+        unpackClosure _ _      [] = return ()
+        unpackClosure c (n:ns) ((SomeVariable a):as) =
+          do { a' <- CVar <$> lookupIdent a
+             ; putExprStat $ a' .=. c ... n
+             ; unpackClosure c ns as }
+        unpackClosure _ _ _ = error "this isn't possible"
 
 flattenSCon App_  =
  \(fun :* arg :* End) ->
-   \loc -> do
-     closE <- flattenWithName' fun "clos"
-     paramE <- flattenWithName' fun "param"
-     putExprStat $ loc .=. (CCall (CMember closE (Ident "fn") True) [paramE])
+   \loc ->
+     do { closE <- flattenWithName' fun "closure"
+        ; paramE <- flattenWithName' arg "param"
+        ; putExprStat $ loc .=. CCall (indirect (closE ... "_code_ptr"))
+                                      [closE,paramE] }
 
 flattenSCon (PrimOp_ op) = flattenPrimOp op
 
@@ -306,7 +299,7 @@ flattenSCon (Summate _ sr) =
                      iterVar = CVar iterI
 
                  reductionCG (Left CAddOp)
-                             accI
+                             accVar
                              (iterVar .=. loE)
                              (iterVar .<. hiE)
                              (CUnary CPostIncOp iterVar) $
@@ -345,7 +338,7 @@ flattenSCon (Product _ sr) =
                      iterVar = CVar iterI
 
                  reductionCG (Left CMulOp)
-                             accI
+                             accVar
                              (iterVar .=. loE)
                              (iterVar .<. hiE)
                              (CUnary CPostIncOp iterVar) $
@@ -404,7 +397,7 @@ flattenSCon MBind           =
 flattenSCon Plate           =
   \(size :* b :* End) ->
     \loc ->
-      caseBind b $ \v@(Variable _ _ typ) body ->
+      caseBind b $ \v body ->
         do sizeE <- flattenWithName' size "s"
            isMM <- managedMem <$> get
            when (not isMM) (error "plate will leak memory without the '-g' flag and boehm-gc")
@@ -426,7 +419,7 @@ flattenSCon Plate           =
            let sampE = CVar sampId
 
            reductionCG (Left CAddOp)
-                       weightId
+                       weightE
                        (itE .=. (intE 0))
                        (itE .<. sizeE)
                        (CUnary CPostIncOp itE)
@@ -557,9 +550,9 @@ flattenArrayLiteral es =
           => abt '[] a
           -> Integer
           -> (CExpr -> CodeGen ())
-        assignIndex e index loc = do
+        assignIndex e i loc = do
           eE <- flattenWithName e
-          putExprStat $ indirect ((arrayData loc) .+. (intE index)) .=. eE
+          putExprStat $ indirect ((arrayData loc) .+. (intE i)) .=. eE
 
 --------------
 -- ArrayOps --
@@ -647,11 +640,21 @@ flattenBucket lo hi red = \loc -> do
     declare SNat itId
     let itE = CVar itId
     initRed red loc
-    forCG (itE .=. loE)
-          (itE .<. hiE)
-          (CUnary CPostIncOp itE)
-          (accumRed red itE loc)
+    isPar <- sharedMem <$> get
+    -- declare special functions for combining threads. This doesn't completely
+    -- work now, because these need to capture free variables.
+    reductionCG (Right ( typeOfReducer red
+                       , \e -> seqDo (  initRed red (indirect e)
+                                     >> putStat (CReturn Nothing))
+                       , \a b -> seqDo (  mulRed red (indirect a) (indirect b)
+                                       >> putStat (CReturn Nothing))))
+                loc
+                (itE .=. loE)
+                (itE .<. hiE)
+                (CUnary CPostIncOp itE)
+                (accumRed isPar red itE loc)
     putStat $ opComment "End Bucket"
+
   where initRed
           :: (ABT Term abt)
           => Reducer abt xs a
@@ -670,7 +673,7 @@ flattenBucket lo hi red = \loc -> do
                        (Variable _ _ typ') ->
                          [declare typ' =<< createIdent v'])
                      $ vs
-                   sE <- flattenWithName s'
+                   sE <- flattenWithName' s' "red_size"
                    putExprStat $ arraySize loc .=. sE
                    putMallocStat (arrayData loc) sE btyp
                    itId  <- genIdent
@@ -686,10 +689,11 @@ flattenBucket lo hi red = \loc -> do
 
         accumRed
           :: (ABT Term abt)
-          => Reducer abt xs a
+          => Bool
+          -> Reducer abt xs a
           -> CExpr
           -> (CExpr -> CodeGen ())
-        accumRed mr itE = \loc ->
+        accumRed isPar mr itE = \loc ->
           case mr of
             (Red_Index _ a body) ->
               caseBind a $ \v@(Variable _ _ typ) a' ->
@@ -703,9 +707,9 @@ flattenBucket lo hi red = \loc -> do
                            [declare typ' =<< createIdent v'])
                        $ vs
                      aE <- flattenWithName' a'' "index"
-                     accumRed body itE (index (arrayData loc) aE)
-            (Red_Fanout mr1 mr2) -> accumRed mr1 itE (datumFst loc)
-                                 >> accumRed mr2 itE (datumSnd loc)
+                     accumRed isPar body itE (index (arrayData loc) aE)
+            (Red_Fanout mr1 mr2) -> accumRed isPar mr1 itE (datumFst loc)
+                                 >> accumRed isPar mr2 itE (datumSnd loc)
             (Red_Split b mr1 mr2) ->
               caseBind b $ \v@(Variable _ _ typ) b' ->
                 let (vs,b'') = caseBinds b' in
@@ -719,8 +723,8 @@ flattenBucket lo hi red = \loc -> do
                        $ vs
                      bE <- flattenWithName' b'' "cond"
                      ifCG (bE ... "index" .==. (intE 0))
-                          (accumRed mr1 itE (datumFst loc))
-                          (accumRed mr2 itE (datumSnd loc))
+                          (accumRed isPar mr1 itE (datumFst loc))
+                          (accumRed isPar mr2 itE (datumSnd loc))
             Red_Nop -> return ()
             (Red_Add sr e) ->
               caseBind e $ \v@(Variable _ _ typ) e' ->
@@ -734,9 +738,31 @@ flattenBucket lo hi red = \loc -> do
                            [declare typ' =<< createIdent v'])
                        $ vs
                      eE <- flattenWithName e''
+                     -- when isPar $  putStat . CPPStat . ompToPP $ OMP Critical
                      case sing_HSemiring sr of
                        SProb -> logSumExpCG (S.fromList [loc,eE]) loc
                        _ -> putExprStat $ loc .+=. eE
+
+        mulRed
+          :: (ABT Term abt)
+          => Reducer abt xs a
+          -> (CExpr -> CExpr -> CodeGen ())
+        mulRed mr outp inp =
+          case mr of
+             (Red_Index _ _ mr') ->
+               do itE <- localVar SNat
+                  forCG (itE .=. (intE 0))
+                        (itE .<. (intE 0))
+                        (CUnary CPostIncOp itE)
+                        (mulRed mr'
+                                (index (arrayData outp) itE)
+                                (index (arrayData inp) itE))
+             (Red_Fanout mr1 mr2) -> mulRed mr1 (datumFst outp) (datumFst inp)
+                                  >> mulRed mr2 (datumFst outp) (datumFst inp)
+             (Red_Split _ mr1 mr2) -> mulRed mr1 (datumFst outp) (datumFst inp)
+                                   >> mulRed mr2 (datumFst outp) (datumFst inp)
+             Red_Nop -> return ()
+             (Red_Add _ _) -> putExprStat $ outp .+=. inp
 
 addMonoidIdentity :: Sing (a :: Hakaru) -> CExpr
 addMonoidIdentity s =
@@ -775,9 +801,9 @@ assignDatum
   -> CExpr
   -> CodeGen ()
 assignDatum code ident =
-  let index     = getIndex code
-      indexExpr = CMember ident (Ident "index") True
-  in  do putExprStat (indexExpr .=. (intE index))
+  let ind       = getIndex code
+      indExpr = CMember ident (Ident "index") True
+  in  do putExprStat (indExpr .=. (intE ind))
          sequence_ $ assignSum code ident
   where getIndex :: DatumCode xss b c -> Integer
         getIndex (Inl _)    = 0
@@ -831,6 +857,7 @@ assignProd' (Et (Konst d) rest) topIdent (CVar sumIdent) =
                             True
      rest' <- assignProd' rest topIdent (CVar sumIdent)
      return $ [flattenABT d varName] ++ rest'
+
 assignProd' _ _ _  = error $ "TODO: assignProd Ident"
 
 
@@ -897,8 +924,7 @@ flattenPrimOp Not =
       do aE <- flattenWithName a
          bId <- genIdent
          declare (typeOf a) bId
-         let datumIndex e = CMember e (Ident "index") True
-             bE = CVar bId
+         let bE = CVar bId
          putExprStat $ datumIndex bE .=. (CCond (datumIndex aE .==. (intE 1))
                                                (intE 0)
                                                (intE 1))
@@ -1235,40 +1261,36 @@ flattenMeasureOp Categorical = \(arr :* End) ->
 
        let currE = index (arrayData arrE) itE
 
-       isPar <- isParallel
-       mkSequential
+       seqDo $ do
+         -- Calculate the maximum value of the input array
+         -- And calculate the total weight
+         forCG (itE .=. (intE 0))
+               (itE .<. (arraySize arrE))
+               (CUnary CPostIncOp itE) $ do
+           ifCG (wMaxE .<. currE)
+                (putExprStat $ wMaxE .=. currE)
+                (return ())
+           logSumExpCG (S.fromList [wSumE, currE]) wSumE
+         putExprStat $ wSumE .=. (wSumE .-. wMaxE)
 
-       -- Calculate the maximum value of the input array
-       -- And calculate the total weight
-       forCG (itE .=. (intE 0))
-             (itE .<. (arraySize arrE))
-             (CUnary CPostIncOp itE) $ do
-         ifCG (wMaxE .<. currE)
-              (putExprStat $ wMaxE .=. currE)
-              (return ())
-         logSumExpCG (S.fromList [wSumE, currE]) wSumE
-       putExprStat $ wSumE .=. (wSumE .-. wMaxE)
+         -- draw number from uniform(0, weightSum)
+         rId <- genIdent' "r"
+         declare SReal rId
+         let r    = castTo [CDouble] randE
+             rMax = castTo [CDouble] (CVar . Ident $ "RAND_MAX")
+             rE = CVar rId
+         assign rId (logE (r ./. rMax) .+. wSumE)
 
-       -- draw number from uniform(0, weightSum)
-       rId <- genIdent' "r"
-       declare SReal rId
-       let r    = castTo [CDouble] randE
-           rMax = castTo [CDouble] (CVar . Ident $ "RAND_MAX")
-           rE = CVar rId
-       assign rId (logE (r ./. rMax) .+. wSumE)
-
-       assign wSumId (logE (intE 0))
-       assign itId (intE 0)
-       whileCG (intE 1) $
-         do ifCG (rE .<. wSumE)
-                 (do putExprStat $ mdataWeight loc .=. (intE 0)
-                     putExprStat $ mdataSample loc .=. (itE .-. (intE 1))
-                     putStat CBreak)
-                 (return ())
-            logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
-            putExprStat $ CUnary CPostIncOp itE
-
-       when isPar mkParallel
+         assign wSumId (logE (intE 0))
+         assign itId (intE 0)
+         whileCG (intE 1) $
+           do ifCG (rE .<. wSumE)
+                   (do putExprStat $ mdataWeight loc .=. (intE 0)
+                       putExprStat $ mdataSample loc .=. (itE .-. (intE 1))
+                       putStat CBreak)
+                   (return ())
+              logSumExpCG (S.fromList [wSumE, currE .-. wMaxE]) wSumE
+              putExprStat $ CUnary CPostIncOp itE
 
 
 flattenMeasureOp x = error $ "TODO: flattenMeasureOp: " ++ show x
@@ -1395,7 +1417,7 @@ logSumExpCG seqE =
        let argIds = fmap Ident (take size cNameStream)
            decls  = fmap (typeDeclaration SProb) argIds
            vars   = fmap CVar argIds
-       funCG CDouble funcId decls
+       funCG [CDouble] funcId decls
          (putStat . CReturn . Just . logSumExp . S.fromList $ vars)
        putExprStat $ loc .=. (CCall (CVar funcId) (F.toList seqE))
 
@@ -1403,10 +1425,8 @@ logSumExpCG seqE =
 -- LogSumExp for Summation of Prob --
 -------------------------------------
 {-
-
 For summation of SProb we need a new logSumExp function that will find the max
 of an array and then sum it in a loop
-
 -}
 
 lseSummateArrayCG
@@ -1416,7 +1436,7 @@ lseSummateArrayCG
   -> (CExpr -> CodeGen ())
 lseSummateArrayCG body arrayE =
   caseBind body $ \v body' ->
-    \loc -> do
+    \loc -> seqDo $ do
       (maxVId:maxIId:sumId:[]) <- mapM genIdent' ["maxV","maxI","sum"]
       itId <- createIdent v
       mapM_ (declare SProb) [maxVId,sumId]
@@ -1439,9 +1459,9 @@ lseSummateArrayCG body arrayE =
       forCG (itE .=. intE 0)
             (itE .<. arraySize arrayE)
             (CUnary CPostIncOp itE)
-            (putStat $ CIf (itE .!=. maxIE)
-                           (CExpr . Just $ sumE .+=. (expE ((derefIndex itE) .-. (maxVE))))
-                           Nothing)
+            (ifCG (itE .!=. maxIE)
+                  (putExprStat $ sumE .+=. (expE ((derefIndex itE) .-. (maxVE))))
+                  (return ()))
 
       putExprStat $ loc .=. (maxVE .+. (log1pE sumE))
 
@@ -1477,34 +1497,15 @@ kahanSummationCG body loE hiE =
                 flattenABT body' xE
                 putExprStat $ yE .=. (xE .-. cE)
                 putExprStat $ zE .=. (tE .+. yE)
-                putExprStat $ cE .=.  ((zE .-. tE) .-. yE)
-                putExprStat $ tE .=. zE)
+                whenPar $ putStat . CPPStat . ompToPP $ OMP Critical
+                codeBlockCG $ do
+                  putExprStat $ cE .=.  ((zE .-. tE) .-. yE)
+                  putExprStat $ tE .=. zE)
       putExprStat $ loc .=. tE
 
 --------------------------------------------------------------------------------
 --                            Coercion Helpers                                --
 --------------------------------------------------------------------------------
-
--- instance PrimCoerce Value where
---     primCoerceTo c l =
---         case (c,l) of
---         (Signed HRing_Int,            VNat  a) -> VInt  $ fromNat a
---         (Signed HRing_Real,           VProb a) -> VReal $ LF.fromLogFloat a
---         (Continuous HContinuous_Prob, VNat  a) ->
---             VProb $ LF.logFloat (fromIntegral (fromNat a) :: Double)
---         (Continuous HContinuous_Real, VInt  a) -> VReal $ fromIntegral a
---         _ -> error "no a defined primitive coercion"
-
---     primCoerceFrom c l =
---         case (c,l) of
---         (Signed HRing_Int,            VInt  a) -> VNat  $ unsafeNat a
---         (Signed HRing_Real,           VReal a) -> VProb $ LF.logFloat a
---         (Continuous HContinuous_Prob, VProb a) ->
---             VNat $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
---         (Continuous HContinuous_Real, VReal a) -> VInt  $ floor a
---         _ -> error "no a defined primitive coercion"
-
-
 
 coerceToCG
   :: forall (a :: Hakaru) (b :: Hakaru)
@@ -1562,3 +1563,27 @@ real2prob x =
           (putExprStat $ x' .=. (logE x))
      return x'
 real2int x =  return (castTo [CInt] x)
+
+--------------------------------------------------------------------------------
+--                            Parallel Helpers                                --
+--------------------------------------------------------------------------------
+{- SIMD (single instruction multiple data) OpenMP pragmas, should be applied to
+-- the inner most loop. `hasParallelTerm` checks whether a term or any of its
+-- subterms contain a parallel construct { plate, summate, product, array,
+-- bucket }.
+-}
+
+hasParallelTerm :: ( ABT Term abt ) => abt '[] a -> Bool
+hasParallelTerm abt = caseVarSyn abt (const False) hPT'
+  where hPT' :: ABT Term abt => Term abt a -> Bool
+        hPT' (_ :$ _)          = undefined
+        hPT' (NaryOp_ _ _)     = undefined
+        hPT' (Literal_ _)      = False
+        hPT' (Empty_ _)        = False
+        hPT' (Array_ _ _)      = True
+        hPT' (ArrayLiteral_ _) = False
+        hPT' (Bucket _ _ _)    = True
+        hPT' (Datum_ _)        = False
+        hPT' (Case_ _ _)       = undefined
+        hPT' (Superpose_ _)    = undefined
+        hPT' (Reject_ _)       = False

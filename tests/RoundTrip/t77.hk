@@ -1,4 +1,4 @@
 fn x0 real: 
- (match (x0 < 0): 
-   true: weight(recip(exp(x0)), return ())
+ (match (x0 < +0/1): 
+   true: weight(exp(x0 * (-1/1)), return ())
    false: weight(exp(x0), return ()))

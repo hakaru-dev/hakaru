@@ -1,15 +1,15 @@
 {-# LANGUAGE CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Language.Hakaru.Parser.Import where
+module Language.Hakaru.Parser.Import (expandImports) where
 
 import           Language.Hakaru.Parser.AST
-import           Language.Hakaru.Parser.Parser
+import           Language.Hakaru.Parser.Parser (parseHakaruWithImports)
 
 import           Control.Monad.Trans.Except
 import           Control.Monad.IO.Class
 import qualified Data.Text                     as T
 import qualified Data.Text.IO                  as IO
-import           Text.Parsec                   hiding (Empty)
+import           Text.Parsec
 
 replaceBody :: AST' T.Text -> AST' T.Text -> AST' T.Text
 replaceBody e1 e2 =
@@ -20,11 +20,13 @@ replaceBody e1 e2 =
       _                 -> e2
 
 expandImports
-    :: ASTWithImport' T.Text
+    :: Maybe FilePath
+    -> ASTWithImport' T.Text
     -> ExceptT ParseError IO (AST' T.Text)
-expandImports (ASTWithImport' (Import i:is) ast) = do
-    file  <- liftIO . IO.readFile . T.unpack $ T.append i ".hk"
+expandImports dir (ASTWithImport' (Import i:is) ast) = do
+    file  <- liftIO . IO.readFile . T.unpack $
+             T.concat $ maybe [] ((:["/"]) . T.pack) dir ++ [ i, ".hk" ]
     astIm <- ExceptT . return $ parseHakaruWithImports file
-    ast'  <- expandImports astIm
-    expandImports (ASTWithImport' is (replaceBody ast' ast))
-expandImports (ASTWithImport' [] ast) = return ast
+    ast'  <- expandImports dir astIm
+    expandImports dir (ASTWithImport' is (replaceBody ast' ast))
+expandImports _ (ASTWithImport' [] ast) = return ast

@@ -5,13 +5,15 @@ module Tests.Parser where
 
 import Prelude hiding (unlines)
 
-import Language.Hakaru.Parser.Parser
+import Language.Hakaru.Parser.Parser (parseHakaru)
 import Language.Hakaru.Parser.AST
 
+import Data.String (IsString)
 import Data.Text
 import Test.HUnit
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
+import Data.Function (on)
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative   (Applicative(..), (<$>))
@@ -53,10 +55,10 @@ instance Arbitrary a => Arbitrary (Pattern' a) where
         , PData' <$> (DV <$> arbitrary <*> arbitrary)
         ]
 
-instance Arbitrary a => Arbitrary (Branch' a) where
+instance (Arbitrary a, IsString a) => Arbitrary (Branch' a) where
     arbitrary = Branch' <$> arbitrary <*> arbitrary
 
-instance Arbitrary a => Arbitrary (AST' a) where
+instance (Arbitrary a, IsString a) => Arbitrary (AST' a) where
     arbitrary = frequency
         [ (10, Var <$> arbitrary)
         , ( 1, Lam <$> arbitrary <*> arbitrary <*> arbitrary)
@@ -67,9 +69,9 @@ instance Arbitrary a => Arbitrary (AST' a) where
         , ( 1, return Infinity')
         , ( 1, ULiteral <$> arbitrary)
         --, ( 1, NaryOp <$> arbitrary)
-        , ( 1, return Empty)
+        , ( 1, return (ArrayLiteral []))
         , ( 1, Case  <$> arbitrary <*> arbitrary)
-        , ( 1, Dirac <$> arbitrary)
+        , ( 1, App (Var "dirac") <$> arbitrary)
         , ( 1, Bind  <$> arbitrary <*> arbitrary <*> arbitrary)
         ]
 
@@ -77,7 +79,7 @@ testParse :: Text -> AST' Text -> Assertion
 testParse s p =
     case parseHakaru s of
     Left  m  -> assertFailure (unpack s ++ "\n" ++ show m)
-    Right p' -> assertEqual "" p p'
+    Right p' -> assertEqual "" (withoutMetaE p) (withoutMetaE p')
 
 if1, if2, if3, if4, if5 :: Text
 
@@ -160,7 +162,7 @@ def3 = unlines
     ["def foo(x real):"
     ,"    y <~ normal(x,1.0)"
     ,"    return (y + y. real)"
-    ,"foo(-2.0)"
+    ,"foo(-(2.0))"
     ]
 
 def4 :: Text
@@ -180,7 +182,7 @@ def2AST :: AST' Text
 def2AST =
     Let "foo" (Lam "x" (TypeVar "real")
         (Bind "y" (App (App (Var "normal") (Var "x")) (ULiteral (Prob 1.0)))
-        (Dirac (Ann (NaryOp Sum [Var "y", Var "y"])
+        (App (Var "dirac") (Ann (NaryOp Sum [Var "y", Var "y"])
                     (TypeVar "real")))))
     (App (Var "foo") (App (Var "negate") (ULiteral (Prob 2.0))))
 
@@ -240,13 +242,13 @@ bind1AST =
     (Bind "y" (App (App (Var "normal")
                         (Var "x"))
                         (ULiteral (Nat 1)))
-    (Dirac (Var "y")))
+    (App (Var "dirac") (Var "y")))
 
 ret1 :: Text
 ret1 =  "return return 3"
 
 ret1AST :: AST' Text
-ret1AST = Dirac (Dirac (ULiteral (Nat 3)))
+ret1AST = App (Var "dirac") (App (Var "dirac") (ULiteral (Nat 3)))
 
 testBinds :: Test
 testBinds = test
@@ -345,7 +347,7 @@ match7 = unlines
 match7AST :: AST' Text
 match7AST = Case (Ann
                   (Pair
-                   (App (Var "negate") (ULiteral (Prob 2.0)))
+                   (ULiteral (Real (-2.0)))
                    (ULiteral (Prob 1.0)))
              (TypeApp "pair" [TypeVar "real",TypeVar "prob"]))
             [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
@@ -393,24 +395,24 @@ testAnn = test
 
 expect1 :: Text
 expect1 = unlines
-    ["expect x normal(0,1):"
+    ["expect x <~ normal(0,1):"
     ,"   1"
     ]
 
 expect1AST :: AST' Text
-expect1AST = Expect "x" (App (App (Var "normal")
+expect1AST = _Expect "x" (App (App (Var "normal")
                               (ULiteral (Nat 0)))
                          (ULiteral (Nat 1)))
              (ULiteral (Nat 1))
 
 expect2 :: Text
 expect2 = unlines
-    ["expect x normal(0,1):"
+    ["expect x <~ normal(0,1):"
     ,"   unsafeProb(x*x)"
     ]
 
 expect2AST :: AST' Text
-expect2AST = Expect "x" (App (App (Var "normal")
+expect2AST = _Expect "x" (App (App (Var "normal")
                               (ULiteral (Nat 0)))
                          (ULiteral (Nat 1)))
              (App (Var "unsafeProb")
@@ -505,7 +507,7 @@ easyRoadAST =
     (Bind "m2" (App (App (Var "normal")
                          (Var "x2"))
                          (Var "noiseE"))
-    (Dirac
+    (App (Var "dirac")
         (Pair
          (Pair
           (Var "m1")

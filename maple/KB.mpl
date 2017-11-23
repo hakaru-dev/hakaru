@@ -49,11 +49,15 @@ KB := module ()
      ModuleLoad, ModuleUnload, TYPES,
 
      # Various utilities
-     t_intro, t_lo, t_hi, log_metric,
-     boolean_if, coalesce_bounds, htype_to_property, bad_assumption, bad_assumption_pw,
+     t_intro, t_lo, t_hi,
+     coalesce_bounds, htype_to_property,
+     bad_assumption, bad_assumption_pw, bad_assumption_SumProdInt,
      array_size_assumptions, array_elem_assumptions, kb_intro_to_assumptions,
 
-     simpl_range_of_htype, zip_k
+     simpl_range_of_htype,
+     known_assuming_expections,
+
+     splitHkName, array_base_type
 
      ;
   export
@@ -66,11 +70,7 @@ KB := module ()
      # for debugging
      build_unsafely,
 
-     chill, warm, chillFns, warmFns,
-
-     # Negation of 'Constrain' atoms, that is, equality and
-     # inequality constraints
-     negated_relation, negate_rel, negate_rels,
+     chill, warm,
 
      # "kb0 - kb1" - that is, kb0 without the knowledge of kb1
      kb_subtract,
@@ -94,7 +94,7 @@ KB := module ()
      kb_atom_to_assumptions,
 
      # Various utilities ...
-     list_of_mul, for_poly, range_of_HInt, range_of_htype, eval_kb, kb_is_false, try_improve_exp,
+     range_of_HInt, range_of_htype, eval_kb, kb_is_false,
 
      # Types corresponding to the constructor forms of the 'atoms' of KBs
      t_kb_Introduce, t_kb_Let, t_kb_Bound, t_kb_Constrain;
@@ -115,7 +115,7 @@ KB := module ()
      # Hakaru 'terms'.
      `expand/product`, `simplify/int/simplify`,
      `product/indef/indef`, `convert/Beta`;
-  uses Hakaru, SolveTools:-Inequality ;
+  uses Hakaru, Utilities, SolveTools:-Inequality ;
 
   # The type of introductions about which we want to pass some useful
   # information to Maple.
@@ -184,26 +184,11 @@ KB := module ()
     x, KB(Let(x, e), op(kb));
   end proc;
 
-  #Simplistic negation of relations. Used by Hakaru:-flatten_piecewise.
-  negated_relation:= table([`<`, `<=`, `=`, `<>`] =~ [`>=`, `>`, `<>`, `=`]);
-
-  # Takes the bool type (true/false) to mean universal and empty relations respectively.
-  # i.e. negate R, where R is an 'atomic' relation of a KB
-  negate_rel:= proc(R::t_kb_atom, $)::t_kb_atom;
-      if R :: truefalse then
-        not R
-      elif R :: relation then
-          negated_relation[op(0,R)](op(R));
-      else
-          # This is to appease 'piecewise', which won't be happy with Not
-          # However, KB doesn't really care - it's already expecting {Not,not}
-          # 'Technically' this is a KB 'constructor'!
-          not(R);
-      end if;
-  end proc;
-
-  negate_rels := proc(e, $)
-      subsindets(e, { specfunc(relation, `Not`), `not`(relation) }, negate_rel@op );
+  # The base type of a (possibly) array type is the outermost non-array type
+  array_base_type := proc(x::t_type,$)
+    if x::specfunc(HArray) then
+      array_base_type(op(1,x))
+    else x end if;
   end proc;
 
   # Builds a kb from:
@@ -263,8 +248,8 @@ KB := module ()
   # return a SplitKB instead.
   assert_deny := module ()
    export ModuleApply;
-   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve,
-         refine_given, t_bound_on, simplify_in_context, expr_indp_errMsg, rel_coulditbe;
+   local t_if_and_or_of, t_not, t_bad_assumption, t_constraint_flipped, bound_simp, not_bound_simp, postproc_for_solve, do_assert_deny,
+         refine_given, t_match_array_type, simplify_in_context, expr_indp_errMsg;
 
    # Either And or Or type, chosen by boolean pol
    t_if_and_or_of := proc(pol,$)
@@ -281,8 +266,15 @@ KB := module ()
    # and another thing which is a name which is neither constant nor undefined
    t_constraint_flipped := 'Not({name, size(name)}) = Name';
 
-   # The 'type' representing bounds on `x', where `x' is a name
-   t_bound_on := proc(x,$) And(relation, Or(anyop(identical(x), freeof(x)), anyop(freeof(x), identical(x)))) end proc;
+   # Given a Hakaru type which may be an array type, produce the type matching
+   # expressions corresponding to indices into that array type
+   t_match_array_type := proc(x::t_type,k:=anything)
+     if x :: specfunc(HArray) then
+       'idx'( t_match_array_type(op(1,x),k), anything );
+     else
+       k
+     end if;
+   end proc;
 
    # Given (TODO: add these types to the function(?))
    #   k  :: HakaruType
@@ -311,23 +303,15 @@ KB := module ()
        ]
    end proc;
 
-   # Performs simplification(?) in case something of the form `t_bound_on` is
-   # found
-   # This function signals it has failed to find a result with `FAIL`
-   bound_simp := proc(b,x,k,kb,pol,as,$)
-      local e, rel, c, kb1,ch;
-      # b is a bound on x, so compare it against the current bound on x.
-      # First, express `if`(pol,b,Not(b)) as rel(x,e)
-      rel := op(0,b);
-
-      # Account for the symmetric cases of `x' being on the left or right
-      # hand side; the predicate is modified(?) in case of a 'flip'
-      if x = lhs(b) then
-        e := rhs(b);
-      else #x=rhs(b)
-        e   := lhs(b);
-        rel := subs({`<`=`>`, `<=`=`>=`}, rel);
-      end if;
+   # Performs simplification in case something of the form `t_bound_on` is
+   # found.  This function signals it has failed to find a result with `FAIL`.
+   #  rel(x,e)  : relation =  the constraint to add to the KB
+   #  k         : t_type   =  type of `x'
+   #  kb        : t_kb     =  the KB
+   #  pol       : bool     =  add the constraint or its relation
+   #  as                  :=  assumptions of the KB
+   bound_simp := proc(rel_,x,e_,k,kb,pol,as0,$)
+      local c, kb1, ch, as := as0, e := e_, rel := rel_;
 
       # Change relations to their negations if `pol = false'
       if not pol then
@@ -384,6 +368,14 @@ KB := module ()
       # chill but also unwraps `c' (?)
       if nops(c) > 0 then c := chill(op(1,c)) end if;
 
+      # Remove assumptions which seem to cause problems (see issue #46).
+      as := remove(a->a::relation and
+                   is_lhs((s,_)->
+                           hastype(s,{specfunc({Sum,Product,Int
+                                               ,`sum`,`product`,`int`})})
+                          , a)<>FAIL
+                   ,as);
+
       # Compare the new bound rel        (x,e          )
       # against the old bound op([1,1],c)(x,op([1,2],c))
       if e = `if`(rel :: t_lo, -infinity, infinity)
@@ -407,9 +399,7 @@ KB := module ()
    end proc;
 
    # Simplification when the `:: t_bound_on' predicate is false
-   # note: k is ignored, but this makes the API the same as
-   # bound_simp
-   not_bound_simp := proc(b,x,k,kb,pol,as,$)
+   not_bound_simp := proc(b,x,kb,pol,as,$)
      local c, bad;
      if _Env_HakaruSolve=false or pol=false then return FAIL; end if;
      if x::relation then
@@ -421,9 +411,28 @@ KB := module ()
      bad := select(depends, indets(b, specfunc(chilled)),x);
      if not (bad = {}) then return FAIL; end if;
 
+     # don't try to solve `var = e' where `depends(e,var)' and
+     # `has(e,piecewise)'. this produces an error:
+     #     (in Piecewise:-Apply) invalid subscript selector
+     if b::{`=`,`<>`} and
+        is_lhs((q,r)->q::name and depends(r,q) and has(r,piecewise), b)
+          <> FAIL
+     then return FAIL;
+     end if;
+
      # otherwise go ahead
      try
-       c := kb_assuming_mb(b->solve({chill(b)},[x], 'useassumptions'=true))(b,kb,_->FAIL);
+       c := kb_assuming_mb(b->solve({chill(b)},[x], 'useassumptions'=true),b,kb,_->FAIL);
+       if c = b then
+         # sometimes solve returns unevaluated which confuses postproc because
+         # it expects the typical output of solve
+         return FAIL
+       elif has(c,signum) then
+         WARNING( "Solving %1 in ctx %2 produced %3 which contains `signum`. "
+                  "Probably a bug in `solve`?", b, kb, c);
+         return FAIL
+       end if;
+
        c := postproc_for_solve(warm(c), kb);
        if c = FAIL or c = b then
          FAIL
@@ -476,7 +485,7 @@ KB := module ()
        return FAIL;
      end if;
 
-     error "don't know what to do with %1 (in ctx %2, %3)", c, as, kb;
+     error "don't know what to do with %1 (in ctx %2)", c, kb;
    end proc;
 
    # Simplify `bb' in context `as'
@@ -487,68 +496,47 @@ KB := module ()
      warm(b);
    end proc;
 
-   rel_coulditbe := proc(a,as,$)
-      try
-          coulditbe(a) assuming op(as);
-      catch "when calling '%1'. Received: 'contradictory assumptions'" :
-          # technically this means the KB was already contradictory, we
-          # just didn't know?
-          return false;
-      catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
-          # This is seemingly a Maple bug - the condition could still be, but we
-          # don't know, so conservatively return true.
-          WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling coulditbe(%%1) assuming (%%2)"
-                          , StringTools[FormatMessage](lastexception[2..-1])), a, as );
-          return true;
-      catch "when calling '%3'. Received: 'when calling '%2'. Received: 'expression independent of, %0''":
-          error expr_indp_errMsg(), a, as;
-      catch "when calling '%2'. Received: 'expression independent of, %0'":
-          error expr_indp_errMsg(), a, as;
-      end try;
-   end proc;
-
-   expr_indp_errMsg := proc($)
-       sprintf("Something strange happened(%s)\n"
-               "\tin coulditbe(%%1) assuming %%2"
-              ,StringTools[FormatMessage](lastexception[2..-1]))
-   end proc;
-
+   ModuleApply := ProfileFn(do_assert_deny, 1);
    # Given a constraint "bb" on a KB "kb", this
    #   inserts either "bb" (if "pol" is true) or "Not bb" (otherwise)
    #   or, KB(Constrain(`if`(pol,bb,Not(bb))), kb)
    # Great deal of magic happens behind the scenes
-   ModuleApply := proc(bb0::t_kb_atom, pol::identical(true,false), kb::t_kb)
+   do_assert_deny := proc(bb::t_kb_atom, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, bb, bbv, b, k, x, log_b, todo, kb0, ch;
-    bb := bb0;
+    local as, bbv, b, k, x, log_b, todo, kb0, ch, t_x, t_m, t_x0, c;
+    b := bb;
 
-    if bb = pol then
+    if b = pol then
       # Ignore literal true and Not(false).
       kb
 
-    elif bb :: t_if_and_or_of(pol) then
-      foldr(((b,kb) -> assert_deny_mb(b, pol, kb)), kb, op(bb))
+    elif b :: t_if_and_or_of(pol) then
+      foldr(((b1,kb) -> assert_deny_mb(b1, pol, kb)), kb, op(b))
 
-    elif bb :: t_not then
-      assert_deny_mb(op(1,bb), not pol, kb)
+    elif b :: t_not then
+      assert_deny_mb(op(1,b), not pol, kb)
 
-    else
-      bb := subsindets(bb, Partition, Partition:-PartitionToPW);
-      as := chill(kb_to_assumptions(kb, bb));
+    else # b::relation
+      b  := subsindets(b, Partition, Partition:-PartitionToPW);
+      as := chill(kb_to_assumptions(kb, b));
       as := remove(type, as, thismodule:-t_bad_assumption);
-      bb := chill(bb);
+      b  := chill(b);
 
       # try to evaluate under the assumptions, but some assumptions break
       # with eval, so remove any of those we tried to chill to prevent them breaking
-      bb := subsindets(bb, relation, x-> kb_assuming_mb(x1->map(eval,x1))(x, kb, _->x));
+      b  := subsindets(b, relation, x-> kb_assuming_mb(x1->map(eval,x1), x, kb, _->x));
+
+      # Simplify the condition, esp. needed before `coulditbe' as it may not get
+      # the right answer before simplification (see RoundTrip/testKernel). At
+      # worst, this may cause a 'contradictory assumptions' error in a later
+      # call.
+      b  := simplify_in_context(b, as);
 
       # Check that the new clause would not cause a contradictory
       # KB. If it does, then produce NotAKB.
-      if not bad_assumption(bb) and not rel_coulditbe(`if`(pol,bb,Not(bb)), as) then
+      if not bad_assumption(bb) and not rel_coulditbe(`if`(pol,b,Not(b)), as) then
           return NotAKB();
       end if;
-
-      b := simplify_in_context(bb, as);
 
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
@@ -556,17 +544,21 @@ KB := module ()
 
       # If that scope is not precisely the trivial KB, then ..
       if nops(k) > 0 then
-        x, k := op(op(1,k));
-        # Found the innermost scope where b makes sense.
-        # Reduce (in)equality between exp(A) and exp(B) to between A and B.
+        x, t_x := op(op(1,k));
         b := try_improve_exp(b, x, as);
+        t_x0 := array_base_type(t_x);
+        t_m := t_match_array_type(t_x, identical(`x`));
 
-        # syntactic adjustment
-        # If `b' is of a particular form (a bound on `x'), simplification
-        # is in order
-        if not b::`::` then
-          todo := `if`(b :: t_bound_on(`x`), bound_simp, not_bound_simp);
-          kb0 := todo(b,x,k,kb,pol,as);
+        # if b is a relation of the form `op(identical(x),freeof(x))' where
+        # `x::HkName' ...
+        if b::relation then
+          c := classify_relation(b, t_m);
+          if c = FAIL or hastype(op(4,c), t_m) then
+            todo := curry(not_bound_simp, b, x);
+          else
+            todo := curry(bound_simp, op(2..4,c), t_x0)
+          end if;
+          kb0 := todo(kb, pol, as);
 
           # If it succeeds, return that result
           if not kb0 :: identical(FAIL) then return kb0 end if;
@@ -583,10 +575,11 @@ KB := module ()
       if b :: t_constraint_flipped then b := (rhs(b)=lhs(b)) end if;
 
       # If `b' reduces to `true' in the KB environment then there is no need to
-      # add it
+      # add it; or if it reduces to `false', then the result is NotAKB
       ch := chill(b);
       try
-        if is(ch) assuming op(as) then return kb end if;
+        if is(ch) assuming op(as)     then return kb       end if;
+        if not(rel_coulditbe(ch, as)) then return NotAKB() end if;
       catch "when calling '%1'. Received: 'side relations must be polynomials in (name or function) variables'":
         WARNING( sprintf( "siderels bug:\n\t'%s'\nwhen calling is(%%1) assuming (%%2)"
                         , StringTools[FormatMessage](lastexception[2..-1])), b, as );
@@ -597,53 +590,6 @@ KB := module ()
     end if;
    end proc: # ModuleApply
   end module; # assert_deny
-
-  # In order to hopefully produce a simplification,
-  #   assert_deny will on some occasions repeatedly apply
-  #   `simplify@ln` in the hopes of producing an 'improved'
-  #   constraint. This metric gives the stopping condition
-  # - when the simplification ceases to improve the constraint
-  # - which is when the metric is made no less by the `simplify@ln`.
-  # Since this is a `length`, this is strictly decreasing,
-  #  so such a loop will 'provably' always terminate
-  log_metric := proc(e, x, $)
-    local m, L;
-    m := select(depends, indets(e, 'exp(anything)'), x);
-    length(subsindets(map2(op, 1, m), name, _->L));
-  end proc;
-
-  # This should be local to KB (or even to assert_deny) but it is used
-  # by Domain.
-  try_improve_exp := proc(b0, x, ctx, $)
-        local b := b0, log_b;
-        do
-          try log_b := map(simplify@ln, b) assuming op(ctx); catch: break; end try;
-
-          if log_metric(log_b, x) < log_metric(b, x)
-             and (andmap(e->is(e,real)=true, log_b) assuming op(ctx)) then
-            b := log_b;
-          else
-            break;
-          end if;
-        end do;
-        b;
-  end proc;
-
-  # boolean_if should be equivalent to `if`, but it assumes
-  # all its arguments are boolean conditions, so it basically
-  # simplifies "cond and th or not cond and el"
-  boolean_if := proc(cond, th, el, $)
-    use
-      a = ((x,y)-> `if`(x=true,y, `if`(x=false,x,
-                   `if`(y=true,x, `if`(y=false,y, And(x,y)))))),
-      o = ((x,y)-> `if`(x=false,y, `if`(x=true,x,
-                   `if`(y=false,x, `if`(y=true,y, Or (x,y)))))),
-      n = (x    -> `if`(x=false,true,
-                   `if`(x=true,false,             Not(x))))
-    in
-      o(a(cond,th), a(n(cond),el))
-    end use
-  end proc;
 
   # Given that kb is an extension of kb0
   # (in that all the knowledge in kb0 is contained in kb)
@@ -774,23 +720,33 @@ KB := module ()
     foldl(eval, e, op(kb_to_equations(kb)));
   end proc;
 
-  kb_assuming_mb := simpl -> proc(ee, kb::t_kb, failure, $)
+  # The known exceptions which kb_assuming_mb will catch and
+  # return as a failure; all others are rethrown
+  known_assuming_expections :=
+  { "when calling '%2'. Received: '%1 is an invalid property'"  #assume/ProcessTerm
+  , "when calling '%1'. Received: 'Can not process Or() or Not(And()) assumption if the object is not a name'" #assume/ProcessTerm
+  };
+
+  kb_assuming_mb := proc(simpl, ee, kb::t_kb, failure, $)
     local e, as, e0;                                                         # for debugging
 
     e := eval_kb(ee,kb);                                                  `eval`;
     as := kb_to_assumptions(kb, e);
-    e := chill(e);                                                        `chill`;
+    e0 := e;
+    e  := chill(e);
     as := chill(as);
 
-    # The assumptions may be contradictory - I'm not sure why the right thing to
-    # do is to return the original expression. Assuming false one can derive
-    # anything - hence exception - so who calls this function under which
-    # contexts that they expect `false` to mean something other than `false`?
-    e0 := e;
-    try e := simpl(e) assuming op(as); catch: e := failure(e0); end try;
+    userinfo(3, procname, printf("Trying\n%a(%a) assuming op(%a)\n", simpl, e, as));
+    try e := simpl(e) assuming op(as);
+    catch :
+      if lastexception[2] in known_assuming_expections then
+        userinfo(3, procname, printf("...threw a known exception:\n%s",
+                                     StringTools[FormatMessage](lastexception[2..-1])));
+        return failure(e0);
+      else error; end if;
+    end try;
 
-    e := warm(e);                                            `warm (then expand@exp)`;
-    eval(e, exp = expand @ exp);
+    e := warm(e);
   end proc;
 
   # Given a function `f', 'evaluates' the given expression `e' as follows:
@@ -809,7 +765,7 @@ KB := module ()
   kb_eval_mb := proc(f,e,kb,$)
     local fn, ty, e1;
     fn,ty := `if`(f::[anything$2],f,[f,satisfies(q->has(q,f))])[];
-    e1 := kb_assuming_mb(fn@op)(e, kb, _->e);
+    e1 := kb_assuming_mb(fn@op, e, kb, _->e);
     if e1::ty then e else e1 end if;
   end proc;
 
@@ -818,7 +774,7 @@ KB := module ()
   # simplification might fail, in which case `failure(e)` where `e`
   # is the un-simplified (and chilled) expression is taken to be the result of
   # simplification. 'mb' for 'maybe'
-  simplify_assuming_mb := kb_assuming_mb(simplify@(e->subsindets(e,Partition,Partition:-PartitionToPW)));
+  simplify_assuming_mb := curry(kb_assuming_mb, simplify@(e->subsindets(e,Partition,Partition:-PartitionToPW)));
 
   simplify_assuming := proc(ee, kb::t_kb, $)
     simplify_assuming_mb(ee,kb,e->e);
@@ -831,20 +787,46 @@ KB := module ()
     simplify_assuming_mb(ee,kb,e->FAIL);
   end proc;
 
-  getType := proc(kb :: t_kb, x :: name, $)
-    local res, over, bound;
-    res := select(type, kb, 'Introduce(identical(x), anything)');
-    if nops(res)=0 then FAIL else
-      res := op([1,2], res);
+  splitHkName := proc(x :: HkName, $)::(list(appliable),name);
+    local x1, q, s, b;
+    if x :: name then
+      [] , x
+    elif x :: 'idx'(anything, anything) then
+      x1 , q := op(x);
+      s , b := splitHkName(x1);
+      [ (i->idx(i,q)), op(s) ], b
+    end if;
+  end proc;
+
+  getType := proc(kb :: t_kb, x_ :: HkName, $)
+    local res, over, bound, cs, s, x1, k, mkt, x := x_;
+
+    s, x1 := splitHkName(x);
+    k   := nops(s);
+    mkt := foldr(`@`,(a->a),HArray$k);
+
+    res := select(type, kb, 'Introduce'(identical(x1), mkt(anything)));
+    if nops(res)<>1 then FAIL else
+      res := op([1,2,1$k], res);
+      # Bounds
       over := table([`<`=identical(`<`,`<=`), `<=`=identical(`<`,`<=`),
                      `>`=identical(`>`,`>=`), `>=`=identical(`>`,`>=`)]);
-      for bound in select(type, kb, 'Bound(identical(x),
+      for bound in select(type, kb, 'Bound'(identical(x),
                                            identical(`<`,`<=`,`>`,`>=`),
-                                           anything)') do
+                                           anything)) do
         res := remove(type, res, 'Bound'(over[op(2,bound)], 'anything'));
         res := op(0,res)(subsop(1=NULL,bound), op(res));
       end do;
-      res
+
+      # Constrains
+      cs := select(type, kb, 'Constrain'(relation));
+      # those relations whose left or right hand side is identically the variable
+      cs := map(a -> classify_relation(op(1,a), identical(x)), cs);
+      cs := select(type, cs, Not(identical(FAIL)));
+      cs := op(map(a -> Bound(op(2,a), op(4,a)), cs));
+      res := op(0,res)(cs, op(res));
+
+      mkt(res);
     end if;
   end proc;
 
@@ -853,19 +835,43 @@ KB := module ()
     [op(map2(op, 1, select(type, kb, t_intro)))];
   end proc;
 
+  # This case is because the following takes forever:
+  # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_
+  # = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1,
+  # i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] =
+  # size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
   bad_assumption_pw := (x->x::`=` and has(x,piecewise));
+
+  # This case is because the following takes forever:
+  # is(y <= Hakaru:-size[topic_prior]-2) assuming
+  #  (.., j <= Sum(piecewise(docUpdate = Hakaru:-idx[doc, i2],
+  #                          piecewise(And(i = zNew0, i1 = Hakaru:-idx[w, i2]),
+  #                                    1, 0),
+  #                          0),
+  #                i2 = 0 .. Hakaru:-size[w]-1)-1
+  bad_assumption_SumProdInt := proc(a,$)
+    local a1,v,r;
+    if not(a::relation) then return false; end if;
+    a1 := is_lhs((s,_)->s::name, a);
+    if a1=FAIL then return false end if;
+    v := indets[flat](rhs(a1),specfunc({Int,Sum,Product,`int`,`sum`,`product`}));
+    r := evalb(
+      v<>{} and
+      ormap(x->has(x,piecewise) and has(x,idx),[op(v)]));
+    if r then
+      userinfo(3, procname, printf("%a is a bad assumption\n",a));
+    end if;
+    r;
+  end proc;
+
   # Returns true if the assumption is bad, false otherwise
   bad_assumption := proc(a, $)
     bad_assumption_pw(a) or
-    # The case above is because the following takes forever:
-    # simplify(piecewise(_a = docUpdate, aaa, bbb)) assuming i = piecewise(_a_
-    # = docUpdate, zNew, idx[z, _a]), _a::integer, 0 <= _a, _a <= size[t]-1,
-    # i::integer, 0 <= i, i <= size[as]-2, size[xs] = size[as]-1, size[z] =
-    # size[t], docUpdate::integer, 0 <= docUpdate, docUpdate <= size[z]-1
     ( a :: `=` and
       ormap(f->f(a)::name,[lhs,rhs]) and
-      indets(a,'{specindex,specfunc}'(chilled))<>{} )
+      indets(a,'{specindex,specfunc}'(chilled))<>{} ) or
     # These are dealt with otherwise and aren't understood by Maple
+    bad_assumption_SumProdInt(a)
   end proc;
 
   # Note that this returns potentially any number of operands.
@@ -893,7 +899,7 @@ KB := module ()
     op(`if`(x_typ<>TopProp, map((b -> `if`(nops(b)>=2,[op(1,b)(x, op(2,b))],[])[]), x_ty),[]))
   end proc;
 
-  kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption_pw, $)
+  kb_to_assumptions := proc(kb, e:={}, to_remove := bad_assumption, $)
     local n, as;
     as := remove(to_remove,
           [ map( kb_atom_to_assumptions ,
@@ -972,48 +978,6 @@ KB := module ()
     eval(pr, %doThen=doThen);
   end proc;
 
-  # Like convert(e, 'list', `*`) but tries to keep the elements positive
-  list_of_mul := proc(e, $)
-    local rest, should_negate, can_negate, fsn;
-    rest := convert(e, 'list', `*`);
-    rest := map((f -> [f, signum(f),
-                       `if`(f::'{specfunc({Sum,sum}),anything^odd}',
-                            applyop(`-`,1,f),
-                       `if`(f::'specfunc(ln)',
-                            applyop(`/`,1,f),
-                            -f))]),
-                rest);
-    should_negate, rest := selectremove(type, rest,
-      '[anything, -1, Not(`*`)]');
-    if nops(should_negate) :: even then
-      [seq(op(3,fsn), fsn=should_negate),
-       seq(op(1,fsn), fsn=rest)]
-    else
-      can_negate, rest := selectremove(type, rest,
-        '[{`+`, specfunc({Sum,sum,ln}), `^`}, Not(1), Not(`*`)]');
-      if nops(can_negate) > 0 then
-        [seq(op(3,fsn), fsn=should_negate),
-         op([1,3], can_negate),
-         seq(op(1,fsn), fsn=subsop(1=NULL, can_negate)),
-         seq(op(1,fsn), fsn=rest)]
-      else
-        [seq(op(3,fsn), fsn=subsop(-1=NULL, should_negate)),
-         op([-1,1], should_negate),
-         seq(op(1,fsn), fsn=rest)]
-      end if
-    end if
-  end proc;
-
-  # Given an expression containing products and sums, i.e. polynomials
-  # and a function , applies this expression to each factor and summand
-  for_poly := proc(e, f, $)
-    if e :: '{`+`,`*`}' then map(for_poly, e, f)
-    elif e :: 'specfunc({product,Product,sum,Sum})' then
-      applyop(for_poly, 1, e, f)
-    else f(e)
-    end if
-  end proc;
-
   # Computes the range of (possible values of) a Hakaru Int,
   # given a Hakaru type for that Int.
   range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)
@@ -1037,10 +1001,6 @@ KB := module ()
             simpl_range_of_htype[op(0,t)] )));
   end proc;
 
-  zip_k := proc(f)
-    map(f@op@ListTools[Flatten], foldl((a,b)->zip(`[]`,a,b,[]), _rest));
-  end proc;
-
   # Avoid FAILure modes of the assumption system
   # This transforms {size,idx}(a,b,..x) to {size,id}[a,b,..x] (that is, a
   # subscript operator, which doesn't evaluate) and back. Some functions
@@ -1048,11 +1008,6 @@ KB := module ()
   chilled := '{size, idx}';
   chill := curry(chillFns,chilled);
   warm  := curry(warmFns,chilled);
-
-  # For some reason making these curried also requires `chill' and `warm'
-  # to be eta-expanded (i.e. `chill := x->chillFns(chilled)(x)')
-  chillFns := (fns, e) -> subsindets(e, 'specfunc'(fns), c->op(0,c)[op(c)]);
-  warmFns  := (fns, e) -> subsindets(e, 'specindex'(fns), c->map(curry(warmFns,fns), op(0,c)(op(c))));
 
   # The KB constructors are local, but sometimes for debugging purposes one
   # would like to construct the KB directly. This converts the global names
@@ -1066,15 +1021,14 @@ KB := module ()
     [(t_kb=
       ''specfunc({
          Introduce(name, t_type),
-         Let(name, anything),
-         Bound(name, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
+         Let(HkName, anything),
+         Bound(HkName, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
          Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
        }, KB)'')
 
     # KB 'atoms' , i.e. single pieces of knowledge, in "maple form".
     # Note that boolean already includes `Bound`s in the form `x R y`
-    ,(t_kb_atom =
-      ''{`::`, boolean, `in`, specfunc(anything,{Or,Not,And})}'')
+    ,(t_kb_atom = ''Relation'')
     ,(t_kb_atoms = 'list(t_kb_atom)')
 
     # The 'false' KB, produced when a contradiction arises in a KB
@@ -1082,10 +1036,12 @@ KB := module ()
 
     # Something that might be a KB, or is the false KB
     ,(t_kb_mb = ''{t_kb, t_not_a_kb}'')
+    ,(HkName = ''Or(name,'idx'(HkName,anything))'')
     ]);
 
   ModuleLoad := proc($)
-    Hakaru; # Make sure the KB module is loaded, for the type t_type
+    # Make sure modules are loaded for types
+    Hakaru; Utilities;
 
     BindingTools:-load_types_from_table(TYPES);
 

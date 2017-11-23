@@ -7,6 +7,11 @@
            , TypeFamilies
            , TypeOperators
            , OverloadedStrings
+           , DeriveDataTypeable
+           , ScopedTypeVariables
+           , RankNTypes
+           , FlexibleContexts
+           , LambdaCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -28,88 +33,113 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT    hiding (Var, Bind)
 import Language.Hakaru.Syntax.AST
     (Literal(..), MeasureOp(..), LCs(), UnLCs ())
+import qualified Language.Hakaru.Syntax.AST as T
 import Language.Hakaru.Syntax.IClasses
 
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid   (Monoid(..))
 #endif
 
-import Data.Text
-import Text.Printf
+import qualified Data.Text as T
 import Text.Parsec (SourcePos)
 import Text.Parsec.Pos
+import Data.Generics hiding ((:~:)(..))
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
-data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
-    deriving (Read, Show, Eq, Ord)
+data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!T.Text
+    deriving (Read, Show, Eq, Ord, Data, Typeable)
 
 nameID :: Name -> N.Nat
 nameID (Name i _) = i
 
-hintID :: Name -> Text
+hintID :: Name -> T.Text
 hintID (Name _ t) = t
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-type Name' = Text
+type Name' = T.Text
 
 data Branch' a
     = Branch'  (Pattern' Name') (AST' a)
     | Branch'' (Pattern' Name)  (AST' a)
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data Pattern' a
     = PVar'  a
     | PWild'
     | PData' (PDatum a)
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data PDatum a = DV Name' [Pattern' a]
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 -- Meta stores start and end position for AST in source code
 data SourceSpan = SourceSpan !SourcePos !SourcePos
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
-numberLine :: Text -> Int -> Text
-numberLine s n = append (pack (printf "%5d| " n)) s
-
-printSourceSpan :: SourceSpan -> V.Vector Text -> Text
+printSourceSpan :: SourceSpan -> V.Vector T.Text -> T.Text
 printSourceSpan (SourceSpan start stop) input
-    | sourceLine start == sourceLine stop =
-        unlines [ numberLine endLine (sourceLine stop)
-                , append "       " textSpan
-                ]
-    | otherwise                           =
-        unlines $ flip fmap [sourceLine start .. sourceLine stop] $ \i ->
-            numberLine (input V.! (i - 1)) i
-   where endLine  = input V.! (sourceLine stop - 1)
-         spanLen  = sourceColumn stop - sourceColumn start
-         textSpan =
-             append (replicate (sourceColumn start - 1) " ")
-                    (replicate spanLen "^")
+  = T.unlines (concatMap line [startLine..stopLine])
+  where
+  line :: Int -> [T.Text]
+  line i | (sourceLine start, sourceColumn start) <= (i, 1) &&
+           (i, eol) <= (sourceLine stop, sourceColumn stop)
+         = [T.empty | i == startLine] ++
+           [quote '>'] ++
+           [T.empty | i == stopLine]
+         | i == stopLine
+         = [T.empty | i == startLine] ++
+           [quote ' ',
+            marking (if i == sourceLine start then sourceColumn start else 1)
+                    (if i == sourceLine stop  then sourceColumn stop  else eol)
+                    '^']
+         | i == sourceLine start
+         = [marking (sourceColumn start) eol '.',
+            quote ' ']
+         | otherwise
+         = [quote ' ']
+    where numbering = T.pack (show i)
+          lining    = input V.! (i-1)
+          eol       = T.length lining + 1
+          quote c   = spacing (digits - T.length numbering)
+                      `T.append` numbering
+                      `T.append` T.singleton '|'
+                      `T.append` T.singleton c
+                      `T.append` lining
+  spacing k     = T.replicate k (T.singleton ' ')
+  marking l r c = spacing (digits + 1 + l)
+                  `T.append` T.replicate (max 1 (r - l)) (T.singleton c)
+  startLine     = max 1
+                $ sourceLine start
+  stopLine      = max startLine
+                $ min (V.length input)
+                $ (if sourceColumn stop == 1 then pred else id)
+                $ sourceLine stop
+  digits        = loop stopLine 1
+    where loop i res | i < 10    = res
+                     | otherwise = (loop $! div i 10) $! (res + 1)
 
 data Literal'
     = Nat  Integer
     | Int  Integer
     | Prob Rational
     | Real Rational
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data NaryOp
     = And | Or   | Xor
     | Iff | Min  | Max
     | Sum | Prod
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
-data ArrayOp = Index_ | Size | Reduce
+data ArrayOp = Index_ | Size | Reduce deriving (Data, Typeable)
 
 data TypeAST'
     = TypeVar Name'
     | TypeApp Name'    [TypeAST']
     | TypeFun TypeAST' TypeAST'
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
 
 data Reducer' a
     = R_Fanout (Reducer' a) (Reducer' a)
@@ -117,7 +147,29 @@ data Reducer' a
     | R_Split (AST' a) (Reducer' a) (Reducer' a)
     | R_Nop
     | R_Add (AST' a)
-    deriving (Eq, Show)
+    deriving (Eq, Show, Data, Typeable)
+
+data Transform'
+    = Observe
+    | MH
+    | MCMC
+    | Disint T.TransformImpl
+    | Summarize
+    | Simplify
+    | Reparam
+    | Expect
+    deriving (Eq, Show, Data, Typeable)
+
+trFromTyped :: T.Transform as x -> Transform'
+trFromTyped = \case
+  T.Observe   -> Observe
+  T.MH        -> MH
+  T.MCMC      -> MCMC
+  T.Disint k  -> Disint k
+  T.Summarize -> Summarize
+  T.Simplify  -> Simplify
+  T.Reparam   -> Reparam
+  T.Expect    -> Expect
 
 data AST' a
     = Var a
@@ -130,13 +182,11 @@ data AST' a
     | ULiteral Literal'
     | NaryOp NaryOp [AST' a]
     | Unit
-    | Empty
     | Pair (AST' a) (AST' a)
     | Array a (AST' a) (AST' a)
     | ArrayLiteral [AST' a]
     | Index (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
-    | Dirac (AST' a)
     | Bind  a  (AST' a) (AST' a)
     | Plate a  (AST' a) (AST' a)
     | Chain a  (AST' a) (AST' a) (AST' a)
@@ -144,12 +194,25 @@ data AST' a
     | Summate   a (AST' a) (AST' a) (AST' a)
     | Product   a (AST' a) (AST' a) (AST' a)
     | Bucket    a (AST' a) (AST' a) (Reducer' a)
-    | Expect a (AST' a) (AST' a)
-    | Observe  (AST' a) (AST' a)
+    | Transform Transform' (SArgs' a)
     | Msum  [AST' a]
     | Data  a [a] [TypeAST'] (AST' a)
     | WithMeta (AST' a) SourceSpan
-    deriving (Show)
+    deriving (Show, Data, Typeable)
+
+newtype SArgs' a = SArgs' [ ([a], AST' a) ]
+    deriving (Eq, Show, Data, Typeable)
+
+-- For backwards compatibility
+_Expect :: a -> AST' a -> AST' a -> AST' a
+_Expect v a b = Transform Expect $ SArgs' $ [ ([], a), ([v], b) ]
+
+withoutMeta :: AST' a -> AST' a
+withoutMeta (WithMeta e _) = withoutMeta e
+withoutMeta           e    =             e
+
+withoutMetaE :: forall a . Data a => AST' a -> AST' a
+withoutMetaE = everywhere (mkT (withoutMeta :: AST' a -> AST' a))
 
 instance Eq a => Eq (AST' a) where
     (Var t)             == (Var t')                 = t    == t'
@@ -171,7 +234,6 @@ instance Eq a => Eq (AST' a) where
     (NaryOp op args)    == (NaryOp op' args')       = op   == op' &&
                                                       args == args'
     Unit                == Unit                     = True
-    Empty               == Empty                    = True
     (Pair  e1 e2)       == (Pair   e1' e2')         = e1   == e1' &&
                                                       e2   == e2'
     (Array e1 e2 e3)    == (Array  e1' e2' e3')     = e1   == e1' &&
@@ -182,7 +244,6 @@ instance Eq a => Eq (AST' a) where
                                                       e2   == e2'
     (Case  e1 bs)       == (Case   e1' bs')         = e1   == e1' &&
                                                       bs   == bs'
-    (Dirac e1)          == (Dirac  e1')             = e1   == e1'
     (Bind  e1 e2 e3)    == (Bind   e1' e2' e3')     = e1   == e1' &&
                                                       e2   == e2' &&
                                                       e3   == e3'
@@ -209,11 +270,8 @@ instance Eq a => Eq (AST' a) where
                                                       b    == b' &&
                                                       c    == c' &&
                                                       d    == d'
-    (Expect e1 e2 e3)   == (Expect e1' e2' e3')     = e1   == e1' &&
-                                                      e2   == e2' &&
-                                                      e3   == e3'
-    (Observe  e1 e2)    == (Observe    e1' e2')     = e1   == e1' &&
-                                                      e2   == e2'
+    (Transform t0 es0)  == (Transform t1 es1)       = t0   == t1 &&
+                                                      es0  == es1
     (Msum  es)          == (Msum   es')             = es   == es'
     (Data  n ft ts e)   == (Data   n' ft' ts' e')   = n    == n'  &&
                                                       ft   == ft' &&
@@ -278,7 +336,7 @@ foldBranch f (Branch_ _ e) = f e
 data Pattern
     = PWild
     | PVar Name
-    | PDatum Text PCode
+    | PDatum T.Text PCode
 
 data PFun
     = PKonst Pattern
@@ -306,7 +364,7 @@ data DCode abt
     = Inr (DCode   abt)
     | Inl (DStruct abt)
 
-data Datum abt = Datum Text (DCode abt)
+data Datum abt = Datum T.Text (DCode abt)
 
 fmapDatum
     :: (f '[] 'U -> g '[] 'U)
@@ -412,7 +470,6 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     MeasureOp_    :: SomeOp MeasureOp -> [abt '[] 'U]    -> Term abt 'U
     NaryOp_       :: NaryOp           -> [abt '[] 'U]    -> Term abt 'U
     Literal_      :: Some1 Literal                       -> Term abt 'U
-    Empty_        ::                                        Term abt 'U
     Pair_         :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
     Array_        :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
     ArrayLiteral_ :: [abt '[] 'U]                        -> Term abt 'U
@@ -426,11 +483,26 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Summate_      :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
     Product_      :: abt '[] 'U       -> abt '[]     'U  -> abt '[ 'U ] 'U -> Term abt 'U
     Bucket_       :: abt '[] 'U       -> abt '[]     'U  -> Reducer xs abt 'U -> Term abt 'U
-    Expect_       :: abt '[] 'U       -> abt '[ 'U ] 'U  -> Term abt 'U
-    Observe_      :: abt '[] 'U       -> abt '[]     'U  -> Term abt 'U
+    Transform_    :: T.Transform as x -> SArgs abt as    -> Term abt 'U
     Superpose_    :: L.NonEmpty (abt '[] 'U, abt '[] 'U) -> Term abt 'U
     Reject_       ::                                        Term abt 'U
+    InjTyped      :: (forall abt . ABT T.Term abt
+                                 => abt '[] x)           -> Term abt 'U
 
+infixr 5 :*
+data SArgs (abt :: [Untyped] -> Untyped -> *) (as :: [([k], k)]) where
+  End :: SArgs abt '[]
+  (:*) :: !(List2 ToUntyped vars varsu, abt varsu 'U)
+       -> !(SArgs abt args)
+       -> SArgs abt ( '(vars, a) ': args)
+
+data ToUntyped (x :: k) (y :: Untyped) where
+  ToU :: ToUntyped x 'U
+
+instance Functor21 SArgs where
+    fmap21 f = \case
+      End          -> End
+      (m, a) :* as -> (m, f a) :* fmap21 f as
 
 -- TODO: instance of Traversable21 for Term
 instance Functor21 Term where
@@ -445,7 +517,6 @@ instance Functor21 Term where
     fmap21 f (MeasureOp_ op  es)    = MeasureOp_ op     (fmap f es)
     fmap21 f (NaryOp_    op  es)    = NaryOp_    op     (fmap f es)
     fmap21 _ (Literal_   v)         = Literal_   v
-    fmap21 _ Empty_                 = Empty_
     fmap21 f (Pair_      e1  e2)    = Pair_      (f e1) (f e2)
     fmap21 f (Array_     e1  e2)    = Array_     (f e1) (f e2)
     fmap21 f (ArrayLiteral_  es)    = ArrayLiteral_     (fmap f es)
@@ -459,10 +530,15 @@ instance Functor21 Term where
     fmap21 f (Summate_   e1  e2 e3) = Summate_   (f e1) (f e2) (f e3)
     fmap21 f (Product_   e1  e2 e3) = Product_   (f e1) (f e2) (f e3)
     fmap21 f (Bucket_    e1  e2 e3) = Bucket_    (f e1) (f e2) (fmap21 f e3)
-    fmap21 f (Expect_    e1  e2)    = Expect_    (f e1) (f e2)
-    fmap21 f (Observe_   e1  e2)    = Observe_   (f e1) (f e2)
+    fmap21 f (Transform_ t as)      = Transform_ t (fmap21 f as)
     fmap21 f (Superpose_ es)        = Superpose_ (L.map (f *** f) es)
     fmap21 _ Reject_                = Reject_
+    fmap21 _ (InjTyped x)           = InjTyped x
+
+instance Foldable21 SArgs where
+    foldMap21 f = \case
+      End          -> mempty
+      (_, a) :* as -> f a `mappend` foldMap21 f as
 
 instance Foldable21 Term where
     foldMap21 f (Lam_       _  e1)    = f e1
@@ -476,7 +552,6 @@ instance Foldable21 Term where
     foldMap21 f (MeasureOp_ _  es)    = F.foldMap f es
     foldMap21 f (NaryOp_    _  es)    = F.foldMap f es
     foldMap21 _ (Literal_   _)        = mempty
-    foldMap21 _ Empty_                = mempty
     foldMap21 f (Pair_      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Array_     e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (ArrayLiteral_ es)    = F.foldMap f es
@@ -490,10 +565,10 @@ instance Foldable21 Term where
     foldMap21 f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap21 f (Product_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap21 f (Bucket_    e1 e2 e3) = f e1 `mappend` f e2 `mappend` foldMap21 f e3
-    foldMap21 f (Expect_    e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Observe_   e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (Transform_ _ es)     = foldMap21 f es
     foldMap21 f (Superpose_ es)       = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) es
     foldMap21 _ Reject_               = mempty
+    foldMap21 _ InjTyped{}            = mempty
 
 type U_ABT    = MetaABT SourceSpan Term
 type AST      = U_ABT '[] 'U

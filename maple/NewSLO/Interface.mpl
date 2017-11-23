@@ -1,11 +1,14 @@
 # This module forms part of NewSLO and is `$include`d there
 
-Commands := [ `Simplify`, `Disintegrate`, `Summarize` ];
+Commands := [ `Simplify`, `Disintegrate`, `Summarize`, `Reparam` ];
 
-RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition', 'piecewise'] }
+RoundTrip := proc(e, t::t_type, {_ret_type := {'print'}
+                                ,_postproc := [['convert','Partition','piecewise'],
+                                               'stable_Partition_order']
                                 ,_gensym_charset := FAIL
+                                ,_debug :: truefalse := false
                                 ,_command := Simplify})
-  local result, ret_type, cs, ifc_opts, syms0, command;
+  local result, ret_type, cs, ifc_opts, syms0, command, pp;
   ret_type := _ret_type; command := _command;
   if not(ret_type::set) then ret_type := {ret_type}; end if;
   if command::string then command := convert(command, name); end if;
@@ -19,27 +22,53 @@ RoundTrip := proc(e, t::t_type, {_ret_type := {'print', [ 'convert', 'Partition'
     syms0 := gensym:-SymbolsToGen;
   end if;
 
-  ifc_opts[0] := screenwidth=9999, prettyprint=0, warnlevel=0,
-    showassumed=0,quiet=true;
+  ifc_opts[0] :=
+     screenwidth=9999,
+     `if`('print' in ret_type, prettyprint=0, NULL),
+     warnlevel=0,
+     showassumed=0,
+     quiet=true;
 
   ifc_opts[1] := interface(ifc_opts[0]);
   try
-    kernelopts(assertlevel=0);
+    if not(_debug) then kernelopts(assertlevel=0); end if;
     result := _command(e,t,_rest);
-    for cs in select(type, ret_type, [ identical(convert), type, anything ]) do
-      result := subsindets(result, op(2,cs), x->convert(x,op(3,cs)));
+    for pp in _postproc do
+      if assigned(RoundTrip_postproc[op(1,pp)]) then
+        result := RoundTrip_postproc[op(1,pp)](result, op(2..-1,pp))
+      else
+        error "invalid postproc option: %1", pp;
+      end if;
     end do;
-    result := eval(ToInert(result), _Inert_ATTRIBUTE=NULL);
-    result := sprintf("%a",result);
-    if 'print' in ret_type then printf("%s\n",result); end if;
-    if not ('string' in ret_type) then
-      result := NULL;
+    if not ('expr' in ret_type) then
+      result := eval(ToInert(result), _Inert_ATTRIBUTE=NULL);
+      if ({'print','string'} intersect ret_type) <> {} then
+        result := sprintf("%a",result);
+      end if;
+      if 'print' in ret_type then
+        printf("%s\n",result);
+        result := NULL;
+      end if;
     end if;
   finally
     interface(zip(`=`, map(lhs,[ifc_opts[0]]), [ifc_opts[1]])[]);
     gensym:-SymbolsToGen := syms0;
   end try;
   return result;
+end proc;
+
+RoundTrip_postproc[convert] := proc(r, f::type, t, $)
+  subsindets(r, f, x->convert(x,t));
+end proc;
+RoundTrip_postproc[stable_Partition_order] := proc(r, $)
+  subsindets(r, Partition, Simpl:-stable_order)
+end proc;
+
+Reparam := proc(e, t::t_type, {ctx :: list := []})
+  SimplifyKB_(
+    ((e1,_,kb1)->
+     fromLO(ReparamDetermined(toLO(e1),kb1),_ctx=kb1)),
+    e,t,build_kb(ctx,"Reparam",KB:-empty))
 end proc;
 
 Summarize := proc(e, _) Summary:-Summarize(e,_rest) end proc;
@@ -112,7 +141,6 @@ end proc;
 
 SimplifyKB := proc(e,t,kb,$)
   local res;
-  res[-1] := value_for_Sum(e);
   res[0] := SimplifyKB_(
   proc(e0,t,kb)
     local e := eval_for_Simplify(e0,kb);
@@ -121,7 +149,7 @@ SimplifyKB := proc(e,t,kb,$)
     else
       simplify_assuming(e,kb);
     end if;
-  end proc, res[-1], t, kb);
+  end proc, e, t, kb);
 
   res[1] := eval(res[0]);
   if res[1] <> res[0] then
@@ -131,26 +159,12 @@ SimplifyKB := proc(e,t,kb,$)
   end if;
 end proc;
 
-# For some reason, the solution below for evaluting in a context does not work
-# for Sum (specifically for tcp/src/LDA/lda.hk).  The chill/warm is to not
-# interfere with the evaluation in context for other constructors.
-
-# This should really be considered a temporary hack until it is determined why
-# it's needed (I haven't spotted the difference yet), but on the other hand,
-# there are no examples where we *need* to evaluate `Sum' in an inner context of
-# an expression.
-value_for_Sum := proc(e0,$)
-  local fns, e; e := e0;
-  fns := {indices(eval_for_Simplify_tbl, nolist)} minus {`Sum`};
-  e := KB:-chillFns(fns,e);
-  e := value(e);
-  KB:-warmFns(fns,e);
-end proc;
-
 eval_for_Simplify_tbl := table(
   [ `Int`=`int`
+  # Some parts (which?) of the simplifier still always need `sum` instead of `Sum`
   , `Sum`=[`sum`,Not(anything)]
-  , `Product`=[`product`,Not(anything)]
+  # Some parts (e.g. gmm_gibbs, see #103) of the simplifier still need `product`
+  , `Product`=[`product`,Not(satisfies(x->has(x,{Hakaru:-idx,Hakaru:-size})))]
   ]);
 
 eval_for_Simplify := proc(e,kb,$)
@@ -163,17 +177,26 @@ end proc;
 
 eval_in_ctx_tbl := table(
   [ `PARTITION` = ((e,kb,ev)->KB:-kb_Partition(e,kb,a->a,ev))
-  , `piecewise` = ((e,kb,ev)->KB:-kb_piecewise(e,kb,a->a,ev))
+  , `piecewise` = ((e,kb,ev)->KB:-kb_piecewise(e,kb,a->a,ev,'no_split_disj'))
   ]);
 
 eval_in_ctx := proc(ev, e, kb, $)
   if assigned(eval_in_ctx_tbl[op(0,e)]) then
     eval_in_ctx_tbl[op(0,e)](e,kb,curry(eval_in_ctx, ev));
   elif has(e, {indices(eval_in_ctx_tbl,nolist)}) then
-    map(x->eval_in_ctx(ev,x,kb),e);
+    ev(map(x->eval_in_ctx(ev,x,kb),e),kb);
   else
     ev(e,kb);
   end if;
+end proc;
+
+PrintVersion := proc($)
+  local i,v,s;
+  s := max(op(map(length@lhs,Hakaru:-Version)));
+  for i in map(lhs,Hakaru:-Version) do
+    v := table(Hakaru:-Version)[i];
+    printf(cat("%-",s,"s : %s\n"), i, `if`(v::string,v,""));
+  end do;
 end proc;
 
 # Testing
@@ -236,7 +259,7 @@ TestEfficient := proc(e, t::t_type, t_kb := KB:-empty, {label::string := "Test" 
   _Env_TestTools_Try_printf := false;
   result := TestTools[Try](label, Efficient(out),true);
   if result = NULL then
-    printf("%s passed.\n", label);
+    printf("%s passed\n", label);
   else
     error sprintf("%s FAILED.\n"
                   "The result of\n\tSimplifyKB(%a,%a,%a)\n\tis not efficient.\n"
@@ -277,158 +300,6 @@ Efficient := proc(mm, $)
   end do;
   return true;
 end proc;
-
-Profile := module()
-  option package;
-  export ModuleApply, GetProf, PPrProf, modules_to_profile, names_to_profile;
-  local ModuleLoad, cl, profile_flag_to_ord, name_to_string, take;
-
-  modules_to_profile := proc()
-    kernelopts(opaquemodules=false):
-    { 'BindingTools', 'Hakaru', 'KB', 'Partition', 'Loop'
-    , 'Domain', 'NewSLO', 'Summary'
-    , entries(Domain:-Improve:-Simplifiers, nolist)
-    };
-  end proc();
-
-  cl := proc(f,x,$)
-    local rs := f(x) minus x;
-    if rs={} then x else cl(f,rs) end if;
-  end proc;
-
-  take := proc(xs,n,$)
-    op(1,[ListTools[LengthSplit](xs,n)]);
-  end proc;
-
-  names_to_profile := proc()
-    local ns;
-    kernelopts(opaquemodules=false):
-    ns := cl(curry(map,x->CodeTools:-Profiling:-getMemberFuncs(x,true)), modules_to_profile);
-    map(proc(n)
-          if n::`module`('ModuleApply') then 'n[ModuleApply]' elif n::procedure then n else NULL end if
-        end proc, ns);
-  end proc();
-
-  name_to_string := (x->convert(x,'string'));
-
-  profile_flag_to_ord := table(
-     ['alpha' = (proc (a, b) lexorder(a[1],b[1]) end proc)
-     ,'ralpha' = (proc (a, b) not lexorder(a[1],b[1]) end proc)
-     ,'time' = (proc (a, b) evalb(a[4] < b[4]) end proc)
-     ,'rtime' = (proc (a, b) evalb(b[4] < a[4]) end proc)
-     ,'bytes' = (proc (a, b) evalb(a[6] < b[6]) end proc)
-     ,'rbytes' = (proc (a, b) evalb(b[6] < a[6]) end proc)
-     ,'load' = (proc (a, b) evalb(a[6]*a[6]*a[4] < b[6]*b[6]*b[4]) end proc)
-     ,'rload' = (proc (a, b) evalb(b[6]*b[6]*b[4] < a[6]*a[6]*a[4]) end proc)
-     ]);
-
-  GetProf := proc(fns::({list,set})(satisfies(x->member(x,:-profile_profiled)))
-                 ,{_flag:='rload'}
-                 )
-    local i, totaltime, totalbytes, totaldepth, totalcalls, timepc, bytespc, numargs, displist, totaltimepc, totalbytespc
-         , ix, get_timepc, get_bytespc, get_nm, nm, flag ;
-    global profile_time, profile_bytes, profile_maxdepth, profile_calls, profile_profiled;
-
-    flag := _flag;
-    totaltime, totalbytes, totalcalls, totaldepth := 0$4;
-    numargs := nops(fns);
-
-    for i to nops(profile_profiled) do
-      ix := name_to_string(profile_profiled[i]);
-      totaltime := totaltime+profile_time[ix];
-      totalbytes := totalbytes+profile_bytes[ix];
-      totalcalls := totalcalls+profile_calls[ix];
-      totaldepth := totaldepth+profile_maxdepth[ix];
-    end do;
-
-    if totaltime = 0 then
-      get_timepc := i->0;
-      totaltimepc := 0;
-    else
-      get_timepc := i->100*profile_time[name_to_string(profile_profiled[i])]/totaltime;
-      totaltimepc := 100;
-    end if;
-    for i to nops(profile_profiled) do
-      timepc[name_to_string(profile_profiled[i])] := get_timepc(i);
-    end do;
-
-    if totalbytes = 0 then
-      get_bytespc := i->0;
-      totalbytespc := 0;
-    else
-      get_bytespc := i->100*profile_bytes[name_to_string(profile_profiled[i])]/totalbytes;
-      totalbytespc := 100;
-    end if;
-    for i to nops(profile_profiled) do
-      bytespc[name_to_string(profile_profiled[i])] := get_bytespc(i);
-    end do;
-
-    displist := [];
-    if 0 < numargs then
-      get_nm := i->op(i,fns);
-    else
-      numargs := nops(profile_profiled);
-      get_nm := i->profile_profiled[i];
-    end if;
-    for i to numargs do
-      nm := get_nm(i); ix := name_to_string(nm);
-      displist := [op(displist),
-                   [nm, map(q->q[ix],[profile_maxdepth, profile_calls,
-                                      profile_time, timepc, profile_bytes, bytespc])[]  ]];
-    end do;
-
-    displist := sort(displist, profile_flag_to_ord[flag]);
-    displist, [totaldepth,totalcalls,totaltime,totaltimepc,totalbytes,totalbytespc];
-  end proc;
-
-  PPrProf := proc(dat,tot,{_max_name_len:=55,_prof_name:=`function`})
-    local i, k, pr_nm;
-    k := _max_name_len; pr_nm := _prof_name;
-
-    printf(cat(pr_nm,(" "$k-StringTools[Length](convert(pr_nm,string))),
-               `depth    calls     time    time%%     `));
-    printf(`    bytes   bytes%%\n`);
-    printf(cat("--"$k+1,`\n`));
-    for i from 1 to nops(dat) do
-      printf(cat(`%-`,convert(k,string),`a%7d%9d%9.3f%9.2f%14d%9.2f\n`),
-             op(1..7,dat[i]));
-    end do;
-    printf(cat("--"$k+1,`\n`));
-    printf(cat(`%-`,convert(k,string),`a%7d%9d%9.3f%9.2f%14d%9.2f\n\n`),
-           `total:`,op(1..6,tot));
-    return NULL
-  end proc;
-
-  ModuleApply := proc(f,{_args:=[]})
-    local res, nppr, rm_ppr, prf, tot, as; as := _args;
-    if assigned(_Env_Profile_count_ppr) then
-      nppr := _Env_Profile_count_ppr;
-    else nppr := 25; end if;
-    if assigned(_Env_Profile_remove_ppr) then
-      rm_ppr := _Env_Profile_remove_ppr;
-    else rm_ppr := (x->andmap(q->op(q,x)<0.001,[3,4,6])); end if;
-
-    unprofile(); profile(op(names_to_profile));
-    if   f::string then res := NULL; read(f);
-    else                res := f(op(as)); end if;
-    prf, tot := GetProf(names_to_profile,_rest);
-    unprofile();
-    prf := remove(rm_ppr, prf);
-    PPrProf(take(prf,nppr),tot,_rest);
-    res;
-  end proc;
-
-  ModuleLoad := proc($)
-    unprotect(:-convert);
-    :-convert := overload([proc(x::name,_::identical(string),$) option overload(callseq_only); sprintf("%a",x) end proc
-                          ,:-convert]);
-    protect(:-convert);
-    map(unprotect,[modules_to_profile, names_to_profile]);
-    NULL;
-  end proc;
-  ModuleLoad();
-end module;
-
 
 # Load a file in concrete Hakaru syntax (using the "momiji" command)
 # and return its term (in which Sum and Product are inert) and type.

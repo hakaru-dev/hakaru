@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds,
              FlexibleContexts,
              GADTs,
+             RankNTypes,
              KindSignatures #-}
 
 ----------------------------------------------------------------
@@ -52,10 +53,11 @@ module Language.Hakaru.CodeGen.Types
   , datumProd
   , datumFst
   , datumSnd
+  , datumIndex
 
   -- functions and closures
   , functionDef
-  , closureDeclaration
+  , closureStructure
 
   , buildType
   , castTo
@@ -68,7 +70,9 @@ module Language.Hakaru.CodeGen.Types
 
 import Control.Monad.State
 
+import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Types.Sing
@@ -262,10 +266,10 @@ datumSum
 datumSum dat funs ident =
   let declrs = fst $ runState (datumSum' dat funs) cNameStream
       union  = buildDeclaration (buildUnion declrs) (Ident "sum")
-      index  = buildDeclaration CInt (Ident "index")
+      ind    = buildDeclaration CInt (Ident "index")
       struct = buildStruct (Just ident) $ case declrs of
-                                            [] -> [index]
-                                            _  -> [index,union]
+                                            [] -> [ind]
+                                            _  -> [ind,union]
   in CDecl [ CTypeSpec struct ] []
 
 datumSum'
@@ -326,6 +330,9 @@ datumFst x = x ... "sum" ... "a" ... "a"
 datumSnd :: CExpr -> CExpr
 datumSnd x = x ... "sum" ... "a" ... "b"
 
+datumIndex :: CExpr -> CExpr
+datumIndex x = x ... "index"
+
 --------------------------------------------------------------------------------
 --                                Functions                                   --
 --------------------------------------------------------------------------------
@@ -353,11 +360,31 @@ functionDef typ ident argDecls internalDecls stmts =
 -- Closures --
 --------------
 
-closureDeclaration
-  :: (Sing (a :: Hakaru))
-  -> Ident
-  -> CDecl
-closureDeclaration = buildDeclaration . callStruct . typeName
+-- externally declare closure structure
+closureStructure
+  :: forall (a :: Hakaru) xs
+  .  [SomeVariable (KindOf a)]       -- ^ free variables
+  -> List1 Variable (xs :: [Hakaru]) -- ^ function arguments
+  -> Ident                           -- ^ identifier of function
+  -> Sing a                          -- ^ function return type
+  -> CExtDecl
+closureStructure fvs as i@(Ident name) typ = CDeclExt $
+  (CDecl [CTypeSpec $ (buildStruct (Just i) (codePtr:(declFvs cNameStream fvs)))]
+         [])
+  where declFvs _ [] = []
+        declFvs (n:ns) ((SomeVariable (Variable _ _ typ)):as) =
+          typeDeclaration typ (Ident n) : declFvs ns as
+        codePtr = CDecl (fmap CTypeSpec . buildType $ typ)
+                        [(CDeclr Nothing
+                           (CDDeclrFun
+                             (CDDeclrRec
+                               (CDeclr (Just . CPtrDeclr $ [])
+                                       (CDDeclrIdent . Ident $ "_code_ptr")))
+                             ([callStruct name]:(varTypes as)))
+                         ,Nothing)]
+
+        varTypes :: List1 Variable (xs :: [Hakaru]) -> [[CTypeSpec]]
+        varTypes = foldMap11 (\(Variable _ _ typ) -> [buildType typ])
 
 
 

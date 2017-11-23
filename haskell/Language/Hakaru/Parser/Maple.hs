@@ -239,7 +239,7 @@ not =
 
 lesseq :: Parser InertExpr
 lesseq = do
-    text "_Inert_LESSEQ"
+    _ <- text "_Inert_LESSEQ"
     args <- arg expr
     return $ InertArgs Not_
                [ InertArgs Less (reverse args)]
@@ -316,9 +316,6 @@ maple2AST (InertArgs Func
 maple2AST (InertArgs Func
         [InertName "Datum", InertArgs ExpSeq [InertName h, d]]) =
     mapleDatum2AST h d
-
-maple2AST (InertArgs Func [InertName "Lebesgue", _]) =
-    Var "lebesgue"
 
 maple2AST (InertArgs Func [InertName "Counting", _]) =
     Var "counting"
@@ -484,6 +481,13 @@ maple2AST (InertArgs Not_ [e])  =
 
 maple2AST (InertArgs Less es)  =
     foldl App (Var "less")  (map maple2AST es)
+
+-- Special case to undo the "piecewise(x=true,...)" created by our Maple code
+-- (in the Hakaru:-make_piece function), to avoid the error produced by Maple
+-- "piecewise(x,...)".  (This "=true" is also removed by NewSLO:-applyintegrand
+-- if Maple ever substitutes something for x, but that may never happen.)
+maple2AST (InertArgs Equal [e, InertName "true"]) = maple2AST e
+maple2AST (InertArgs Equal [InertName "true", e]) = maple2AST e
 
 maple2AST (InertArgs Equal es) =
     foldl App (Var "equal") (map maple2AST es)

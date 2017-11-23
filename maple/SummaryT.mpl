@@ -5,11 +5,11 @@ with(Summary):
 with(NewSLO, simplify_factor_assuming):
 
 module()
-  local kb, b, mr, f, bkt;
+  local kb, b, mr, f, bkt, A, B;
   kb := empty;
   b, kb := genType(b, HInt(Bound(`>=`,0),Bound(`<=`,size(as)-1)), kb);
   mr, f := summarize(piecewise(b=idx(z,i), idx(t,i), 0),
-                     kb, i, summary);
+                     kb, i=A..B, summary);
   CodeTools[Test](indets(mr, 'Add(anything)'), {Add(idx(t,i))},
                   label="Simple example from Summary.txt");
   f := simplify_factor_assuming(f, kb);
@@ -20,31 +20,43 @@ module()
 end module:
 
 module()
-  local kb, zNew, b, mr, f, bkt;
+  local kb, zNew, b, mr, f, bkt, A, B;
   kb := empty;
   zNew, kb := genType(zNew, HInt(Bound(`>=`,0),Bound(`<=`,size(as)-1)), kb);
   b, kb := genType(b, HInt(Bound(`>=`,0),Bound(`<=`,size(as)-1)), kb);
   mr, f := summarize(piecewise(b=piecewise(i=docUpdate,zNew,idx(z,i)),
                                idx(t,i)),
-                     kb, i, summary);
+                     kb, i=A..B, summary);
   CodeTools[Test](indets(mr, 'Add(anything)'), {Add(idx(t,i))},
                   label="First \"summate i\" in offshore under gmm_gibbs.hk");
   f := simplify_factor_assuming(f, kb);
   bkt := bucket(mr, i=0..size(t)-1);
   CodeTools[Test](eval(f, summary=bkt),
-                  piecewise(b=zNew,
-                            sum(piecewise(i=docUpdate, idx(t,i), 0),
-                                i=0..size(t)-1),
-                            0) +
-                  sum(piecewise(And(b=idx(z,i), Not(i=docUpdate)),
-                                idx(t,i),
-                                0),
-                      i=0..size(t)-1),
-                  simplify);
+                  {piecewise(b=zNew,
+                             sum(piecewise(i=docUpdate, idx(t,i), 0),
+                                 i=0..size(t)-1),
+                             0) +
+                   sum(piecewise(And(b=idx(z,i), Not(i=docUpdate)),
+                                 idx(t,i),
+                                 0),
+                       i=0..size(t)-1),
+                   piecewise(And(docUpdate::integer,A <= docUpdate,docUpdate <= B)
+                            ,piecewise(b = zNew,idx(t,docUpdate))-
+                             piecewise(And(idx(z,docUpdate) <= size(as)-1,
+                                           0 <= idx(z,docUpdate),
+                                           b = idx(z,docUpdate)),
+                                           idx(t,docUpdate)),
+                                      0)+
+                             sum(piecewise(b = idx(z,i),
+                                           idx(t,i),
+                                           0),
+                                 i = 0 .. size(t)-1)
+                  },
+                  'member'(simplify));
 end module:
 
 module()
-  local kb, docUpdate, zNew, k, i, mr, f, bkt;
+  local kb, docUpdate, zNew, k, i, mr, f, bkt, A, B;
   kb := empty;
   docUpdate, kb := genType(docUpdate, HInt(Bound(`>=`,0),Bound(`<=`,size(z)-1)), kb);
   zNew, kb := genType(zNew, HInt(Bound(`>=`,0),Bound(`<=`,size(topic_prior)-1)), kb);
@@ -55,7 +67,7 @@ module()
                                          piecewise(i=idx(w,j),1,0),
                                          0),
                                0),
-                     kb, j, summary);
+                     kb, j=A..B, summary);
   CodeTools[Test](indets(mr, 'Add(anything)'), {Add(1)},
                   label="First \"summate j\" in offshore under naive_bayes_gibbs.hk");
   f := simplify_factor_assuming(f, kb);
@@ -78,7 +90,7 @@ module()
   mr, f := summarize(piecewise(docUpdate=idx(doc,i13),
                                piecewise(And(i=zNew8, i18=idx(w,i13)), 1, 0),
                                0),
-                     kb, i13, summary);
+                     kb, i13=A..B, summary);
   CodeTools[Test](indets(mr, 'Add(anything)'), {Add(1)},
                   label="Spenser's example from 2017-01-23 email");
   f := simplify_factor_assuming(f, kb);

@@ -67,10 +67,10 @@ d4r := {
            Weight(y,Ret(t*y)),
            Msum())),
     Msum()),
-  PARTITION([Piece(t <= 0,Msum())
-           , Piece(And(t <= 1, 0 < t),Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x)))))
+  PARTITION([Piece(t < 0,Msum())
+           , Piece(And(t < 1, 0 < t),Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x)))))
            , Piece(1 < t,Weight(1/2/t^2,BetaD(2,1)))]),
-  PARTITION([Piece(t <= 0,Msum()), Piece(0 < t and t < 1,Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x))))), Piece(1 <= t,Weight(1/2/t^2,BetaD(2,1)))])
+  PARTITION([Piece(t < 0,Msum()), Piece(0 < t and t < 1,Weight(1/t,Bind(Uniform(0,t),x,Weight(x,Ret(x))))), Piece(1 < t,Weight(1/2/t^2,BetaD(2,1)))])
 }:
 
 # like d3 but positive, and the entire parametric family.

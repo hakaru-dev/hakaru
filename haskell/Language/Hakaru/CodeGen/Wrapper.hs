@@ -72,7 +72,7 @@ wrapProgram tast@(TypedAST typ _) mn pconfig =
        ( TypedAST typ' abt,       Just name ) ->
          -- still buggy for measures
          do mfId <- reserveIdent name
-            funCG (head . buildType $ typ') mfId [] $
+            funCG (buildType typ') mfId [] $
               do outE <- flattenWithName' abt "out"
                  putStat . CReturn . Just $ outE
 
@@ -107,7 +107,6 @@ mainFunction
 -- when measure, compile to a sampler
 mainFunction pconfig typ@(SMeasure _) abt =
   do mfId    <- reserveIdent "measure"
-     mdataId <- reserveIdent "mdata"
      mainId  <- reserveIdent "main"
      argVId <- reserveIdent "argv"
      argCId <- reserveIdent "argc"
@@ -115,10 +114,10 @@ mainFunction pconfig typ@(SMeasure _) abt =
      extDeclareTypes typ
 
      -- defined a measure function that returns mdata
-     funCG (head . buildType $ typ) mfId  [] $
+     funCG (buildType typ) mfId  [] $
        (putStat . CReturn . Just) =<< flattenWithName' abt "samp"
 
-     funCG CInt mainId mainArgs $
+     funCG [CInt] mainId mainArgs $
        do isManagedMem <- managedMem <$> get
           when isManagedMem (putExprStat gcInit)
 
@@ -131,8 +130,8 @@ mainFunction pconfig typ@(SMeasure _) abt =
           printCG pconfig typ (CCall (CVar mfId) []) (Just nSamples)
           putStat . CReturn . Just $ intE 0
 
-mainFunction pconfig typ@(SFun _ _) abt =
-  coalesceLambda abt $ \vars abt' ->
+mainFunction pconfig (SFun _ _) abt =
+  coalesceLambda abt $ \_ abt' ->
     do resId  <- reserveIdent "result"
        mainId <- reserveIdent "main"
        argVId <- reserveIdent "argv"
@@ -142,7 +141,7 @@ mainFunction pconfig typ@(SFun _ _) abt =
        let (resE:funE:argCE:argVE:[]) = fmap CVar [resId,funId,argCId,argVId]
            typ' = typeOf abt'
 
-       funCG CInt mainId mainArgs $
+       funCG [CInt] mainId mainArgs $
          do isManagedMem <- managedMem <$> get
             when isManagedMem (putExprStat gcInit)
             declare typ' resId
@@ -166,7 +165,7 @@ mainFunction pconfig typ@(SFun _ _) abt =
             putStat $ opComment "Parse Args"
             argEs <- foldLambdaWithIndex 1 abt $ \i (Variable _ _ t) ->
                        do argE <- localVar' t "arg"
-                          parseCG t (index argVE (intE i)) argE
+                          _ <- parseCG t (index argVE (intE i)) argE
                           return argE
 
             case typ' of
@@ -185,9 +184,7 @@ mainFunction pconfig typ@(SFun _ _) abt =
           :: ABT Term abt
           => Integer
           -> abt '[] a
-          -> ( forall (x :: Hakaru)
-             .  Integer
-             -> CodeGen ())
+          -> (Integer -> CodeGen ())
           -> CodeGen ()
         withLambdaDepth' n abt_ k =
           caseVarSyn abt_
@@ -210,7 +207,7 @@ mainFunction pconfig typ abt =
      mainId <- reserveIdent "main"
      let resE  = CVar resId
 
-     funCG CInt mainId [] $
+     funCG [CInt] mainId [] $
        do declare typ resId
 
           isManagedMem <- managedMem <$> get
@@ -358,15 +355,24 @@ printCG pconfig mtyp@(SMeasure typ) sampleFunc (Just numSamples) =
 printCG pconfig (SArray typ) arg Nothing =
   do itE <- localVar' SNat "it"
      putString "[ "
-     mkSequential
-     forCG (itE .=. (intE 0))
-           (itE .<. (arraySize arg))
-           (CUnary CPostIncOp itE)
-           (putExprStat
-           $ printfE [ stringE $ printFormat pconfig typ " "
-                     , index (arrayData arg) itE ])
+     seqDo $
+       forCG (itE .=. (intE 0))
+             (itE .<. (arraySize arg))
+             (CUnary CPostIncOp itE)
+             (putExprStat
+             $ printfE [ stringE $ printFormat pconfig typ " "
+                       , index (arrayData arg) itE ])
      putString "]\n"
   where putString s = putExprStat $ printfE [stringE s]
+
+-- bool and unit
+printCG _ (SData (STyCon sym)  _) arg Nothing =
+  case ssymbolVal sym of
+    "Unit" -> putExprStat $ printfE [stringE "()\n"]
+    "Bool" -> ifCG (datumIndex arg .==. (intE 0))
+                   (putExprStat $ printfE [stringE "true\n"])
+                   (putExprStat $ printfE [stringE "false\n"])
+    _ -> error $ show sym
 
 printCG pconfig SProb arg Nothing =
   putExprStat $ printfE
@@ -379,6 +385,10 @@ printCG pconfig typ arg Nothing =
   putExprStat $ printfE
               [ stringE $ printFormat pconfig typ "\n"
               , arg ]
+
+-- we should only have a number of samples if it a measure
+printCG _ _ _ (Just _) = error "this should not happen"
+
 
 printFormat :: PrintConfig -> Sing (a :: Hakaru) -> (String -> String)
 printFormat _ SInt         = \s -> "%d" ++ s
@@ -420,7 +430,7 @@ flattenTopLambda abt name =
     let varMs = foldMap11 (\v -> [mkVarDecl v =<< createIdent' "param" v]) vars
         typ   = typeOf abt'
     in  do argDecls <- sequence varMs
-           funCG (head . buildType $ typ) name argDecls $
+           funCG (buildType typ) name argDecls $
              (putStat . CReturn . Just) =<< flattenWithName' abt' "out"
 
   -- do at top level

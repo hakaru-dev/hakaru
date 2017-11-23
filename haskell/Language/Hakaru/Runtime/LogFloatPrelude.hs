@@ -10,7 +10,7 @@
            , OverloadedStrings
            #-}
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 -fno-warn-orphans #-}
 module Language.Hakaru.Runtime.LogFloatPrelude where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -30,8 +30,17 @@ import qualified Data.Vector.Generic             as G
 import qualified Data.Vector.Generic.Mutable     as M
 import           Control.Monad
 import           Control.Monad.ST
+import           Numeric.SpecFunctions           (logBeta)
 import           Prelude                         hiding (init, sum, product, exp, log, (**), pi)
 import qualified Prelude                         as P
+import           Language.Hakaru.Runtime.CmdLine (Parseable(..), Measure(..), makeMeasure)
+
+-- This Read instance really should be the logfloat package
+instance Read LogFloat where
+    readsPrec p s = [(logFloat x, r) | (x, r) <- readsPrec p s]
+
+instance Parseable LogFloat where
+  parse = return . read
 
 type family MinBoxVec (v1 :: * -> *) (v2 :: * -> *) :: * -> *
 type instance MinBoxVec V.Vector v        = V.Vector
@@ -101,6 +110,7 @@ instance G.Vector U.Vector LogFloat where
                 = G.basicUnsafeCopy mv v
   elemseq _ x z = G.elemseq (undefined :: U.Vector a) (logFromLogFloat x) z
 
+type Prob = LogFloat
 
 lam :: (a -> b) -> a -> b
 lam = id
@@ -118,59 +128,37 @@ ann_ :: a -> b -> b
 ann_ _ a = a
 {-# INLINE ann_ #-}
 
-exp :: Double -> LogFloat
+exp :: Double -> Prob
 exp = logToLogFloat
 {-# INLINE exp #-}
 
-log :: LogFloat -> Double
+log :: Prob -> Double
 log = logFromLogFloat
 {-# INLINE log #-}
 
-newtype Measure a = Measure { unMeasure :: MWC.GenIO -> IO (Maybe a) }
-
-instance Functor Measure where
-    fmap  = liftM
-    {-# INLINE fmap #-}
-
-instance Applicative Measure where
-    pure x = Measure $ \_ -> return (Just x)
-    {-# INLINE pure #-}
-    (<*>)  = ap
-    {-# INLINE (<*>) #-}
-
-instance Monad Measure where
-    return  = pure
-    {-# INLINE return #-}
-    m >>= f = Measure $ \g -> do
-                          Just x <- unMeasure m g
-                          unMeasure (f x) g
-    {-# INLINE (>>=) #-}
-
-makeMeasure :: (MWC.GenIO -> IO a) -> Measure a
-makeMeasure f = Measure $ \g -> Just <$> f g
-{-# INLINE makeMeasure #-}
+betaFunc :: Prob -> Prob -> Prob
+betaFunc a b = exp (logBeta (fromProb a) (fromProb b))
 
 uniform :: Double -> Double -> Measure Double
 uniform lo hi = makeMeasure $ MWC.uniformR (lo, hi)
 {-# INLINE uniform #-}
 
-normal :: Double -> LogFloat -> Measure Double
-normal mu sd = makeMeasure $ MWCD.normal mu (fromLogFloat sd)
+normal :: Double -> Prob -> Measure Double
+normal mu sd = makeMeasure $ MWCD.normal mu (fromProb sd)
 {-# INLINE normal #-}
 
-beta :: LogFloat -> LogFloat -> Measure LogFloat
+beta :: Prob -> Prob -> Measure Prob
 beta a b = makeMeasure $ \g ->
-  logFloat <$> MWCD.beta (fromLogFloat a) (fromLogFloat b) g
+  unsafeProb <$> MWCD.beta (fromProb a) (fromProb b) g
 {-# INLINE beta #-}
 
-gamma :: LogFloat -> LogFloat -> Measure LogFloat
+gamma :: Prob -> Prob -> Measure Prob
 gamma a b = makeMeasure $ \g ->
-  logFloat <$> MWCD.gamma (fromLogFloat a) (fromLogFloat b) g
+  unsafeProb <$> MWCD.gamma (fromProb a) (fromProb b) g
 {-# INLINE gamma #-}
 
-categorical :: MayBoxVec LogFloat LogFloat -> Measure Int
-categorical a = makeMeasure $ \g ->
-  fromIntegral <$> MWCD.categorical (U.map prep a) g
+categorical :: MayBoxVec Prob Prob -> Measure Int
+categorical a = makeMeasure $ MWCD.categorical (U.map prep a)
   where prep p = fromLogFloat (p / m)
         m      = G.maximum a
 {-# INLINE categorical #-}
@@ -266,6 +254,12 @@ nothing = Nothing
 just :: a -> Maybe a
 just = Just
 
+left :: a -> Either a b
+left = Left
+
+right :: b -> Either a b
+right = Right
+
 unit :: ()
 unit = ()
 
@@ -293,7 +287,19 @@ pjust :: Pattern -> (a -> b) -> Branch (Maybe a) b
 pjust PVar c = Branch { extract = \ma -> case ma of
                                            Nothing -> Nothing
                                            Just x  -> Just (c x) }
-pjust _ _ = error "Runtime.Prelude pjust"
+pjust _ _ = error "TODO: Runtime.Prelude{pjust}"
+
+pleft :: Pattern -> (a -> c) -> Branch (Either a b) c
+pleft PVar f = Branch { extract = \ma -> case ma of
+                                           Right _ -> Nothing
+                                           Left x -> Just (f x) }
+pleft _ _ = error "TODO: Runtime.Prelude{pLeft}"
+
+pright :: Pattern -> (b -> c) -> Branch (Either a b) c
+pright PVar f = Branch { extract = \ma -> case ma of
+                                            Left _ -> Nothing
+                                            Right x -> Just (f x) }
+pright _ _ = error "TODO: Runtime.Prelude{pRight}"
 
 
 ppair :: Pattern -> Pattern -> (x -> y -> b) -> Branch (x,y) b
@@ -323,11 +329,11 @@ dirac :: a -> Measure a
 dirac = return
 {-# INLINE dirac #-}
 
-pose :: LogFloat -> Measure a -> Measure a
+pose :: Prob -> Measure a -> Measure a
 pose _ a = a
 {-# INLINE pose #-}
 
-superpose :: [(LogFloat, Measure a)]
+superpose :: [(Prob, Measure a)]
           -> Measure a
 superpose pms = do
   i <- categorical (G.fromList $ map fst pms)
@@ -346,7 +352,7 @@ int_ = id
 unsafeNat :: Int -> Int
 unsafeNat = id
 
-nat2prob :: Int -> LogFloat
+nat2prob :: Int -> Prob
 nat2prob = fromIntegral
 
 fromInt  :: Int -> Double
@@ -358,16 +364,16 @@ nat2int  = id
 nat2real :: Int -> Double
 nat2real = fromIntegral
 
-fromProb :: LogFloat -> Double
+fromProb :: Prob -> Double
 fromProb = fromLogFloat
 
-unsafeProb :: Double -> LogFloat
+unsafeProb :: Double -> Prob
 unsafeProb = logFloat
 
 real_ :: Rational -> Double
 real_ = fromRational
 
-prob_ :: NonNegativeRational -> LogFloat
+prob_ :: NonNegativeRational -> Prob
 prob_ = fromRational . fromNonNegativeRational
 
 infinity :: Double
@@ -376,16 +382,16 @@ infinity = 1/0
 abs_ :: Num a => a -> a
 abs_ = abs
 
-(**) :: LogFloat -> Double -> LogFloat
+(**) :: Prob -> Double -> Prob
 (**) = pow
 {-# INLINE (**) #-}
 
-pi :: LogFloat
-pi = logFloat P.pi
+pi :: Prob
+pi = unsafeProb P.pi
 {-# INLINE pi #-}
 
-thRootOf :: Int -> LogFloat -> LogFloat
-thRootOf a b = b `pow` (recip $ fromIntegral a)
+thRootOf :: Int -> Prob -> Prob
+thRootOf a b = b ** (recip $ fromIntegral a)
 {-# INLINE thRootOf #-}
 
 array
@@ -407,6 +413,15 @@ a ! b = a G.! (fromIntegral b)
 size :: (G.Vector (MayBoxVec a) a) => MayBoxVec a a -> Int
 size v = fromIntegral (G.length v)
 {-# INLINE size #-}
+
+reduce
+    :: (G.Vector (MayBoxVec a) a)
+    => (a -> a -> a)
+    -> a
+    -> MayBoxVec a a
+    -> a
+reduce f n v = G.foldr f n v
+{-# INLINE reduce #-}
 
 class Num a => Num' a where
     product :: Int -> Int -> (Int -> a) -> a

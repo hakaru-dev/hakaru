@@ -55,25 +55,26 @@ end proc:
 #############################################################################
 Hakaru := module ()
   option package;
-  local p_true, p_false, make_piece, Mk_Plus, lift1_piecewise, TYPES,
+  uses Utilities;
+  local p_true, p_false, make_piece, lift1_piecewise, TYPES,
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
          case, app, ary, idx, fst, snd, size, Datum,
      # while these are "proper functions"
-         verify_measure, verify_hboolean, pattern_equiv,
+         Pair, _Unit,
+         verify_measure, verify_hboolean, pattern_equiv, unDatum,
          piecewise_And, map_piecewiselike, lift_piecewise, foldr_piecewise,
          flatten_piecewise,
          pattern_match, pattern_binds, bound_names_in,
          closed_bounds, open_bounds,
          htype_patterns,
-         bool_And, bool_Or, bool_Not,
-         UpdateArchive;
+         UpdateArchive, Version;
   # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global
      # Basic syntax for composing measures
-         Bind, Weight, Ret, Msum, Plate, Context, Pair, _Unit, PARTITION,
+         Bind, Weight, Ret, Msum, Plate, Context, PARTITION,
      # Primitive (known) measures
          Lebesgue, Uniform, Gaussian, Cauchy, StudentT, BetaD,
          GammaD, ChiSquared,
@@ -103,6 +104,7 @@ Hakaru := module ()
   p_true  := 'PDatum(true,PInl(PDone))';
   p_false := 'PDatum(false,PInr(PInl(PDone)))';
 
+  # Names 'bound' in an expression, in terms of Hakaru binding forms
   bound_names_in := proc(e, $)
     local ns, as;
     ns := table(
@@ -258,17 +260,13 @@ Hakaru := module ()
     end if
   end proc:
 
-  verify_hboolean := proc(a, b, $)
-    local x,y,conv_tbl,and_fn,or_fn,not_fn;
-    and_fn := ((x->AND({op(x)}))@`bool_And`);
-    or_fn  := ((x->OR({op(x)}))@`bool_Or`);
-    not_fn := bool_Not;
-    conv_tbl := table([`and`=and_fn,`And`=and_fn,`Or`=or_fn,`or`=or_fn,`Not`=not_fn,`not`=not_fn]);
-    x,y := subsindets([a,b], Or(`and`,`or`,`not`, specfunc({`And`,`Or`,`Not`})), x->conv_tbl[op(0,x)](op(x)))[];
-    evalb(x=y);
+  verify_hboolean := proc(a::{boolean,specfunc({And,Or,Not})},
+                          b::{boolean,specfunc({And,Or,Not})}, $)
+    local X,Y;
+    evalb(simplify(piecewise(a, X, Y) - piecewise(b, X, Y)=0));
   end proc;
 
-  verify_measure := proc(m, n, v:='hboolean', $)
+  verify_measure := proc(m, n, v:='simplify', $)
     local mv, x, i, j, k;
     mv := measure(v);
     if m :: specfunc({Bind, Plate}) and n :: specfunc({Bind, Plate}) and
@@ -460,9 +458,9 @@ Hakaru := module ()
      #piecewise.
      r:= [
           And(C_O, C_I[1]), B_I[1],
-          And(C_O, KB:-negate_rel(C_I[1])), B_I[2],
-          And(KB:-negate_rel(C_O), C_I[2]), B_I[3],
-          And(KB:-negate_rel(C_O), KB:-negate_rel(C_I[2])), B_I[4]
+          And(C_O, negate_rel(C_I[1])), B_I[2],
+          And(negate_rel(C_O), C_I[2]), B_I[3],
+          And(negate_rel(C_O), negate_rel(C_I[2])), B_I[4]
      ];
      userinfo(3, procname, "Proposed ouput: ", print(%piecewise(r[])));
      piecewise(r[])
@@ -505,12 +503,41 @@ Hakaru := module ()
     end if
   end proc;
 
+  # Unpacks a Datum into its three componenets:
+  #  - The type
+  #  - The constructor index
+  #  - The constructor arguments (as a list)
+  unDatum := proc(x, $)
+    local ty, v, con, as;
+    while x::'Datum'(anything, anything) do
+      ty, v := op(x);
+      con := 0;
+      as := NULL;
+      while v :: 'Inr(anything)' do
+        v := op(1,v);
+        con := con + 1;
+      end do;
+      if v :: 'Inl(anything)' then
+        v := op(1,v);
+        while v :: 'Et(anything, anything)' do
+          as := as, op([1,1],v);
+          v  := op(2,v);
+        end do;
+        if not v :: identical(Done) then break; end if;
+      else break; end if;
+      return [ty, con, [as]];
+    end do;
+    error "%1 is not a Datum", x;
+  end proc;
+
+  # Commonly used types
+  Pair  := (x,y) -> Datum(:-`pair`, Inl(Et(Konst(x), Et(Konst(y), Done))));
+  _Unit := Datum(:-`unit`,Inl(Done));
+
   #Extract the first member of a Pair.
   fst:= proc(p, $)
-    if p :: 'Pair'('anything'$2) then
-      op(1,p)
-    elif p :: 'Datum(identical(pair),anything)' then
-      op([2,1,1,1], p);
+    if p :: t_Pair('anything'$2) then
+      op([3,1], unDatum(p))
     elif p :: t_piecewiselike then
       map_piecewiselike(fst, p)
     else
@@ -520,10 +547,8 @@ Hakaru := module ()
 
   #Extract the second member of a Pair.
   snd:= proc(p, $)
-    if p :: 'Pair'('anything'$2) then
-      op(2,p)
-    elif p :: 'Datum(identical(pair),anything)' then
-      op([2,1,2,1,1], p);
+    if p :: t_Pair('anything'$2) then
+      op([3,2], unDatum(p))
     elif p :: t_piecewiselike then
       map_piecewiselike(snd, p)
     else
@@ -562,36 +587,6 @@ Hakaru := module ()
     Bound(`>`, lhs(r)), Bound(`<`, rhs(r))
   end proc;
 
-  # Creates an N-ary operator `Plus` such:
-  #  Plus(Plus(a,b),c)=Plus(a,Plus(a,b))
-  #  Plus(a,Iden)=a
-  #  Plus(a,Zero)=Zero
-  #  Plus(a)=a
-  #  Plus(x,x)=x
-  Mk_Plus := proc(plus,iden,zero,$) proc()
-    local as := {args};
-    as := map(a->if op(0,a)=plus then op(a) else a end if, as);
-    if zero in as then return zero end if;
-    as := remove(`=`,as,iden);
-    if nops(as)=0 then iden
-    elif nops(as)=1 then op(1,as)
-    else plus(op(as))
-    end if;
-  end proc; end proc;
-
-  # Replacements for `and` and `or` which do not
-  # evaluate "x = y" to "false" when "x,y" are unbound vars.
-  bool_And := Mk_Plus(And,true ,false);
-  bool_Or  := Mk_Plus(Or ,false,true);
-
-  bool_Not := proc(a,$)
-    if a :: t_kb_atom and not (a :: `::`) then
-      subsindets(KB:-negate_rel(a), `not`, Not@op);
-    else
-      Not(a)
-    end if;
-  end proc;
-
   # Enumerate patterns for a given Hakaru type
   htype_patterns := proc(t::t_type, $)
     :: specfunc(Branch(anything, list(t_type)), Branches);
@@ -626,7 +621,6 @@ Hakaru := module ()
   TYPES := table(
     [(`&implies` =
          'proc(e, t1, t2, $) type(e, Or(Not(t1), t2)) end proc')
-    ,(Name = 'And(name, Not({constant,undefined}))')
     ,(known_continuous =
          ''{
               Lebesgue(anything, anything), Uniform(anything, anything),
@@ -683,6 +677,10 @@ Hakaru := module ()
       ''{specfunc(piecewise), t_case, idx(list, anything)}'')
     ,(t_lam = ''lam(name, t_type, t_Hakaru)'')
 
+    # Commonly used types
+    ,(t_Pair = ((e,x,y) -> type(e,Datum(identical(pair), Inl(Et(Konst(x), Et(Konst(y), identical(Done))))))))
+    ,(t_Unit = ''Datum(identical(unit),Inl(identical(Done)))'')
+
     # A temporary type which should be removed when piecewise is gone
     ,(t_pw_or_part = 'Or(t_pw,t_partition)')
     ]);
@@ -702,7 +700,55 @@ Hakaru := module ()
            WARNING("Previous value of Hakaru keyword '%1' erased.", g);
          end if;
          protect(g)
-    end do
+    end do;
+
+    # This patch for part of Maples solve comes from issue#87
+    # It affects expression of the form
+    #   solve( And(idx[w, n2] = idx[w, n1], a <> b) )
+    # With the patch, this results in a correct solution. Without it, the
+    # a <> b constraint is dropped entirely.
+    kernelopts(opaquemodules=false):
+    unprotect(SolveTools:-Transformers:-NonEquality:-Apply);
+    SolveTools:-Transformers:-NonEquality:-Apply := proc(syst::SubSystem)
+    local eqs, noneqs, linnoneqs, news, vars, i, badnoneqs, neq, sol, sols;
+      noneqs, eqs := selectremove(type,[op(SolveTools:-Utilities:-GetEquations(syst)), op(SolveTools:-Utilities:-GetInequations(syst))],`<>`);
+      noneqs := map(SolveTools:-Utilities:-SimpleCond,noneqs);
+      noneqs := remove(z -> ormap(y -> evalb(type(y,`<`) and (lhs(y) = lhs(z) and rhs(y) = rhs(z) or lhs(y) = rhs(z) and rhs(y) = lhs(z))) = true,eqs),noneqs);
+      for i to nops(eqs) do
+        if type(eqs[i],`<=`) then
+          badnoneqs, noneqs := selectremove(z -> evalb(lhs(z) = lhs(eqs[i]) and rhs(z) = rhs(eqs[i]) or lhs(z) = rhs(eqs[i]) and rhs(z) = lhs(eqs[i])) = true,noneqs);
+          if nops(badnoneqs) <> 0 then
+            eqs := [op(1 .. i-1,eqs), `<`(op(eqs[i])), op(i+1 .. -1,eqs)]
+          end if
+           end if
+      end do;
+      noneqs := remove(proc (z) local y, subst; try for y in eqs while true do if has(y,lhs(z)) then subst := eval(`if`(type(y,relation),y,y = 0),lhs(z) = rhs(z)); if SolveTools:-Complexity(subst) < 400 and evalb(coulditbe(subst) = false) then return true end if end if end do; return false catch: return false end try end proc,noneqs);
+      if hastype(eqs,{`<`, `<=`}) and 0 < nops(noneqs) then
+        vars := SolveTools:-Utilities:-GetVariables(syst);
+        linnoneqs, noneqs := selectremove(z -> (not has(lhs(z),vars) or type(lhs(z),('linear')(vars))) and (not has(rhs(z),vars) or type(rhs(z),('linear')(vars))),noneqs);
+        linnoneqs := SolveTools:-SortByComplexity(linnoneqs);
+        noneqs := map(z -> lhs(z)-rhs(z) <> 0,noneqs);
+        news := [SolveTools:-Utilities:-SetInequations(SolveTools:-Utilities:-SetEquations(syst,{op(eqs)}),{op(noneqs)})];
+        for i in linnoneqs do
+          news := map(z -> op([SolveTools:-Utilities:-SetEquations(z,{op(SolveTools:-Utilities:-GetEquations(z)), lhs(i) < rhs(i)}), SolveTools:-Utilities:-SetEquations(z,{op(SolveTools:-Utilities:-GetEquations(z)), rhs(i) < lhs(i)})]),news)
+        end do;
+        return op(news)
+      elif nops(eqs) = 0 and 0 < nops(noneqs) then
+        vars := SolveTools:-Utilities:-GetVariables(syst);
+        sols := {};
+        for neq in noneqs do
+          sol := {op(SolveTools:-Engine:-Recurse({lhs(neq) = rhs(neq)},{},vars))};
+          sol := map(x -> op(map(y -> lhs(y) <> rhs(y),x)),sol);
+          sols := `union`(sols,sol)
+        end do;
+        return SolveTools:-Utilities:-SetFinished(SolveTools:-Utilities:-SetSolutions(syst,map(SolveTools:-Utilities:-Union,SolveTools:-Utilities:-GetOriginalSolutions(syst),sols)),true)
+      else
+        noneqs := map(z -> lhs(z)-rhs(z) <> 0,noneqs);
+        return SolveTools:-Utilities:-SetInequations(SolveTools:-Utilities:-SetEquations(syst,{op(eqs)}),{op(noneqs)})
+      end if
+    end proc;
+    protect(SolveTools:-Transformers:-NonEquality:-Apply);
+
   end proc;
 
   ModuleUnload := proc($)

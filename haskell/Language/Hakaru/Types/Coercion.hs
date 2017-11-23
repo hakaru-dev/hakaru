@@ -124,6 +124,8 @@ data Coercion :: Hakaru -> Hakaru -> * where
     -- order to get a better inductive hypothesis.
     CCons :: !(PrimCoercion a b) -> !(Coercion b c) -> Coercion a c
 
+infixr 5 `CCons`
+
 -- TODO: instance Read (Coercion a b)
 deriving instance Show (Coercion a b)
 

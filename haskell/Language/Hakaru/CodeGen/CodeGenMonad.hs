@@ -44,9 +44,9 @@ module Language.Hakaru.CodeGen.CodeGenMonad
   , extDeclareTypes
 
   , funCG
-  , isParallel
-  , mkParallel
-  , mkSequential
+  , whenPar
+  , parDo
+  , seqDo
 
   , reserveIdent
   , genIdent
@@ -81,7 +81,6 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.CodeGen.Types
 import Language.Hakaru.CodeGen.AST
-import Language.Hakaru.CodeGen.Pretty
 import Language.Hakaru.CodeGen.Libs
 
 import Data.Number.Nat (fromNat)
@@ -89,23 +88,23 @@ import qualified Data.IntMap.Strict as IM
 import qualified Data.Text          as T
 import qualified Data.Set           as S
 
-import Text.PrettyPrint (render)
-
 -- CG after "codegen", holds the state of a codegen computation
-data CG = CG { freshNames    :: [String]     -- ^ fresh names for code generations
-             , reservedNames :: S.Set String -- ^ reserve names during code generations
-             , extDecls      :: [CExtDecl]   -- ^ total external declarations
-             , declarations  :: [CDecl]      -- ^ declarations in local block
-             , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
-             , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
-             , managedMem    :: Bool         -- ^ garbage collected block
-             , sharedMem     :: Bool         -- ^ shared memory supported block
-             , distributed   :: Bool         -- ^ distributed supported block
-             , logProbs      :: Bool         -- ^ true by default, but might not matter in some situations
-             }
+data CG = CG
+  { freshNames    :: [String]     -- ^ fresh names for code generations
+  , reservedNames :: S.Set String -- ^ reserve names during code generations
+  , extDecls      :: [CExtDecl]   -- ^ total external declarations
+  , declarations  :: [CDecl]      -- ^ declarations in local block
+  , statements    :: [CStat]      -- ^ statements can include assignments as well as other side-effects
+  , varEnv        :: Env          -- ^ mapping between Hakaru vars and codegeneration vars
+  , managedMem    :: Bool         -- ^ garbage collected block
+  , sharedMem     :: Bool         -- ^ shared memory supported block (OpenMP)
+  , simd          :: Bool         -- ^ support single instruction multiple data instructions  (OpenMP)
+  , distributed   :: Bool         -- ^ distributed supported block
+  , logProbs      :: Bool         -- ^ true by default, but might not matter in some situations
+  }
 
 emptyCG :: CG
-emptyCG = CG cNameStream mempty mempty [] [] emptyEnv False False False True
+emptyCG = CG cNameStream mempty mempty [] [] emptyEnv False False False False True
 
 type CodeGen = State CG
 
@@ -132,18 +131,26 @@ runCodeGenWith cg start = let (_,cg') = runState cg start in reverse $ extDecls 
 
 --------------------------------------------------------------------------------
 
-isParallel :: CodeGen Bool
-isParallel = sharedMem <$> get
+whenPar :: CodeGen () -> CodeGen ()
+whenPar m = (sharedMem <$> get) >>= (\b -> when b m)
 
-mkParallel :: CodeGen ()
-mkParallel =
-  do cg <- get
-     put (cg { sharedMem = True } )
+parDo :: CodeGen a -> CodeGen a
+parDo m = do
+  cg <- get
+  put (cg { sharedMem = True } )
+  a <- m
+  cg' <- get
+  put (cg' { sharedMem = sharedMem cg } )
+  return a
 
-mkSequential :: CodeGen ()
-mkSequential =
-  do cg <- get
-     put (cg { sharedMem = False } )
+seqDo :: CodeGen a -> CodeGen a
+seqDo m = do
+  cg <- get
+  put (cg { sharedMem = False } )
+  a <- m
+  cg' <- get
+  put (cg' { sharedMem = sharedMem cg } )
+  return a
 
 --------------------------------------------------------------------------------
 
@@ -267,27 +274,6 @@ extDeclare d = do cg <- get
                                else d:extds
                   put $ cg { extDecls = extds' }
 
-funCG :: CTypeSpec -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
-funCG ts ident args m =
-  do cg <- get
-     let (_,cg') = runState m $ cg { statements   = []
-                                   , declarations = []
-                                   , freshNames   = cNameStream }
-     let decls = reverse . declarations $ cg'
-         stmts = reverse . statements   $ cg'
-     -- reset local statements and declarations
-     put $ cg' { statements   = statements cg
-               , declarations = declarations cg
-               , freshNames   = freshNames cg }
-     extDeclare . CFunDefExt $
-       CFunDef [CTypeSpec ts]
-               (CDeclr Nothing (CDDeclrIdent ident))
-               args
-               (CCompound ((fmap CBlockDecl decls) ++ (fmap CBlockStat stmts)))
-
-
-
-
 ---------
 -- ENV --
 ---------
@@ -306,8 +292,34 @@ lookupVar :: Variable (a :: Hakaru) -> Env -> Maybe Ident
 lookupVar (Variable _ nat _) (Env env) =
   IM.lookup (fromNat nat) env
 
-----------------------------------------------------------------
--- Control Flow
+--------------------------------------------------------------------------------
+--                      Control Flow and Code Blocks                          --
+--------------------------------------------------------------------------------
+{-
+Monadic operations funCG, ifCG, whileCG, forCG, reductionCG, and codeBlockCG all
+generate compound C statements (several declarations and statements surrounded
+by '{' '}'). It is important that these code blocks float external functions and
+imports to the top of the generated C file AND keep a set of the variable
+declarations local to the block of code.
+-}
+
+funCG :: [CTypeSpec] -> Ident -> [CDecl] -> CodeGen () -> CodeGen ()
+funCG ts ident args m =
+  do cg <- get
+     let (_,cg') = runState m $ cg { statements   = []
+                                   , declarations = []
+                                   , freshNames   = cNameStream }
+     let decls = reverse . declarations $ cg'
+         stmts = reverse . statements   $ cg'
+     -- reset local statements and declarations
+     put $ cg' { statements   = statements cg
+               , declarations = declarations cg
+               , freshNames   = freshNames cg }
+     extDeclare . CFunDefExt $
+       CFunDef (fmap CTypeSpec ts)
+               (CDeclr Nothing (CDDeclrIdent ident))
+               args
+               (CCompound ((fmap CBlockDecl decls) ++ (fmap CBlockStat stmts)))
 
 ifCG :: CExpr -> CodeGen () -> CodeGen () -> CodeGen ()
 ifCG bE m1 m2 =
@@ -361,9 +373,7 @@ forCG iter cond inc body =
      put $ cg' { statements   = statements cg
                , declarations = declarations cg
                , sharedMem    = sharedMem cg } -- only use pragmas at the top level
-     par <- isParallel
-     when par . putStat . CPPStat . PPPragma
-       $ ["omp","parallel","for"]
+     whenPar . putStat . CPPStat . ompToPP $ OMP (Parallel [For])
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
@@ -371,54 +381,79 @@ forCG iter cond inc body =
                                ++ (fmap CBlockStat (reverse $ statements cg'))))
 
 {-
-The operation for a reduction is either a builtin binary op, or must be
-specified
+The operation for a reduction is either a builtin binary op (which is a built
+in OpenMP reducer),
+
+OR, it must be specified for a given Hakaru type. This will generate fuctions
+for the monoidal operations mempty and mappend, use these to generate OpenMP
+reduction declarations, and then outfit a for loop with the pragma calling the
+reduction.
 -}
 reductionCG
-  :: Either CBinaryOp (CExpr -> CExpr -> CExpr)
-  -> Ident
-  -> CExpr
-  -> CExpr
-  -> CExpr
-  -> CodeGen ()
+  :: Either CBinaryOp
+            ( Sing (a :: Hakaru)             -- type of reduction sections
+            , CExpr -> CodeGen ()            -- monoidal unit
+            , CExpr -> CExpr -> CodeGen () ) -- monoidal multiplication
+  -> CExpr       -- accumulator var
+  -> CExpr       -- iteration var
+  -> CExpr       -- iteration condition
+  -> CExpr       -- iteration increment
+  -> CodeGen ()  -- body of the loop
   -> CodeGen ()
 reductionCG op acc iter cond inc body =
   do cg <- get
-     let (_,cg') = runState body $ cg { statements = []
+     let (_,cg') = runState body $ cg { statements   = []
                                       , declarations = []
-                                      , sharedMem = False } -- only use pragmas at the top level
+                                      , sharedMem    = False } -- only use pragmas at the top level
      put $ cg' { statements   = statements cg
                , declarations = declarations cg
                , sharedMem    = sharedMem cg }
-     par <- isParallel
-     when par $
+     whenPar $
        case op of
-         Left binop -> putStat . CPPStat . PPPragma $
-                         [ "omp","parallel","for","reduction("
-                         , render . pretty $ binop
-                         , ":"
-                         , render . pretty $ acc
-                         ,")"]
-         -- INCOMPLETE
-         Right red  -> do (Ident redName) <- genIdent' "red"
-                          let declRedPragma = [ "omp","declare","reduction("
-                                              , redName,":",undefined,":"
-                                              , render . pretty $
-                                                  red (CVar . Ident $ "omp_in")
-                                                      (CVar . Ident $ "omp_out")
-                                              , ")"]
-                              redPragma = [ "omp","parallel","for","reduction("
-                                          , redName
-                                          , ":"
-                                          , render . pretty $ acc
-                                          ,")"]
-                          putStat . CPPStat . PPPragma $ declRedPragma
-                          putStat . CPPStat . PPPragma $ redPragma
+         Left binop ->
+           putStat . CPPStat . ompToPP $
+             OMP (Parallel [For,Reduction (Left binop) [acc]])
+         Right (typ,unit,mul) ->
+           do { redId <- declareReductionCG typ unit mul
+              ; putStat . CPPStat . ompToPP $
+                  OMP (Parallel [For,Reduction (Right redId) [acc]]) }
      putStat $ CFor (Just iter)
                     (Just cond)
                     (Just inc)
                     (CCompound $  (fmap CBlockDecl (reverse $ declarations cg')
                                ++ (fmap CBlockStat (reverse $ statements cg'))))
+
+-- given a monoid for a Hakaru type, generate the appropriate openMP reduction
+-- declaration and return its unique identifier
+declareReductionCG
+  :: Sing (a :: Hakaru)
+  -> (CExpr -> CodeGen ())
+  -> (CExpr -> CExpr -> CodeGen ())
+  -> CodeGen Ident
+declareReductionCG typ unit mul =
+  do (redId:unitId:mulId:[]) <- mapM genIdent' ["red","unit","mul"]
+     let declType = typePtrDeclaration typ
+
+     inId <- genIdent' "in"
+     funCG [CVoid] unitId [declType inId] $
+       unit . CVar $ inId
+
+     (outId:in2Id:[]) <- mapM genIdent' ["out","in"]
+     funCG [CVoid] mulId [declType outId,declType in2Id] $
+       mul (CVar outId) (CVar in2Id)
+
+     let typ' = case buildType typ of
+                  (x:_) -> x
+                  _ -> error $ "buildType{" ++ (show typ) ++ "}"
+     putStat . CPPStat . ompToPP $
+       OMP (DeclareRed redId
+                       typ'
+                       (CCall (CVar mulId)
+                              (fmap (address . CVar . Ident)
+                                    ["omp_in","omp_out"]))
+                       (CCall (CVar unitId)
+                              [address . CVar . Ident $ "omp_priv"]))
+     return redId
 
 
 -- not control flow, but like these it creates a block with local variables

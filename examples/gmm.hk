@@ -13,6 +13,6 @@ fn K nat:
     theta <~ dirichlet(topic_prior)
     phi <~ plate k of K: normal(0,1)
     t <~ plate i of size(t):
-           z <~ observe categorical(theta) z[i]
-           observe normal(phi[z], 1) t[i]
+           z <~ observe(categorical(theta), z[i])
+           observe(normal(phi[z], 1), t[i])
     return theta

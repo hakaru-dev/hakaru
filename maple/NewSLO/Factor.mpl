@@ -3,7 +3,7 @@
   simplify_factor_assuming := module ()
 
     export ModuleApply;
-    local graft_pw, GAMMAratio, wrap, and_info,
+    local graft_pw, GAMMAratio, wrap,
           hack_Beta_pw, hack_Beta, hackier_Beta,
           eval_piecewise, bounds_are_simple, eval_loop, eval_factor;
 
@@ -107,20 +107,33 @@ $include "NewSLO/Piecewise.mpl"
           #        to a^   sum(b(i)^2   ,i=...)
           #         * a^(2*sum(b(i)*c(i),i=...))
           #         * a^   sum(c(i)^2   ,i=...)
-          return mul(subsop(-1=j,e),
+          return mul(subsop(-1=j,'e'),
                      j in convert(eval_factor(expand(op(-1,e)), kb, `+`,
                                               map2(subsop,1=sum,loops)),
                                   'list', `+`));
         end if;
-        # Rewrite ... * idx([p,1-p],i)
-        #      to ... * p^idx([1,0],i) * (1-p)^idx([0,1],i)
-        # because the latter is easier to integrate and recognize with respect to p
         if e :: 'idx(list, anything)' and not depends(op(1,e), i) then
+          if has(op(1,e), piecewise) then
+            # Simplify the `idx' without chilling (by moving it into the
+            # function argument to kb_assuming_mb) and recurse. This shouldn't
+            # really be needed, but sometimes on expressions of the form
+            # produced by the subsequent case are simplified incorrectly by the
+            # later call to `simplify_assuming' in `simplify_factor_assuming'.
+            res := kb_assuming_mb(
+              simplify@(x->idx(x,op(2,e))), op(1,e), kb, _->e);
+            if res<>e then
+              return eval_factor(res, kb, `*`, loops);
+            end if;
+          end if;
+
+          # Rewrite ... * idx([p,1-p],i)
+          #      to ... * p^idx([1,0],i) * (1-p)^idx([0,1],i)
+          # because the latter is easier to integrate and recognize with respect to p
           return mul(op([1,j],e)
-                     ^ eval_factor(idx([seq(`if`(k=j,1,0), k=1..nops(op(1,e)))],
-                                       op(2,e)),
-                                   kb, `+`, map2(subsop,1=sum,loops)),
-                     j=1..nops(op(1,e)));
+                   ^ eval_factor(idx([seq(`if`(k=j,1,0), k=1..nops(op(1,e)))],
+                                      op(2,e)),
+                                  kb, `+`, map2(subsop,1=sum,loops)),
+                   j=1..nops(op(1,e)));
         end if;
       end if;
 

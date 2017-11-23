@@ -207,7 +207,7 @@ Primitives of type measure are defined in MeasureOp.
 -- elsewhere since it naturally fits with 'MBind', even though it
 -- is a siple operator.)
 data MeasureOp :: [Hakaru] -> Hakaru -> * where
-    Lebesgue    :: MeasureOp '[]                 'HReal
+    Lebesgue    :: MeasureOp '[ 'HReal, 'HReal ] 'HReal
     Counting    :: MeasureOp '[]                 'HInt
     Categorical :: MeasureOp '[ 'HArray 'HProb ] 'HNat
     Uniform     :: MeasureOp '[ 'HReal, 'HReal ] 'HReal

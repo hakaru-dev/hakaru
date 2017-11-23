@@ -25,7 +25,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Types.Sing
     ( Sing(..)
-    , SingI(..)
+    , SingI(..), singOf
     -- * Some helpful shorthands for \"built-in\" datatypes
     -- ** Constructing singletons
     , sBool
@@ -37,10 +37,11 @@ module Language.Hakaru.Types.Sing
     -- ** Destructing singletons
     , sUnMeasure
     , sUnArray
-    , sUnPair
-    , sUnEither
+    , sUnPair, sUnPair'
+    , sUnEither, sUnEither'
     , sUnList
     , sUnMaybe
+    , sUnFun
     -- ** Singletons for `Symbol`
     , someSSymbol, ssymbolVal
     , sSymbol_Bool
@@ -72,6 +73,9 @@ data family Sing (a :: k) :: *
 -- | A class for automatically generating the singleton for a given
 -- Hakaru type.
 class SingI (a :: k) where sing :: Sing a
+
+singOf :: SingI a => proxy a -> Sing a
+singOf _ = sing
 
 {-
 -- TODO: we'd much rather have something like this, to prove that
@@ -197,6 +201,14 @@ sUnPair :: Sing (HPair a b) -> (Sing a, Sing b)
 sUnPair (SData (STyApp (STyApp (STyCon _) a) b) _) = (a,b)
 sUnPair _ = error "sUnPair: the impossible happened"
 
+sUnPair' :: Sing (x :: Hakaru)
+         -> (forall (a :: Hakaru) (b :: Hakaru) .
+             (TypeEq x (HPair a b), Sing a, Sing b) -> r)
+         -> Maybe r
+sUnPair' (SData (STyApp (STyApp (STyCon t) a) b) _) k
+  | Just Refl <- jmEq1 t sSymbol_Pair = Just $ k (Refl, a, b)
+sUnPair' _ _                          = Nothing
+
 sEither :: Sing a -> Sing b -> Sing (HEither a b)
 sEither a b =
     SData (STyCon sSymbol_Either `STyApp` a `STyApp` b)
@@ -206,6 +218,14 @@ sEither a b =
 sUnEither :: Sing (HEither a b) -> (Sing a, Sing b)
 sUnEither (SData (STyApp (STyApp (STyCon _) a) b) _) = (a,b)
 sUnEither _ = error "sUnEither: the impossible happened"
+
+sUnEither' :: Sing (x :: Hakaru)
+         -> (forall (a :: Hakaru) (b :: Hakaru) .
+             (TypeEq x (HEither a b), Sing a, Sing b) -> r)
+         -> Maybe r
+sUnEither' (SData (STyApp (STyApp (STyCon t) a) b) _) k
+  | Just Refl <- jmEq1 t sSymbol_Either = Just $ k (Refl, a, b)
+sUnEither' _ _                          = Nothing
 
 sList :: Sing a -> Sing (HList a)
 sList a =
@@ -224,6 +244,9 @@ sMaybe a =
 sUnMaybe :: Sing (HMaybe a) -> Sing a
 sUnMaybe (SData (STyApp (STyCon _) a) _) = a
 sUnMaybe _ = error "sUnMaybe: the impossible happened"
+
+sUnFun :: Sing (a ':-> b) -> (Sing a, Sing b)
+sUnFun (SFun a b) = (a,b)
 
 ----------------------------------------------------------------
 data instance Sing (a :: HakaruCon) where

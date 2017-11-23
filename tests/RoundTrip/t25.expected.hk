@@ -1,1 +1,1 @@
-fn x1 prob: fn x0 real: weight((x1 * exp(cos(x0)) / 2), return ())
+fn x1 prob: fn x0 real: weight((x1 * exp(cos(x0)) * (1/2)), return ())

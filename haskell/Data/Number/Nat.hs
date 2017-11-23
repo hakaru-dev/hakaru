@@ -1,5 +1,5 @@
 -- TODO: merge with the Posta version. And release them as a standalone package
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, DeriveDataTypeable #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
 --                                                    2015.12.17
@@ -24,6 +24,7 @@ module Data.Number.Nat
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (Monoid(..))
 #endif
+import Data.Data (Data, Typeable)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -31,7 +32,7 @@ import Data.Monoid (Monoid(..))
 -- instance will throw errors on subtraction, negation, and
 -- 'fromInteger' when the result is not a natural number.
 newtype Nat = Nat Int
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Data, Typeable)
 
 -- TODO: should we define our own Show instance, in order to just
 -- show the Int itself, relying on our 'fromInteger' definition to

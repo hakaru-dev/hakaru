@@ -2,12 +2,10 @@
 fromLO := module()
   export ModuleApply :=
   proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
-    local h, e;
+    local h;
     h := gensym(op(1,lo));
     _Env_HakaruSolve := false;
-    e := eval(op(2,lo), op(1,lo) = h);
-    e := subs([sum=Sum,product=Product,int=Int], e);
-    unintegrate(h, e, _ctx)
+    unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
   end proc;
 
   export
@@ -21,6 +19,7 @@ fromLO := module()
       x, kb1 := genLebesgue(op([2,1],e), lo, hi, kb);
       subintegral := eval(op(1,e), op([2,1],e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
+      w := eval(w, exp=expand@exp);
       recognition := recognize_continuous(w, x, lo, hi, kb1);
       if recognition :: 'Recognized(anything, anything)' then
         (w, w0) := factorize(op(2,recognition), x, kb1);
@@ -94,7 +93,8 @@ fromLO := module()
         Msum()
       end if;
     elif e :: t_pw and not Partition:-ConditionsDepend(Partition:-PWToPartition(e), h) then
-        m := kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)), 'no_split_disj');
+        m := kb_piecewise(e, kb, ((lhs, kb)-> lhs), ((rhs, kb)-> unintegrate(h, rhs, kb)),
+                          'check_valid', 'no_split_disj');
         if m :: t_pw and nops(m) = 2 then
           piecewise(op(m), Msum());
         else
@@ -352,7 +352,6 @@ fromLO := module()
     FAIL
   end proc;
 
-
   # (s,r):=factorize(e,var,kb) expresses e in the context kb as s*r,
   # where r doesn't depend on var and s is as simple as possible
   # (and non-negative if possible).
@@ -372,6 +371,10 @@ fromLO := module()
       return s^op(2,e),
              r^op(2,e);
     end if;
+    if e :: 'exp(anything)' then
+      s, r := termize(op(-1,e), var, kb);
+      return exp(s), exp(r);
+    end if;
     if e :: 'And(specfunc({product,Product}),
                  anyfunc(anything, name=range(freeof(var))))' then
       x, kb1 := genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb, var);
@@ -390,9 +393,6 @@ fromLO := module()
     end if;
     e, 1;
   end proc;
-
-
-
 
   # (s,r):=termize(e,var,kb) expresses e in the context kb as s+r,
   # where r doesn't depend on var and s is as simple as possible.
@@ -488,7 +488,7 @@ fromLO := module()
 
   local
   msum := proc()
-    local as := {args};
+    local as := [args];
     as := remove(`=`,as,Msum());
     as := map(a-> if a::specfunc(Msum) then op(a) else a end if, as);
     if    nops(as)=1 then op(1,as)
