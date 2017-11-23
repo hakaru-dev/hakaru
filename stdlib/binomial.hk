@@ -1,0 +1,54 @@
+###########################
+# Combinatorial Functions #
+###########################
+
+# Definitions for basic Combinatorial Functions used in some functions
+
+# Factorial n! = 1*2*...*(n-1)*n
+def factorial(n nat):
+	product i from 1 to n+1: i
+
+# Choose function: n C k
+# If return w/ real2nat, there are rounding errors
+
+	# OVERFLOW ERRORS with Choose()
+	# Overflow error when n is too high. 
+	#	E.g choose(30,10) returns 3 and 
+	# 	choose(30,15) returns this error:
+
+	#		hakaru: unsafeNat: negative input
+	# 		CallStack (from HasCallStack):
+  	# 		error, called at haskell/Data/Number/Nat.hs:71:19 in hakaru-0.6.0-AbnzUW5EnqjBuQmLn3LJbU:Data.Number.Nat
+
+def choose(n nat, k nat):
+	# TODO error check k <= n
+	(product i from k+1 to n+1: i)/(product i from 1 to int2nat(n-k+1): i)
+
+
+########################################################
+# Binomial Distribution and Transformations #
+########################################################
+
+# Binomial Distribution
+# Describes number of successes in n independant experiments
+# Each with success probability p
+# Current limitations: see choose function comments
+def binomial(n nat, p prob):
+	arr = array x of n+1:
+		real2prob(choose(n,x) * p^x * (1-p)^int2nat(n-x))
+	categorical(arr)
+
+# Bernoulli distribution is simply Binomial Distribution of 1 experiment
+def bernoulli(p prob):
+	binomial(1,p)
+
+# Beta-Binomial is defined as a binomial distribution
+# with the success probability pulled from a beta distribution
+# Parameters a and b are the shape parameters of the beta distribution
+def betaBinomial(a prob, b prob, n nat):
+	p <~ beta(a,b)
+	binomial(n,p)
+# TODO: test betaBinomial correctness. 
+# i.e. betaBinomial(1,1,n) should be equivalent to rectangular(n)
+# ...doesn't seem to be right now. Although other values of a and b
+# create distributions with the expected shape.
