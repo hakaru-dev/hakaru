@@ -107,10 +107,10 @@ primTable =
     ,("true",        TNeu $ true_)
     ,("false",       TNeu $ false_)
      -- Coercions
-    ,("int2nat",     primUnsafe cNat2Int)
+    ,("int2nat",     primUnsafe cNat2Int)  -- unsafe, wrong direction
     ,("int2real",    primCoerce cInt2Real)
     ,("prob2real",   primCoerce cProb2Real)
-    ,("real2prob",   primUnsafe cProb2Real)
+    ,("real2prob",   primUnsafe cProb2Real) -- unsafe, wrong direction
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
     ,("nat2int",     primCoerce cNat2Int)
