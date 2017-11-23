@@ -30,5 +30,3 @@ def betaBinomial(a prob, b prob, n nat):
 # defined on the Univarait Distribution Map might be wrong...
 def negativeHyperGeometric(n1 nat, n2 nat, n3 nat):
 	betaBinomial(nat2prob(n2), nat2prob(n3), n1)
-
-negativeHyperGeometric(5,20,30)
