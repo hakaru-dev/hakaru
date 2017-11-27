@@ -44,8 +44,8 @@ def standardChi(n nat):
 # Chi distribution Transformations #
 ####################################
 
-# F_distribution "arises frequently as the null distribution of a test statistic, most notably in the analysis of variance, e.g., F-test." - Wikipedia
-def F_distribution(n1 nat, n2 nat):
+# F distribution "arises frequently as the null distribution of a test statistic, most notably in the analysis of variance, e.g., F-test." - Wikipedia
+def F(n1 nat, n2 nat):
 	X1 <~ standardChiSq(n1)
 	X2 <~ standardChiSq(n2)
 	return (X1*n2)/(X2*n1)
@@ -60,5 +60,5 @@ def nonCentralT(n nat, delta prob):
 
 # T distribution approximates normal distribution when 
 # sample size is small and standard deviation is unknown
-def T_distribution(n nat):
+def t(n nat):
 	return nonCentralT(n,0)
