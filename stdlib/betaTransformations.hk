@@ -1,7 +1,7 @@
 # Hakaru Standard Library
 # Distributions based on Beta Distribution tranformations
 
-# author: Justin Staples, Mahmoud Khattab
+# authors: Justin Staples, Mahmoud Khattab
 
 # Inverse Beta Distribution
 def invBeta(a prob, b prob):
