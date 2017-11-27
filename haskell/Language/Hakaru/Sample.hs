@@ -330,7 +330,7 @@ evaluatePrimOp Exp (e1 :* End) env =
 
 evaluatePrimOp Log (e1 :* End) env =
     case evaluate e1 env of
-      VProb v1 -> VReal . LF.log $ LF.fromLogFloat v1
+      VProb v1 -> VReal . LF.logFromLogFloat $ v1
       v        -> case v of {}
 
 evaluatePrimOp (Infinity h) End _ =
