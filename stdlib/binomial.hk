@@ -26,7 +26,6 @@ def betaBinomial(a prob, b prob, n nat):
 # TODO: test betaBinomial correctness. 
 # i.e. betaBinomial(1,1,n) should be equivalent to rectangular(n)
 
-# Not working as expected. I think the transformation as 
-# defined on the Univarait Distribution Map might be wrong...
+# Negative Hyper Geometric distribution
 def negativeHyperGeometric(n1 nat, n2 nat, n3 nat):
-	betaBinomial(nat2prob(n2), nat2prob(n3), n1)
+	betaBinomial(nat2prob(n1), nat2prob(int2nat(n3-n1)), n2)
