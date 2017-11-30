@@ -1,0 +1,14 @@
+# Hakaru Standard Library
+# Distributions based on Beta Distribution tranformations
+
+# authors: Justin Staples, Mahmoud Khattab
+
+# Inverse Beta Distribution
+def invBeta(a prob, b prob):
+	X <~ beta(a,b)
+	return X / (1 - X)
+
+# Arcsin Distribution
+def arcsin():
+	p <~ beta(0.5, 0.5)
+	return p
