@@ -27,5 +27,3 @@ def gompertz(delta prob, kappa prob):
 def log_logistic(lambda prob, kappa prob):
 	X <~ uniform(0,1)
 	return real2prob((1-X)/X) ** (1/kappa) / lambda
-
-gompertz(0.1,2)
