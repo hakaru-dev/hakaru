@@ -1,0 +1,15 @@
+# Hakaru Standard Library
+# authors: Mahmoud Khattab
+
+######################################
+# Gamma Distribution Transformations #
+######################################
+
+# The Erlang Distribution (AKA Discrete Gamma)
+def erlang(shape prob, scale nat):
+	return gamma(shape, nat2prob(scale))
+
+# The Inverse-Gamma Distribution
+def invGamma(shape prob, scale prob) measure(prob):
+	X <~ gamma(shape,scale)
+	return 1/X
