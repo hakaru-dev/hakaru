@@ -1,0 +1,32 @@
+##########################
+# Triangle Distributions #
+##########################
+
+# Standard Triangle Distribution with range from -1 to 1
+def stdTriangle():
+	X1 <~ uniform(0,1)
+	X2 <~ uniform(0,1)
+	return X1 - X2
+
+# Generalized Triangle distribution from a to b with peak at m
+# Implemented by composing 2 different triangle distributions and 
+# placing them side-by-side
+# The number of samples coming from each side (i.e. the area of each triangle)
+# is proportional to the size of the base of each right-angle triangle relative to
+# the size of the base of the composite triangle. Therefore, we use a uniform 
+# distribution to determine which right triangle to pull a sample from.
+def triangle(a real, m real, b real):
+	side <~ uniform (0,1) 
+	# TODO: implement error checking
+	# i.e. a < m < b
+	if (side <= (m-a)/(b-a)): #Picking a sample from the triangle on the a-side.
+		X1 <~ uniform(a,m)
+		X2 <~ uniform(a,m)
+		X = abs(X1-X2) # absolute value turns distribution into a right triangle
+		Y = X - 2*(X - (m-a)/2) + a # Flip and translate the distribution to where it should be
+		return Y
+	else:					# Otherwise we pick from the the b-side
+		X1 <~ uniform(m,b)
+		X2 <~ uniform(m,b)
+		return abs(X1-X2) + m # Turns distribution into a right triangle and translates it
+							  # (No need to flip this side)
