@@ -1,0 +1,68 @@
+# Hakaru Standard Library
+# Discrete Distributions: 
+#	definitions for distributions with discrete outcomes
+# author: Mahmoud Khattab
+
+####################
+# Discrete Uniform #
+####################
+
+# Natural Uniform Distribution
+# Distribution ranges from n1 to n2 (inclusive) all with the same probability
+def natUniform(n1 nat, n2 nat):
+	if (n2 > n1):
+		n = int2nat(n2-n1)
+		arr = array x of n+1: 1.0
+		X <~ categorical(arr)
+		return X+n1
+	else:
+		n = int2nat(n1-n2)
+		arr = array x of n+1: 1.0
+		X <~ categorical(arr)
+		return X+n2
+
+# Integer Uniform Distribution
+def intUniform(a int,b int):
+	if (b > a):
+		X <~ natUniform(0,int2nat(b-a))
+		return X+a
+	else:
+		X <~ natUniform(0,int2nat(a-b))
+		return X+b
+
+##################################################
+# Gamma-Poisson Distribution and Transformations #
+##################################################
+
+# The Gamma-Poisson distribution is defined as a Poisson distribution with a 
+# mean selected from a Gamma distribution defined by shape and scale parameters
+def gammaPoisson(shape prob, scale prob) measure(nat):
+	mu <~ gamma(shape, scale)
+	X <~ poisson(mu)
+	return X
+
+# Pascal distribution AKA Negative Binomial distribution
+# Given an Bernoulli distribution with probability p of success, returns
+# the number of successes that occur before n failures occur.	
+# Implemented as a case of the gammaPoisson distribution where
+# the shape is defined as (1-p)/p and the scale is n
+def pascal(n nat, p prob):
+	# TODO: error check ensure p<=1
+	shape = (1-p)/p
+	X <~ gammaPoisson(real2prob(shape), nat2prob(n))
+	return X
+
+# Geometric Distribution: case of Pascal distribution with n=1
+# i.e. measures number of successes with probability p that will occur
+# before a failure occurs.
+def geometric(p prob):
+	X <~ pascal(1,p)
+	return X
+
+# Beta-Pascal Transformations is a case of the Pascal Distribution
+# where p is pulled from a Beta Distribution with shape parameters
+# a and b
+def betaPascal(n nat, a prob, b prob):
+	p <~ beta(a,b)
+	X <~ pascal(n,p)
+	return X
