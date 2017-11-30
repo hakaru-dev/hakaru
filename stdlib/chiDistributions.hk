@@ -1,44 +1,64 @@
+# Hakaru Standard Library
+# author: Mahmoud Khattab 
+
+##############################
+# (Cental) Chi Distributions #
+##############################
+
+# The Chi Squared distribution is defined in terms of N independant normal distributions
+
+# This function takes 2 arrays of size N, containing the means and standard deviations
+# of the N normal distributions.
 def chiSq(means array(real), stdevs array(prob) ):
-	#TODO: check sizes of means==stdevs
+	#TODO: error check sizes of means==stdevs
 	q <~ plate _ of size(means): normal(means[_],stdevs[_])
 	return summate i from 0 to size(q):
 		((q[i]-means[i])/stdevs[i])^2
 
+# The chi distribution. Takes 2 arrays of size N like above.
 def chi(means array(real), stdevs array(prob)):
 	q <~ chiSq(means,stdevs)
 	return sqrt(real2prob(q))
 
-# Normal Chi Squared distribution where mean/stdev are same for all degrees of freedom
+# Chi Squared distribution with n independant and identical distributions (iid).
 def chiSq_iid(n nat, mean real, stdev prob):
 	q <~ plate _ of n: normal(mean,stdev)
 	return summate i from 0 to size(q): 
 		((q[i]-mean)/stdev)^2
 
+# Chi distribution with n independant and identical distributions (iid).
 def chi_iid(n nat, mean real, stdev prob):
 	q <~ chiSq_iid(n,mean,stdev)
 	return sqrt(real2prob(q))
 
+# Standard Chi Squared distribution is defined in terms of n independant
+# standard normal distributions
 def standardChiSq(n nat):
-	#q <~ plate _ of n: normal(0,1)
-	#return summate i from 0 to size(q): q[i]^2
 	chiSq_iid(n,0,1)
 
 def standardChi(n nat):
 	q <~ standardChiSq(n)
 	return sqrt(real2prob(q))
 
-def nonCentralChiSq(means array(real), stdevs array(prob)):
-	q <~ plate _ of size(means): normal(means[_],stdevs[_])
-	return summate i from 0 to size(means): 
-		(q[i]/stdevs[i])^2
+####################################
+# Chi distribution Transformations #
+####################################
 
-def nonCentralChi(means array(real), stdevs array(prob)):
-	q <~ nonCentralChiSq(means,stdevs)
-	return sqrt(real2prob(q))
+# F distribution "arises frequently as the null distribution of a test statistic, most notably in the analysis of variance, e.g., F-test." - Wikipedia
+def F(n1 nat, n2 nat):
+	X1 <~ standardChiSq(n1)
+	X2 <~ standardChiSq(n2)
+	return (X1*n2)/(X2*n1)
 
-def nonCentralityParameter(means array(real), stdevs array(prob)):
-	return summate i from 0 to size(means): 
-		(means[i]/stdevs[i])^2
+# The Non Central T Distribution defined in terms of
+#  - Number of samples: n
+#  - Non centrality parameter: delta
+def nonCentralT(n nat, delta prob):
+	U <~ normal(0,1)
+	X <~ standardChi(n)
+	return (U + delta)*sqrt(n)/(X)
 
-def ncp(means array(real), stdevs array(prob)):
-	return nonCentralityParameter(means, stdevs)
+# T distribution approximates normal distribution when 
+# sample size is small and standard deviation is unknown
+def t(n nat):
+	return nonCentralT(n,0)
