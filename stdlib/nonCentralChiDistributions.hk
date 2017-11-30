@@ -1,0 +1,30 @@
+# Hakaru Standard Library
+# author: Mahmoud Khattab
+
+#################################
+# non-Central Chi Distributions #
+#################################
+
+# The non-Central Chi Squared distribution. Differs from (Central) Chi Squared
+# in that it does not take into account distance from the mean in it's sum.
+
+# This function takes 2 arrays of size N, containing the means and standard deviations
+# of the N normal distributions.
+def nonCentralChiSq(means array(real), stdevs array(prob)):
+	q <~ plate _ of size(means): normal(means[_],stdevs[_])
+	return summate i from 0 to size(means): 
+		(q[i]/stdevs[i])^2
+
+def nonCentralChi(means array(real), stdevs array(prob)):
+	q <~ nonCentralChiSq(means,stdevs)
+	return sqrt(real2prob(q))
+
+# Non Centrality Parameter. Non central chi distributions can be described 
+# analytically in terms of this value
+def nonCentralityParameter(means array(real), stdevs array(prob)):
+	summate i from 0 to size(means): 
+		(means[i]/stdevs[i])^2
+
+# shortform alias for nonCentralityParameter function
+def ncp(means array(real), stdevs array(prob)):
+	nonCentralityParameter(means, stdevs)
