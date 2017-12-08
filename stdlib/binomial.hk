@@ -27,5 +27,9 @@ def betaBinomial(a prob, b prob, n nat):
 # i.e. betaBinomial(1,1,n) should be equivalent to rectangular(n)
 
 # Negative Hyper Geometric distribution
-def negativeHyperGeometric(n1 nat, n2 nat, n3 nat):
-	betaBinomial(nat2prob(n1), nat2prob(int2nat(n3-n1)), n2)
+# In an experiment with N trials and K successes  this distribution 
+# describes the number of successes if the experiment is stopped after
+# r failures
+def negativeHyperGeometric(N nat, K nat, r nat):
+	# TODO: Error check to make sure N >= K, r <= N-K and N,r > 0
+	betaBinomial(nat2prob(r), nat2prob(int2nat(N-K+1 - r)), K)
