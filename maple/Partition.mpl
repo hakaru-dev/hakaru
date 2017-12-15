@@ -663,17 +663,17 @@ export
     end proc;
 
     export trivial_pieces := proc(triv::satisfies(x->x subset {'true', 'false'}),
-                                  e::Partition
+                                  e::Partition,
                                   kb := KB:-empty)
 
       local tt, ff, rs;
       rs := piecesOf(e);
-      rs := map(mapPiece(((c,v) -> [c,KB:-assert(c,kb)],v)), rs);
+      rs := map(mapPiece((c,v) -> ([c,KB:-assert(c,kb)],v)), rs);
       if 'false' in triv then
-        rs := remove(p -> type(op(2,condOf(c)),t_not_a_kb), rs);
+        rs := remove(p -> type(op(2,condOf(p)),t_not_a_kb), rs);
       end if;
       if 'true' in triv then
-        tt, rs := selectremove(p -> KB:-kb_substract(op(2,condOf(c)),kb)=[], rs);
+        tt, rs := selectremove(p -> KB:-kb_subtract(op(2,condOf(p)),kb)=[], rs);
         if nops(tt)=1 then
           return valOf(op(1,tt));
         elif nops(tt)>1 then
