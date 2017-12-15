@@ -21,9 +21,6 @@
 #   done sort of ad-hoc) (this could be fixed by a broader design - see "merging
 #   KB with Domain")
 #
-# Shape extraction needs to be reworked; we "flatten" constraints multiple
-#   times; This should be done once after shape extraction, not at every step
-#
 # DInto should also optionally omit the bounds if they are identical to the
 #   bounds in the a-priori domain bounds (i.e. just `DInto(x)`); DInto sort of
 #   means 'we've solved this bound in this subcontext' but the `DInto`s where
@@ -178,18 +175,23 @@ $include "Domain/Improve.mpl"
 
       # Build the domain
       dom_specb, e, ws := op(Domain:-Extract:-Bound(e));
+      # No simplification needed if the bounds are empty
       if Domain:-Bound:-isEmpty(dom_specb)
       then return handlers:-f_nosimp(e0) end if;
+      # Bounds are converted to a KB to use during extraction of the shape
       dom_ctx1, rn := Domain:-Bound:-toKB(dom_specb)[];
       dom_specb, e, ws := subs(rn,[dom_specb,e,ws])[];
       dom_specw, e := op(Domain:-Extract:-Shape(e, dom_ctx1));
+      # Append the outer context (a KB) to the domain bounds
       dom_specb := DBound(op(1,dom_specb), dom_ctx);
+      # Create the actual domain
       dom_spec := DOMAIN(dom_specb, dom_specw);
 
       # Improve, if necessary, then apply back to the expression
       if dom_specw <> DConstrain() and not ("no_domain" in {opts[]})
       then dom_spec := Domain:-Improve(dom_spec) end if;
 
+      # The handlers which are used by Domain:-Apply
       apply_ctx := Record[handlers]('weights'=table(ws),-'f_apply',-'f_nosimp');
       handlers:-f_apply(Domain:-Apply(dom_spec, apply_ctx), e);
     end proc;

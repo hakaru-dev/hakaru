@@ -30,6 +30,7 @@ import qualified Data.Vector.Generic             as G
 import qualified Data.Vector.Generic.Mutable     as M
 import           Control.Monad
 import           Control.Monad.ST
+import           Numeric.SpecFunctions           (logBeta)
 import           Prelude                         hiding (init, sum, product, exp, log, (**), pi)
 import qualified Prelude                         as P
 import           Language.Hakaru.Runtime.CmdLine (Parseable(..), Measure(..), makeMeasure)
@@ -134,6 +135,9 @@ exp = logToLogFloat
 log :: Prob -> Double
 log = logFromLogFloat
 {-# INLINE log #-}
+
+betaFunc :: Prob -> Prob -> Prob
+betaFunc a b = exp (logBeta (fromProb a) (fromProb b))
 
 uniform :: Double -> Double -> Measure Double
 uniform lo hi = makeMeasure $ MWC.uniformR (lo, hi)

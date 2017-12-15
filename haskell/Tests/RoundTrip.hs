@@ -209,18 +209,28 @@ testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
     "testRoadmapProg1" ~: testConcreteFile "tests/RoundTrip/testRoadmapProg1.hk",
     "testKernel"       ~: testConcreteFiles "tests/RoundTrip/testKernel.0.hk" "tests/RoundTrip/testKernel.expected.hk",
+    "LDA"              ~: testConcreteFilesET defaultMapleOptions
+                          [ "tests/RoundTrip/lda2.hk" ]
+                          "tests/RoundTrip/lda2_res.hk",
+    "LDA - hand simplified" ~: testConcreteFilesET defaultMapleOptions
+                               [ "tests/RoundTrip/lda3-ds.0.hk"
+                               , "tests/RoundTrip/lda3-ds.1.hk" ]
+                               "tests/RoundTrip/lda3-ds.expected.hk",
     "gmm_gibbs"        ~: testConcreteFilesET
                            defaultMapleOptions { timelimit=300 }
                            [ "tests/RoundTrip/gmm_gibbs.0.hk" ]
                            "tests/RoundTrip/gmm_gibbs.expected.hk",
+    "naive_bayes_gibbs" ~: testConcreteFilesET defaultMapleOptions
+                            [ "tests/RoundTrip/naive_bayes_gibbs.0.hk" ]
+                            "tests/RoundTrip/naive_bayes_gibbs.expected.hk",
     "\"thermometer\" pipeline" ~:
                            testConcreteFilesET defaultMapleOptions
                            [ "tests/RoundTrip/thermometer_workflow.hk" ]
                            "tests/RoundTrip/thermometer_workflow_res.hk",
     "\"burglary\" pipeline" ~:
                            testConcreteFilesET defaultMapleOptions
-                           [ "tests/RoundTrip/thermometer_workflow.hk" ]
-                           "tests/RoundTrip/thermometer_workflow_res.hk"
+                           [ "tests/RoundTrip/burglary_workflow.hk" ]
+                           "tests/RoundTrip/burglary_workflow_res.hk"
     --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
     --"testTrueDetection" ~: testStriv (lam2 seismicTrueDetection)
     --"testTrueDetectionL" ~: testStriv tdl,

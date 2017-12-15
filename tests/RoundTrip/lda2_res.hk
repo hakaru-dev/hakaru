@@ -1,0 +1,63 @@
+fn topic_prior array(prob):
+fn word_prior array(prob):
+fn numDocs nat:
+fn w array(nat):
+fn doc array(nat):
+fn z array(nat):
+fn wordUpdate nat:
+if wordUpdate < size(w) &&
+   doc[wordUpdate] < numDocs &&
+   w[wordUpdate] < size(word_prior):
+  weight
+    ((product d from 0 to size(topic_prior):
+      product ir from 0 to size(word_prior):
+      product j
+      from 0
+      to summate iB from 0 to size(w):
+         if iB == wordUpdate: 0
+         else: if ir == w[iB] && d == z[iB]: 1 else: 0:
+      nat2prob(j) + word_prior[ir])
+     * (product d from 0 to numDocs:
+        product iH from 0 to size(topic_prior):
+        product j
+        from 0
+        to summate iB from 0 to size(w):
+           if iB == wordUpdate: 0
+           else: if d == doc[iB] && iH == z[iB]: 1 else: 0:
+        nat2prob(j) + topic_prior[iH])
+     / (product d from 0 to numDocs:
+        product iH
+        from 0
+        to summate iB from 0 to size(w):
+           if iB == wordUpdate: 0 else: if d == doc[iB]: 1 else: 0:
+        nat2prob(iH)
+        + (summate iB from 0 to size(topic_prior): topic_prior[iB]))
+     / (product d from 0 to size(topic_prior):
+        product ir
+        from 0
+        to summate iB from 0 to size(w):
+           if iB == wordUpdate: 0 else: if d == z[iB]: 1 else: 0:
+        nat2prob(ir)
+        + (summate iB from 0 to size(word_prior): word_prior[iB]))
+     / (nat2prob
+          (summate iB from 0 to size(w):
+           if iB == wordUpdate: 0
+           else: if doc[wordUpdate] == doc[iB]: 1 else: 0)
+        + (summate iB from 0 to size(topic_prior): topic_prior[iB])),
+     categorical
+       (array zNewh of size(topic_prior):
+        (nat2prob
+           (summate iB from 0 to size(w):
+            if iB == wordUpdate: 0
+            else: if w[wordUpdate] == w[iB] && zNewh == z[iB]: 1 else: 0)
+         + word_prior[w[wordUpdate]])
+        * (nat2prob
+             (summate iB from 0 to size(w):
+              if iB == wordUpdate: 0
+              else: if doc[wordUpdate] == doc[iB] && zNewh == z[iB]: 1 else: 0)
+           + topic_prior[zNewh])
+        / (nat2prob
+             (summate iB from 0 to size(w):
+              if iB == wordUpdate: 0 else: if zNewh == z[iB]: 1 else: 0)
+           + (summate iB from 0 to size(word_prior): word_prior[iB]))))
+else: reject. measure(nat)

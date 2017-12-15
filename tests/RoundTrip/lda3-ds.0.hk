@@ -1,0 +1,38 @@
+simplify(
+fn nTopics nat:
+  fn nTokens nat: 
+    fn z array(nat): 
+      fn wordUpdate0 nat: 
+        fn zNewh0 nat:
+          fn wordUpdate1 nat: 
+            fn zNewh1 nat:
+              def z0(j nat): 
+                if (j < nTokens): z[j]
+                else: 0
+    
+              def z1(j nat):
+                if (j == wordUpdate1): zNewh1
+                else: z0(j)
+    
+              # def s(zee (nat -> nat), wordUpdate nat, zNewh nat):
+              #   (summate dB from 0 to nTokens: 
+              #     (match (dB == wordUpdate): 
+              #       true: 0
+              #       false: 
+              #        (match (zNewh == zee(dB)): 
+              #          true: 1
+              #          false: 0)))
+
+              def s(zee (nat -> nat), wordUpdate nat, zNewh nat):
+                ((summate dB from 0 to nTokens: 
+                  (match (zNewh == zee(dB)): 
+                    true: 1
+                    false: 0))
+                - (match (zNewh == zee(wordUpdate)): 
+                       true: 1
+                       false: 0))
+
+              if (zNewh1 < nTopics && zNewh0 < nTopics):
+                s(z1, wordUpdate1, zNewh1) - s(z0, wordUpdate0, zNewh0)
+              else: 0
+)

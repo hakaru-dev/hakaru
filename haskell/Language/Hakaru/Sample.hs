@@ -15,19 +15,20 @@
 
 module Language.Hakaru.Sample where
 
-import           Numeric.SpecFunctions           (logGamma, logBeta, logFactorial)
-import qualified Data.Number.LogFloat            as LF
--- import qualified Numeric.Integration.TanhSinh    as TS
-import qualified System.Random.MWC               as MWC
-import qualified System.Random.MWC.Distributions as MWCD
+import           Numeric.SpecFunctions            (logGamma, logBeta, logFactorial)
+import qualified Data.Number.LogFloat             as LF
+-- import qualified Numeric.Integration.TanhSinh     as TS
+import qualified System.Random.MWC                as MWC
+import qualified System.Random.MWC.CondensedTable as MWC
+import qualified System.Random.MWC.Distributions  as MWCD
 
-import qualified Data.Vector                     as V
+import qualified Data.Vector                      as V
 import           Data.STRef
 import           Data.Sequence (Seq)
-import qualified Data.Foldable                   as F
-import qualified Data.List.NonEmpty              as L
-import           Data.List.NonEmpty              (NonEmpty(..))
-import           Data.Maybe                      (fromMaybe)
+import qualified Data.Foldable                    as F
+import qualified Data.List.NonEmpty               as L
+import           Data.List.NonEmpty               (NonEmpty(..))
+import           Data.Maybe                       (fromMaybe)
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -37,7 +38,7 @@ import           Control.Monad.ST
 import           Control.Monad.Identity
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.State.Strict
-import qualified Data.IntMap                     as IM
+import qualified Data.IntMap                      as IM
 
 import Data.Number.Nat     (fromNat, unsafeNat)
 import Data.Number.Natural (fromNatural, fromNonNegativeRational)
@@ -326,6 +327,12 @@ evaluatePrimOp Exp (e1 :* End) env =
     case evaluate e1 env of
       VReal v1 -> VProb . LF.logToLogFloat $ v1
       v        -> case v of {}
+
+evaluatePrimOp Log (e1 :* End) env =
+    case evaluate e1 env of
+      VProb v1 -> VReal . LF.logFromLogFloat $ v1
+      v        -> case v of {}
+
 evaluatePrimOp (Infinity h) End _ =
     case h of
       HIntegrable_Nat  -> error "Can not evaluate infinity for natural numbers"
@@ -336,6 +343,7 @@ evaluatePrimOp (Equal et) (e1 :* e2 :* End) env = (VDatum . dBool) $ evaluate e1
 evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
     (VNat  v1, VNat  v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    (VInt  v1, VInt  v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
     (VProb v1, VProb v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
     (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
     v                    -> error "TODO: evaluatePrimOp{Less}"
@@ -478,7 +486,7 @@ evaluateMeasureOp Normal = \(e1 :* e2 :* End) env ->
 evaluateMeasureOp Poisson = \(e1 :* End) env ->
     case evaluate e1 env of
     VProb v1 -> VMeasure $ \ p g -> do
-        x <- poisson_rng (LF.fromLogFloat v1) g
+        x <- MWC.genFromTable (MWC.tablePoisson (LF.fromLogFloat v1)) g
         return $ Just (VNat $ unsafeNat x, p)
     _ -> error "evaluateMeasureOp: the impossible happened"
 

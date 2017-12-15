@@ -1,0 +1,67 @@
+fn topic_prior array(prob):
+fn word_prior array(prob):
+fn z array(nat):
+fn w array(nat):
+fn doc array(nat):
+fn docUpdate nat:
+if docUpdate < size(z):
+  weight
+    ((product i from 0 to size(topic_prior):
+      product iB from 0 to size(word_prior):
+      product j
+      from 0
+      to summate iF from 0 to size(w):
+         if docUpdate == doc[iF]: 0
+         else: if i == z[doc[iF]] && iB == w[iF]: 1 else: 0:
+      nat2prob(j) + word_prior[iB])
+     * (product i from 0 to size(topic_prior):
+        product j
+        from 0
+        to summate iF from 0 to size(z):
+           if iF == docUpdate: 0 else: if i == z[iF]: 1 else: 0:
+        nat2prob(j) + topic_prior[i])
+     / (product i
+        from 0
+        to summate iF from 0 to size(z): if iF == docUpdate: 0 else: 1:
+        nat2prob(i)
+        + (summate iF from 0 to size(topic_prior): topic_prior[iF]))
+     / (product i from 0 to size(topic_prior):
+        product iB
+        from 0
+        to summate iF from 0 to size(w):
+           if docUpdate == doc[iF]: 0 else: if i == z[doc[iF]]: 1 else: 0:
+        nat2prob(iB)
+        + (summate iF from 0 to size(word_prior): word_prior[iF]))
+     / (nat2prob
+          (summate iF from 0 to size(z): if iF == docUpdate: 0 else: 1)
+        + (summate iF from 0 to size(topic_prior): topic_prior[iF])),
+     categorical
+       (array zNewf of size(topic_prior):
+        (product i from 0 to size(topic_prior):
+         product iB from 0 to size(word_prior):
+         product j
+         from 0
+         to summate iF from 0 to size(w):
+            if docUpdate == doc[iF]: if i == zNewf && iB == w[iF]: 1 else: 0
+            else: 0:
+         nat2prob
+           (summate iF from 0 to size(w):
+            if doc[iF] == docUpdate: 0
+            else: if i == z[doc[iF]] && iB == w[iF]: 1 else: 0)
+         + nat2prob(j)
+         + word_prior[iB])
+        * (nat2prob
+             (summate iF from 0 to size(z):
+              if iF == docUpdate: 0 else: if zNewf == z[iF]: 1 else: 0)
+           + topic_prior[zNewf])
+        / (product i from 0 to size(topic_prior):
+           product iB
+           from 0
+           to summate iF from 0 to size(w):
+              if docUpdate == doc[iF]: if i == zNewf: 1 else: 0 else: 0:
+           nat2prob
+             (summate iF from 0 to size(w):
+              if doc[iF] == docUpdate: 0 else: if i == z[doc[iF]]: 1 else: 0)
+           + nat2prob(iB)
+           + (summate iF from 0 to size(word_prior): word_prior[iF]))))
+else: reject. measure(nat)
