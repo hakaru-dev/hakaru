@@ -58,6 +58,26 @@ $include "NewSLO/Piecewise.mpl"
           b := Normalizer(-b/a);
           bodyNe := eval(body, {subsop(0=`=` , cond) = false,
                                 subsop(0=`<>`, cond) = true});
+          bodyNe := subsindets(bodyNe, specfunc(piecewise),
+            # Help to recognize that bodyNe can never be zero
+            proc (pw,$)
+              local i, default := `if`(nops(pw) :: odd, op(-1,pw), 0);
+              for i from 2 by 2 to nops(pw) do
+                if op(i,pw) <> default then return pw end if;
+              end do;
+              return default;
+            end proc);
+          bodyNe := subsindets(bodyNe,
+            'And(specfunc({sum, Sum, product, Product}),
+                 anyfunc(anything, name=range))',
+            # Help more to recognize that bodyNe can never be zero
+            proc (sp,$)
+              local identity := `if`(op(0,sp) in {sum, Sum}, 0, 1);
+              if op(1,sp) = identity or `-`(op(op([2,2],sp))) = 1 then
+                return identity;
+              end if;
+              return sp;
+            end proc);
           if length(body) <= length(bodyNe) then
             userinfo(3, procname,
                      "Kronecker expansion failed on pivot %1: bodyNe too long",
