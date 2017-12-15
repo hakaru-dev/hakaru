@@ -681,7 +681,7 @@ export
                 " are identically `true`: %1 in context %2", e, kb;
         end if;
       end if;
-      PARTITION(map(p -> subsop([1,2]=NULL,p), rs));
+      PARTITION(map[3](applyop, (c->op(1,c)), 1, rs));
     end proc;
 
     export remove_false_pieces := curry(trivial_pieces, {'false'});
