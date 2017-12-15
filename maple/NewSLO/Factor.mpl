@@ -58,16 +58,31 @@ $include "NewSLO/Piecewise.mpl"
           b := Normalizer(-b/a);
           bodyNe := eval(body, {subsop(0=`=` , cond) = false,
                                 subsop(0=`<>`, cond) = true});
-          if length(body) <= length(bodyNe) then next end if;
+          if length(body) <= length(bodyNe) then
+            userinfo(3, procname,
+                     "Kronecker expansion failed on pivot %1: bodyNe too long",
+                     cond);
+            next;
+          end if;
           if mode = `*` and
-             not kb_entails(kb, 0 <> eval(bodyNe, x=b)) then next end if;
+             not kb_entails(kb, 0 <> eval(bodyNe, x=b)) then
+            userinfo(3, procname,
+                     "Kronecker expansion failed on pivot %1: bodyNe may be 0",
+                     cond);
+            next;
+          end if;
           bodyEq := eval(body, {subsop(0=`=` , cond) = true,
                                 subsop(0=`<>`, cond) = false});
           bodyDiff :=
             piecewise(And(b :: integer, lhs(bounds) <= b, b <= rhs(bounds)),
                       eval(`if`(mode=`*`,`/`,`-`)(bodyEq, bodyNe), x=b),
                       mode());
-          if has(bodyDiff, '{undefined, infinity, FAIL}') then next end if;
+          if has(bodyDiff, '{undefined, infinity, FAIL}') then
+            userinfo(3, procname,
+                     "Kronecker expansion failed on pivot %1: bodyDiff undef",
+                     cond);
+            next;
+          end if;
           bodyDiff := eval_factor(bodyDiff, kb, mode, loops);
           userinfo(3, procname, "Kronecker expansion succeeded on pivot %1: %2",
                    cond, bodyDiff);
