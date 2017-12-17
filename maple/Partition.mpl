@@ -494,7 +494,7 @@ export
       local ps, qs, qs1, mk, as; as := _rest;
       if p :: Partition then
         [ (x->x),
-        foldr((f,x)->f(x,as), p,
+        foldr((f,x)-> `if`(x::Partition,f(x,as),x), p,
               reduce_branches,
               coalesce_equalities,
               remove_false_pieces,
