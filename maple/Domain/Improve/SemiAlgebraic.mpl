@@ -25,7 +25,7 @@ SemiAlgebraic := module()
     local trivial_sol := proc(sh :: DomShape, ctx :: DomBound, $)
       local ps, vs, vsc;
       if sh::DomConstrain then
-        nops(sh)=0
+        evalb(nops(sh)=0)
       elif sh::DomSplit then
         # we assume that the conditions of a solution of SemiAlgebraic cover the
         # entire domain, so it is left to check only the values
