@@ -803,9 +803,9 @@ KB := module ()
 
     s, x1 := splitHkName(x);
     k   := nops(s);
-    mkt := foldr(`@`,(a->a),HArray$k);
+    mkt := ((x->HArray(x))@@k)(anything); # (f@@3)(x) = (f^3)(x) but ((x->f(x))@@3)(x) = f(f(f(x)))
 
-    res := select(type, kb, 'Introduce'(identical(x1), mkt(anything)));
+    res := select(type, kb, 'Introduce'(identical(x1), mkt));
     if nops(res)<>1 then FAIL else
       res := op([1,2,1$k], res);
       # Bounds
@@ -826,7 +826,7 @@ KB := module ()
       cs := op(map(a -> Bound(op(2,a), op(4,a)), cs));
       res := op(0,res)(cs, op(res));
 
-      mkt(res);
+      res;
     end if;
   end proc;
 
