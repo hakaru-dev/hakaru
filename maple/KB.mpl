@@ -975,7 +975,10 @@ KB := module ()
 
     pr := Partition:-Amap([(x,_) -> doIf(x, kb), (x,c) -> %doThen(x, assert(c,kb)), z -> z], e);
     pr := applyop(ps -> remove(x->type(op([2,2],x),t_not_a_kb),ps), 1, pr);
-    eval(pr, %doThen=doThen);
+
+    # avoid calling `eval/PARTITION` since that also simplifies single-piece
+    # partitions but this function should always return a partition
+    applyop(ps->eval(ps, %doThen=doThen), 1, pr);
   end proc;
 
   # Computes the range of (possible values of) a Hakaru Int,
