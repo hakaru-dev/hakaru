@@ -22,7 +22,7 @@ SemiAlgebraic := module()
     # Check for trivial solutions, which are rejected because they are not an
     # improvement in terms of Hakaru semantics (but SemiAlgebraic doesn't know
     # anything about that)
-    local trivial_sol := proc(sh :: DomShape, ctx :: DomBound, $)
+    local trivial_sol := proc(sh :: DomShape, ctx :: DomBound, $)::truefalse;
       local ps, vs, vsc;
       if sh::DomConstrain then
         evalb(nops(sh)=0)
