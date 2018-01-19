@@ -1,0 +1,35 @@
+# Hakaru Standard Library
+# author: Mahmoud Khattab
+
+#############################################
+# Binomial Distribution and Transformations #
+#############################################
+
+# Bernoulli distribution is simply Binomial Distribution of 1 experiment
+def bernoulli(p prob):
+	categorical([real2prob(1-p),p])
+
+# Binomial Distribution
+# Describes number of successes in n independant experiments
+# Each with success probability p
+def binomial(n nat, p prob):
+	arr <~ plate _ of n: bernoulli(p)
+	sum = summate i from 0 to n: arr[i]
+	return sum
+
+# Beta-Binomial is defined as a binomial distribution
+# with the success probability pulled from a beta distribution
+# Parameters a and b are the shape parameters of the beta distribution
+def betaBinomial(a prob, b prob, n nat):
+	p <~ beta(a,b)
+	binomial(n,p)
+# TODO: test betaBinomial correctness. 
+# i.e. betaBinomial(1,1,n) should be equivalent to rectangular(n)
+
+# Negative Hyper Geometric distribution
+# In an experiment with N trials and K successes  this distribution 
+# describes the number of successes if the experiment is stopped after
+# r failures
+def negativeHyperGeometric(N nat, K nat, r nat):
+	# TODO: Error check to make sure N >= K, r <= N-K and N,r > 0
+	betaBinomial(nat2prob(r), nat2prob(int2nat(N-K+1 - r)), K)

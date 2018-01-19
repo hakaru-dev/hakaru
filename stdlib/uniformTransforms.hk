@@ -1,0 +1,29 @@
+# Hakaru Standard Library
+# author: Mahmoud Khattab
+
+# Uniform distribution transformations
+
+######################
+# Uniform Transforms #
+######################
+
+# Pareto Distribution.
+def pareto(lambda prob, kappa prob):
+	X <~ uniform(0,1)
+	return lambda / (real2prob(X) ** (1/kappa))
+
+# Standard power distribution
+def standardPower(beta prob):
+	X <~ uniform(0,1)
+	return real2prob(X) ** (1/beta)
+
+# Gompertz distribution
+def gompertz(delta prob, kappa prob):
+	# TODO: Make sure lambda > 0, kappa > 1
+	X <~ uniform(0,1)
+	return log(real2prob(1-log(real2prob(X))*log(kappa)/delta))/log(kappa)
+
+# Log-Logistic Distribution
+def log_logistic(lambda prob, kappa prob):
+	X <~ uniform(0,1)
+	return real2prob((1-X)/X) ** (1/kappa) / lambda
