@@ -27,3 +27,21 @@ def gompertz(delta prob, kappa prob):
 def log_logistic(lambda prob, kappa prob):
 	X <~ uniform(0,1)
 	return real2prob((1-X)/X) ** (1/kappa) / lambda
+
+
+#Logistic Distribution
+def logistic(lambda prob, kappa prob):
+	X <~ log_logistic(lambda, kappa)
+	return log(X)
+
+# logistic exponential distribution
+def logisticExponential(lambda prob, kappa prob):
+	x <~ uniform(0,1)
+	return (1/lambda) * log( real2prob( 1 + ( real2prob(x/(1-x)) ** (1/kappa) ) ) )
+
+#exponential power distribution
+def exponentialPower(lambda prob, kappa prob):
+	x <~ uniform(0,1)
+	return real2prob((log(real2prob(1-log(real2prob(1-x))))) / lambda)**(1/kappa)
+
+

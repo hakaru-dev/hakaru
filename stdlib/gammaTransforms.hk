@@ -13,3 +13,14 @@ def erlang(shape prob, scale nat):
 def invGamma(shape prob, scale prob) measure(prob):
 	X <~ gamma(shape,scale)
 	return 1/X
+
+#gamma normal distribution
+def gamma_normal(mu real,alpha prob,beta prob):
+	rho <~ invGamma(alpha , beta)
+	return normal(mu,rho^2)
+
+#log gamma distribution
+def log_gamma(alpha prob, beta prob):
+	x <~ gamma(alpha, beta)
+	return log(x)
+

@@ -23,3 +23,9 @@ def stdCauchy():
 def cauchy(a real, alpha prob):
 	X <~ stdCauchy()
 	return a + alpha*X
+
+def hyperbolic_secant():
+	x <~ stdCauchy()
+	return log(abs(x/pi()))
+
+hyperbolic_secant()
