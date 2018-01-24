@@ -1,0 +1,23 @@
+# Hakaru Standard Library
+# author: Nevin Mahilal
+
+################################################
+# Exponential Distribution and Transformations #
+################################################
+
+def exponential(alpha prob):
+	X <~ uniform(0,1)
+	return -1 * alpha * log(real2prob(X))
+
+def Weibull(alpha prob, beta prob):
+	X <~ exponential(alpha)
+	return real2prob(X) ** (1/beta)
+
+def Rayleigh(alpha prob):
+	X <~ exponential(alpha)
+	return real2prob(X) ** 2
+
+def Erlang(n nat, p prob):
+	arr <~ plate _ of n: exponential(p)
+	sum = summate i from 0 to n: arr[i]
+	return sum
