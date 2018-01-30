@@ -204,6 +204,11 @@ testMeasurePair = test [
     "testMCMCPriorProp" ~: testConcreteFile "tests/RoundTrip/testMCMCPriorProp.hk"
     ]
 
+testStdChiSqRelations :: Test
+testStdChiSqRelations = test [
+    "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk"
+        ]
+
 testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
@@ -245,6 +250,7 @@ allTests = test
     , testMeasurePair
     , testMeasureNat
     , testMeasureInt
+    , testStdChiSqRelations
     , testOther
     ]
 
