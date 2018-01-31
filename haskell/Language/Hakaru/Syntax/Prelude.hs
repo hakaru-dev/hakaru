@@ -62,6 +62,8 @@ module Language.Hakaru.Syntax.Prelude
     , negativeInfinity
     -- *** Trig
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
+    -- Choose
+    , choose
     
     -- * Measures
     -- ** Abstract nonsense
@@ -717,6 +719,9 @@ asinh  = primOp1_ Asinh
 acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
 
+choose
+    :: (ABT Term abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] 'HNat
+choose = primOp2_ Choose
 
 ----------------------------------------------------------------
 datum_

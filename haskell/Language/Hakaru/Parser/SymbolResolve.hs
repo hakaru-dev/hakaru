@@ -135,6 +135,7 @@ primTable =
     ,("nor",         primPrimOp2 U.Nor)
     ,("pi",          primPrimOp0 U.Pi)
     ,("**",          primPrimOp2 U.RealPow)
+    ,("choose",      primPrimOp2 U.Choose)
     ,("cos",         primPrimOp1 U.Cos)
     ,("exp",         primPrimOp1 U.Exp)
     ,("log",         primPrimOp1 U.Log)
