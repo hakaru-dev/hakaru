@@ -13,7 +13,7 @@ def weibull(alpha prob, beta prob):
 	X <~ exponential(alpha)
 	return real2prob(X) ** (1/beta)
 
-def wayleigh(alpha prob):
+def rayleigh(alpha prob):
 	X <~ exponential(alpha)
 	return real2prob(X) ** 2
 
