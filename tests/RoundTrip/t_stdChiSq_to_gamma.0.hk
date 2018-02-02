@@ -23,6 +23,6 @@ def standardChiSq(n nat):
 chiSq2gamma = fn v nat:
 				fn c real:
 					X <~ standardChiSq(v)
-					return c*X
+					return real2prob(c*X)
 
 chiSq2gamma(18,0.25)
