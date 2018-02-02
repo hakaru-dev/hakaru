@@ -1,5 +1,5 @@
-# gamma(v/2,2c) = gamma(9,0.5)
-# v = 18
-# c = 0.25
+# gamma(v/2,2c) = gamma(1/2,1)
+# v = 1
+# c = 1/2
 
-gamma(9.0,0.5)
+gamma(1/2,1/1)

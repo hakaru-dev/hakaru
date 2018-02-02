@@ -1,7 +1,7 @@
 # X ~ standardChiSq(v)
-# c*X ~ gamma(v/2,2c) = gamma(9,0.5)
-# v = 18
-# c = 0.25
+# c*X ~ gamma(v/2,2c) = gamma(0.5,1)
+# v = 1
+# c = 0.5
 
 # This function takes 2 arrays of size N, containing the means and standard deviations
 # of the N normal distributions.
@@ -25,4 +25,4 @@ chiSq2gamma = fn v nat:
 					X <~ standardChiSq(v)
 					return real2prob(c*X)
 
-chiSq2gamma(18,0.25)
+chiSq2gamma(1,1/2)
