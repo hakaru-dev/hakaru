@@ -17,7 +17,7 @@ module Language.Hakaru.Sample where
 
 import           Numeric.SpecFunctions            (logGamma, logBeta, logFactorial)
 import qualified Data.Number.LogFloat             as LF
--- import           Math.Combinatorics.Exact.Binomial
+import qualified Math.Combinatorics.Exact.Binomial as EB
 -- import qualified Numeric.Integration.TanhSinh     as TS
 import qualified System.Random.MWC                as MWC
 import qualified System.Random.MWC.CondensedTable as MWC
@@ -328,7 +328,7 @@ evaluatePrimOp RealPow (e1 :* e2 :* End) env =
 
 evaluatePrimOp Choose (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
-      (VNat v1, VNat v2) -> VNat $ quot (product [1..v1]) (product [1..v2] * product [1..(v1 - v2)])
+      (VNat v1, VNat v2) -> VNat $ EB.choose v1 v2
       v                    -> case v of {}
       
 evaluatePrimOp Exp (e1 :* End) env =
