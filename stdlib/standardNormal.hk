@@ -28,6 +28,6 @@ def cauchy(a real, alpha prob):
 # of standard Cauchy distribution
 def hyperbolicSecant():
 	x <~ stdCauchy()
-	return log(abs(x/pi()))
+	return log(abs(x/pi))
 
 
