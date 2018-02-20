@@ -73,7 +73,7 @@ import           Data.Traversable
 import           Control.Arrow ((***))
 import           Data.Ratio    (numerator, denominator)
 
-import Data.Data (Data, Typeable)
+import Data.Data ()
 
 import Data.Number.Natural
 import Language.Hakaru.Syntax.IClasses
@@ -116,7 +116,8 @@ instance Eq1 Literal where
     eq1 (LInt  x) (LInt  y) = x == y
     eq1 (LProb x) (LProb y) = x == y
     eq1 (LReal x) (LReal y) = x == y
-    eq1 _         _          = False
+    -- Because of GADTs, the following is apparently redundant
+    -- eq1 _         _          = False
 
 instance Eq (Literal a) where
     (==) = eq1
@@ -407,6 +408,10 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: are there any salient types which support abs\/norm but
     -- do not have all units and thus do not support signum\/normalize?
 
+
+    -- Coecion-like operations that are computations
+    -- we only implement Floor for Prob for now?
+    Floor :: PrimOp '[ 'HProb ] 'HNat
 
     -- -- HFractional operators
     Recip :: !(HFractional a) -> PrimOp '[ a ] a

@@ -471,6 +471,7 @@ ppPrimOp p (Signum  _)  (e1 :* End)       = ppApply1  p "signum"  e1
 ppPrimOp p (Recip   _)  (e1 :* End)       = ppRecip p e1
 ppPrimOp p (NatRoot _)  (e1 :* e2 :* End) = ppNatRoot p e1 e2
 ppPrimOp p (Erf _)      (e1 :* End)       = ppApply1  p "erf"     e1
+ppPrimOp p Floor        (e1 :* End)       = ppApply1 p "floor"   e1
 
 ppNegate :: (ABT Term abt) => Int -> abt '[] a -> Doc
 ppNegate p e = parensIf (p > 6) $
