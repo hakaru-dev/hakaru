@@ -2,12 +2,10 @@
 
 module Main where
 
-import           Language.Hakaru.Pretty.Concrete
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Command
 
-import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Utf8 as IO
 import           System.IO (stderr)

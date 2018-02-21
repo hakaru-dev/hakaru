@@ -540,6 +540,7 @@ evaluatePrimOp evaluate_ = go
     go Asinh     (e1 :* End)       = neu1 P.asinh e1
     go Acosh     (e1 :* End)       = neu1 P.acosh e1
     go Atanh     (e1 :* End)       = neu1 P.atanh e1
+    go Floor      (e1 :* End)      = neu1 P.floor e1
 
     -- TODO: deal with how we have better types for these three ops than Haskell does...
     -- go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2

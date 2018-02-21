@@ -62,6 +62,8 @@ module Language.Hakaru.Syntax.Prelude
     , negativeInfinity
     -- *** Trig
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
+    -- *** coercions-than-compute
+    , floor
     
     -- * Measures
     -- ** Abstract nonsense
@@ -717,6 +719,8 @@ asinh  = primOp1_ Asinh
 acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
 
+floor :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HNat
+floor  = primOp1_ Floor
 
 ----------------------------------------------------------------
 datum_

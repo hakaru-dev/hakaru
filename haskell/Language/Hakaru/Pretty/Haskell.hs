@@ -420,7 +420,8 @@ ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1 p "recip"  e1
 ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) ->
     -- N.B., argument order is swapped!
     ppBinop "`thRootOf`" 9 LeftAssoc p e2 e1
-ppPrimOp p (Erf _) = \(e1 :* End)           -> ppApply1 p "erf" e1
+ppPrimOp p (Erf _)     = \(e1 :* End)        -> ppApply1 p "erf"   e1
+ppPrimOp p Floor       = \(e1 :* End)        -> ppApply1 p "floor" e1
 
 
 -- | Pretty-print a 'ArrayOp' @(:$)@ node in the AST.
