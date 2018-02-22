@@ -206,7 +206,8 @@ testMeasurePair = test [
 
 testStdChiSqRelations :: Test
 testStdChiSqRelations = test [
-    "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk"
+    "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk",
+    "t_stdChiSq_to_exponential" ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_exponential.0.hk" "tests/RoundTrip/t_stdChiSq_to_exponential.expected.hk"
         ]
 
 testOther :: Test
