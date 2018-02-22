@@ -15,7 +15,7 @@ import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 
-import           Language.Hakaru.Types.Sing (Sing(SFun, SMeasure))
+import           Language.Hakaru.Types.Sing (Sing)
 
 import           Language.Hakaru.Pretty.Haskell
 import           Language.Hakaru.Command
@@ -90,13 +90,13 @@ compileHakaru
     :: Options
     -> IO ()
 compileHakaru opts = do
-    let file = fileIn opts
-    prog <- readFromFile file
+    let infile = fileIn opts
+    prog <- readFromFile infile
     case parseAndInfer prog of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do
         ast' <- (if optimize opts then optimizations else id) <$> summary (et ast)
-        writeHkHsToFile file (fileOut opts) . TxT.unlines $
+        writeHkHsToFile infile (fileOut opts) . TxT.unlines $
           header (logFloatPrelude opts) (asModule opts) ++
           [ pack $ prettyProg "prog" typ ast' ] ++
           (case asModule opts of
