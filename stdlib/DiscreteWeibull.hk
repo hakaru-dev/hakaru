@@ -1,4 +1,4 @@
-screte Weibull distribution with parameters p and β has the following p.m.f.
+discrete Weibull distribution with parameters p and β has the following p.m.f.
 
 # f(x) = ((1−p)^x)^β − ((1−p)^(x+1))^β
 
