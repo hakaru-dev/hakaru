@@ -13,12 +13,10 @@ import           Language.Hakaru.Pretty.SExpression as S
 import           Language.Hakaru.Pretty.Haskell as H
 import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.TypeCheck
-import           Language.Hakaru.Command (parseAndInfer', readFromFile', Term)
+import           Language.Hakaru.Command (parseAndInfer', readFromFile')
 
 import           Language.Hakaru.Syntax.Rename
-import           Language.Hakaru.Simplify
 import           Language.Hakaru.Maple
-import           Language.Hakaru.Parser.Maple
 
 import           Language.Hakaru.Syntax.Transform (Transform(..)
                                                   ,someTransformations)
@@ -29,7 +27,6 @@ import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 
 import           Data.Monoid ((<>), Monoid(..))
-import           Data.Text (Text, unpack, pack)
 import qualified Data.Text as Text
 import qualified Data.Text.Utf8 as IO
 import           System.IO (stderr)
@@ -55,8 +52,8 @@ parseKeyVal :: O.ReadM (String, String)
 parseKeyVal =
   O.maybeReader $ (\str ->
     case map Text.strip $ Text.splitOn "," str of
-      [k,v] -> return (unpack k, unpack v)
-      _     -> Nothing) . pack
+      [k,v] -> return (Text.unpack k, Text.unpack v)
+      _     -> Nothing) . Text.pack
 
 options :: O.Parser (Options FilePath)
 options = (Options
@@ -146,7 +143,8 @@ runMaple Options{..} = readFromFile' program >>= parseAndInfer' >>= \prog ->
             $ (case printer of
                  "concrete" -> C.pretty
                  "sexpression" -> S.pretty
-                 "haskell" -> H.prettyString typ)
+                 "haskell" -> H.prettyString typ
+                 _ -> error "Invalid printer requested")
             $ (if no_unicode then renameAST removeUnicodeChars else id)
             $ ast'
 
