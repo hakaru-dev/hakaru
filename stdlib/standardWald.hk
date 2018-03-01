@@ -1,0 +1,15 @@
+def inverGausian(lambda prob, mu prob):
+	x<~lebesgue(0,∞)
+	x = real2prob(x)
+	pdf = (lambda/1*pi*x**3) ** (1/2) * exp(-((lambda*(x-mu)^2)/(2*x*mu^2)))
+	weight(real2prob(pdf), return x)
+
+def standardWald(lambda prob):
+	x<~lebesgue(0,∞)
+	x = real2prob(x)
+	pdf = (lambda/(2*pi*x^3)) ** (1/2) * exp(-(lambda*(x-1)^2)/(2*x))
+	weight(real2prob(pdf), return x)
+
+
+
+
