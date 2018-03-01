@@ -1,5 +1,0 @@
-#Implementation of the benford distribution
-
-def benford():
-	x <~ uniform(0,1)
-	return 10**x
