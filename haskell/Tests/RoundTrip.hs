@@ -209,6 +209,10 @@ testStdChiSqRelations = test [
     "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk",
     "t_stdChiSq_to_exponential" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_to_exponential.0.hk" "tests/RoundTrip2/t_stdChiSq_to_exponential.expected.hk"
         ]
+        
+testChiSq :: Test
+testChiSq = test [
+    "test Chi Dist"     ~: testConcreteFiles "tests/RoundTrip2/t_Rayleigh_to_ChiSquared.0.hk" "tests/RoundTrip2/t_Rayleigh_to_ChiSquared.expected.hk"
 
 testOther :: Test
 testOther = test [
