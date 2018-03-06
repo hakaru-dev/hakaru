@@ -50,7 +50,6 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Transform
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.IClasses
@@ -149,7 +148,7 @@ infixl 3 <-|>
 matchUnderFun :: CommandMatcher -> CommandMatcher
 matchUnderFun (CommandMatcher k) = CommandMatcher go where
   go :: Sing i -> Either MapleException (Some1 (MapleCommand i))
-  go ty@(SFun x i) =
+  go ty@(SFun _ i) =
     fmap (\(Some1 c) -> Some1 (UnderFun c)) (go i) <-|>
     k ty
   go ty =
@@ -160,16 +159,16 @@ mapleCommands
   :: [ (String, CommandMatcher) ]
 mapleCommands =
   [ ("Simplify"
-    , CommandMatcher $ \i -> return $ Some1 $ MapleCommand Simplify)
+    , CommandMatcher $ \_ -> return $ Some1 $ MapleCommand Simplify)
   , ("Reparam"
-    , CommandMatcher $ \i -> return $ Some1 $ MapleCommand Reparam)
+    , CommandMatcher $ \_ -> return $ Some1 $ MapleCommand Reparam)
   , ("Summarize"
-    , CommandMatcher $ \i -> return $ Some1 $ MapleCommand Summarize)
+    , CommandMatcher $ \_ -> return $ Some1 $ MapleCommand Summarize)
   , ("Disintegrate"
     , matchUnderFun $ CommandMatcher $ \i ->
         case i of
           SMeasure (SData (STyApp (STyApp
-              (STyCon (jmEq1 sSymbol_Pair -> Just Refl)) a) b) _) ->
+              (STyCon (jmEq1 sSymbol_Pair -> Just Refl)) _) _) _) ->
             return $ Some1 $ MapleCommand $ Disint InMaple
           _ -> Left $
                   MapleInputTypeMismatch "measure (pair (a,b))"
@@ -192,7 +191,7 @@ nameOfMapleCommand (MapleCommand t) = nm t where
   nm (Disint InMaple) = Right "Disintegrate"
   nm Summarize        = Right "Summarize"
   nm Reparam          = Right "Reparam"
-  nm t                = Left $ MapleUnknownCommand (show t)
+  nm tt               = Left $ MapleUnknownCommand (show tt)
 nameOfMapleCommand (UnderFun c) = nameOfMapleCommand c
 
 --------------------------------------------------------------------------------

@@ -65,8 +65,8 @@ main :: IO ()
 main = do
   args  <- parseOpts
   case args of
-    Options t i file -> do
-      prog <- readFromFile file
+    Options t i infile -> do
+      prog <- readFromFile infile
       runDisintegrate prog t i
 
 runDisintegrate :: T.Text -> Bool -> Int -> IO ()
@@ -99,13 +99,13 @@ runDisintegrate prog showTotal i =
               _ -> putErrorMsg ast
                    
 putErrorMsg :: (Show a) => a -> IO ()
-putErrorMsg a = IO.hPutStrLn stderr . T.pack $
+putErrorMsg _ = IO.hPutStrLn stderr . T.pack $
                 "Can only disintegrate (functions over) measures over pairs"
                 -- ++ "\nGiven\n" ++ show a
 
 -- | Use a list of variables to wrap lambdas around a given term
 lams :: (ABT AST.Term abt)
      => List1 Variable (xs :: [Hakaru])
-     -> (forall a. abt '[] a -> IO ()) -> abt '[] a -> IO ()
+     -> (forall b. abt '[] b -> IO ()) -> abt '[] a -> IO ()
 lams Nil1         k = k
 lams (Cons1 x xs) k = lams xs (k . lam_ x)
