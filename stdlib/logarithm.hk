@@ -5,4 +5,3 @@ def logarithm(c prob):
 		weight(real2prob(pmf), return x)
 	else:
 		return nat2int(0)
-logarithm(0.2)
