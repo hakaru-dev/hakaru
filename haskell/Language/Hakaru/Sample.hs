@@ -385,6 +385,11 @@ evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) env =
     (VProb v1, VNat v2) -> VProb $ LF.pow v1 (recip . fromIntegral $ v2)
     v                   -> case v of {}    
 
+evaluatePrimOp (Floor) (e1 :* End) env =
+    case (evaluate e1 env) of
+    VProb v1 -> VNat (floor (LF.fromLogFloat v1))
+    v        -> case v of {}
+
 evaluatePrimOp prim _ _ =
     error ("TODO: evaluatePrimOp{" ++ show prim ++ "}")
 
