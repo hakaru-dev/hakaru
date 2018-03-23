@@ -42,7 +42,7 @@ import           Control.Monad.State.Strict
 import qualified Data.IntMap                      as IM
 
 import Data.Number.Nat     (fromNat, unsafeNat)
-import Data.Number.Natural (fromNatural, fromNonNegativeRational)
+import Data.Number.Natural (fromNatural, fromNonNegativeRational, Natural, unsafeNatural)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.Sing
@@ -228,9 +228,9 @@ evaluateSCon Plate (n :* e2 :* End) env =
     VNat n' -> caseBind e2 $ \x e' ->
         VMeasure $ \(VProb p) g -> runMaybeT $ do
             (v', ps) <- fmap V.unzip . V.mapM (performMaybe g) $
-                V.generate (fromNat n') $ \v ->
+                V.generate (fromInteger $ fromNatural n') $ \v ->
                     evaluate e' $
-                    updateEnv (EAssoc x . VNat $ unsafeNat v) env
+                    updateEnv (EAssoc x . VNat $ intToNatural v) env
             return
                 ( VArray v'
                 , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
@@ -249,7 +249,7 @@ evaluateSCon Chain (n :* s :* e :* End) env =
         caseBind e $ \x e' ->
             let s' = VLam $ \v -> evaluate e' (updateEnv (EAssoc x v) env) in
             VMeasure (\(VProb p) g -> runMaybeT $ do
-                (evaluates, sout) <- runStateT (replicateM (fromNat n') $ convert g s') start
+                (evaluates, sout) <- runStateT (replicateM (unsafeInt n') $ convert g s') start
                 let (v', ps) = unzip evaluates
                     bodyType :: Sing ('HMeasure (HPair a b)) -> Sing ('HArray a)
                     bodyType = SArray . fst . sUnPair . sUnMeasure
@@ -358,7 +358,7 @@ evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
 evaluatePrimOp (NatPow _) (e1 :* e2 :* End) env = 
     case evaluate e2 env of
     VNat  v2 ->
-        let v2' = fromNat v2 in
+        let v2' = fromNatural v2 in
         case evaluate e1 env of
           VNat  v1 -> VNat  (v1 ^ v2')
           VInt  v1 -> VInt  (v1 ^ v2')
@@ -372,7 +372,7 @@ evaluatePrimOp (Negate _) (e1 :* End) env =
     v       -> case v of {}
 evaluatePrimOp (Abs   _) (e1 :* End) env =
     case evaluate e1 env of
-    VInt  v -> VNat  . unsafeNat   $ abs v
+    VInt  v -> VNat  . unsafeNatural   $ abs v
     VReal v -> VProb . LF.logFloat $ abs v
     v       -> case v of {}
 evaluatePrimOp (Recip _) (e1 :* End) env = 
@@ -398,12 +398,12 @@ evaluateArrayOp
     -> Value a
 evaluateArrayOp (Index _) = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of
-    (VArray v, VNat n) -> v V.! fromNat n
+    (VArray v, VNat n) -> v V.! unsafeInt n
     _                  -> error "evaluateArrayOp: the impossible happened"
 
 evaluateArrayOp (Size _) = \(e1 :* End) env ->
     case evaluate e1 env of
-    VArray v -> VNat . unsafeNat $ V.length v
+    VArray v -> VNat . intToNatural $ V.length v
     _        -> error "evaluateArrayOp: the impossible happened"
 
 evaluateArrayOp (Reduce _) = \(e1 :* e2 :* e3 :* End) env ->
@@ -455,7 +455,8 @@ evaluateMeasureOp Counting = \End _ ->
         let success = LF.logToLogFloat (-3 :: Double)
         let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
                                        (fromIntegral y :: Double))
-        u <- MWCD.geometric0 (LF.fromLogFloat success) g
+        u' <- MWCD.geometric0 (LF.fromLogFloat success) g
+        let u = fromInteger u
         b <- MWC.uniform g
         return $ Just
             ( VInt  $ if b then -1-u else u
@@ -470,7 +471,7 @@ evaluateMeasureOp Categorical = \(e1 :* End) env ->
             u <- MWC.uniformR (0, y) g
             return $ Just
                 ( VNat
-                . unsafeNat
+                . intToNatural
                 . fromMaybe 0
                 . V.findIndex (u <=) 
                 . V.scanl1' (+)
@@ -495,7 +496,7 @@ evaluateMeasureOp Poisson = \(e1 :* End) env ->
     case evaluate e1 env of
     VProb v1 -> VMeasure $ \ p g -> do
         x <- MWC.genFromTable (MWC.tablePoisson (LF.fromLogFloat v1)) g
-        return $ Just (VNat $ unsafeNat x, p)
+        return $ Just (VNat $ intToNatural x, p)
     _ -> error "evaluateMeasureOp: the impossible happened"
 
 evaluateMeasureOp Gamma = \(e1 :* e2 :* End) env ->
@@ -579,8 +580,8 @@ evaluateArray
 evaluateArray n e env =
     case evaluate n env of
     VNat n' -> caseBind e $ \x e' ->
-        VArray $ V.generate (fromNat n') $ \v ->
-            let v' = VNat $ unsafeNat v in
+        VArray $ V.generate (unsafeInt n') $ \v ->
+            let v' = VNat $ intToNatural v in
             evaluate e' (updateEnv (EAssoc x v') env)
 
 evaluateBucket
@@ -719,4 +720,11 @@ evaluateSuperpose pms@((_, m) :| _) env =
                 []     -> m' (VProb $ p * x * LF.logFloat y) g
 
 ----------------------------------------------------------------
+
+-- Useful 'short-hand'
+intToNatural :: Int -> Natural
+intToNatural = unsafeNatural . toInteger
+
+unsafeInt :: Natural -> Int
+unsafeInt = fromInteger . fromNatural
 ----------------------------------------------------------- fin.
