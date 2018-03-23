@@ -164,6 +164,7 @@ primTable =
     ,("asinh",       primPrimOp1 U.Asinh)
     ,("acosh",       primPrimOp1 U.Acosh)
     ,("atanh",       primPrimOp1 U.Atanh)
+    ,("floor",       primPrimOp1 U.Floor)
     -- ArrayOps
     ,("size",        TLam $ \x -> TNeu . syn $ U.ArrayOp_ U.Size [x])
     ,("reduce",      t3 $ \x y z -> syn $ U.ArrayOp_ U.Reduce [x, y, z])

@@ -785,6 +785,12 @@ inferType = inferType_
                          syn (PrimOp_ y :$ e' :* End)
         _   -> argumentNumberError
 
+  inferPrimOp U.Floor es =
+      case es of
+        [e] -> do e' <- checkType_ SProb e
+                  return . TypedAST SNat $ syn (PrimOp_ Floor :$ e' :* End)
+        _   -> argumentNumberError
+
   inferPrimOp x _ = error ("TODO: inferPrimOp: " ++ show x)
 
 

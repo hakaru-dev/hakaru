@@ -17,15 +17,11 @@ import           Language.Hakaru.Syntax.ABT (ABT(..), dupABT)
 import           Language.Hakaru.Syntax.AST (Term(..), Transform(..))
 import           Language.Hakaru.Syntax.AST.Transforms (expandTransformations)
 import qualified Language.Hakaru.Parser.AST as U
-import           Language.Hakaru.Types.Sing
-import           Language.Hakaru.Types.DataKind (Hakaru(..))
-import           Language.Hakaru.Inference
 import           Language.Hakaru.Command hiding (Term)
   
 import           Data.Text
 import qualified Data.Text.IO as IO
 import           System.IO (stderr)
-import           Data.Monoid (Monoid(mconcat))
 
 import           System.Environment
 
@@ -40,7 +36,7 @@ main = do
 runMH :: Text -> Text -> IO ()
 runMH prog1 prog2 =
     case (parseAndInfer prog1, parseAndInfer prog2) of
-      (Right (TypedAST typ1 ast1), Right (TypedAST typ2 ast2)) ->
+      (Right (TypedAST _ ast1), Right (TypedAST _ ast2)) ->
          either (IO.hPutStrLn stderr)
                 (elimTypedAST $ \_ -> print . pretty) $
          runMH' ast1 ast2

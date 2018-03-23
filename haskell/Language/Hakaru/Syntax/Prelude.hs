@@ -64,6 +64,8 @@ module Language.Hakaru.Syntax.Prelude
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
     -- Choose
     , choose
+    -- *** coercions-that-compute
+    , floor
     
     -- * Measures
     -- ** Abstract nonsense
@@ -722,6 +724,9 @@ atanh  = primOp1_ Atanh
 choose
     :: (ABT Term abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] 'HNat
 choose = primOp2_ Choose
+
+floor :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HNat
+floor  = primOp1_ Floor
 
 ----------------------------------------------------------------
 datum_
