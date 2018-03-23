@@ -62,7 +62,9 @@ module Language.Hakaru.Syntax.Prelude
     , negativeInfinity
     -- *** Trig
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
-    -- *** coercions-than-compute
+    -- Choose
+    , choose
+    -- *** coercions-that-compute
     , floor
     
     -- * Measures
@@ -718,6 +720,10 @@ tanh   = primOp1_ Tanh
 asinh  = primOp1_ Asinh
 acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
+
+choose
+    :: (ABT Term abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] 'HNat
+choose = primOp2_ Choose
 
 floor :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HNat
 floor  = primOp1_ Floor

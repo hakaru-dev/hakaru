@@ -405,6 +405,7 @@ ppPrimOp p Asinh     = \(e1 :* End)         -> ppApply1 p "asinh" e1
 ppPrimOp p Acosh     = \(e1 :* End)         -> ppApply1 p "acosh" e1
 ppPrimOp p Atanh     = \(e1 :* End)         -> ppApply1 p "atanh" e1
 ppPrimOp p RealPow   = \(e1 :* e2 :* End)   -> ppBinop "**" 8 RightAssoc p e1 e2
+ppPrimOp p Choose    = \(e1 :* e2 :* End)   -> ppApply2 p "choose" e1 e2
 ppPrimOp p Exp       = \(e1 :* End)         -> ppApply1 p "exp"   e1
 ppPrimOp p Log       = \(e1 :* End)         -> ppApply1 p "log"   e1
 ppPrimOp _ (Infinity _)     = \End          -> [PP.text "infinity"]

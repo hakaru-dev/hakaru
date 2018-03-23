@@ -313,6 +313,7 @@ maplePrimOp Cos              (e1 :* End)       = app1 "cos" e1
 maplePrimOp Sin              (e1 :* End)       = app1 "sin" e1
 maplePrimOp RealPow          (e1 :* e2 :* End) =
     parens (arg e1 . showString " ^ " . arg e2)
+maplePrimOp Choose           (e1 :* e2 :* End) = app2 "binomial" e1 e2
 maplePrimOp Exp              (e1 :* End)       = app1 "exp"  e1
 maplePrimOp Log              (e1 :* End)       = app1 "log"  e1
 maplePrimOp (Infinity  _)    End               = showString "infinity"

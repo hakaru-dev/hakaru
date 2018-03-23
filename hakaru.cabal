@@ -132,7 +132,8 @@ Library
                        filepath             >= 1.1.0.2,
                        bytestring           >= 0.9,
                        optparse-applicative >= 0.11 && < 0.15,
-                       syb                  >= 0.6
+                       syb                  >= 0.6,
+                       exact-combinatorics  >= 0.2.0
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite
@@ -235,7 +236,8 @@ Test-Suite system-testsuite
                        directory            >= 1.2  && < 1.4,
                        optparse-applicative >= 0.11 && < 0.15,
                        syb                  >= 0.6,
-                       filepath             >= 1.1.0.2
+                       filepath             >= 1.1.0.2,
+                       exact-combinatorics  >= 0.2.0
 
 ----------------------------------------------------------------
 Test-Suite relationships-testsuite
@@ -338,7 +340,8 @@ Test-Suite relationships-testsuite
                        directory            >= 1.2  && < 1.4,
                        optparse-applicative >= 0.11 && < 0.15,
                        syb                  >= 0.6,
-                       filepath             >= 1.1.0.2
+                       filepath             >= 1.1.0.2,
+                       exact-combinatorics  >= 0.2.0
 
 ----------------------------------------------------------------
 Executable hakaru
