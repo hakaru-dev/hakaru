@@ -1,4 +1,4 @@
-def exponential(alpha prob):
+def exponential(alpha prob): # this is the implementation of exponential in stdlib
 	X <~ uniform(0,1)
 	return -1 * alpha * log(real2prob(X))
 
