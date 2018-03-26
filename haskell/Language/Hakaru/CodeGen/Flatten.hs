@@ -1018,6 +1018,7 @@ flattenPrimOp (Negate _) =
 
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
+flattenPrimOp Choose = \(a :* b :* End) -> error $ "TODO: flattenPrimOp: choose"
 
 --------------------------------------------------------------------------------
 --                           MeasureOps and Superpose                         --

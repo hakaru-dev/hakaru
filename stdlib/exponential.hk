@@ -21,3 +21,24 @@ def laplace(alpha prob, beta prob):
 	X <~ exponential(alpha)
 	Y <~ exponential(beta)
 	return X - Y
+
+def extremeValue(alpha prob, beta prob):
+	X <~ weibull(alpha,beta)
+	return log(X)
+
+def hyperexponential (alpha array(prob), p array(prob)):
+	x <~ lebesgue (0,∞)
+	pdf = summate i from 1 to size(p): p[i]/alpha[i] * (exp((-x)/alpha[i]))
+	weight(real2prob(pdf), return x)
+
+def IDB (delta prob, kappa prob, gamma prob):
+	x <~ lebesgue(0,∞)
+	x = real2prob(x)
+	pdf = (((1 + kappa*x) * delta*x + gamma) * exp(-1 /(2 * delta * x**2))) / ((1 + kappa*x) ** (gamma / (kappa+1)))
+	weight(real2prob(pdf), return x)
+
+def hypoexponential(alpha array(prob)):
+	x<~lebesgue(0,∞)
+	x = real2prob(x)
+	pdf = summate i from 0 to (int2nat(size(alpha)-1) ): (1/alpha[i]) * exp((-x)/alpha[i]) * (product j from 0 to (int2nat(size(alpha)-1) ): if i/=j: alpha[j] / alpha[i] - alpha[j] else: 1)
+	weight(real2prob(pdf), return x)

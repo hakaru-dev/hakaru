@@ -1021,6 +1021,7 @@ constrainPrimOp v0 = go
     go Asinh     = \(e1 :* End)       -> error_TODO "Asinh"
     go Acosh     = \(e1 :* End)       -> error_TODO "Acosh"
     go Atanh     = \(e1 :* End)       -> error_TODO "Atanh"
+    go Choose    = \(e1 :* e2 :* End) -> error_TODO "Choose"
     go Floor     = \(e1 :* End)       -> error_TODO "Floor"
     go RealPow   = \(e1 :* e2 :* End) ->
         -- TODO: There's a discrepancy between @(**)@ and @pow_@ in

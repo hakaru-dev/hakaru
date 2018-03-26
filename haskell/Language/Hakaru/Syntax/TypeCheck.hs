@@ -621,6 +621,14 @@ inferType = inferType_
                               syn (PrimOp_ RealPow :$ e1' :* e2' :* End)
         _        -> argumentNumberError
 
+  inferPrimOp U.Choose es =
+      case es of 
+        [e1, e2] -> do e1' <- checkType_ SNat e1
+                       e2' <- checkType_ SNat e2
+                       return . TypedAST SNat $
+                              syn (PrimOp_ Choose :$ e1' :* e2' :* End)
+        _        -> argumentNumberError
+
   inferPrimOp U.Exp es =
       case es of
         [e] -> do e' <- checkType_ SReal e

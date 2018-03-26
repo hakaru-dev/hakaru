@@ -20,13 +20,13 @@ import           Data.STRef
 
 import qualified Data.Vector                     as V
 import qualified Data.Number.LogFloat            as LF
-import           Data.Number.Nat
+import           Data.Number.Natural
 
 import qualified System.Random.MWC               as MWC
 
 data Value :: Hakaru -> * where
-     VNat     :: {-# UNPACK #-} !Nat -> Value 'HNat
-     VInt     :: {-# UNPACK #-} !Int -> Value 'HInt
+     VNat     ::                !Natural -> Value 'HNat
+     VInt     ::                !Integer -> Value 'HInt
      VProb    :: {-# UNPACK #-} !LF.LogFloat -> Value 'HProb
      VReal    :: {-# UNPACK #-} !Double -> Value 'HReal
 
@@ -79,28 +79,25 @@ instance Coerce Value where
 instance PrimCoerce Value where
     primCoerceTo c l =
         case (c,l) of
-        (Signed HRing_Int,            VNat  a) -> VInt  $ fromNat a
+        (Signed HRing_Int,            VNat  a) -> VInt  $ fromNatural a
         (Signed HRing_Real,           VProb a) -> VReal $ LF.fromLogFloat a
         (Continuous HContinuous_Prob, VNat  a) ->
-            VProb $ LF.logFloat (fromIntegral (fromNat a) :: Double)
+            VProb $ LF.logFloat (fromIntegral (fromNatural a) :: Double)
         (Continuous HContinuous_Real, VInt  a) -> VReal $ fromIntegral a
-        _ -> error "no a defined primitive coercion"
 
     primCoerceFrom c l =
         case (c,l) of
-        (Signed HRing_Int,            VInt  a) -> VNat  $ unsafeNat a
+        (Signed HRing_Int,            VInt  a) -> VNat  $ unsafeNatural a
         (Signed HRing_Real,           VReal a) -> VProb $ LF.logFloat a
         (Continuous HContinuous_Prob, VProb a) ->
-            VNat $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
+            VNat $ unsafeNatural $ floor (LF.fromLogFloat a :: Double)
         (Continuous HContinuous_Real, VReal a) -> VInt  $ floor a
-        _ -> error "no a defined primitive coercion"
 
 
 lam2 :: Value (a ':-> b ':-> c) -> (Value a -> Value b -> Value c)
 lam2 (VLam f1) v1 =
     case f1 v1 of
     VLam f2 -> f2
-    _       -> error "lam2: the impossible happened"
 
 enumFromUntilValue
     :: (HDiscrete a)
