@@ -12,13 +12,12 @@ import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Syntax.TypeCheck.Unification
 import           Language.Hakaru.Syntax.Value
 
-import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.DataKind
 
 import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
-import           Language.Hakaru.Command ( parseAndInfer, parseAndInfer'
+import           Language.Hakaru.Command ( parseAndInfer'
                                          , readFromFile', Term, Source
                                          , sourceInput
                                          )
@@ -27,7 +26,6 @@ import           Control.Applicative   (Applicative(..), (<$>), liftA2)
 import           Control.Monad
 
 import           Data.Monoid
-import           Data.Text (Text, pack, unpack)
 import qualified Data.Text.IO as IO
 import qualified Data.Vector  as V
 import           Data.Word
@@ -98,8 +96,8 @@ renderLn = putStrLn . renderStyle style {mode = LeftMode} . prettyValue
 
 -- TODO: A better needs to be found for passing weights around
 runHakaru :: MWC.GenIO -> Bool -> Source -> IO ()
-runHakaru g weights prog = do
-    prog' <- parseAndInfer' prog
+runHakaru g weights progname = do
+    prog' <- parseAndInfer' progname
     case prog' of
       Left err                 -> IO.hPutStrLn stderr err
       Right (TypedAST typ ast) -> do

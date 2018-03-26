@@ -106,37 +106,7 @@ def hyperGeo(N nat, K nat, n nat):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#discrete Weibull Distribution	
+def discreteWeibull(p prob, beta prob):
+	x <~ counting
+	weight( if (x<0): 0 else: (real2prob((real2prob(1-p) ** x) ** beta - (real2prob(1-p) ** (x+1)) ** beta)),return x)

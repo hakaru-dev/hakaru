@@ -35,7 +35,7 @@ module Language.Hakaru.Pretty.Concrete
     -- * Helper functions (semi-public internal API)
     ) where
 
-import           Text.PrettyPrint      (Doc, text, integer, int, double,
+import           Text.PrettyPrint      (Doc, text, integer, double,
                                         (<+>), (<>), ($$), sep, cat, fsep, vcat,
                                         nest, parens, brackets, punctuate,
                                         comma, colon, equals)
@@ -472,6 +472,7 @@ ppPrimOp p (Signum  _)  (e1 :* End)       = ppApply1  p "signum"  e1
 ppPrimOp p (Recip   _)  (e1 :* End)       = ppRecip p e1
 ppPrimOp p (NatRoot _)  (e1 :* e2 :* End) = ppNatRoot p e1 e2
 ppPrimOp p (Erf _)      (e1 :* End)       = ppApply1  p "erf"     e1
+ppPrimOp p Floor        (e1 :* End)       = ppApply1 p "floor"   e1
 
 ppNegate :: (ABT Term abt) => Int -> abt '[] a -> Doc
 ppNegate p e = parensIf (p > 6) $
@@ -555,9 +556,9 @@ instance Pretty Literal where
               d = denominator r
 
 instance Pretty Value where
-    prettyPrec_ _ (VNat  n)    = int (fromNat n)
+    prettyPrec_ _ (VNat  n)    = integer (fromNatural n)
     prettyPrec_ p (VInt  i)    = parensIf (p > 6) $
-        if i < 0 then int i else text "+" <> int i
+        if i < 0 then integer i else text "+" <> integer i
     prettyPrec_ _ (VProb l)    = double (LF.fromLogFloat l)
     prettyPrec_ p (VReal r)    = parensIf (p > 6) $
         if r < 0 then double r else text "+" <> double r

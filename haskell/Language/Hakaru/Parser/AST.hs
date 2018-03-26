@@ -308,6 +308,7 @@ data PrimOp
     | Equal      | Less
     | Negate     | Recip
     | Abs        | Signum | NatRoot | Erf
+    | Floor
     deriving (Eq, Show)
 
 data SomeOp op where
