@@ -1,0 +1,10 @@
+fn scale1 nat:
+	fn scale2 nat:
+		fn shape prob:
+			X <~ gamma(shape,nat2prob(scale1))
+			Y <~ gamma(shape,nat2prob(scale2))
+			return(X+Y)
+
+
+
+

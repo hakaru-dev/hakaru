@@ -203,6 +203,13 @@ testMeasurePair = test [
     "easyHMM"           ~: testConcreteFile "tests/RoundTrip/easyHMM.hk",
     "testMCMCPriorProp" ~: testConcreteFile "tests/RoundTrip/testMCMCPriorProp.hk"
     ]
+testErlangRelations :: Test
+testErlangRelations = test [
+    "t_erlang_to_erlang"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_erlang.0.hk" "tests/RoundTrip2/t_erlang_to_erlang.expected.hk",
+    "t_erlang_to_erlang_2"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_erlang_1.0.hk" "tests/RoundTrip2/t_erlang_to_erlang_1.expected.hk",
+    "t_exponential_to_erlang"   ~: testConcreteFiles "tests/RoundTrip2/t_exponential_to_erlang.0.hk" "tests/RoundTrip2/t_exponential_to_erlang.expected.hk"
+
+    ]
 
 testOther :: Test
 testOther = test [
@@ -245,6 +252,7 @@ allTests = test
     , testMeasurePair
     , testMeasureNat
     , testMeasureInt
+    , testErlangRelations
     , testOther
     ]
 

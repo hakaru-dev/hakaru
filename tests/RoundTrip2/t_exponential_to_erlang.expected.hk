@@ -1,0 +1,8 @@
+def exponential(alpha prob):
+	X <~ uniform(0,1)
+	return -1 * alpha * log(real2prob(X))
+
+fn k nat:
+	fn lambda prob:
+		X <~ gamma(k,lambda)
+		return(prob2real(X))
