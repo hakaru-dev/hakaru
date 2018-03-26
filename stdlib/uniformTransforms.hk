@@ -27,3 +27,59 @@ def gompertz(delta prob, kappa prob):
 def log_logistic(lambda prob, kappa prob):
 	X <~ uniform(0,1)
 	return real2prob((1-X)/X) ** (1/kappa) / lambda
+
+
+#Logistic Distribution
+def logistic(lambda prob, kappa prob):
+	X <~ log_logistic(lambda, kappa)
+	return log(X)
+
+# logistic exponential distribution
+def logisticExponential(lambda prob, kappa prob):
+	x <~ uniform(0,1)
+	return (1/lambda) * log( real2prob( 1 + ( real2prob(x/(1-x)) ** (1/kappa) ) ) )
+
+#exponential power distribution
+def exponentialPower(lambda prob, kappa prob):
+	x <~ uniform(0,1)
+	return real2prob((log(real2prob(1-log(real2prob(1-x))))) / lambda)**(1/kappa)
+#benford Distribution
+def benford():
+	x <~ uniform(0,1)
+	return 10**x
+
+#generalized pareto Distribution
+def generalizedPareto (delta prob,kappa real,gamma prob):
+	x <~ lebesgue(0,∞)
+	pdf = (gamma + kappa / real2prob(x+delta)) * (real2prob(1 + x/delta) ** (- kappa)) * real2prob(exp((- gamma) * x))
+	weight(real2prob(pdf), return x)
+
+#Power Distribution
+def power(alpha prob, beta prob):
+	x<~lebesgue(0,alpha)
+	x = real2prob(x)
+	pdf = (beta * x**(beta-1)) / alpha**beta
+	weight(real2prob(pdf), return x)
+
+#lomax Distribution
+def lomax(lambda prob, kappa prob):
+	x<~lebesgue(0,∞)
+	x = real2prob(x)
+	pdf = (lambda * kappa) / (1+lambda*x)**(kappa+1)
+	weight(real2prob(pdf), return x)
+
+#makeham Distribution
+def makeham(delta prob, kappa prob, gamma prob):
+	x<~lebesgue(0,∞)
+	x = real2prob(x)
+	pdf = (gamma+delta*kappa**x)*exp((-gamma)*x-delta*(kappa**x-1)/log(kappa))
+	weight(real2prob(pdf), return x)
+
+#minimax Distribution
+def minimax(beta prob, gamma prob):
+	x<~lebesgue(0,1)
+	x = real2prob(x)
+	pdf = beta*gamma*x**(beta-1)*real2prob(1-x**beta)**(gamma-1)
+	weight(real2prob(pdf), return x)
+
+
