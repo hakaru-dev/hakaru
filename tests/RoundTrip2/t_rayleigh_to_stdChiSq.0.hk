@@ -1,0 +1,17 @@
+# Test case for the relation:
+#	If R ~ rayleigh(2) then R^2 ~ stdChiSq(2)
+
+def exponential(alpha prob):
+	X <~ uniform(0,1)
+	return -1 * alpha * log(real2prob(X))
+
+def rayleigh(alpha prob):
+	X <~ exponential(alpha)
+	return sqrt(real2prob(X))
+
+
+def Rayleigh_to_ChiSq():
+	x <~ rayleigh(2)
+	return prob2real(x ** 2)
+
+Rayleigh_to_ChiSq()
