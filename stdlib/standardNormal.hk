@@ -30,4 +30,3 @@ def hyperbolicSecant() measure(real):
 	x <~ stdCauchy()
 	return log(abs(x/pi))
 
-hyperbolicSecant()
