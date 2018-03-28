@@ -9,7 +9,7 @@
 
 # Natural Uniform Distribution
 # Distribution ranges from n1 to n2 (inclusive) all with the same probability
-def natUniform(n1 nat, n2 nat):
+def natUniform(n1 nat, n2 nat) measure(nat):
 	if (n2 > n1):
 		n = int2nat(n2-n1)
 		arr = array x of n+1: 1.0
@@ -22,7 +22,7 @@ def natUniform(n1 nat, n2 nat):
 		return X+n2
 
 # Integer Uniform Distribution
-def intUniform(a int,b int):
+def intUniform(a int,b int) measure(int):
 	if (b > a):
 		X <~ natUniform(0,int2nat(b-a))
 		return X+a
@@ -46,7 +46,7 @@ def gammaPoisson(shape prob, scale prob) measure(nat):
 # the number of successes that occur before n failures occur.	
 # Implemented as a case of the gammaPoisson distribution where
 # the shape is defined as (1-p)/p and the scale is n
-def pascal(n nat, p prob):
+def pascal(n nat, p prob) measure(nat):
 	# TODO: error check ensure p<=1
 	shape = (1-p)/p
 	X <~ gammaPoisson(real2prob(shape), nat2prob(n))
@@ -55,19 +55,19 @@ def pascal(n nat, p prob):
 # Geometric Distribution: case of Pascal distribution with n=1
 # i.e. measures number of successes with probability p that will occur
 # before a failure occurs.
-def geometric(p prob):
+def geometric(p prob) measure(nat):
 	X <~ pascal(1,p)
 	return X
 
 # Beta-Pascal Transformations is a case of the Pascal Distribution
 # where p is pulled from a Beta Distribution with shape parameters
 # a and b
-def betaPascal(n nat, a prob, b prob):
+def betaPascal(n nat, a prob, b prob) measure(nat):
 	p <~ beta(a,b)
 	X <~ pascal(n,p)
 	return X
 
 #discrete Weibull Distribution	
-def discreteWeibull(p prob, beta prob):
+def discreteWeibull(p prob, beta prob) measure(int):
 	x <~ counting
 	weight( if (x<0): 0 else: (real2prob((real2prob(1-p) ** x) ** beta - (real2prob(1-p) ** (x+1)) ** beta)),return x)
