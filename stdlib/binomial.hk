@@ -6,13 +6,15 @@
 #############################################
 
 # Bernoulli distribution is simply Binomial Distribution of 1 experiment
-def bernoulli(p prob):
+# Value can take on 0 or 1
+def bernoulli(p prob) measure(nat):
+	#TODO: check  0 <= p <= 1
 	categorical([real2prob(1-p),p])
 
 # Binomial Distribution
 # Describes number of successes in n independant experiments
 # Each with success probability p
-def binomial(n nat, p prob):
+def binomial(n nat, p prob) measure(nat):
 	arr <~ plate _ of n: bernoulli(p)
 	sum = summate i from 0 to n: arr[i]
 	return sum
@@ -20,7 +22,7 @@ def binomial(n nat, p prob):
 # Beta-Binomial is defined as a binomial distribution
 # with the success probability pulled from a beta distribution
 # Parameters a and b are the shape parameters of the beta distribution
-def betaBinomial(a prob, b prob, n nat):
+def betaBinomial(a prob, b prob, n nat) measure(nat):
 	p <~ beta(a,b)
 	binomial(n,p)
 # TODO: test betaBinomial correctness. 
@@ -30,6 +32,6 @@ def betaBinomial(a prob, b prob, n nat):
 # In an experiment with N trials and K successes  this distribution 
 # describes the number of successes if the experiment is stopped after
 # r failures
-def negativeHyperGeometric(N nat, K nat, r nat):
+def negativeHyperGeometric(N nat, K nat, r nat) measure(nat):
 	# TODO: Error check to make sure N >= K, r <= N-K and N,r > 0
 	betaBinomial(nat2prob(r), nat2prob(int2nat(N-K+1 - r)), K)
