@@ -211,6 +211,14 @@ testStdChiSqRelations = test [
     "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk"        
     ]
 
+testCauchyRealtions :: Test
+testCauchyRealtions = test [
+    "t_cauchy_linear_transformation"   ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_linear_transformation.0.hk" "tests/RoundTrip2/t_cauchy_linear_transformation.expected.hk",
+    "t_cauchy_add_transformation"   ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_add_transformation.0.hk" "tests/RoundTrip2/t_cauchy_add_transformation.expected.hk",
+    "t_cauchy_sub_transformation"   ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_sub_transformation.0.hk" "tests/RoundTrip2/t_cauchy_sub_transformation.expected.hk",
+    "t_cauchy_reciprocal_transformation"   ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_reciprocal_transformation.0.hk" "tests/RoundTrip2/t_cauchy_reciprocal_transformation.expected.hk"
+    ]
+
 testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
@@ -253,6 +261,7 @@ allTests = test
     , testMeasureNat
     , testMeasureInt
     , testStdChiSqRelations
+    , testCauchyRealtions
     , testOther
     ]
 
