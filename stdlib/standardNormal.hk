@@ -23,3 +23,11 @@ def stdCauchy():
 def cauchy(a real, alpha prob):
 	X <~ stdCauchy()
 	return a + alpha*X
+
+# implementation of hyperbolic secant distribution as a transformation
+# of standard Cauchy distribution
+def hyperbolicSecant():
+	x <~ stdCauchy()
+	return log(abs(x/pi))
+
+

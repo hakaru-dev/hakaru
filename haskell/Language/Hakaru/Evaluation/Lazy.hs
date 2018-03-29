@@ -545,6 +545,7 @@ evaluatePrimOp evaluate_ = go
     -- TODO: deal with how we have better types for these three ops than Haskell does...
     -- go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
     go RealPow   (e1 :* e2 :* End) = neu2 (P.**) e1 e2
+    go Choose    (e1 :* e2 :* End) = neu2 (P.choose) e1 e2
 
     -- HACK: these aren't actually neutral!
     -- BUG: we should try to cancel out @(exp . log)@ and @(log . exp)@

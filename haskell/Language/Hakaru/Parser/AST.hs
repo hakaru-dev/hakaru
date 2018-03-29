@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP
+ {-# LANGUAGE CPP
            , GADTs
            , DataKinds
            , PolyKinds
@@ -302,7 +302,7 @@ data PrimOp
     | Asin       | Acos   | Atan
     | Sinh       | Cosh   | Tanh
     | Asinh      | Acosh  | Atanh
-    | RealPow    | NatPow
+    | RealPow    | Choose | NatPow
     | Exp        | Log    | Infinity
     | GammaFunc  | BetaFunc
     | Equal      | Less

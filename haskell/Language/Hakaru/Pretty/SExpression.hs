@@ -268,6 +268,7 @@ prettyPrimOp Not              (e1 :* End)       = PP.text "not" <+> pretty e1
 prettyPrimOp Pi               End               = PP.text "pi"
 prettyPrimOp Cos              (e1 :* End)       = PP.text "cos" <+> pretty e1
 prettyPrimOp RealPow          (e1 :* e2 :* End) = PP.text "realpow" <+> pretty e1 <+> pretty e2
+prettyPrimOp Choose           (e1 :* e2 :* End) = PP.text "choose" <+> pretty e1 <+> pretty e2
 prettyPrimOp Exp              (e1 :* End)       = PP.text "exp"  <+> pretty e1
 prettyPrimOp Log              (e1 :* End)       = PP.text "log"  <+> pretty e1
 prettyPrimOp (Infinity  _)    End               = PP.text "infinity"

@@ -335,6 +335,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: may need @SafeFrom_@ in order to branch on the input
     -- in order to provide the old unsafe behavior.
     RealPow   :: PrimOp '[ 'HProb, 'HReal ] 'HProb
+    Choose    :: PrimOp '[ 'HNat, 'HNat ] 'HNat
     -- ComplexPow :: PrimOp '[ 'HProb, 'HComplex ] 'HComplex
     -- is uniquely well-defined. Though we may want to implement
     -- it via @r**z = ComplexExp (z * RealLog r)@
