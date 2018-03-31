@@ -71,3 +71,18 @@ def betaPascal(n nat, a prob, b prob):
 def discreteWeibull(p prob, beta prob):
 	x <~ counting
 	weight( if (x<0): 0 else: (real2prob((real2prob(1-p) ** x) ** beta - (real2prob(1-p) ** (x+1)) ** beta)),return x)
+
+# Polya Distribution
+def polya(n nat, p prob, beta prob) measure(nat):
+	# TODO: check that 0 < p < 1 and throw error if not satisfied
+	# TODO: check that beta > 0 and throw error if not satisfied
+	# TODO: confirm type of beta. it is unclear from the documentation 
+	# 		I found whether it is supposed to be a prob or a nat. 
+
+	# apply the pmf to the values 0..n and store them in an array 
+	pmf = array x of n + 1: choose(n, x) * (product j from 0 to x: p + j * beta) * (product k from 0 to int2nat(n - x): real2prob(1 - p + k * beta)) / (product i from 0 to n: 1 + i * beta)
+
+	# sample a categorical with probabilities based on the pmf
+	p <~ categorical(pmf)
+
+	return p
