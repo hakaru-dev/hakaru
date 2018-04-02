@@ -1,0 +1,7 @@
+#If X ~ Exp(2) then X ∼ χ(2)^2
+
+def exponential(alpha prob):
+	X <~ uniform(0,1)
+	return -1 * alpha * log(real2prob(X))
+
+exponential(2)

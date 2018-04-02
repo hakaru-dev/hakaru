@@ -1,0 +1,14 @@
+#If X ~ Exp(2) then X ∼ χ(2)^2
+
+# Chi Squared distribution with n independant and identical distributions (iid).
+def chiSq_iid(n nat, mean real, stdev prob):
+	q <~ plate _ of n: normal(mean,stdev)
+	return summate i from 0 to size(q): 
+		((q[i]-mean)/stdev)^2
+
+# Standard Chi Squared distribution is defined in terms of n independant
+# standard normal distributions
+def standardChiSq(n nat):
+	chiSq_iid(n,0,1)
+
+standardChiSq(2)
