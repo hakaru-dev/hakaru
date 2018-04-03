@@ -1,5 +1,0 @@
-def muth(kappa prob):
-	x<~lebesgue(0,∞)
-	x = real2prob(x)
-	pdf = real2prob(exp(kappa*x)-kappa)*exp(-(exp(kappa*x)/kappa)+kappa*x+1/kappa)
-	weight(real2prob(pdf), return x)
