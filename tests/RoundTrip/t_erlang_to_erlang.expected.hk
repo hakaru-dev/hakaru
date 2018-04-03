@@ -1,0 +1,6 @@
+fn scale nat:
+	fn shape prob:
+		fn a prob:
+			gamma(shape/a,nat2prob(scale))
+			
+
