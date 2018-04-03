@@ -1,0 +1,7 @@
+def logarithm(c prob):
+	x<~counting
+	if (x>0):
+		pmf = - real2prob(1-c)**x / (x*log(c))
+		weight(real2prob(pmf), return x)
+	else:
+		return nat2int(0)
