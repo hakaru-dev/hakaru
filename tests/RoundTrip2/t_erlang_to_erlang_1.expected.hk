@@ -1,5 +1,0 @@
-fn scale1 nat:
-	fn scale2 nat:
-		fn shape prob:
-			XplusY <~ gamma(shape,nat2prob(scale1+scale2))
-			return(XplusY)
