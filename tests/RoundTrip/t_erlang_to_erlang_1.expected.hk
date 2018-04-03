@@ -1,4 +1,0 @@
-fn scale1 nat:
-	fn scale2 nat:
-		fn shape prob:
-			gamma(shape,nat2prob(scale1)+nat2prob(scale2))
