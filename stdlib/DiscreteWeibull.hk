@@ -1,0 +1,15 @@
+discrete Weibull distribution with parameters p and β has the following p.m.f.
+
+# f(x) = ((1−p)^x)^β − ((1−p)^(x+1))^β
+
+# Which is given as the first parameter to wieght(). 
+
+#The x values are positive integers including 0.
+# To account for this, negative x values are given a weight of zero.
+
+# More information can be found here: http://www.math.wm.edu/~leemis/chart/UDR/PDFs/Discreteweibull.pdf
+
+
+def discreteWeibull(p prob, beta prob):
+	x <~ counting
+	weight( if (x<0): 0 else: (real2prob((real2prob(1-p) ** x) ** beta - (real2prob(1-p) ** (x+1)) ** beta)),return x)

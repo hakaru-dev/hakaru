@@ -1,0 +1,7 @@
+def TSP(a real,b real,m real,n prob):
+	x<~lebesgue(0,∞)
+	x = real2prob(x)
+	pdf = if (x>a && x<m): (n*real2prob(x-a)**(n-1))/(real2prob(b-a)*real2prob(m-a)**(n-1)) 
+		  else: if x>=m && x<b : (n*real2prob(b-x)**(n-1))/(real2prob(b-a)*real2prob(b-m)**(n-1)) 
+		  else: 0 
+	return pdf
