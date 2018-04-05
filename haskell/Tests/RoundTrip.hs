@@ -210,7 +210,10 @@ testStdChiSqRelations = test [
     "t_stdChiSq_to_exponential" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_to_exponential.0.hk" "tests/RoundTrip2/t_stdChiSq_to_exponential.expected.hk",
     "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk"        
     ]
-
+testErlangRelations :: Test
+testErlangRelations = test [
+        "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk"
+]
 testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
