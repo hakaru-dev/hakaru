@@ -1,0 +1,13 @@
+def exponential(alpha prob):
+	X <~ uniform(0,1)
+	return (-1 * alpha * log(real2prob(X)))
+
+def erlang(shape prob, scale nat):
+	gamma(shape, nat2prob(scale))
+
+fn n nat:
+	fn lambda prob:
+		U <~ exponential(lambda)
+		V <~ erlang(n,lambda)
+		(U/V+1)
+

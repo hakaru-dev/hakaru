@@ -1,0 +1,6 @@
+def pareto(lambda prob, kappa prob):
+	X <~ uniform(0,1)
+	return lambda / (real2prob(X) ** (1/kappa))
+
+fn n nat:
+	pareto(1,nat2prob(n))
