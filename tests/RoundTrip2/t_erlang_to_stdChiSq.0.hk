@@ -1,0 +1,9 @@
+def erlang(shape prob, scale nat):
+	return gamma(shape, nat2prob(scale))
+
+fn k nat:
+	fn lambda prob:
+		X <~ erlang(lambda,k)
+		return(2*lambda*X)
+
+
