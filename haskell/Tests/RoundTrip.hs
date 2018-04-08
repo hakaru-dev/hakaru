@@ -213,7 +213,7 @@ testStdChiSqRelations = test [
 testErlangRelations :: Test
 testErlangRelations = test [
         "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk"
-]
+    ]
 testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
