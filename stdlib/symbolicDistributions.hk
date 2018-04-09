@@ -53,6 +53,3 @@ def muth(kappa prob) measure(prob):
 		weight(real2prob(pdf), return x)
 	else:
 		reject.measure(prob)
-
-
-muth(1)
