@@ -1,5 +1,7 @@
-fn scale nat:
-	fn shape prob:
+def erlang(shape nat, scale prob) measure(prob):
+	gamma(nat2prob(shape), scale)
+fn scale prob:
+	fn shape nat:
 		fn a prob:
-			x <~ gamma(shape,nat2prob(scale)) # this is how we implemented erlang in stdlib
+			x <~ erlang(shape,scale)
 			return(x*a)
