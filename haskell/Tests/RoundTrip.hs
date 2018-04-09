@@ -257,7 +257,6 @@ allTests = test
     , testMeasureInt
     , testStdChiSqRelations
     , testOther
-    , testStdChiSqRelations
     ]
 
 ----------------------------------------------------------------
