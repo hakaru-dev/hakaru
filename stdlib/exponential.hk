@@ -31,6 +31,10 @@ def K(alpha prob, beta prob):
 	Y <~ gamma(alpha, alpha/beta)
 	return sqrt(X*Y)
 
+def gumbel(mu real, beta prob):
+	X <~ exponential(1/1)
+	return mu - beta * log(X)
+
 def hyperexponential (alpha array(prob), p array(prob)):
 	x <~ lebesgue (0,∞)
 	pdf = summate i from 1 to size(p): p[i]/alpha[i] * (exp((-x)/alpha[i]))
