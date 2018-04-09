@@ -20,3 +20,4 @@ def powerSeries(a (nat->prob), c prob) measure(nat):
 			return 0
 	else:
 		reject.measure(nat)
+
