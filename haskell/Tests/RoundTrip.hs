@@ -211,6 +211,11 @@ testStdChiSqRelations = test [
     "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk"        
     ]
 
+testCauchyRelations :: Test 
+testCauchyRelations = test [
+    "t_cauchy_to_students_t" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_to_students_t.0.hk" "tests/RoundTrip2/t_cauchy_to_students_t.expected.hk"
+    ]
+
 testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
@@ -253,6 +258,7 @@ allTests = test
     , testMeasureNat
     , testMeasureInt
     , testStdChiSqRelations
+    , testCauchyRelations
     , testOther
     ]
 
