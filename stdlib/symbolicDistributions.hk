@@ -17,4 +17,3 @@ def zeta(alpha prob) measure(nat):
 		pmf = 1 / (x**alpha * 3 *(summate i from 1 to ∞: (1/i)**alpha))
 		weight(pmf, return x)
 	else:
-		return 0
