@@ -1,0 +1,2 @@
+X <~ uniform(0, 1)
+return tan(pi * (X - 1/2))
