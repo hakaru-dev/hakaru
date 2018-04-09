@@ -6,8 +6,8 @@
 ######################################
 
 # The Erlang Distribution (AKA Discrete Gamma)
-def erlang(shape prob, scale nat):
-	return gamma(shape, nat2prob(scale))
+def erlang(shape nat, scale prob) measure(prob):
+	gamma(nat2prob(shape), scale)
 
 # The Inverse-Gamma Distribution
 def invGamma(shape prob, scale prob) measure(prob):
@@ -15,12 +15,11 @@ def invGamma(shape prob, scale prob) measure(prob):
 	return 1/X
 
 #gamma normal distribution
-def gamma_normal(mu real,alpha prob,beta prob):
+def gammaNormal(mu real,alpha prob,beta prob) measure(real):
 	rho <~ invGamma(alpha , beta)
-	return normal(mu,rho^2)
+	normal(mu,rho^2)
 
 #log gamma distribution
-def log_gamma(alpha prob, beta prob):
+def logGamma(alpha prob, beta prob) measure(real):
 	x <~ gamma(alpha, beta)
 	return log(x)
-
