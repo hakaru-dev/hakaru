@@ -35,6 +35,11 @@ def gumbel(mu real, beta prob):
 	X <~ exponential(1/1)
 	return mu - beta * log(X)
 
+def exGaussian(mean real, stdev prob, scale prob):
+	X <~ normal(mean,stdev)
+	Y <~ exponential(scale)
+	return X + Y
+
 def hyperexponential (alpha array(prob), p array(prob)):
 	x <~ lebesgue (0,∞)
 	pdf = summate i from 1 to size(p): p[i]/alpha[i] * (exp((-x)/alpha[i]))
