@@ -8,6 +8,6 @@ def erlang(shape prob, scale nat):
 fn n nat:
 	fn lambda prob:
 		U <~ exponential(lambda)
-		V <~ erlang(n,lambda)
-		(U/V+1)
+		V <~ erlang(lambda,n)
+		return real2prob(U/V+1)
 
