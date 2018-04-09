@@ -39,6 +39,10 @@ def exGaussian(mean real, stdev prob, scale prob):
 	Y <~ exponential(scale)
 	return X + Y
 
+def skewLogistic(alpha prob):
+	X <~ exponential(alpha)
+	return log(exp(X) - 1)
+	
 def hyperexponential (alpha array(prob), p array(prob)):
 	x <~ lebesgue (0,∞)
 	pdf = summate i from 1 to size(p): p[i]/alpha[i] * (exp((-x)/alpha[i]))
