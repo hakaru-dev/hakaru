@@ -216,6 +216,11 @@ testExponentialRelations = test [
     "t_exponential_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_stdChiSq.0.hk" "tests/RoundTrip/t_exponential_to_stdChiSq.expected.hk"
     ]
 
+testErlangRelations :: Test
+testErlangRelations = test [
+    "t_exponential_to_erlang"   ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_erlang.0.hk" "tests/RoundTrip/t_exponential_to_erlang.expected.hk"
+    ]
+
 testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
@@ -260,9 +265,12 @@ allTests = test
     , testErlangRelations
     , testStdChiSqRelations
 <<<<<<< HEAD
+<<<<<<< HEAD
     , testExponentialRelations
 =======
 >>>>>>> 83f654f80e8f193d5aad706498f90689343f02ae
+=======
+>>>>>>> dad193a0436f877558ec385a09b8050de331995c
     , testOther
     ]
 
