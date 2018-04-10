@@ -15,7 +15,7 @@ def weibull(alpha prob, beta prob):
 
 def rayleigh(alpha prob):
 	X <~ exponential(alpha)
-	return real2prob(X) ** 2
+	return sqrt(real2prob(X))
 
 def laplace(alpha prob, beta prob):
 	X <~ exponential(alpha)
