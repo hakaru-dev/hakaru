@@ -5,24 +5,23 @@
 # Exponential Distribution and Transformations #
 ################################################
 
-def exponential(alpha prob):
-	X <~ uniform(0,1)
-	return -1 * alpha * log(real2prob(X))
+def exponential(alpha prob) measure(prob):
+	gamma(1/1,alpha)
 
-def weibull(alpha prob, beta prob):
+def weibull(alpha prob, beta prob) measure(prob):
 	X <~ exponential(alpha)
 	return real2prob(X) ** (1/beta)
 
-def rayleigh(alpha prob):
+def rayleigh(alpha prob) measure(prob):
 	X <~ exponential(alpha)
 	return sqrt(real2prob(X))
 
-def laplace(alpha prob, beta prob):
+def laplace(alpha prob, beta prob) measure(real):
 	X <~ exponential(alpha)
 	Y <~ exponential(beta)
 	return X - Y
 
-def extremeValue(alpha prob, beta prob):
+def extremeValue(alpha prob, beta prob) measure(real):
 	X <~ weibull(alpha,beta)
 	return log(X)
 
