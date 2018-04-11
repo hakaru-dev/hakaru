@@ -106,6 +106,7 @@ enumFromUntilValue
     -> [Value a]
 enumFromUntilValue _ (VNat lo) (VNat hi) = map VNat (init (enumFromTo lo hi))
 enumFromUntilValue _ (VInt lo) (VInt hi) = map VInt (init (enumFromTo lo hi))
+enumFromUntilValue _ _         _         = error "Tried to iterate over a non-iterable value"
 
 data VReducer :: * -> Hakaru -> * where
      VRed_Num    :: STRef s (Value a)
