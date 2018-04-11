@@ -306,7 +306,6 @@ matchPattern getDatum e pat vars =
     PVar               ->
         case vars of
         Cons1 x vars'  -> return . Just $ Matched_ (Assoc x e :) vars'
-        _              -> error "matchPattern: the impossible happened"
     PDatum _hint1 pat1 -> do
         mb <- getDatum e
         case mb of
@@ -351,7 +350,6 @@ matchStruct getDatum d pat vars =
         matchFun    getDatum d1 p1 vars0 `bindMMR` \xs1 vars1 ->
         matchStruct getDatum d2 p2 vars1 `bindMMR` \xs2 vars2 ->
         return . Just $ Matched_ (xs1 . xs2) vars2
-    _ -> return Nothing
     where
     -- TODO: just turn @Maybe MatchState@ into a monad already?
     bindMMR m k = do
@@ -372,7 +370,6 @@ matchFun getDatum d pat vars =
     case (d,pat) of
     (Konst d2, PKonst p2) -> matchPattern getDatum d2 p2 vars
     (Ident d1, PIdent p1) -> matchPattern getDatum d1 p1 vars
-    _                     -> return Nothing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
