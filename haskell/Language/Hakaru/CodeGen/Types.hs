@@ -372,8 +372,9 @@ closureStructure fvs as i@(Ident name) typ = CDeclExt $
   (CDecl [CTypeSpec $ (buildStruct (Just i) (codePtr:(declFvs cNameStream fvs)))]
          [])
   where declFvs _ [] = []
-        declFvs (n:ns) ((SomeVariable (Variable _ _ typ)):as) =
-          typeDeclaration typ (Ident n) : declFvs ns as
+        declFvs (n:ns) ((SomeVariable (Variable _ _ typ')):as') =
+          typeDeclaration typ' (Ident n) : declFvs ns as'
+        declFvc [] (_:_) = error "Ran out of identifiers but still had some types to assign"
         codePtr = CDecl (fmap CTypeSpec . buildType $ typ)
                         [(CDeclr Nothing
                            (CDDeclrFun
@@ -384,7 +385,7 @@ closureStructure fvs as i@(Ident name) typ = CDeclExt $
                          ,Nothing)]
 
         varTypes :: List1 Variable (xs :: [Hakaru]) -> [[CTypeSpec]]
-        varTypes = foldMap11 (\(Variable _ _ typ) -> [buildType typ])
+        varTypes = foldMap11 (\(Variable _ _ typ') -> [buildType typ'])
 
 
 
