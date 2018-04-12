@@ -244,10 +244,10 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                  [ ppArg e1
                  , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
                  ]
-        Bucket b e r  ->
+        Bucket b ee r  ->
             ppFun p "bucket"
             [ ppArg b
-            , ppArg e
+            , ppArg ee
             , toDoc $ parens True (prettyPrec_ p r)
             ]
 
@@ -526,7 +526,7 @@ instance (ABT Term abt) => Pretty (Reducer abt xs) where
             , toDoc $ prettyPrec_ 11 r1
             , toDoc $ prettyPrec_ 11 r2
             ]
-    prettyPrec_ p Red_Nop             =
+    prettyPrec_ _ Red_Nop             =
         [ PP.text "r_nop" ]
     prettyPrec_ p (Red_Add _ e)       =
         ppFun p "r_add"

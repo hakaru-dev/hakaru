@@ -15,8 +15,6 @@ module Language.Hakaru.Syntax.SArgs
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
-import Control.Applicative
-import Data.Monoid
 
 
 -- | Locally closed values (i.e., not binding forms) of a given type.
@@ -42,7 +40,6 @@ data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
 
 infixr 5 :* -- Chosen to match (:)
 
-
 -- TODO: instance Read (SArgs abt args)
 
 instance Show2 abt => Show1 (SArgs abt) where
@@ -61,7 +58,6 @@ instance Show2 abt => Show (SArgs abt args) where
 instance Eq2 abt => Eq1 (SArgs abt) where
     eq1 End       End       = True
     eq1 (x :* xs) (y :* ys) = eq2 x y && eq1 xs ys
-    eq1 _         _         = False
 
 instance Eq2 abt => Eq (SArgs abt args) where
     (==) = eq1
