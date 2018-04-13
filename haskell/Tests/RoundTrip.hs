@@ -264,17 +264,7 @@ allTests = test
     , testMeasureInt
     , testErlangRelations
     , testStdChiSqRelations
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
     , testExponentialRelations
-=======
->>>>>>> 83f654f80e8f193d5aad706498f90689343f02ae
-=======
->>>>>>> dad193a0436f877558ec385a09b8050de331995c
-=======
-    , testErlangRelations
->>>>>>> 2058823b644981d87553fd57534dca12691b5906
     , testOther
     ]
 
