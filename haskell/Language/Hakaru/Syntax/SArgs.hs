@@ -11,6 +11,9 @@ module Language.Hakaru.Syntax.SArgs
   ( module Language.Hakaru.Syntax.SArgs
   ) where
 
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative using (pure,(<$>),(<*>))
+#endif
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
