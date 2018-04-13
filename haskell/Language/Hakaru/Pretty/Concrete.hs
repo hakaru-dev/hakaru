@@ -125,8 +125,8 @@ ppBinder e = go [] (viewABT e)
 
 ppBinderAsFun :: forall abt xs a . ABT Term abt => abt xs a -> Doc
 ppBinderAsFun e =
-  let (vrs , body) = ppBinder e in
-  if null vrs  then body else sep [fsep vrs  <> colon, body]
+  let (vars, body) = ppBinder e in
+  if null vars then body else sep [fsep vars <> colon, body]
 
 ppBinder1 :: (ABT Term abt) => abt '[x] a -> (Doc, Doc, Doc)
 ppBinder1 e = caseBind e $ \x v ->
@@ -153,14 +153,12 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                   Max  _ -> asFun "max" es
 
                   Sum  _ -> case F.toList es of
-                    []   -> error "Sum should never be empty"
                     [e1] -> prettyPrec p e1
                     e1:es' -> parensIf (p > 6) $ sep $
                               prettyPrec 6 e1 :
                               map ppNaryOpSum es'
 
                   Prod _ -> case F.toList es of
-                    []   -> error "Prod should never be empty"
                     [e1] -> prettyPrec p e1
                     e1:e2:es' -> parensIf (p > 7) $ sep $
                                  d1' :
@@ -168,7 +166,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                                  map (ppNaryOpProd False) es'
                       where d1 = prettyPrec 7 e1
                             (d1', second) =
-                              caseVarSyn e1 (const (d1,False)) (\tt -> case tt of
+                              caseVarSyn e1 (const (d1,False)) (\t -> case t of
                                 -- Use parens to distinguish division into 1
                                 -- from recip
                                 Literal_ (LNat 1) -> (parens d1, False)
@@ -201,8 +199,8 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Literal_ v    -> prettyPrec_ p v
         Empty_   typ  -> parensIf (p > 5) (text "[]." <+> prettyType 0 typ)
         Array_ e1 e2  -> parensIf (p > 0) $
-            let (var', _, body) = ppBinder1 e2 in
-            sep [ sep [ text "array" <+> var'
+            let (var, _, body) = ppBinder1 e2 in
+            sep [ sep [ text "array" <+> var
                       , text "of" <+> pretty e1 <> colon ]
                 , body ]
 
@@ -225,11 +223,11 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                             wms  -> parensIf (p > 1)
                                   . sepByR "<|>"
                                   $ map (ppWeight 2) wms
-          where ppWeight pp (w,m)
+          where ppWeight p (w,m)
                     | Syn (Literal_ (LProb 1)) <- viewABT w
-                    = prettyPrec pp m
+                    = prettyPrec p m
                     | otherwise
-                    = ppApply2 pp "weight" w m
+                    = ppApply2 p "weight" w m
 
         Reject_ typ -> parensIf (p > 5) (text "reject." <+> prettyType 0 typ)
 
@@ -290,9 +288,9 @@ ppNaryOpProd second e =
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Doc
 ppSCon p Lam_ = \(e1 :* End) ->
-    let (vr, typ, body) = ppBinder1 e1 in
+    let (var, typ, body) = ppBinder1 e1 in
     parensIf (p > 0) $
-    sep [ text "fn" <+> vr <+> typ <> colon
+    sep [ text "fn" <+> var <+> typ <> colon
         , body ]
 
 --ppSCon p App_ = \(e1 :* e2 :* End) -> ppArg e1 ++ parens True (ppArg e2)
@@ -300,9 +298,9 @@ ppSCon p App_ = \(e1 :* e2 :* End) -> prettyApps p e1 e2
 
 ppSCon p Let_ = \(e1 :* e2 :* End) ->
     -- TODO: generate 'def' if possible
-    let (vr, _, body) = ppBinder1 e2 in
+    let (var, _, body) = ppBinder1 e2 in
     parensIf (p > 0) $
-    vr <+> equals <+> pretty e1 $$ body
+    var <+> equals <+> pretty e1 $$ body
 {-
 ppSCon p (Ann_ typ) = \(e1 :* End) ->
     parensIf (p > 5) (prettyPrec 6 e1 <> text "." <+> prettyType 0 typ)
@@ -317,45 +315,45 @@ ppSCon p Dirac = \(e1 :* End) ->
     parensIf (p > 0) $
     text "return" <+> pretty e1
 ppSCon p MBind = \(e1 :* e2 :* End) ->
-    let (vr, _, body) = ppBinder1 e2 in
+    let (var, _, body) = ppBinder1 e2 in
     parensIf (p > 0) $
-    vr <+> text "<~" <+> pretty e1 $$ body
+    var <+> text "<~" <+> pretty e1 $$ body
 
 ppSCon p Plate = \(e1 :* e2 :* End) ->
-    let (vr, _, body) = ppBinder1 e2 in
+    let (var, _, body) = ppBinder1 e2 in
     parensIf (p > 0) $
-    sep [ sep [ text "plate" <+> vr
+    sep [ sep [ text "plate" <+> var
               , text "of" <+> pretty e1 <> colon ]
         , body ]
 
 ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
-    let (vr, _, body) = ppBinder1 e3 in
+    let (var, _, body) = ppBinder1 e3 in
     parensIf (p > 0) $
-    sep [ sep [ text "chain" <+> vr
+    sep [ sep [ text "chain" <+> var
               , text "from" <+> pretty e2
               , text "of" <+> pretty e1 <> colon ]
         , body ]
 
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
-    let (vr, _, body) = ppBinder1 e3 in
+    let (var, _, body) = ppBinder1 e3 in
     parensIf (p > 0) $
-    sep [ sep [ text "integrate" <+> vr
+    sep [ sep [ text "integrate" <+> var
               , text "from" <+> pretty e1
               , text "to" <+> pretty e2 <> colon ]
         , body ]
 
 ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
-    let (vr, _, body) = ppBinder1 e3 in
+    let (var, _, body) = ppBinder1 e3 in
     parensIf (p > 0) $
-    sep [ sep [ text "summate" <+> vr
+    sep [ sep [ text "summate" <+> var
               , text "from" <+> pretty e1
               , text "to" <+> pretty e2 <> colon ]
         , body ]
 
 ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
-    let (vr, _, body) = ppBinder1 e3 in
+    let (var, _, body) = ppBinder1 e3 in
     parensIf (p > 0) $
-    sep [ sep [ text "product" <+> vr
+    sep [ sep [ text "product" <+> var
               , text "from" <+> pretty e1
               , text "to" <+> pretty e2 <> colon ]
         , body ]
@@ -370,9 +368,9 @@ ppTransform p t es =
     Expect ->
       case es of
         e1 :* e2 :* End ->
-          let (vr, _, body) = ppBinder1 e2 in
+          let (var, _, body) = ppBinder1 e2 in
           parensIf (p > 0) $
-          sep [ text "expect" <+> vr <+> pretty e1 <> colon
+          sep [ text "expect" <+> var <+> pretty e1 <> colon
               , body ]
     _ -> ppApply p (transformName t) es
 
@@ -421,7 +419,7 @@ prettyType p (SData (STyCon sym `STyApp` a `STyApp` b) _)
 prettyType p (SData (STyCon sym `STyApp` a) _)
     | Just Refl <- jmEq1 sym sSymbol_Maybe
     = ppFun p "maybe" [flip prettyType a]
-prettyType _ (SData (STyCon sym) _)
+prettyType p (SData (STyCon sym) _)
     | Just Refl <- jmEq1 sym sSymbol_Bool
     = text "bool"
     | Just Refl <- jmEq1 sym sSymbol_Unit
@@ -593,50 +591,65 @@ instance Pretty f => Pretty (Datum f) where
 -- HACK: need to pull this out in order to get polymorphic recursion over @xs@
 ppPattern :: [Doc] -> Pattern xs a -> (Int -> Doc, [Doc])
 ppPattern vars   PWild = (const (text "_"), vars)
--- adding the following missing case seems to make things even worse?
--- ppPattern []     PVar  = error "ppPattern: have a PVar but ran out of Doc"
 ppPattern (v:vs) PVar  = (const v         , vs)
-ppPattern vrs    (PDatum hint d0)
+ppPattern vars   (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
     | otherwise      =
         case Text.unpack hint of
         -- Special cases for certain pDatums
-        "true"  -> (const (text "true" ), vrs )
-        "false" -> (const (text "false"), vrs )
+        "true"  -> (const (text "true" ), vars)
+        "false" -> (const (text "false"), vars)
         "pair"  -> ppFunWithVars ppTuple
         -- General case
         f       -> ppFunWithVars (flip ppFun f)
     where
     ppFunWithVars ppHint = (flip ppHint g, vars')
-       where (g, vars') = goCode d0 vrs 
+       where (g, vars') = goCode d0 vars
 
-    goCode :: PDatumCode xss vrs  a -> [Doc] -> ([Int -> Doc], [Doc])
+    goCode :: PDatumCode xss vars a -> [Doc] -> ([Int -> Doc], [Doc])
     goCode (PInr d) = goCode   d
     goCode (PInl d) = goStruct d
 
-    goStruct :: PDatumStruct xs vrs  a -> [Doc] -> ([Int -> Doc], [Doc])
-    goStruct PDone       vrs'  = ([], vrs')
-    goStruct (PEt d1 d2) vrs' = (gF ++ gS, vars'')
-       where (gF, vars')  = goFun d1 vrs 
+    goStruct :: PDatumStruct xs vars a -> [Doc] -> ([Int -> Doc], [Doc])
+    goStruct PDone       vars  = ([], vars)
+    goStruct (PEt d1 d2) vars = (gF ++ gS, vars'')
+       where (gF, vars')  = goFun d1 vars
              (gS, vars'') = goStruct d2 vars' 
 
-    goFun :: PDatumFun x vrs  a -> [Doc] -> ([Int -> Doc], [Doc])
-    goFun (PKonst d) vrs' = ([g], vars')
-       where (g, vars') = ppPattern vrs' d
-    goFun (PIdent d) vrs' = ([g], vars')
-       where (g, vars') = ppPattern vrs' d
+    goFun :: PDatumFun x vars a -> [Doc] -> ([Int -> Doc], [Doc])
+    goFun (PKonst d) vars = ([g], vars')
+       where (g, vars') = ppPattern vars d
+    goFun (PIdent d) vars = ([g], vars')
+       where (g, vars') = ppPattern vars d
 
 
 instance (ABT Term abt) => Pretty (Branch a abt) where
-    prettyPrec_ _ (Branch pat e) =
-        let (vrs , body) = ppBinder e
-            (pp, []) = ppPattern vrs  pat
+    prettyPrec_ p (Branch pat e) =
+        let (vars, body) = ppBinder e
+            (pp, []) = ppPattern vars pat
         in sep [ pp 0 <> colon, nest 2 body ]
 
 ----------------------------------------------------------------
 prettyApps :: (ABT Term abt) => Int -> abt '[] (a ':-> b) -> abt '[] a -> Doc
-prettyApps = \ p e1 e2 -> uncurry (ppApp p) (collectApps e1 [flip prettyPrec e2])
+prettyApps = \ p e1 e2 ->
+{- TODO: confirm not using reduceLams
+    case reduceLams e1 e2 of
+    Just e2' -> ppArg e2'
+    Nothing  ->
+-}
+      uncurry (ppApp p) (collectApps e1 [flip prettyPrec e2])
     where
+    reduceLams
+        :: (ABT Term abt)
+        => abt '[] (a ':-> b) -> abt '[] a -> Maybe (abt '[] b)
+    reduceLams e1 e2 =
+        caseVarSyn e1 (const Nothing) $ \t ->
+            case t of
+            Lam_ :$ e1 :* End ->
+              caseBind e1 $ \x e1' ->
+                Just (subst x e2 e1')
+            _                 -> Nothing
+
     -- collectApps makes sure f(x,y) is not printed f(x)(y)
     collectApps
         :: (ABT Term abt)
