@@ -1,4 +1,5 @@
-{-# LANGUAGE DataKinds
+{-# LANGUAGE CPP
+           , DataKinds
            , PolyKinds
            , GADTs
            , RankNTypes
