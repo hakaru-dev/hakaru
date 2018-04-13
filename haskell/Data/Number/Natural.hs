@@ -157,7 +157,7 @@ newtype MaxNatural = MaxNatural { unMaxNatural :: Natural }
 
 instance Semigroup MaxNatural where
     MaxNatural m <> MaxNatural n = MaxNatural (max m n)
-    
+
 instance Monoid MaxNatural where
     mempty  = MaxNatural 0
 #if !(MIN_VERSION_base(4,11,0))
