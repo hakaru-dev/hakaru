@@ -39,6 +39,7 @@ module Language.Hakaru.Syntax.DatumCase
     ) where
 
 import Data.Proxy (Proxy(..))
+import Prelude hiding ((<>))
 
 import Language.Hakaru.Syntax.IClasses
 -- TODO: make things polykinded so we can make our ABT implementation
