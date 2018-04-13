@@ -13,7 +13,8 @@ module Language.Hakaru.Syntax.SArgs
   ) where
 
 #if __GLASGOW_HASKELL__ < 710
-import Control.Applicative (pure,(<$>),(<*>),mappend,mempty,Applicative)
+import Control.Applicative (pure,(<$>),(<*>),Applicative)
+import Data.Monoid (Monoid(mempty,mappend))
 #endif
 
 import Language.Hakaru.Syntax.IClasses
