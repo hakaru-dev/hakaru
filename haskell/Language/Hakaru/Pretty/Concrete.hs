@@ -593,7 +593,8 @@ instance Pretty f => Pretty (Datum f) where
 -- HACK: need to pull this out in order to get polymorphic recursion over @xs@
 ppPattern :: [Doc] -> Pattern xs a -> (Int -> Doc, [Doc])
 ppPattern vars   PWild = (const (text "_"), vars)
-ppPattern []     PVar  = error "ppPattern: have a PVar but ran out of Doc"
+-- adding the following missing case seems to make things even worse?
+-- ppPattern []     PVar  = error "ppPattern: have a PVar but ran out of Doc"
 ppPattern (v:vs) PVar  = (const v         , vs)
 ppPattern vrs    (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
