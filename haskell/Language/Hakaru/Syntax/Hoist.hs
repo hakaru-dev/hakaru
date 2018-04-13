@@ -43,7 +43,7 @@
 module Language.Hakaru.Syntax.Hoist (hoist) where
 
 import           Control.Applicative             (liftA2)
-import           Control.Monad.RWS
+import           Control.Monad.RWS               hiding ((<>))
 import qualified Data.Foldable                   as F
 import qualified Data.Graph                      as G
 import qualified Data.IntMap.Strict              as IM
