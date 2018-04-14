@@ -81,16 +81,13 @@ module Language.Hakaru.Syntax.ABT
     ) where
 
 import           Data.Text         (Text, empty)
---import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative hiding (empty)
 import           Data.Monoid                (Monoid(..))
 #endif
 
-import Control.Monad
 import Control.Monad.Identity    
-import Control.Monad.Fix
 import Data.Number.Nat
 import Language.Hakaru.Syntax.IClasses
 -- TODO: factor the definition of the 'Sing' type family out from
@@ -168,8 +165,8 @@ instance Functor12 View where
 
 instance Foldable12 View where
     foldMap12 f (Syn  t)   = f t
-    foldMap12 f (Var  x)   = mempty
-    foldMap12 f (Bind x e) = foldMap12 f e
+    foldMap12 _ (Var  _)   = mempty
+    foldMap12 f (Bind _ e) = foldMap12 f e
 
 instance Traversable12 View where
     traverse12 f (Syn t)    = Syn <$> f t
@@ -691,6 +688,7 @@ instance ( Show1 (Sing :: k -> *)
 -- | If the variable is in the set, then construct a new one which
 -- isn't (but keeping the same hint and type as the old variable).
 -- If it isn't in the set, then just return it.
+-- FIXME: this is actually not used!
 freshen
     :: (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *))
     => Variable (a :: k)
@@ -797,7 +795,7 @@ substM x e vf =
     loop :: forall xs' b'
          .  Nat -> abt xs' b' -> View (syn abt) xs' b' -> m (abt xs' b')
     loop n _ (Syn t) = syn <$> traverse21 (start n) t
-    loop _ f (Var z) =
+    loop _ _ (Var z) =
 #ifdef __TRACE_DISINTEGRATE__
         trace ("checking varEq " ++ show (varID x) ++ " " ++ show (varID z)) $
 #endif        
@@ -960,11 +958,11 @@ binderM
   -> (abt '[] a -> m (abt xs b))
   -> m (abt (a ': xs) b)
 binderM hint typ hoas = do
-  (var, body) <- mfix $ \ ~(_, b) -> do
+  (var', body) <- mfix $ \ ~(_, b) -> do
     let v = Variable hint (nextBind b) typ
     b' <- hoas (var v)
     return (v, b')
-  return (bind var body)
+  return (bind var' body)
 
 class (ABT syn abt) =>
     Binders syn abt xs as | abt -> syn, abt xs -> as, abt as -> xs where

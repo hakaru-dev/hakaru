@@ -394,7 +394,6 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
                     CoerceTo_ c' :$ es' ->
                         case es' of
                         e' :* End -> Just $ P.coerceTo_ (c . c') e'
-                        _ -> error "coerceTo@Whnf: the impossible happened"
                     _ -> Nothing
         Head_ v ->
             case v of
@@ -415,7 +414,6 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
                     UnsafeFrom_ c' :$ es' ->
                         case es' of
                         e' :* End -> Just $ P.unsafeFrom_ (c' . c) e'
-                        _ -> error "unsafeFrom@Whnf: the impossible happened"
                     _ -> Nothing
         Head_ v ->
             case v of
@@ -874,7 +872,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
 
     substVar :: Variable a -> abt '[] a
              -> (forall b'. Variable b' -> m (abt '[] b'))
-    substVar x e = return . var
+    substVar _ _ = return . var
 
 
     extFreeVars :: abt xs a -> m (VarSet (KindOf a))
@@ -930,7 +928,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
         -- can return for them because the variables are
         -- untouchable\/abstract.
         SStuff1 _ _ _ -> Just . return . Neutral $ var x
-        SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
+        SGuard _ _ _ _ -> Just . return . Neutral $ var x
 
 
 -- | A simple 'CaseEvaluator' which uses the 'DatumEvaluator' to

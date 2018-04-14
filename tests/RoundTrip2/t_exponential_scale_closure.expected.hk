@@ -2,12 +2,5 @@
 
 #Equivalent: If X ~ Exp(α) then kX ~ Exp(kα)
 
-def exponential(alpha prob):
-	X <~ uniform(0,1)
-	return -1 * alpha * log(real2prob(X))
-
-def exponentialScaled(alpha prob, k prob):
-	X <~ exponential(alpha * k)
-	return X
-
-exponentialScaled(1/2,2/1)
+X <~ uniform(+0/1,+1/1)
+return (-1/2) * log(2/1 *real2prob(X))

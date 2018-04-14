@@ -522,8 +522,6 @@ toAssocs1 = \xs es -> Assocs (go IM.empty xs es)
     go m Nil1         Nil1         = m
     go m (Cons1 x xs) (Cons1 e es) =
         go (IM.insert (fromNat $ varID x) (Assoc x e) m) xs es
-    go _ _ _ = error "toAssocs1: the impossible happened"
-
 
 instance Monoid (Assocs abt) where
     mempty = emptyAssocs

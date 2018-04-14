@@ -203,7 +203,7 @@ testMeasurePair = test [
     "easyHMM"           ~: testConcreteFile "tests/RoundTrip/easyHMM.hk",
     "testMCMCPriorProp" ~: testConcreteFile "tests/RoundTrip/testMCMCPriorProp.hk"
     ]
-
+    
 testStdChiSqRelations :: Test
 testStdChiSqRelations = test [
     "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk",
@@ -213,7 +213,13 @@ testStdChiSqRelations = test [
 
 testExponentialRelations :: Test 
 testExponentialRelations = test [ 
-    "t_exponential_scale_closure"   ~: testConcreteFiles "tests/RoundTrip2/t_exponential_scale_closure.0.hk" "tests/RoundTrip2/t_exponential_scale_closure.expected.hk"
+    "t_exponential_scale_closure"   ~: testConcreteFiles "tests/RoundTrip2/t_exponential_scale_closure.0.hk" "tests/RoundTrip2/t_exponential_scale_closure.expected.hk",
+    "t_exponential_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_exponential_to_stdChiSq.0.hk" "tests/RoundTrip2/t_exponential_to_stdChiSq.expected.hk"
+    ]
+
+testErlangRelations :: Test
+testErlangRelations = test [
+        "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk"
     ]
 
 testOther :: Test
@@ -257,8 +263,10 @@ allTests = test
     , testMeasurePair
     , testMeasureNat
     , testMeasureInt
+    , testErlangRelations
     , testStdChiSqRelations
     , testExponentialRelations
+    , testErlangRelations
     , testOther
     ]
 
