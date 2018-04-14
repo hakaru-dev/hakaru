@@ -48,6 +48,7 @@ import qualified Data.Foldable      as F
 import qualified Data.List.NonEmpty as L
 import qualified Data.Text          as Text
 import qualified Data.Sequence      as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import           Prelude            hiding ((<>))
 
 import Data.Number.Nat                 (fromNat)
 import Data.Number.Natural             (fromNatural)

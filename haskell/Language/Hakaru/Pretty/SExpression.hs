@@ -40,6 +40,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
+import Prelude hiding ((<>))
 import Text.PrettyPrint (Doc, (<>), (<+>))
 import Text.PrettyPrint as PP
 
