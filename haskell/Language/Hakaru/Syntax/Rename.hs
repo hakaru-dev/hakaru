@@ -29,17 +29,9 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Rename where
 
-import           Control.Monad.Reader
-import           Control.Monad.State
-import           Data.Maybe                      (fromMaybe)
-import           Data.Number.Nat
-
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.AST
-import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
-import           Language.Hakaru.Syntax.Gensym
 import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.Variable
 import qualified Data.Text as Text 
 import           Data.Text (Text) 
 import           Data.Char 

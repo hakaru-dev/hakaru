@@ -67,7 +67,61 @@ def betaPascal(n nat, a prob, b prob) measure(nat):
 	X <~ pascal(n,p)
 	return X
 
+# The hypergeometric distribution is a discrete
+# probaility distribution that describes the 
+# probability of 'k' successes in 'n' draws (without
+# replacement) from a population of size 'N' that has
+# 'K' objects with the desired feature. 
+def hyperGeo(N nat, K nat, n nat):
+	# TODO: check that 0 <= K <= N and 0 <= n <= N and 
+	# throw error if not satisfied
+
+	# the range of values for the random variable fall 
+	# in between some minimum and maximum. These min 
+	# and max are defined in terms of the size of the 
+	# parameters. 
+
+	# minimum defined as max(n + K - N, 0)
+	min = if n + K - N > 0: n + K - N else: 0
+
+	# maximum defined as min(n, K)
+	max = if n < K: n else: K
+ 
+	# R represents the total number of possible values
+	# that the random variable could take on. 
+	R = max - min + 1
+
+	# filling array with probabilities based on the 
+	# probability mass function. Then, sample a 
+	# categorical with these probailities. 
+	p = array k of int2nat(R): choose(K, int2nat(k + min)) * choose(int2nat(N - K), int2nat(n - (k + min))) / choose(N, n)
+	h <~ categorical(p)
+
+	# map the probailities to the appropriate value
+	# return p
+	return (array i of int2nat(R): int2nat(i + min))[h]
+
+	# --- This is a check to see if the probabilities sum to 1 ---
+	# return summate i from 0 to size(p): p[i]
+
+
+
 #discrete Weibull Distribution	
 def discreteWeibull(p prob, beta prob) measure(int):
 	x <~ counting
 	weight( if (x<0): 0 else: (real2prob((real2prob(1-p) ** x) ** beta - (real2prob(1-p) ** (x+1)) ** beta)),return x)
+
+# Polya Distribution
+def polya(n nat, p prob, beta prob) measure(nat):
+	# TODO: check that 0 < p < 1 and throw error if not satisfied
+	# TODO: check that beta > 0 and throw error if not satisfied
+	# TODO: confirm type of beta. it is unclear from the documentation 
+	# 		I found whether it is supposed to be a prob or a nat. 
+
+	# apply the pmf to the values 0..n and store them in an array 
+	pmf = array x of n + 1: choose(n, x) * (product j from 0 to x: p + j * beta) * (product k from 0 to int2nat(n - x): real2prob(1 - p + k * beta)) / (product i from 0 to n: 1 + i * beta)
+
+	# sample a categorical with probabilities based on the pmf
+	p <~ categorical(pmf)
+
+	return p

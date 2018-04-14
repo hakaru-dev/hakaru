@@ -145,7 +145,6 @@ import           Data.List.NonEmpty  (NonEmpty(..))
 import qualified Data.List.NonEmpty  as L
 import           Data.Semigroup      (Semigroup(..))
 import           Control.Category    (Category(..))
-import           Control.Monad       (return)
 import           Control.Monad.Fix
 
 import Data.Number.Natural
@@ -402,7 +401,6 @@ not e =
                 PrimOp_ Not :$ es' ->
                     case es' of
                     e' :* End -> Just e'
-                    _         -> error "not: the impossible happened"
                 NaryOp_ And xs ->
                     Just . syn . NaryOp_ Or  $ Prelude.fmap not xs
                 NaryOp_ Or xs ->
@@ -526,7 +524,6 @@ negate e =
                 PrimOp_ (Negate _theRing) :$ es' ->
                     case es' of
                     e' :* End -> Just e'
-                    _         -> error "negate: the impossible happened"
                 _ -> Nothing
 
 
@@ -552,7 +549,6 @@ abs_ e =
                 CoerceTo_ (CCons (Signed _theRing) CNil) :$ es' ->
                     case es' of
                     e' :* End -> Just e'
-                    _         -> error "abs_: the impossible happened"
                 _ -> Nothing
 
 
@@ -586,7 +582,6 @@ recip e0 =
                 PrimOp_ (Recip _theFrac) :$ es' ->
                     case es' of
                     e :* End -> Just e
-                    _ -> error "recip: the impossible happened"
                 _ -> Nothing
 
 

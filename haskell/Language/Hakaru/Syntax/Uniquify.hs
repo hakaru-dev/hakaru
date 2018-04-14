@@ -41,7 +41,6 @@ import           Language.Hakaru.Syntax.AST
 import           Language.Hakaru.Syntax.AST.Eq   (Varmap)
 import           Language.Hakaru.Syntax.Gensym
 import           Language.Hakaru.Syntax.IClasses
-import           Debug.Trace
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative
