@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleInstances
+{-# LANGUAGE CPP
+           , FlexibleInstances
            , GADTs
            , DataKinds
            , TypeOperators
@@ -54,6 +55,10 @@ import Data.Number.Nat
 import Data.Data (Data, Typeable)
 import Data.List (stripPrefix)
 import Data.Monoid (Monoid(..))
+
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup
+#endif
 
 ----------------------------------------------------------------
 
@@ -185,9 +190,14 @@ unionCtx :: TransformCtx -> TransformCtx -> TransformCtx
 unionCtx ctx0 ctx1 =
   TransformCtx { nextFreeVar = max (nextFreeVar ctx0) (nextFreeVar ctx1) }
 
+instance Semigroup TransformCtx where
+  (<>) = unionCtx
+
 instance Monoid TransformCtx where
-  mempty = minimalCtx
-  mappend = unionCtx
+  mempty  = minimalCtx
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (<>)
+#endif
 
 -- | The class of types which have an associated context
 class HasTransformCtx x where

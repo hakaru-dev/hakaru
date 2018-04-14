@@ -75,6 +75,10 @@ import           Control.Exception (Exception, throw)
 import           Data.Monoid       (Monoid(..))
 #endif
 
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup
+#endif
+
 import Data.Number.Nat
 import Language.Hakaru.Syntax.IClasses
 -- TODO: factor the definition of the 'Sing' type family out from
@@ -375,9 +379,14 @@ toVarSet1 = toVarSet . someVariables
     someVariables Nil1         = []
     someVariables (Cons1 x xs) = SomeVariable x : someVariables xs
 
+instance Semigroup (VarSet kproxy) where
+    VarSet xs <> VarSet ys = VarSet (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
+
 instance Monoid (VarSet kproxy) where
-    mempty = emptyVarSet
-    mappend (VarSet xs) (VarSet ys) = VarSet (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
+    mempty  = emptyVarSet
+#if !(MIN_VERSION_base(4,11,0))
+    mappend = (<>)
+#endif
     mconcat = VarSet . IM.unions . map unVarSet
 
 varSetKeys :: VarSet a -> [Int]
@@ -523,9 +532,14 @@ toAssocs1 = \xs es -> Assocs (go IM.empty xs es)
     go m (Cons1 x xs) (Cons1 e es) =
         go (IM.insert (fromNat $ varID x) (Assoc x e) m) xs es
 
+instance Semigroup (Assocs abt) where
+    Assocs xs <> Assocs ys = Assocs (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
+
 instance Monoid (Assocs abt) where
-    mempty = emptyAssocs
-    mappend (Assocs xs) (Assocs ys) = Assocs (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
+    mempty  = emptyAssocs
+#if !(MIN_VERSION_base(4,11,0))
+    mappend = (<>)
+#endif
     mconcat = Assocs . IM.unions . map unAssocs
 
 

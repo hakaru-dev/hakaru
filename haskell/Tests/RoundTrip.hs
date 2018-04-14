@@ -219,7 +219,8 @@ testExponentialRelations = test [
 
 testErlangRelations :: Test
 testErlangRelations = test [
-        "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk"
+        "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk",
+    "t_erlang_to_stdChiSq"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_stdChiSq.0.hk" "tests/RoundTrip2/t_erlang_to_stdChiSq.expected.hk"        
     ]
 
 testOther :: Test
@@ -266,7 +267,6 @@ allTests = test
     , testErlangRelations
     , testStdChiSqRelations
     , testExponentialRelations
-    , testErlangRelations
     , testOther
     ]
 
