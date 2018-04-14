@@ -9,4 +9,4 @@ def exponentialScaled(alpha prob, k prob):
 	X <~ exponential(alpha)
 	return k*X
 
-exponentialScaled(1/2,2/1)
+exponentialScaled(1/2,3/1)
