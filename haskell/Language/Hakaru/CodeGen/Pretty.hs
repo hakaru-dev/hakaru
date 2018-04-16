@@ -18,6 +18,7 @@ module Language.Hakaru.CodeGen.Pretty
   , Pretty
   ) where
 
+import Prelude hiding ((<>))
 import Text.PrettyPrint
 import Language.Hakaru.CodeGen.AST
 
