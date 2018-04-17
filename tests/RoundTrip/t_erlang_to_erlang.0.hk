@@ -1,5 +1,5 @@
 def erlang(shape nat, scale prob) measure(prob):
-	gamma(nat2prob(shape), scale)
+  gamma(nat2prob(shape), scale)
 fn scale prob:
 	fn shape nat:
 		fn a prob:
