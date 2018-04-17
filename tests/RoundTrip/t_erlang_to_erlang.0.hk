@@ -3,5 +3,5 @@ def erlang(shape nat, scale prob) measure(prob):
 fn scale prob:
   fn shape nat:
     fn a prob:
-		  x <~ erlang(shape,scale)
-        return(x*a)
+      x <~ erlang(shape,scale)
+      return(x*a)
