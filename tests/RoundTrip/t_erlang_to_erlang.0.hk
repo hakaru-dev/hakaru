@@ -4,4 +4,4 @@ fn scale prob:
   fn shape nat:
     fn a prob:
 		  x <~ erlang(shape,scale)
-			return(x*a)
+        return(x*a)
