@@ -12,4 +12,4 @@ def expErlang2pareto(n nat, alpha prob):
 	return X/Y + 1
 
 
-expErlang2pareto(2,2/1)
+expErlang2pareto(3,2/1)
