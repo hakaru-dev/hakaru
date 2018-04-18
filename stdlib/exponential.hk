@@ -59,5 +59,3 @@ def hypoexponential(alpha array(prob)):
 	x = real2prob(x)
 	pdf = summate i from 0 to (int2nat(size(alpha)-1) ): (1/alpha[i]) * exp((-x)/alpha[i]) * (product j from 0 to (int2nat(size(alpha)-1) ): if i/=j: alpha[j] / alpha[i] - alpha[j] else: 1)
 	weight(real2prob(pdf), return x)
-
-skewLogistic(1/1)
