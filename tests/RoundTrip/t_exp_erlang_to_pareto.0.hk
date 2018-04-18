@@ -1,4 +1,4 @@
-# If X ~ Exp(α) and Y ~ Erlang(n, α) then: X/Y + 1 ~ Pareto(1,n)
+# If X ~ Exp(α) and Y ~ Erlang(n, α) then: X/Y + 1 ~ Pareto(n,1)
 
 def exponential(alpha prob):
 	gamma(1/1, alpha)
@@ -12,4 +12,4 @@ def expErlang2pareto(n nat, alpha prob):
 	return X/Y + 1
 
 
-expErlang2pareto(3,2/1)
+expErlang2pareto(1,2/1)
