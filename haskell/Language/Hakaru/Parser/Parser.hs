@@ -132,7 +132,7 @@ divide, sub :: AST' Text -> AST' Text -> AST' Text
 divide       (WithMeta (ULiteral (Nat   x     )) (SourceSpan s _))
              (WithMeta (ULiteral (Nat       y )) (SourceSpan _ e))
            = (WithMeta (ULiteral (Prob (x % y))) (SourceSpan s e))
-divide       (WithMeta (ULiteral (Nat   1     )) (SourceSpan s _))
+divide       (WithMeta (ULiteral (Nat   1     )) (SourceSpan _ _))
              y
            = app1 "recip" y
 divide x y = NaryOp Prod [x, app1 "recip" y]
@@ -556,15 +556,15 @@ buildExpressionParser :: (Stream s m t)
 buildExpressionParser operators simpleExpr
     = foldl (makeParser) simpleExpr operators
     where
-      makeParser term ops
+      makeParser term' ops'
         = let (rassoc,lassoc,nassoc
-               ,prefix,postfix)      = foldr splitOp ([],[],[],[],[]) ops
+               ,prefix,postfix')      = foldr splitOp ([],[],[],[],[]) ops'
 
               rassocOp   = choice rassoc
               lassocOp   = choice lassoc
               nassocOp   = choice nassoc
               prefixOp   = choice prefix  <?> ""
-              postfixOp  = choice postfix <?> ""
+              postfixOp  = choice postfix' <?> ""
 
               ambigious assoc op= try $
                                   do{ _ <- op
@@ -577,7 +577,7 @@ buildExpressionParser operators simpleExpr
               ambigiousNon      = ambigious "non" nassocOp
 
               termP      = do{ (preU, pre)   <- prefixP
-                             ; x             <- term
+                             ; x             <- term'
                              ; (postU, post) <- postfixP
                              ; return (preU || postU, post (pre x))
                              }
@@ -598,7 +598,7 @@ buildExpressionParser operators simpleExpr
               rassocP1 x = rassocP x  <|> return x
 
               lassocP x  = do{ f <- lassocOp
-                             ; y <- term
+                             ; y <- term'
                              ; lassocP1 (f x y)
                              }
                            <|> ambigiousRight
@@ -608,7 +608,7 @@ buildExpressionParser operators simpleExpr
               lassocP1 x = lassocP x <|> return x
 
               nassocP x  = do{ f <- nassocOp
-                             ; y <- term
+                             ; y <- term'
                              ;    ambigiousRight
                               <|> ambigiousLeft
                               <|> ambigiousNon
@@ -625,14 +625,14 @@ buildExpressionParser operators simpleExpr
                  }
 
 
-      splitOp (Infix op assoc) (rassoc,lassoc,nassoc,prefix,postfix)
+      splitOp (Infix op assoc) (rassoc,lassoc,nassoc,prefix,postfix')
         = case assoc of
-            AssocNone  -> (rassoc,lassoc,op:nassoc,prefix,postfix)
-            AssocLeft  -> (rassoc,op:lassoc,nassoc,prefix,postfix)
-            AssocRight -> (op:rassoc,lassoc,nassoc,prefix,postfix)
+            AssocNone  -> (rassoc,lassoc,op:nassoc,prefix,postfix')
+            AssocLeft  -> (rassoc,op:lassoc,nassoc,prefix,postfix')
+            AssocRight -> (op:rassoc,lassoc,nassoc,prefix,postfix')
 
-      splitOp (Prefix op) (rassoc,lassoc,nassoc,prefix,postfix)
-        = (rassoc,lassoc,nassoc,op:prefix,postfix)
+      splitOp (Prefix op) (rassoc,lassoc,nassoc,prefix,postfix')
+        = (rassoc,lassoc,nassoc,op:prefix,postfix')
 
-      splitOp (Postfix op) (rassoc,lassoc,nassoc,prefix,postfix)
-        = (rassoc,lassoc,nassoc,prefix,op:postfix)
+      splitOp (Postfix op) (rassoc,lassoc,nassoc,prefix,postfix')
+        = (rassoc,lassoc,nassoc,prefix,op:postfix')

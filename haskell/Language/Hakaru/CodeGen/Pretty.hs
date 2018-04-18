@@ -18,6 +18,7 @@ module Language.Hakaru.CodeGen.Pretty
   , Pretty
   ) where
 
+import Prelude hiding ((<>))
 import Text.PrettyPrint
 import Language.Hakaru.CodeGen.AST
 
@@ -43,7 +44,7 @@ mPrettyPrec p (Just x) = prettyPrec p x
 parensPrec :: Int -> Int -> Doc -> Doc
 parensPrec x y = if x <= y then parens else id
 
-
+emptyText :: Doc
 emptyText = text ""
 
 instance Pretty a => Pretty (Maybe a) where

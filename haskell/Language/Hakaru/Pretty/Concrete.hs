@@ -35,6 +35,7 @@ module Language.Hakaru.Pretty.Concrete
     -- * Helper functions (semi-public internal API)
     ) where
 
+import           Prelude            hiding ((<>))
 import           Text.PrettyPrint      (Doc, text, integer, double,
                                         (<+>), (<>), ($$), sep, cat, fsep, vcat,
                                         nest, parens, brackets, punctuate,

@@ -15,7 +15,7 @@
 
 module Language.Hakaru.Sample where
 
-import           Numeric.SpecFunctions            (logGamma, logBeta, logFactorial)
+import           Numeric.SpecFunctions            (logFactorial)
 import qualified Data.Number.LogFloat             as LF
 import qualified Math.Combinatorics.Exact.Binomial as EB
 -- import qualified Numeric.Integration.TanhSinh     as TS
@@ -41,7 +41,7 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.State.Strict
 import qualified Data.IntMap                      as IM
 
-import Data.Number.Nat     (fromNat, unsafeNat)
+import Data.Number.Nat     (fromNat)
 import Data.Number.Natural (fromNatural, fromNonNegativeRational, Natural, unsafeNatural)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
@@ -196,7 +196,6 @@ evaluateSCon Lam_ (e1 :* End) env =
 evaluateSCon App_ (e1 :* e2 :* End) env =
     case evaluate e1 env of
     VLam f -> f (evaluate e2 env)
-    v      -> case v of {}
 evaluateSCon Let_ (e1 :* e2 :* End) env =
     let v = evaluate e1 env
     in caseBind e2 $ \x e2' ->
@@ -220,8 +219,6 @@ evaluateSCon MBind (e1 :* e2 :* End) env =
                 caseBind e2 $ \x' e2' ->
                     case evaluate e2' (updateEnv (EAssoc x' a) env) of
                     VMeasure y -> y p' g
-                    v          -> case v of {}
-    v -> case v of {}
 
 evaluateSCon Plate (n :* e2 :* End) env =
     case evaluate n env of
@@ -233,9 +230,8 @@ evaluateSCon Plate (n :* e2 :* End) env =
                     updateEnv (EAssoc x . VNat $ intToNatural v) env
             return
                 ( VArray v'
-                , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
+                , VProb $ p * V.product (V.map (\(VProb y) -> y) ps)
                 )
-    v -> case v of {}
     where
     performMaybe
         :: MWC.GenIO
@@ -256,9 +252,8 @@ evaluateSCon Chain (n :* s :* e :* End) env =
                 return
                     ( VDatum $ dPair_ (bodyType $ caseBind e (const typeOf)) (typeOf s)
                         (VArray . V.fromList $ v') sout
-                    , VProb $ p * product (map (\(VProb x) -> x) ps)
+                    , VProb $ p * product (map (\(VProb y) -> y) ps)
                     ))
-    v -> case v of {}
     where
     convert
         :: MWC.GenIO
@@ -270,7 +265,6 @@ evaluateSCon Chain (n :* s :* e :* End) env =
             (as'', p') <- MaybeT (f' (VProb 1) g)
             let (a, s'') = unPair as''
             return ((a, p'), s'')
-        v -> case v of {}
 
     unPair :: Value (HPair a b) -> (Value a, Value b)
     unPair (VDatum (Datum "pair" _typ
@@ -287,7 +281,6 @@ evaluateSCon (Summate hd hs) (e1 :* e2 :* e3 :* End) env =
                      evaluate e3' (updateEnv (EAssoc x i) env))
                   (identityElement $ Sum hs)
                   (enumFromUntilValue hd lo hi)
-    v                        -> case v of {}
 
 evaluateSCon (Product hd hs) (e1 :* e2 :* e3 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
@@ -298,7 +291,6 @@ evaluateSCon (Product hd hs) (e1 :* e2 :* e3 :* End) env =
                      evaluate e3' (updateEnv (EAssoc x i) env))
                   (identityElement $ Prod hs)
                   (enumFromUntilValue hd lo hi)
-    v                        -> case v of {}
 
 evaluateSCon s _ _ = error $ "TODO: evaluateSCon{" ++ show s ++ "}"
 
@@ -313,40 +305,42 @@ evaluatePrimOp Not (e1 :* End) env =
       VDatum a -> if a == dTrue
                   then VDatum dFalse
                   else VDatum dTrue
-      v        -> case v of {}
 
 evaluatePrimOp Pi  End         _   = VProb . LF.logFloat $ pi
 evaluatePrimOp Cos (e1 :* End) env =
     case evaluate e1 env of
       VReal v1 -> VReal . cos $ v1
-      v        -> case v of {}
+
+evaluatePrimOp Sin (e1 :* End) env =
+    case evaluate e1 env of
+      VReal v1 -> VReal . sin $ v1
+
+evaluatePrimOp Tan (e1 :* End) env =
+    case evaluate e1 env of
+      VReal v1 -> VReal . tan $ v1
 
 evaluatePrimOp RealPow (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
       (VProb v1, VReal v2) -> VProb $ LF.pow v1 v2
-      v                    -> case v of {}
 
 evaluatePrimOp Choose (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
       (VNat v1, VNat v2) -> VNat $ EB.choose v1 v2
-      v                    -> case v of {}
       
 evaluatePrimOp Exp (e1 :* End) env =
     case evaluate e1 env of
       VReal v1 -> VProb . LF.logToLogFloat $ v1
-      v        -> case v of {}
 
 evaluatePrimOp Log (e1 :* End) env =
     case evaluate e1 env of
       VProb v1 -> VReal . LF.logFromLogFloat $ v1
-      v        -> case v of {}
 
 evaluatePrimOp (Infinity h) End _ =
     case h of
       HIntegrable_Nat  -> error "Can not evaluate infinity for natural numbers"
       HIntegrable_Prob -> VProb $ LF.logFloat LF.infinity
 
-evaluatePrimOp (Equal et) (e1 :* e2 :* End) env = (VDatum . dBool) $ evaluate e1 env == evaluate e2 env
+evaluatePrimOp (Equal _) (e1 :* e2 :* End) env = (VDatum . dBool) $ evaluate e1 env == evaluate e2 env
 
 evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
@@ -354,7 +348,7 @@ evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
     (VInt  v1, VInt  v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
     (VProb v1, VProb v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
     (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
-    v                    -> error "TODO: evaluatePrimOp{Less}"
+    _                    -> error "TODO: evaluatePrimOp{Less}"
 evaluatePrimOp (NatPow _) (e1 :* e2 :* End) env = 
     case evaluate e2 env of
     VNat  v2 ->
@@ -364,7 +358,7 @@ evaluatePrimOp (NatPow _) (e1 :* e2 :* End) env =
           VInt  v1 -> VInt  (v1 ^ v2')
           VProb v1 -> VProb (v1 ^ v2')
           VReal v1 -> VReal (v1 ^ v2')
-    v2       -> case v2 of {}
+          _        -> error "NatPow should always return some kind of number"
 evaluatePrimOp (Negate _) (e1 :* End) env = 
     case evaluate e1 env of
     VInt  v -> VInt  (negate v)
@@ -388,7 +382,6 @@ evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) env =
 evaluatePrimOp (Floor) (e1 :* End) env =
     case (evaluate e1 env) of
     VProb v1 -> VNat (floor (LF.fromLogFloat v1))
-    v        -> case v of {}
 
 evaluatePrimOp prim _ _ =
     error ("TODO: evaluatePrimOp{" ++ show prim ++ "}")
@@ -404,19 +397,16 @@ evaluateArrayOp
 evaluateArrayOp (Index _) = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of
     (VArray v, VNat n) -> v V.! unsafeInt n
-    _                  -> error "evaluateArrayOp: the impossible happened"
 
 evaluateArrayOp (Size _) = \(e1 :* End) env ->
     case evaluate e1 env of
     VArray v -> VNat . intToNatural $ V.length v
-    _        -> error "evaluateArrayOp: the impossible happened"
 
 evaluateArrayOp (Reduce _) = \(e1 :* e2 :* e3 :* End) env ->
     case ( evaluate e1 env
          , evaluate e2 env
          , evaluate e3 env) of
     (f, a, VArray v) -> V.foldl' (lam2 f) a v
-    _                -> error "evaluateArrayOp: the impossible happened"
 
 evaluateMeasureOp
     :: ( ABT Term abt
@@ -454,6 +444,7 @@ evaluateMeasureOp Lebesgue = \(e1 :* e2 :* End) env ->
             let n = -l
             return $ Just (VReal $ if b then n else l,
                            VProb $ p * 2 * LF.logToLogFloat n)
+    (VReal _, VReal _) -> error "Lebesgue with length 0 or flipped endpoints"
 
 evaluateMeasureOp Counting = \End _ ->
     VMeasure $ \(VProb p) g -> do
@@ -461,7 +452,7 @@ evaluateMeasureOp Counting = \End _ ->
         let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
                                        (fromIntegral y :: Double))
         u' <- MWCD.geometric0 (LF.fromLogFloat success) g
-        let u = fromInteger u
+        let u = toInteger u'
         b <- MWC.uniform g
         return $ Just
             ( VInt  $ if b then -1-u else u
@@ -488,35 +479,30 @@ evaluateMeasureOp Uniform = \(e1 :* e2 :* End) env ->
     (VReal v1, VReal v2) -> VMeasure $ \p g -> do
         x <- MWC.uniformR (v1, v2) g
         return $ Just (VReal x, p)
-    _ -> error "evaluateMeasureOp: the impossible happened"
 
 evaluateMeasureOp Normal = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VReal v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.normal v1 (LF.fromLogFloat v2) g
         return $ Just (VReal x, p)
-    _ -> error "evaluateMeasureOp: the impossible happened"
 
 evaluateMeasureOp Poisson = \(e1 :* End) env ->
     case evaluate e1 env of
     VProb v1 -> VMeasure $ \ p g -> do
         x <- MWC.genFromTable (MWC.tablePoisson (LF.fromLogFloat v1)) g
         return $ Just (VNat $ intToNatural x, p)
-    _ -> error "evaluateMeasureOp: the impossible happened"
 
 evaluateMeasureOp Gamma = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
         return $ Just (VProb $ LF.logFloat x, p)
-    _ -> error "evaluateMeasureOp: the impossible happened"
 
 evaluateMeasureOp Beta = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
         return $ Just (VProb $ LF.logFloat x, p)
-    _ -> error "evaluateMeasureOp: the impossible happened"
 
 evaluateNaryOp
     :: (ABT Term abt)
@@ -538,6 +524,7 @@ identityElement (Max  HOrd_Prob)      = VProb 0
 identityElement (Max  HOrd_Real)      = VReal LF.negativeInfinity
 identityElement (Min  HOrd_Prob)      = VProb (LF.logFloat LF.infinity)
 identityElement (Min  HOrd_Real)      = VReal LF.infinity
+identityElement _                     = error "Missing identity elements?"
 
 
 evalOp
@@ -602,7 +589,6 @@ evaluateBucket b e rs env =
           s' <- init Nil1 rs env
           mapM_ (\i -> accum (VNat i) Nil1 rs s' env) [b' .. e' - 1]
           done s'
-      v2                 -> case v2 of {}
     where init :: (ABT Term abt)
                => List1 Value xs
                -> Reducer abt xs a
@@ -610,15 +596,15 @@ evaluateBucket b e rs env =
                -> ST s (VReducer s a)
           init ix (Red_Fanout r1 r2)    env  =
               VRed_Pair (type_ r1) (type_ r2) <$> init ix r1 env <*> init ix r2 env
-          init ix (Red_Index  n  _  mr) env  =
+          init ix (Red_Index  n  _  mr) env' =
               let (vars, n') = caseBinds n in
-              case evaluate n' (updateEnvs vars ix env) of
+              case evaluate n' (updateEnvs vars ix env') of
                 VNat n'' -> VRed_Array <$> V.generateM (fromIntegral n'')
-                            (\b -> init (Cons1 (vnat b) ix) mr env)
-          init ix (Red_Split _ r1 r2)   env  =
-              VRed_Pair (type_ r1) (type_ r2) <$> init ix r1 env <*> init ix r2 env
-          init ix Red_Nop               env  = return VRed_Unit
-          init ix (Red_Add h _) env = VRed_Num <$> newSTRef (identityElement (Sum h))
+                            (\bb -> init (Cons1 (vnat bb) ix) mr env')
+          init ix (Red_Split _ r1 r2)   env' =
+              VRed_Pair (type_ r1) (type_ r2) <$> init ix r1 env <*> init ix r2 env'
+          init _  Red_Nop               _    = return VRed_Unit
+          init _  (Red_Add h _) _ = VRed_Num <$> newSTRef (identityElement (Sum h))
 
           type_ = typeOfReducer
 
@@ -632,31 +618,32 @@ evaluateBucket b e rs env =
                 -> VReducer s a
                 -> Env
                 -> ST s ()
-          accum n ix (Red_Fanout r1 r2)   (VRed_Pair s1 s2 v1 v2) env =
-              accum n ix r1 v1 env >> accum n ix r2 v2 env
-          accum n ix (Red_Index n' a1 r2) (VRed_Array v)          env =
+          accum n ix (Red_Fanout r1 r2)   (VRed_Pair _ _ v1 v2) env' =
+              accum n ix r1 v1 env >> accum n ix r2 v2 env'
+          accum n ix (Red_Index n' a1 r2) (VRed_Array v)          env' =
               caseBind a1 $ \i a1' ->
               let (vars, a1'') = caseBinds a1'
                   VNat ov = evaluate a1''
-                            (updateEnv (EAssoc i n) (updateEnvs vars ix env))
+                            (updateEnv (EAssoc i n) (updateEnvs vars ix env'))
                   ov' = fromIntegral ov in
               accum n (Cons1 (VNat ov) ix) r2 (v V.! ov') env
-          accum n ix (Red_Split b  r1 r2) (VRed_Pair s1 s2 v1 v2) env =
-              caseBind b $ \i b' ->
+          accum n ix (Red_Split bb r1 r2) (VRed_Pair _ _ v1 v2) env' =
+              caseBind bb $ \i b' ->
                   let (vars, b'') = caseBinds b' in
                   case evaluate b''
-                       (updateEnv (EAssoc i n) (updateEnvs vars ix env)) of
-                  VDatum b' -> if b' == dTrue then
-                                   accum n ix r1 v1 env
+                       (updateEnv (EAssoc i n) (updateEnvs vars ix env')) of
+                  VDatum bb -> if bb == dTrue then
+                                   accum n ix r1 v1 env'
                                else
-                                   accum n ix r2 v2 env
-          accum n ix (Red_Add h e) (VRed_Num s) env =
-              caseBind e $ \i e' ->
+                                   accum n ix r2 v2 env'
+          accum n ix (Red_Add h ee) (VRed_Num s) env' =
+              caseBind ee $ \i e' ->
                   let (vars, e'') = caseBinds e'
                       v = evaluate e''
-                          (updateEnv (EAssoc i n) (updateEnvs vars ix env)) in
+                          (updateEnv (EAssoc i n) (updateEnvs vars ix env')) in
                   modifySTRef' s (evalOp (Sum h) v)
           accum _ _ Red_Nop _ _ = return ()
+          accum _ _ _ _ _ = error "Some impossible combinations happened?"
 
           done :: VReducer s a -> ST s (Value a)
           done (VRed_Num s)            = readSTRef s

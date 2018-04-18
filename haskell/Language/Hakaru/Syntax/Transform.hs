@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleInstances
+{-# LANGUAGE CPP
+           , FlexibleInstances
            , GADTs
            , DataKinds
            , TypeOperators
@@ -55,6 +56,10 @@ import Data.Data (Data, Typeable)
 import Data.List (stripPrefix)
 import Data.Monoid (Monoid(..))
 
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup
+#endif
+
 ----------------------------------------------------------------
 
 -- | Some transformations have the same type and 'same' semantics, but are
@@ -86,7 +91,7 @@ data Transform :: [([Hakaru], Hakaru)] -> Hakaru -> * where
   Disint :: TransformImpl ->
     Transform
       '[ LC ('HMeasure (HPair a b)) ]
-      (a :-> HMeasure b)
+      (a :-> 'HMeasure b)
 
   Summarize ::
     Transform '[ LC a ] a
@@ -114,7 +119,7 @@ instance Eq (Some2 Transform) where
       _ -> False
 
 instance Read (Some2 Transform) where
-  readsPrec p s =
+  readsPrec _ s =
     let trs = map (\t'@(Some2 t) -> (show t, t')) allTransforms
         readMay (s', t)
           | Just rs <- stripPrefix s' s = [(t, rs)]
@@ -158,7 +163,7 @@ typeOfTransform t as =
       -> SFun a (SMeasure (sPair a SProb))
     (MCMC     , Pw _ a :* _)
       -> a
-    (Disint k0, Pw _ (sUnPair.sUnMeasure -> (a,b)) :* End)
+    (Disint _ , Pw _ (sUnPair.sUnMeasure -> (a,b)) :* End)
       -> SFun a (SMeasure b)
     (Summarize, Pw _ e :* End)
       -> e
@@ -185,9 +190,14 @@ unionCtx :: TransformCtx -> TransformCtx -> TransformCtx
 unionCtx ctx0 ctx1 =
   TransformCtx { nextFreeVar = max (nextFreeVar ctx0) (nextFreeVar ctx1) }
 
+instance Semigroup TransformCtx where
+  (<>) = unionCtx
+
 instance Monoid TransformCtx where
-  mempty = minimalCtx
-  mappend = unionCtx
+  mempty  = minimalCtx
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (<>)
+#endif
 
 -- | The class of types which have an associated context
 class HasTransformCtx x where
