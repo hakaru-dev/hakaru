@@ -213,6 +213,7 @@ testStdChiSqRelations = test [
 
 testExponentialRelations :: Test 
 testExponentialRelations = test [ 
+    "t_exponential_to_beta"        ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_beta.0.hk" "tests/RoundTrip/t_exponential_to_beta.expected.hk",
     "t_exponential_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_stdChiSq.0.hk" "tests/RoundTrip/t_exponential_to_stdChiSq.expected.hk"
     ]
 
