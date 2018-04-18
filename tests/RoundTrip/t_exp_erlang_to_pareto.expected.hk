@@ -2,4 +2,4 @@
 
 #pareto(1,2)
 X <~ uniform(+0/1,+1/1)
-return real2prob(X) ** (-1/2)
+return real2prob(X) ** (-1/3)
