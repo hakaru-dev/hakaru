@@ -258,6 +258,7 @@ allTests = test
     , testMeasureNat
     , testMeasureInt
     , testStdChiSqRelations
+    , testCauchyRelations
     , testOther
     ]
 
