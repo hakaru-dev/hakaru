@@ -28,3 +28,17 @@ def nonCentralityParameter(means array(real), stdevs array(prob)):
 # shortform alias for nonCentralityParameter function
 def ncp(means array(real), stdevs array(prob)):
 	nonCentralityParameter(means, stdevs)
+
+# identically distributed version of nonCentralChiSq. 
+# first argument is the mean of the normaly distributed random variables
+# second argument is the number of normaly distributed random variables
+def nonCentralChiSq_iid(delta prob, n nat)measure(prob):
+	mean = sqrt(delta/n)
+	q <~ plate _ of n: normal(mean,1)
+	return summate i from 0 to n: q[i]^2
+	
+# doubly Noncentral T distribution
+def doublyNoncentralT (n nat,delta prob,gamma prob)measure(real):
+	z<~ normal(delta,1)
+	x<~ nonCentralChiSq_iid(gamma, n)
+	return (x/n)
