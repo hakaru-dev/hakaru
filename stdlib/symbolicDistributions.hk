@@ -34,3 +34,26 @@ def powerSeries(a (nat->prob), c prob) measure(nat):
             reject.measure(nat)
     else:
         reject.measure(nat)
+
+# Doubly Noncentral F Distribution
+def doublyNoncentralF (n1 nat, n2 nat, delta prob, gamma prob)measure(prob) :
+    x<~lebesgue(0,∞)
+    x=real2prob(x)
+    pdf = summate j from 0 to ∞: (summate k from 0 to ∞:(((exp(-delta/2)*(1/2*gamma)**j)/(product b from 1 to j+1: b))*((exp(-gamma/2)*(1/2*gamma)**k)/(product b from 1 to k+1: b))*n1**(n1/2+j)*n2**(n2/2+k)*x**(n1/2+j-1)*(n2+n1*x)**(-1/2*(n1+n2)-j-k))/(betaFunc(1/2*n1+j,1/2*n2+k)))
+    weight(real2prob(pdf), return x)
+
+# Noncentral F Distribution    
+# TODO: Implement gammaFunc in the sampler
+def noncentralF(n1 nat, n2 nat, delta prob)measure(prob):
+    x<~lebesgue(0,∞)
+    x=real2prob(x)
+    pdf = summate i from 0 to ∞: (gammaFunc((2*i+n1+n2)/2)*(n1/n2)**((2*i+n1)/2)*x**((2*i+n1-2)/2)*exp(-delta/2)*(delta/2)**i)/(gammaFunc(n2/2)*gammaFunc((2*i+n1)/2)*(product b from 1 to i+1: b)*(1+n1/n2*x)**((2*i+n1+n2)/2))
+    weight(real2prob(pdf), return x)
+
+# Error distribution
+# The parametarization and the PDF were taken from https://en.wikipedia.org/wiki/Generalized_normal_distribution
+# TODO: Implement gammaFunc in the sampler
+def error(mu real, alpha prob, beta prob) measure(real):
+    x<~lebesgue(-∞,∞)
+    pdf = beta/(2*alpha*gammaFunc(1/beta))*exp(-(abs(x-mu)/alpha)**beta)
+    weight(real2prob(pdf), return x)
