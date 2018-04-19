@@ -34,3 +34,35 @@ def powerSeries(a (nat->prob), c prob) measure(nat):
             reject.measure(nat)
     else:
         reject.measure(nat)
+    
+# Von Mises distribution
+def vonMises(kappa prob,mu real)measure(prob):
+    x<~lebesgue(0,2*pi)
+    x=real2prob(x)
+    I0 = summate i from 0 to ∞: kappa**(2*i)/((2**(2*i))*(product k from 1 to i+1: k)**2)
+    pdf = exp(kappa*cos(x-mu))/(2*pi*I0)
+    weight(real2prob(pdf), return x)
+
+# Generalized Gamma Distribution
+# TODO: Implement gammaFunc in the sampler
+def generalizedGamma(alpha prob,beta prob,gamma prob)measure(prob):
+    x<~lebesgue(0,∞)
+    x = real2prob(x)
+    pdf = (gamma*x**(gamma*beta-1)*exp(-(x/alpha)**gamma))/(alpha**(gamma*beta)*gammaFunc(beta))
+    weight(real2prob(pdf), return x)
+
+# Noncentral Beta Distribution 
+# TODO: Implement gammaFunc in the sampler
+def noncentralBeta(beta prob,gamma prob,lambda prob)measure(prob):
+    x<~lebesgue(0,1)
+    x = real2prob(x)
+    pdf = summate i from 0 to ∞: ((gammaFunc(i+beta+gamma)/(gammaFunc(gamma)*gammaFunc(i+beta)))*(exp(-lambda/2)/(product k from 1 to i+1: k))*x**(i+beta-1)*(real2prob(1-x))**(gamma-1))
+    weight(real2prob(pdf), return x) 
+
+# Arctangent Distribution 
+# TODO: Implement atan() in the sampler
+def arctangent(lambda prob, phi real):
+    x<~lebesgue(0,∞)
+    x = real2prob(x)
+    pdf = lambda/((atan(lambda*phi)+1/(2*pi))*(1+lambda**2*(x-phi)^2))
+    weight(real2prob(pdf), return x)
