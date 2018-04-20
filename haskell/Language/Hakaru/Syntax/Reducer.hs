@@ -60,7 +60,7 @@ instance Traversable22 Reducer where
     traverse22 f (Red_Fanout r1 r2)  = Red_Fanout <$> traverse22 f r1 <*> traverse22 f r2
     traverse22 f (Red_Index n ix r)  = Red_Index  <$> f n <*> f ix <*> traverse22 f r
     traverse22 f (Red_Split b r1 r2) = Red_Split <$> f b <*> traverse22 f r1 <*> traverse22 f r2
-    traverse22 f Red_Nop             = pure Red_Nop
+    traverse22 _ Red_Nop             = pure Red_Nop
     traverse22 f (Red_Add h e)       = Red_Add h <$> f e
 
 

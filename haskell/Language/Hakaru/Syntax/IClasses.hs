@@ -476,7 +476,6 @@ class Functor12 f => Foldable12 (f :: (k1 -> *) -> k2 -> k3 -> *) where
 
     foldMap12 :: (Monoid m) => (forall i. a i -> m) -> f a j l -> m
     foldMap12 f = fold12 . fmap12 (Lift1 . f)
-                  
 
 class Functor21 f => Foldable21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
     {-# MINIMAL fold21 | foldMap21 #-}
@@ -486,7 +485,6 @@ class Functor21 f => Foldable21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
 
     foldMap21 :: (Monoid m) => (forall h i. a h i -> m) -> f a j -> m
     foldMap21 f = fold21 . fmap21 (Lift2 . f)
-
 
 class Functor22 f =>
     Foldable22 (f :: (k1 -> k2 -> *) -> k3 -> k4 -> *)
@@ -498,7 +496,6 @@ class Functor22 f =>
 
     foldMap22 :: (Monoid m) => (forall h i. a h i -> m) -> f a j l -> m
     foldMap22 f = fold22 . fmap22 (Lift2 . f)
-
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -764,7 +761,6 @@ instance JmEq1 a  => JmEq1 (List1 a) where
 instance Eq1 a  => Eq1 (List1 a) where
     eq1 Nil1         Nil1         = True
     eq1 (Cons1 x xs) (Cons1 y ys) = eq1 x y && eq1 xs ys
-    eq1 _            _            = False
 
 instance Eq1 a  => Eq (List1 a xs) where
     (==) = eq1

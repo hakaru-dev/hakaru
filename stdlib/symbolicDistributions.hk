@@ -1,0 +1,36 @@
+# Hakaru Standard Library
+# author: Aryan Sohrabi 
+
+##############################
+# Symbolic Distributions #
+##############################
+
+# These distributions are to be used for symbolic manipulation and not for sampling
+
+# The PDF/PMF of these distributions were taken from: http://www.math.wm.edu/~leemis/chart/UDR/UDR.html
+
+#The Zeta Distribution
+# TODO: use zetaFunc instead of the explicit summate?
+def zeta(alpha prob) measure(nat):
+    x<~counting
+    if (x>-1):
+        x = int2nat(x)
+        w = summate i from 1 to ∞: (1/i)**alpha
+        pmf = 1 / (x**alpha * 3 * w)
+        weight(pmf, return x)
+    else:
+        reject.measure(nat)
+
+# The Power Series distribution (given by a sequence of weights).
+#  WARNING: do not try to Sample this, it will fail!!
+def powerSeries(a (nat->prob), c prob) measure(nat):
+    if (c>0):
+        x<~counting
+        if (x>-1):
+            x = int2nat(x)
+            pmf = a(x)*c**x / (summate i from 0 to ∞: a(i)*c**i)
+            weight(pmf, return x)
+        else:
+            reject.measure(nat)
+    else:
+        reject.measure(nat)
