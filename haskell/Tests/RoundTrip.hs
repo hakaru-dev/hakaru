@@ -221,6 +221,11 @@ testErlangRelations = test [
         "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk",
     "t_erlang_to_stdChiSq"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_stdChiSq.0.hk" "tests/RoundTrip2/t_erlang_to_stdChiSq.expected.hk"        
     ]
+    
+testCauchyRelations :: Test 
+testCauchyRelations = test [
+    "t_cauchy_linear_transformation" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_linear_transformation.0.hk" "tests/RoundTrip2/t_cauchy_linear_transformation.expected.hk"
+    ]
 
 testOther :: Test
 testOther = test [
@@ -266,6 +271,7 @@ allTests = test
     , testErlangRelations
     , testStdChiSqRelations
     , testExponentialRelations
+    , testCauchyRelations
     , testOther
     ]
 
