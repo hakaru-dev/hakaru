@@ -204,6 +204,13 @@ testMeasurePair = test [
     "testMCMCPriorProp" ~: testConcreteFile "tests/RoundTrip/testMCMCPriorProp.hk"
     ]
 
+testRayleighRelations :: Test 
+testRayleighRelations = test [
+    "t_weibull_to_rayleigh" ~: testConcreteFiles "tests/RoundTrip2/t_weibull_to_rayleigh.0.hk" "tests/RoundTrip2/t_weibull_to_rayleigh.expected.hk",
+    "t_exponential_to_rayleigh" ~: testConcreteFiles "tests/RoundTrip2/t_exponential_to_rayleigh.0.hk" "tests/RoundTrip2/t_exponential_to_rayleigh.expected.hk",
+    "t_gamma_to_rayleigh" ~: testConcreteFiles "tests/RoundTrip2/t_gamma_to_rayleigh.0.hk" "tests/RoundTrip2/t_gamma_to_rayleigh.expected.hk"
+    ]
+
 testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
@@ -245,6 +252,7 @@ allTests = test
     , testMeasurePair
     , testMeasureNat
     , testMeasureInt
+    , testRayleighRelations
     , testOther
     ]
 
