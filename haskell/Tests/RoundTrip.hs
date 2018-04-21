@@ -211,6 +211,18 @@ testStdChiSqRelations = test [
     "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk"        
     ]
 
+testExponentialRelations :: Test 
+testExponentialRelations = test [ 
+    "t_exponential_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_stdChiSq.0.hk" "tests/RoundTrip/t_exponential_to_stdChiSq.expected.hk"
+    ]
+
+testErlangRelations :: Test
+testErlangRelations = test [
+    "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk",
+    "t_erlang_to_stdChiSq"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_stdChiSq.0.hk" "tests/RoundTrip2/t_erlang_to_stdChiSq.expected.hk"        
+    ]
+    
+
 testCauchyRelations :: Test 
 testCauchyRelations = test [
     "t_cauchy_add_transformation" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_add_transformation.0.hk" "tests/RoundTrip2/t_cauchy_add_transformation.expected.hk",
@@ -258,7 +270,9 @@ allTests = test
     , testMeasurePair
     , testMeasureNat
     , testMeasureInt
+    , testErlangRelations
     , testStdChiSqRelations
+    , testExponentialRelations
     , testCauchyRelations
     , testOther
     ]
