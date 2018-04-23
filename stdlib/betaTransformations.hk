@@ -1,0 +1,16 @@
+# Hakaru Standard Library
+# Distributions based on Beta Distribution tranformations
+
+# authors: Justin Staples, Mahmoud Khattab
+
+# Inverse Beta Distribution
+def invBeta(a prob, b prob) measure(prob):
+	X <~ beta(a,b)
+	return real2prob(X / (1 - X))
+
+# Arcsin Distribution
+# Values range from 0 to 1, with highest probabilities
+# at 0 and 1.
+def arcsin() measure(prob):
+	p <~ beta(0.5, 0.5)
+	return p

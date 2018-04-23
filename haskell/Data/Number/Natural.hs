@@ -28,6 +28,11 @@ module Data.Number.Natural
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (Monoid(..))
 #endif
+
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup
+#endif
+
 import Data.Ratio
 
 ----------------------------------------------------------------
@@ -150,9 +155,14 @@ instance Integral Natural where
 ----------------------------------------------------------------
 newtype MaxNatural = MaxNatural { unMaxNatural :: Natural }
 
+instance Semigroup MaxNatural where
+    MaxNatural m <> MaxNatural n = MaxNatural (max m n)
+
 instance Monoid MaxNatural where
-    mempty                                = MaxNatural 0
-    mappend (MaxNatural m) (MaxNatural n) = MaxNatural (max m n)
+    mempty  = MaxNatural 0
+#if !(MIN_VERSION_base(4,11,0))
+    mappend = (<>)
+#endif
 
 
 ----------------------------------------------------------------

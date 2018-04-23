@@ -16,20 +16,17 @@ import Data.Foldable (foldMap)
 import Control.Applicative ((<$>))
 #endif
 
-import System.IO (stderr)
 import Data.Ratio
 import Data.Text (Text)
 import Data.Sequence (Seq)
 
 import qualified Data.Text as Text
 import Data.Number.Nat (fromNat)
-import Data.Number.Natural (fromNatural, fromNonNegativeRational)
-import Data.Ratio
+import Data.Number.Natural (fromNonNegativeRational)
 import qualified Data.List.NonEmpty as L
-import Data.Sequence (Seq)
 import Data.Text.IO as IO
 import Language.Hakaru.Command (parseAndInfer)
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, jmEq1, TypeEq(..))
+import Language.Hakaru.Syntax.IClasses (jmEq1, TypeEq(..))
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
@@ -43,10 +40,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
-import Language.Hakaru.Types.Coercion
-import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.HClasses
-import Language.Hakaru.Types.Sing
+import Prelude hiding ((<>))
 import Text.PrettyPrint (Doc, (<>), (<+>))
 import Text.PrettyPrint as PP
 
@@ -117,7 +111,7 @@ prettyReducer (Red_Split i red_a red_b) =
   PP.parens (PP.text "r_split" <+> prettyViewABT i <+>
             prettyReducer red_a <+> prettyReducer red_b)
 prettyReducer (Red_Nop) = PP.text "r_nop"
-prettyReducer (Red_Add s a) =
+prettyReducer (Red_Add _ a) =
   PP.parens (PP.text "r_add" <+> prettyViewABT a)
 
 prettyBranch :: (ABT Term abt) => Branch a abt b -> Doc
@@ -136,7 +130,7 @@ goCode c = PP.parens $ case c of
 goStruct :: PDatumStruct xs vars a -> Doc
 goStruct s = PP.parens $ case s of
   (PDone) -> PP.text "ps_done"
-  (PEt f s) -> PP.text "ps_et" <+> goFun f <+> goStruct s
+  (PEt f s') -> PP.text "ps_et" <+> goFun f <+> goStruct s'
 goFun :: PDatumFun x vars a -> Doc
 goFun f = PP.parens $ case f of
   (PKonst p) -> PP.text "pf_konst" <+> prettyPattern p
@@ -241,6 +235,7 @@ prettyNary (Sum  _)  es      = PP.text "+" <+> foldMap pretty es
 prettyNary (Prod  _) es      = PP.text "*" <+> foldMap pretty es
 prettyNary (Min  _)  es      = PP.text "min" <+> foldMap pretty es
 prettyNary (Max  _)  es      = PP.text "max" <+> foldMap pretty es
+prettyNary _         _       = error "Pretty.SExpression - prettyNary missing cases"
 
 prettyType :: Sing (a :: Hakaru) -> Doc
 prettyType SNat         = PP.text "nat"
@@ -272,8 +267,11 @@ prettyPrimOp
     => PrimOp typs a -> SArgs abt args -> Doc
 prettyPrimOp Not              (e1 :* End)       = PP.text "not" <+> pretty e1
 prettyPrimOp Pi               End               = PP.text "pi"
+prettyPrimOp Sin              (e1 :* End)       = PP.text "sin" <+> pretty e1
 prettyPrimOp Cos              (e1 :* End)       = PP.text "cos" <+> pretty e1
+prettyPrimOp Tan              (e1 :* End)       = PP.text "tan" <+> pretty e1
 prettyPrimOp RealPow          (e1 :* e2 :* End) = PP.text "realpow" <+> pretty e1 <+> pretty e2
+prettyPrimOp Choose           (e1 :* e2 :* End) = PP.text "choose" <+> pretty e1 <+> pretty e2
 prettyPrimOp Exp              (e1 :* End)       = PP.text "exp"  <+> pretty e1
 prettyPrimOp Log              (e1 :* End)       = PP.text "log"  <+> pretty e1
 prettyPrimOp (Infinity  _)    End               = PP.text "infinity"
@@ -286,12 +284,15 @@ prettyPrimOp (Negate _)       (e1 :* End)       = PP.text "negate" <+> pretty e1
 prettyPrimOp (Abs _)          (e1 :* End)       = PP.text "abs"  <+> pretty e1
 prettyPrimOp (Recip   _)      (e1 :* End)       = PP.text "recip" <+> pretty e1
 prettyPrimOp (NatRoot _)      (e1 :* e2 :* End) = PP.text "root" <+> pretty e1 <+> pretty e2
+prettyPrimOp Floor            (e1 :* End)       = PP.text "floor" <+> pretty e1
+prettyPrimOp _                _                 = error "prettyPrimop: a bunch of cases still need done!"
 
 prettyArrayOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => ArrayOp typs a -> SArgs abt args -> Doc
 prettyArrayOp (Index _) (e1 :* e2 :* End) = PP.text "index" <+> pretty e1 <+> pretty e2
 prettyArrayOp (Size  _) (e1 :* End)       = PP.text "size" <+> pretty e1
+prettyArrayOp (Reduce _) _                 = error "prettyArrayOp doesn't know how to print Reduce"
 
 prettyFile' :: [Char] -> [Char] -> IO ()
 prettyFile' fname outFname = do
@@ -303,7 +304,7 @@ prettyFile' fname outFname = do
 runPretty' :: Text -> IO String
 runPretty' prog =
     case parseAndInfer prog of
-    Left  err              -> return "err"
+    Left  _                -> return "err"
     Right (TypedAST _ ast) -> do
       summarised <- summary . expandTransformations $ ast
       return . render . pretty $ summarised

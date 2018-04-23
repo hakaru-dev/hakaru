@@ -48,6 +48,7 @@ import qualified Data.Foldable      as F
 import qualified Data.List.NonEmpty as L
 import qualified Data.Text          as Text
 import qualified Data.Sequence      as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import           Prelude            hiding ((<>))
 
 import Data.Number.Nat                 (fromNat)
 import Data.Number.Natural             (fromNatural)
@@ -244,10 +245,10 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                  [ ppArg e1
                  , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
                  ]
-        Bucket b e r  ->
+        Bucket b ee r  ->
             ppFun p "bucket"
             [ ppArg b
-            , ppArg e
+            , ppArg ee
             , toDoc $ parens True (prettyPrec_ p r)
             ]
 
@@ -405,6 +406,7 @@ ppPrimOp p Asinh     = \(e1 :* End)         -> ppApply1 p "asinh" e1
 ppPrimOp p Acosh     = \(e1 :* End)         -> ppApply1 p "acosh" e1
 ppPrimOp p Atanh     = \(e1 :* End)         -> ppApply1 p "atanh" e1
 ppPrimOp p RealPow   = \(e1 :* e2 :* End)   -> ppBinop "**" 8 RightAssoc p e1 e2
+ppPrimOp p Choose    = \(e1 :* e2 :* End)   -> ppApply2 p "choose" e1 e2
 ppPrimOp p Exp       = \(e1 :* End)         -> ppApply1 p "exp"   e1
 ppPrimOp p Log       = \(e1 :* End)         -> ppApply1 p "log"   e1
 ppPrimOp _ (Infinity _)     = \End          -> [PP.text "infinity"]
@@ -420,7 +422,8 @@ ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1 p "recip"  e1
 ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) ->
     -- N.B., argument order is swapped!
     ppBinop "`thRootOf`" 9 LeftAssoc p e2 e1
-ppPrimOp p (Erf _) = \(e1 :* End)           -> ppApply1 p "erf" e1
+ppPrimOp p (Erf _)     = \(e1 :* End)        -> ppApply1 p "erf"   e1
+ppPrimOp p Floor       = \(e1 :* End)        -> ppApply1 p "floor" e1
 
 
 -- | Pretty-print a 'ArrayOp' @(:$)@ node in the AST.
@@ -524,7 +527,7 @@ instance (ABT Term abt) => Pretty (Reducer abt xs) where
             , toDoc $ prettyPrec_ 11 r1
             , toDoc $ prettyPrec_ 11 r2
             ]
-    prettyPrec_ p Red_Nop             =
+    prettyPrec_ _ Red_Nop             =
         [ PP.text "r_nop" ]
     prettyPrec_ p (Red_Add _ e)       =
         ppFun p "r_add"

@@ -135,6 +135,7 @@ primTable =
     ,("nor",         primPrimOp2 U.Nor)
     ,("pi",          primPrimOp0 U.Pi)
     ,("**",          primPrimOp2 U.RealPow)
+    ,("choose",      primPrimOp2 U.Choose)
     ,("cos",         primPrimOp1 U.Cos)
     ,("exp",         primPrimOp1 U.Exp)
     ,("log",         primPrimOp1 U.Log)
@@ -163,6 +164,7 @@ primTable =
     ,("asinh",       primPrimOp1 U.Asinh)
     ,("acosh",       primPrimOp1 U.Acosh)
     ,("atanh",       primPrimOp1 U.Atanh)
+    ,("floor",       primPrimOp1 U.Floor)
     -- ArrayOps
     ,("size",        TLam $ \x -> TNeu . syn $ U.ArrayOp_ U.Size [x])
     ,("reduce",      t3 $ \x y z -> syn $ U.ArrayOp_ U.Reduce [x, y, z])

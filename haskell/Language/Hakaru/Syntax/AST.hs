@@ -43,9 +43,9 @@ module Language.Hakaru.Syntax.AST
     , SArgs(..)
     , Term(..)
     , Transform(..), TransformImpl(..)
-    , transformName, allTransforms
+    -- allTransforms, transformName comes from Transform
     -- * Operators
-    , LC, LCs, UnLCs
+    , LCs, UnLCs -- LC comes from SArgs
     , LC_(..)
     , NaryOp(..)
     , PrimOp(..)
@@ -73,7 +73,7 @@ import           Data.Traversable
 import           Control.Arrow ((***))
 import           Data.Ratio    (numerator, denominator)
 
-import Data.Data (Data, Typeable)
+import Data.Data ()
 
 import Data.Number.Natural
 import Language.Hakaru.Syntax.IClasses
@@ -116,7 +116,8 @@ instance Eq1 Literal where
     eq1 (LInt  x) (LInt  y) = x == y
     eq1 (LProb x) (LProb y) = x == y
     eq1 (LReal x) (LReal y) = x == y
-    eq1 _         _          = False
+    -- Because of GADTs, the following is apparently redundant
+    -- eq1 _         _          = False
 
 instance Eq (Literal a) where
     (==) = eq1
@@ -334,6 +335,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: may need @SafeFrom_@ in order to branch on the input
     -- in order to provide the old unsafe behavior.
     RealPow   :: PrimOp '[ 'HProb, 'HReal ] 'HProb
+    Choose    :: PrimOp '[ 'HNat, 'HNat ] 'HNat
     -- ComplexPow :: PrimOp '[ 'HProb, 'HComplex ] 'HComplex
     -- is uniquely well-defined. Though we may want to implement
     -- it via @r**z = ComplexExp (z * RealLog r)@
@@ -368,7 +370,6 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: add a specialized version which returns NonNegative
     -- when the power is even? N.B., be sure not to actually constrain
     -- it to HRing (necessary for calling it \"NonNegative\")
-
 
     -- -- HRing operators
     -- TODO: break these apart into a hierarchy of classes. N.B,
@@ -407,6 +408,10 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: are there any salient types which support abs\/norm but
     -- do not have all units and thus do not support signum\/normalize?
 
+
+    -- Coecion-like operations that are computations
+    -- we only implement Floor for Prob for now?
+    Floor :: PrimOp '[ 'HProb ] 'HNat
 
     -- -- HFractional operators
     Recip :: !(HFractional a) -> PrimOp '[ a ] a

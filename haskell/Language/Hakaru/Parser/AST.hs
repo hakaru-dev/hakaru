@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP
+ {-# LANGUAGE CPP
            , GADTs
            , DataKinds
            , PolyKinds
@@ -302,12 +302,13 @@ data PrimOp
     | Asin       | Acos   | Atan
     | Sinh       | Cosh   | Tanh
     | Asinh      | Acosh  | Atanh
-    | RealPow    | NatPow
+    | RealPow    | Choose | NatPow
     | Exp        | Log    | Infinity
     | GammaFunc  | BetaFunc
     | Equal      | Less
     | Negate     | Recip
     | Abs        | Signum | NatRoot | Erf
+    | Floor
     deriving (Eq, Show)
 
 data SomeOp op where
@@ -486,8 +487,8 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Transform_    :: T.Transform as x -> SArgs abt as    -> Term abt 'U
     Superpose_    :: L.NonEmpty (abt '[] 'U, abt '[] 'U) -> Term abt 'U
     Reject_       ::                                        Term abt 'U
-    InjTyped      :: (forall abt . ABT T.Term abt
-                                 => abt '[] x)           -> Term abt 'U
+    InjTyped      :: (forall abt' . ABT T.Term abt'
+                                 => abt' '[] x)          -> Term abt 'U
 
 infixr 5 :*
 data SArgs (abt :: [Untyped] -> Untyped -> *) (as :: [([k], k)]) where

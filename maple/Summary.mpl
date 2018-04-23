@@ -212,7 +212,8 @@ Summary := module ()
       if r :: `=` and Testzero(e2) then
         for o in indets(r, 'name') minus {i} do
           if not (var_outerness[o] :: integer) then next end if;
-	  if StringTools:-IsPrefix('docUpdate', o) then next end if;
+          if StringTools:-IsPrefix('docUpdate', o) then next end if;
+          if StringTools:-IsPrefix('wordUpdate', o) then next end if;
           t := getType(kb, o);
           if not (t :: specfunc(HInt)) then next end if;
           lo := op(select(type, t, 'Bound(identical(`>=`), anything)'));
