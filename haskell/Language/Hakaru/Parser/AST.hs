@@ -487,8 +487,8 @@ data Term :: ([Untyped] -> Untyped -> *) -> Untyped -> * where
     Transform_    :: T.Transform as x -> SArgs abt as    -> Term abt 'U
     Superpose_    :: L.NonEmpty (abt '[] 'U, abt '[] 'U) -> Term abt 'U
     Reject_       ::                                        Term abt 'U
-    InjTyped      :: (forall abt . ABT T.Term abt
-                                 => abt '[] x)           -> Term abt 'U
+    InjTyped      :: (forall abt' . ABT T.Term abt'
+                                 => abt' '[] x)          -> Term abt 'U
 
 infixr 5 :*
 data SArgs (abt :: [Untyped] -> Untyped -> *) (as :: [([k], k)]) where

@@ -3,7 +3,7 @@
 ##########################
 
 # Standard Triangle Distribution with range from -1 to 1
-def stdTriangle():
+def stdTriangle() measure(real):
 	X1 <~ uniform(0,1)
 	X2 <~ uniform(0,1)
 	return X1 - X2
@@ -15,7 +15,7 @@ def stdTriangle():
 # is proportional to the size of the base of each right-angle triangle relative to
 # the size of the base of the composite triangle. Therefore, we use a uniform 
 # distribution to determine which right triangle to pull a sample from.
-def triangle(a real, m real, b real):
+def triangle(a real, m real, b real) measure(real):
 	side <~ uniform (0,1) 
 	# TODO: implement error checking
 	# i.e. a < m < b

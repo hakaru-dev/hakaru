@@ -37,21 +37,18 @@ import qualified Data.Foldable as F
 import Control.Applicative   (Applicative(..), (<$>))
 #endif
 
-import Language.Hakaru.Syntax.IClasses (Pair2(..), fst2, snd2
-                                       ,Pointwise(..), Lift1(..)
-                                       ,List1(..))
+import Language.Hakaru.Syntax.IClasses (Pair2(..), fst2, snd2)
 import Language.Hakaru.Syntax.Variable (varType)
 import Language.Hakaru.Syntax.ABT      (ABT, caseBind, paraABT)
 import Language.Hakaru.Types.DataKind  (Hakaru())
 import Language.Hakaru.Types.HClasses  (sing_HSemiring)
-import Language.Hakaru.Types.Sing      (Sing(..), sUnMeasure, sUnit, sPair
-                                       ,sUnFun, sUnPair)
+import Language.Hakaru.Types.Sing      (Sing(..), sUnMeasure, sUnit, sPair)
 import Language.Hakaru.Types.Coercion
     (singCoerceCod, singCoerceDom, Coerce(..))
 import Language.Hakaru.Syntax.Datum    (Datum(..), Branch(..))
 import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST      (Term(..), SCon(..), SArgs(..)
-                                       ,Transform(..), typeOfTransform
+                                       ,typeOfTransform
                                        ,getSArgsSing)
 import Language.Hakaru.Syntax.AST.Sing
     (sing_PrimOp, sing_ArrayOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
@@ -163,9 +160,7 @@ getTermSing singify = go
             SFun (varType x) <$> getSing r1
     go (App_ :$ r1 :* _ :* End) = do
         typ1 <- getSing r1
-        case typ1 of
-            SFun _ typ3            -> return typ3
-            _ -> error "getTermSing: the impossible happened"
+        case typ1 of SFun _ typ3            -> return typ3
     go (Let_ :$ _  :* r2 :* End)    = getSing r2
     go (CoerceTo_   c :$ r1 :* End) =
         maybe (coerceTo   c <$> getSing r1) return (singCoerceCod c)

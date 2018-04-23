@@ -14,7 +14,7 @@
 -- (and\/or: for the various op types, it's okay to move them to
 -- AST.hs to avoid orphanage. It's just the instances for 'Term'
 -- itself which are morally suspect outside of testing.)
-{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans -fno-warn-name-shadowing #-}
 ----------------------------------------------------------------
 --                                                    2016.05.24
 -- |
@@ -128,11 +128,6 @@ jmEq_S (Product h1 h2) es (Product h1' h2') es' = do
     Refl <- jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
     Refl <- jmEq1 es es'
     Just (Refl, Refl)
-jmEq_S (Product h1 h2) es (Product h1' h2') es' = do
-    Refl <- jmEq1 (sing_HDiscrete h1) (sing_HDiscrete h1')
-    Refl <- jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
-    Refl <- jmEq1 es es'
-    Just (Refl, Refl)
 jmEq_S (Transform_ t0) es (Transform_ t1)   es' = do
     Refl <- jmEq1 es es'
     Refl <- jmEq_Transform t0 t1
@@ -162,10 +157,10 @@ jmEq_Branch
     => [(Branch a abt b, Branch a abt b')]
     -> Maybe (TypeEq b b')
 jmEq_Branch []                                  = Nothing
-jmEq_Branch [(Branch pat e, Branch pat' e')]    = do
+jmEq_Branch [(Branch _ e, Branch _ e')]    = do
     (Refl, Refl) <- jmEq2 e e'
     return Refl
-jmEq_Branch ((Branch pat e, Branch pat' e'):es) = do
+jmEq_Branch ((Branch _ e, Branch _ e'):es) = do
     (Refl, Refl) <- jmEq2 e e'
     jmEq_Branch es
 
@@ -326,10 +321,10 @@ zipWithSetMF q a b = zipWithSetM q (F.toList a) (F.toList b)
 
 
 alphaEq
-    :: forall abt a
+    :: forall abt d
     .  (ABT Term abt)
-    => abt '[] a
-    -> abt '[] a
+    => abt '[] d
+    -> abt '[] d
     -> Bool
 alphaEq e1 e2 =
     maybe False (const True)
@@ -399,7 +394,6 @@ alphaEq e1 e2 =
     sArgsEq (e1 :* es1) (e2 :* es2) = do
         go (viewABT e1) (viewABT e2)
         sArgsEq es1 es2
-    sArgsEq _ _ = lift Nothing
 
     sConEq
         :: forall a args1 args2
@@ -465,11 +459,6 @@ alphaEq e1 e2 =
         Refl <- lift $ jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
         sArgsEq e1 e2
 
-    sConEq (Product h1 h2) e1 (Product h1' h2') e2 = do
-        Refl <- lift $ jmEq1 (sing_HDiscrete h1) (sing_HDiscrete h1')
-        Refl <- lift $ jmEq1 (sing_HSemiring h2) (sing_HSemiring h2')
-        sArgsEq e1 e2
-
     sConEq (Transform_ t1) e1
            (Transform_ t2) e2 = transformEq t1 e1 t2 e2
 
@@ -509,9 +498,9 @@ alphaEq e1 e2 =
         => PrimOp typs1 a -> SArgs abt args1
         -> PrimOp typs2 a -> SArgs abt args2
         -> ReaderT Varmap Maybe ()
-    primOpEq p1 e1 p2 e2 = do
+    primOpEq p1 e1' p2 e2' = do
         (Refl, Refl) <- lift $ jmEq2 p1 p2
-        sArgsEq e1 e2
+        sArgsEq e1' e2'
 
     arrayOpEq
         :: forall a typs1 typs2 args1 args2
@@ -531,9 +520,9 @@ alphaEq e1 e2 =
         => MeasureOp typs1 a -> SArgs abt args1
         -> MeasureOp typs2 a -> SArgs abt args2
         -> ReaderT Varmap Maybe ()
-    measureOpEq m1 e1 m2 e2 = do
+    measureOpEq m1 e1' m2 e2' = do
         (Refl,Refl) <- lift $ jmEq2 m1 m2
-        sArgsEq e1 e2
+        sArgsEq e1' e2'
 
     datumEq :: forall a
         .  Datum (abt '[]) a
@@ -559,7 +548,6 @@ alphaEq e1 e2 =
         datumFunEq c1 d1
         datumStructEq c2 d2
     datumStructEq Done       Done       = return ()
-    datumStructEq _          _          = lift Nothing
     
     datumFunEq
         :: forall x a
@@ -568,23 +556,22 @@ alphaEq e1 e2 =
         -> ReaderT Varmap Maybe ()
     datumFunEq (Konst e) (Konst f) = go (viewABT e) (viewABT f) 
     datumFunEq (Ident e) (Ident f) = go (viewABT e) (viewABT f) 
-    datumFunEq _          _        = lift Nothing
     
     pairEq
-        :: forall a b
-        .  (abt '[] a, abt '[] b)
-        -> (abt '[] a, abt '[] b)
+        :: forall c b
+        .  (abt '[] c, abt '[] b)
+        -> (abt '[] c, abt '[] b)
         -> ReaderT Varmap Maybe ()
     pairEq (x1, y1) (x2, y2) = do
         go (viewABT x1) (viewABT x2)
         go (viewABT y1) (viewABT y2)
 
     sBranch
-        :: forall a b
-        .  Branch a abt b
-        -> Branch a abt b
+        :: forall c b
+        .  Branch c abt b
+        -> Branch c abt b
         -> ReaderT Varmap Maybe ()
-    sBranch (Branch p1 e1) (Branch p2 e2) = patternEq p1 p2 >> go (viewABT e1) (viewABT e2)
+    sBranch (Branch p3 e3) (Branch p4 e4) = patternEq p3 p4 >> go (viewABT e3) (viewABT e4)
 
     patternEq 
         :: Pattern a0 b0
@@ -622,9 +609,9 @@ alphaEq e1 e2 =
     pdatumFunEq _          _          = lift Nothing
 
     reducerEq
-        :: forall xs a
-        .  Reducer abt xs a
-        -> Reducer abt xs a
+        :: forall xs b
+        .  Reducer abt xs b
+        -> Reducer abt xs b
         -> ReaderT Varmap Maybe ()
     reducerEq (Red_Fanout r s) (Red_Fanout r' s')    = do
         reducerEq r r'
