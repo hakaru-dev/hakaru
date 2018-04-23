@@ -357,6 +357,8 @@ maple2AST (InertArgs Func
 
 maple2AST (InertArgs Func
         [InertName "piecewise", InertArgs ExpSeq es]) = go es where
+  go []           = error "Invalid 0-ary piecewise?"
+  go [_]          = error "Invalid 1-ary piecewise?"
   go [e1,e2]      = If (maple2AST e1) (maple2AST e2) (ULiteral (Nat 0))
   go [e1,e2,e3]   = If (maple2AST e1) (maple2AST e2) (maple2AST e3)
   -- BUG! piecewise(a<b,2,a=b,1) doesn't mean piecewise(a<b,2,1) in Maple
@@ -550,6 +552,8 @@ maple2ReducerAST
   [ InertName "Add"
   , InertArgs ExpSeq [e1]]) = R_Add (maple2AST e1)
 
+maple2ReducerAST _ = error "TODO: maple2ReducerAST, so many cases..."
+
 mapleDatum2AST :: Text -> InertExpr -> AST' Text
 mapleDatum2AST h d = case (h, maple2DCode d) of
   ("pair", [x,y]) -> Pair x y
@@ -655,6 +659,7 @@ branch (InertArgs Func
         [InertName "Branch",
          InertArgs ExpSeq [pat, e]]) =
     Branch' (maple2Pattern pat) (maple2AST e)
+branch _ = error "Branch: got some ill-formed case statement back?"
 
 
 maple2Pattern :: InertExpr -> Pattern' Text

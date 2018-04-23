@@ -59,7 +59,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches, MatchState(..), matchTopPattern)
+import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchState(..), matchTopPattern)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -121,7 +121,7 @@ evaluate perform = evaluate_
         -- We don't bother evaluating these, even though we could...
         Integrate :$ e1 :* e2 :* e3 :* End ->
             return . Head_ $ WIntegrate e1 e2 e3
-        Summate h1 h2 :$ e1 :* e2 :* e3 :* End ->
+        Summate _ _ :$ _ :* _ :* _ :* End ->
             return . Neutral $ syn t
             --return . Head_ $ WSummate   e1 e2 e3
 
@@ -154,11 +154,12 @@ evaluate perform = evaluate_
         ArrayOp_ o :$ es -> evaluateArrayOp evaluate_ o es
         PrimOp_  o :$ es -> evaluatePrimOp  evaluate_ o es
 
-        Transform_ t :$ _ -> error $
-            concat ["TODO: evaluate{", show t, "}"
+        Transform_ tt :$ _ -> error $
+            concat ["TODO: evaluate{", show tt, "}"
                    ,": cannot evaluate transforms; expand them first"]
 
         Case_ e bs -> evaluateCase_ e bs
+        -- Bucket_ _ _ _ _ -> error "What oh what to do with a Bucket here?"
 
         _ :$ _ -> error "evaluate: the impossible happened"
 
@@ -282,8 +283,8 @@ nand x y = not (x && y)
 nor  x y = not (x || y)
 
 -- BUG: no Floating instance for LogFloat (nor NonNegativeRational), so can't actually use this...
-natRoot :: (Floating a) => a -> Nat -> a
-natRoot x y = x ** recip (fromIntegral (fromNat y))
+-- natRoot :: (Floating a) => a -> Nat -> a
+-- natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 
 ----------------------------------------------------------------
@@ -437,8 +438,9 @@ evaluateArrayOp evaluate_ = go
             Head_ (WArrayLiteral es) -> return . Head_ . WLiteral .
                                         primCoerceFrom (Signed HRing_Int) .
                                         LInt . toInteger $ length es
+            Head_ _ -> error "Got something odd when evaluating an array"
 
-    go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
+    go (Reduce _) = \(_ :* _ :* _ :* End) ->
         error "TODO: evaluateArrayOp{Reduce}"
 
 ----------------------------------------------------------------
@@ -608,7 +610,7 @@ evaluatePrimOp evaluate_ = go
         HEq_Int    -> rr2 (==) (P.==)
         HEq_Prob   -> rr2 (==) (P.==)
         HEq_Real   -> rr2 (==) (P.==)
-        HEq_Array aEq -> error "TODO: rrEqual{HEq_Array}"
+        HEq_Array _ -> error "TODO: rrEqual{HEq_Array}"
         HEq_Bool   -> rr2 (==) (P.==)
         HEq_Unit   -> rr2 (==) (P.==)
         HEq_Pair   aEq bEq ->
@@ -641,7 +643,7 @@ evaluatePrimOp evaluate_ = go
                                     | reify va  -> wb
                                     | otherwise -> Head_ $ WDatum dFalse
 
-        HEq_Either aEq bEq -> error "TODO: rrEqual{HEq_Either}"
+        HEq_Either _ _ -> error "TODO: rrEqual{HEq_Either}"
 
     rrLess
         :: forall b. HOrd b -> abt '[] b -> abt '[] b -> m (Whnf abt HBool)
@@ -651,10 +653,10 @@ evaluatePrimOp evaluate_ = go
         HOrd_Int    -> rr2 (<) (P.<)
         HOrd_Prob   -> rr2 (<) (P.<)
         HOrd_Real   -> rr2 (<) (P.<)
-        HOrd_Array aOrd -> error "TODO: rrLess{HOrd_Array}"
+        HOrd_Array _ -> error "TODO: rrLess{HOrd_Array}"
         HOrd_Bool   -> rr2 (<) (P.<)
         HOrd_Unit   -> rr2 (<) (P.<)
-        HOrd_Pair aOrd bOrd ->
+        HOrd_Pair _ _ ->
             \e1 e2 -> do
                 w1 <- evaluate_ e1
                 w2 <- evaluate_ e2
@@ -668,11 +670,11 @@ evaluatePrimOp evaluate_ = go
                             return . Neutral
                                 $ P.primOp2_ (Less theOrd) (fromHead v1) e2'
                         Head_ v2 -> do
-                            let (v1a, v1b) = reifyPair v1
-                            let (v2a, v2b) = reifyPair v2
+                            let (_, _) = reifyPair v1
+                            let (_, _) = reifyPair v2
                             error "TODO: rrLess{HOrd_Pair}"
                             -- BUG: The obvious recursion won't work because we need to know when the first components are equal before recursing (to implement lexicographic ordering). We really need a ternary comparison operator like 'compare'.
-        HOrd_Either aOrd bOrd -> error "TODO: rrLess{HOrd_Either}"
+        HOrd_Either _ _ -> error "TODO: rrLess{HOrd_Either}"
 
 
 ----------------------------------------------------------------

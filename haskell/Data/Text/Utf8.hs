@@ -3,7 +3,6 @@
 module Data.Text.Utf8 where
 
 import           Prelude               hiding (putStr, putStrLn)
-import           Control.Applicative   (liftA)
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -13,7 +12,6 @@ import qualified Data.ByteString.Char8 as BIO
 import qualified Data.Text             as Text
 import           Data.Text.Encoding    (decodeUtf8, encodeUtf8)
 import           System.IO (Handle)
-import           Data.Monoid ((<>))
 
 readFile :: FilePath -> IO Text.Text
 readFile f = decodeUtf8 <$> (BIO.readFile f)
