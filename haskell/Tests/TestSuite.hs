@@ -1,4 +1,4 @@
-module Main(main, justRelationships) where
+module Main(main) where
 
 import System.Exit (exitFailure)
 import System.Environment (lookupEnv)
@@ -26,7 +26,7 @@ simplifyTests t env =
     Just _  -> t
     Nothing -> test ignored
 
-allTests, relationshipsTests :: Maybe String -> Test
+allTests :: Maybe String -> Test
 allTests env = test $
   [ TestLabel "Parser"       P.allTests
   , TestLabel "Pretty"       Pr.allTests
@@ -35,15 +35,12 @@ allTests env = test $
   , TestLabel "Disintegrate" D.allTests
   , TestLabel "Evaluate"     E.allTests
   , TestLabel "RoundTrip"    (simplifyTests RT.allTests env)
+  , TestLabel "Relationships" (simplifyTests REL.allTests env)
   , TestLabel "ASTTransforms" TR.allTests
   ]
-relationshipsTests env =
-  TestLabel "Relationships" (simplifyTests REL.allTests env)
 
-main, justRelationships :: IO ()
+main :: IO ()
 main = mainWith allTests (fmap Just . runTestTT)
-
-justRelationships = mainWith relationshipsTests (fmap Just . runTestTT)
 
 mainWith :: (Maybe String -> Test) -> (Test -> IO (Maybe Counts)) -> IO ()
 mainWith mkTests run = do

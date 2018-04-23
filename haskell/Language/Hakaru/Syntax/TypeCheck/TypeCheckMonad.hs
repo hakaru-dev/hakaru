@@ -28,7 +28,7 @@ module Language.Hakaru.Syntax.TypeCheck.TypeCheckMonad where
 import           Prelude hiding (id, (.))
 import           Control.Category
 import           Data.Proxy            (KProxy(..))
-import           Data.Text             (pack, Text())
+import           Data.Text             (Text())
 import qualified Data.Vector           as V
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -42,15 +42,12 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
-    , hRing_Sing, sing_HRing, hFractional_Sing, sing_HFractional
-    , sing_NonNegative, hDiscrete_Sing
-    , HIntegrable(..)
-    , HRadical(..), HContinuous(..))
+    , hRing_Sing, sing_HRing, hFractional_Sing)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Reducer
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Pretty.Concrete (prettyType, prettyTypeT)
+import Language.Hakaru.Pretty.Concrete (prettyTypeT)
 
 -- | * Definition of the typechecking monad and related
 -- types\/functions\/instances.
@@ -404,9 +401,6 @@ getHFractional typ mode =
     UnsafeMode -> case findFractional typ of
                     Just proof   -> return proof
                     Nothing      -> missingInstance "HFractional" typ Nothing
-
--- show1T :: Show1 a => a (i :: Hakaru) -> Text
--- show1T = pack . show1
 
 -- TODO: find a better name, and move to where 'LC_' is defined.
 lc :: (LC_ abt a -> LC_ abt b) -> abt '[] a -> abt '[] b

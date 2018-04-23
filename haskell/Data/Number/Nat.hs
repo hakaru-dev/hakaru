@@ -24,6 +24,11 @@ module Data.Number.Nat
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (Monoid(..))
 #endif
+
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup
+#endif
+
 import Data.Data (Data, Typeable)
 
 ----------------------------------------------------------------
@@ -139,10 +144,14 @@ instance Integral Nat where
 ----------------------------------------------------------------
 newtype MaxNat = MaxNat { unMaxNat :: Nat }
 
-instance Monoid MaxNat where
-    mempty                        = MaxNat 0
-    mappend (MaxNat m) (MaxNat n) = MaxNat (max m n)
+instance Semigroup MaxNat where
+    MaxNat m <> MaxNat n = MaxNat (max m n)
 
+instance Monoid MaxNat where
+    mempty  = MaxNat 0
+#if !(MIN_VERSION_base(4,11,0))
+    mappend = (<>)
+#endif
 
 ----------------------------------------------------------------
 _errmsg_unsafeNat, _errmsg_subtraction, _errmsg_negate, _errmsg_fromInteger, _errmsg_succ, _errmsg_pred, _errmsg_toEnum

@@ -4,11 +4,13 @@
 # authors: Justin Staples, Mahmoud Khattab
 
 # Inverse Beta Distribution
-def invBeta(a prob, b prob):
+def invBeta(a prob, b prob) measure(prob):
 	X <~ beta(a,b)
-	return X / (1 - X)
+	return real2prob(X / (1 - X))
 
 # Arcsin Distribution
-def arcsin():
+# Values range from 0 to 1, with highest probabilities
+# at 0 and 1.
+def arcsin() measure(prob):
 	p <~ beta(0.5, 0.5)
 	return p
