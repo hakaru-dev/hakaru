@@ -52,5 +52,3 @@ def hypoexponential(alpha array(prob))measure(prob):
 	x = real2prob(x)
 	pdf = summate i from 0 to size(alpha): (1/alpha[i]) * exp((-x)/alpha[i]) * (product j from 0 to size(alpha): if i/=j: alpha[j] / alpha[i] - alpha[j] else: 1)
 	weight(real2prob(pdf), return x)
-
-rayleigh(2)
