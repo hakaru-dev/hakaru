@@ -203,12 +203,19 @@ testMeasurePair = test [
     "easyHMM"           ~: testConcreteFile "tests/RoundTrip/easyHMM.hk",
     "testMCMCPriorProp" ~: testConcreteFile "tests/RoundTrip/testMCMCPriorProp.hk"
     ]
-
+    
 testStdChiSqRelations :: Test
 testStdChiSqRelations = test [
     "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk",
     "t_stdChiSq_to_exponential" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_to_exponential.0.hk" "tests/RoundTrip2/t_stdChiSq_to_exponential.expected.hk",
     "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk"        
+    ]
+
+
+testCauchyRelations :: Test 
+testCauchyRelations = test [
+    "t_cauchy_add_transformation" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_add_transformation.0.hk" "tests/RoundTrip2/t_cauchy_add_transformation.expected.hk",
+    "t_cauchy_sub_transformation" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_sub_transformation.0.hk" "tests/RoundTrip2/t_cauchy_sub_transformation.expected.hk"
     ]
 
 testExponentialRelations :: Test 
@@ -218,15 +225,8 @@ testExponentialRelations = test [
 
 testErlangRelations :: Test
 testErlangRelations = test [
-    "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk",
+        "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk",
     "t_erlang_to_stdChiSq"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_stdChiSq.0.hk" "tests/RoundTrip2/t_erlang_to_stdChiSq.expected.hk"        
-    ]
-    
-
-testCauchyRelations :: Test 
-testCauchyRelations = test [
-    "t_cauchy_add_transformation" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_add_transformation.0.hk" "tests/RoundTrip2/t_cauchy_add_transformation.expected.hk",
-    "t_cauchy_sub_transformation" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_sub_transformation.0.hk" "tests/RoundTrip2/t_cauchy_sub_transformation.expected.hk"
     ]
 
 testOther :: Test
@@ -272,8 +272,8 @@ allTests = test
     , testMeasureInt
     , testErlangRelations
     , testStdChiSqRelations
-    , testExponentialRelations
     , testCauchyRelations
+    , testExponentialRelations
     , testOther
     ]
 

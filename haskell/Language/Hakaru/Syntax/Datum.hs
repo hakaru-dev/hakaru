@@ -253,7 +253,6 @@ instance JmEq1 ast => JmEq1 (DatumStruct xs ast) where
 instance Eq1 ast => Eq1 (DatumStruct xs ast) where
     eq1 (Et c1 c2) (Et d1 d2) = eq1 c1 d1 && eq1 c2 d2
     eq1 Done       Done       = True
-    eq1 _          _          = False
 
 instance Eq1 ast => Eq (DatumStruct xs ast a) where
     (==) = eq1
@@ -305,7 +304,6 @@ instance JmEq1 ast => JmEq1 (DatumFun x ast) where
 instance Eq1 ast => Eq1 (DatumFun x ast) where
     eq1 (Konst e) (Konst f) = eq1 e f
     eq1 (Ident e) (Ident f) = eq1 e f
-    eq1 _         _         = False
 
 instance Eq1 ast => Eq (DatumFun x ast a) where
     (==) = eq1
@@ -585,12 +583,10 @@ jmEq_PStruct (PEt c1 c2) (PEt d1 d2) = do
     Refl <- jmEq_PStruct c2 d2
     Just Refl
 jmEq_PStruct PDone PDone = Just Refl
-jmEq_PStruct _     _     = Nothing
 
 jmEq_PFun :: PDatumFun f vs a -> PDatumFun f ws a -> Maybe (TypeEq vs ws)
 jmEq_PFun (PKonst p1) (PKonst p2) = jmEq_P p1 p2
 jmEq_PFun (PIdent p1) (PIdent p2) = jmEq_P p1 p2
-jmEq_PFun _           _           = Nothing
 
 
 #if __PARTIAL_DATUM_JMEQ__
@@ -657,7 +653,6 @@ instance JmEq1 (PDatumFun x vars) where
 instance Eq2 (PDatumFun x) where
     eq2 (PKonst e) (PKonst f) = eq2 e f
     eq2 (PIdent e) (PIdent f) = eq2 e f
-    eq2 _          _          = False
 
 instance Eq1 (PDatumFun x vars) where
     eq1 = eq2
