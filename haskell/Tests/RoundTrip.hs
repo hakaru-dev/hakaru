@@ -271,11 +271,8 @@ allTests = test
     , testMeasureInt
     , testErlangRelations
     , testStdChiSqRelations
-<<<<<<< HEAD
     , testCauchyRelations
-=======
     , testExponentialRelations
->>>>>>> master
     , testOther
     ]
 
