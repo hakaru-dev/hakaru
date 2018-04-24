@@ -224,7 +224,7 @@ testErlangRelations = test [
     
 testCauchyRelations :: Test 
 testCauchyRelations = test [
-    "t_cauchy_linear_transformation" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_linear_transformation.0.hk" "tests/RoundTrip2/t_cauchy_linear_transformation.expected.hk"
+    "t_cauchy_linear_transformation" ~: testConcreteFiles "tests/RoundTrip/t_cauchy_linear_transformation.0.hk" "tests/RoundTrip/t_cauchy_linear_transformation.expected.hk"
     ]
 
 testOther :: Test
