@@ -16,6 +16,6 @@ def nonCentralT(n nat, delta prob):
 	return (U + delta)*sqrt(n)/(X)
 
 def t(n nat):
-	return nonCentralT(n,0)
+	nonCentralT(n,0)
 
 t(1)
