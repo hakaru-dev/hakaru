@@ -217,6 +217,7 @@ testStdChiSqRelations = test [
 testExponentialRelations :: Test 
 testExponentialRelations = test [ 
     "t_exp_erlang_to_pareto"        ~: testConcreteFiles "tests/RoundTrip/t_exp_erlang_to_pareto.0.hk" "tests/RoundTrip/t_exp_erlang_to_pareto.expected.hk",
+    "t_exponential_sum_rates"        ~: testConcreteFiles "tests/RoundTrip/t_exponential_sum_rates.0.hk" "tests/RoundTrip/t_exponential_sum_rates.expected.hk",
     "t_exponential_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_stdChiSq.0.hk" "tests/RoundTrip/t_exponential_to_stdChiSq.expected.hk",
     "t_exponential_scale_closure"   ~: testConcreteFiles "tests/RoundTrip/t_exponential_scale_closure.0.hk" "tests/RoundTrip/t_exponential_scale_closure.expected.hk"
     ]
