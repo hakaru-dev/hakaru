@@ -1,6 +1,0 @@
-def exponential(alpha prob):
-	X <~ uniform(0,1)
-	return -1 * alpha * log(real2prob(X))
-
-X <~ exponential(1)
-return sqrt(real2prob(X))
