@@ -11,5 +11,6 @@ def cauchy(a real, alpha prob):
 	X <~ stdCauchy()
 	return a + alpha*X
 
-X <~ cauchy(0, 1/2)
-return X
+X <~ cauchy(1, 2)
+Y <~ cauchy(3, 4)
+return X + Y

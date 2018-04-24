@@ -1,9 +1,20 @@
+# Hakaru Standard Library
+# author: Aryan Sohrabi
+
+################################################
+# Standard Wald Distribution and Transformations #
+################################################
+
+# The documents on parametrization can be found at: http://www.math.wm.edu/~leemis/chart/UDR/UDR.html
+
+#Inverse Gaussian Distribution
 def invGaussian(lambda prob, mu prob) measure(prob):
 	x<~lebesgue(0,∞)
 	x = real2prob(x)
 	pdf = (lambda/1*pi*x**3) ** (1/2) * exp(-((lambda*(x-mu)^2)/(2*x*mu^2)))
 	weight(real2prob(pdf), return x)
 
+#Standard Wald Distribution
 def stdWald(lambda prob) measure(prob):
 	x<~lebesgue(0,∞)
 	x = real2prob(x)

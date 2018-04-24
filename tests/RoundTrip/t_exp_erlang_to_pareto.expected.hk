@@ -1,0 +1,5 @@
+# If X ~ Exp(α) and Y ~ Erlang(n, α) then: X/Y + 1 ~ Pareto(n,1)
+
+#pareto(1,1)
+X <~ uniform(+0/1,+1/1)
+return real2prob(1/X)

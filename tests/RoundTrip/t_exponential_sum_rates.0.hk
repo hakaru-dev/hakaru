@@ -1,0 +1,18 @@
+# If X ~ Exp(λ) and Y ~ Exp(ν) 
+# 	then min(X, Y) ~ Exp(λ + ν).
+
+# Rewrite for scale: 
+#	λ = 1/α and ν = 1/β 
+#	λ + ν = (β + α)/αβ
+#	If X ~ Exp(α) and Y ~ Exp(β) 
+# 	then min(X, Y) ~ Exp(αβ/(β + α)).
+
+def exponential(alpha prob):
+	gamma(1/1, alpha)
+
+def expSumRates(alpha prob, beta prob):
+	X <~ exponential(alpha)
+	Y <~ exponential(beta)
+	return min(X,Y)
+
+expSumRates(1/1,2/1)
