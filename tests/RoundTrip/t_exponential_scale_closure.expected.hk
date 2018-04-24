@@ -1,0 +1,5 @@
+#If X ~ Exp(λ) then kX ~ Exp(λ/k).
+
+#Equivalent: If X ~ Exp(α) then kX ~ Exp(kα)
+
+gamma(1/1,3/2)

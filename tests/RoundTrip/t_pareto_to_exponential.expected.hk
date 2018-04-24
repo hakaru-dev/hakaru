@@ -1,0 +1,4 @@
+#If X ~ Pareto(λ, 1) then log(X) ~ Exp(λ).
+
+#exponential(1/1)
+gamma(1/1,1/1)

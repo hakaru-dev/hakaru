@@ -1,0 +1,5 @@
+# If X ~ Exponential(λ) then k*exp(X) ~ Pareto(λ, k)
+
+#pareto(3/2,2/3)
+X <~ uniform(+0/1,+1/1)
+return 3/2 * (real2prob(X) ** (-3/2))

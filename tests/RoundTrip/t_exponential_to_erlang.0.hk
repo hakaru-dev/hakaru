@@ -1,0 +1,8 @@
+def exponential(alpha prob):
+  X <~ uniform(0,1)
+  return -1 * alpha * log(real2prob(X))
+
+fn k nat:
+  fn lambda prob:
+    X <~ plate _ of k: exponential(lambda)
+    return(summate i from 0 to k: X[i])

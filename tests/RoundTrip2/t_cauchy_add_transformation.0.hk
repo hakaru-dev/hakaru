@@ -1,0 +1,16 @@
+def stdNormal():
+	p <~ normal(0, 1)
+	return p
+
+def stdCauchy():
+	X1 <~ stdNormal()
+	X2 <~ stdNormal()
+	return X1/X2
+
+def cauchy(a real, alpha prob):
+	X <~ stdCauchy()
+	return a + alpha*X
+
+X <~ cauchy(1, 2)
+Y <~ cauchy(3, 4)
+return X + Y
