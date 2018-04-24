@@ -1,7 +1,17 @@
-def logarithm(c prob):
+# Hakaru Standard Library
+# author: Aryan Sohrabi
+
+################################################
+# Logarithm Distribution and Transformations #
+################################################
+
+# The documents on parametrization can be found at: http://www.math.wm.edu/~leemis/chart/UDR/UDR.html
+
+def logarithm(c prob)measure(nat):
 	x<~counting
 	if (x>0):
-		pmf = - real2prob(1-c)**x / (x*log(c))
+		x=int2nat(x)
+		pmf = - (1-c)^x / (x*log(c))
 		weight(real2prob(pmf), return x)
 	else:
-		return nat2int(0)
+		reject.measure(nat)

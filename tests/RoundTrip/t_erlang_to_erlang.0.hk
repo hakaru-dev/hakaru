@@ -1,0 +1,7 @@
+def erlang(shape nat, scale prob) measure(prob):
+  gamma(nat2prob(shape), scale)
+fn scale prob:
+  fn shape nat:
+    fn a prob:
+      x <~ erlang(shape,scale)
+      return(x*a)

@@ -1,0 +1,10 @@
+def exponential(alpha prob):
+	X <~ uniform(0,1)
+	return -1 * alpha * log(real2prob(X))
+
+def weibull(alpha prob, beta prob):
+	X <~ exponential(alpha)
+	return real2prob(X) ** (1/beta)
+
+X <~ weibull(1,1)
+return sqrt(real2prob(X))

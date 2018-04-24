@@ -1,0 +1,4 @@
+#t(1)
+U <~ normal(+0/1,1/1)
+X <~ normal(+0/1,1/1)
+return U/abs(X)

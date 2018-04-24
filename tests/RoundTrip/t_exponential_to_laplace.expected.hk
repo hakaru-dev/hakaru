@@ -1,0 +1,6 @@
+# If X ~ Exp(α) and Y ~ Exp(β) then X/α − Y/β ~ Laplace(1, 1).
+
+#Laplace(1,1)
+X <~ gamma(1/1, 1/1)
+Y <~ gamma(1/1, 1/1)
+return X + Y * (-1/1)
