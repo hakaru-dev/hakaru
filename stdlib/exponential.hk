@@ -5,39 +5,73 @@
 # Exponential Distribution and Transformations #
 ################################################
 
+# The documents on parametrization can be found at: http://www.math.wm.edu/~leemis/chart/UDR/UDR.html
+
+
 def exponential(alpha prob) measure(prob):
-	gamma(1/1,alpha)
+  gamma(1/1,alpha)
 
 def weibull(alpha prob, beta prob) measure(prob):
-	X <~ exponential(alpha)
-	return real2prob(X) ** (1/beta)
+  X <~ exponential(alpha)
+  return real2prob(X) ** (1/beta)
 
 def rayleigh(alpha prob) measure(prob):
-	X <~ exponential(alpha)
-	return sqrt(real2prob(X))
+  X <~ exponential(alpha)
+  return sqrt(real2prob(X))
 
 def laplace(alpha prob, beta prob) measure(real):
-	X <~ exponential(alpha)
-	Y <~ exponential(beta)
-	return X - Y
+  X <~ exponential(alpha)
+  Y <~ exponential(beta)
+  return X - Y
 
 def extremeValue(alpha prob, beta prob) measure(real):
-	X <~ weibull(alpha,beta)
-	return log(X)
+  X <~ weibull(alpha,beta)
+  return log(X)
 
+def K(alpha prob, beta prob) measure(prob):
+  X <~ exponential(1/1)
+  Y <~ gamma(alpha, alpha/beta)
+  return sqrt(X*Y)
+
+def gumbel(mu real, beta prob) measure(real):
+  X <~ exponential(1/1)
+  return mu - beta * log(X)
+
+def exGaussian(mean real, stdev prob, scale prob) measure(real):
+  X <~ normal(mean,stdev)
+  Y <~ exponential(scale)
+  return X + Y
+
+def skewLogistic(alpha prob) measure(real):
+  X <~ exponential(alpha)
+  return log(real2prob(exp(X) - 1/1))
+  
 def hyperexponential (alpha array(prob), p array(prob)):
-	x <~ lebesgue (0,∞)
-	pdf = summate i from 1 to size(p): p[i]/alpha[i] * (exp((-x)/alpha[i]))
-	weight(real2prob(pdf), return x)
+  x <~ lebesgue (0,∞)
+  pdf = summate i from 1 to size(p): p[i]/alpha[i] * (exp((-x)/alpha[i]))
+  weight(real2prob(pdf), return x)
 
 def IDB (delta prob, kappa prob, gamma prob):
-	x <~ lebesgue(0,∞)
-	x = real2prob(x)
-	pdf = (((1 + kappa*x) * delta*x + gamma) * exp(-1 /(2 * delta * x**2))) / ((1 + kappa*x) ** (gamma / (kappa+1)))
-	weight(real2prob(pdf), return x)
+  x <~ lebesgue(0,∞)
+  x = real2prob(x)
+  pdf = (((1 + kappa*x) * delta*x + gamma) * exp(-1 /(2 * delta * x**2))) / ((1 + kappa*x) ** (gamma / (kappa+1)))
+  weight(real2prob(pdf), return x)
 
-def hypoexponential(alpha array(prob)):
-	x<~lebesgue(0,∞)
-	x = real2prob(x)
-	pdf = summate i from 0 to (int2nat(size(alpha)-1) ): (1/alpha[i]) * exp((-x)/alpha[i]) * (product j from 0 to (int2nat(size(alpha)-1) ): if i/=j: alpha[j] / alpha[i] - alpha[j] else: 1)
-	weight(real2prob(pdf), return x)
+def hyperexponential (alpha array(prob), p array(prob)) measure(prob):
+  if (summate i from 0 to size(p): p[i]) == 1:
+    x <~ lebesgue (0,∞)
+    x = real2prob(x)
+    pdf = summate i from 0 to size(p): p[i]/alpha[i] * (exp((-x)/alpha[i]))
+    weight(real2prob(pdf), return x)
+  else:
+    reject.measure(prob)
+
+def IDB (delta prob, kappa prob, gamma prob)measure(prob):
+  if delta>0 && kappa>0:
+    x <~ lebesgue(0,∞)
+    x = real2prob(x)
+    pdf = (((1 + kappa*x) * delta*x + gamma) * exp(-1 /(2 * delta * x**2))) / ((1 + kappa*x) ** (gamma / (kappa+1)))
+    weight(real2prob(pdf), return x)
+  else:
+    reject.measure(prob)
+

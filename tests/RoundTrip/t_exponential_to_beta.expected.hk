@@ -1,0 +1,3 @@
+# If X ~ Exp(λ) then e^−X ~ Beta(λ, 1).
+
+beta(1/2,1/1)
