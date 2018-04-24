@@ -245,6 +245,11 @@ testRayleighRelations = test [
     "t_gamma_to_rayleigh" ~: testConcreteFiles "tests/RoundTrip2/t_gamma_to_rayleigh.0.hk" "tests/RoundTrip2/t_gamma_to_rayleigh.expected.hk"
     ]
 
+testRayleighRelations :: Test 
+testRayleighRelations = test [
+    "t_weibull_to_rayleigh" ~: testConcreteFiles "tests/RoundTrip2/t_weibull_to_rayleigh.0.hk" "tests/RoundTrip2/t_weibull_to_rayleigh.expected.hk"
+    ]
+
 testOther :: Test
 testOther = test [
     "t82"              ~: testConcreteFiles "tests/RoundTrip/t82.0.hk" "tests/RoundTrip/t82.expected.hk",
