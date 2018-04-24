@@ -212,7 +212,7 @@ testStdChiSqRelations = test [
     "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk",
     "t_stdChiSq_to_exponential" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_to_exponential.0.hk" "tests/RoundTrip2/t_stdChiSq_to_exponential.expected.hk",
     "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk",
-    "t_laplace_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_laplace_to_chiSq.0.hk" "tests/RoundTrip2/t_laplace_to_chiSq.expected.hk"
+    "t_laplace_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip/t_laplace_to_chiSq.0.hk" "tests/RoundTrip/t_laplace_to_chiSq.expected.hk"
     ]
 
 
