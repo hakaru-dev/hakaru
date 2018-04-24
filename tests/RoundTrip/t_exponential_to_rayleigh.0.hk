@@ -1,0 +1,5 @@
+def exponential(alpha prob):
+	gamma(1/1,alpha)
+
+X <~ exponential(1)
+return sqrt(X)
