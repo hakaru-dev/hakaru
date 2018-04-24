@@ -7,6 +7,9 @@
 # Uniform Transforms #
 ######################
 
+# The documents on parametrization can be found at: http://www.math.wm.edu/~leemis/chart/UDR/UDR.html
+
+
 # Pareto Distribution.
 def pareto(lambda prob, kappa prob) measure(prob):
 	X <~ uniform(0,1)
@@ -50,38 +53,37 @@ def benford() measure(prob):
 	return 10**x
 
 #generalized pareto Distribution
-def generalizedPareto (delta prob,kappa real,gamma prob):
+def generalizedPareto (delta prob,kappa real,gamma prob)measure(prob):
 	x <~ lebesgue(0,∞)
-	pdf = (gamma + kappa / real2prob(x+delta)) * (real2prob(1 + x/delta) ** (- kappa)) * real2prob(exp((- gamma) * x))
+	x = real2prob(x)
+	pdf = (gamma + kappa / (x+delta)) * ((1 + x/delta) ** (- kappa)) * exp((- gamma) * x)
 	weight(real2prob(pdf), return x)
 
 #Power Distribution
-def power(alpha prob, beta prob):
+def power(alpha prob, beta prob)measure(prob):
 	x<~lebesgue(0,alpha)
 	x = real2prob(x)
 	pdf = (beta * x**(beta-1)) / alpha**beta
 	weight(real2prob(pdf), return x)
 
 #lomax Distribution
-def lomax(lambda prob, kappa prob):
+def lomax(lambda prob, kappa prob)measure(prob):
 	x<~lebesgue(0,∞)
 	x = real2prob(x)
 	pdf = (lambda * kappa) / (1+lambda*x)**(kappa+1)
 	weight(real2prob(pdf), return x)
 
 #makeham Distribution
-def makeham(delta prob, kappa prob, gamma prob):
+def makeham(delta prob, kappa prob, gamma prob)measure(prob):
 	x<~lebesgue(0,∞)
 	x = real2prob(x)
 	pdf = (gamma+delta*kappa**x)*exp((-gamma)*x-delta*(kappa**x-1)/log(kappa))
 	weight(real2prob(pdf), return x)
 
 #minimax Distribution
-def minimax(beta prob, gamma prob):
+def minimax(beta prob, gamma prob)measure(prob):
 	x<~lebesgue(0,1)
 	x = real2prob(x)
 	pdf = beta*gamma*x**(beta-1)*real2prob(1-x**beta)**(gamma-1)
 	weight(real2prob(pdf), return x)
 
-
-benford()
