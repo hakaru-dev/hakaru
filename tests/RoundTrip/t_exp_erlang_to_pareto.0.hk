@@ -1,0 +1,15 @@
+# If X ~ Exp(α) and Y ~ Erlang(n, α) then: X/Y + 1 ~ Pareto(n,1)
+
+def exponential(alpha prob):
+	gamma(1/1, alpha)
+
+def erlang(shape nat, scale prob) measure(prob):
+	gamma(nat2prob(shape), scale)
+
+def expErlang2pareto(n nat, alpha prob):
+	X <~ exponential(alpha)
+	Y <~ erlang(n, alpha)
+	return X/Y + 1
+
+
+expErlang2pareto(1,2/1)
