@@ -211,7 +211,9 @@ testStdChiSqRelations = test [
     "t_stdChiSq_to_beta" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_to_beta.0.hk" "tests/RoundTrip2/t_stdChiSq_to_beta.expected.hk",
     "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk",
     "t_stdChiSq_to_exponential" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_to_exponential.0.hk" "tests/RoundTrip2/t_stdChiSq_to_exponential.expected.hk",
-    "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk"        
+    "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk",
+    "t_F_to_chiSq_base"     ~: testConcreteFiles "tests/RoundTrip/t_F_to_chiSq_base.0.hk" "tests/RoundTrip/t_F_to_chiSq_base.expected.hk",
+    "t_F_to_chiSq_general"     ~: testConcreteFiles "tests/RoundTrip/t_F_to_chiSq_general.0.hk" "tests/RoundTrip/t_F_to_chiSq_general.expected.hk"
     ]
 
 
