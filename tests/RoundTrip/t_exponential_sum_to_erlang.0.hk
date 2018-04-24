@@ -1,0 +1,11 @@
+# If Xi ~ exponential(λ) then X1+...+Xk ~ erlang(k,λ)
+
+def exponential(alpha prob):
+	gamma(1/1, alpha)
+
+def exponentialSum(k nat, alpha prob):
+	iid <~ plate _ of k: exponential(alpha)
+	return summate i from 0 to size(iid): iid[i]
+
+
+exponentialSum(2,2/1)
