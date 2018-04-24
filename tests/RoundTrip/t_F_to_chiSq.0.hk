@@ -1,0 +1,16 @@
+def chiSq_iid(n nat, mean real, stdev prob):
+	q <~ plate _ of n: normal(mean,stdev)
+	return summate i from 0 to size(q): 
+		((q[i]-mean)/stdev)^2
+
+def stdChiSq(n nat):
+	chiSq_iid(n,0,1)
+
+def F(n1 nat, n2 nat):
+	X1 <~ stdChiSq(n1)
+	X2 <~ stdChiSq(n2)
+	return (X1*n2)/(X2*n1)
+
+fn v1 nat:
+	Y <~ F(v1,∞)
+	return Y*v1

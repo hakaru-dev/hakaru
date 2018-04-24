@@ -1,0 +1,3 @@
+fn v1 nat:
+	q <~ plate _ of v1: normal(+0/1,1/1)
+	return summate i from 0 to v1: q[i]^2
