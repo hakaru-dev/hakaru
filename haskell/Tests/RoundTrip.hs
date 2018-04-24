@@ -258,7 +258,16 @@ testOther = test [
 
 allTests :: Test 
 allTests = test
-    [ testStdChiSqRelations
+    [ testMeasureUnit
+    , testMeasureProb
+    , testMeasureReal
+    , testMeasurePair
+    , testMeasureNat
+    , testMeasureInt
+    , testErlangRelations
+    , testStdChiSqRelations
+    , testExponentialRelations
+    , testOther
     ]
 
 ----------------------------------------------------------------
