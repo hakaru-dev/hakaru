@@ -215,7 +215,8 @@ testStdChiSqRelations = test [
     ]
 
 testExponentialRelations :: Test 
-testExponentialRelations = test [ 
+testExponentialRelations = test [
+    "t_pareto_to_exponential"        ~: testConcreteFiles "tests/RoundTrip/t_pareto_to_exponential.0.hk" "tests/RoundTrip/t_pareto_to_exponential.expected.hk", 
     "t_exponential_to_pareto"        ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_pareto.0.hk" "tests/RoundTrip/t_exponential_to_pareto.expected.hk",
     "t_exponential_to_laplace"        ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_laplace.0.hk" "tests/RoundTrip/t_exponential_to_laplace.expected.hk",
     "t_exponential_to_beta"        ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_beta.0.hk" "tests/RoundTrip/t_exponential_to_beta.expected.hk",
