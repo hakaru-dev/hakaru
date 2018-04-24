@@ -1,0 +1,19 @@
+def chiSq_iid(n nat, mean real, stdev prob):
+	q <~ plate _ of n: normal(mean,stdev)
+	return summate i from 0 to size(q): 
+		((q[i]-mean)/stdev)^2
+
+# Chi distribution with n independant and identical distributions (iid).
+def chi_iid(n nat, mean real, stdev prob):
+	q <~ chiSq_iid(n,mean,stdev)
+	return sqrt(real2prob(q))
+
+# Standard Chi Squared distribution is defined in terms of n independant
+# standard normal distributions
+def standardChiSq(n nat):
+	chiSq_iid(n,0,1)
+
+
+x <~ standardChiSq(3)
+
+return x
