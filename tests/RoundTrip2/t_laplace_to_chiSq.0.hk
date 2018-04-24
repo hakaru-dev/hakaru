@@ -1,0 +1,10 @@
+def exponential(alpha prob):
+	gamma(1/1, alpha)
+
+def Laplace(alpha prob, beta prob):
+	X <~ exponential(alpha)
+	Y <~ exponential(beta)
+	return X - Y
+
+X <~ Laplace (1,1)
+return (2 * abs(X-1))/ 1 

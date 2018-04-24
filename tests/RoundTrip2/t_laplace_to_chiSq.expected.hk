@@ -1,0 +1,3 @@
+# stdChiSq(2)
+q <~ plate _ of 2: normal(+0/1,1/1)
+return real2prob(summate i from 0 to size(q): q[i]^2)
