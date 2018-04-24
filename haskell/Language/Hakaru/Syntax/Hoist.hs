@@ -43,7 +43,7 @@
 module Language.Hakaru.Syntax.Hoist (hoist) where
 
 import           Control.Applicative             (liftA2)
-import           Control.Monad.RWS
+import           Control.Monad.RWS               hiding ((<>))
 import qualified Data.Foldable                   as F
 import qualified Data.Graph                      as G
 import qualified Data.IntMap.Strict              as IM
@@ -64,6 +64,10 @@ import           Language.Hakaru.Types.Sing      (Sing)
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative
+#endif
+
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup
 #endif
 
 data Entry (abt :: Hakaru -> *)
@@ -152,9 +156,14 @@ intersectEntrySet (ExpressionSet xs) (ExpressionSet ys) = ExpressionSet merged
 -- The general case for generating the entry set for a term is to simply union
 -- the sets for all the subterms, so we choose union as our monoidal operation
 -- for the Writer monad.
+instance (ABT Term abt) => Semigroup (ExpressionSet abt) where
+  (<>) = unionEntrySet
+
 instance (ABT Term abt) => Monoid (ExpressionSet abt) where
   mempty  = ExpressionSet []
-  mappend = unionEntrySet
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (<>)
+#endif
 
 -- Given a list of entries to introduce, order them so that their data
 -- data dependencies are satisified.

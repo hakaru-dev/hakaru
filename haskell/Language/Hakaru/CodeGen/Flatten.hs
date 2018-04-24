@@ -1016,9 +1016,10 @@ flattenPrimOp (Negate _) =
      do aE <- flattenWithName a
         putExprStat $ loc .=. (CUnary CMinOp $ aE)
 
+flattenPrimOp Choose = \(_ :* _ :* End) -> error $ "TODO: flattenPrimOp: choose"
+
 flattenPrimOp t  = \_ -> error $ "TODO: flattenPrimOp: " ++ show t
 
-flattenPrimOp Choose = \(a :* b :* End) -> error $ "TODO: flattenPrimOp: choose"
 
 --------------------------------------------------------------------------------
 --                           MeasureOps and Superpose                         --

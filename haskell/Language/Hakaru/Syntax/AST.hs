@@ -43,9 +43,9 @@ module Language.Hakaru.Syntax.AST
     , SArgs(..)
     , Term(..)
     , Transform(..), TransformImpl(..)
-    , transformName, allTransforms
+    -- allTransforms, transformName comes from Transform
     -- * Operators
-    , LC, LCs, UnLCs
+    , LCs, UnLCs -- LC comes from SArgs
     , LC_(..)
     , NaryOp(..)
     , PrimOp(..)
@@ -370,7 +370,6 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: add a specialized version which returns NonNegative
     -- when the power is even? N.B., be sure not to actually constrain
     -- it to HRing (necessary for calling it \"NonNegative\")
-
 
     -- -- HRing operators
     -- TODO: break these apart into a hierarchy of classes. N.B,

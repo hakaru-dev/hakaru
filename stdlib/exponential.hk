@@ -5,27 +5,44 @@
 # Exponential Distribution and Transformations #
 ################################################
 
-def exponential(alpha prob):
-	X <~ uniform(0,1)
-	return -1 * alpha * log(real2prob(X))
+def exponential(alpha prob) measure(prob):
+	gamma(1/1,alpha)
 
-def weibull(alpha prob, beta prob):
+def weibull(alpha prob, beta prob) measure(prob):
 	X <~ exponential(alpha)
 	return real2prob(X) ** (1/beta)
 
-def rayleigh(alpha prob):
+def rayleigh(alpha prob) measure(prob):
 	X <~ exponential(alpha)
-	return real2prob(X) ** 2
+	return sqrt(real2prob(X))
 
-def laplace(alpha prob, beta prob):
+def laplace(alpha prob, beta prob) measure(real):
 	X <~ exponential(alpha)
 	Y <~ exponential(beta)
 	return X - Y
 
-def extremeValue(alpha prob, beta prob):
+def extremeValue(alpha prob, beta prob) measure(real):
 	X <~ weibull(alpha,beta)
 	return log(X)
 
+def K(alpha prob, beta prob) measure(prob):
+	X <~ exponential(1/1)
+	Y <~ gamma(alpha, alpha/beta)
+	return sqrt(X*Y)
+
+def gumbel(mu real, beta prob) measure(real):
+	X <~ exponential(1/1)
+	return mu - beta * log(X)
+
+def exGaussian(mean real, stdev prob, scale prob) measure(real):
+	X <~ normal(mean,stdev)
+	Y <~ exponential(scale)
+	return X + Y
+
+def skewLogistic(alpha prob) measure(real):
+	X <~ exponential(alpha)
+	return log(real2prob(exp(X) - 1/1))
+	
 def hyperexponential (alpha array(prob), p array(prob)):
 	x <~ lebesgue (0,∞)
 	pdf = summate i from 1 to size(p): p[i]/alpha[i] * (exp((-x)/alpha[i]))
