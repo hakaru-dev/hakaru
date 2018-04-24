@@ -306,7 +306,6 @@ allTests = test
     , testCauchyRelations
     , testExponentialRelations
     , testRayleighRelations
-    , testCauchyRelations
     , testOther
     ]
 
