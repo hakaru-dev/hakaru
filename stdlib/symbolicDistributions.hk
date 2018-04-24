@@ -9,6 +9,27 @@
 
 # The PDF/PMF of these distributions were taken from: http://www.math.wm.edu/~leemis/chart/UDR/UDR.html
 
+#The TSP Distribution
+def TSP(a real,b real,m real,n prob) measure(prob):
+  if (m>a && b>m && n>0):  
+    x<~lebesgue(0,∞)
+    x = real2prob(x)
+    pdf = if (x>a && x<m): (n*real2prob(x-a)**(n-1))/(real2prob(b-a)*real2prob(m-a)**(n-1)) 
+        else: if x>=m && x<b : (n*real2prob(b-x)**(n-1))/(real2prob(b-a)*real2prob(b-m)**(n-1)) 
+        else: 0 
+    weight(real2prob(pdf), return x)
+  else:
+    reject.measure(prob)
+
+#The Muth Distribution
+def muth(kappa prob) measure(prob):
+  x<~lebesgue(0,∞)
+  if (x>0 && kappa>0 && kappa<=1):
+    x = real2prob(x)
+    pdf = real2prob(exp(kappa*x)-kappa)*exp(-(exp(kappa*x)/kappa)+kappa*x+1/kappa)
+    weight(real2prob(pdf), return x)
+  else:
+    reject.measure(prob)
 #The Zeta Distribution
 # TODO: use zetaFunc instead of the explicit summate?
 def zeta(alpha prob) measure(nat):
@@ -34,3 +55,58 @@ def powerSeries(a (nat->prob), c prob) measure(nat):
             reject.measure(nat)
     else:
         reject.measure(nat)
+#
+# Von Mises distribution
+def vonMises(kappa prob,mu real)measure(prob):
+    x<~lebesgue(0,2*pi)
+    x=real2prob(x)
+    I0 = summate i from 0 to ∞: kappa**(2*i)/((2**(2*i))*(product k from 1 to i+1: k)**2)
+    pdf = exp(kappa*cos(x-mu))/(2*pi*I0)
+    weight(real2prob(pdf), return x)
+
+# Generalized Gamma Distribution
+# TODO: Implement gammaFunc in the sampler
+def generalizedGamma(alpha prob,beta prob,gamma prob)measure(prob):
+    x<~lebesgue(0,∞)
+    x = real2prob(x)
+    pdf = (gamma*x**(gamma*beta-1)*exp(-(x/alpha)**gamma))/(alpha**(gamma*beta)*gammaFunc(beta))
+    weight(real2prob(pdf), return x)
+
+# Noncentral Beta Distribution 
+# TODO: Implement gammaFunc in the sampler
+def noncentralBeta(beta prob,gamma prob,lambda prob)measure(prob):
+    x<~lebesgue(0,1)
+    x = real2prob(x)
+    pdf = summate i from 0 to ∞: ((gammaFunc(i+beta+gamma)/(gammaFunc(gamma)*gammaFunc(i+beta)))*(exp(-lambda/2)/(product k from 1 to i+1: k))*x**(i+beta-1)*(real2prob(1-x))**(gamma-1))
+    weight(real2prob(pdf), return x) 
+
+# Arctangent Distribution 
+# TODO: Implement atan() in the sampler
+def arctangent(lambda prob, phi real):
+    x<~lebesgue(0,∞)
+    x = real2prob(x)
+    pdf = lambda/((atan(lambda*phi)+1/(2*pi))*(1+lambda**2*(x-phi)^2))
+    weight(real2prob(pdf), return x)
+
+# Doubly Noncentral F Distribution
+def doublyNoncentralF (n1 nat, n2 nat, delta prob, gamma prob)measure(prob) :
+    x<~lebesgue(0,∞)
+    x=real2prob(x)
+    pdf = summate j from 0 to ∞: (summate k from 0 to ∞:(((exp(-delta/2)*(1/2*gamma)**j)/(product b from 1 to j+1: b))*((exp(-gamma/2)*(1/2*gamma)**k)/(product b from 1 to k+1: b))*n1**(n1/2+j)*n2**(n2/2+k)*x**(n1/2+j-1)*(n2+n1*x)**(-1/2*(n1+n2)-j-k))/(betaFunc(1/2*n1+j,1/2*n2+k)))
+    weight(real2prob(pdf), return x)
+
+# Noncentral F Distribution    
+# TODO: Implement gammaFunc in the sampler
+def noncentralF(n1 nat, n2 nat, delta prob)measure(prob):
+    x<~lebesgue(0,∞)
+    x=real2prob(x)
+    pdf = summate i from 0 to ∞: (gammaFunc((2*i+n1+n2)/2)*(n1/n2)**((2*i+n1)/2)*x**((2*i+n1-2)/2)*exp(-delta/2)*(delta/2)**i)/(gammaFunc(n2/2)*gammaFunc((2*i+n1)/2)*(product b from 1 to i+1: b)*(1+n1/n2*x)**((2*i+n1+n2)/2))
+    weight(real2prob(pdf), return x)
+
+# Error distribution
+# The parametarization and the PDF were taken from https://en.wikipedia.org/wiki/Generalized_normal_distribution
+# TODO: Implement gammaFunc in the sampler
+def error(mu real, alpha prob, beta prob) measure(real):
+    x<~lebesgue(-∞,∞)
+    pdf = beta/(2*alpha*gammaFunc(1/beta))*exp(-(abs(x-mu)/alpha)**beta)
+    weight(real2prob(pdf), return x)

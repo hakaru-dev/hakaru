@@ -1,0 +1,4 @@
+# If Xi ~ exponential(λ) then X1+...+Xk ~ erlang(k,λ)
+
+#erlang(2,2/1)
+gamma(2/1, 2/1)

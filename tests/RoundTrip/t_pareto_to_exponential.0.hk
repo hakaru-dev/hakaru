@@ -1,0 +1,11 @@
+#If X ~ Pareto(λ, 1) then log(X) ~ Exp(λ).
+
+def pareto(lambda prob, kappa prob):
+	X <~ uniform(0,1)
+	return lambda / (real2prob(X) ** (1/kappa))
+
+def paretoToExponential(alpha prob):
+	X <~ pareto(1/alpha,1/1)
+	return real2prob(log(X))
+
+paretoToExponential(1/1)

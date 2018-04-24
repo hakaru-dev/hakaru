@@ -1,0 +1,12 @@
+#If X ~ Exp(λ) then kX ~ Exp(λ/k).
+
+#Equivalent: If X ~ Exp(α) then kX ~ Exp(kα)
+
+def exponential(alpha prob):
+	gamma(1/1, alpha)
+
+def exponentialScaled(alpha prob, k prob):
+	X <~ exponential(alpha)
+	return k*X
+
+exponentialScaled(1/2,3/1)

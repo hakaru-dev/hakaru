@@ -72,7 +72,7 @@ def betaPascal(n nat, a prob, b prob) measure(nat):
 # probability of 'k' successes in 'n' draws (without
 # replacement) from a population of size 'N' that has
 # 'K' objects with the desired feature. 
-def hyperGeo(N nat, K nat, n nat):
+def hyperGeo(N nat, K nat, n nat) measure(nat):
 	# TODO: check that 0 <= K <= N and 0 <= n <= N and 
 	# throw error if not satisfied
 
@@ -125,3 +125,4 @@ def polya(n nat, p prob, beta prob) measure(nat):
 	p <~ categorical(pmf)
 
 	return p
+	

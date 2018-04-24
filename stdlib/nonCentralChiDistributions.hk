@@ -10,21 +10,34 @@
 
 # This function takes 2 arrays of size N, containing the means and standard deviations
 # of the N normal distributions.
-def nonCentralChiSq(means array(real), stdevs array(prob)):
-	q <~ plate _ of size(means): normal(means[_],stdevs[_])
-	return summate i from 0 to size(means): 
-		(q[i]/stdevs[i])^2
+def nonCentralChiSq(means array(real), stdevs array(prob)) measure(prob):
+  q <~ plate _ of size(means): normal(means[_],stdevs[_])
+  return real2prob(summate i from 0 to size(means): (q[i]/stdevs[i])^2)
 
-def nonCentralChi(means array(real), stdevs array(prob)):
-	q <~ nonCentralChiSq(means,stdevs)
-	return sqrt(real2prob(q))
+def nonCentralChi(means array(real), stdevs array(prob)) measure(prob):
+  q <~ nonCentralChiSq(means,stdevs)
+  return sqrt(q)
 
 # Non Centrality Parameter. Non central chi distributions can be described 
 # analytically in terms of this value
-def nonCentralityParameter(means array(real), stdevs array(prob)):
-	summate i from 0 to size(means): 
-		(means[i]/stdevs[i])^2
+def nonCentralityParameter(means array(real), stdevs array(prob)) prob:
+  real2prob(summate i from 0 to size(means): (means[i]/stdevs[i])^2)
 
 # shortform alias for nonCentralityParameter function
 def ncp(means array(real), stdevs array(prob)):
-	nonCentralityParameter(means, stdevs)
+  nonCentralityParameter(means, stdevs)
+
+# identically distributed version of nonCentralChiSq. 
+# first argument is the mean of the normaly distributed random variables
+# second argument is the number of normaly distributed random variables
+def nonCentralChiSq_iid(delta prob, n nat)measure(prob):
+  mean = sqrt(delta/n)
+  q <~ plate _ of n: normal(mean,1)
+  return summate i from 0 to n: q[i]^2
+  
+# doubly Noncentral T distribution
+def doublyNoncentralT (n nat,delta prob,gamma prob)measure(real):
+  z<~ normal(delta,1)
+  x<~ nonCentralChiSq_iid(gamma, n)
+  return (x/n)
+
