@@ -252,6 +252,11 @@ testRayleighRelations :: Test
 testRayleighRelations = test [
     "t_weibull_to_rayleigh" ~: testConcreteFiles "tests/RoundTrip2/t_weibull_to_rayleigh.0.hk" "tests/RoundTrip2/t_weibull_to_rayleigh.expected.hk"
     ]
+    
+testCauchyRelations :: Test 
+testCauchyRelations = test [
+    "t_cauchy_linear_transformation" ~: testConcreteFiles "tests/RoundTrip2/t_cauchy_linear_transformation.0.hk" "tests/RoundTrip2/t_cauchy_linear_transformation.expected.hk"
+    ]
 
 testOther :: Test
 testOther = test [
@@ -298,6 +303,7 @@ allTests = test
     , testStdChiSqRelations
     , testExponentialRelations
     , testRayleighRelations
+    , testCauchyRelations
     , testOther
     ]
 
