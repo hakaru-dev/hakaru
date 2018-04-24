@@ -1,0 +1,2 @@
+q <~ normal(+0/1,1/1)
+return q^2
