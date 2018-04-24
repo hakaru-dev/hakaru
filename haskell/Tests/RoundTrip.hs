@@ -206,6 +206,9 @@ testMeasurePair = test [
     
 testStdChiSqRelations :: Test
 testStdChiSqRelations = test [
+    "t_stdChiSq_superposition" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_superposition.0.hk" "tests/RoundTrip2/t_stdChiSq_superposition.expected.hk",
+    "t_uniform_to_stdChiSq" ~: testConcreteFiles "tests/RoundTrip2/t_uniform_to_stdChiSq.0.hk" "tests/RoundTrip2/t_uniform_to_stdChiSq.expected.hk",
+    "t_stdChiSq_to_beta" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_to_beta.0.hk" "tests/RoundTrip2/t_stdChiSq_to_beta.expected.hk",
     "t_stdChiSq_to_gamma"   ~: testConcreteFiles "tests/RoundTrip/t_stdChiSq_to_gamma.0.hk" "tests/RoundTrip/t_stdChiSq_to_gamma.expected.hk",
     "t_stdChiSq_to_exponential" ~: testConcreteFiles "tests/RoundTrip2/t_stdChiSq_to_exponential.0.hk" "tests/RoundTrip2/t_stdChiSq_to_exponential.expected.hk",
     "t_rayleigh_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip2/t_rayleigh_to_stdChiSq.0.hk" "tests/RoundTrip2/t_rayleigh_to_stdChiSq.expected.hk"        
@@ -214,13 +217,19 @@ testStdChiSqRelations = test [
 testExponentialRelations :: Test 
 testExponentialRelations = test [ 
     "t_exponential_sum_to_erlang"        ~: testConcreteFiles "tests/RoundTrip/t_exponential_sum_to_erlang.0.hk" "tests/RoundTrip/t_exponential_sum_to_erlang.expected.hk",
-    "t_exponential_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_stdChiSq.0.hk" "tests/RoundTrip/t_exponential_to_stdChiSq.expected.hk"
+    "t_exp_erlang_to_pareto"        ~: testConcreteFiles "tests/RoundTrip/t_exp_erlang_to_pareto.0.hk" "tests/RoundTrip/t_exp_erlang_to_pareto.expected.hk",
+    "t_exponential_sum_rates"        ~: testConcreteFiles "tests/RoundTrip/t_exponential_sum_rates.0.hk" "tests/RoundTrip/t_exponential_sum_rates.expected.hk",
+    "t_exponential_to_stdChiSq"     ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_stdChiSq.0.hk" "tests/RoundTrip/t_exponential_to_stdChiSq.expected.hk",
+    "t_exponential_scale_closure"   ~: testConcreteFiles "tests/RoundTrip/t_exponential_scale_closure.0.hk" "tests/RoundTrip/t_exponential_scale_closure.expected.hk"
     ]
 
 testErlangRelations :: Test
 testErlangRelations = test [
-        "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk",
-    "t_erlang_to_stdChiSq"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_stdChiSq.0.hk" "tests/RoundTrip2/t_erlang_to_stdChiSq.expected.hk"        
+    "t_erlang_to_erlang"   ~: testConcreteFiles "tests/RoundTrip/t_erlang_to_erlang.0.hk" "tests/RoundTrip/t_erlang_to_erlang.expected.hk",
+    "t_erlang_to_erlang_2"   ~: testConcreteFiles "tests/RoundTrip/t_erlang_to_erlang_1.0.hk" "tests/RoundTrip/t_erlang_to_erlang_1.expected.hk",
+    "t_exponential_to_erlang"   ~: testConcreteFiles "tests/RoundTrip/t_exponential_to_erlang.0.hk" "tests/RoundTrip/t_exponential_to_erlang.expected.hk",
+    "t_erlang_to_pareto"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_pareto.0.hk" "tests/RoundTrip2/t_erlang_to_pareto.expected.hk",
+    "t_erlang_to_stdChiSq"   ~: testConcreteFiles "tests/RoundTrip2/t_erlang_to_stdChiSq.0.hk" "tests/RoundTrip2/t_erlang_to_stdChiSq.expected.hk"
     ]
 
 testOther :: Test

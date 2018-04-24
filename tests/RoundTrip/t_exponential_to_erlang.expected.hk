@@ -1,0 +1,4 @@
+fn k nat:
+  fn lambda prob:
+    X <~ gamma(nat2prob(k),lambda)
+    return(prob2real(X))
