@@ -71,13 +71,6 @@ local
          PartitionToPW(Simpl:-stable_order(p));
        end proc, :-`convert/piecewise`]);
 
-    unprotect(:-solve);
-    :-`solve` := overload([
-      proc(x:: Not(freeof(`PARTITION`))  )
-        option overload(callseq_only); FAIL;
-      end proc, :-`solve`]);
-    protect(:-solve);
-
     VerifyTools[AddVerification](same_partition = proc(a,b,$) evalb(a=b) or SamePartition((x,y)->evalb(x=y),(x,y)->evalb(x=y),a,b) end proc);
 
     NULL
@@ -859,8 +852,8 @@ export
       #  solve( {a<>b} )       = {a=a,a<>b}
       #  solve( {Not(a<>b)} )  = {a=a,b=b}  -- but should be {..,a=b}
       local can_solve := proc(c,$)
-        local neq_nn := `<>`(name,name);
-        evalb(indets(c, neq_nn) = {} or not has(c,`idx`))
+        evalb(not hastype(c, '`<>`(name,name)')
+          and not has(c, '{idx, PARTITION, Branch}'));
       end proc;
 
       export ModuleApply := ProfileFn(do_condition, 1);
