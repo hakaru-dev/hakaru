@@ -56,7 +56,7 @@ end proc:
 Hakaru := module ()
   option package;
   uses Utilities;
-  local p_true, p_false, make_piece, lift1_piecewise, TYPES,
+  local p_true, p_false, make_piece, lift1_piecewise, CONSTANTS, TYPES,
         ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
@@ -618,6 +618,7 @@ Hakaru := module ()
     end if
   end proc;
 
+  CONSTANTS := {Done, PDone, PWild};
   TYPES := table(
     [(`&implies` =
          'proc(e, t1, t2, $) type(e, Or(Not(t1), t2)) end proc')
@@ -701,6 +702,7 @@ Hakaru := module ()
          end if;
          protect(g)
     end do;
+    :-constants := constants, op(CONSTANTS);
 
     # This patch for part of Maples solve comes from issue#87
     # It affects expression of the form
@@ -754,6 +756,7 @@ Hakaru := module ()
   ModuleUnload := proc($)
     unprotect(op([2,6], thismodule)); #See comment in ModuleLoad.
     #Skip restoring the globals to any prior value they had.
+    :-constants := op(remove(`in`, [:-constants], CONSTANTS));
   end proc;
   ModuleLoad();
 end module; # Hakaru
