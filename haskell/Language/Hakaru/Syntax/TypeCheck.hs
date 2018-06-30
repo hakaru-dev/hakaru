@@ -1118,7 +1118,8 @@ checkType = checkType_
             case mode of
               StrictMode -> safeNaryOp typ0
               LaxMode    -> safeNaryOp typ0
-              UnsafeMode -> do
+              UnsafeMode -> case op of
+	       U.Prod -> do
                 op' <- make_NaryOp typ0 op
                 (bads, goods) <-
                   fmap partitionEithers . T.forM es $
@@ -1133,6 +1134,13 @@ checkType = checkType_
                         return (case bad:goods of
                           [e] -> e
                           es' -> syn $ NaryOp_ op' (S.fromList es'))
+	       _ -> do
+                es' <- tryWith LaxMode (safeNaryOp typ0)
+                case es' of
+                  Just es'' -> return es''
+                  Nothing   -> do
+                    TypedAST typ e0' <- inferType (syn $ U.NaryOp_ op es)
+                    checkOrUnsafeCoerce sourceSpan e0' typ typ0
             where
             safeNaryOp :: forall c. Sing c -> TypeCheckMonad (abt '[] c)
             safeNaryOp typ = do
