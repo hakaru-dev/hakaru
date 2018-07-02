@@ -69,6 +69,9 @@ Summary := module ()
     elif e :: 'Context(anything, anything)' then
       kb1 := assert(op(1,e), kb);
       applyop(procname, 2, e, kb1);
+    elif e :: 'Bind(anything, name, anything)' then
+      # TODO: add (the type of) the newly bound name into the KB
+      applyop(procname, {1,3}, e, kb);
     elif e :: 'specfunc(piecewise)' then
       kb_piecewise(e, kb, ((lhs, kb) -> lhs), SummarizeKB);
     elif e :: 'lam(name, anything, anything)' then
