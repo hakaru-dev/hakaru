@@ -105,7 +105,8 @@ Summary := module ()
               end proc,
               patterns)))
       end if
-    elif e :: 'ary(anything, name, anything)' then
+    elif e :: 'Or(ary(anything, name, anything),
+                  Plate(anything, name, anything))' then
       x, kb1 := genType(op(2,e), HInt(closed_bounds(0..op(1,e)-1)), kb);
       e1 := SummarizeKB(eval(op(3,e), op(2,e)=x), kb1);
       subsop(2=x, 3=e1, e);
