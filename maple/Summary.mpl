@@ -58,7 +58,7 @@ Summary := module ()
   end proc;
 
   SummarizeKB := proc(e, kb :: t_kb, $)
-    local patterns, x, kb1, e1, rng, summary, mr, f;
+    local patterns, x, kb1, e1, rng, summary, mr, f, innermost;
     if not hasfun(e, '{Sum,sum}', 'piecewise') then
       e;
     elif e :: '{known_continuous, known_discrete,
@@ -112,13 +112,16 @@ Summary := module ()
       subsop(2=x, 3=e1, e);
     elif e :: 'And(specfunc({sum, Sum, product, Product}),
                    anyfunc(anything, name=range))' then
+      innermost := kb_to_variables(kb);
+      if nops(innermost) = 0 then return e end if;
+      innermost := op(1,innermost);
       rng := op([2,2],e);
       x, kb1 := genType(op([2,1],e), HInt(closed_bounds(rng)), kb);
       rng := map(SummarizeKB, rng, kb);
       e1 := eval(op(1,e), op([2,1],e)=x);
       if op(0, e) in '{sum, Sum}' and has(e1, 'piecewise') then
         mr, f := summarize(e1, kb, x=rng, summary);
-        if hasfun(mr, '{Fanout, Index}') then
+        if hasfun(mr, '{Fanout, Index}') and not depends(mr, innermost) then
           mr := SummarizeKB(mr, kb1);
           return Let(Bucket(mr, x=rng),
                      summary,
