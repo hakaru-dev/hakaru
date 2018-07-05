@@ -1122,9 +1122,16 @@ checkType = checkType_
                U.Prod -> do
                 op' <- make_NaryOp typ0 op
                 (bads, goods) <-
-                  fmap partitionEithers . T.forM es $
-                  \e -> fmap (maybe (Left e) Right)
-                             (tryWith LaxMode (checkType_ typ0 e))
+                  fmap partitionEithers . T.forM es $ \e -> do
+                    r <- tryWith LaxMode (checkType_ typ0 e)
+                    case r of
+                      Just er -> return (Right er)
+                      Nothing -> do
+                        r <- try (do TypedAST t p <- inferType e
+                                     checkOrCoerce sourceSpan p t typ0)
+                        case r of
+                          Just er -> return (Right er)
+                          Nothing -> return (Left e)
                 if null bads
                 then return $ syn (NaryOp_ op' (S.fromList goods))
                 else do TypedAST typ bad <- inferType (case bads of
