@@ -134,7 +134,7 @@ mustCheck e = caseVarSyn e (const False) go
 
     -- In general (according to Dunfield & Pientka), we should be
     -- able to infer the result of a fully saturated primop by
-    -- looking up it's type and then checking all the arguments.
+    -- looking up its type and then checking all the arguments.
     go (U.PrimOp_  _ _)   = False
     go (U.ArrayOp_ _ es)  = F.all mustCheck es
 
@@ -1119,7 +1119,7 @@ checkType = checkType_
               StrictMode -> safeNaryOp typ0
               LaxMode    -> safeNaryOp typ0
               UnsafeMode -> case op of
-	       U.Prod -> do
+               U.Prod -> do
                 op' <- make_NaryOp typ0 op
                 (bads, goods) <-
                   fmap partitionEithers . T.forM es $
@@ -1134,7 +1134,7 @@ checkType = checkType_
                         return (case bad:goods of
                           [e] -> e
                           es' -> syn $ NaryOp_ op' (S.fromList es'))
-	       _ -> do
+               _ -> do
                 es' <- tryWith LaxMode (safeNaryOp typ0)
                 case es' of
                   Just es'' -> return es''
