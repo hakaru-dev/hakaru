@@ -1117,6 +1117,18 @@ checkType = checkType_
                          sourceSpan
                          "infinity can only be checked against nat or prob"
 
+        U.Product_ e1 e2 e3 ->
+           case hSemiring_Sing typ0 of
+             Nothing -> failwith_ "Product given factors which are not in a semiring"
+             Just h2 -> do
+               TypedAST typ1 e1' <- inferType e1
+               e2' <- checkType_ typ1 e2
+               case hDiscrete_Sing typ1 of
+                 Nothing -> failwith_ "Product given bounds which are not discrete"
+                 Just h1 -> do
+                     e3' <- checkBinder typ1 typ0 e3
+                     return $ syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
+
         U.NaryOp_ op es -> do
             mode <- getMode
             case mode of
