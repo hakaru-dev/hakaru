@@ -479,22 +479,26 @@ inferType = inferType_
        U.Summate_ e1 e2 e3 -> do
            TypedAST typ1 e1' <- inferType e1
            e2' <- checkType_ typ1 e2
-           inferBinder typ1 e3 $ \typ2 ee' ->
-               case (hDiscrete_Sing typ1, hSemiring_Sing typ2) of
-                 (Just h1, Just h2) ->
+           case hDiscrete_Sing typ1 of
+             Nothing -> failwith_ "Summate given bounds which are not discrete"
+             Just h1 -> inferBinder typ1 e3 $ \typ2 ee' ->
+               case hSemiring_Sing typ2 of
+                 Nothing -> failwith_ "Summate given summands which are not in a semiring"
+                 Just h2 ->
                      return . TypedAST typ2 $
                             syn (Summate h1 h2 :$ e1' :* e2' :* ee' :* End)
-                 _                  -> failwith_ "Summate given bounds which are not discrete"
 
        U.Product_ e1 e2 e3 -> do
            TypedAST typ1 e1' <- inferType e1
            e2' <- checkType_ typ1 e2
-           inferBinder typ1 e3 $ \typ2 e3' ->
-               case (hDiscrete_Sing typ1, hSemiring_Sing typ2) of
-                 (Just h1, Just h2) ->
+           case hDiscrete_Sing typ1 of
+             Nothing -> failwith_ "Product given bounds which are not discrete"
+             Just h1 -> inferBinder typ1 e3 $ \typ2 e3' ->
+               case hSemiring_Sing typ2 of
+                 Nothing -> failwith_ "Product given factors which are not in a semiring"
+                 Just h2 ->
                      return . TypedAST typ2 $
                             syn (Product h1 h2 :$ e1' :* e2' :* e3' :* End)
-                 _                  -> failwith_ "Product given bounds which are not discrete"
 
        U.Bucket_ e1 e2 r1 -> do
            e1' <- checkType_ SNat e1
