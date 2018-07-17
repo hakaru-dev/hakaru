@@ -112,7 +112,8 @@ $include "NewSLO/Piecewise.mpl"
                                               map2(subsop,1=sum,loops)),
                                   'list', `+`));
         end if;
-        if e :: 'idx(list, anything)' and not depends(op(1,e), i) then
+        if e :: 'idx(And(list,Not(list(constant))), anything)'
+           and not depends(op(1,e), i) then
           if has(op(1,e), piecewise) then
             # Simplify the `idx' without chilling (by moving it into the
             # function argument to kb_assuming_mb) and recurse. This shouldn't
