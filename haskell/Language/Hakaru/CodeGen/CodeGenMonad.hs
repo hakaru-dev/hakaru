@@ -431,16 +431,19 @@ declareReductionCG
   -> (CExpr -> CExpr -> CodeGen ())
   -> CodeGen Ident
 declareReductionCG typ unit mul =
-  do (redId:unitId:mulId:[]) <- mapM genIdent' ["red","unit","mul"]
+  do redId <- genIdent' "red"
+     unitId <- genIdent' "unit"
+     mulId <- genIdent' "mul"
      let declType = typePtrDeclaration typ
 
      inId <- genIdent' "in"
      funCG [CVoid] unitId [declType inId] $
        unit . CVar $ inId
 
-     (outId:in2Id:[]) <- mapM genIdent' ["out","in"]
+     outId <- genIdent' "out"
+     in2Id <- genIdent' "in"
      funCG [CVoid] mulId [declType outId,declType in2Id] $
-       mul (CVar outId) (CVar in2Id)
+         mul (CVar outId) (CVar in2Id)
 
      let typ' = case buildType typ of
                   (x:_) -> x

@@ -822,11 +822,11 @@ assignSum'
   -> CExpr
   -> State [String] [CodeGen ()]
 assignSum' (Inr rest) topIdent =
-  do (_:names) <- get
-     put names
+  do names <- get
+     put (tail names)
      assignSum' rest topIdent
 assignSum' (Inl prod) topIdent =
-  do (name:_) <- get
+  do name <- head <$> get
      return $ assignProd prod topIdent (CVar . Ident $ name)
 
 assignProd
@@ -846,14 +846,14 @@ assignProd'
   -> State [String] [CodeGen ()]
 assignProd' Done _ _ = return []
 assignProd' (Et (Konst d) rest) topIdent (CVar sumIdent) =
-  do (name:names) <- get
-     put names
+  do names <- get
+     put (tail names)
      let varName  = CMember (CMember (CMember topIdent
                                               (Ident "sum")
                                               True)
                                      sumIdent
                                      True)
-                            (Ident name)
+                            (Ident (head names))
                             True
      rest' <- assignProd' rest topIdent (CVar sumIdent)
      return $ [flattenABT d varName] ++ rest'
@@ -1172,7 +1172,9 @@ gammaCG :: CExpr -> CExpr -> (CExpr -> CodeGen ())
 gammaCG aE bE =
   \loc -> do
      extDeclareTypes (SMeasure SReal)
-     (_:_:gId:[]) <- mapM reserveIdent ["uniform","normal","gamma"]
+     reserveIdent "uniform"
+     reserveIdent "normal"
+     gId <- reserveIdent "gamma"
      mapM_ (extDeclare . CFunDefExt) [uniformFun,normalFun,gammaFun]
      putExprStat $ loc .=. (CCall (CVar gId) [aE,bE])
 
@@ -1206,7 +1208,9 @@ flattenMeasureOp Poisson =
   \(lam :* End) ->
     \loc ->
       do lamE <- flattenWithName lam
-         (lId:kId:pId:[]) <- mapM genIdent' ["l","k","p"]
+         lId <- genIdent' "l"
+         kId <- genIdent' "k"
+         pId <- genIdent' "p"
          declare SProb lId
          declare SNat  kId
          declare SProb pId
@@ -1439,7 +1443,9 @@ lseSummateArrayCG
 lseSummateArrayCG body arrayE =
   caseBind body $ \v body' ->
     \loc -> seqDo $ do
-      (maxVId:maxIId:sumId:[]) <- mapM genIdent' ["maxV","maxI","sum"]
+      maxVId <- genIdent' "maxV"
+      maxIId <- genIdent' "maxI"
+      sumId <- genIdent' "sum"
       itId <- createIdent v
       mapM_ (declare SProb) [maxVId,sumId]
       mapM_ (declare SNat)  [maxIId,itId]
@@ -1483,7 +1489,8 @@ kahanSummationCG
 kahanSummationCG body loE hiE =
   caseBind body $ \v body' ->
     \loc -> do
-      (tId:cId:[]) <- mapM genIdent' ["t","c"]
+      tId <- genIdent' "t"
+      cId <- genIdent' "c"
       itId <- createIdent v
       declare SNat itId
       mapM_ (declare SProb) [tId,cId]
@@ -1493,7 +1500,9 @@ kahanSummationCG body loE hiE =
       forCG (itE .=. loE)
             (itE .<. hiE)
             (CUnary CPostIncOp itE)
-            (do (xId:yId:zId:[]) <- mapM genIdent' ["x","y","z"]
+            (do xId <- genIdent' "x"
+                yId <- genIdent' "y"
+                zId <- genIdent' "z"
                 mapM_ (declare SProb) [xId,yId,zId]
                 let (xE:yE:zE:[]) = fmap CVar [xId,yId,zId]
                 flattenABT body' xE

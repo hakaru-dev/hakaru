@@ -34,6 +34,7 @@ import qualified Data.Vector           as V
 import           Control.Applicative   (Applicative(..), (<$>))
 import           Data.Monoid           (Monoid(..))
 #endif
+import           Control.Monad.Fail
 import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.IClasses
@@ -84,6 +85,9 @@ instance Monad TypeCheckMonad where
         TCM $ \ctx input mode ->
         unTCM mx ctx input mode >>= \x ->
         unTCM (k x) ctx input mode
+
+instance MonadFail TypeCheckMonad where
+    fail = error
 
 {-
 -- We could provide this instance, but there's no decent error

@@ -96,6 +96,7 @@ import           Data.List.NonEmpty   (NonEmpty(..))
 import qualified Data.List.NonEmpty   as NE
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..),foldM,guard)
+import           Control.Monad.Fail
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import           Data.Number.Nat
@@ -580,6 +581,9 @@ instance Applicative (Dis abt) where
 instance Monad (Dis abt) where
     return      = pure
     Dis m >>= k = Dis $ \i c -> m i $ \x -> unDis (k x) i c
+
+instance MonadFail (Dis abt) where
+    fail        = error
 
 instance Alternative (Dis abt) where
     empty           = Dis $ \_ _ _ _ -> []

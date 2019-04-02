@@ -278,14 +278,16 @@ datumSum'
   -> State [String] [CDecl]
 datumSum' _ SVoid               = return []
 datumSum' dat (SPlus prod rest) =
-  do (name:names) <- get
-     put names
-     let ident = Ident name
-         mdecl = datumProd dat prod ident
-     rest' <- datumSum' dat rest
-     case mdecl of
-       Nothing -> return rest'
-       Just d  -> return $ [d] ++ rest'
+  do nn <- get
+     case nn of
+      name:names -> do
+       put names
+       let ident = Ident name
+           mdecl = datumProd dat prod ident
+       rest' <- datumSum' dat rest
+       case mdecl of
+         Nothing -> return rest'
+         Just d  -> return $ [d] ++ rest'
 
 datumProd
   :: Sing (HData' t)
@@ -315,13 +317,15 @@ datumPrim
   -> Sing (a :: HakaruFun)
   -> State [String] [CDecl]
 datumPrim dat prim =
-  do (name:names) <- get
-     put names
-     let ident = Ident name
-         decl  = case prim of
-                   SIdent     -> datumDeclaration dat ident
-                   (SKonst k) -> typeDeclaration k ident
-     return [decl]
+  do nn <- get
+     case nn of
+      (name:names) -> do
+       put names
+       let ident = Ident name
+           decl  = case prim of
+                     SIdent     -> datumDeclaration dat ident
+                     (SKonst k) -> typeDeclaration k ident
+       return [decl]
 
 -- index into pair
 datumFst :: CExpr -> CExpr
