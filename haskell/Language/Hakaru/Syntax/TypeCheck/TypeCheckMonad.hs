@@ -34,7 +34,9 @@ import qualified Data.Vector           as V
 import           Control.Applicative   (Applicative(..), (<$>))
 import           Data.Monoid           (Monoid(..))
 #endif
+#if __GLASGOW_HASKELL__ > 860
 import           Control.Monad.Fail
+#endif
 import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.IClasses
@@ -86,8 +88,10 @@ instance Monad TypeCheckMonad where
         unTCM mx ctx input mode >>= \x ->
         unTCM (k x) ctx input mode
 
+#if __GLASGOW_HASKELL__ > 860
 instance MonadFail TypeCheckMonad where
     fail = error
+#endif
 
 {-
 -- We could provide this instance, but there's no decent error
