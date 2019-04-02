@@ -52,7 +52,7 @@ matrix:
     addons: {apt: {packages: [*apt_packages,cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
   - env: BUILD=cabal GHCVER=8.6.4 CABALVER=2.4
     compiler: "ghc-8.6.4"
-    addons: {apt: {packages: [ghc-ppa-tools,cabal-install-2.4,ghc-8.6.4], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [*apt_packages,cabal-install-2.4,ghc-8.6.4], sources: [hvr-ghc]}}
 
   # Build with the newest GHC and cabal-install. This is an accepted failure,
   # see below.
@@ -79,6 +79,10 @@ matrix:
     addons: {apt: {packages: [libgmp-dev]}}
 
   - env: BUILD=stack ARGS="--resolver lts-12"
+    compiler: ": #stack 8.4.4"
+    addons: {apt: {packages: [libgmp-dev]}}
+
+  - env: BUILD=stack ARGS="--resolver lts-13"
     compiler: ": #stack 8.4.4"
     addons: {apt: {packages: [libgmp-dev]}}
 
