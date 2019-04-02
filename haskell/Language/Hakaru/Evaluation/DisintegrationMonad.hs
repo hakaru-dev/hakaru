@@ -96,7 +96,7 @@ import           Data.List.NonEmpty   (NonEmpty(..))
 import qualified Data.List.NonEmpty   as NE
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..),foldM,guard)
-#if __GLASGOW_HASKELL__ > 860
+#if __GLASGOW_HASKELL__ > 850
 import           Control.Monad.Fail
 #endif
 import           Data.Text            (Text)
@@ -584,7 +584,7 @@ instance Monad (Dis abt) where
     return      = pure
     Dis m >>= k = Dis $ \i c -> m i $ \x -> unDis (k x) i c
 
-#if __GLASGOW_HASKELL__ > 860
+#if __GLASGOW_HASKELL__ > 850
 instance MonadFail (Dis abt) where
     fail        = error
 #endif
