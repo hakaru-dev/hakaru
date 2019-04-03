@@ -1,24 +1,43 @@
-# Disabled cache in hope of improving reliability of AppVeyor builds
-#cache:
-#- "c:\\sr" # stack root, short paths == fewer problems
+clone_folder: "c:\\WORK"
+
+environment:
+  global:
+    CABOPTS:  "--store-dir=C:\\SR --http-transport=plain-http"
+  matrix:
+    # 64 bit builds
+    - GHCVER: "8.6.4"
+      CHOCOPTS:
+    - GHCVER: "8.4.2"
+      CHOCOPTS:
+    - GHCVER: "8.2.2"
+      CHOCOPTS:
+    - GHCVER: "8.0.2"
+      CHOCOPTS:
+    # 32 bit builds
+    - GHCVER: "8.6.4"
+      CHOCOPTS:
+    - GHCVER: "8.4.2"
+      CHOCOPTS: --forcex86
+    - GHCVER: "8.2.2"
+      CHOCOPTS: --forcex86
+    - GHCVER: "8.0.2"
+      CHOCOPTS: --forcex86
+
+cache:
+- "C:\\SR"
+
+install:
+ - "choco install -y ghc --version %GHCVER% %CHOCOPTS%"
+ - "choco install -y cabal %CHOCOPTS%"
+ - "refreshenv"
+ - "set PATH=C:\\ghc\\ghc-%GHCVER%:C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;%PATH%"
+ - "cabal --version"
+ - "ghc --version"
+ - "cabal %CABOPTS% update -v"
 
 build: off
 
-before_test:
-- curl -sS -ostack.zip -L --insecure http://www.stackage.org/stack/windows-i386
-- 7z x stack.zip stack.exe
-
-clone_folder: "c:\\stack"
-environment:
-  global:
-    STACK_ROOT: "c:\\sr"
-
 test_script:
-- stack setup > nul
-- stack --no-terminal build alex happy > nul
-# The ugly echo "" hack is to avoid complaints about 0 being an invalid file
-# descriptor
-- echo "" | stack --no-terminal test
-
-install:
-- set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
+ - IF EXIST configure.ac bash -c "autoreconf -i"
+ - "echo packages:. > cabal.project"
+ - "cabal %CABOPTS% new-build -j1 all"
