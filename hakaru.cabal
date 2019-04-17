@@ -16,6 +16,8 @@ maintainer:          ppaml@indiana.edu
 category:            Language
 -- extra-source-files:
 
+tested-with: GHC==8.6.4, GHC==8.4.4, GHC==8.2.2, GHC==8.0.2, GHC==7.10.3, GHC==7.8.4
+
 ----------------------------------------------------------------
 Source-Repository head
     Type:     git
