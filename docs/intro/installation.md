@@ -3,7 +3,7 @@
 You can download Hakaru by cloning the latest version from our GitHub repository:
 
 ```bash
-git clone git@github.com:hakaru-dev/hakaru
+git clone https://github.com/hakaru-dev/hakaru.git
 ```
 
 Hakaru can be installed by using either `stack install` or `cabal install` inside the `hakaru` directory. One way that you can access these tools is by installing the [Haskell Platform](https://www.haskell.org/platform/) which supports Linux, OSX, and Windows operating systems.
