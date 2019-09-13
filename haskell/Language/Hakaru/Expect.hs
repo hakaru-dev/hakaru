@@ -201,6 +201,7 @@ expectTerm e = do
         ++ show (pretty_Statements_withTerm ss e)
         ++ "\n") $ return ()
 #endif
+    emitExpectListContext
     w <- pureEvaluate e
     case w of
         -- TODO: if the neutral term is a 'Case_' then we want to go under it
