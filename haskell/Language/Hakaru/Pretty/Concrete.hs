@@ -325,7 +325,7 @@ ppSCon p Plate = \(e1 :* e2 :* End) ->
     parensIf (p > 0) $
     sep [ sep [ text "plate" <+> var
               , text "of" <+> pretty e1 <> colon ]
-        , body ]
+        , nest 2 body ]
 
 ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
     let (var, _, body) = ppBinder1 e3 in
@@ -333,7 +333,7 @@ ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
     sep [ sep [ text "chain" <+> var
               , text "from" <+> pretty e2
               , text "of" <+> pretty e1 <> colon ]
-        , body ]
+        , nest 2 body ]
 
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     let (var, _, body) = ppBinder1 e3 in
@@ -341,7 +341,7 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     sep [ sep [ text "integrate" <+> var
               , text "from" <+> pretty e1
               , text "to" <+> pretty e2 <> colon ]
-        , body ]
+        , nest 2 body ]
 
 ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     let (var, _, body) = ppBinder1 e3 in
@@ -349,7 +349,7 @@ ppSCon p (Summate _ _) = \(e1 :* e2 :* e3 :* End) ->
     sep [ sep [ text "summate" <+> var
               , text "from" <+> pretty e1
               , text "to" <+> pretty e2 <> colon ]
-        , body ]
+        , nest 2 body ]
 
 ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
     let (var, _, body) = ppBinder1 e3 in
@@ -357,7 +357,7 @@ ppSCon p (Product _ _) = \(e1 :* e2 :* e3 :* End) ->
     sep [ sep [ text "product" <+> var
               , text "from" <+> pretty e1
               , text "to" <+> pretty e2 <> colon ]
-        , body ]
+        , nest 2 body ]
 
 ppSCon p (Transform_ t) = ppTransform p t
 
@@ -371,7 +371,7 @@ ppTransform p t es =
         e1 :* e2 :* End ->
           let (var, _, body) = ppBinder1 e2 in
           parensIf (p > 0) $
-          sep [ text "expect" <+> var <+> pretty e1 <> colon
+          sep [ text "expect" <+> var <+> text "<~" <+> pretty e1 <> colon
               , body ]
     _ -> ppApply p (transformName t) es
 
