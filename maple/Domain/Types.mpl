@@ -3,8 +3,8 @@
 # normally place on certain types) to work properly
 local DomainTypes := table(
        # Domain bounds
-       [(DomBoundVar = 'DomBoundVar_type')
-       ,(DomBoundRange = 'DomBoundRange_type')
+       [(DomBoundVar = 'thismodule:-DomBoundVar_type')
+       ,(DomBoundRange = 'thismodule:-DomBoundRange_type')
        ,(DomBoundBinder = ''DInto(DomBoundVar, DomBoundRange, DomBoundKind)'' )
        ,(DomBoundKind   = 'And(name, satisfies(nm->assigned(Domain:-ExtBound[nm])))' )
        ,(DomBound       = ''And(specfunc(DBound)

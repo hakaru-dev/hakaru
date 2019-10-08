@@ -255,6 +255,7 @@
       , HInt=Counting ]);
 
     htype_to_disint_wrt := proc(t::t_type,inside_wrt::truefalse := false,$)
+      local i;
       if t::'HMeasure(anything)' then
         htype_to_disint_wrt(op(1,t));
       elif t::'HFunction(anything,anything)' then

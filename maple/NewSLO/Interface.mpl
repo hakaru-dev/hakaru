@@ -83,7 +83,7 @@ Simplify := proc(e, t::t_type, {ctx :: list := []})
 end proc;
 
 Rename := proc(e, {_do_rename :: truefalse := false})
-  local ns;
+  local ns, i;
   if _do_rename then
     ns := [op(bound_names_in(res))];
     subs(zip(`=`,ns,
@@ -169,7 +169,7 @@ eval_for_Simplify_tbl := table(
 
 eval_for_Simplify := proc(e,kb,$)
   eval_in_ctx(
-    proc(x,kb1)
+    proc(x,kb1) local q;
       subsindets(x, {seq(specfunc(q),q=[indices(eval_for_Simplify_tbl, nolist)])},
                  y -> KB:-kb_eval_mb(eval_for_Simplify_tbl[op(0,y)],y,kb1));
     end proc, e, kb);

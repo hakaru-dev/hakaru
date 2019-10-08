@@ -95,7 +95,7 @@ export Apply := module ()
   # sh     := domain shape
   # ctx    := context (see apply_context)
   local do_apply := proc(done__, e, vs, sh_, ctx::apply_context, $)
-    local sh := sh_, done_ := done__
+    local i, s, sh := sh_, done_ := done__
         , r, cond, cond_outer, vn, vt, shv, vars, deps, ctx1, rn;
     # If the solution is a constraint, and the constraint is true,
     # then just produce the expression. If it isn't necessarily true

@@ -19,7 +19,7 @@ export Bound := module ()
       op(table(["list"=[v],"set"=[{op(v)}],"seq"=v])[output]);
     end proc;
 
-    export withVarsIxs := proc(dom :: DomBound, $) :: DomBound;
+    export withVarsIxs := proc(dom :: DomBound, $) :: DomBound; local i;
         DBound( op(1..2,dom), table([ seq(op([1,i,1],dom)=i,i=1..nops(op(1,dom))) ]) );
     end proc;
 

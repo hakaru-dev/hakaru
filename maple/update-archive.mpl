@@ -1,5 +1,5 @@
 UpdateArchive := proc(lib_::string:="ppaml.mla")
-  local libdir, drs, olddir, do_read, do_save, prev, fn, getVer, lib := lib_;
+  local libdir, drs, olddir, do_read, do_save, prev, fn, getVer, q, lib := lib_;
   drs := kernelopts(dirsep);
 
   libdir := eval(`if`(nargs=2,'args[2]','currentdir()'));

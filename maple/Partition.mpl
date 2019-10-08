@@ -59,7 +59,7 @@ local
       pw := PARTITION(args[1..-2]);
       pw  := PartitionToPW(pw);
       dpw := diff(pw, wrt);
-      r   := PWToPartition(dpw, 'do_solve');
+      r   := thismodule:-PWToPartition(dpw, 'do_solve');
       r   := Pmap(simplify, r);
     end proc;
 
@@ -140,7 +140,7 @@ export
   end proc,
 
   mapPiece := proc(f,$) proc(x::PartitionPiece,$) Piece(f(condOf(x), valOf(x))) end proc; end proc,
-  unPiece := mapPiece(ident),
+  unPiece := mapPiece(thismodule:-ident),
   ident := proc() args end proc,
 
   # This is an alternate (to PARTITION) constructor for partition, which has the
@@ -148,7 +148,7 @@ export
   # there is an otherwise case, its condition is the conjunction of negations of
   # the other conditions.
   ModuleApply := proc()::Partition;
-    local ps, as, ops_r;
+    local ps, as, ops_r, i;
     if nargs=0 then
       error "empty partition";
     end if;
@@ -162,7 +162,7 @@ export
   end proc,
 
   Pieces := proc(cs0,es0)::list(PartitionPiece);
-    local es, cs;
+    local es, cs, e, c;
     es := `if`(es0::{set,list},x->x,x->{x})(es0);
     cs := `if`(cs0::{set,list,specfunc(`And`),`and`},x->x,x->{x})(cs0);
     [seq(seq(Piece(c,e),c=cs),e=es)];
@@ -203,14 +203,14 @@ export
   Foldr_mb := proc(cons,nil,prt)
     Case(Partition, x->Foldr(cons,nil,x), x->cons(true,x,nil))
   end proc,
-  PartitionToPW_mb := Case(Partition, PartitionToPW, x->x),
-  PWToPartition_mb := Case(specfunc(piecewise), PWToPartition, x->x),
+  PartitionToPW_mb := Case(Partition, thismodule:-PartitionToPW, x->x),
+  PWToPartition_mb := Case(specfunc(piecewise), thismodule:-PWToPartition, x->x),
 
   PartitionToPW := module()
     export ModuleApply; local pw_cond_ctx;
     ModuleApply := proc(x::Partition, $)
       option remember,system;
-      local parts := piecesOf(x);
+      local p, parts := piecesOf(x);
       if nops(parts) = 1 and is(op([1,1],parts)) then return op([1,2], parts) end if;
       parts := foldl(pw_cond_ctx, [ [], {} ], op(parts) );
       parts := [seq([condOf(p), valOf(p)][], p=op(1,parts))];
@@ -417,7 +417,7 @@ export
                       to_opts:=[], from_opts:=[])
     if x::Partition then f(x);
     else
-      PartitionToPW(f(PWToPartition(x,op(to_opts))),op(from_opts))
+      thismodule:-PartitionToPW(f(PWToPartition(x,op(to_opts))),op(from_opts))
     end if;
   end proc,
 
@@ -796,7 +796,7 @@ export
       local is_extra_sol := x -> (x :: `=` and rhs(x)=lhs(x) and lhs(x) :: name);
       local postproc_for_solve := proc(ctx, ctxSlv)
                                ::{identical(false), list({boolean,relation,specfunc(boolean,And),`and`(boolean)})};
-        local ctxC := ctxSlv;
+        local c, ctxC := ctxSlv;
         if ctxC = [] then
           ctxC := [] ;
         elif nops(ctxC)> 1 then
@@ -838,6 +838,7 @@ export
 
       # Removes each conjunct if it is true under the assumption of the others
       local do_reduce_conj := proc(x::specfunc(And), $)
+        local i;
         if has(x, {idx,size}) then return x end if;
 
         bool_And(seq(
@@ -856,11 +857,11 @@ export
           and not has(c, '{idx, PARTITION, Branch}'));
       end proc;
 
-      export ModuleApply := ProfileFn(do_condition, 1);
+      export ModuleApply := ProfileFn(thismodule:-do_condition, 1);
 
       export do_condition := proc(ctx, kb::t_kb := KB:-empty)::list(PartitionCond);
         option remember, system;
-        local ctxC, ctxC1, ctxC_c, ctxC1_c;
+        local ctxC, ctxC1, ctxC_c, ctxC1_c, t;
         ctxC := ctx;
         if ctx :: identical(true) then
           error "Simpl:-condition: don't know what to do with %1", ctxC;

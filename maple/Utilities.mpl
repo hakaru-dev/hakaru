@@ -319,7 +319,7 @@ Utilities := module ()
   # (since `is' is actually stronger than `coulditbe'); tries to handle `Or`s
   # correctly (which don't do well with `assuming'); and catches some exceptions
   # which we are reasonably sure have a valid interpretation.
-  export rel_coulditbe := ProfileFn(do_rel_coulditbe, 1);
+  export rel_coulditbe := thismodule:-ProfileFn(do_rel_coulditbe, 1);
   local do_rel_coulditbe := proc(a,as_::{set,list,Relation},$)
     option remember, system;
     local os, rs, as := as_;

@@ -911,7 +911,7 @@ KB := module ()
             ,array_elem_assumptions(kb,e) ] );
   end proc;
 
-  array_size_assumptions := proc(kb,e,$)
+  array_size_assumptions := proc(kb,e,$) local n;
     seq(n::nonnegint, n in indets({kb,e}, 'specfunc(size)'));
   end proc;
 
