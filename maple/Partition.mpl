@@ -140,8 +140,8 @@ export
   end proc,
 
   mapPiece := proc(f,$) proc(x::PartitionPiece,$) Piece(f(condOf(x), valOf(x))) end proc; end proc,
-  unPiece := mapPiece(thismodule:-ident),
   ident := proc() args end proc,
+  unPiece := mapPiece(ident),
 
   # This is an alternate (to PARTITION) constructor for partition, which has the
   # same call convention as piecewise, except there are no implicit cases. if
@@ -203,8 +203,6 @@ export
   Foldr_mb := proc(cons,nil,prt)
     Case(Partition, x->Foldr(cons,nil,x), x->cons(true,x,nil))
   end proc,
-  PartitionToPW_mb := Case(Partition, thismodule:-PartitionToPW, x->x),
-  PWToPartition_mb := Case(specfunc(piecewise), thismodule:-PWToPartition, x->x),
 
   PartitionToPW := module()
     export ModuleApply; local pw_cond_ctx;
@@ -233,6 +231,7 @@ export
       [ [ op(ps), Piece(cond, valOf(p)) ], ctx ]
     end proc;
   end module,
+  PartitionToPW_mb := Case(Partition, PartitionToPW, x->x),
 
   isShape := kind ->
   module()
@@ -408,6 +407,7 @@ export
       PARTITION( cls );
     end proc;
   end module,
+  PWToPartition_mb := Case(specfunc(piecewise), PWToPartition, x->x),
 
   # applies a function to the arg if arg::Partition,
   # and if arg::piecewise, then converts the piecewise to a partition,
@@ -857,8 +857,6 @@ export
           and not has(c, '{idx, PARTITION, Branch}'));
       end proc;
 
-      export ModuleApply := ProfileFn(thismodule:-do_condition, 1);
-
       export do_condition := proc(ctx, kb::t_kb := KB:-empty)::list(PartitionCond);
         option remember, system;
         local ctxC, ctxC1, ctxC_c, ctxC1_c, t;
@@ -920,6 +918,9 @@ export
         ctxC := KB:-warm(ctxC);
         `if`(ctxC::list, ctxC, [ctxC]);
       end proc;
+
+      export ModuleApply := ProfileFn(do_condition, 1);
+
     end module; #Simpl:-condition
   end module, #Simpl
 

@@ -30,7 +30,6 @@ Domain_try_improve_exp := module()
 
   export SimplName  := "Try improve exp";
   export SimplOrder := 6 - 2/10;
-  export ModuleApply := Simplify_DConstrain(can, `try`);
 
   local can := proc(vs)
     c -> c::relation and (not(lhs(c) :: Name) and not(rhs(c) :: Name) and has(c,{ln,exp}));
@@ -45,13 +44,14 @@ Domain_try_improve_exp := module()
     vars_q := op(1,vars_q);
     try_improve_exp(q, vars_q, ctx1);
   end proc;
+
+  export ModuleApply := Simplify_DConstrain(can, `try`);
 end module;
 
 constraints_about_vars := module()
   uses Utilities;
   export SimplName  := "Make constraints abouts vars";
   export SimplOrder := 6;
-  export ModuleApply := Simplify_DConstrain(can_make_about, try_make_about);
 
   local can_make_about := proc(vs)
     local vars := Domain:-Bound:-varsOf(vs,"set");
@@ -86,6 +86,8 @@ constraints_about_vars := module()
         q_r
       end if;
   end proc;
+
+  export ModuleApply := Simplify_DConstrain(can_make_about, try_make_about);
 end module;
 
 
@@ -93,7 +95,6 @@ clamp_extraneous_constraints := module()
   uses Utilities;
   export SimplName  := "clamp_extraneous_constraints";
   export SimplOrder := 6 - 1/10;
-  export ModuleApply := Simplify_DConstrain(can, `try`);
 
   local can := proc(vs)
     local vars := Domain:-Bound:-varsOf(vs,"set");
@@ -119,6 +120,7 @@ clamp_extraneous_constraints := module()
     end if;
     q
   end proc;
+  export ModuleApply := Simplify_DConstrain(can, `try`);
 end module;
 
 # Pushes constraints down, or pulls them up, when there are such constraints.

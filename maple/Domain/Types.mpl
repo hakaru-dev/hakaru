@@ -1,6 +1,16 @@
 # Domain types which are registered/unregistered with TypeTools.
 # Note that the types have to be quoted (additionally to the quote one would
 # normally place on certain types) to work properly
+local DomBoundVar_type := proc(nm)
+    local ixs := [indices(Domain:-ExtBound, nolist)], vs;
+    ormap(i->type(nm,Domain:-ExtBound[i]:-VarType), ixs);
+end proc;
+
+local DomBoundRange_type := proc(nm)
+    local ixs := [indices(Domain:-ExtBound, nolist)], vs;
+    ormap(i->type(nm,Domain:-ExtBound[i]:-RangeType), ixs);
+end proc;
+
 local DomainTypes := table(
        # Domain bounds
        [(DomBoundVar = 'thismodule:-DomBoundVar_type')
@@ -25,13 +35,3 @@ local DomainTypes := table(
        ,(DomNoSol  = ''Not(freeof(`DNoSol`))'' )
        ,(HDomain_mb = ''Or(HDomain, DOMAIN(DomBound, DomNoSol))'' )
        ] );
-
-local DomBoundVar_type := proc(nm)
-    local ixs := [indices(Domain:-ExtBound, nolist)], vs;
-    ormap(i->type(nm,Domain:-ExtBound[i]:-VarType), ixs);
-end proc;
-
-local DomBoundRange_type := proc(nm)
-    local ixs := [indices(Domain:-ExtBound, nolist)], vs;
-    ormap(i->type(nm,Domain:-ExtBound[i]:-RangeType), ixs);
-end proc;
