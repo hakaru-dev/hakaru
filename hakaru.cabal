@@ -110,6 +110,9 @@ Library
 
     other-modules:     System.MapleSSH
 
+    build-tools:       alex,
+                       happy
+
     build-depends:     base                 >= 4.7  && < 5.0,
                        Cabal                >= 1.16,
                        ghc-prim             >= 0.3  && < 0.6,
@@ -214,6 +217,9 @@ Test-Suite system-testsuite
                        Tests.TestTools
                        Tests.TypeCheck
 
+    build-tools:       alex,
+                       happy
+
     Build-Depends:     base                 >= 4.6  && < 5.0,
                        Cabal                >= 1.16,
                        ghc-prim             >= 0.3  && < 0.6,
@@ -247,6 +253,9 @@ Executable hakaru
     Hs-Source-Dirs:    commands
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
+
+    build-tools:       alex,
+                       happy
 
     build-depends:     base                 >= 4.7  && < 5.0,
                        mwc-random           >= 0.13 && < 0.15,
