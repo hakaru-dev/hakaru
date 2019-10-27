@@ -81,7 +81,7 @@ Loop := module ()
          peel, split, graft, rebase_lower, rebase_upper, Print;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Ints, Sums, csgn, sum;
+  global Ints, Sums, csgn, sum, signum;
   uses Hakaru, KB, Utilities;
 
   t_binder := 'Binder(identical(product, Product, sum, Sum), t_kb)';
@@ -558,6 +558,35 @@ Loop := module ()
       end proc,
       csgn]);
     protect(csgn);
+
+    # Do the same to signum.
+    unprotect(signum);
+    signum := overload([
+      # Handle if the signum of a piecewise doesn't depend on which branch
+      proc(a :: specfunc(piecewise), $)
+        option overload;
+        local r, i;
+        r := {seq(`if`(i::even or i=nops(a), signum(op(i,a)), NULL),
+                  i=1..nops(a))};
+        if nops(r)=1 then return op(r) end if;
+        if not assigned(_Envsignum0) then
+          r := r minus {0};
+          if nops(r)=1 then return op(r) end if;
+        end if;
+        error "invalid input: cannot signum %1", a;
+      end proc,
+      # Handle if the signum of a sum doesn't depend on the bound variable
+      proc(a :: And(specfunc({sum, Sum}), anyfunc(anything, name=range)), $)
+        option overload;
+        local r;
+        r := signum(op(1,a));
+        if not depends(r,op([2,1],a)) then
+          return signum(op([2,2,2],a)+1-op([2,2,1],a)) * r
+        end if;
+        error "invalid input: cannot signum %1", a;
+      end proc,
+      signum]);
+    protect(signum);
 
     # Override sum to fail faster
     unprotect(sum);
