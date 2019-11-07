@@ -1,6 +1,11 @@
 {-# LANGUAGE CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Language.Hakaru.Parser.Parser (parseHakaru, parseHakaruWithImports) where
+module Language.Hakaru.Parser.Parser
+    (
+      parseHakaru
+    , parseHakaruWithImports
+    , parseReplLine
+    ) where
 
 import Prelude hiding (Real)
 
@@ -541,6 +546,24 @@ import_expr =
 
 exprWithImport :: Parser (ASTWithImport' Text)
 exprWithImport = ASTWithImport' <$> (many import_expr) <*> expr
+
+-- Parsing bindings for Hakaru Repl
+type Binding = (AST' Text.Text -> AST' Text.Text)
+
+let_parse :: Parser Binding
+let_parse = Let <$> identifier <* reservedOp "=" <*> expr
+
+bind_parse :: Parser Binding
+bind_parse = Bind <$> identifier <* reservedOp "<~" <*> expr
+
+binding_parse :: Parser Binding
+binding_parse = try let_parse <|> bind_parse
+
+bindingOrExpr :: Parser (Either Binding (AST' Text.Text))
+bindingOrExpr = Left <$> try binding_parse <|> Right <$> expr
+
+parseReplLine :: Text.Text -> Either ParseError (Either Binding (AST' Text.Text))
+parseReplLine x = parseAtTopLevel bindingOrExpr x
 
 -- | A variant of @Text.Parsec.Expr.buildExpressionParser@ (parsec-3.1.11)
 -- that behaves more restrictively when a precedence level contains both

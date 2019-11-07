@@ -96,6 +96,7 @@ Library
                        Language.Hakaru.Evaluation.ExpectMonad,
                        Language.Hakaru.Expect,
                        Language.Hakaru.Inference,
+                       Language.Hakaru.Repl,
                        Language.Hakaru.Command,
                        Language.Hakaru.CodeGen.Wrapper,
                        Language.Hakaru.CodeGen.Flatten,
@@ -138,7 +139,8 @@ Library
                        bytestring           >= 0.9,
                        optparse-applicative >= 0.11 && < 0.15,
                        syb                  >= 0.6,
-                       exact-combinatorics  >= 0.2.0
+                       exact-combinatorics  >= 0.2.0,
+                       repline              >= 0.2
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite
