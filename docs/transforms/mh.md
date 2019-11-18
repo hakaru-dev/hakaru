@@ -62,7 +62,7 @@ fn x4 real:
 This can then be simplified.
 
 ````bash
-mh target.hk proposal.hk | simplify -
+mh target.hk proposal.hk | hk-maple -c Simplify -
 
 fn x4 real: 
  x03 <~ normal(x4, (1/25))
@@ -82,7 +82,7 @@ and the second file represents a measure to initialize from.
 		
 
 ````bash
-mh target.hk proposal.hk | simplify - | hakaru -w --transition-kernel - target.hk | head
+mh target.hk proposal.hk | hk-maple -c Simplify - | hakaru -w --transition-kernel - target.hk | head
 
 -0.6133542972818671
 -0.6111567543723275

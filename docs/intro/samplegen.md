@@ -38,17 +38,17 @@ You might encounter some scenarios where you wish to run a Hakaru command or tra
 In these cases, you can take advantage of the dash (`-`) command-line notation.
 
 The dash notation is a shortcut used to pass standard inputs and outputs to another command in the same line of script. For example, if you wanted to run the `disintegrate`
-Hakaru command followed by the `simplify` command, you would enter:
+Hakaru command followed by the `hk-maple -c Simplify` command, you would enter:
 
 ````bash
-disintegrate program.hk | simplify -
+disintegrate program.hk | hk-maple -c Simplify -
 ````
 
 This command is equivalent to entering:
 
 ````bash
 disintegrate program.hk > temp.hk
-simplify temp.hk
+hk-maple -c Simplify temp.hk
 ````
 
 **Note:** The `>` operator redirects the output from `disintegrate program.hk` to a new file called `temp.hk`.

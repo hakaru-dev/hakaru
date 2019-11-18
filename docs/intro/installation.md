@@ -83,6 +83,6 @@ On Windows systems, Hakaru can be setup to use Maple by performing the following
 
 ### Testing Your Maple Installation with Hakaru ###
 
-If you have correctly installaed Hakaru's Maple extension, running `echo "normal(0,1)" | simplify -` in a `bash` command line will return `normal(0, 1)`.  If you get an error about `simplify` not being found, you may need to adjust your PATH environment variable to point to where `cabal` installed Hakaru.
+If you have correctly installaed Hakaru's Maple extension, running `echo "normal(0,1)" | hk-maple -c Simplify -` in a `bash` command line will return `normal(0, 1)`.  If you get an error about `hk-maple` not being found, you may need to adjust your PATH environment variable to point to where `cabal` installed Hakaru.
 
-If you have not set the `LOCAL_MAPLE` environment variable, then the `simplify` command might try to locate a `SSH` file that might not exist on your machine to try and access a remote installation of Maple.
+If you have not set the `LOCAL_MAPLE` environment variable, then the `hk-maple` command might try to locate a `SSH` file that might not exist on your machine to try and access a remote installation of Maple.

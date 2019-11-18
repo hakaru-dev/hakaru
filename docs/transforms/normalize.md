@@ -8,6 +8,6 @@ For example in a slightly contrived example, we can weight a normal
 distribution by two. Normalizing it will then remove this weight.
 
 ````
-> echo "weight(2, normal(0,1))" | normalize | simplify -
+> echo "weight(2, normal(0,1))" | normalize | hk-maple -c Simplify -
 normal(0, 1)
 ````

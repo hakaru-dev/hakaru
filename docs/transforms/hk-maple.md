@@ -40,8 +40,8 @@ weights. If the stronger sense of equivalence is needed, the output of
 `Simplify` can be passed to `normalize`. 
 
 Historical note: the `Simplify` subcommand of `hk-maple` used to be known as a
-seperate command named `simplify`. If you encounter `simplify someprog.hk
-<options>` in this documentation, you may replace it by `hk-maple someprog.hk
+separate command named `simplify`. If you encounter `simplify someprog.hk
+<options>` in any documentation, you may replace it by `hk-maple -c Simplify someprog.hk
 <options>`.
 
 ### Disintegrate
