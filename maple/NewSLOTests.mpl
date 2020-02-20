@@ -90,6 +90,12 @@ sliceds :=
   Weight(2*sqrt(lu)*exp(-lu)/sqrt(Pi),
   Uniform(-sqrt(2*lu),sqrt(2*lu))):
 TestHakaru(sliced, sliceds, label = "slice sampling", ctx = [lu>0]);
+TestHakaru(Bind(Categorical([3/10, 7/10]), a,
+           Bind(Categorical([3/10, 7/10]), b,
+           piecewise(a=0, piecewise(b=0, Ret(true), Ret(false)),
+                          piecewise(b=1, Ret(true), Ret(false))))),
+           Msum(Weight(29/50, Ret(true)), Weight(21/50, Ret(false))),
+           label = "coin comparison");
 module()
   local d, m, uMax, kb, result;
   for d in [Gaussian(0,1), GammaD(1,1)] do

@@ -852,8 +852,9 @@ export
       # altogether, but not when they appear on their own! e.g.
       #  solve( {a<>b} )       = {a=a,a<>b}
       #  solve( {Not(a<>b)} )  = {a=a,b=b}  -- but should be {..,a=b}
+      #  solve( {a=0,b<>1} )   = {a=0,b=b}
       local can_solve := proc(c,$)
-        evalb(not hastype(c, '`<>`(name,name)')
+        evalb(not hastype(c, '`<>`({name,constant},{name,constant})')
           and not has(c, '{idx, PARTITION, Branch}'));
       end proc;
 
