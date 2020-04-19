@@ -30,7 +30,7 @@ import qualified Data.Text.IO   as IO
 import qualified Data.Vector    as V
 import           Text.PrettyPrint (renderStyle, style, mode, Mode(LeftMode))
 import qualified System.Random.MWC as MWC
-import           System.Console.Repline
+import           System.Console.Repline hiding (banner)
 
 type Binding = (U.AST' Text.Text -> U.AST' Text.Text)
 type ReplM a = HaskelineT (StateT Binding IO) a
