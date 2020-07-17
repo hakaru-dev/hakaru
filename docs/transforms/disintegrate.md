@@ -26,7 +26,7 @@ a program such as:
 
 ````nohighlight
 y <~ normal(0,1)
-x <~ normal(θ,1)
+x <~ normal(y,1)
 return (y,x)
 ````
 
