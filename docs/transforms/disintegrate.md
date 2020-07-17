@@ -25,8 +25,8 @@ Let's condition a joint probability distribution of two independent random varia
 a program such as:
 
 ````nohighlight
-y <~ normal(0,1)
-x <~ normal(y,1)
+x <~ normal(0,1)
+y <~ normal(x,1)
 return (y,x)
 ````
 
