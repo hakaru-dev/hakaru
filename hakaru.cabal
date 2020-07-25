@@ -140,7 +140,7 @@ Library
                        optparse-applicative >= 0.11 && < 0.16,
                        syb                  >= 0.6,
                        exact-combinatorics  >= 0.2.0,
-                       repline              >= 0.2
+                       repline              >= 0.4
 
 ----------------------------------------------------------------
 Test-Suite system-testsuite

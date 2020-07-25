@@ -30,10 +30,10 @@ import qualified Data.Text.IO   as IO
 import qualified Data.Vector    as V
 import           Text.PrettyPrint (renderStyle, style, mode, Mode(LeftMode))
 import qualified System.Random.MWC as MWC
-import           System.Console.Repline hiding (banner)
+import           System.Console.Repline
 
 type Binding = (U.AST' Text.Text -> U.AST' Text.Text)
-type ReplM a = HaskelineT (StateT Binding IO) a
+type ReplM = HaskelineT (StateT Binding IO)
 
 initialReplState :: Binding
 initialReplState = id
@@ -87,21 +87,20 @@ runOnce g prog =
     Right (TypedAST typ ast) ->
         illustrate typ g (runEvaluate ast)
 
-type_ :: [String] -> ReplM ()
+type_ :: Cmd ReplM
 type_ prog =
-    let prog' = intercalate " " prog in
-    case parseHakaru (Text.pack prog') of
+    case parseHakaru (Text.pack prog) of
       Left err -> liftIO $ putStrLn (show err)
       Right e  -> do
         bindings <- get
-        let prog'' = bindings (app1 "dirac" e)
-        case resolveAndInfer prog'' of
+        let prog' = bindings (app1 "dirac" e)
+        case resolveAndInfer prog' of
           Left err -> liftIO $ IO.putStrLn err
           Right (TypedAST (SMeasure typ) _) -> liftIO $ putStrLn (prettyTypeS typ)
           _        -> liftIO $ putStrLn "the impossible happened"
                    
 initM :: ReplM ()
-initM = liftIO $ putStrLn banner
+initM = liftIO $ putStrLn introBanner
                    
 -- Evaluation
 
@@ -118,7 +117,7 @@ cmd g x =
 
 
 -- Typecheck bindings before adding them
-cmd2 :: MWC.GenIO -> String -> ReplM ()
+cmd2 :: MWC.GenIO -> Cmd ReplM
 cmd2 g x =
     case parseReplLine (Text.pack x) of
       Left err  -> liftIO $ putStrLn (show err)
@@ -132,7 +131,16 @@ cmd2 g x =
                
 repl :: MWC.GenIO -> IO ()
 repl g = flip evalStateT initialReplState
-        $ evalRepl (pure ">>> ") (cmd2 g) opts (Just ':') (Word comp) initM
+        $ evalReplOpts $ ReplOpts
+         { banner           = const (pure ">>> ")
+         , command          = cmd2 g
+         , options          = opts
+         , prefix           = Just ':'
+         , multilineCommand = Nothing
+         , tabComplete      = (Word comp)
+         , initialiser      = initM
+         , finaliser        = return Exit
+         }
 
                    
 -- Completion
@@ -140,27 +148,26 @@ comp :: Monad m => WordCompleter m
 comp = listWordCompleter [":help", ":expand", ":hist", ":type"]
 
 -- Commands
-help :: [String] -> ReplM ()
+help :: Cmd ReplM
 help _ = liftIO $ putStrLn "Help!"
 
-expand :: [String] -> ReplM ()
+expand :: Cmd ReplM
 expand prog =
-    let prog' = intercalate " " prog in
-    case parseReplLine (Text.pack prog') of
+    case parseReplLine (Text.pack prog) of
       Left err         -> liftIO $ putStrLn (show err)
       Right (Left b)   -> modify (extendBindings b) 
       Right (Right e)  -> do
         bindings <- get
-        let prog'' = bindings e
-        case resolveAndInfer prog'' of
+        let prog' = bindings e
+        case resolveAndInfer prog' of
           Left err -> liftIO $ IO.putStrLn err
           Right (TypedAST _ ast) -> liftIO $ print (pretty (expandTransformations ast))
 
 
-hist :: [String] -> ReplM ()
+hist :: Cmd ReplM
 hist = undefined
 
-opts :: [(String, [String] -> ReplM ())]
+opts :: Options ReplM
 opts = [
     ("help", help),
     ("expand", expand),
@@ -168,8 +175,8 @@ opts = [
     ("type", type_)
   ]
 
-banner :: String
-banner = unlines
+introBanner :: String
+introBanner = unlines
   ["    __  __      __",
    "   / / / /___ _/ /______ ________  __",
    "  / /_/ / __ `/ //_/ __ `/ ___/ / / /",
