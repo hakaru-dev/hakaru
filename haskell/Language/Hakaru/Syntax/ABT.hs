@@ -3,6 +3,7 @@
            , GADTs
            , DataKinds
            , PolyKinds
+           , TypeInType
            , TypeOperators
            , Rank2Types
            , MultiParamTypeClasses

@@ -5,6 +5,7 @@
            , FlexibleContexts
            , DeriveDataTypeable
            , ExistentialQuantification
+           , TypeInType
            , UndecidableInstances
            , ScopedTypeVariables
            #-}

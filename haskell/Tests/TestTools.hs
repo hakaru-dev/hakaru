@@ -3,6 +3,7 @@
            , RankNTypes
            , GADTs
            , PolyKinds
+           , TypeInType
            , ScopedTypeVariables
            , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
