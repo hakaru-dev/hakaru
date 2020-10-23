@@ -705,7 +705,7 @@ freshen x xs
 --
 -- | Rename a free variable. Does nothing if the variable is bound.
 rename
-    :: forall syn abt (a :: k) xs (b :: k)
+    :: forall k syn abt (a :: k) xs (b :: k)
     .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Functor21 syn, ABT syn abt)
     => Variable a
     -> Variable a
@@ -755,7 +755,7 @@ rename x y =
 -- to ensure timely throwing of exceptions, the 'Term' and 'ABT'
 -- should have strict 'fmap21' definitions.
 subst
-    :: forall syn abt (a :: k) xs (b :: k)
+    :: forall k syn abt (a :: k) xs (b :: k)
     .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Traversable21 syn, ABT syn abt)
     => Variable a
     -> abt '[]  a
@@ -772,7 +772,7 @@ subst x e =
       varCase = return . var
                      
 substM
-    :: forall syn abt (a :: k) xs (b :: k) m
+    :: forall k syn abt (a :: k) xs (b :: k) m
     .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *),
         Traversable21 syn, ABT syn abt,
         Applicative m, Functor m, Monad m)
@@ -816,7 +816,7 @@ substM x e vf =
                
 
 renames
-    :: forall
+    :: forall k
         (syn :: ([k] -> k -> *) -> k -> *)
         (abt :: [k] -> k -> *)
         (xs  :: [k])
@@ -854,7 +854,7 @@ inst f e =
 -- BUG: This appears to have both capture and escape issues as demonstrated by 'Tests.Disintegrate.test0' and commented on at 'Language.Hakaru.Evaluation.Types.runM'.
 -- | The parallel version of 'subst' for performing multiple substitutions at once.
 substs
-    :: forall
+    :: forall k
         (syn :: ([k] -> k -> *) -> k -> *)
         (abt :: [k] -> k -> *)
         (xs  :: [k])
@@ -1028,7 +1028,7 @@ multibinder names hoas = binds vars body
 -- need access to the original ABT, then this function has somewhat
 -- less overhead.
 cataABT
-    :: forall
+    :: forall k
         (abt :: [k] -> k -> *)
         (syn :: ([k] -> k -> *) -> k -> *)
         (r   :: [k] -> k -> *)
@@ -1053,7 +1053,7 @@ cataABT var_ bind_ syn_ = start
 -- inputs, which allows the @bind@ and @syn@ operations to update the monadic
 -- context in which the subterms are evaluated if need be.
 cataABTM
-    :: forall
+    :: forall k
         (abt :: [k] -> k -> *)
         (syn :: ([k] -> k -> *) -> k -> *)
         (r   :: [k] -> k -> *)
@@ -1090,7 +1090,7 @@ cataABTM var_ bind_ syn_ = start
 -- this is a top-down function; however, if you treat them strictly
 -- then it becomes a bottom-up function.
 paraABT
-    :: forall
+    :: forall k
         (abt :: [k] -> k -> *)
         (syn :: ([k] -> k -> *) -> k -> *)
         (r   :: [k] -> k -> *)

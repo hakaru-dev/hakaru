@@ -429,7 +429,7 @@ memberVarSet x (VarSet xs) =
 -- What is the best behaviour when we have two variables with
 -- different types in the set?
 unionVarSet
-    :: forall (kproxy :: KProxy k)
+    :: forall k (kproxy :: KProxy k)
     .  (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
     => VarSet kproxy
     -> VarSet kproxy
@@ -437,7 +437,7 @@ unionVarSet
 unionVarSet (VarSet s1) (VarSet s2) = VarSet (IM.union s1 s2)
 
 intersectVarSet
-    :: forall (kproxy :: KProxy k)
+    :: forall k (kproxy :: KProxy k)
     .  (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
     => VarSet kproxy
     -> VarSet kproxy

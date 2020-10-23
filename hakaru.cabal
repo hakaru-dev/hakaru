@@ -16,7 +16,7 @@ maintainer:          ppaml@indiana.edu
 category:            Language
 -- extra-source-files:
 
-tested-with: GHC==8.6.4, GHC==8.4.4, GHC==8.2.2, GHC==8.0.2, GHC==7.10.3, GHC==7.8.4
+tested-with: GHC==8.10.2, GHC==8.6.4, GHC==8.4.4, GHC==8.2.2, GHC==8.0.2, GHC==7.10.3, GHC==7.8.4
 
 ----------------------------------------------------------------
 Source-Repository head
@@ -116,7 +116,7 @@ Library
 
     build-depends:     base                 >= 4.7  && < 5.0,
                        Cabal                >= 1.16,
-                       ghc-prim             >= 0.3  && < 0.6,
+                       ghc-prim             >= 0.3  && < 0.8,
                        transformers         >= 0.3  && < 0.6,
                        transformers-compat  >= 0.3  && < 0.7,
                        containers           >= 0.5  && < 0.7,
