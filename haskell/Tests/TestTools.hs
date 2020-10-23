@@ -129,7 +129,7 @@ assertAlphaEq ::
 assertAlphaEq preface a b =
    unless (alphaEq a b) (assertFailure $ mismatchMessage pretty preface a b)
 
-mismatchMessage :: forall (k :: q -> *) . (forall a . k a -> Doc) -> String -> forall a b . k a -> k b -> String 
+mismatchMessage :: forall q (k :: q -> *) . (forall a . k a -> Doc) -> String -> forall a b . k a -> k b -> String 
 mismatchMessage k preface a b = msg 
  where msg = concat [ p
                     , "expected:\n"
