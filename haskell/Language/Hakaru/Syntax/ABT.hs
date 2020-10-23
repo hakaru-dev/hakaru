@@ -89,6 +89,7 @@ import           Data.Monoid                (Monoid(..))
 #endif
 
 import Control.Monad.Identity    
+import Data.Kind
 import Data.Number.Nat
 import Language.Hakaru.Syntax.IClasses
 -- TODO: factor the definition of the 'Sing' type family out from
@@ -132,7 +133,7 @@ import Debug.Trace (trace)
 -- smart constructors of the ABT class. But if we don't expose this
 -- type, then clients can't define their own ABT instances (without
 -- reinventing their own copy of this type)...
-data View :: (k -> *) -> [k] -> k -> * where
+data View :: (k -> Type) -> [k] -> k -> Type where
     -- BUG: haddock doesn't like annotations on GADT constructors
     -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
@@ -175,22 +176,22 @@ instance Traversable12 View where
     traverse12 f (Bind x e) = Bind x <$> traverse12 f e
 
 
-instance (Show1 (Sing :: k -> *), Show1 rec)
-    => Show2 (View (rec :: k -> *))
+instance (Show1 (Sing :: k -> Type), Show1 rec)
+    => Show2 (View (rec :: k -> Type))
     where
     showsPrec2 p (Syn  t)   = showParen_1  p "Syn"  t
     showsPrec2 p (Var  x)   = showParen_1  p "Var"  x
     showsPrec2 p (Bind x v) = showParen_12 p "Bind" x v
 
-instance (Show1 (Sing :: k -> *), Show1 rec)
-    => Show1 (View (rec :: k -> *) xs)
+instance (Show1 (Sing :: k -> Type), Show1 rec)
+    => Show1 (View (rec :: k -> Type) xs)
     where
     showsPrec1 = showsPrec2
     show1      = show2
 
 -- TODO: could weaken the Show1 requirements to Show requirements...
-instance (Show1 (Sing :: k -> *), Show1 rec)
-    => Show (View (rec :: k -> *) xs a)
+instance (Show1 (Sing :: k -> Type), Show1 rec)
+    => Show (View (rec :: k -> Type) xs a)
     where
     showsPrec = showsPrec1
     show      = show1
@@ -198,7 +199,7 @@ instance (Show1 (Sing :: k -> *), Show1 rec)
 
 -- TODO: neelk includes 'subst' as a method. Any reason we should?
 -- TODO: jon includes instantiation as a method. Any reason we should?
--- TODO: require @(JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)@ since all our instances will need those too?
+-- TODO: require @(JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type), Foldable21 syn)@ since all our instances will need those too?
 --
 -- | The class interface for abstract binding trees. The first
 -- argument, @syn@, gives the syntactic signature of the ABT;
@@ -215,7 +216,7 @@ instance (Show1 (Sing :: k -> *), Show1 rec)
 -- only be able to work for particular @syn@ signatures. This isn't
 -- the case for 'TrivialABT' nor 'MemoizedABT', but isn't too
 -- far-fetched.
-class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn where
+class ABT (syn :: ([k] -> k -> Type) -> k -> Type) (abt :: [k] -> k -> Type) | abt -> syn where
     -- Smart constructors for building a 'View' and then injecting it into the @abt@.
     syn  :: syn abt  a -> abt '[] a
     var  :: Variable a -> abt '[] a
@@ -379,11 +380,11 @@ maxNextFreeOrBind =
 -- expensive for this ABT, because we have to traverse the term
 -- every time we want to call them. The 'MemoizedABT' implementation
 -- fixes this.
-newtype TrivialABT (syn :: ([k] -> k -> *) -> k -> *) (xs :: [k]) (a :: k) =
+newtype TrivialABT (syn :: ([k] -> k -> Type) -> k -> Type) (xs :: [k]) (a :: k) =
     TrivialABT (View (syn (TrivialABT syn)) xs a)
 
-instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
-    => ABT (syn :: ([k] -> k -> *) -> k -> *) (TrivialABT syn)
+instance (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type), Foldable21 syn)
+    => ABT (syn :: ([k] -> k -> Type) -> k -> Type) (TrivialABT syn)
     where
     syn  t                = TrivialABT (Syn  t)
     var  x                = TrivialABT (Var  x)
@@ -435,8 +436,8 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
 
 
 -- BUG: requires UndecidableInstances
-instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
-    => Show2 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *))
+instance (Show1 (Sing :: k -> Type), Show1 (syn (TrivialABT syn)))
+    => Show2 (TrivialABT (syn :: ([k] -> k -> Type) -> k -> Type))
     where
     {-
     -- Print the concrete data constructors:
@@ -453,15 +454,15 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
     showsPrec2 p (TrivialABT (Var  x))   = showParen_1  p "var"  x
     showsPrec2 p (TrivialABT (Bind x v)) = showParen_11 p "bind" x (TrivialABT v)
 
-instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
-    => Show1 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs)
+instance (Show1 (Sing :: k -> Type), Show1 (syn (TrivialABT syn)))
+    => Show1 (TrivialABT (syn :: ([k] -> k -> Type) -> k -> Type) xs)
     where
     showsPrec1 = showsPrec2
     show1      = show2
 
 -- TODO: could weaken the Show1 requirements to Show requirements...
-instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
-    => Show (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs a)
+instance (Show1 (Sing :: k -> Type), Show1 (syn (TrivialABT syn)))
+    => Show (TrivialABT (syn :: ([k] -> k -> Type) -> k -> Type) xs a)
     where
     showsPrec = showsPrec1
     show      = show1
@@ -490,7 +491,7 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
 -- N.B., the memoized set of free variables is lazy so that we can
 -- tie-the-knot in 'binder' without interfering with our memos. The
 -- memoized 'nextFree' must be lazy for the same reason.
-data MemoizedABT (syn :: ([k] -> k -> *) -> k -> *) (xs :: [k]) (a :: k) =
+data MemoizedABT (syn :: ([k] -> k -> Type) -> k -> Type) (xs :: [k]) (a :: k) =
     MemoizedABT
         { _memoizedFreeVars :: VarSet (KindOf a) -- N.B., lazy!
         , memoizedNextFree  :: Nat -- N.B., lazy!
@@ -503,8 +504,8 @@ memoizedFreeVars :: MemoizedABT syn xs a -> VarSet (KindOf a)
 memoizedFreeVars (MemoizedABT xs _ _ _) = xs
 
 
-instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
-    => ABT (syn :: ([k] -> k -> *) -> k -> *) (MemoizedABT syn)
+instance (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type), Foldable21 syn)
+    => ABT (syn :: ([k] -> k -> Type) -> k -> Type) (MemoizedABT syn)
     where
     syn t =
         MemoizedABT
@@ -560,8 +561,8 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
     nextBind = memoizedNextBind
 
 
-instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
-    => Show2 (MemoizedABT (syn :: ([k] -> k -> *) -> k -> *))
+instance (Show1 (Sing :: k -> Type), Show1 (syn (MemoizedABT syn)))
+    => Show2 (MemoizedABT (syn :: ([k] -> k -> Type) -> k -> Type))
     where
     showsPrec2 p (MemoizedABT xs nf nb v) =
         showParen (p > 9)
@@ -575,15 +576,15 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
             . showsPrec1 11 v
             )
 
-instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
-    => Show1 (MemoizedABT (syn :: ([k] -> k -> *) -> k -> *) xs)
+instance (Show1 (Sing :: k -> Type), Show1 (syn (MemoizedABT syn)))
+    => Show1 (MemoizedABT (syn :: ([k] -> k -> Type) -> k -> Type) xs)
     where
     showsPrec1 = showsPrec2
     show1      = show2
 
 -- TODO: could weaken the Show1 requirements to Show requirements...
-instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
-    => Show (MemoizedABT (syn :: ([k] -> k -> *) -> k -> *) xs a)
+instance (Show1 (Sing :: k -> Type), Show1 (syn (MemoizedABT syn)))
+    => Show (MemoizedABT (syn :: ([k] -> k -> Type) -> k -> Type) xs a)
     where
     showsPrec = showsPrec1
     show      = show1
@@ -596,8 +597,8 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
 -- Right now this essentially inlines the the TrivialABT instance
 -- but it would be nice if it was abstract in the choice of ABT.
 data MetaABT
-    (meta :: *)
-    (syn  :: ([k] -> k -> *) -> k -> *)
+    (meta :: Type)
+    (syn  :: ([k] -> k -> Type) -> k -> Type)
     (xs   :: [k])
     (a    :: k) =
     MetaABT
@@ -611,8 +612,8 @@ withMetadata
     -> MetaABT meta syn xs a
 withMetadata x (MetaABT _ v) = MetaABT (Just x) v
 
-instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
-    => ABT (syn :: ([k] -> k -> *) -> k -> *) (MetaABT meta syn)
+instance (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type), Foldable21 syn)
+    => ABT (syn :: ([k] -> k -> Type) -> k -> Type) (MetaABT meta syn)
     where
     syn t                   = MetaABT Nothing (Syn  t)
     var x                   = MetaABT Nothing (Var  x)
@@ -652,10 +653,10 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
 
 
 
-instance ( Show1 (Sing :: k -> *)
+instance ( Show1 (Sing :: k -> Type)
          , Show1 (syn (MetaABT meta syn))
          , Show  meta)
-    => Show2 (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *))
+    => Show2 (MetaABT meta (syn :: ([k] -> k -> Type) -> k -> Type))
     where
     showsPrec2 p (MetaABT meta v) =
         showParen (p > 9)
@@ -665,18 +666,18 @@ instance ( Show1 (Sing :: k -> *)
             . showsPrec1 11 v
             )
 
-instance ( Show1 (Sing :: k -> *)
+instance ( Show1 (Sing :: k -> Type)
          , Show1 (syn (MetaABT meta syn))
          , Show  meta)
-    => Show1 (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *) xs)
+    => Show1 (MetaABT meta (syn :: ([k] -> k -> Type) -> k -> Type) xs)
     where
     showsPrec1 = showsPrec2
     show1      = show2
 
-instance ( Show1 (Sing :: k -> *)
+instance ( Show1 (Sing :: k -> Type)
          , Show1 (syn (MetaABT meta syn))
          , Show  meta)
-    => Show (MetaABT meta (syn :: ([k] -> k -> *) -> k -> *) xs a)
+    => Show (MetaABT meta (syn :: ([k] -> k -> Type) -> k -> Type) xs a)
     where
     showsPrec = showsPrec1
     show      = show1
@@ -691,7 +692,7 @@ instance ( Show1 (Sing :: k -> *)
 -- If it isn't in the set, then just return it.
 -- FIXME: this is actually not used!
 freshen
-    :: (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *))
+    :: (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type))
     => Variable (a :: k)
     -> VarSet (KindOf a)
     -> Variable a
@@ -707,7 +708,7 @@ freshen x xs
 -- | Rename a free variable. Does nothing if the variable is bound.
 rename
     :: forall k syn abt (a :: k) xs (b :: k)
-    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Functor21 syn, ABT syn abt)
+    .  (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type), Functor21 syn, ABT syn abt)
     => Variable a
     -> Variable a
     -> abt xs b
@@ -757,7 +758,7 @@ rename x y =
 -- should have strict 'fmap21' definitions.
 subst
     :: forall k syn abt (a :: k) xs (b :: k)
-    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Traversable21 syn, ABT syn abt)
+    .  (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type), Traversable21 syn, ABT syn abt)
     => Variable a
     -> abt '[]  a
     -> abt xs   b
@@ -774,7 +775,7 @@ subst x e =
                      
 substM
     :: forall k syn abt (a :: k) xs (b :: k) m
-    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *),
+    .  (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type),
         Traversable21 syn, ABT syn abt,
         Applicative m, Functor m, Monad m)
     => Variable a
@@ -818,16 +819,16 @@ substM x e vf =
 
 renames
     :: forall k
-        (syn :: ([k] -> k -> *) -> k -> *)
-        (abt :: [k] -> k -> *)
+        (syn :: ([k] -> k -> Type) -> k -> Type)
+        (abt :: [k] -> k -> Type)
         (xs  :: [k])
         (a   :: k)
     .   ( ABT syn abt
-        , JmEq1 (Sing :: k -> *)
-        , Show1 (Sing :: k -> *)
+        , JmEq1 (Sing :: k -> Type)
+        , Show1 (Sing :: k -> Type)
         , Functor21 syn
         )
-    => Assocs (Variable :: k -> *)
+    => Assocs (Variable :: k -> Type)
     -> abt xs a
     -> abt xs a
 renames rho0 =
@@ -838,8 +839,8 @@ renames rho0 =
 -- called (//) in Jon's abt library. We use this textual name so we can also have 'insts' for the n-ary version, rather than iterating the unary version. Or we could use something like (!) and (!!), albeit those names tend to be used to mean other things. It'd be nice to do (@) and (@@), but the first one is illegal.
 inst
     :: forall syn abt (a :: k) xs (b :: k)
-    .   ( JmEq1 (Sing :: k -> *)
-        , Show1 (Sing :: k -> *)
+    .   ( JmEq1 (Sing :: k -> Type)
+        , Show1 (Sing :: k -> Type)
         , Functor21 syn
         , ABT syn abt
         )
@@ -856,13 +857,13 @@ inst f e =
 -- | The parallel version of 'subst' for performing multiple substitutions at once.
 substs
     :: forall k
-        (syn :: ([k] -> k -> *) -> k -> *)
-        (abt :: [k] -> k -> *)
+        (syn :: ([k] -> k -> Type) -> k -> Type)
+        (abt :: [k] -> k -> Type)
         (xs  :: [k])
         (a   :: k)
     .   ( ABT syn abt
-        , JmEq1 (Sing :: k -> *)
-        , Show1 (Sing :: k -> *)
+        , JmEq1 (Sing :: k -> Type)
+        , Show1 (Sing :: k -> Type)
         , Traversable21 syn
         )
     => Assocs (abt '[])
@@ -1030,9 +1031,9 @@ multibinder names hoas = binds vars body
 -- less overhead.
 cataABT
     :: forall k
-        (abt :: [k] -> k -> *)
-        (syn :: ([k] -> k -> *) -> k -> *)
-        (r   :: [k] -> k -> *)
+        (abt :: [k] -> k -> Type)
+        (syn :: ([k] -> k -> Type) -> k -> Type)
+        (r   :: [k] -> k -> Type)
     .  (ABT syn abt, Functor21 syn)
     => (forall a.      Variable a -> r '[] a)
     -> (forall x xs a. Variable x -> r xs a -> r (x ': xs) a)
@@ -1055,10 +1056,10 @@ cataABT var_ bind_ syn_ = start
 -- context in which the subterms are evaluated if need be.
 cataABTM
     :: forall k
-        (abt :: [k] -> k -> *)
-        (syn :: ([k] -> k -> *) -> k -> *)
-        (r   :: [k] -> k -> *)
-        (f   :: * -> *)
+        (abt :: [k] -> k -> Type)
+        (syn :: ([k] -> k -> Type) -> k -> Type)
+        (r   :: [k] -> k -> Type)
+        (f   :: Type -> Type)
     .  (ABT syn abt, Traversable21 syn, Applicative f)
     => (forall a.      Variable a  -> f (r '[] a))
     -> (forall x xs a. Variable x  -> f (r xs a) -> f (r (x ': xs) a))
@@ -1092,9 +1093,9 @@ cataABTM var_ bind_ syn_ = start
 -- then it becomes a bottom-up function.
 paraABT
     :: forall k
-        (abt :: [k] -> k -> *)
-        (syn :: ([k] -> k -> *) -> k -> *)
-        (r   :: [k] -> k -> *)
+        (abt :: [k] -> k -> Type)
+        (syn :: ([k] -> k -> Type) -> k -> Type)
+        (r   :: [k] -> k -> Type)
     .  (ABT syn abt, Functor21 syn)
     => (forall a.      Variable a -> r '[] a)
     -> (forall x xs a. Variable x -> abt xs a -> r xs a -> r (x ': xs) a)
@@ -1120,7 +1121,7 @@ paraABT var_ bind_ syn_ = start
 -- | If the expression is a variable, then look it up. Recursing
 -- until we can finally return some syntax.
 resolveVar
-    :: (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), ABT syn abt)
+    :: (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type), ABT syn abt)
     => abt '[] (a :: k)
     -> Assocs (abt '[])
     -> Either (Variable a) (syn abt a)

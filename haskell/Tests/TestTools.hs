@@ -34,6 +34,7 @@ import Text.PrettyPrint (Doc)
 
 import Data.Maybe (isJust)
 import Data.List
+import Data.Kind
 import qualified Data.Text    as T
 import qualified Data.Text.Utf8 as IO
 import Data.Typeable (Typeable)
@@ -130,7 +131,7 @@ assertAlphaEq ::
 assertAlphaEq preface a b =
    unless (alphaEq a b) (assertFailure $ mismatchMessage pretty preface a b)
 
-mismatchMessage :: forall q (k :: q -> *) . (forall a . k a -> Doc) -> String -> forall a b . k a -> k b -> String 
+mismatchMessage :: forall q (k :: q -> Type) . (forall a . k a -> Doc) -> String -> forall a b . k a -> k b -> String 
 mismatchMessage k preface a b = msg 
  where msg = concat [ p
                     , "expected:\n"

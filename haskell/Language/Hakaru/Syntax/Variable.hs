@@ -67,6 +67,7 @@ module Language.Hakaru.Syntax.Variable
 
 import           Data.Proxy        (KProxy(..))
 import           Data.Typeable     (Typeable)
+import           Data.Kind
 import           Data.Text         (Text)
 import           Data.IntMap       (IntMap)
 import qualified Data.IntMap       as IM
@@ -124,7 +125,7 @@ data Variable (a :: k) = Variable
 -- TODO: instance Read (Variable a)
 
 -- HACK: this requires UndecidableInstances
-instance Show1 (Sing :: k -> *) => Show1 (Variable :: k -> *) where
+instance Show1 (Sing :: k -> Type) => Show1 (Variable :: k -> Type) where
     showsPrec1 p (Variable hint i typ) =
         showParen (p > 9)
             ( showString "Variable "
@@ -198,7 +199,7 @@ instance Ord (Variable a) where
 -- Whichever interpretation we choose, we must make sure that typing
 -- contexts, binding environments, and so on all behave consistently.
 varEq
-    :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    :: (Show1 (Sing :: k -> Type), JmEq1 (Sing :: k -> Type))
     => Variable (a :: k)
     -> Variable (b :: k)
     -> Maybe (TypeEq a b)
@@ -234,7 +235,7 @@ varEq x y
 -- when 'varEq' chooses the second interpretation.
 data VarEqTypeError where
     VarEqTypeError
-        :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+        :: (Show1 (Sing :: k -> Type), JmEq1 (Sing :: k -> Type))
         => {-# UNPACK #-} !(Variable (a :: k))
         -> {-# UNPACK #-} !(Variable (b :: k))
         -> VarEqTypeError
@@ -279,7 +280,7 @@ type KindOf (a :: k) = ('KProxy :: KProxy k)
 
 
 -- This instance requires the 'JmEq1' and 'Show1' constraints because we use 'varEq'.
-instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *))
+instance (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type))
     => Eq (SomeVariable (kproxy :: KProxy k))
     where
     SomeVariable x == SomeVariable y =
@@ -289,7 +290,7 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *))
 
 
 -- This instance requires the 'JmEq1' and 'Show1' constraints because 'Ord' requires the 'Eq' instance, which in turn requires those constraints.
-instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *))
+instance (JmEq1 (Sing :: k -> Type), Show1 (Sing :: k -> Type))
     => Ord (SomeVariable (kproxy :: KProxy k))
     where
     SomeVariable x `compare` SomeVariable y =
@@ -299,7 +300,7 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *))
 -- TODO: instance Read SomeVariable
 
 
-instance Show1 (Sing :: k -> *)
+instance Show1 (Sing :: k -> Type)
     => Show (SomeVariable (kproxy :: KProxy k))
     where
     showsPrec p (SomeVariable v) =
@@ -314,7 +315,7 @@ instance Show1 (Sing :: k -> *)
 newtype VarSet (kproxy :: KProxy k) =
     VarSet { unVarSet :: IntMap (SomeVariable kproxy) }
 
-instance Show1 (Sing :: k -> *) => Show (VarSet (kproxy :: KProxy k)) where
+instance Show1 (Sing :: k -> Type) => Show (VarSet (kproxy :: KProxy k)) where
     showsPrec p (VarSet xs) =
         showParen (p > 9)
             ( showString "VarSet "
@@ -413,7 +414,7 @@ deleteVarSet x (VarSet xs) =
 
 
 memberVarSet
-    :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    :: (Show1 (Sing :: k -> Type), JmEq1 (Sing :: k -> Type))
     => Variable (a :: k)
     -> VarSet (kproxy :: KProxy k)
     -> Bool
@@ -431,7 +432,7 @@ memberVarSet x (VarSet xs) =
 -- different types in the set?
 unionVarSet
     :: forall k (kproxy :: KProxy k)
-    .  (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    .  (Show1 (Sing :: k -> Type), JmEq1 (Sing :: k -> Type))
     => VarSet kproxy
     -> VarSet kproxy
     -> VarSet kproxy
@@ -439,7 +440,7 @@ unionVarSet (VarSet s1) (VarSet s2) = VarSet (IM.union s1 s2)
 
 intersectVarSet
     :: forall k (kproxy :: KProxy k)
-    .  (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    .  (Show1 (Sing :: k -> Type), JmEq1 (Sing :: k -> Type))
     => VarSet kproxy
     -> VarSet kproxy
     -> VarSet kproxy
@@ -455,12 +456,12 @@ sizeVarSet (VarSet xs) = IM.size xs
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
 --
 -- | A pair of variable and term, both of the same Hakaru type.
-data Assoc (ast :: k -> *)
+data Assoc (ast :: k -> Type)
     = forall (a :: k) . Assoc
         {-# UNPACK #-} !(Variable a)
         !(ast a)
 
-instance (Show1 (Sing :: k -> *), Show1 (ast :: k -> *))
+instance (Show1 (Sing :: k -> Type), Show1 (ast :: k -> Type))
     => Show (Assoc ast)
     where
     showsPrec p (Assoc x e) =
@@ -486,7 +487,7 @@ instance (Show1 (Sing :: k -> *), Show1 (ast :: k -> *))
 -- then the implementation must be updated.
 newtype Assocs ast = Assocs { unAssocs :: IntMap (Assoc ast) }
 
-instance (Show1 (Sing :: k -> *), Show1 (ast :: k -> *))
+instance (Show1 (Sing :: k -> Type), Show1 (ast :: k -> Type))
     => Show (Assocs ast)
     where
     showsPrec p rho =
@@ -582,7 +583,7 @@ adjustAssoc x f (Assocs xs) =
 --
 -- N.B., this function is robust to all interpretations of 'varEq'.
 lookupAssoc
-    :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    :: (Show1 (Sing :: k -> Type), JmEq1 (Sing :: k -> Type))
     => Variable (a :: k)
     -> Assocs ast
     -> Maybe (ast a)
