@@ -50,7 +50,7 @@ simplifyWithOpts
 simplifyWithOpts o = sendToMaple o{command=MapleCommand Simplify}
 
 simplify'
-    :: forall abt a
+    :: forall abt
     .  (ABT Term (abt Term)) 
     => TypedAST (abt Term)  -> IO (TypedAST (abt Term))
 simplify' = sendToMaple' defaultMapleOptions{command="Simplify"}
