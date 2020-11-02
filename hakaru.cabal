@@ -3,7 +3,7 @@
 cabal-version:       >=1.16
 build-type:          Simple
 name:                hakaru
-version:             0.7.0
+version:             0.8.0
 synopsis:            A probabilistic programming language
 description:         Hakaru is a simply-typed probabilistic programming language, designed
                      for easy specification of probabilistic models, and inference algorithms.
@@ -16,7 +16,7 @@ maintainer:          ppaml@indiana.edu
 category:            Language
 -- extra-source-files:
 
-tested-with: GHC==8.10.2, GHC==8.6.4, GHC==8.4.4, GHC==8.2.2, GHC==8.0.2, GHC==7.10.3, GHC==7.8.4
+tested-with: GHC==8.10.2, GHC==8.8.4, GHC==8.6.4, GHC==8.4.4, GHC==8.2.2, GHC==8.0.2, GHC==7.10.3, GHC==7.8.4
 
 ----------------------------------------------------------------
 Source-Repository head
