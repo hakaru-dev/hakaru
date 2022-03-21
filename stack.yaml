@@ -1,4 +1,4 @@
-resolver: lts-13.15
+resolver: lts-18.28
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -9,7 +9,6 @@ packages:
 extra-deps:
  - pretty-1.1.3.6
  - logfloat-0.13.3.3
- - optparse-applicative-0.14.3.0
 
  # This pulls in about 5 additional transitive dependencies (building Cabal still takes 
  # about 80% of the compile time for the dependencies, total...)
