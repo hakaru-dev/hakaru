@@ -35,10 +35,6 @@ import           Prelude                         hiding (init, sum, product, exp
 import qualified Prelude                         as P
 import           Language.Hakaru.Runtime.CmdLine (Parseable(..), Measure(..), makeMeasure)
 
--- This Read instance really should be the logfloat package
-instance Read LogFloat where
-    readsPrec p s = [(logFloat x, r) | (x, r) <- readsPrec p s]
-
 instance Parseable LogFloat where
   parse = return . read
 
