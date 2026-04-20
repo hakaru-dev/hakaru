@@ -67,3 +67,236 @@ from uniform(5,6).
 weight(0.5, uniform(0,1)) <|>
 weight(0.5, uniform(5,6))
 ````
+# Standard Library Distributions
+
+## Discrete
+
+|<h4>benford() : *measure(real)* </h4>                                       | |
+|----------------------------------------------------------------------------|-|
+| Benford distribution                                                      |-|
+
+|<h4>bernoulli(p. *prob*): *measure(nat)* </h4>                              | |
+|----------------------------------------------------------------------------|-|
+| Bernoulli distribution                                                     |-|
+
+|<h4>betaBinomial(a. *prob*, b. *prob*, n. *nat*): *measure(nat)* </h4>      | |
+|----------------------------------------------------------------------------|-|
+| Beta-Binomial distribution                                                 |-|
+
+|<h4>betaPascal(n. *nat*, a. *prob*, b. *prob*): *measure(nat)* </h4>        | |
+|----------------------------------------------------------------------------|-|
+| Beta-Pascal distribution                                                   |-|
+
+|<h4>binomial(n. *nat*, p. *prob*): *measure(nat)* </h4>                     | |
+|----------------------------------------------------------------------------|-|
+| Binomial distribution                                                      |-|
+
+|<h4>natUniform(n1. *nat*, n1. *nat*): *measure(nat)* </h4>                  | |
+|----------------------------------------------------------------------------|-|
+| Discrete Uniform distribution                                              |-|
+
+|<h4>intUniform(n1. *int*, n1. *int*): *measure(int)* </h4>                  | |
+|----------------------------------------------------------------------------|-|
+| Integer Uniform distribution                                               |-|
+
+|<h4>discreteWeibull(p. *prob*, beta. *prob*): *measure(int)* </h4>            | |
+|------------------------------------------------------------------------------|-|
+| Discrete Weibull distribution                                                |-|
+
+|<h4>gammaPoisson(shape. *prob*, scale. *prob*): *measure(prob)* </h4>       | |
+|----------------------------------------------------------------------------|-|
+| Gamma-Poisson distribution                                                 |-|
+
+|<h4>geometric(p. *prob*): *measure(nat)* </h4>                                | |
+|------------------------------------------------------------------------------|-|
+| Geometric distribution                                                       |-|
+
+|<h4>hyperGeo(n. *nat*, k. *nat*, r. *nat*): *measure(nat)* </h4>              | |
+|------------------------------------------------------------------------------|-|
+| Hypergeometric distribution                                                  |-|
+
+|<h4>logarithm(c. *prob*): *measure(int)* </h4>                                | |
+|------------------------------------------------------------------------------|-|
+| Logarithm distribution                                                       |-|
+
+|<h4>negativeHyperGeometric(n. *nat*, k. *nat*, r. *nat*): *measure(nat)* </h4>| |
+|------------------------------------------------------------------------------|-|
+| Negative Hypergeometric distribution                                         |-|
+
+|<h4>pascal(n. *nat*, p. *prob*): *measure(nat)* </h4>                         | |
+|------------------------------------------------------------------------------|-|
+| Pascal distribution                                                          |-|
+
+|<h4>polya(n. *nat*, p. *prob*, beta. *prob*): *measure(nat)* </h4>            | |
+|------------------------------------------------------------------------------|-|
+| Polya distribution                                                           |-|
+
+|<h4>powerSeries(a. *prob*, c. *prob*): *measure(nat)* </h4>                   | |
+|------------------------------------------------------------------------------|-|
+| Power Series distribution                                                    |-|
+
+|<h4>zeta(alpha. *prob*): *measure(nat)* </h4>                                 | |
+|------------------------------------------------------------------------------|-|
+| Zeta distribution                                                            |-|
+
+## Continuous
+
+|<h4>arcsin(): *measure(prob)* </h4>                                         | |
+|----------------------------------------------------------------------------|-|
+| Arcsine distribution                                                       |-|
+
+|<h4>cauchy(a. *real*, alpha. *prob*): *measure(real)*</h4>                  | |
+|----------------------------------------------------------------------------|-|
+| Cauchy distribution                                                        |-|
+
+|<h4>chi(means. *array(real)*, stdevs. *array(prob)*): *measure(prob)* </h4>  | |
+|-----------------------------------------------------------------------------|-|
+| Chi distribution                                                            |-|
+
+|<h4>chi(means. *array(real)*, stdevs. *array(prob)*): *measure(prob)* </h4>  | |
+|-----------------------------------------------------------------------------|-|
+| Chi Square distribution                                                     |-|
+
+|<h4>erlang(shape. *prob*, scale. *nat*) : *measure(prob)* </h4>             | |
+|----------------------------------------------------------------------------|-|
+| Erlang distribution                                                        |-|
+
+|<h4>exponential(alpha. *prob*) : *measure(prob)* </h4>                      | |
+|----------------------------------------------------------------------------|-|
+| Exponential distribution                                                   |-|
+
+|<h4>exponentialPower(lambda. *prob*, kappa. *prob*): *measure(prob)* </h4>  | |
+|----------------------------------------------------------------------------|-|
+| Exponential Power distribution                                             |-|
+
+|<h4>extremeValue(alpha. *prob*, beta. *prob*) : *measure(real)* </h4>       | |
+|----------------------------------------------------------------------------|-|
+| Extreme Value distribution                                                 |-|
+
+|<h4>F(n1. *nat*, n2. *nat*): *measure(nat)* </h4>                           | |
+|----------------------------------------------------------------------------|-|
+| F distribution                                                             |-|
+
+|<h4>T(n. *nat* ): *measure(nat)* </h4>                                      | |
+|----------------------------------------------------------------------------|-|
+| T distribution                                                             |-|
+
+|<h4>gammaNormal(mu. *real*, alpha. *prob*, beta. *prob*) : *measure(real)* </h4>| |
+|--------------------------------------------------------------------------------|-|
+| Gamma-Normal distribution                                                      |-|
+
+|<h4>generalizedPareto(delta. *prob*, kappa. *prob*, gamma. *prob*) : *measure(prob)* </h4>| |
+|------------------------------------------------------------------------------------------|-|
+| Generalized Pareto distribution                                                          |-|
+
+|<h4>gompertz(delta. *prob*, kappa. *prob*) : *measure(prob)* </h4>          | |
+|----------------------------------------------------------------------------|-|
+| Gompertz distribution                                                      |-|
+
+|<h4>hyperbolicSecant(): *measure(real)* </h4>                               | |
+|----------------------------------------------------------------------------|-|
+| Hyperbolic Secant distribution                                             |-|
+
+|<h4>hyperexponential(alpha. *array(prob)*, p. *array(prob)*: *measure(prob)* </h4>| |
+|----------------------------------------------------------------------------------|-|
+| Hyperexponential distribution                                                    |-|
+
+|<h4>hypoexponential(alpha. *array(prob)*): *measure(prob)* </h4>            | |
+|----------------------------------------------------------------------------|-|
+| Hyperexponential distribution                                              |-|
+
+|<h4>IDB(delta. *prob*, kappa. *prob*, gamma. *prob*) : *measure(prob)* </h4>| |
+|----------------------------------------------------------------------------|-|
+| IDB distribution                                                           |-|
+
+|<h4>invGaussian(lambda. *prob*, mu. *prob*): *measure(prob)* </h4>          | |
+|----------------------------------------------------------------------------|-|
+| Inverted Gaussian distribution                                             |-|
+
+|<h4>invBeta(a. *prob*, b. *prob*): *measure(prob)* </h4>                    | |
+|----------------------------------------------------------------------------|-|
+| Inverted Beta distribution                                                 |-|
+
+|<h4>invGamma(shape. *prob*, scale. *prob*) : *measure(prob)* </h4>          | |
+|----------------------------------------------------------------------------|-|
+| Inverted Gamma distribution                                                |-|
+
+|<h4>laplace(alpha. *prob*, beta. *prob*) : *measure(real)* </h4>            | |
+|----------------------------------------------------------------------------|-|
+| Laplace distribution                                                       |-|
+
+|<h4>logGamma(alpha. *prob*, beta. *prob*) : *measure(real)* </h4>           | |
+|----------------------------------------------------------------------------|-|
+| Log Gamma distribution                                                     |-|
+
+|<h4>log_logistic(lambda. *prob*, kappa. *prob*): *measure(prob)* </h4>      | |
+|----------------------------------------------------------------------------|-|
+| Log Logistic distribution                                                  |-|
+
+|<h4>logistic(lambda. *prob*, kappa. *prob*): *measure(prob)* </h4>          | |
+|----------------------------------------------------------------------------|-|
+| Logistic distribution                                                      |-|
+
+|<h4>logisticExponential(lambda. *prob*, kappa. *prob*): *measure(prob)* </h4>| |
+|-----------------------------------------------------------------------------|-|
+| Logistic Exponential distribution                                           |-|
+
+|<h4>lomax(lambda. *prob*, kappa. *prob*): *measure(prob)* </h4>             | |
+|----------------------------------------------------------------------------|-|
+| Lomax distribution                                                         |-|
+
+|<h4>makeham(delta. *prob*, kappa. *prob*, gamma. *prob*) : *measure(prob)* </h4>| |
+|--------------------------------------------------------------------------------|-|
+| Makeham distribution                                                           |-|
+
+|<h4>minimax(beta. *prob*, gamma. *prob*): *measure(prob)* </h4>             | |
+|----------------------------------------------------------------------------|-|
+| Minimax distribution                                                       |-|
+
+|<h4>nonCentralChiSq(means. *array(real)*, stdevs. *array(prob)*): *measure(prob)* </h4>| |
+|---------------------------------------------------------------------------------------|-|
+| Noncentral Chi Square distribution                                                    |-|
+
+|<h4>nonCentralT(n. *nat*, delta. *prob*): *measure(prob)* </h4>             | |
+|----------------------------------------------------------------------------|-|
+| Noncentral T distribution                                                  |-|
+
+|<h4>pareto(lambda. *prob*, kappa. *prob*) : *measure(prob)* </h4>           | |
+|----------------------------------------------------------------------------|-|
+| Pareto distribution                                                        |-|
+
+|<h4>power(alpha. *prob*, beta. *prob*) : *measure(prob)* </h4>              | |
+|----------------------------------------------------------------------------|-|
+| Power distribution                                                         |-|
+
+|<h4>rayleigh(alpha. *prob*) : *measure(prob)* </h4>                         | |
+|----------------------------------------------------------------------------|-|
+| Rayleigh distribution                                                      |-|
+
+|<h4>stdCauchy() : *measure(real)* </h4>                                     | |
+|----------------------------------------------------------------------------|-|
+| Standard Cauchy distribution                                               |-|
+
+|<h4>stdNormal() : *measure(real)* </h4>                                     | |
+|----------------------------------------------------------------------------|-|
+| Standard Normal distribution                                               |-|
+
+|<h4>standardPower(beta. *prob*) : *measure(prob)* </h4>                     | |
+|----------------------------------------------------------------------------|-|
+| Standard Power distribution                                                |-|
+
+|<h4>stdTriangle() : *measure(real)* </h4>                                   | |
+|----------------------------------------------------------------------------|-|
+| Standard Triangular distribution                                           |-|
+
+|<h4>stdWald(lambda. *prob*): *measure(prob)* </h4>                          | |
+|----------------------------------------------------------------------------|-|
+| Standard Wald distribution                                                 |-|
+
+|<h4>triangle(a. *real*, m. *real*, b. *real*) : *measure(real)* </h4>       | |
+|----------------------------------------------------------------------------|-|
+| Triangular distribution                                                    |-|
+
+|<h4>weibull(alpha. *prob*, beta. *prob*) : *measure(prob)* </h4>            | |
+|----------------------------------------------------------------------------|-|
+| Weibull distribution                                                       |-|
